@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- ╔══════════════════════════════════════════════════════════╗ -->
+  <!-- ║  CONSOLA: colores tipo Allure, compacto y legible        ║ -->
+  <!-- ╚══════════════════════════════════════════════════════════╝ -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <!-- ANSI colors:
+           %highlight = rojo ERROR / amarillo WARN / blanco INFO
+           Marca de tiempo en gris, logger abreviado en cyan -->
+      <pattern>%d{HH:mm:ss} %highlight(%-5level) %cyan(%logger{22}) %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <!-- ╔══════════════════════════════════════════════════════════╗ -->
+  <!-- ║  ARCHIVO: scraper.log rolling por fecha, sin colores     ║ -->
+  <!-- ╚══════════════════════════════════════════════════════════╝ -->
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>scraper.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>scraper.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>50MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{25} - %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <!-- ══ Nuestro código: INFO en consola Y archivo ══ -->
+  <logger name="ar.scraper" level="INFO" additivity="false">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="FILE"/>
+  </logger>
+
+  <!-- ══ Spring/Tomcat: solo WARN en consola ══ -->
+  <logger name="org.springframework"         level="WARN"  additivity="false"><appender-ref ref="CONSOLE"/></logger>
+  <logger name="org.apache.catalina"         level="WARN"  additivity="false"><appender-ref ref="CONSOLE"/></logger>
+  <logger name="org.apache.tomcat"           level="WARN"  additivity="false"><appender-ref ref="CONSOLE"/></logger>
+  <logger name="com.microsoft.playwright"    level="ERROR" additivity="false"><appender-ref ref="CONSOLE"/></logger>
+  <logger name="com.microsoft"               level="ERROR" additivity="false"><appender-ref ref="CONSOLE"/></logger>
+
+  <root level="WARN">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+
+</configuration>
