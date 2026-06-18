@@ -3,6 +3,7 @@ package ar.scraper.aggregator;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
+import ar.scraper.ml.SenalEnricher;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +22,7 @@ public class ResultAggregator {
     private final NormalizerService normalizer;
     private final PythonRunner      pythonRunner;
     private final MlEnricher        mlEnricher;
+    private final SenalEnricher     senalEnricher;
     private final DatabaseService   db;
 
     // Estado del último run — leído por ScraperService sin inyección circular
@@ -30,11 +32,13 @@ public class ResultAggregator {
     public ResultAggregator(NormalizerService normalizer,
                             PythonRunner      pythonRunner,
                             MlEnricher        mlEnricher,
+                            SenalEnricher     senalEnricher,
                             DatabaseService   db) {
-        this.normalizer   = normalizer;
-        this.pythonRunner = pythonRunner;
-        this.mlEnricher   = mlEnricher;
-        this.db           = db;
+        this.normalizer    = normalizer;
+        this.pythonRunner  = pythonRunner;
+        this.mlEnricher    = mlEnricher;
+        this.senalEnricher = senalEnricher;
+        this.db            = db;
     }
 
     // ─── Accessors ───────────────────────────────────────────────────────────
@@ -121,24 +125,28 @@ public class ResultAggregator {
         lastCatRefinadas = catRefinadas;
         LOG.info("[ML] Categorías persistidas en DB: {}", catRefinadas);
 
-        // Facets, stats, persistencia
-        Facets facets = calcularFacets(enriquecidos);
-        double minP   = enriquecidos.isEmpty() ? 0 : enriquecidos.get(0).precio();
-        double maxP   = enriquecidos.isEmpty() ? 0 : enriquecidos.get(enriquecidos.size()-1).precio();
-
         db.upsertProductos(enriquecidos);
         db.guardarMlOutput(mlOut);
         if (mlOut != null && !mlOut.path("categoriaStats").isMissingNode())
             db.guardarCategoriaStats(mlOut.path("categoriaStats"));
 
-        LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", todos.size(), enriquecidos.size());
+        // Precompute señal de compra (post-upsert: requiere que el historial de
+        // precios de este run ya esté persistido en precio_historico)
+        List<Product> conSenal = senalEnricher.enriquecer(enriquecidos);
+
+        // Facets, stats
+        Facets facets = calcularFacets(conSenal);
+        double minP   = conSenal.isEmpty() ? 0 : conSenal.get(0).precio();
+        double maxP   = conSenal.isEmpty() ? 0 : conSenal.get(conSenal.size()-1).precio();
+
+        LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", todos.size(), conSenal.size());
 
         // Entrenamiento background post-scraping
         String dbPath = System.getProperty("user.dir") + java.io.File.separator + "scraper.db";
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(dbPath, forceRetrain);
 
-        return new AggregatedResult(enriquecidos, conteo, errores, facets, minP, maxP);
+        return new AggregatedResult(conSenal, conteo, errores, facets, minP, maxP);
     }
 
     public AggregatedResult agregar(List<ScrapeResult> resultados) {
@@ -219,12 +227,21 @@ public class ResultAggregator {
         return normalizer.normalizar(productos);
     }
 
+    /**
+     * Reconstruye un {@link AggregatedResult} desde productos cargados de la DB
+     * (startup/restart o tras un rescrape parcial de favoritos). A diferencia de
+     * {@link #agregar}, este camino NO corre el pipeline ML — pero SÍ debe correr
+     * {@link SenalEnricher}, porque de lo contrario el badge de señal de compra
+     * quedaría vacío en el grid hasta el próximo scrape completo.
+     */
     public AggregatedResult fromDB(List<Product> productos) {
+        List<Product> conSenal = senalEnricher.enriquecer(productos);
+
         Map<String, Integer> conteo = new LinkedHashMap<>();
-        productos.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
-        Facets facets = calcularFacets(productos);
-        double minP = productos.isEmpty() ? 0 : productos.get(0).precio();
-        double maxP = productos.isEmpty() ? 0 : productos.get(productos.size()-1).precio();
-        return new AggregatedResult(productos, conteo, Map.of(), facets, minP, maxP);
+        conSenal.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
+        Facets facets = calcularFacets(conSenal);
+        double minP = conSenal.isEmpty() ? 0 : conSenal.get(0).precio();
+        double maxP = conSenal.isEmpty() ? 0 : conSenal.get(conSenal.size()-1).precio();
+        return new AggregatedResult(conSenal, conteo, Map.of(), facets, minP, maxP);
     }
 }
