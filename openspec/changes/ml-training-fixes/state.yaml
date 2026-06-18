@@ -1,0 +1,14 @@
+change: ml-training-fixes
+artifact_store: openspec
+status: proposed
+phases_completed:
+  - explore
+  - propose
+  - spec
+  - design
+  - tasks
+  - apply
+phases_pending:
+  - verify
+  - archive
+created_at: "2026-06-16"

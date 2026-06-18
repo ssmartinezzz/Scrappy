@@ -1,0 +1,1 @@
+(Delta spec copied to archive on 2026-06-18 — reflects the MODIFIED and ADDED requirements that were merged into openspec/specs/outfit-feedback/spec.md)

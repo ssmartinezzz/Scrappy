@@ -1,0 +1,72 @@
+schema: spec-driven
+version: "1.0"
+project: fashion-scraper-new
+initialized: "2026-06-15"
+
+context: |
+  Tech stack:
+    - Backend: Java 21 + Spring Boot 3.2.5 + Tomcat (embedded on localhost:3000)
+    - Frontend: HTML/CSS/JS vanilla (SPA)
+    - Database: SQLite (scraper.db)
+    - ML Pipeline: Python 3.11 embedded (subprocess from Java)
+    - Build: Maven + Spring Boot Maven Plugin (fat JAR)
+    - Web Scraping: Playwright 1.44 + Page Object Model pattern
+
+  Architecture:
+    - Headless clothing/fashion e-commerce scraper (Argentina focus)
+    - Supports multiple platform types: Shopify, VTEX, TiendaNube, Custom Rails (Vaypol/City), WooCommerce
+    - ML enrichment: price percentile, real-vs-cosmetic offers, TF-IDF clustering
+    - Single-command Windows installer/executor (INSTALAR_Y_CORRER.bat)
+
+  Testing:
+    - Strict TDD Mode: DISABLED (no test infrastructure configured)
+    - Note: pom.xml does not include spring-boot-starter-test, JUnit, or Mockito
+    - No scraper/src/test directory exists
+    - User's global config requests Strict TDD Mode enabled, but cannot activate without test setup
+    - Recommendation: add spring-boot-starter-test to pom.xml and create test suite to enable TDD
+
+  Conventions:
+    - Version format: fashion-scraper-vN[letter].zip (hotfixes use letter suffix)
+    - SDD mandatory before coding: spec → user approval → implement (model → service → api → frontend)
+    - Critical escaping rule for Java strings with JS: use \\d, \\s for regex; single quotes for embedded JS
+    - Adding new scrapers: touch 4 files (config.properties, ScraperFactory, optional *Page.java, optional *Scraper.java)
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Specify which scrapers/endpoints are affected
+  specs:
+    - Use Given/When/Then for API scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Document SQL schema changes if any
+  design:
+    - Include sequence diagrams for complex scraper flows
+    - Document new Page Object Model classes if adding scrapers
+    - Architecture decision records (ADRs) for structural changes
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one 2-hour session
+    - Java tasks: unit test (if test setup exists), implementation, integration
+    - Python tasks: add to ml_pipeline.py, test with sample json, verify output schema
+  apply:
+    - Follow existing code patterns (Page Object Model for scrapers, Service layer pattern)
+    - Update docs/ if adding new scraper or changing API
+    - Test fat JAR generation: mvn -f scraper/pom.xml clean package -DskipTests
+    - Frontend SPA updates: no build step (vanilla JS, CSS changes only)
+    - Python ML updates: validate with ml_train.py before committing
+    tdd: false
+    test_command: ""
+  verify:
+    - Fat JAR builds cleanly (mvn -f scraper/pom.xml clean package)
+    - Frontend loads at localhost:3000 without console errors (manual verification)
+    - ML pipeline handles sample json correctly (python ml_pipeline.py with test data)
+    test_command: ""
+    build_command: "mvn -f scraper/pom.xml clean package -DskipTests"
+    coverage_threshold: 0
+
+artifact_store:
+  mode: openspec
+  directory: openspec
+  specs_root: openspec/specs
+  changes_root: openspec/changes
+  archive_root: openspec/changes/archive

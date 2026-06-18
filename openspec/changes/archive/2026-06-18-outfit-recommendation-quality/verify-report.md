@@ -1,0 +1,1 @@
+(File copied to archive on 2026-06-18 — full content identical to source at openspec/changes/outfit-recommendation-quality/verify-report.md)
