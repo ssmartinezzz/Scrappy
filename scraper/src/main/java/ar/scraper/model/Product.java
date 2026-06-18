@@ -61,4 +61,17 @@ public record Product(
             this(scoreP, badge, ofertaReal, tendencia, pctilCategoria, 0.0, "standard");
         }
     }
+
+    /**
+     * Precomputed buy-signal classification (mirrors {@link MlScore}'s
+     * precompute-at-scrape-time pattern). Produced by
+     * {@code ar.scraper.ml.SenalCalculator}, the same classification logic
+     * previously inline in {@code ApiController.recomendacion}.
+     */
+    public record SenalCompra(
+            String senal,
+            int    scoreCompra
+    ) {
+        public static final SenalCompra EMPTY = new SenalCompra("sin_datos", 50);
+    }
 }
