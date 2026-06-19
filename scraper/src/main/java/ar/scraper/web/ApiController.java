@@ -286,6 +286,12 @@ public class ApiController {
                 ml.put("zScore",     p.ml().zScore());
                 ml.put("segment",    p.ml().segment() != null ? p.ml().segment() : "standard");
             }
+            // Señal de compra precomputada — siempre presente (sin_datos incluido)
+            // para que el frontend decida ocultar el badge sin necesitar un fetch extra.
+            Product.SenalCompra senal = p.senal() != null ? p.senal() : Product.SenalCompra.EMPTY;
+            ObjectNode senalNode = n.putObject("senal");
+            senalNode.put("senal",       senal.senal());
+            senalNode.put("scoreCompra", senal.scoreCompra());
         }
 
         return ResponseEntity.ok(root);
