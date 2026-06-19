@@ -219,6 +219,7 @@ export async function fetchOutfit(genero) {
   return r.ok ? r.json() : null;
 }
 
+// body shape: { genero, items: [{ slot, url, liked }] } — one POST per rated item (per-item feedback contract).
 export async function sendOutfitFeedback(body) {
   const r = await fetch(`${BASE}/api/outfits/feedback`, {
     method: 'POST',

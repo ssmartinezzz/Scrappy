@@ -414,7 +414,7 @@ public class NormalizerService {
         "Lacoste","Tommy","Calvin Klein","Levi's","Levis","Wrangler",
         "Champion","Kappa","Ellesse","Le Coq Sportif","Fred Perry",
         "Caterpillar","Keen","Palladium","Crocs","Birkenstock",
-        "Harvey Willys","Harvey"
+        "Bulks","Fuark","Harvey Willys","Harvey"
     );
 
     // ══════════════════════════════════════════════════════════════════
