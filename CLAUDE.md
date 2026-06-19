@@ -91,6 +91,7 @@ fashion-scraper-new/
 | Sporting | VTEX Legacy | sporting.com.ar | ✅ ~2400 productos |
 | Vaypol | Custom Rails SSR | vaypol.com.ar | ✅ ~600-1000 (fotos incompletas) |
 | City | Custom Rails SSR | somoscity.com.ar | ✅ ~655 productos (fotos incompletas) |
+| Harvey Willys | TN (catch-all default) | harveywillys.com | ✅ onboardeado (precio $15k-$175k, dentro del cap global) |
 
 ---
 
@@ -206,9 +207,9 @@ record Product(
 | TN stores solo 12 productos | `nextPageUrl()` no encuentra link de siguiente página en ciertos temas | Parcialmente resuelto (URL fallback) |
 | Vans 0 productos | Plataforma Grimoldi (custom, CDN mmgrim2) | Pendiente investigación API |
 | DC Shoes (nuevo) | WooCommerce, precios "ARS209 175" | Implementado v25d |
-| Harvey Willys 0 productos | Precio > $300k | Desactivado por diseño |
 | Clasificación oferta_real inconsistente | `safe_price` puede parsear mal ciertos formatos | Pendiente fix ML |
 | Panel Tendencias badges repetidos en clusters | Bigrams mejoraron pero aún hay duplicados | Parcialmente resuelto |
+| Eldon 0 productos (intermittent) | `TargetClosedError` de Playwright en pagina intermedia abortaba todo el run sin try/catch por-página en `scrapeJs()` | Resuelto — ahora corta paginación y conserva productos ya acumulados |
 
 ---
 
