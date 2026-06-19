@@ -17,7 +17,8 @@ public record Product(
         String rubro,         // "indumentaria" | "tecnologia" | "suplementos"
         boolean gymrat,       // tag transversal aditivo (no altera categoria/rubro)
         boolean marcaPremium, // tag transversal aditivo (no altera categoria/rubro/badge)
-        SenalCompra senal     // precomputed buy-signal (mirrors MlScore precompute pattern)
+        SenalCompra senal,    // precomputed buy-signal (mirrors MlScore precompute pattern)
+        SenalFinanciacion finan // precomputed financing signal (independent from senal/scoreCompra)
 ) implements Comparable<Product> {
 
     // ── Constructors legacy (retrocompatibles) ──────────────────────────────
@@ -25,25 +26,44 @@ public record Product(
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, MlScore.EMPTY, "", "indumentaria", false, false, SenalCompra.EMPTY);
+             categoria, genero, talles, MlScore.EMPTY, "", "indumentaria", false, false,
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles, MlScore ml) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, "", "indumentaria", false, false, SenalCompra.EMPTY);
+             categoria, genero, talles, ml, "", "indumentaria", false, false,
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles, MlScore ml, String marca) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, "indumentaria", false, false, SenalCompra.EMPTY);
+             categoria, genero, talles, ml, marca, "indumentaria", false, false,
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles, MlScore ml, String marca, String rubro, boolean gymrat) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, rubro, gymrat, false, SenalCompra.EMPTY);
+             categoria, genero, talles, ml, marca, rubro, gymrat, false,
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+    }
+
+    /**
+     * Legacy 15-arg shape (the canonical constructor BEFORE {@code finan} was
+     * added as the 16th component). Preserves source compatibility for the
+     * ~12 call sites that build a {@code Product} up to {@code senal} only;
+     * defaults the new financing signal to {@link SenalFinanciacion#EMPTY}.
+     */
+    public Product(String sitio, String nombre, double precio, String precioOriginal,
+                   String url, String imagenUrl, String categoria, String genero,
+                   List<String> talles, MlScore ml, String marca, String rubro,
+                   boolean gymrat, boolean marcaPremium, SenalCompra senal) {
+        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
+             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
+             senal, SenalFinanciacion.EMPTY);
     }
 
     @Override
@@ -82,5 +102,24 @@ public record Product(
             int    scoreCompra
     ) {
         public static final SenalCompra EMPTY = new SenalCompra("sin_datos", 50);
+    }
+
+    /**
+     * Precomputed financing signal ("¿conviene en cuotas?") — fully
+     * independent from {@link SenalCompra}/{@code scoreCompra}. Produced by
+     * {@code ar.scraper.ml.FinanciacionCalculator} from the active
+     * financing preset's surcharge/installment count and the current
+     * monthly inflation rate.
+     */
+    public record SenalFinanciacion(
+            String senal,
+            double ahorroReal,
+            double vp,
+            double cuota,
+            int    cuotas,
+            double recargoPct
+    ) {
+        public static final SenalFinanciacion EMPTY =
+            new SenalFinanciacion("sin_datos", 0, 0, 0, 0, 0);
     }
 }

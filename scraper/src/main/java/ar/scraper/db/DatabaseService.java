@@ -542,7 +542,8 @@ st.executeUpdate("""
                 rs.getString("categoria"), rs.getString("genero"),
                 talles, ml, marca != null ? marca : "",
                 rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
-                gymrat, marcaPremium, Product.SenalCompra.EMPTY);
+                gymrat, marcaPremium, Product.SenalCompra.EMPTY,
+                Product.SenalFinanciacion.EMPTY);
     }
 
     // ─── ML Output ──────────────────────────────────────────────────────────
