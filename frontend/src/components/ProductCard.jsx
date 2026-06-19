@@ -1,10 +1,28 @@
 import { memo } from 'react';
 import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
+import { SEÑAL_CONFIG } from '../senalConfig';
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
 function gymSubcat(product) {
   if (!product || !product.gymrat) return null;
   return (product.categoria ? product.categoria : 'Ropa') + ' Gym';
+}
+
+// Badge compacto de señal de compra — sourced del precompute embebido en /api/data.
+// Sin request adicional. Oculto cuando no hay señal confiable (null/sin_datos).
+function SenalBadge({ senal }) {
+  if (!senal || !senal.senal || senal.senal === 'sin_datos') return null;
+  const cfg = SEÑAL_CONFIG[senal.senal];
+  if (!cfg) return null;
+  return (
+    <span
+      className="badge-senal"
+      style={{ background: cfg.bg, borderColor: cfg.border, color: 'var(--t1)' }}
+      title={`${cfg.label} · ${senal.scoreCompra}/100`}
+    >
+      {cfg.icon} {senal.scoreCompra}
+    </span>
+  );
 }
 
 // Barra de posición en la distribución (si tenemos stats de categoría)
@@ -75,6 +93,7 @@ const ProductCard = memo(function ProductCard({
         {gymSubcat(p) && (
           <span className="badge-gymrat">🏋️ {gymSubcat(p)}</span>
         )}
+        <SenalBadge senal={p.senal} />
 
         <p className="card-name">{p.nombre}</p>
 
