@@ -291,7 +291,7 @@ st.executeUpdate("""
         if (conn == null) return result;
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(
-                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at")) {
+                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
             while (rs.next()) {
                 result.add(new Preset(
                         rs.getInt("id"), rs.getString("label"),
@@ -320,9 +320,17 @@ st.executeUpdate("""
         return Optional.empty();
     }
 
-    /** Crea un preset nuevo, inactivo por defecto. Retorna el id generado, o -1 en error. */
+    /**
+     * Crea un preset nuevo, inactivo por defecto. Retorna el id generado, o -1 en
+     * error o si {@code cuotas}/{@code recargoPct} son inválidos (mismo criterio
+     * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
+     */
     public int crearPreset(String label, double recargoPct, int cuotas) {
         if (conn == null) return -1;
+        if (cuotas <= 0 || recargoPct <= -100) {
+            LOG.warn("[DB] crearPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
+            return -1;
+        }
         try {
             int id = crearPresetInterno(label, recargoPct, cuotas, false);
             conn.commit();
@@ -334,9 +342,18 @@ st.executeUpdate("""
         }
     }
 
-    /** Edita label/recargoPct/cuotas de un preset existente. No altera su estado activo. */
-    public void editarPreset(int id, String label, double recargoPct, int cuotas) {
-        if (conn == null) return;
+    /**
+     * Edita label/recargoPct/cuotas de un preset existente. No altera su estado activo.
+     * Retorna {@code false} sin persistir si {@code cuotas}/{@code recargoPct} son
+     * inválidos (mismo criterio que {@code FinanciacionCalculator.compute}: cuotas&gt;0
+     * y recargoPct&gt;-100), o si ocurre un error.
+     */
+    public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
+        if (conn == null) return false;
+        if (cuotas <= 0 || recargoPct <= -100) {
+            LOG.warn("[DB] editarPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
+            return false;
+        }
         try (PreparedStatement ps = conn.prepareStatement("""
                 UPDATE financiacion_presets SET label=?, recargo_pct=?, cuotas=? WHERE id=?
                 """)) {
@@ -344,28 +361,45 @@ st.executeUpdate("""
             ps.setDouble(2, recargoPct);
             ps.setInt(3, cuotas);
             ps.setInt(4, id);
-            ps.executeUpdate();
+            int filasEditadas = ps.executeUpdate();
+            if (filasEditadas == 0) {
+                LOG.warn("[DB] editarPreset: id {} no existe.", id);
+                return false;
+            }
             conn.commit();
+            return true;
         } catch (Exception e) {
             LOG.warn("[DB] Error editando preset {}: {}", id, e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
         }
     }
 
-    /** Activa el preset {@code id} y desactiva todos los demás, de forma transaccional. */
-    public void activarPreset(int id) {
-        if (conn == null) return;
+    /**
+     * Activa el preset {@code id} y desactiva todos los demás, de forma transaccional.
+     * Retorna {@code false} (y revierte la desactivación) si {@code id} no existe —
+     * evita quedar sin ningún preset activo por un id inválido/obsoleto.
+     */
+    public boolean activarPreset(int id) {
+        if (conn == null) return false;
         try (PreparedStatement psOff = conn.prepareStatement(
                 "UPDATE financiacion_presets SET activo=0 WHERE activo=1");
              PreparedStatement psOn = conn.prepareStatement(
                 "UPDATE financiacion_presets SET activo=1 WHERE id=?")) {
             psOff.executeUpdate();
             psOn.setInt(1, id);
-            psOn.executeUpdate();
+            int filasActivadas = psOn.executeUpdate();
+            if (filasActivadas == 0) {
+                LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
+                conn.rollback();
+                return false;
+            }
             conn.commit();
+            return true;
         } catch (Exception e) {
             LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
         }
     }
 
@@ -390,13 +424,14 @@ st.executeUpdate("""
                 total = rs.next() ? rs.getInt(1) : 0;
             }
 
+            int filasBorradas;
             try (PreparedStatement ps = conn.prepareStatement(
                     "DELETE FROM financiacion_presets WHERE id=?")) {
                 ps.setInt(1, id);
-                ps.executeUpdate();
+                filasBorradas = ps.executeUpdate();
             }
 
-            if (total <= 1) {
+            if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
                 crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
                         PRESET_ILUSTRATIVO_CUOTAS, true);
                 LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
