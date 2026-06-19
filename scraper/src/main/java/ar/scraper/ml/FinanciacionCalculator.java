@@ -32,14 +32,19 @@ public final class FinanciacionCalculator {
      * inflation rate.
      *
      * @param precioContado cash price; must be &gt; 0 or {@link SenalFinanciacion#EMPTY} is returned
-     * @param recargoPct    installment surcharge percent (e.g. 40 for +40%); may be negative (a discount)
+     * @param recargoPct    installment surcharge percent (e.g. 40 for +40%); may be negative (a discount),
+     *                      but must be &gt; -100 or {@link SenalFinanciacion#EMPTY} is returned (a &lt;= -100%
+     *                      surcharge yields a non-positive {@code precioCuotas}, which is not a realistic offer)
      * @param cuotas        number of installments ({@code n}); must be &gt; 0 or {@link SenalFinanciacion#EMPTY} is returned
-     * @param iMensual      monthly inflation rate already divided by 100 (e.g. 0.035 for 3.5%); may be &lt;= 0
+     * @param iMensual      monthly inflation rate already divided by 100 (e.g. 0.035 for 3.5%); may be &lt;= 0,
+     *                      but must be &gt; -1.0 or {@link SenalFinanciacion#EMPTY} is returned (at exactly -1.0
+     *                      the VP loop divides by zero; below -1.0 the {@code Math.pow} base goes negative)
      * @return the resolved {@link SenalFinanciacion}; {@link SenalFinanciacion#EMPTY} ("sin_datos")
-     *         when there is no active preset, {@code cuotas <= 0}, or {@code precioContado <= 0}
+     *         when there is no active preset, {@code cuotas <= 0}, {@code precioContado <= 0},
+     *         {@code recargoPct <= -100}, or {@code iMensual <= -1.0}
      */
     public static SenalFinanciacion compute(double precioContado, double recargoPct, int cuotas, double iMensual) {
-        if (precioContado <= 0 || cuotas <= 0) {
+        if (precioContado <= 0 || cuotas <= 0 || recargoPct <= -100 || iMensual <= -1.0) {
             return SenalFinanciacion.EMPTY;
         }
 

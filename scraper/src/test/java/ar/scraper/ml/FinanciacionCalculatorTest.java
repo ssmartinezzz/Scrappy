@@ -127,4 +127,37 @@ class FinanciacionCalculatorTest {
 
         assertThat(result).isEqualTo(SenalFinanciacion.EMPTY);
     }
+
+    @Test
+    void iMensualExactlyMinusOneReturnsEmptyWithoutDivisionByZero() {
+        // At iMensual == -1.0, (1 + iMensual)^k == 0 -> cuota/0 == Infinity. Must be guarded.
+        SenalFinanciacion result = FinanciacionCalculator.compute(100000, 40, 12, -1.0);
+
+        assertThat(result).isEqualTo(SenalFinanciacion.EMPTY);
+    }
+
+    @Test
+    void iMensualBelowMinusOneReturnsEmpty() {
+        // Below -1.0, (1 + iMensual) is negative, so Math.pow alternates sign per term,
+        // producing nonsensical large-magnitude ahorroReal values. Must be guarded.
+        SenalFinanciacion result = FinanciacionCalculator.compute(100000, 40, 12, -1.5);
+
+        assertThat(result).isEqualTo(SenalFinanciacion.EMPTY);
+    }
+
+    @Test
+    void recargoPctAtNegative100ReturnsEmpty() {
+        // recargoPct == -100 -> precioCuotas == 0 -> cuota == 0, not a realistic financing offer.
+        SenalFinanciacion result = FinanciacionCalculator.compute(100000, -100, 12, 0.035);
+
+        assertThat(result).isEqualTo(SenalFinanciacion.EMPTY);
+    }
+
+    @Test
+    void recargoPctBelowNegative100ReturnsEmpty() {
+        // recargoPct < -100 -> precioCuotas negative, not a realistic financing offer.
+        SenalFinanciacion result = FinanciacionCalculator.compute(100000, -150, 12, 0.035);
+
+        assertThat(result).isEqualTo(SenalFinanciacion.EMPTY);
+    }
 }
