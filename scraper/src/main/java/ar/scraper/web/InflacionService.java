@@ -169,14 +169,26 @@ public class InflacionService {
      * Si no hay datos usa la inflación mensual promedio.
      */
     public double ajustarPorInflacion(double precioHistorico, int mesesAtras) {
+        return precioHistorico * factorInflacion(mesesAtras);
+    }
+
+    /**
+     * Factor multiplicativo de ajuste por inflación para los últimos
+     * {@code mesesAtras} meses ({@code precioAjustado = precioHistorico * factor}).
+     * Extraído de {@link #ajustarPorInflacion} para que callers que necesitan solo
+     * el factor (p.ej. {@code SenalEnricher}, que delega la clasificación a la
+     * función pura {@code SenalCalculator.compute}) no dependan de un precio
+     * concreto.
+     */
+    public double factorInflacion(int mesesAtras) {
         synchronized (historial) {
             if (historial.size() >= mesesAtras + 1 && mesesAtras > 0) {
                 int last = historial.size() - 1;
                 double vHoy      = historial.get(last).valor();
                 double vEntonces = historial.get(Math.max(0, last - mesesAtras)).valor();
-                if (vEntonces > 0) return precioHistorico * (vHoy / vEntonces);
+                if (vEntonces > 0) return vHoy / vEntonces;
             }
         }
-        return precioHistorico * Math.pow(1.0 + inflacionMensual / 100.0, mesesAtras);
+        return Math.pow(1.0 + inflacionMensual / 100.0, mesesAtras);
     }
 }
