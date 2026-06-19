@@ -6,6 +6,7 @@
   --p:   #6e40c9; --p2: #a371f7;
   --g:   #3fb950; --r: #e84393; --y: #f0a500;
   --font:'Segoe UI',system-ui,sans-serif;
+  --mono:'Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
   --rc:  10px; --rb: 8px;
 }
 
@@ -164,6 +165,11 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .badge-gymrat { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
   background: rgba(132,204,22,.15); color: #84cc16; border: 1px solid rgba(132,204,22,.35); }
+
+/* ===== SEÑAL BADGE (compact buy-signal pill, grid card) ===== */
+.badge-senal { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+  border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
+  border: 1.5px solid; }
 
 /* ===== IPC WIDGET ===== */
 .ipc-widget { display: flex; gap: 8px; align-items: center; font-size: .72rem;
@@ -404,4 +410,74 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 
 /* Prevent horizontal scroll globally */
 body { overflow-x: hidden; }
+
+/* ===== OUTFITS PANEL ===== */
+.genero-pill { padding: 6px 16px; border-radius: 20px; border: 1.5px solid var(--bd2);
+  cursor: pointer; font: 700 .74rem/1.4 var(--font); background: var(--s2); color: var(--t3);
+  transition: all .15s ease; text-transform: capitalize; }
+.genero-pill:hover { border-color: var(--p); color: var(--t1); }
+.genero-pill.active { background: linear-gradient(135deg, var(--p), var(--p2));
+  color: #fff; border-color: transparent; box-shadow: 0 4px 14px rgba(110,64,201,.4); }
+
+.outfit-card { flex: 1 1 230px; min-width: 210px; max-width: 260px; background: var(--s1);
+  border: 1px solid var(--bd); border-radius: var(--rc); overflow: hidden; position: relative;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.outfit-card:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(0,0,0,.5); border-color: var(--p); }
+
+.kit-tag { display: flex; align-items: baseline; gap: 7px; padding: 10px 14px 8px; }
+.kit-tag-idx { font: 700 .68rem/1 var(--mono); color: var(--p2); }
+.kit-tag-label { font: 700 .66rem/1.4 var(--font); color: var(--t3);
+  text-transform: uppercase; letter-spacing: .1em; position: relative; }
+.kit-tag-label::after { content: ''; position: absolute; left: 0; bottom: -4px;
+  width: 16px; height: 2px; background: var(--p2); }
+
+.outfit-img-wrap { position: relative; padding-top: 95%; overflow: hidden; background: var(--s2); margin-top: 6px; }
+.outfit-img-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  transition: transform .25s ease; }
+.outfit-card:hover .outfit-img-wrap img { transform: scale(1.05); }
+.outfit-marca-pill { position: absolute; bottom: 8px; left: 8px; background: rgba(13,17,23,.82);
+  color: var(--t1); font: 700 .6rem/1 var(--mono); padding: 3px 9px; border-radius: 4px;
+  letter-spacing: .03em; text-transform: uppercase; backdrop-filter: blur(2px); }
+
+.outfit-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.outfit-card-name { font: 600 .82rem/1.35 var(--font); color: var(--t1); overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.7em; }
+.outfit-card-price { font: 700 1.05rem/1 var(--mono); color: var(--g); font-variant-numeric: tabular-nums; }
+
+.outfit-feedback-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; border-top: 1px solid var(--bd); padding-top: 10px; }
+.outfit-fb-btn { flex: 1; padding: 7px 0; border-radius: var(--rb); border: 1.5px solid var(--bd2);
+  background: transparent; cursor: pointer; font: 700 .68rem/1 var(--font); color: var(--t3);
+  text-transform: uppercase; letter-spacing: .03em; transition: all .15s ease; }
+.outfit-fb-btn.like:hover { border-color: var(--g); color: var(--g); }
+.outfit-fb-btn.dislike:hover { border-color: var(--r); color: var(--r); }
+.outfit-fb-sent { font: 700 .68rem/1 var(--font); color: var(--t4); text-transform: uppercase; letter-spacing: .05em; }
+
+.reroll-btn { padding: 9px 20px; border-radius: 20px; border: none; cursor: pointer;
+  font: 700 .8rem/1 var(--font); color: #fff; background: linear-gradient(135deg, var(--p), var(--p2));
+  box-shadow: 0 6px 18px rgba(110,64,201,.35); transition: transform .15s ease, box-shadow .15s ease; }
+.reroll-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(110,64,201,.5); }
+.reroll-btn:disabled { background: var(--s2); color: var(--t4); box-shadow: none; cursor: default; }
+
+.partial-warning { font-size: .76rem; color: var(--y); background: rgba(240,165,0,.1);
+  border: 1px solid rgba(240,165,0,.3); border-radius: 10px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 8px; }
+
+.supl-section { border-top: 1.5px solid var(--bd); padding-top: 16px; }
+.supl-eyebrow { font: 700 .62rem/1 var(--font); color: var(--p2); text-transform: uppercase;
+  letter-spacing: .12em; margin-bottom: 4px; }
+.supl-title { font: 700 .92rem/1 var(--font); color: var(--t1); margin-bottom: 12px; }
+.supl-grid { display: flex; gap: 14px; flex-wrap: wrap; }
+.supl-card { flex: 1 1 170px; min-width: 150px; max-width: 200px; background: var(--s1);
+  border: 1px solid var(--bd); border-radius: 12px; overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.supl-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,.45); border-color: var(--p2); }
+.supl-tipo-header { font: 700 .64rem/1.4 var(--font); color: var(--t3);
+  padding: 8px 10px 6px; text-transform: uppercase; letter-spacing: .09em; }
+.supl-img-wrap { position: relative; padding-top: 80%; overflow: hidden; background: var(--s2); }
+.supl-img-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.supl-card-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.supl-card-name { font: 600 .72rem/1.35 var(--font); color: var(--t1); overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.5em; }
+.supl-card-price { font: 700 .92rem/1 var(--mono); color: var(--g); font-variant-numeric: tabular-nums; }
+.supl-card-marca { font: .62rem/1 var(--mono); color: var(--t4); text-transform: uppercase; letter-spacing: .03em; }
 * { box-sizing: border-box; }
