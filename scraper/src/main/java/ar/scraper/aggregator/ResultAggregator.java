@@ -1,6 +1,7 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.db.DatabaseService;
+import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.SenalEnricher;
@@ -19,26 +20,29 @@ public class ResultAggregator {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResultAggregator.class);
 
-    private final NormalizerService normalizer;
-    private final PythonRunner      pythonRunner;
-    private final MlEnricher        mlEnricher;
-    private final SenalEnricher     senalEnricher;
-    private final DatabaseService   db;
+    private final NormalizerService    normalizer;
+    private final PythonRunner         pythonRunner;
+    private final MlEnricher           mlEnricher;
+    private final SenalEnricher        senalEnricher;
+    private final FinanciacionEnricher financiacionEnricher;
+    private final DatabaseService      db;
 
     // Estado del último run — leído por ScraperService sin inyección circular
     private volatile JsonNode lastMlOutput     = null;
     private volatile int      lastCatRefinadas = 0;
 
-    public ResultAggregator(NormalizerService normalizer,
-                            PythonRunner      pythonRunner,
-                            MlEnricher        mlEnricher,
-                            SenalEnricher     senalEnricher,
-                            DatabaseService   db) {
-        this.normalizer    = normalizer;
-        this.pythonRunner  = pythonRunner;
-        this.mlEnricher    = mlEnricher;
-        this.senalEnricher = senalEnricher;
-        this.db            = db;
+    public ResultAggregator(NormalizerService    normalizer,
+                            PythonRunner         pythonRunner,
+                            MlEnricher           mlEnricher,
+                            SenalEnricher        senalEnricher,
+                            FinanciacionEnricher financiacionEnricher,
+                            DatabaseService      db) {
+        this.normalizer          = normalizer;
+        this.pythonRunner        = pythonRunner;
+        this.mlEnricher          = mlEnricher;
+        this.senalEnricher       = senalEnricher;
+        this.financiacionEnricher = financiacionEnricher;
+        this.db                  = db;
     }
 
     // ─── Accessors ───────────────────────────────────────────────────────────
@@ -134,19 +138,22 @@ public class ResultAggregator {
         // precios de este run ya esté persistido en precio_historico)
         List<Product> conSenal = senalEnricher.enriquecer(enriquecidos);
 
-        // Facets, stats
-        Facets facets = calcularFacets(conSenal);
-        double minP   = conSenal.isEmpty() ? 0 : conSenal.get(0).precio();
-        double maxP   = conSenal.isEmpty() ? 0 : conSenal.get(conSenal.size()-1).precio();
+        // Precompute señal de financiación (independiente de señal de compra)
+        List<Product> conFinanciacion = financiacionEnricher.enriquecer(conSenal);
 
-        LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", todos.size(), conSenal.size());
+        // Facets, stats
+        Facets facets = calcularFacets(conFinanciacion);
+        double minP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
+        double maxP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
+
+        LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", todos.size(), conFinanciacion.size());
 
         // Entrenamiento background post-scraping
         String dbPath = System.getProperty("user.dir") + java.io.File.separator + "scraper.db";
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(dbPath, forceRetrain);
 
-        return new AggregatedResult(conSenal, conteo, errores, facets, minP, maxP);
+        return new AggregatedResult(conFinanciacion, conteo, errores, facets, minP, maxP);
     }
 
     public AggregatedResult agregar(List<ScrapeResult> resultados) {
@@ -231,17 +238,19 @@ public class ResultAggregator {
      * Reconstruye un {@link AggregatedResult} desde productos cargados de la DB
      * (startup/restart o tras un rescrape parcial de favoritos). A diferencia de
      * {@link #agregar}, este camino NO corre el pipeline ML — pero SÍ debe correr
-     * {@link SenalEnricher}, porque de lo contrario el badge de señal de compra
-     * quedaría vacío en el grid hasta el próximo scrape completo.
+     * {@link SenalEnricher} y {@link FinanciacionEnricher}, porque de lo
+     * contrario sus badges quedarían vacíos en el grid hasta el próximo
+     * scrape completo.
      */
     public AggregatedResult fromDB(List<Product> productos) {
         List<Product> conSenal = senalEnricher.enriquecer(productos);
+        List<Product> conFinanciacion = financiacionEnricher.enriquecer(conSenal);
 
         Map<String, Integer> conteo = new LinkedHashMap<>();
-        conSenal.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
-        Facets facets = calcularFacets(conSenal);
-        double minP = conSenal.isEmpty() ? 0 : conSenal.get(0).precio();
-        double maxP = conSenal.isEmpty() ? 0 : conSenal.get(conSenal.size()-1).precio();
-        return new AggregatedResult(conSenal, conteo, Map.of(), facets, minP, maxP);
+        conFinanciacion.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
+        Facets facets = calcularFacets(conFinanciacion);
+        double minP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
+        double maxP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
+        return new AggregatedResult(conFinanciacion, conteo, Map.of(), facets, minP, maxP);
     }
 }
