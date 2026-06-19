@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
  * con un accesorio opcional best-effort.
  *
  * No persiste outfits generados (stateless por request); el feedback
- * (like/dislike) se persiste aparte en DatabaseService.outfit_feedback y SÍ
+ * (like/dislike) se persiste aparte en DatabaseService.outfit_feedback_item y SÍ
  * influye en el muestreo desde outfit-recommendation-quality: dislike excluye
  * el par marca|categoria de forma permanente, like aumenta su peso de muestreo
  * (ver FeedbackModel, ADR-1/ADR-2 en design.md).
@@ -89,6 +89,16 @@ public class OutfitService {
      * el nombre). Confirmado por el usuario tras verla aparecer en el armador.
      */
     private static final Set<String> CALZADO_MARCA_VETADA_GYM = Set.of("DC");
+
+    /**
+     * Veto global (ADR-2 de outfit-per-item-feedback): categorias acá NUNCA son
+     * elegibles para el slot calzado, bajo NINGÚN estilo — ni siquiera
+     * DEFAULT_STYLE_RULE (whitelist null). Chequeado en slotDe() ANTES del gate
+     * de estilo, así que es independiente de STYLE_RULES.
+     * Borcego/Botas/Ojotas NO están acá — siguen gobernados solo por el
+     * whitelist Gym-only de STYLE_RULES.
+     */
+    private static final Set<String> CALZADO_VETADO = Set.of("Botines");
 
     private static Map<String, String> buildCategoriaSlotMap() {
         Map<String, String> m = new HashMap<>();
@@ -241,6 +251,7 @@ public class OutfitService {
         String cat = p.categoria();
         if (cat == null || cat.isBlank()) return null;
         if (ACCESORIO_VETADO.contains(cat)) return null; // global, style-independent
+        if (CALZADO_VETADO.contains(cat)) return null; // global, style-independent
         if (esCalzadoBase(cat)) {
             if (!esCalzadoElegible(rule, cat)) return null;
             if (rule.calzadoWhitelist() != null

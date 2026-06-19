@@ -1,14 +1,5 @@
 import { useEffect, useState } from 'react';
-
-const SEÑAL_CONFIG = {
-  comprar_ahora:    { bg:'rgba(253,100,0,.15)', border:'#fd6400', icon:'🔥', label:'Comprar ahora' },
-  muy_buen_momento: { bg:'rgba(63,185,80,.15)', border:'#3fb950', icon:'✅', label:'Muy buen momento' },
-  buen_momento:     { bg:'rgba(63,185,80,.10)', border:'#3fb950', icon:'👍', label:'Buen momento' },
-  precio_normal:    { bg:'rgba(163,113,247,.08)', border:'var(--bd)', icon:'📊', label:'Precio normal' },
-  esperar:          { bg:'rgba(240,165,0,.12)', border:'#f0a500', icon:'⚠️', label:'Esperar' },
-  caro:             { bg:'rgba(232,67,147,.12)', border:'#e84393', icon:'❌', label:'Caro históricamente' },
-  sin_datos:        { bg:'var(--s3)', border:'var(--bd)', icon:'📉', label:'Sin historial aún' },
-};
+import { SEÑAL_CONFIG, scoreColor } from '../senalConfig';
 
 function MiniSparkline({ url }) {
   const [hist, setHist] = useState([]);
@@ -49,6 +40,7 @@ export default function BuySignal({ url }) {
   const [inflacion,setInflacion]= useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!url) { setLoading(false); return; }
@@ -79,20 +71,20 @@ export default function BuySignal({ url }) {
   );
 
   const cfg = SEÑAL_CONFIG[data.senal] || SEÑAL_CONFIG.precio_normal;
-  const scoreColor = data.scoreCompra >= 70 ? '#3fb950'
-                   : data.scoreCompra >= 40 ? '#f0a500' : '#e84393';
+  const hasDetail = data.puntosHistorial >= 2;
 
   return (
     <div style={{
       background: cfg.bg, border: `1.5px solid ${cfg.border}`,
       borderRadius: 10, padding: '10px 12px', marginTop: 8,
     }}>
+      {/* ── PRIMARY: señal + score — the single most prominent element ── */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <span style={{ fontSize:'1rem' }}>{cfg.icon}</span>
-          <span style={{ fontSize:'.8rem', fontWeight:800, color:'var(--t1)' }}>{cfg.label}</span>
+        <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+          <span style={{ fontSize:'1.15rem' }}>{cfg.icon}</span>
+          <span style={{ fontSize:'.88rem', fontWeight:800, color:'var(--t1)' }}>{cfg.label}</span>
         </div>
-        <span style={{ fontSize:'.72rem', fontWeight:800, color: scoreColor }}>
+        <span style={{ fontSize:'.78rem', fontWeight:800, color: scoreColor(data.scoreCompra) }}>
           {data.scoreCompra}/100
         </span>
       </div>
@@ -101,38 +93,53 @@ export default function BuySignal({ url }) {
 
       <MiniSparkline url={url}/>
 
-      {data.puntosHistorial >= 2 && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 10px', marginTop:4, fontSize:'.63rem' }}>
-          <span style={{ color:'var(--t4)' }}>
-            Rango hist.: <strong style={{ color:'var(--t2)' }}>{data.pctDelMin}° pct.</strong>
-          </span>
-          <span style={{ color:'var(--t4)' }}>
-            Cambio real: <strong style={{ color: data.cambioReal < 0 ? '#3fb950' : '#e84393' }}>
-              {data.cambioReal > 0 ? '+' : ''}{data.cambioReal}%
-            </strong>
-          </span>
-          <span style={{ color:'var(--t4)' }}>
-            Mín: <strong style={{ color:'var(--t2)' }}>${(data.precioMin/1000).toFixed(0)}k</strong>
-          </span>
-          <span style={{ color:'var(--t4)' }}>
-            Máx: <strong style={{ color:'var(--t2)' }}>${(data.precioMax/1000).toFixed(0)}k</strong>
-          </span>
-        </div>
+      {/* ── SECONDARY: collapsed by default, expand on click ── */}
+      {hasDetail && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{
+            marginTop:6, padding:'3px 0', background:'none', border:'none',
+            color:'var(--t4)', fontSize:'.62rem', fontWeight:700, cursor:'pointer',
+            display:'flex', alignItems:'center', gap:4,
+          }}>
+          {expanded ? '▲ Ocultar detalle' : '▼ Ver detalle (rango, tendencia, IPC)'}
+        </button>
       )}
 
-      <div style={{ fontSize:'.62rem', color:'var(--t4)', marginTop:6, display:'flex', gap:10, flexWrap:'wrap' }}>
-        <span>Tendencia: <strong style={{ color: data.tendencia==='bajando'?'#3fb950':data.tendencia==='subiendo'?'#e84393':'var(--t3)' }}>
-          {data.tendencia==='bajando'?'↘ bajando':data.tendencia==='subiendo'?'↗ subiendo':'→ estable'}
-        </strong></span>
-        {inflacion?.mensual && (
-          <span>IPC: <strong style={{ color:'var(--t2)' }}>{inflacion.mensual.toFixed(1)}%</strong>/mes
-          &nbsp;·&nbsp;{inflacion.interanual?.toFixed(0)}% anual</span>
-        )}
-      </div>
+      {hasDetail && expanded && (
+        <div style={{ marginTop:4, paddingTop:6, borderTop:'1px solid var(--bd)' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 10px', fontSize:'.63rem' }}>
+            <span style={{ color:'var(--t4)' }}>
+              Rango hist.: <strong style={{ color:'var(--t2)' }}>{data.pctDelMin}° pct.</strong>
+            </span>
+            <span style={{ color:'var(--t4)' }}>
+              Cambio real: <strong style={{ color: data.cambioReal < 0 ? '#3fb950' : '#e84393' }}>
+                {data.cambioReal > 0 ? '+' : ''}{data.cambioReal}%
+              </strong>
+            </span>
+            <span style={{ color:'var(--t4)' }}>
+              Mín: <strong style={{ color:'var(--t2)' }}>${(data.precioMin/1000).toFixed(0)}k</strong>
+            </span>
+            <span style={{ color:'var(--t4)' }}>
+              Máx: <strong style={{ color:'var(--t2)' }}>${(data.precioMax/1000).toFixed(0)}k</strong>
+            </span>
+          </div>
 
-      {inflacion?.actualizado && (
-        <div style={{ fontSize:'.57rem', color:'var(--t4)', marginTop:4, opacity:.6 }}>
-          Datos INDEC · IPC General · {inflacion.actualizado}
+          <div style={{ fontSize:'.62rem', color:'var(--t4)', marginTop:6, display:'flex', gap:10, flexWrap:'wrap' }}>
+            <span>Tendencia: <strong style={{ color: data.tendencia==='bajando'?'#3fb950':data.tendencia==='subiendo'?'#e84393':'var(--t3)' }}>
+              {data.tendencia==='bajando'?'↘ bajando':data.tendencia==='subiendo'?'↗ subiendo':'→ estable'}
+            </strong></span>
+            {inflacion?.mensual && (
+              <span>IPC: <strong style={{ color:'var(--t2)' }}>{inflacion.mensual.toFixed(1)}%</strong>/mes
+              &nbsp;·&nbsp;{inflacion.interanual?.toFixed(0)}% anual</span>
+            )}
+          </div>
+
+          {inflacion?.actualizado && (
+            <div style={{ fontSize:'.57rem', color:'var(--t4)', marginTop:4, opacity:.6 }}>
+              Datos INDEC · IPC General · {inflacion.actualizado}
+            </div>
+          )}
         </div>
       )}
     </div>

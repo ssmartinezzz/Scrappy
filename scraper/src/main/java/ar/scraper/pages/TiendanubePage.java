@@ -287,25 +287,30 @@ public class TiendanubePage extends BasePage {
 
         while (url != null && pagina <= 25) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
-            navigateTo(url);
-            scrollToBottom();
-            page.waitForTimeout(1000);
+            try {
+                navigateTo(url);
+                scrollToBottom();
+                page.waitForTimeout(1000);
 
-            String json = (String) page.evaluate(buildExtractorJs());
-            if (json == null || json.equals("[]") || json.equals("null")) {
-                log.debug("[{}] JS: 0 en p{}", sitio, pagina);
-                paginasSinProductos++;
-                if (paginasSinProductos >= 2) break; // 2 páginas vacías seguidas → fin
-            } else {
-                paginasSinProductos = 0;
-                try {
+                String json = (String) page.evaluate(buildExtractorJs());
+                if (json == null || json.equals("[]") || json.equals("null")) {
+                    log.debug("[{}] JS: 0 en p{}", sitio, pagina);
+                    paginasSinProductos++;
+                    if (paginasSinProductos >= 2) break; // 2 páginas vacías seguidas → fin
+                } else {
+                    paginasSinProductos = 0;
                     JsonNode arr = MAPPER.readTree(json);
                     log.debug("[{}] JS: {} en p{}", sitio, arr.size(), pagina);
                     for (JsonNode n : arr) fromJs(n).ifPresent(result::add);
-                } catch (Exception e) {
-                    log.warn("[{}] JS parse error: {}", sitio, e.getMessage());
-                    break;
                 }
+            } catch (Exception e) {
+                // Error transitorio de Playwright (ej. TargetClosedError) en una
+                // página intermedia NO debe descartar los productos ya acumulados
+                // de páginas anteriores — se corta la paginación y se devuelve lo
+                // recolectado hasta el momento.
+                log.warn("[{}] JS error en p{}, se corta paginación conservando {} productos: {}",
+                        sitio, pagina, result.size(), e.getMessage());
+                break;
             }
 
             // Intentar encontrar la siguiente página

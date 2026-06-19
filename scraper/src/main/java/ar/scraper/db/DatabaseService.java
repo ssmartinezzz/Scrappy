@@ -101,12 +101,14 @@ st.executeUpdate("""
                     rubro        TEXT DEFAULT 'indumentaria',
                     marca        TEXT DEFAULT '',
                     gymrat       INTEGER DEFAULT 0,
+                    marca_premium INTEGER DEFAULT 0,
                     activo       INTEGER DEFAULT 1,
                     touched_at   TEXT,
                     created_at   TEXT
                 )""");
 
             migrarColumna(st, "productos", "gymrat INTEGER DEFAULT 0");
+            migrarColumna(st, "productos", "marca_premium INTEGER DEFAULT 0");
 
 st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precios_externos (
@@ -201,6 +203,17 @@ st.executeUpdate("""
                     created_at    TEXT NOT NULL
                 )""");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_outfit_fb_liked ON outfit_feedback(liked)");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS outfit_feedback_item (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    genero     TEXT,
+                    slot       TEXT NOT NULL,
+                    url        TEXT NOT NULL,
+                    liked      INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )""");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_liked ON outfit_feedback_item(liked)");
         }
     }
 
@@ -227,8 +240,8 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -247,6 +260,7 @@ st.executeUpdate("""
                     rubro        = excluded.rubro,
                     marca        = excluded.marca,
                     gymrat       = excluded.gymrat,
+                    marca_premium = excluded.marca_premium,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -290,8 +304,9 @@ st.executeUpdate("""
                     psUpsert.setString(16, p.rubro() != null ? p.rubro() : "indumentaria");
                     psUpsert.setString(17, p.marca() != null ? p.marca() : "");
                     psUpsert.setInt   (18, p.gymrat() ? 1 : 0);
-                    psUpsert.setString(19, now);   // touched_at
-                    psUpsert.setString(20, now);   // created_at
+                    psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
+                    psUpsert.setString(20, now);   // touched_at
+                    psUpsert.setString(21, now);   // created_at
                     psUpsert.executeUpdate();
 
                     Double prevPrecio = preciosActuales.get(p.url());
@@ -392,8 +407,8 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -406,6 +421,7 @@ st.executeUpdate("""
                     rubro        = excluded.rubro,
                     marca        = excluded.marca,
                     gymrat       = excluded.gymrat,
+                    marca_premium = excluded.marca_premium,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -435,8 +451,9 @@ st.executeUpdate("""
                     psU.setString(16, p.rubro() != null ? p.rubro() : "indumentaria"); // rubro
                     psU.setString(17, p.marca() != null ? p.marca() : "");             // marca
                     psU.setInt   (18, p.gymrat() ? 1 : 0);                             // gymrat
-                    psU.setString(19, now);                       // touched_at
-                    psU.setString(20, now);                       // created_at
+                    psU.setInt   (19, p.marcaPremium() ? 1 : 0);                       // marca_premium
+                    psU.setString(20, now);                       // touched_at
+                    psU.setString(21, now);                       // created_at
                     psU.executeUpdate();
                     Double prev = prevPrecios.get(p.url());
                     if (prev == null || Math.abs(prev - p.precio()) > 0.01) {
@@ -463,7 +480,7 @@ st.executeUpdate("""
              ResultSet rs = st.executeQuery(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat " +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium " +
                 "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
             while (rs.next()) {
                 result.add(productoDesdeFila(rs));
@@ -481,7 +498,7 @@ st.executeUpdate("""
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat FROM productos WHERE url=?")) {
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium FROM productos WHERE url=?")) {
             ps.setString(1, url);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return java.util.Optional.empty();
@@ -517,6 +534,7 @@ st.executeUpdate("""
         String marca   = rs.getString("marca");
         String rubro   = rs.getString("rubro");
         boolean gymrat = rs.getInt("gymrat") == 1;
+        boolean marcaPremium = rs.getInt("marca_premium") == 1;
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
                 rs.getDouble("precio"), rs.getString("precio_orig"),
@@ -524,7 +542,7 @@ st.executeUpdate("""
                 rs.getString("categoria"), rs.getString("genero"),
                 talles, ml, marca != null ? marca : "",
                 rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
-                gymrat);
+                gymrat, marcaPremium, Product.SenalCompra.EMPTY);
     }
 
     // ─── ML Output ──────────────────────────────────────────────────────────
@@ -838,57 +856,55 @@ st.executeUpdate("""
 
     // ─── Outfit feedback ─────────────────────────────────────────────────────
 
-    public void guardarOutfitFeedback(String genero, boolean liked, String torsoUrl,
-                                       String piernasUrl, String calzadoUrl, String accesorioUrl) {
+    /** Fila cruda de feedback per-item — el join con el catálogo vivo lo hace el caller. */
+    public record OutfitItemRow(String slot, String url, boolean liked) {}
+
+    /**
+     * Persiste un único veredicto (slot, url, liked) en outfit_feedback_item — una fila
+     * por item calificado (ADR-1 de outfit-per-item-feedback). Reemplaza el viejo
+     * guardarOutfitFeedback(...) de fila ancha; la tabla outfit_feedback queda
+     * intacta pero sin nuevas escrituras.
+     */
+    public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked) {
         if (conn == null) return;
         try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO outfit_feedback
-                    (genero, liked, torso_url, piernas_url, calzado_url, accesorio_url, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO outfit_feedback_item
+                    (genero, slot, url, liked, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """)) {
             ps.setString(1, genero);
-            ps.setInt(2, liked ? 1 : 0);
-            ps.setString(3, torsoUrl);
-            ps.setString(4, piernasUrl);
-            ps.setString(5, calzadoUrl);
-            ps.setString(6, accesorioUrl);
-            ps.setString(7, LocalDateTime.now().format(DT));
+            ps.setString(2, slot);
+            ps.setString(3, url);
+            ps.setInt(4, liked ? 1 : 0);
+            ps.setString(5, LocalDateTime.now().format(DT));
             ps.executeUpdate();
             conn.commit();
         } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit feedback: {}", e.getMessage());
+            LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
-    /** Fila cruda de feedback de outfits — el join con el catálogo vivo lo hace el caller. */
-    public record OutfitFeedbackRow(String genero, boolean liked, String torsoUrl,
-                                     String piernasUrl, String calzadoUrl, String accesorioUrl) {}
-
     /**
-     * Lee todas las filas de outfit_feedback. Sin filtro por genero (scope global,
+     * Lee todas las filas de outfit_feedback_item. Sin filtro por genero (scope global,
      * ver spec "Feedback-Driven Sampling" — el genero se ignora al construir las keys).
      * El caller (ApiController.buildFeedbackModel) hace el join url→Product contra el
      * catálogo vivo, ya que esta clase no conoce el AggregatedResult en memoria.
      */
-    public List<OutfitFeedbackRow> obtenerOutfitFeedback() {
-        List<OutfitFeedbackRow> result = new ArrayList<>();
+    public List<OutfitItemRow> obtenerOutfitFeedback() {
+        List<OutfitItemRow> result = new ArrayList<>();
         if (conn == null) return result;
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(
-                "SELECT genero, liked, torso_url, piernas_url, calzado_url, accesorio_url " +
-                "FROM outfit_feedback")) {
+                "SELECT slot, url, liked FROM outfit_feedback_item")) {
             while (rs.next()) {
-                result.add(new OutfitFeedbackRow(
-                        rs.getString("genero"),
-                        rs.getInt("liked") == 1,
-                        rs.getString("torso_url"),
-                        rs.getString("piernas_url"),
-                        rs.getString("calzado_url"),
-                        rs.getString("accesorio_url")));
+                result.add(new OutfitItemRow(
+                        rs.getString("slot"),
+                        rs.getString("url"),
+                        rs.getInt("liked") == 1));
             }
         } catch (Exception e) {
-            LOG.warn("[DB] Error cargando outfit feedback: {}", e.getMessage());
+            LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
         }
         return result;
     }
@@ -947,6 +963,48 @@ st.executeUpdate("""
                 result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
         } catch (Exception e) {
             LOG.warn("[DB] historial {}: {}", url, e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Variante batch de {@link #getHistorialPrecios(String)}: carga el historial de
+     * múltiples URLs en una sola consulta {@code WHERE url IN (...)}, evitando el
+     * patrón N+1 que resultaría de llamar la versión single-URL por producto
+     * (usado por {@code SenalEnricher} para precomputar señal de compra sobre todo
+     * el catálogo en un solo round-trip a la DB).
+     *
+     * @param urls URLs de productos a consultar; URLs vacías/blank son ignoradas
+     * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
+     *         historial no aparecen como key
+     */
+    public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
+        Map<String, List<HistorialEntry>> result = new HashMap<>();
+        if (conn == null || urls == null || urls.isEmpty()) return result;
+
+        List<String> validUrls = urls.stream()
+                .filter(u -> u != null && !u.isBlank())
+                .distinct()
+                .toList();
+        if (validUrls.isEmpty()) return result;
+
+        String placeholders = String.join(",", validUrls.stream().map(u -> "?").toList());
+        String sql = "SELECT url, fecha, precio FROM precio_historico WHERE url IN (" +
+                placeholders + ") ORDER BY url, fecha";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < validUrls.size(); i++) {
+                ps.setString(i + 1, validUrls.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String url = rs.getString("url");
+                    result.computeIfAbsent(url, k -> new ArrayList<>())
+                          .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                }
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
         }
         return result;
     }

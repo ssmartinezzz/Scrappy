@@ -273,6 +273,7 @@ public class ApiController {
             n.put("marca",      safe(p.marca()));
             n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
             n.put("gymrat",     p.gymrat());
+            n.put("marcaPremium", p.marcaPremium());
             ArrayNode tallesArr = n.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesArr::add);
             // ML score — siempre serializar para el panel de detalle
@@ -286,6 +287,12 @@ public class ApiController {
                 ml.put("zScore",     p.ml().zScore());
                 ml.put("segment",    p.ml().segment() != null ? p.ml().segment() : "standard");
             }
+            // Señal de compra precomputada — siempre presente (sin_datos incluido)
+            // para que el frontend decida ocultar el badge sin necesitar un fetch extra.
+            Product.SenalCompra senal = p.senal() != null ? p.senal() : Product.SenalCompra.EMPTY;
+            ObjectNode senalNode = n.putObject("senal");
+            senalNode.put("senal",       senal.senal());
+            senalNode.put("scoreCompra", senal.scoreCompra());
         }
 
         return ResponseEntity.ok(root);
@@ -714,11 +721,13 @@ public class ApiController {
     }
 
     /**
-     * Construye el FeedbackModel a partir de las filas crudas de outfit_feedback +
-     * el catálogo vivo (join url→Product). Per ADR-1 de outfit-recommendation-quality:
+     * Construye el FeedbackModel a partir de las filas crudas de outfit_feedback_item +
+     * el catálogo vivo (join url→Product). Per ADR-1 de outfit-per-item-feedback:
      * - Genero se ignora completamente (scope global, "MUST NOT vary by genero").
      * - URLs que no resuelven contra el catálogo vivo se saltean en silencio (sin
      *   error, sin log) — spec "Feedback references a delisted product".
+     * - Cada fila es UN item calificado (slot, url, liked) — no hay broadcast a
+     *   otros slots de la misma submission (spec "no-broadcast constraint").
      * - Orden de construcción: (a) acumular boostLikeCount sobre filas liked=1;
      *   (b) acumular exclude sobre filas liked=0; (c) NO se remueve un par de
      *   boostLikeCount aunque también esté en exclude — el consumidor (OutfitService)
@@ -726,7 +735,7 @@ public class ApiController {
      *   nunca se lee (dislike es un veto duro y permanente que gana sobre cualquier like).
      */
     private OutfitService.FeedbackModel buildFeedbackModel(
-            List<ar.scraper.db.DatabaseService.OutfitFeedbackRow> rows, List<Product> productos) {
+            List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos) {
         Map<String, Product> porUrl = new HashMap<>();
         for (Product p : productos) {
             if (p.url() != null && !p.url().isBlank()) porUrl.put(p.url(), p);
@@ -735,32 +744,25 @@ public class ApiController {
         Map<String, Integer> boostLikeCount = new HashMap<>();
         Set<String> exclude = new HashSet<>();
 
-        // (a) acumular likes por par, sobre filas liked=1
-        // Nota: Arrays.asList (NO List.of) — los slots vacíos vienen como null y
-        // List.of lanza NPE sobre elementos null (la mayoría de las filas reales
-        // de outfit_feedback no llenan los 4 slots a la vez).
+        // (a) acumular likes por par, sobre filas liked=1 (un item por fila)
         for (var row : rows) {
             if (!row.liked()) continue;
-            for (String url : Arrays.asList(row.torsoUrl(), row.piernasUrl(),
-                    row.calzadoUrl(), row.accesorioUrl())) {
-                if (url == null || url.isBlank()) continue;
-                Product p = porUrl.get(url);
-                if (p == null) continue; // delisted — skip silencioso
-                String key = OutfitService.FeedbackModel.keyOf(p);
-                boostLikeCount.merge(key, 1, Integer::sum);
-            }
+            String url = row.url();
+            if (url == null || url.isBlank()) continue;
+            Product p = porUrl.get(url);
+            if (p == null) continue; // delisted — skip silencioso
+            String key = OutfitService.FeedbackModel.keyOf(p);
+            boostLikeCount.merge(key, 1, Integer::sum);
         }
 
         // (b) acumular exclude por par, sobre filas liked=0 — dislike gana siempre
         for (var row : rows) {
             if (row.liked()) continue;
-            for (String url : Arrays.asList(row.torsoUrl(), row.piernasUrl(),
-                    row.calzadoUrl(), row.accesorioUrl())) {
-                if (url == null || url.isBlank()) continue;
-                Product p = porUrl.get(url);
-                if (p == null) continue; // delisted — skip silencioso
-                exclude.add(OutfitService.FeedbackModel.keyOf(p));
-            }
+            String url = row.url();
+            if (url == null || url.isBlank()) continue;
+            Product p = porUrl.get(url);
+            if (p == null) continue; // delisted — skip silencioso
+            exclude.add(OutfitService.FeedbackModel.keyOf(p));
         }
 
         return new OutfitService.FeedbackModel(exclude, boostLikeCount);
@@ -770,27 +772,21 @@ public class ApiController {
     public ResponseEntity<ObjectNode> outfitFeedback(@RequestBody Map<String, Object> body) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         String genero = String.valueOf(body.getOrDefault("genero", ""));
-        boolean liked = Boolean.parseBoolean(String.valueOf(body.getOrDefault("liked", "false")));
 
-        Map<String, String> urlPorSlot = new HashMap<>();
-        Object slotsObj = body.get("slots");
-        if (slotsObj instanceof List<?> slots) {
-            for (Object o : slots) {
+        Object itemsObj = body.get("items");
+        if (itemsObj instanceof List<?> items) {
+            for (Object o : items) {
                 if (o instanceof Map<?, ?> m) {
-                    Object slot = m.get("slot");
-                    Object url  = m.get("url");
-                    if (slot != null && url != null) {
-                        urlPorSlot.put(String.valueOf(slot), String.valueOf(url));
-                    }
+                    Object slot  = m.get("slot");
+                    Object url   = m.get("url");
+                    Object liked = m.get("liked");
+                    if (slot == null || url == null || liked == null) continue; // skip silencioso, mirrors existing null-guard style
+                    boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
+                    db.guardarOutfitFeedbackItem(genero, String.valueOf(slot), String.valueOf(url), likedBool);
                 }
             }
         }
 
-        db.guardarOutfitFeedback(genero, liked,
-                urlPorSlot.get(OutfitService.SLOT_TORSO),
-                urlPorSlot.get(OutfitService.SLOT_PIERNAS),
-                urlPorSlot.get(OutfitService.SLOT_CALZADO),
-                urlPorSlot.get(OutfitService.SLOT_ACCESORIO));
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }

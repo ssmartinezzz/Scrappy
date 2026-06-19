@@ -418,7 +418,21 @@ public class NormalizerService {
         "Topper","Flecha","Jaguar","Gola","Penalty","Olympikus",
         "Lacoste","Tommy","Calvin Klein","Levi's","Levis","Wrangler",
         "Champion","Kappa","Ellesse","Le Coq Sportif","Fred Perry",
-        "Caterpillar","Keen","Palladium","Crocs","Birkenstock"
+        "Caterpillar","Keen","Palladium","Crocs","Birkenstock",
+        "Bulks","Fuark","Harvey Willys","Harvey"
+    );
+
+    // ══════════════════════════════════════════════════════════════════
+    // SITIOS PREMIUM — tag transversal aditivo "marcaPremium"
+    // Por sitio (tienda), no por marca extraída del nombre del producto:
+    // la mayoría de los productos de una tienda premium no llevan el
+    // nombre de la tienda en el título (ej. Harvey Willys vende "Soquete
+    // Ozzy Black", no "Harvey Willys Ozzy Black").
+    // NO altera ni reordena la cadena de prioridad de `badge` en ml_pipeline.py.
+    // ══════════════════════════════════════════════════════════════════
+
+    private static final Set<String> SITIOS_PREMIUM = Set.of(
+        "harvey"
     );
 
     private static final Set<String> NO_MARCA = Set.of(
@@ -524,11 +538,12 @@ public class NormalizerService {
             rubro = "indumentaria";
         }
 
-        boolean gymrat = esGymrat(nombre, sitioKey, cat, rubro);
+        boolean gymrat       = esGymrat(nombre, sitioKey, cat, rubro);
+        boolean marcaPremium = SITIOS_PREMIUM.contains(sitioKey);
 
         return new Product(p.sitio(), nombre, p.precio(), p.precioOriginal(),
                 p.url(), p.imagenUrl(), cat, genero, talles,
-                p.ml(), marca, rubro, gymrat);
+                p.ml(), marca, rubro, gymrat, marcaPremium, p.senal());
     }
 
     /**

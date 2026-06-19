@@ -2,60 +2,94 @@
 
 ## Purpose
 
-Collect like/dislike signal on generated outfits for a future learning loop. This slice is collection-only: feedback is persisted but MUST NOT influence outfit generation yet.
+Collect like/dislike signal on generated outfit items for outfit generation influence. Feedback is collected at per-item granularity (individual slot ratings, not outfit-level), persisted, and used to drive outfit sampling and exclusions.
+
+## Evolution Log
+
+- **[2026-06-17]** `outfit-recommendation-quality`: initial per-outfit feedback with pair-level exclude/boost model
+- **[2026-06-19]** `outfit-per-item-feedback`: split feedback from per-outfit to per-item granularity; Botines global exclusion added separately to outfit-builder spec
 
 ## Requirements
 
 ### Requirement: POST /api/outfits/feedback
 
-The system MUST expose `POST /api/outfits/feedback` accepting a JSON body with the outfit's slot product URLs, the `genero` used to generate it, and a `liked` boolean. The system MUST persist one row per submission to the `outfit_feedback` table and MUST respond with a success acknowledgement. The system MUST use this data to alter `GET /api/outfits` sampling per the Feedback-Driven Sampling requirement below.
+The system MUST expose `POST /api/outfits/feedback` accepting a JSON body that carries one or more per-slot verdicts — each entry identifying the slot, the product `url`, and an independent `liked` boolean for that item — together with the `genero` used to generate the outfit. The system MUST persist one row per rated item (one `(slot, url, liked)` tuple) to the `outfit_feedback_item` table, and MUST respond with a success acknowledgement. The system MUST use this data to alter `GET /api/outfits` sampling per the Feedback-Driven Sampling requirement below.
 
-#### Scenario: Like submission persists a row
+(Prior version: the request carried ONE shared `liked` for the whole outfit and persisted one row covering all submitted slot URLs. This evolved to per-item in `outfit-per-item-feedback` change.)
+
+#### Scenario: Like submission persists a row per rated item
 - GIVEN a generated outfit with torso, piernas, and calzado product URLs and `genero=hombre`
-- WHEN the client calls `POST /api/outfits/feedback` with `liked=true` and the outfit's product URLs
-- THEN the system inserts one row into `outfit_feedback` with `liked=1` and responds 200
+- WHEN the client calls `POST /api/outfits/feedback` rating only the calzado slot with `liked=true`
+- THEN the system inserts exactly one row into `outfit_feedback_item` for the calzado `(slot, url)` with `liked=1`, and no row is written for torso or piernas
+- AND the response is 200
 
-#### Scenario: Dislike submission persists a row
+#### Scenario: Dislike submission persists a row per rated item
 - GIVEN the same generated outfit
-- WHEN the client calls `POST /api/outfits/feedback` with `liked=false`
-- THEN the system inserts one row into `outfit_feedback` with `liked=0` and responds 200
+- WHEN the client calls `POST /api/outfits/feedback` rating only the calzado slot with `liked=false`
+- THEN the system inserts one row into `outfit_feedback_item` for the calzado `(slot, url)` with `liked=0` and responds 200
+
+#### Scenario: Multiple slots rated in one submission stay independent
+- GIVEN a generated outfit with torso, piernas, and calzado URLs
+- WHEN the client calls `POST /api/outfits/feedback` with the torso slot `liked=true` and the calzado slot `liked=false` in the same request
+- THEN the system inserts one row for torso with `liked=1` and one row for calzado with `liked=0`, each independently
 
 #### Scenario: Feedback affects subsequent generation
-- GIVEN a `outfit_feedback` row with `liked=0` exists for a product whose live-catalog `marca`+`categoria` is `Nike`+`Zapatilla`
+- GIVEN an `outfit_feedback_item` row with `liked=0` exists for a product whose live-catalog `marca`+`categoria` is `Nike`+`Zapatilla`
 - WHEN `GET /api/outfits` is called again with any `genero`
 - THEN no candidate with `marca=Nike` and `categoria=Zapatilla` is eligible for any slot
 
-### Requirement: outfit_feedback Schema
+### Requirement: outfit_feedback_item Schema
 
-The system MUST create the `outfit_feedback` table additively via `CREATE TABLE IF NOT EXISTS`, following the existing style used by `favoritos`/`ml_output` in `DatabaseService.java` (snake_case columns, `INTEGER PRIMARY KEY AUTOINCREMENT` surrogate key, `TEXT NOT NULL` for required string fields). The table MUST store, at minimum: an id, the torso/piernas/calzado product URLs, the optional accesorio URL, the `genero` used, the `liked` boolean (stored as `INTEGER` 0/1), and a creation timestamp.
+The system MUST create the `outfit_feedback_item` table additively via `CREATE TABLE IF NOT EXISTS`, following the existing style used by `favoritos`/`ml_output` in `DatabaseService.java` (snake_case columns, `INTEGER PRIMARY KEY AUTOINCREMENT` surrogate key, `TEXT NOT NULL` for required string fields). The table MUST store, at minimum: an id, the rated `slot` identifier, the rated item's product `url`, the `genero` used, a per-row `liked` boolean (stored as `INTEGER` 0/1) scoped to that single item, and a creation timestamp. Any pre-existing wide-row data from the prior per-outfit schema MAY be left in place or migrated additively; the system MUST NOT require a destructive schema change to apply this delta.
+
+(Prior version: a single row stored the torso/piernas/calzado/accesorio URLs together with one outfit-level `liked` value covering all of them. This evolved to per-item in `outfit-per-item-feedback` change.)
 
 #### Scenario: Table created on startup if absent
-- GIVEN a fresh `scraper.db` without an `outfit_feedback` table
+- GIVEN a fresh `scraper.db` without an `outfit_feedback_item` table
 - WHEN the application starts
-- THEN the table is created with the required columns and the application does not fail
+- THEN the table is created with the required per-item columns and the application does not fail
 
 #### Scenario: Existing table left untouched
-- GIVEN `scraper.db` already has an `outfit_feedback` table from a prior run
+- GIVEN `scraper.db` already has an `outfit_feedback_item` table from a prior run
 - WHEN the application starts
 - THEN no error occurs and existing rows are preserved
 
+#### Scenario: Legacy per-outfit rows do not break per-item reads
+- GIVEN `scraper.db` contains rows written under the prior per-outfit schema (one shared `liked` across multiple slot URLs) in the old `outfit_feedback` table
+- WHEN the application reads `outfit_feedback_item` to derive per-item exclude/boost facts
+- THEN legacy rows in the old table are handled without raising an error; the new per-item table is read independently
+
 ### Requirement: Feedback Scope Limitation
 
-The system MUST NOT record outfit "impressions" (i.e., outfits generated but not rated). Only explicit like/dislike actions MUST be persisted. The system MUST apply pair-level (marca+categoria) hard-exclude on dislike and weight-boost on like when generating outfits, per the Feedback-Driven Sampling requirement; it MUST NOT implement any time-decay or per-user/session personalization of feedback in this change.
+The system MUST NOT record outfit "impressions" (i.e., outfits generated but not rated). Only explicit like/dislike actions on individual items MUST be persisted. The system MUST apply pair-level (marca+categoria) hard-exclude on dislike and weight-boost on like when generating outfits, per the Feedback-Driven Sampling requirement; it MUST NOT implement any time-decay or per-user/session personalization of feedback in this change. A verdict recorded for one slot's item MUST NOT be broadcast to or inferred for any other slot in the same submission.
+
+(Prior version: did not explicitly state the no-broadcast constraint, because a single shared `liked` was inherently broadcast to every slot URL in the submission.)
 
 #### Scenario: Generating an outfit without rating it
 - GIVEN the user calls `GET /api/outfits` and never submits feedback
 - WHEN no `POST /api/outfits/feedback` call is made
-- THEN no row is written to `outfit_feedback` for that generation
+- THEN no row is written to `outfit_feedback_item` for that generation
 
 #### Scenario: No time decay applied
 - GIVEN a dislike row for a `marca`+`categoria` pair was created over 90 days ago
 - WHEN a new outfit is generated
 - THEN that pair remains hard-excluded with the same strength as a dislike recorded moments ago
 
+#### Scenario: Dislike on one slot does not affect sibling slots
+- GIVEN a generated outfit with torso, piernas, calzado, and accesorio items
+- WHEN the client submits `liked=false` for only the calzado item
+- THEN the torso, piernas, and accesorio items' `marca`+`categoria` pairs are NOT hard-excluded as a result of this submission
+
+#### Scenario: Like on one slot does not boost sibling slots
+- GIVEN a generated outfit with torso, piernas, calzado, and accesorio items
+- WHEN the client submits `liked=true` for only the torso item
+- THEN the piernas, calzado, and accesorio items' `marca`+`categoria` pairs receive no sampling-weight boost as a result of this submission
+
 ### Requirement: Feedback-Driven Sampling
 
-On each outfit generation, the system MUST load all `outfit_feedback` rows and re-derive each referenced product's `marca` and `categoria` by joining the row's stored `url` (torso/piernas/calzado/accesorio) against the live in-memory catalog (`getLastResult().productos()`). A feedback row whose `url` is not present in the live catalog MUST be silently skipped (not treated as an error and not logged as a failure). For every `marca`+`categoria` pair with at least one `liked=0` row, the system MUST hard-exclude all products with that exact `marca`+`categoria` pair from candidacy in every slot, for every `genero`, with no expiry. For every `marca`+`categoria` pair with at least one `liked=1` row, the system MUST increase that pair's selection weight in `weightedRandomPick` relative to non-boosted pairs. This exclude/boost behavior MUST be applied globally — it MUST NOT vary by `genero`.
+On each outfit generation, the system MUST load all `outfit_feedback_item` rows and re-derive each referenced product's `marca` and `categoria` by joining the row's stored per-item `url` against the live in-memory catalog (`getLastResult().productos()`). A feedback row whose `url` is not present in the live catalog MUST be silently skipped (not treated as an error and not logged as a failure). For every `marca`+`categoria` pair with at least one item-level `liked=0` row, the system MUST hard-exclude all products with that exact `marca`+`categoria` pair from candidacy in every slot, for every `genero`, with no expiry. For every `marca`+`categoria` pair with at least one item-level `liked=1` row, the system MUST increase that pair's selection weight in `weightedRandomPick` relative to non-boosted pairs. This exclude/boost behavior MUST be applied globally — it MUST NOT vary by `genero`. Exclude/boost derivation MUST be computed strictly per rated item; the system MUST NOT broadcast a single row's verdict across multiple slots or pairs that were not individually rated.
+
+(Prior version: derivation joined the outfit-level row's torso/piernas/calzado/accesorio URLs together and applied the single shared `liked` value to all of their pairs at once. This evolved to per-item in `outfit-per-item-feedback` change.)
 
 #### Scenario: Dislike excludes the pair across genero values
 - GIVEN a disliked outfit's calzado product has `marca=Adidas`, `categoria=Zapatilla Running`
@@ -78,8 +112,14 @@ On each outfit generation, the system MUST load all `outfit_feedback` rows and r
 - WHEN the calzado slot is sampled
 - THEN Puma Zapatilla products are absent from candidates and Nike Zapatilla products are weighted higher than unboosted candidates
 
-## Open Questions (flagged for design/tasks)
+#### Scenario: Disliking only calzado excludes only that pair, not sibling pairs from the same outfit
+- GIVEN a single generated outfit with torso `marca=Nike`+`categoria=Remera`, piernas `marca=Adidas`+`categoria=Jogging`, and calzado `marca=Puma`+`categoria=Zapatilla`
+- WHEN the client submits `liked=false` for only the calzado item
+- THEN subsequent outfit generation hard-excludes `marca=Puma`+`categoria=Zapatilla` only
+- AND `marca=Nike`+`categoria=Remera` and `marca=Adidas`+`categoria=Jogging` remain fully eligible candidates
 
-- Exact JSON field names/casing for the request body (e.g. `torsoUrl` vs `torso_url`) are not specified in the proposal — design must define the DTO contract.
-- Whether feedback submission requires the full slot URL set (torso/piernas/calzado all present) or tolerates a partial outfit (e.g. fallback partial-result case) is not addressed in the proposal.
-- No validation rule is specified for duplicate feedback (e.g. same outfit liked twice) — proposal does not state whether duplicates are allowed, deduped, or rejected.
+## Open Questions (resolved by outfit-per-item-feedback change)
+
+- **Resolved**: Exact JSON field/array names for the per-item request body (e.g. `slots:[{slot,url,liked}]` vs alternative naming) — design pinned the DTO contract as `items:[{slot,url,liked}]`.
+- **Resolved**: Whether a single submission may include verdicts for fewer than all generated slots (e.g. rate only calzado) — design/tasks confirmed this is supported, one POST per individual item click.
+- **Resolved**: Migration strategy for legacy per-outfit rows (best-effort read vs. ignore vs. backfill) — design chose to leave legacy `outfit_feedback` table in place (harmless, read is switched to new `outfit_feedback_item` table).
