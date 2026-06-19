@@ -951,6 +951,48 @@ st.executeUpdate("""
         return result;
     }
 
+    /**
+     * Variante batch de {@link #getHistorialPrecios(String)}: carga el historial de
+     * múltiples URLs en una sola consulta {@code WHERE url IN (...)}, evitando el
+     * patrón N+1 que resultaría de llamar la versión single-URL por producto
+     * (usado por {@code SenalEnricher} para precomputar señal de compra sobre todo
+     * el catálogo en un solo round-trip a la DB).
+     *
+     * @param urls URLs de productos a consultar; URLs vacías/blank son ignoradas
+     * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
+     *         historial no aparecen como key
+     */
+    public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
+        Map<String, List<HistorialEntry>> result = new HashMap<>();
+        if (conn == null || urls == null || urls.isEmpty()) return result;
+
+        List<String> validUrls = urls.stream()
+                .filter(u -> u != null && !u.isBlank())
+                .distinct()
+                .toList();
+        if (validUrls.isEmpty()) return result;
+
+        String placeholders = String.join(",", validUrls.stream().map(u -> "?").toList());
+        String sql = "SELECT url, fecha, precio FROM precio_historico WHERE url IN (" +
+                placeholders + ") ORDER BY url, fecha";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < validUrls.size(); i++) {
+                ps.setString(i + 1, validUrls.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String url = rs.getString("url");
+                    result.computeIfAbsent(url, k -> new ArrayList<>())
+                          .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                }
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
+        }
+        return result;
+    }
+
     // ─── Clear methods ───────────────────────────────────────────────────────
 
     public void limpiarProductos() throws SQLException {
