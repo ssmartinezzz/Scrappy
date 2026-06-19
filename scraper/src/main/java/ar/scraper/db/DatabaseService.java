@@ -201,6 +201,17 @@ st.executeUpdate("""
                     created_at    TEXT NOT NULL
                 )""");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_outfit_fb_liked ON outfit_feedback(liked)");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS outfit_feedback_item (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    genero     TEXT,
+                    slot       TEXT NOT NULL,
+                    url        TEXT NOT NULL,
+                    liked      INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )""");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_liked ON outfit_feedback_item(liked)");
         }
     }
 
@@ -838,57 +849,55 @@ st.executeUpdate("""
 
     // ─── Outfit feedback ─────────────────────────────────────────────────────
 
-    public void guardarOutfitFeedback(String genero, boolean liked, String torsoUrl,
-                                       String piernasUrl, String calzadoUrl, String accesorioUrl) {
+    /** Fila cruda de feedback per-item — el join con el catálogo vivo lo hace el caller. */
+    public record OutfitItemRow(String slot, String url, boolean liked) {}
+
+    /**
+     * Persiste un único veredicto (slot, url, liked) en outfit_feedback_item — una fila
+     * por item calificado (ADR-1 de outfit-per-item-feedback). Reemplaza el viejo
+     * guardarOutfitFeedback(...) de fila ancha; la tabla outfit_feedback queda
+     * intacta pero sin nuevas escrituras.
+     */
+    public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked) {
         if (conn == null) return;
         try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO outfit_feedback
-                    (genero, liked, torso_url, piernas_url, calzado_url, accesorio_url, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO outfit_feedback_item
+                    (genero, slot, url, liked, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 """)) {
             ps.setString(1, genero);
-            ps.setInt(2, liked ? 1 : 0);
-            ps.setString(3, torsoUrl);
-            ps.setString(4, piernasUrl);
-            ps.setString(5, calzadoUrl);
-            ps.setString(6, accesorioUrl);
-            ps.setString(7, LocalDateTime.now().format(DT));
+            ps.setString(2, slot);
+            ps.setString(3, url);
+            ps.setInt(4, liked ? 1 : 0);
+            ps.setString(5, LocalDateTime.now().format(DT));
             ps.executeUpdate();
             conn.commit();
         } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit feedback: {}", e.getMessage());
+            LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
-    /** Fila cruda de feedback de outfits — el join con el catálogo vivo lo hace el caller. */
-    public record OutfitFeedbackRow(String genero, boolean liked, String torsoUrl,
-                                     String piernasUrl, String calzadoUrl, String accesorioUrl) {}
-
     /**
-     * Lee todas las filas de outfit_feedback. Sin filtro por genero (scope global,
+     * Lee todas las filas de outfit_feedback_item. Sin filtro por genero (scope global,
      * ver spec "Feedback-Driven Sampling" — el genero se ignora al construir las keys).
      * El caller (ApiController.buildFeedbackModel) hace el join url→Product contra el
      * catálogo vivo, ya que esta clase no conoce el AggregatedResult en memoria.
      */
-    public List<OutfitFeedbackRow> obtenerOutfitFeedback() {
-        List<OutfitFeedbackRow> result = new ArrayList<>();
+    public List<OutfitItemRow> obtenerOutfitFeedback() {
+        List<OutfitItemRow> result = new ArrayList<>();
         if (conn == null) return result;
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(
-                "SELECT genero, liked, torso_url, piernas_url, calzado_url, accesorio_url " +
-                "FROM outfit_feedback")) {
+                "SELECT slot, url, liked FROM outfit_feedback_item")) {
             while (rs.next()) {
-                result.add(new OutfitFeedbackRow(
-                        rs.getString("genero"),
-                        rs.getInt("liked") == 1,
-                        rs.getString("torso_url"),
-                        rs.getString("piernas_url"),
-                        rs.getString("calzado_url"),
-                        rs.getString("accesorio_url")));
+                result.add(new OutfitItemRow(
+                        rs.getString("slot"),
+                        rs.getString("url"),
+                        rs.getInt("liked") == 1));
             }
         } catch (Exception e) {
-            LOG.warn("[DB] Error cargando outfit feedback: {}", e.getMessage());
+            LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
         }
         return result;
     }

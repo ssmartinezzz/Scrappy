@@ -413,7 +413,8 @@ public class NormalizerService {
         "Topper","Flecha","Jaguar","Gola","Penalty","Olympikus",
         "Lacoste","Tommy","Calvin Klein","Levi's","Levis","Wrangler",
         "Champion","Kappa","Ellesse","Le Coq Sportif","Fred Perry",
-        "Caterpillar","Keen","Palladium","Crocs","Birkenstock"
+        "Caterpillar","Keen","Palladium","Crocs","Birkenstock",
+        "Bulks","Fuark"
     );
 
     private static final Set<String> NO_MARCA = Set.of(
