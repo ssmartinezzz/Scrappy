@@ -273,6 +273,7 @@ public class ApiController {
             n.put("marca",      safe(p.marca()));
             n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
             n.put("gymrat",     p.gymrat());
+            n.put("marcaPremium", p.marcaPremium());
             ArrayNode tallesArr = n.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesArr::add);
             // ML score — siempre serializar para el panel de detalle
