@@ -48,23 +48,47 @@ public class OutfitService {
     private static final Map<String, String> CATEGORIA_SLOT = buildCategoriaSlotMap();
 
     /**
-     * Regla de elegibilidad por estilo (ADR-3 en design.md de
-     * outfit-recommendation-quality): un whitelist de categorias de calzado nullable —
-     * null significa "sin restricción de estilo, usar la taxonomía base"
-     * (esCalzadoBase). Solo calzado está restringido para Gym v1; torso/piernas/accesorio
-     * quedan sin restricción adicional por estilo (el campo es la extensión point, no
-     * los valores futuros — agregar p.ej. torsoWhitelist más adelante no requiere
-     * tocar armar()/slotDe()).
+     * Regla de elegibilidad por estilo: whitelists nullable por slot — null significa
+     * "sin restricción de estilo, usar la taxonomía base de ese slot". Gym restringe
+     * los cuatro slots (calzado, torso, piernas, accesorio); estilos futuros pueden
+     * restringir solo algunos y dejar el resto en null.
      */
-    private record StyleRule(Set<String> calzadoWhitelist /* nullable */) { }
+    private record StyleRule(
+            Set<String> calzadoWhitelist   /* nullable */,
+            Set<String> torsoWhitelist     /* nullable */,
+            Set<String> piernasWhitelist   /* nullable */,
+            Set<String> accesorioWhitelist /* nullable */) { }
 
     private static final Map<String, StyleRule> STYLE_RULES = Map.of(
-            "gym", new StyleRule(Set.of(
-                    "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
-                    "Zapatilla Skate", "Zapatilla Urbana", "Sneaker"))
-            // Botines/Borcego/Botas/Ojotas intencionalmente EXCLUIDOS para Gym.
+            "gym", new StyleRule(
+                    Set.of("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
+                            "Zapatilla Urbana", "Sneaker"),
+                    Set.of("Buzo", "Campera", "Remera", "Musculosa"),
+                    Set.of("Short", "Pantalón", "Calza"),
+                    Set.of("Gorra", "Medias", "Suplemento"))
+            // Excluidos a propósito para Gym: Botines/Borcego/Botas/Ojotas/Zapatilla
+            // Skate (calzado — skate no es training, ej. DC/Vans); Sweater/Camisa/
+            // Chomba/Casaca/Chaleco/Saco/Traje/Piloto/Puffer (torso); Baggy/Jean/
+            // Bermuda/Pollera (piernas); Riñonera/Billetera/Cinturón/Bufanda/Guantes/
+            // Gorro/Lentes (accesorio) — confirmado por el usuario.
     );
-    private static final StyleRule DEFAULT_STYLE_RULE = new StyleRule(null); // sin restricción
+    private static final StyleRule DEFAULT_STYLE_RULE = new StyleRule(null, null, null, null); // sin restricción
+
+    /**
+     * Veto global (ajuste posterior a outfit-recommendation-quality): categorias
+     * acá NUNCA son elegibles para su slot, bajo NINGÚN estilo — ni siquiera
+     * DEFAULT_STYLE_RULE (whitelist null). Chequeado en slotDe() ANTES del gate
+     * de estilo, así que es independiente de STYLE_RULES.
+     */
+    private static final Set<String> ACCESORIO_VETADO = Set.of("Mochila", "Bolso");
+
+    /**
+     * Veto de marca para calzado, Gym-only (no global — análogo a Borcego/Botas/
+     * Ojotas): DC es marca de skate/lifestyle, no training, aunque el producto
+     * puntual se clasifique como "Zapatilla" genérica (sin keyword de skate en
+     * el nombre). Confirmado por el usuario tras verla aparecer en el armador.
+     */
+    private static final Set<String> CALZADO_MARCA_VETADA_GYM = Set.of("DC");
 
     /**
      * Veto global (ADR-2 de outfit-per-item-feedback): categorias acá NUNCA son
@@ -93,7 +117,7 @@ public class OutfitService {
         }
         for (String cat : List.of(
                 "Mochila", "Bolso", "Riñonera", "Billetera", "Cinturón", "Bufanda",
-                "Guantes", "Gorro", "Gorra", "Lentes", "Medias")) {
+                "Guantes", "Gorro", "Gorra", "Lentes", "Medias", "Suplemento")) {
             m.put(cat, SLOT_ACCESORIO);
         }
         return Collections.unmodifiableMap(m);
@@ -107,6 +131,90 @@ public class OutfitService {
 
     /** Resultado completo de armar() — outfit con slots, genero usado y flag partial. */
     public record Outfit(List<SlotPick> slots, String genero, boolean partial) {
+    }
+
+    /** Resultado de un ítem del combo de suplementos (independiente de los slots del outfit). */
+    public record SupplementPick(
+            String tipo, String sitio, String nombre, double precio,
+            String url, String img, String marca) {
+    }
+
+    private record SubtipoSuplemento(String tipo, String[] keywords) { }
+
+    /**
+     * Subtipos del combo de suplementos, en el orden en que se arma el combo.
+     * Cada producto con categoria=="Suplemento" se reclasifica por nombre (no
+     * toca el campo categoria canónico — evita romper el whitelist de accesorio
+     * Gym ni los facets del dashboard, que dependen del string "Suplemento").
+     */
+    private static final List<SubtipoSuplemento> SUPLEMENTO_SUBTIPOS = List.of(
+            new SubtipoSuplemento("Proteína", new String[]{"proteina", "protein", "whey", "isolate", "concentrate"}),
+            new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
+            new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
+            new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"})
+    );
+
+    /**
+     * Orden de preferencia de marca para el combo de suplementos (confirmado por
+     * el usuario): ENA y STAR ya tienen stock real en el catálogo; BCC ("La Roja")
+     * no tiene productos hoy, pero queda en la lista para entrar sola el día que
+     * se scrapee esa marca, sin tocar este código de nuevo.
+     */
+    private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD = List.of("ENA", "STAR", "BCC");
+
+    /**
+     * Combo de suplementos (Proteína/Creatina/Quemador/Magnesio) a mostrar siempre
+     * junto al outfit, independiente de género/estilo — best-effort por subtipo
+     * (subtipo sin candidatos se omite del combo, mismo criterio que el accesorio
+     * del armador de outfits).
+     */
+    public List<SupplementPick> armarComboSuplementos(List<Product> productos) {
+        if (productos == null) productos = List.of();
+        List<Product> suplementos = productos.stream()
+                .filter(p -> "Suplemento".equals(p.categoria()))
+                .collect(Collectors.toList());
+
+        List<SupplementPick> combo = new ArrayList<>();
+        for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
+            List<Product> candidatos = suplementos.stream()
+                    .filter(p -> matchesSubtipo(p.nombre(), subtipo.keywords()))
+                    .collect(Collectors.toList());
+            if (candidatos.isEmpty()) continue;
+            Product elegido = elegirPorMarcaPrioridad(candidatos);
+            combo.add(toSupplementPick(subtipo.tipo(), elegido));
+        }
+        return combo;
+    }
+
+    private boolean matchesSubtipo(String nombre, String[] keywords) {
+        if (nombre == null || nombre.isBlank()) return false;
+        String t = nombre.toLowerCase();
+        for (String kw : keywords) {
+            if (t.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    private Product elegirPorMarcaPrioridad(List<Product> candidatos) {
+        for (String marca : SUPLEMENTO_MARCA_PRIORIDAD) {
+            for (Product p : candidatos) {
+                if (marca.equalsIgnoreCase(p.marca())) return p;
+            }
+        }
+        return candidatos.get(ThreadLocalRandom.current().nextInt(candidatos.size()));
+    }
+
+    private SupplementPick toSupplementPick(String tipo, Product p) {
+        String img = p.imagenUrl() != null ? p.imagenUrl() : "";
+        if (img.startsWith("//")) img = "https:" + img;
+        return new SupplementPick(
+                tipo,
+                p.sitio() != null ? p.sitio() : "",
+                p.nombre() != null ? p.nombre() : "",
+                p.precio(),
+                p.url() != null ? p.url() : "",
+                img,
+                p.marca() != null ? p.marca() : "");
     }
 
     /**
@@ -142,11 +250,28 @@ public class OutfitService {
     private String slotDe(Product p, StyleRule rule) {
         String cat = p.categoria();
         if (cat == null || cat.isBlank()) return null;
+        if (ACCESORIO_VETADO.contains(cat)) return null; // global, style-independent
         if (CALZADO_VETADO.contains(cat)) return null; // global, style-independent
         if (esCalzadoBase(cat)) {
-            return esCalzadoElegible(rule, cat) ? SLOT_CALZADO : null;
+            if (!esCalzadoElegible(rule, cat)) return null;
+            if (rule.calzadoWhitelist() != null
+                    && CALZADO_MARCA_VETADA_GYM.contains(p.marca())) return null;
+            return SLOT_CALZADO;
         }
-        return CATEGORIA_SLOT.get(cat);
+        String slot = CATEGORIA_SLOT.get(cat);
+        if (slot == null) return null;
+        return slotWhitelist(rule, slot) == null || slotWhitelist(rule, slot).contains(cat)
+                ? slot : null;
+    }
+
+    /** Whitelist activa para un slot no-calzado bajo la StyleRule dada (null = sin restricción). */
+    private Set<String> slotWhitelist(StyleRule rule, String slot) {
+        return switch (slot) {
+            case SLOT_TORSO -> rule.torsoWhitelist();
+            case SLOT_PIERNAS -> rule.piernasWhitelist();
+            case SLOT_ACCESORIO -> rule.accesorioWhitelist();
+            default -> null;
+        };
     }
 
     /**
@@ -186,9 +311,13 @@ public class OutfitService {
      * gendered value") — bug fix: antes un pedido "unisex" explícito caía en la
      * comparación estricta de la última línea y excluía productos con genero
      * "hombre"/"mujer", lo que también dejaba sin efecto el fallback paso 2.
+     * Excepción dura: genero=="infantil" (NormalizerService.normalizarGenero)
+     * nunca es elegible, ni siquiera pidiendo "unisex" — el armador es para
+     * adultos, confirmado por el usuario tras ver zapatillas de niños en Gym.
      */
     private boolean generoElegible(Product p, String generoSolicitado) {
         String g = p.genero() != null ? p.genero().trim() : "";
+        if ("infantil".equalsIgnoreCase(g)) return false; // nunca en el armador, ni pidiendo unisex
         if (g.isEmpty()) return true;
         if ("unisex".equalsIgnoreCase(g)) return true;
         if (generoSolicitado == null || generoSolicitado.isBlank()) return true; // sin genero pedido: todo elegible
@@ -324,6 +453,14 @@ public class OutfitService {
      * de candidatos.size()==1 se mantiene — es seguro porque el exclude ya corrió
      * upstream en armar(), así que un único candidato no puede ser un par excluido,
      * y el boost es irrelevante para una elección forzada.
+     *
+     * distancia se normaliza por la mitad del ancho de banda (escala relativa,
+     * no pesos absolutos) — bug encontrado en vivo: con distancia en pesos
+     * crudos, un candidato a pocos pesos del centro (ej. coincidencia de
+     * $9 en una banda de $36000) pesaba ~1000x más que el resto y ganaba
+     * casi siempre, colapsando la variedad para categorías de ticket alto
+     * (calzado) donde esa coincidencia es más probable por la granularidad
+     * de precios del catálogo.
      */
     private Product weightedRandomPick(List<Product> candidatos, double[] band,
                                         Map<String, Integer> boostLikeCount) {
@@ -333,11 +470,15 @@ public class OutfitService {
                 ? (band[0] + band[1]) / 2.0
                 : candidatos.stream().mapToDouble(Product::precio).average().orElse(0);
 
+        double mitadBanda = (Double.isFinite(band[0]) && Double.isFinite(band[1]) && band[1] > band[0])
+                ? (band[1] - band[0]) / 2.0
+                : Math.max(centro * PRICE_BAND_PCT, 1.0);
+
         double[] pesos = new double[candidatos.size()];
         double totalPeso = 0;
         for (int i = 0; i < candidatos.size(); i++) {
             Product c = candidatos.get(i);
-            double distancia = Math.abs(c.precio() - centro);
+            double distancia = Math.abs(c.precio() - centro) / mitadBanda;
             double likeCount = boostLikeCount.getOrDefault(FeedbackModel.keyOf(c), 0);
             double boostFactor = 1.0 + Math.min(likeCount, FEEDBACK_BOOST_CAP) * FEEDBACK_BOOST_STEP;
             double peso = (1.0 / (1.0 + distancia)) * boostFactor;
