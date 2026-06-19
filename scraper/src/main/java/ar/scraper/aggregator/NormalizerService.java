@@ -192,7 +192,8 @@ public class NormalizerService {
 
     private static final String[] KW_MUSCULOSA = {
         "musculosa","tank top","camiseta de tirantes","sin mangas",
-        "top deportivo","sports bra","corpino deportivo"
+        "top deportivo","sports bra","corpino deportivo",
+        " top " // "Top" suelto (sin "deportivo"/"interior"/"cuello") — palabra completa
     };
 
     private static final String[] KW_REMERA = {
@@ -361,6 +362,10 @@ public class NormalizerService {
         "earbud","earbuds","inalambrico bt","over-ear","in-ear","on-ear"
     };
 
+    private static final String[] KW_WEBCAM = {
+        "webcam","camara web","web cam"
+    };
+
     private static final String[] KW_GPU = {
         "gpu","tarjeta de video","video card","graphics card",
         "rtx ","gtx ","rx ","radeon","geforce","arc "
@@ -434,6 +439,8 @@ public class NormalizerService {
         "vitamina","vitamin","multivitaminico","omega 3","omega3",
         "colageno","collagen","hidrolizado",
         "barra proteica","barra energetica","snack proteico",
+        "magnesio","magnesium","citrato de magnesio",
+        "quemador","fat burner","termogenico","l-carnitina","carnitina","cla ",
         "suplemento","supplement","nutri","proteico","proteica"
     };
 
@@ -491,7 +498,7 @@ public class NormalizerService {
     private Product normalizarProducto(Product p) {
         String nombre = p.nombre() != null ? p.nombre() : "";
         String cat    = normalizarCategoria(p.categoria(), nombre);
-        String genero = normalizarGenero(p.genero(), nombre);
+        String genero = normalizarGenero(p.genero(), nombre, cat);
         List<String> talles = normalizarTalles(p.talles());
         String marca  = (p.marca() == null || p.marca().isBlank())
                         ? extraerMarca(nombre, p.sitio())
@@ -597,8 +604,6 @@ public class NormalizerService {
         "crema ","locion ","loción ","gel ","shampoo","jabon ","jabón ","protector solar",
         // Equipos / electrónica
         "router ","teclado mecanico","mouse gamer","monitor led","fuente atx",
-        // Suplementos que no son ropa
-        "whey ","proteina ","creatina ","bcaa ","vitamina ","pre-workout",
     };
 
     /**
@@ -651,10 +656,13 @@ public class NormalizerService {
     private String clasificar(String texto) {
         if (texto == null || texto.isBlank()) return "";
         if (esClaramenteNoTextil(texto)) return "";
-        String t = texto.toLowerCase()
+        // Padding con espacios: permite matchear keywords cortas como "top" por
+        // palabra completa (" top ") sin falsos positivos contra "laptop"/"desktop",
+        // que no tienen espacio antes de "top".
+        String t = " " + texto.toLowerCase()
                         .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
                         .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
-                        .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
+                        .replaceAll("[úùü]","u").replaceAll("[ñ]","n") + " ";
 
         // ── COMBO / MULTI-PIEZA (ver ADR-4) — corre ANTES de cualquier otro
         // bloque para que un SKU combo nunca quede first-matched como una sola
@@ -674,6 +682,7 @@ public class NormalizerService {
         if (anyMatch(t, KW_TECLADO))   return "Teclado";
         if (anyMatch(t, KW_MOUSE))     return "Mouse";
         if (anyMatch(t, KW_AURICULAR)) return "Auricular";
+        if (anyMatch(t, KW_WEBCAM))    return "Webcam";
 
         // ── CALZADO (más específico primero) ──────────────────────────
         if (anyMatch(t, KW_BOTIN))     return "Botines";
@@ -684,23 +693,6 @@ public class NormalizerService {
         if (anyMatch(t, KW_SANDALIA))  return "Sandalia";
         if (anyMatch(t, KW_OJOTA))     return "Ojotas";
         if (anyMatch(t, KW_BOTA))      return "Botas";
-        if (anyMatch(t, KW_SNEAKER))   return "Sneaker";
-
-        boolean esZapatilla = t.contains("zapatilla") || t.contains("sneaker")
-                || t.contains("calzado") || t.contains("shoe") || t.contains("tenis")
-                || t.contains("footwear");
-
-        if (esZapatilla || anyMatch(t, KW_RUNNING) || anyMatch(t, KW_TRAINING)
-                        || anyMatch(t, KW_SKATE)   || anyMatch(t, KW_URBANA)) {
-            if (anyMatch(t, KW_OJOTA))    return "Ojotas";
-            if (anyMatch(t, KW_BOTIN))    return "Botines";
-            if (anyMatch(t, KW_RUNNING))  return "Zapatilla Running";
-            if (anyMatch(t, KW_TRAINING)) return "Zapatilla Entrenamiento";
-            if (anyMatch(t, KW_SKATE))    return "Zapatilla Skate";
-            if (anyMatch(t, KW_SNEAKER))  return "Sneaker";
-            if (anyMatch(t, KW_URBANA))   return "Zapatilla Urbana";
-            if (esZapatilla)              return "Zapatilla";
-        }
 
         // ── ROPA INTERIOR / BAÑO ──────────────────────────────────────
         if (anyMatch(t, KW_CALZONCILLO)) return "Calzoncillos";
@@ -752,6 +744,31 @@ public class NormalizerService {
         if (anyMatch(t, KW_GORRA))      return "Gorra";
         if (anyMatch(t, KW_MEDIAS))     return "Medias";
 
+        // ── CALZADO POR MODELO/MARCA (fallback, sin sustantivo explícito) ─
+        // Corre AL FINAL, después de todos los sustantivos explícitos de arriba:
+        // KW_RUNNING/KW_TRAINING/KW_SKATE/KW_URBANA mezclan nombres de modelo de
+        // zapatilla (ultraboost, old skool, air force 1) con palabras genéricas
+        // (training, gym, skate, urbana) que las marcas reusan en mochilas, bolsos
+        // y ropa (ej. "Mochila Vans Old Skool", "Buzo Saucony Triumph", "Bolso
+        // Training Barrel"). Si corriera primero, esos productos quedaban
+        // clasificados como zapatillas en lugar de Mochila/Bolso/Buzo. Puesto acá,
+        // cualquier sustantivo explícito de arriba (mochila, buzo, musculosa...)
+        // gana siempre sobre esta inferencia por palabra clave.
+        if (anyMatch(t, KW_SNEAKER))   return "Sneaker";
+
+        boolean esZapatilla = t.contains("zapatilla") || t.contains("sneaker")
+                || t.contains("calzado") || t.contains("shoe") || t.contains("tenis")
+                || t.contains("footwear");
+
+        if (esZapatilla || anyMatch(t, KW_RUNNING) || anyMatch(t, KW_TRAINING)
+                        || anyMatch(t, KW_SKATE)   || anyMatch(t, KW_URBANA)) {
+            if (anyMatch(t, KW_RUNNING))  return "Zapatilla Running";
+            if (anyMatch(t, KW_TRAINING)) return "Zapatilla Entrenamiento";
+            if (anyMatch(t, KW_SKATE))    return "Zapatilla Skate";
+            if (anyMatch(t, KW_URBANA))   return "Zapatilla Urbana";
+            if (esZapatilla)              return "Zapatilla";
+        }
+
         return "";
     }
 
@@ -792,29 +809,55 @@ public class NormalizerService {
     // Género
     // ──────────────────────────────────────────────────────────────────
 
-    String normalizarGenero(String raw, String nombre) {
-        String combined = ((raw != null ? raw : "") + " " + (nombre != null ? nombre : "")).toLowerCase()
-                .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
-                .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
-                .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
+    String normalizarGenero(String raw, String nombre, String categoria) {
+        String nombreNorm = normalizarAcentos(nombre != null ? nombre : "");
+        String combined = normalizarAcentos((raw != null ? raw : "") + " " + (nombre != null ? nombre : ""));
+
+        // Infantil primero: "niños"/"niñas" no debe perderse contra ningún otro
+        // match (gym armador los excluye explícitamente — no son adultos).
+        if (combined.contains("nino") || combined.contains("nina") ||
+            combined.contains("kids") || combined.contains("infantil") ||
+            combined.contains("bebe")) return "infantil";
+
+        // Señal explícita "de hombre"/"de mujer" en el NOMBRE del producto gana
+        // sobre un spec de género del sitio (raw) que puede estar mal taggeado
+        // a nivel catálogo — bug encontrado en vivo: "Calza Nike One De Mujer"
+        // (Sporting) traía raw="Hombre" del spec VTEX y el combined check de
+        // abajo (que mira raw+nombre con "hombre" primero) lo pisaba, mostrando
+        // una calza de mujer en outfits de hombre.
+        if (nombreNorm.contains("de mujer") || nombreNorm.contains("para mujer")) return "mujer";
+        if (nombreNorm.contains("de hombre") || nombreNorm.contains("para hombre")) return "hombre";
 
         if (combined.contains("hombre") || combined.contains("masculino") ||
             combined.contains(" men")   || combined.contains("male")      ||
-            combined.contains("caballero") || combined.contains("varones") ||
-            combined.contains("de hombre")) return "hombre";
+            combined.contains("caballero") || combined.contains("varones")) return "hombre";
 
         if (combined.contains("mujer")  || combined.contains("femenino") ||
             combined.contains("women")  || combined.contains("female")   ||
-            combined.contains("dama")   || combined.contains("damas")    ||
-            combined.contains("de mujer")) return "mujer";
+            combined.contains("dama")   || combined.contains("damas")) return "mujer";
 
         if (combined.contains("unisex") || combined.contains("neutro")) return "unisex";
 
         // Inferir por nombre de producto (modelos icónicos)
         if (combined.contains("wmns") || combined.contains("w ") ||
-            combined.contains(" w)") || combined.contains("para mujer")) return "mujer";
+            combined.contains(" w)")) return "mujer";
 
-        return raw != null ? raw.trim().toLowerCase() : "";
+        if (raw != null && !raw.isBlank()) return raw.trim().toLowerCase();
+
+        // Sin ninguna señal de género (ni nombre ni spec del sitio): Calza es,
+        // en este catálogo, predominantemente de mujer (80 mujer vs. un puñado
+        // de hombre, todas estas últimas con tag explícito) — confirmado por el
+        // usuario tras ver calzas sin género coladas en outfits de hombre.
+        if ("Calza".equals(categoria)) return "mujer";
+
+        return "";
+    }
+
+    private String normalizarAcentos(String s) {
+        return s.toLowerCase()
+                .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
+                .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
+                .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
     }
 
     // ──────────────────────────────────────────────────────────────────
