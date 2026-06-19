@@ -1,86 +1,103 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchOutfit, sendOutfitFeedback, fmt } from '../api';
 
-const SLOT_LABELS = {
-  torso:     'Torso',
-  piernas:   'Piernas',
-  calzado:   'Calzado',
-  accesorio: 'Accesorio',
-};
+// Orden real en que se compone un outfit (de torso a calzado, accesorio al final) —
+// el índice no es decorativo, refleja la secuencia con la que te vestís.
+const SLOT_ORDER = [
+  { key: 'torso',     label: 'Torso' },
+  { key: 'piernas',   label: 'Piernas' },
+  { key: 'calzado',   label: 'Calzado' },
+  { key: 'accesorio', label: 'Accesorio' },
+];
+const SLOT_LABELS = Object.fromEntries(SLOT_ORDER.map(s => [s.key, s.label]));
+const SLOT_INDEX  = Object.fromEntries(SLOT_ORDER.map((s, i) => [s.key, i + 1]));
 
 // ─── OutfitCard ──────────────────────────────────────────────────────────────
-function OutfitCard({ outfit, onReroll, onFeedback, rerolling, feedbackSent }) {
+function OutfitCard({ outfit, onReroll, onFeedback, rerolling, sentSlots }) {
   const slots = outfit.slots || [];
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:12, maxWidth:760 }}>
-      <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-        {slots.map(s => (
-          <div key={s.slot} style={{
-            flex:'1 1 160px', minWidth:140, background:'var(--s2)', borderRadius:10,
-            border:'1.5px solid var(--bd)', overflow:'hidden',
-          }}>
-            <div style={{
-              fontSize:'.62rem', fontWeight:700, color:'var(--t4)',
-              padding:'4px 8px', background:'var(--s1)', borderBottom:'1px solid var(--bd)',
-            }}>{SLOT_LABELS[s.slot] || s.slot}</div>
-
-            {s.img && (
-              <img src={s.img} alt={s.nombre} loading="lazy"
-                   style={{ width:'100%', height:140, objectFit:'cover', display:'block' }}
-                   onError={e => e.target.style.display = 'none'}/>
-            )}
-
-            <div style={{ padding:'8px 10px' }}>
-              <div style={{
-                fontSize:'.72rem', fontWeight:600, color:'var(--t1)',
-                overflow:'hidden', display:'-webkit-box',
-                WebkitLineClamp:2, WebkitBoxOrient:'vertical',
-              }}>{s.nombre || '—'}</div>
-              <div style={{ fontSize:'.78rem', fontWeight:700, color:'var(--g, #3fb950)', marginTop:4 }}>
-                ${fmt(s.precio)}
+    <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:1040 }}>
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+        {slots.map(s => {
+          const sent = sentSlots.has(s.slot);
+          return (
+            <div key={s.slot} className="outfit-card">
+              <div className="kit-tag">
+                <span className="kit-tag-idx">{String(SLOT_INDEX[s.slot] || '–').padStart(2, '0')}</span>
+                <span className="kit-tag-label">{SLOT_LABELS[s.slot] || s.slot}</span>
               </div>
-              <div style={{ fontSize:'.62rem', color:'var(--t4)' }}>
-                {s.marca || s.sitio}
+
+              {s.img && (
+                <div className="outfit-img-wrap">
+                  <img src={s.img} alt={s.nombre} loading="lazy"
+                       onError={e => { e.target.parentElement.style.display = 'none'; }}/>
+                  {(s.marca || s.sitio) && (
+                    <span className="outfit-marca-pill">{s.marca || s.sitio}</span>
+                  )}
+                </div>
+              )}
+
+              <div className="outfit-card-body">
+                <div className="outfit-card-name">{s.nombre || '—'}</div>
+                <div className="outfit-card-price">${fmt(s.precio)}</div>
+
+                <div className="outfit-feedback-row">
+                  {sent ? (
+                    <span className="outfit-fb-sent">Guardado</span>
+                  ) : (
+                    <>
+                      <button className="outfit-fb-btn like" onClick={() => onFeedback(s.slot, s.url, true)}>
+                        Me gusta
+                      </button>
+                      <button className="outfit-fb-btn dislike" onClick={() => onFeedback(s.slot, s.url, false)}>
+                        No me gusta
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <button
-          onClick={onReroll}
-          disabled={rerolling}
-          style={{
-            padding:'6px 14px', borderRadius:16, border:'none', cursor: rerolling ? 'default' : 'pointer',
-            fontSize:'.74rem', fontWeight:700,
-            background: rerolling ? 'var(--s2)' : 'var(--p)',
-            color: rerolling ? 'var(--t4)' : '#fff',
-            opacity: rerolling ? .6 : 1,
-          }}>
-          {rerolling ? 'Generando...' : '🎲 Re-roll'}
+        <button className="reroll-btn" onClick={onReroll} disabled={rerolling}>
+          {rerolling ? 'Generando...' : 'Generar otra combinación'}
         </button>
+      </div>
+    </div>
+  );
+}
 
-        <button onClick={() => onFeedback(true)} disabled={!!feedbackSent}
-          style={{
-            padding:'6px 12px', borderRadius:16, border:'1px solid var(--bd)',
-            background:'var(--s2)', cursor: feedbackSent ? 'default' : 'pointer',
-            fontSize:'.85rem', opacity: feedbackSent ? .5 : 1,
-          }}>👍</button>
+// ─── SuplementosCombo ─────────────────────────────────────────────────────────
+function SuplementosCombo({ items }) {
+  if (!items || items.length === 0) return null;
 
-        <button onClick={() => onFeedback(false)} disabled={!!feedbackSent}
-          style={{
-            padding:'6px 12px', borderRadius:16, border:'1px solid var(--bd)',
-            background:'var(--s2)', cursor: feedbackSent ? 'default' : 'pointer',
-            fontSize:'.85rem', opacity: feedbackSent ? .5 : 1,
-          }}>👎</button>
+  return (
+    <div className="supl-section" style={{ maxWidth:1040, marginTop:4 }}>
+      <div className="supl-eyebrow">Sugerido para vos</div>
+      <div className="supl-title">Stack de suplementos</div>
+      <div className="supl-grid">
+        {items.map(it => (
+            <div key={it.tipo} className="supl-card">
+              <div className="supl-tipo-header">{it.tipo}</div>
 
-        {feedbackSent && (
-          <span style={{ fontSize:'.68rem', color:'var(--t4)' }}>
-            ¡Gracias por tu feedback!
-          </span>
-        )}
+              {it.img && (
+                <div className="supl-img-wrap">
+                  <img src={it.img} alt={it.nombre} loading="lazy"
+                       onError={e => { e.target.parentElement.style.display = 'none'; }}/>
+                </div>
+              )}
+
+              <div className="supl-card-body">
+                <div className="supl-card-name">{it.nombre || '—'}</div>
+                <div className="supl-card-price">${fmt(it.precio)}</div>
+                <div className="supl-card-marca">{it.marca || it.sitio}</div>
+              </div>
+            </div>
+        ))}
       </div>
     </div>
   );
@@ -92,13 +109,13 @@ function GymTab() {
   const [outfit, setOutfit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rerolling, setRerolling] = useState(false);
-  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [sentSlots, setSentSlots] = useState(() => new Set());
   const [error, setError] = useState(false);
 
   const load = useCallback(async (busy) => {
     busy === 'reroll' ? setRerolling(true) : setLoading(true);
     setError(false);
-    setFeedbackSent(false);
+    setSentSlots(new Set());
     try {
       const data = await fetchOutfit(genero);
       setOutfit(data);
@@ -114,30 +131,24 @@ function GymTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleFeedback(liked) {
+  async function handleFeedback(slot, url, liked) {
     if (!outfit) return;
     const body = {
       genero: outfit.genero,
-      liked,
-      slots: (outfit.slots || []).map(s => ({ slot: s.slot, url: s.url })),
+      items: [{ slot, url, liked }],
     };
     const ok = await sendOutfitFeedback(body);
-    if (ok) setFeedbackSent(true);
+    if (ok) setSentSlots(prev => new Set(prev).add(slot));
   }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
       {/* Genero selector */}
-      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-        <span style={{ fontSize:'.72rem', color:'var(--t4)' }}>Género:</span>
+      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
         {['hombre', 'mujer', 'unisex'].map(g => (
           <button key={g} onClick={() => setGenero(g)}
-            style={{
-              padding:'5px 12px', borderRadius:14, border:'1px solid var(--bd)',
-              cursor:'pointer', fontSize:'.72rem', fontWeight:600,
-              background: genero === g ? 'var(--p)' : 'var(--s2)',
-              color: genero === g ? '#fff' : 'var(--t3)',
-            }}>{g}</button>
+            className={`genero-pill ${genero === g ? 'active' : ''}`}>{g}</button>
         ))}
       </div>
 
@@ -156,11 +167,8 @@ function GymTab() {
       {!loading && !error && outfit && (
         <>
           {outfit.partial && (
-            <div style={{
-              fontSize:'.72rem', color:'#f0a500', background:'rgba(240,165,0,.12)',
-              border:'1px solid rgba(240,165,0,.3)', borderRadius:8, padding:'8px 12px',
-            }}>
-              ⚠️ No hay suficientes productos para completar un outfit para este género. Mostrando lo disponible.
+            <div className="partial-warning">
+              <strong>Catálogo limitado.</strong> No hay suficientes productos para completar un outfit para este género — mostrando lo disponible.
             </div>
           )}
 
@@ -169,13 +177,16 @@ function GymTab() {
               No se encontraron productos para armar un outfit con este filtro.
             </div>
           ) : (
-            <OutfitCard
-              outfit={outfit}
-              rerolling={rerolling}
-              feedbackSent={feedbackSent}
-              onReroll={() => load('reroll')}
-              onFeedback={handleFeedback}
-            />
+            <>
+              <OutfitCard
+                outfit={outfit}
+                rerolling={rerolling}
+                sentSlots={sentSlots}
+                onReroll={() => load('reroll')}
+                onFeedback={handleFeedback}
+              />
+              <SuplementosCombo items={outfit.suplementos} />
+            </>
           )}
         </>
       )}
@@ -203,10 +214,10 @@ export default function OutfitsPanel() {
         display:'flex', borderBottom:'1px solid var(--bd)',
         background:'var(--s1)', position:'sticky', top:0, zIndex:10,
       }}>
-        {[['gym', '💪 Gym'], ['casual', '👕 Casual'], ['formal', '🤵 Formal']].map(([k, l]) => (
+        {[['gym', 'Gym'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             padding:'.55rem 1rem', background:'none', border:'none', cursor:'pointer',
-            fontSize:'.78rem', fontWeight:600,
+            fontSize:'.78rem', fontWeight:600, letterSpacing:'.02em',
             color: tab === k ? 'var(--p2)' : 'var(--t4)',
             borderBottom: tab === k ? '2px solid var(--p2)' : '2px solid transparent',
           }}>{l}</button>
