@@ -39,8 +39,16 @@ public class DatabaseService {
 
     @PostConstruct
     public void init() {
+        initEn(Paths.get("scraper.db").toAbsolutePath().toString());
+    }
+
+    /**
+     * Variante de {@link #init()} con path explícito — usada por tests
+     * unitarios para apuntar a un archivo SQLite temporal en lugar del
+     * {@code scraper.db} real del directorio de trabajo.
+     */
+    void initEn(String path) {
         try {
-            String path = Paths.get("scraper.db").toAbsolutePath().toString();
             conn = DriverManager.getConnection("jdbc:sqlite:" + path);
             conn.setAutoCommit(false);
             crearTablas();
@@ -49,6 +57,13 @@ public class DatabaseService {
         } catch (Exception e) {
             LOG.error("[DB] Error al iniciar: {}", e.getMessage(), e);
         }
+    }
+
+    /** Cierra la conexión subyacente — usado por tests para liberar el archivo SQLite temporal. */
+    void cerrar() {
+        try {
+            if (conn != null) conn.close();
+        } catch (Exception ignored) {}
     }
 
     // ─── Schema ──────────────────────────────────────────────────────────────
@@ -214,6 +229,218 @@ st.executeUpdate("""
                     created_at TEXT NOT NULL
                 )""");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_liked ON outfit_feedback_item(liked)");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS financiacion_presets (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    label      TEXT NOT NULL,
+                    recargo_pct REAL NOT NULL,
+                    cuotas     INTEGER NOT NULL,
+                    activo     INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )""");
+        }
+        seedPresetIlustrativoSiVacio();
+    }
+
+    // ─── Presets de financiación ─────────────────────────────────────────────
+
+    private static final String PRESET_ILUSTRATIVO_LABEL =
+            "Ejemplo — 12 cuotas / 40% recargo (editá este valor)";
+    private static final double PRESET_ILUSTRATIVO_RECARGO_PCT = 40.0;
+    private static final int    PRESET_ILUSTRATIVO_CUOTAS      = 12;
+
+    public record Preset(int id, String label, double recargoPct, int cuotas, boolean activo) {}
+
+    /**
+     * En el primer arranque (tabla vacía), crea un preset ilustrativo marcado
+     * explícitamente como ejemplo y lo deja activo, para que la señal de
+     * financiación tenga un valor de referencia desde el día uno sin requerir
+     * que el usuario configure nada manualmente.
+     */
+    private void seedPresetIlustrativoSiVacio() throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
+            if (rs.next() && rs.getInt(1) == 0) {
+                crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                        PRESET_ILUSTRATIVO_CUOTAS, true);
+                LOG.info("[DB] Preset ilustrativo creado y activado (tabla vacía).");
+            }
+        }
+    }
+
+    private int crearPresetInterno(String label, double recargoPct, int cuotas, boolean activo) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO financiacion_presets (label, recargo_pct, cuotas, activo, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, label);
+            ps.setDouble(2, recargoPct);
+            ps.setInt(3, cuotas);
+            ps.setInt(4, activo ? 1 : 0);
+            ps.setString(5, LocalDateTime.now().format(DT));
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getInt(1) : -1;
+            }
+        }
+    }
+
+    public List<Preset> listarPresets() {
+        List<Preset> result = new ArrayList<>();
+        if (conn == null) return result;
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
+            while (rs.next()) {
+                result.add(new Preset(
+                        rs.getInt("id"), rs.getString("label"),
+                        rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
+                        rs.getInt("activo") == 1));
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando presets: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    public Optional<Preset> cargarPresetActivo() {
+        if (conn == null) return Optional.empty();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo=1 LIMIT 1")) {
+            if (rs.next()) {
+                return Optional.of(new Preset(
+                        rs.getInt("id"), rs.getString("label"),
+                        rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true));
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando preset activo: {}", e.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Crea un preset nuevo, inactivo por defecto. Retorna el id generado, o -1 en
+     * error o si {@code cuotas}/{@code recargoPct} son inválidos (mismo criterio
+     * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
+     */
+    public int crearPreset(String label, double recargoPct, int cuotas) {
+        if (conn == null) return -1;
+        if (cuotas <= 0 || recargoPct <= -100) {
+            LOG.warn("[DB] crearPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
+            return -1;
+        }
+        try {
+            int id = crearPresetInterno(label, recargoPct, cuotas, false);
+            conn.commit();
+            return id;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error creando preset: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+            return -1;
+        }
+    }
+
+    /**
+     * Edita label/recargoPct/cuotas de un preset existente. No altera su estado activo.
+     * Retorna {@code false} sin persistir si {@code cuotas}/{@code recargoPct} son
+     * inválidos (mismo criterio que {@code FinanciacionCalculator.compute}: cuotas&gt;0
+     * y recargoPct&gt;-100), o si ocurre un error.
+     */
+    public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
+        if (conn == null) return false;
+        if (cuotas <= 0 || recargoPct <= -100) {
+            LOG.warn("[DB] editarPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
+            return false;
+        }
+        try (PreparedStatement ps = conn.prepareStatement("""
+                UPDATE financiacion_presets SET label=?, recargo_pct=?, cuotas=? WHERE id=?
+                """)) {
+            ps.setString(1, label);
+            ps.setDouble(2, recargoPct);
+            ps.setInt(3, cuotas);
+            ps.setInt(4, id);
+            int filasEditadas = ps.executeUpdate();
+            if (filasEditadas == 0) {
+                LOG.warn("[DB] editarPreset: id {} no existe.", id);
+                return false;
+            }
+            conn.commit();
+            return true;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error editando preset {}: {}", id, e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
+        }
+    }
+
+    /**
+     * Activa el preset {@code id} y desactiva todos los demás, de forma transaccional.
+     * Retorna {@code false} (y revierte la desactivación) si {@code id} no existe —
+     * evita quedar sin ningún preset activo por un id inválido/obsoleto.
+     */
+    public boolean activarPreset(int id) {
+        if (conn == null) return false;
+        try (PreparedStatement psOff = conn.prepareStatement(
+                "UPDATE financiacion_presets SET activo=0 WHERE activo=1");
+             PreparedStatement psOn = conn.prepareStatement(
+                "UPDATE financiacion_presets SET activo=1 WHERE id=?")) {
+            psOff.executeUpdate();
+            psOn.setInt(1, id);
+            int filasActivadas = psOn.executeUpdate();
+            if (filasActivadas == 0) {
+                LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
+                conn.rollback();
+                return false;
+            }
+            conn.commit();
+            return true;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
+        }
+    }
+
+    /**
+     * Elimina un preset. Comportamiento resuelto en el diseño para el caso
+     * "borrar el preset activo":
+     * <ul>
+     *   <li>Si es el ÚNICO preset restante (activo o no) → se borra y se
+     *       recrea el preset ilustrativo por defecto, activo (evita un estado
+     *       de tabla vacía sin recuperación automática).</li>
+     *   <li>Si quedan OTROS presets → se borra y NINGUNO se auto-activa; el
+     *       catálogo cae a {@code sin_preset_activo} hasta que el usuario
+     *       active uno explícitamente.</li>
+     * </ul>
+     */
+    public void eliminarPreset(int id) {
+        if (conn == null) return;
+        try {
+            int total;
+            try (Statement st = conn.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
+                total = rs.next() ? rs.getInt(1) : 0;
+            }
+
+            int filasBorradas;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM financiacion_presets WHERE id=?")) {
+                ps.setInt(1, id);
+                filasBorradas = ps.executeUpdate();
+            }
+
+            if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
+                crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                        PRESET_ILUSTRATIVO_CUOTAS, true);
+                LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
+            }
+
+            conn.commit();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
