@@ -131,6 +131,24 @@ class DatabaseServicePresetTest {
     }
 
     @Test
+    void eliminarPresetWithNonExistentIdAndSingleActivePresetIsSafeNoOp() {
+        Preset original = db.cargarPresetActivo().orElseThrow();
+        int nonExistentId = original.id() + 999;
+
+        db.eliminarPreset(nonExistentId);
+
+        List<Preset> presets = db.listarPresets();
+        assertThat(presets).hasSize(1);
+
+        Preset unchanged = presets.get(0);
+        assertThat(unchanged.id()).isEqualTo(original.id());
+        assertThat(unchanged.activo()).isTrue();
+
+        long activeCount = presets.stream().filter(Preset::activo).count();
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
     void eliminarPresetInactivoDoesNotAffectActivePreset() {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int inactiveId = db.crearPreset("Preset inactivo", 15.0, 3);
@@ -141,5 +159,81 @@ class DatabaseServicePresetTest {
         assertThat(activo).isPresent();
         assertThat(activo.get().id()).isEqualTo(original.id());
         assertThat(db.listarPresets()).hasSize(1);
+    }
+
+    @Test
+    void activarPresetWithNonExistentIdLeavesOriginalActiveAndSignalsFailure() {
+        Preset original = db.cargarPresetActivo().orElseThrow();
+        int nonExistentId = original.id() + 999;
+
+        boolean result = db.activarPreset(nonExistentId);
+
+        assertThat(result).isFalse();
+        Optional<Preset> activo = db.cargarPresetActivo();
+        assertThat(activo).isPresent();
+        assertThat(activo.get().id()).isEqualTo(original.id());
+
+        long activeCount = db.listarPresets().stream().filter(Preset::activo).count();
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    void crearPresetRejectsInvalidCuotasOrRecargoPctWithoutPersisting() {
+        int before = db.listarPresets().size();
+
+        assertThat(db.crearPreset("Cuotas cero", 25.0, 0)).isEqualTo(-1);
+        assertThat(db.crearPreset("Cuotas negativas", 25.0, -1)).isEqualTo(-1);
+        assertThat(db.crearPreset("Recargo invalido", -100.0, 12)).isEqualTo(-1);
+
+        assertThat(db.listarPresets()).hasSize(before);
+    }
+
+    @Test
+    void editarPresetRejectsInvalidCuotasOrRecargoPctWithoutPersisting() {
+        int id = db.crearPreset("Original", 10.0, 6);
+
+        assertThat(db.editarPreset(id, "Editado", 10.0, 0)).isFalse();
+        assertThat(db.editarPreset(id, "Editado", 10.0, -1)).isFalse();
+        assertThat(db.editarPreset(id, "Editado", -100.0, 6)).isFalse();
+
+        Preset unchanged = db.listarPresets().stream()
+                .filter(p -> p.id() == id).findFirst().orElseThrow();
+        assertThat(unchanged.label()).isEqualTo("Original");
+        assertThat(unchanged.recargoPct()).isEqualTo(10.0);
+        assertThat(unchanged.cuotas()).isEqualTo(6);
+    }
+
+    @Test
+    void editarPresetWithNonExistentIdSignalsFailureAndLeavesExistingPresetUnchanged() {
+        Preset original = db.cargarPresetActivo().orElseThrow();
+        int nonExistentId = original.id() + 999;
+
+        boolean result = db.editarPreset(nonExistentId, "x", 10.0, 5);
+
+        assertThat(result).isFalse();
+        Preset unchanged = db.listarPresets().stream()
+                .filter(p -> p.id() == original.id()).findFirst().orElseThrow();
+        assertThat(unchanged.label()).isEqualTo(original.label());
+        assertThat(unchanged.recargoPct()).isEqualTo(original.recargoPct());
+        assertThat(unchanged.cuotas()).isEqualTo(original.cuotas());
+    }
+
+    @Test
+    void listarPresetsOrdersByIdWhenCreatedAtCollides() {
+        // Inserts in quick succession share the same second-precision created_at,
+        // so the secondary `id` sort key is what guarantees deterministic order.
+        int idA = db.crearPreset("Preset A", 10.0, 3);
+        int idB = db.crearPreset("Preset B", 20.0, 6);
+        int idC = db.crearPreset("Preset C", 30.0, 9);
+
+        List<Preset> presets = db.listarPresets();
+        List<Integer> ids = presets.stream().map(Preset::id).toList();
+
+        int posA = ids.indexOf(idA);
+        int posB = ids.indexOf(idB);
+        int posC = ids.indexOf(idC);
+
+        assertThat(posA).isLessThan(posB);
+        assertThat(posB).isLessThan(posC);
     }
 }
