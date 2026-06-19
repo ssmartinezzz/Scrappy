@@ -861,6 +861,19 @@ def main():
             nombre     = (p.get('nombre') or '').lower()
             cat_actual = (p.get('categoria') or '').strip()
 
+            # Guard dedicado (ADR-5): "Conjunto" (combo/multi-pieza, ver
+            # NormalizerService.clasificar()) nunca debe ser re-clasificado por
+            # el ensemble ML. NO se agrega "conjunto" al set `genericas` de
+            # arriba: ese set, usado en la condición de L925 (`cat_actual.lower()
+            # in genericas or confianza >= 0.92`), funciona como "más facil de
+            # sobreescribir" (salta el umbral de alta confianza), no como
+            # "protegido contra sobreescritura" — agregarlo ahi haria a
+            # "Conjunto" MAS propenso a ser reclasificado, el efecto opuesto al
+            # que pide ADR-5. Por eso el guard vive aca, antes de cualquier
+            # predicción/aplicación, y se salta el producto incondicionalmente.
+            if cat_actual.lower() == 'conjunto':
+                continue
+
             # 1) Predicción de texto
             txt_cat, txt_conf = txt_preds[idx]
 

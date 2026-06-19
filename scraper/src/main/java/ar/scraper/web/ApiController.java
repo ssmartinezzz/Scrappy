@@ -698,6 +698,18 @@ public class ApiController {
             n.put("categoria", safe(pick.categoria()));
             n.put("marca",     safe(pick.marca()));
         }
+
+        ArrayNode suplArr = root.putArray("suplementos");
+        for (var pick : outfitService.armarComboSuplementos(r.productos())) {
+            ObjectNode n = suplArr.addObject();
+            n.put("tipo",   pick.tipo());
+            n.put("sitio",  safe(pick.sitio()));
+            n.put("nombre", safe(pick.nombre()));
+            n.put("precio", pick.precio());
+            n.put("url",    safe(pick.url()));
+            n.put("img",    safe(pick.img()));
+            n.put("marca",  safe(pick.marca()));
+        }
         return ResponseEntity.ok(root);
     }
 
