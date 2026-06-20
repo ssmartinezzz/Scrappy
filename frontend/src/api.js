@@ -84,6 +84,41 @@ export async function updateConfig(cfg) {
   return r.ok;
 }
 
+// ─── Presets de financiación ─────────────────────────────────────────────────
+
+export async function fetchFinanciacionPresets() {
+  const r = await fetch(`${BASE}/api/financiacion/presets`);
+  return r.ok ? r.json() : null;
+}
+
+export async function crearFinanciacionPreset({ label, recargoPct, cuotas }) {
+  const r = await fetch(`${BASE}/api/financiacion/presets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label, recargoPct, cuotas }),
+  });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+export async function editarFinanciacionPreset(id, { label, recargoPct, cuotas }) {
+  const r = await fetch(`${BASE}/api/financiacion/presets/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label, recargoPct, cuotas }),
+  });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+export async function activarFinanciacionPreset(id) {
+  const r = await fetch(`${BASE}/api/financiacion/presets/${id}/activar`, { method: 'PUT' });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+export async function eliminarFinanciacionPreset(id) {
+  const r = await fetch(`${BASE}/api/financiacion/presets/${id}`, { method: 'DELETE' });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
 export function fmt(n) {
   if (!n && n !== 0) return '—';
   return Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });

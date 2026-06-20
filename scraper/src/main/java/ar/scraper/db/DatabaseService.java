@@ -414,9 +414,12 @@ st.executeUpdate("""
      *       catálogo cae a {@code sin_preset_activo} hasta que el usuario
      *       active uno explícitamente.</li>
      * </ul>
+     *
+     * @return {@code true} si el {@code id} pedido efectivamente existía y fue
+     *         borrado; {@code false} si no existía (no-op) o si ocurrió un error.
      */
-    public void eliminarPreset(int id) {
-        if (conn == null) return;
+    public boolean eliminarPreset(int id) {
+        if (conn == null) return false;
         try {
             int total;
             try (Statement st = conn.createStatement();
@@ -438,9 +441,11 @@ st.executeUpdate("""
             }
 
             conn.commit();
+            return filasBorradas > 0;
         } catch (Exception e) {
             LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
         }
     }
 
