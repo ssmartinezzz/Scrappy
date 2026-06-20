@@ -540,10 +540,12 @@ public class NormalizerService {
 
         boolean gymrat       = esGymrat(nombre, sitioKey, cat, rubro);
         boolean marcaPremium = SITIOS_PREMIUM.contains(sitioKey);
+        int cantidadUnidades = detectarCantidadUnidades(nombre, cat);
 
         return new Product(p.sitio(), nombre, p.precio(), p.precioOriginal(),
                 p.url(), p.imagenUrl(), cat, genero, talles,
-                p.ml(), marca, rubro, gymrat, marcaPremium, p.senal());
+                p.ml(), marca, rubro, gymrat, marcaPremium, p.senal(),
+                p.finan(), cantidadUnidades);
     }
 
     /**
@@ -818,6 +820,150 @@ public class NormalizerService {
             || anyMatch(t, KW_BERMUDA)  || anyMatch(t, KW_SHORT)
             || anyMatch(t, KW_VESTIDO)  || anyMatch(t, KW_ENTERITO)
             || anyMatch(t, KW_POLLERA)  || anyMatch(t, KW_PANTALON);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Cantidad de unidades (packs / combos) — ver design pack-pricing-detection
+    // ──────────────────────────────────────────────────────────────────
+
+    /** Tope sano: por encima de esto, el número probablemente es un modelo/SKU, no una cantidad. */
+    private static final int MAX_CANTIDAD_UNIDADES = 12;
+
+    /**
+     * Marcador explícito de pack/combo/set/kit, opcionalmente seguido de "de"
+     * y luego "x" o directamente el número: "pack x3", "combo x2", "pack de 3",
+     * "set x2", "kit x4". El propio "x2"/"x3" suelto también cuenta como marcador.
+     */
+    private static final java.util.regex.Pattern PACK_KEYWORD_COUNT = java.util.regex.Pattern.compile(
+        "\\b(?:pack|combo|set|kit)\\s*(?:de\\s*)?x?\\s*(\\d{1,2})\\b");
+
+    private static final java.util.regex.Pattern X_COUNT = java.util.regex.Pattern.compile(
+        "\\bx\\s*(\\d{1,2})\\b");
+
+    /** "N piezas/prendas/unidades": "set 2 piezas", "3 prendas", "2 unidades". */
+    private static final java.util.regex.Pattern N_PIEZAS = java.util.regex.Pattern.compile(
+        "\\b(\\d{1,2})\\s*(?:piezas|prendas|unidades)\\b");
+
+    /**
+     * Mapa singular→plural de raíces de prenda, DERIVADO de las keywords
+     * canónicas ya usadas en {@code matchesTorsoBlock}/{@code matchesPiernasBlock}
+     * (primer término "limpio" de cada KW_* del bloque torso/piernas). Se
+     * mantiene como mapa explícito (no como lista paralela libre) para evitar
+     * el riesgo de drift documentado en el design: agregar una prenda nueva al
+     * clasificador NO actualiza automáticamente esta detección de cantidad,
+     * pero al menos las raíces ya existentes están centralizadas en un solo lugar.
+     */
+    private static final Map<String, String> GARMENT_PLURAL_ROOTS = new LinkedHashMap<>();
+    static {
+        GARMENT_PLURAL_ROOTS.put("remera", "remeras");
+        GARMENT_PLURAL_ROOTS.put("buzo", "buzos");
+        GARMENT_PLURAL_ROOTS.put("musculosa", "musculosas");
+        GARMENT_PLURAL_ROOTS.put("camisa", "camisas");
+        GARMENT_PLURAL_ROOTS.put("campera", "camperas");
+        GARMENT_PLURAL_ROOTS.put("chomba", "chombas");
+        GARMENT_PLURAL_ROOTS.put("calza", "calzas");
+        GARMENT_PLURAL_ROOTS.put("jean", "jeans");
+        GARMENT_PLURAL_ROOTS.put("pantalon", "pantalones");
+        GARMENT_PLURAL_ROOTS.put("short", "shorts");
+        GARMENT_PLURAL_ROOTS.put("bermuda", "bermudas");
+        GARMENT_PLURAL_ROOTS.put("media", "medias");
+        GARMENT_PLURAL_ROOTS.put("calzoncillo", "calzoncillos");
+        GARMENT_PLURAL_ROOTS.put("boxer", "boxers");
+    }
+
+    /**
+     * Detecta la cantidad de unidades de un producto (packs/combos) a partir
+     * de su nombre. Orden de prioridad: (1) keyword pack/combo/set/kit + número
+     * explícito, (2) "N + prenda en plural" adyacente, (3) "N piezas/prendas/
+     * unidades", (4) combo de prendas distintas (torso+piernas) → 2 fijo.
+     * Ante cualquier ambigüedad (SKU, rango de talle, conteo de colores,
+     * cantidad fuera del tope sano) devuelve 1 (conservador).
+     */
+    int detectarCantidadUnidades(String texto, String categoriaResuelta) {
+        if (texto == null || texto.isBlank()) return 1;
+        if (esClaramenteNoTextil(texto)) return 1;
+
+        String t = " " + normalizarAcentos(texto) + " ";
+
+        // Guards negativos primero: rangos de talle y conteo de colores nunca
+        // deben colarse como cantidad, sin importar qué patrón los matchee.
+        if (esRangoDeTalle(t) || esConteoDeColor(t)) return 1;
+
+        Integer porKeyword = extraerCantidad(PACK_KEYWORD_COUNT, t);
+        if (porKeyword != null) return cap(porKeyword);
+
+        Integer porX = extraerCantidad(X_COUNT, t);
+        if (porX != null && contienePalabraPackLejana(t)) return cap(porX);
+
+        Integer porPrendaPlural = detectarPrendaPluralAdyacente(t);
+        if (porPrendaPlural != null) return cap(porPrendaPlural);
+
+        Integer porPiezas = extraerCantidad(N_PIEZAS, t);
+        if (porPiezas != null) return cap(porPiezas);
+
+        if (matchesTorsoBlock(t) && matchesPiernasBlock(t)) return 2;
+
+        return 1;
+    }
+
+    /** Devuelve la cantidad si el regex matchea, o null. No aplica el cap todavía. */
+    private Integer extraerCantidad(java.util.regex.Pattern pattern, String t) {
+        java.util.regex.Matcher m = pattern.matcher(t);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * "x2"/"x3" suelto solo cuenta como marcador de pack si en el texto
+     * también aparece alguna palabra de la familia pack/combo/set/kit (sin
+     * exigir adyacencia exacta) — evita que un SKU tipo "Talle x2" cuele.
+     */
+    private boolean contienePalabraPackLejana(String t) {
+        return t.contains("pack") || t.contains("combo") || t.contains(" set ")
+            || t.contains("set ") || t.contains("kit ");
+    }
+
+    /**
+     * Busca un entero pequeño inmediatamente adyacente (antes) a una de las
+     * raíces de prenda pluralizadas conocidas. Adyacencia estricta: el número
+     * y la prenda deben estar separados solo por un espacio, evitando que un
+     * número de modelo/talle alejado del sustantivo se cuele.
+     */
+    private Integer detectarPrendaPluralAdyacente(String t) {
+        for (Map.Entry<String, String> e : GARMENT_PLURAL_ROOTS.entrySet()) {
+            String plural = e.getValue();
+            java.util.regex.Pattern adyacente = java.util.regex.Pattern.compile(
+                "\\b(\\d{1,2})\\s+" + java.util.regex.Pattern.quote(plural) + "\\b");
+            Integer cantidad = extraerCantidad(adyacente, t);
+            if (cantidad != null) return cantidad;
+        }
+        return null;
+    }
+
+    /** "talle 38 a 42", "talles 2 al 3", "talle 38-40": números de rango de talle, no cantidad. */
+    private static final java.util.regex.Pattern RANGO_TALLE = java.util.regex.Pattern.compile(
+        "\\btalle[s]?\\s+\\d{1,3}\\s*(?:-|a|al)\\s*\\d{1,3}\\b");
+
+    private boolean esRangoDeTalle(String t) {
+        return RANGO_TALLE.matcher(t).find();
+    }
+
+    /** "3 colores", "disponible en 2 colores": conteo de variantes de color, no cantidad de prendas. */
+    private static final java.util.regex.Pattern CONTEO_COLOR = java.util.regex.Pattern.compile(
+        "\\b\\d{1,2}\\s*colores\\b");
+
+    private boolean esConteoDeColor(String t) {
+        return CONTEO_COLOR.matcher(t).find();
+    }
+
+    private int cap(int cantidad) {
+        return (cantidad >= 2 && cantidad <= MAX_CANTIDAD_UNIDADES) ? cantidad : 1;
     }
 
     // ──────────────────────────────────────────────────────────────────
