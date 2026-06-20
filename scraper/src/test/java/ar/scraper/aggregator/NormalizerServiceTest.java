@@ -42,6 +42,25 @@ class NormalizerServiceTest {
         assertThat(service.detectarCantidadUnidades("Set 3 piezas ropa interior", "Calzoncillos")).isEqualTo(3);
     }
 
+    @Test
+    void keywordWithGarmentWordBetweenAndNearbyXCountDetectsCount() {
+        // keyword ... garment noun ... "xN" within the 20-char proximity window.
+        assertThat(service.detectarCantidadUnidades("Pack Remeras x3", "Remera")).isEqualTo(3);
+    }
+
+    @Test
+    void keywordFarFromXCountDoesNotFalselyMatch() {
+        // "pack" and "x12" are far apart (>20 chars) — must NOT couple into a false pack count.
+        assertThat(service.detectarCantidadUnidades(
+                "Pack de regalos surtidos para mama modelo x12", "Indumentaria")).isEqualTo(1);
+    }
+
+    @Test
+    void substringInsideUnrelatedWordIsNotTreatedAsPackKeyword() {
+        // "pack" appears inside "Backpacker" but is not a standalone word — must not match \bpack\b.
+        assertThat(service.detectarCantidadUnidades("Mochila Backpacker x2", "Mochila")).isEqualTo(1);
+    }
+
     // ── Pattern 2: N + garment-plural noun (same-garment repetition) ───────
 
     @Test

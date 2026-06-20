@@ -832,13 +832,20 @@ public class NormalizerService {
     /**
      * Marcador explícito de pack/combo/set/kit, opcionalmente seguido de "de"
      * y luego "x" o directamente el número: "pack x3", "combo x2", "pack de 3",
-     * "set x2", "kit x4". El propio "x2"/"x3" suelto también cuenta como marcador.
+     * "set x2", "kit x4".
      */
     private static final java.util.regex.Pattern PACK_KEYWORD_COUNT = java.util.regex.Pattern.compile(
         "\\b(?:pack|combo|set|kit)\\s*(?:de\\s*)?x?\\s*(\\d{1,2})\\b");
 
-    private static final java.util.regex.Pattern X_COUNT = java.util.regex.Pattern.compile(
-        "\\bx\\s*(\\d{1,2})\\b");
+    /**
+     * Keyword pack/combo/set/kit con la prenda en el medio y el "xN" más
+     * adelante: "Pack Remeras x3", "Combo Buzo Canguro x2". El hueco entre
+     * keyword y "xN" se limita a 20 caracteres para que un "x2" perdido en
+     * otra parte de un título largo (otro producto, otro talle) no se
+     * acople falsamente con un "pack"/"combo" lejano y no relacionado.
+     */
+    private static final java.util.regex.Pattern KEYWORD_NEAR_X_COUNT = java.util.regex.Pattern.compile(
+        "\\b(?:pack|combo|set|kit)\\b.{0,20}?\\bx\\s*(\\d{1,2})\\b");
 
     /** "N piezas/prendas/unidades": "set 2 piezas", "3 prendas", "2 unidades". */
     private static final java.util.regex.Pattern N_PIEZAS = java.util.regex.Pattern.compile(
@@ -854,6 +861,8 @@ public class NormalizerService {
      * pero al menos las raíces ya existentes están centralizadas en un solo lugar.
      */
     private static final Map<String, String> GARMENT_PLURAL_ROOTS = new LinkedHashMap<>();
+    /** Patrones de {@link #GARMENT_PLURAL_ROOTS} precompilados una sola vez al cargar la clase. */
+    private static final List<java.util.regex.Pattern> GARMENT_PLURAL_PATTERNS = new ArrayList<>();
     static {
         GARMENT_PLURAL_ROOTS.put("remera", "remeras");
         GARMENT_PLURAL_ROOTS.put("buzo", "buzos");
@@ -869,6 +878,10 @@ public class NormalizerService {
         GARMENT_PLURAL_ROOTS.put("media", "medias");
         GARMENT_PLURAL_ROOTS.put("calzoncillo", "calzoncillos");
         GARMENT_PLURAL_ROOTS.put("boxer", "boxers");
+        for (String plural : GARMENT_PLURAL_ROOTS.values()) {
+            GARMENT_PLURAL_PATTERNS.add(java.util.regex.Pattern.compile(
+                "\\b(\\d{1,2})\\s+" + java.util.regex.Pattern.quote(plural) + "\\b"));
+        }
     }
 
     /**
@@ -892,8 +905,8 @@ public class NormalizerService {
         Integer porKeyword = extraerCantidad(PACK_KEYWORD_COUNT, t);
         if (porKeyword != null) return cap(porKeyword);
 
-        Integer porX = extraerCantidad(X_COUNT, t);
-        if (porX != null && contienePalabraPackLejana(t)) return cap(porX);
+        Integer porX = extraerCantidad(KEYWORD_NEAR_X_COUNT, t);
+        if (porX != null) return cap(porX);
 
         Integer porPrendaPlural = detectarPrendaPluralAdyacente(t);
         if (porPrendaPlural != null) return cap(porPrendaPlural);
@@ -920,26 +933,13 @@ public class NormalizerService {
     }
 
     /**
-     * "x2"/"x3" suelto solo cuenta como marcador de pack si en el texto
-     * también aparece alguna palabra de la familia pack/combo/set/kit (sin
-     * exigir adyacencia exacta) — evita que un SKU tipo "Talle x2" cuele.
-     */
-    private boolean contienePalabraPackLejana(String t) {
-        return t.contains("pack") || t.contains("combo") || t.contains(" set ")
-            || t.contains("set ") || t.contains("kit ");
-    }
-
-    /**
      * Busca un entero pequeño inmediatamente adyacente (antes) a una de las
      * raíces de prenda pluralizadas conocidas. Adyacencia estricta: el número
      * y la prenda deben estar separados solo por un espacio, evitando que un
      * número de modelo/talle alejado del sustantivo se cuele.
      */
     private Integer detectarPrendaPluralAdyacente(String t) {
-        for (Map.Entry<String, String> e : GARMENT_PLURAL_ROOTS.entrySet()) {
-            String plural = e.getValue();
-            java.util.regex.Pattern adyacente = java.util.regex.Pattern.compile(
-                "\\b(\\d{1,2})\\s+" + java.util.regex.Pattern.quote(plural) + "\\b");
+        for (java.util.regex.Pattern adyacente : GARMENT_PLURAL_PATTERNS) {
             Integer cantidad = extraerCantidad(adyacente, t);
             if (cantidad != null) return cantidad;
         }
