@@ -140,6 +140,23 @@ class NormalizerServiceTest {
     }
 
     @Test
+    void buzoJoggerStyleDescriptorIsNotAPack() {
+        // "buzo" (torso) and "jogger" (piernas) both match, but no connector
+        // separates them — "jogger" describes the buzo's cut, not a second
+        // garment. Regression test for the torso+piernas false-positive that
+        // was silently halving cantidadUnidades (and thus precioUnitario) for
+        // ordinary single-garment products before the connector requirement.
+        assertThat(service.detectarCantidadUnidades("Buzo Canguro Jogger Hombre", "Buzo")).isEqualTo(1);
+    }
+
+    @Test
+    void camperaConCapuchaJoggerStyleIsNotAPack() {
+        // "con" must NOT count as a combo connector: "campera con capucha"
+        // describes one jacket's detail, not a second garment joined to it.
+        assertThat(service.detectarCantidadUnidades("Campera con capucha estilo jogger", "Campera")).isEqualTo(1);
+    }
+
+    @Test
     void keywordWithoutResolvableCountDefaultsToOne() {
         assertThat(service.detectarCantidadUnidades("Combo verano", "Indumentaria")).isEqualTo(1);
     }

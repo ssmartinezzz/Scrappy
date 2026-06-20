@@ -885,10 +885,80 @@ public class NormalizerService {
     }
 
     /**
+     * Keywords de torso/piernas en una sola lista cada uno, derivados de los
+     * mismos arrays que usa {@link #matchesTorsoBlock}/{@link #matchesPiernasBlock}
+     * (sin lista paralela). Usados SOLO por la detección de cantidad — la
+     * clasificación de categoría "Conjunto" (línea ~689) sigue usando el check
+     * booleano laxo a propósito; ahí un falso positivo es cosmético (categoría
+     * mal etiquetada), pero en cantidad un falso positivo corrompe el precio
+     * unitario, así que acá exigimos además un conector explícito (ver
+     * {@link #COMBO_CONNECTOR}).
+     */
+    private static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(
+        KW_PUFFER, KW_PILOTO, KW_SACO, KW_CHALECO, KW_CAMPERA, KW_SWEATER,
+        KW_BUZO, KW_CASACA, KW_CHOMBA, KW_MUSCULOSA, KW_CAMISA, KW_REMERA);
+    private static final String[] PIERNAS_KEYWORDS_FLAT = concatKeywords(
+        KW_CALZA, KW_BAGGY, KW_JEAN, KW_JOGGING, KW_BERMUDA, KW_SHORT,
+        KW_VESTIDO, KW_ENTERITO, KW_POLLERA, KW_PANTALON);
+
+    /**
+     * Conector explícito entre dos prendas distintas: "+", "/", "y", "e".
+     * Deliberadamente NO incluye "con" ni "," — "Campera CON capucha jogger"
+     * describe UNA prenda con un detalle, no dos prendas combinadas; incluir
+     * "con" reintroduciría el mismo tipo de falso positivo que este check
+     * busca evitar.
+     */
+    private static final java.util.regex.Pattern COMBO_CONNECTOR = java.util.regex.Pattern.compile(
+        "\\+|/|\\by\\b|\\be\\b");
+
+    /** Ventana máxima entre el final de una prenda y el inicio de la otra para considerar el conector relacionado. */
+    private static final int MAX_COMBO_CONNECTOR_GAP = 30;
+
+    private static String[] concatKeywords(String[]... groups) {
+        List<String> flat = new ArrayList<>();
+        for (String[] group : groups) flat.addAll(Arrays.asList(group));
+        return flat.toArray(new String[0]);
+    }
+
+    /** Posición [inicio, fin) de la primera (más temprana) keyword que matchea, o null si ninguna matchea. */
+    private int[] firstMatchSpan(String t, String[] keywords) {
+        int bestIdx = -1, bestLen = 0;
+        for (String kw : keywords) {
+            int idx = t.indexOf(kw);
+            if (idx >= 0 && (bestIdx == -1 || idx < bestIdx)) {
+                bestIdx = idx;
+                bestLen = kw.length();
+            }
+        }
+        return bestIdx == -1 ? null : new int[] { bestIdx, bestIdx + bestLen };
+    }
+
+    /**
+     * Combo de prendas distintas (torso+piernas) con conector explícito entre
+     * ambas → 2 fijo. Requiere que el texto ENTRE el final de una prenda y el
+     * inicio de la otra contenga un conector (ver {@link #COMBO_CONNECTOR}) y
+     * que esa distancia no supere {@link #MAX_COMBO_CONNECTOR_GAP} caracteres
+     * — sin esto, "Buzo Canguro Jogger Hombre" (un solo buzo cuyo corte se
+     * describe como "jogger") se detectaba falsamente como pack de 2.
+     */
+    private boolean matchesTorsoPiernasComboConConector(String t) {
+        int[] torso = firstMatchSpan(t, TORSO_KEYWORDS_FLAT);
+        int[] piernas = firstMatchSpan(t, PIERNAS_KEYWORDS_FLAT);
+        if (torso == null || piernas == null) return false;
+
+        int gapStart = Math.min(torso[1], piernas[1]);
+        int gapEnd = Math.max(torso[0], piernas[0]);
+        if (gapEnd <= gapStart || gapEnd - gapStart > MAX_COMBO_CONNECTOR_GAP) return false;
+
+        return COMBO_CONNECTOR.matcher(t.substring(gapStart, gapEnd)).find();
+    }
+
+    /**
      * Detecta la cantidad de unidades de un producto (packs/combos) a partir
      * de su nombre. Orden de prioridad: (1) keyword pack/combo/set/kit + número
      * explícito, (2) "N + prenda en plural" adyacente, (3) "N piezas/prendas/
-     * unidades", (4) combo de prendas distintas (torso+piernas) → 2 fijo.
+     * unidades", (4) combo de prendas distintas (torso+piernas) con conector
+     * explícito → 2 fijo.
      * Ante cualquier ambigüedad (SKU, rango de talle, conteo de colores,
      * cantidad fuera del tope sano) devuelve 1 (conservador).
      */
@@ -914,7 +984,7 @@ public class NormalizerService {
         Integer porPiezas = extraerCantidad(N_PIEZAS, t);
         if (porPiezas != null) return cap(porPiezas);
 
-        if (matchesTorsoBlock(t) && matchesPiernasBlock(t)) return 2;
+        if (matchesTorsoPiernasComboConConector(t)) return 2;
 
         return 1;
     }
