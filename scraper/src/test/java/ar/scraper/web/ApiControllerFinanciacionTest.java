@@ -342,7 +342,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode prod0 = body.path("productos").get(0);
@@ -367,7 +367,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
 
         controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         verify(db, times(1)).cargarPresetActivo();
     }
@@ -384,7 +384,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode finanNode = body.path("productos").get(0).path("senalFinanciacion");
@@ -409,7 +409,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode prod0 = body.path("productos").get(0);
@@ -449,7 +449,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         JsonNode prod0 = ((JsonNode) resp.getBody()).path("productos").get(0);
         assertThat(prod0.path("cantidadUnidades").asInt()).isEqualTo(3);
@@ -468,7 +468,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         JsonNode prod0 = ((JsonNode) resp.getBody()).path("productos").get(0);
         assertThat(prod0.path("cantidadUnidades").asInt()).isEqualTo(1);
@@ -491,10 +491,60 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc");
+                null, null, null, null, "precio_asc", null);
 
         JsonNode facetsNode = ((JsonNode) resp.getBody()).path("meta").path("facets");
         assertThat(facetsNode.path("packCount").asInt()).isEqualTo(1);
+    }
+
+    // ── /api/data?pack=true — server-side pack filter (PR3) ─────────────────
+    // Mirrors the existing gymrat Boolean filter pattern: only applied when
+    // explicitly true; absent/false/null param does not filter the dataset.
+
+    @Test
+    void dataPackTrueFiltersToOnlyPackProducts() {
+        Product pack = new Product(
+                "Sitio", "Pack x3 Remeras", 15000, null, "https://site.com/packf1", "img",
+                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 3);
+        Product single = producto("https://site.com/singlef1", 5000, SenalFinanciacion.EMPTY);
+        AggregatedResult result = new AggregatedResult(
+                List.of(pack, single), Map.of("Sitio", 2), Map.of(),
+                ResultAggregator.calcularFacets(List.of(pack, single)), 5000, 15000);
+        when(service.getLastResult()).thenReturn(result);
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+
+        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", true);
+
+        JsonNode prods = ((JsonNode) resp.getBody()).path("productos");
+        assertThat(prods).hasSize(1);
+        assertThat(prods.get(0).path("url").asText()).isEqualTo("https://site.com/packf1");
+        assertThat(prods.get(0).path("esPack").asBoolean()).isTrue();
+    }
+
+    @Test
+    void dataPackFalseOrNullDoesNotFilterDataset() {
+        Product pack = new Product(
+                "Sitio", "Pack x3 Remeras", 15000, null, "https://site.com/packf2", "img",
+                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 3);
+        Product single = producto("https://site.com/singlef2", 5000, SenalFinanciacion.EMPTY);
+        AggregatedResult result = new AggregatedResult(
+                List.of(pack, single), Map.of("Sitio", 2), Map.of(),
+                ResultAggregator.calcularFacets(List.of(pack, single)), 5000, 15000);
+        when(service.getLastResult()).thenReturn(result);
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+
+        ResponseEntity<?> respNull = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null);
+        ResponseEntity<?> respFalse = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", false);
+
+        assertThat(((JsonNode) respNull.getBody()).path("productos")).hasSize(2);
+        assertThat(((JsonNode) respFalse.getBody()).path("productos")).hasSize(2);
     }
 
     // ── /api/facets — packCount ──────────────────────────────────────────────

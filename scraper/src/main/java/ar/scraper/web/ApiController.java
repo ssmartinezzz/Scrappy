@@ -188,7 +188,8 @@ public class ApiController {
             @RequestParam(required = false)     String segment,
             @RequestParam(required = false)     String rubro,
             @RequestParam(required = false)     Boolean gymrat,
-            @RequestParam(defaultValue = "precio_asc") String orden
+            @RequestParam(defaultValue = "precio_asc") String orden,
+            @RequestParam(required = false)     Boolean pack
     ) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
@@ -199,7 +200,7 @@ public class ApiController {
                 .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
 
         // 1. Aplicar filtros
-        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat);
+        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack);
 
         // 2. Ordenar
         filtrados = ordenar(filtrados, orden);
@@ -1509,7 +1510,8 @@ public class ApiController {
             String badgeFiltro,
             String segmentFiltro,
             String rubroFiltro,
-            Boolean gymratFiltro
+            Boolean gymratFiltro,
+            Boolean packFiltro
     ) {
         return productos.stream()
                 .filter(p -> {
@@ -1549,6 +1551,10 @@ public class ApiController {
                     // Filtro gymrat
                     if (gymratFiltro != null && gymratFiltro) {
                         if (!p.gymrat()) return false;
+                    }
+                    // Filtro pack/combo (Fase 5 — espejo del patron gymratFiltro)
+                    if (packFiltro != null && packFiltro) {
+                        if (!p.esPack()) return false;
                     }
                     // Filtro género
                     if (genero != null && !genero.isBlank()) {

@@ -156,6 +156,54 @@ python -m pip install scikit-learn
 
 ---
 
+## Precio por unidad (pack/combo pricing detection)
+
+Desde `pack-pricing-detection`, cada producto trae un campo `cantidadUnidades`
+(detectado por `NormalizerService.detectarCantidadUnidades()` sobre `nombre`;
+default `1` si no es un pack/combo). `ml_pipeline.py` calcula:
+
+```python
+def precio_unitario(p):
+    unidades = max(1, int(p.get('cantidadUnidades', 1) or 1))
+    precio   = p.get('precio', 0)
+    return precio / unidades if unidades > 1 else precio
+```
+
+`precio_unitario(p)` sustituye a `precio` en **todo** el agrupamiento y scoring
+por producto: `grupos_precios`, `cats_precios`, y los cálculos de
+`percentile_rank` / `z_score` / `z_score_modified` / `composite_score` /
+`price_segment` / outliers de Tukey por producto. Esto evita que un "Pack x3
+Remeras $15000" se compare contra remeras individuales como si costara $15000
+cada una — se compara correctamente como ~$5000 por unidad.
+
+**Lo que NO cambia** (sigue usando precio de estantería, no precio unitario):
+- Display (`precio` crudo en el output, lo que ve el usuario).
+- Cálculo de descuento (`precioOriginal` / `precio`, `descuentoPct`, `descuentoSig`).
+- Historial de precios (`precio_historico.json`) — trackea el precio de
+  estantería del producto, no el precio por unidad.
+- `tendencias.categoriaStats` (panel de tendencias) — usa `cat_prices`/`cat_stats_output`,
+  una agregación separada de `cats_precios`, intencionalmente en precio crudo.
+
+Cuando `cantidadUnidades` está ausente o es `1` (caso default, la inmensa
+mayoría del catálogo), `precio_unitario(p) == precio` exactamente — sin cambio
+de comportamiento para productos de unidad simple.
+
+### Riesgo conocido — monitorear distribución por categoría
+
+Sustituir precio por precio-unitario desplaza la posición de un pack dentro de
+la distribución de su categoría. Si una categoría tiene **alta densidad de
+packs** (muchos productos multi-unidad sobre pocas muestras), la mediana/IQR de
+esa categoría puede correrse, lo que también perturba levemente los scores de
+los productos de unidad simple en esa misma categoría (comparten la misma
+`PriceStats`). Esto es un efecto esperado del diseño, no un bug — pero amerita
+monitoreo post-deploy: si en una categoría con muchos packs el badge
+`precio_alto`/`oferta_real` empieza a verse inconsistente, revisar la
+distribución `cats_precios` de esa categoría antes de re-calibrar umbrales.
+Re-calibrar thresholds está **fuera de alcance** de este change — ver
+`CLAUDE.md` → "Problemas conocidos / pendientes".
+
+---
+
 ## Historial de precios
 
 El archivo `precio_historico.json` acumula cambios de precio por URL. Estructura:
