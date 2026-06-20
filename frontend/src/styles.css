@@ -171,6 +171,11 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
   border: 1.5px solid; }
 
+/* ===== FINANCIACIÓN BADGE (compact "¿conviene en cuotas?" pill, grid card) ===== */
+.badge-financiacion { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+  border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
+  border: 1.5px solid; }
+
 /* ===== IPC WIDGET ===== */
 .ipc-widget { display: flex; gap: 8px; align-items: center; font-size: .72rem;
   color: var(--t4); padding: 3px 10px; background: var(--s2); border-radius: 6px;
