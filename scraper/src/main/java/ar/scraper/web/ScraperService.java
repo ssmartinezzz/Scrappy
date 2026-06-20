@@ -53,6 +53,13 @@ public class ScraperService {
     private volatile int ultimasCategoriasRefinadas = 0;
     private volatile boolean forceRetrain = false;
 
+    // Lock compartido entre el pipeline de scraping (que muta lastResult desde
+    // un hilo en background, progresivamente y al finalizar) y
+    // recomputarFinanciacion (que hace un read-modify-write sobre lastResult
+    // al activar/editar un preset). Sin este lock, ambos escritores pueden
+    // interlevarse y descartar silenciosamente el catálogo recién scrapeado.
+    private final Object catalogLock = new Object();
+
     private final List<SitioExtra> sitiosExtras = new ArrayList<>();
 
     private final DatabaseService db;
@@ -80,7 +87,7 @@ public class ScraperService {
         try {
             List<ar.scraper.model.Product> prods = db.cargarProductos();
             if (!prods.isEmpty()) {
-                lastResult = aggregator.fromDB(prods);
+                synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
                 // Restaurar ML output
                 com.fasterxml.jackson.databind.JsonNode mlOut = db.cargarMlOutput();
                 if (mlOut != null) aggregator.setLastMlOutput(mlOut);
@@ -113,7 +120,43 @@ public class ScraperService {
     public void setUltimasCategoriasRefinadas(int n)    { ultimasCategoriasRefinadas = n; }
     public ProgressData     getProgressData() { return progressData; }
     public List<SitioExtra> getSitiosExtras() { return Collections.unmodifiableList(sitiosExtras); }
-    public void             clearLastResult() { this.lastResult = null; }
+    public void             clearLastResult() { synchronized (catalogLock) { this.lastResult = null; } }
+
+    /**
+     * Test seam — replaces the in-memory catalog directly, without going
+     * through a scrape/fromDB cycle. Package-visible would suffice but this
+     * stays public since {@code ScraperService} has no other test-only hooks
+     * convention to mirror (unlike {@code DatabaseService.initEn}, which is
+     * package-private because its test lives in the same package).
+     */
+    public void setLastResultParaTest(AggregatedResult result) { synchronized (catalogLock) { this.lastResult = result; } }
+
+    /**
+     * Synchronously re-runs {@link ar.scraper.ml.FinanciacionEnricher} over the
+     * currently loaded in-memory catalog and replaces it in place — triggered by
+     * preset activate/edit (ADR-5 of financing-buy-signal design). No async
+     * machinery: this is cheap O(n) arithmetic (one inflation read + one VP
+     * calculation per product), unlike {@code MlEnricher}/{@code PythonRunner}
+     * which fork a multi-second Python subprocess.
+     *
+     * <p>Only the {@code productos} list changes — {@code conteoPorSitio},
+     * {@code erroresPorSitio}, {@code facets}, {@code minPrecio}/{@code
+     * maxPrecio} are untouched, since the financing signal does not affect
+     * sitio counts, errors, or price range.</p>
+     *
+     * <p>No-op when no catalog is loaded yet (no scrape/restore has happened).</p>
+     */
+    public void recomputarFinanciacion(ResultAggregator aggregator) {
+        synchronized (catalogLock) {
+            AggregatedResult actual = this.lastResult;
+            if (actual == null) return;
+
+            List<Product> reenriquecidos = aggregator.financiacionEnricher().enriquecer(actual.productos());
+            this.lastResult = new AggregatedResult(
+                    reenriquecidos, actual.conteoPorSitio(), actual.erroresPorSitio(),
+                    actual.facets(), actual.minPrecio(), actual.maxPrecio());
+        }
+    }
 
     public void agregarSitio(String nombre, String url, String plataforma) {
         sitiosExtras.removeIf(s -> s.nombre().equalsIgnoreCase(nombre));
@@ -249,7 +292,7 @@ public class ScraperService {
                         db.upsertParcial(normalizados);
                         var todosActuales = db.cargarProductos();
                         if (!todosActuales.isEmpty()) {
-                            lastResult = aggregator.fromDB(todosActuales);
+                            synchronized (catalogLock) { lastResult = aggregator.fromDB(todosActuales); }
                             LOG.debug("[PARCIAL] {} → {} productos totales",
                                     r.sitio(), todosActuales.size());
                         }
@@ -269,7 +312,7 @@ public class ScraperService {
 
         // ── Agregación ───────────────────────────────────────────────────────
         statusMsg.set("Procesando y agregando resultados...");
-        lastResult = aggregator.agregar(resultados, forceRetrain);
+        synchronized (catalogLock) { lastResult = aggregator.agregar(resultados, forceRetrain); }
         statusMsg.set("Entrenando modelo ML en background...");
         ultimasCategoriasRefinadas = aggregator.getLastCatRefinadas();
         long durMs = System.currentTimeMillis() - runStart;
@@ -375,7 +418,9 @@ public class ScraperService {
         }
 
         var todos = db.cargarProductos();
-        if (!todos.isEmpty()) lastResult = aggregator.fromDB(todos);
+        if (!todos.isEmpty()) {
+            synchronized (catalogLock) { lastResult = aggregator.fromDB(todos); }
+        }
 
         status.set(ScraperStatus.DONE);
         statusMsg.set("Favoritos actualizados");

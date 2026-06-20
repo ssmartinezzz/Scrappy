@@ -162,6 +162,25 @@ class DatabaseServicePresetTest {
     }
 
     @Test
+    void eliminarPresetReturnsTrueWhenTargetIdActuallyExisted() {
+        int id = db.crearPreset("Preset a borrar", 15.0, 3);
+
+        boolean borrado = db.eliminarPreset(id);
+
+        assertThat(borrado).isTrue();
+    }
+
+    @Test
+    void eliminarPresetReturnsFalseWhenTargetIdDoesNotExist() {
+        Preset original = db.cargarPresetActivo().orElseThrow();
+        int nonExistentId = original.id() + 999;
+
+        boolean borrado = db.eliminarPreset(nonExistentId);
+
+        assertThat(borrado).isFalse();
+    }
+
+    @Test
     void activarPresetWithNonExistentIdLeavesOriginalActiveAndSignalsFailure() {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int nonExistentId = original.id() + 999;

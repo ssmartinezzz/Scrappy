@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
 import { SEÑAL_CONFIG } from '../senalConfig';
+import FinanBadge from './FinanBadge';
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
 function gymSubcat(product) {
@@ -94,6 +95,7 @@ const ProductCard = memo(function ProductCard({
           <span className="badge-gymrat">🏋️ {gymSubcat(p)}</span>
         )}
         <SenalBadge senal={p.senal} />
+        <FinanBadge finan={p.senalFinanciacion} />
 
         <p className="card-name">{p.nombre}</p>
 

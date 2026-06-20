@@ -16,6 +16,7 @@ const PicksPanel     = lazy(() => import('./PicksPanel'));
 const MarcasPanel    = lazy(() => import('./MarcasPanel'));
 const FavoritosPanel = lazy(() => import('./FavoritosPanel'));
 const OutfitsPanel   = lazy(() => import('./OutfitsPanel'));
+const FinanPanel     = lazy(() => import('./FinanPanel'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 48;
@@ -208,11 +209,15 @@ function OutfitsRoute() {
   return <OutfitsPanel/>;
 }
 
+function FinanRoute() {
+  return <FinanPanel/>;
+}
+
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
   TrendsRoute as TrendsPanelRoute, FavoritosRoute as FavoritosPanelRoute,
-  OutfitsRoute as OutfitsPanelRoute,
+  OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
 };
 
 // ─── AppLayout ───────────────────────────────────────────────────────────────
@@ -363,6 +368,7 @@ export default function AppLayout() {
             <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`}>📈</NavLink>
             <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`}>⭐</NavLink>
             <NavLink to="/outfits"   className={({isActive}) => `tab ${isActive?'active':''}`}>👕 Outfits</NavLink>
+            <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`}>💳 Cuotas</NavLink>
           </div>
 
           <Suspense fallback={<RouteFallback/>}>
