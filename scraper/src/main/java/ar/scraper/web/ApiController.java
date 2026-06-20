@@ -252,6 +252,10 @@ public class ApiController {
         long gymratCount = r.productos().stream().filter(Product::gymrat).count();
         facetsNode.put("gymratCount", (int) gymratCount);
 
+        // Conteo de productos pack/combo (Fase 3/4 — facet "Packs")
+        long packCount = r.productos().stream().filter(Product::esPack).count();
+        facetsNode.put("packCount", (int) packCount);
+
         // Marcas y errores
         ObjectNode marcas = meta.putObject("marcas");
         r.conteoPorSitio().forEach(marcas::put);
@@ -279,6 +283,9 @@ public class ApiController {
             n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
             n.put("gymrat",     p.gymrat());
             n.put("marcaPremium", p.marcaPremium());
+            n.put("cantidadUnidades", p.cantidadUnidades());
+            n.put("esPack",     p.esPack());
+            n.put("precioUnitario", p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio());
             ArrayNode tallesArr = n.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesArr::add);
             // ML score — siempre serializar para el panel de detalle
@@ -338,6 +345,10 @@ public class ApiController {
         // Conteo de productos gymrat
         long gymratCount = r.productos().stream().filter(Product::gymrat).count();
         root.put("gymratCount", (int) gymratCount);
+
+        // Conteo de productos pack/combo (Fase 3/4 — facet "Packs")
+        long packCount = r.productos().stream().filter(Product::esPack).count();
+        root.put("packCount", (int) packCount);
 
         return ResponseEntity.ok(root);
     }

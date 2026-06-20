@@ -432,4 +432,88 @@ class ApiControllerFinanciacionTest {
         assertThat(prod0.path("senalFinanciacion").path("senal").asText())
                 .isNotEqualTo(prod0.path("senal").path("senal").asText());
     }
+
+    // ── /api/data — cantidadUnidades / esPack / precioUnitario (PR2) ───────
+
+    @Test
+    void dataSerializesCantidadUnidadesEsPackAndPrecioUnitarioForPack() {
+        Product pack = new Product(
+                "Sitio", "Pack x3 Remeras", 15000, null, "https://site.com/pack", "img",
+                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 3);
+        AggregatedResult result = new AggregatedResult(
+                List.of(pack), Map.of("Sitio", 1), Map.of(),
+                ResultAggregator.calcularFacets(List.of(pack)), 15000, 15000);
+        when(service.getLastResult()).thenReturn(result);
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+
+        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc");
+
+        JsonNode prod0 = ((JsonNode) resp.getBody()).path("productos").get(0);
+        assertThat(prod0.path("cantidadUnidades").asInt()).isEqualTo(3);
+        assertThat(prod0.path("esPack").asBoolean()).isTrue();
+        assertThat(prod0.path("precioUnitario").asDouble()).isEqualTo(5000.0);
+    }
+
+    @Test
+    void dataSerializesCantidadUnidadesAsOneAndEsPackFalseForSingleUnit() {
+        Product single = producto("https://site.com/single", 5000, SenalFinanciacion.EMPTY);
+        AggregatedResult result = new AggregatedResult(
+                List.of(single), Map.of("Sitio", 1), Map.of(),
+                ResultAggregator.calcularFacets(List.of(single)), 5000, 5000);
+        when(service.getLastResult()).thenReturn(result);
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+
+        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc");
+
+        JsonNode prod0 = ((JsonNode) resp.getBody()).path("productos").get(0);
+        assertThat(prod0.path("cantidadUnidades").asInt()).isEqualTo(1);
+        assertThat(prod0.path("esPack").asBoolean()).isFalse();
+        assertThat(prod0.path("precioUnitario").asDouble()).isEqualTo(5000.0);
+    }
+
+    @Test
+    void dataFacetsExposePackCountOverFullUnfilteredDataset() {
+        Product pack = new Product(
+                "Sitio", "Pack x2", 10000, null, "https://site.com/pack2", "img",
+                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 2);
+        Product single = producto("https://site.com/single2", 5000, SenalFinanciacion.EMPTY);
+        AggregatedResult result = new AggregatedResult(
+                List.of(pack, single), Map.of("Sitio", 2), Map.of(),
+                ResultAggregator.calcularFacets(List.of(pack, single)), 5000, 10000);
+        when(service.getLastResult()).thenReturn(result);
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+
+        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc");
+
+        JsonNode facetsNode = ((JsonNode) resp.getBody()).path("meta").path("facets");
+        assertThat(facetsNode.path("packCount").asInt()).isEqualTo(1);
+    }
+
+    // ── /api/facets — packCount ──────────────────────────────────────────────
+
+    @Test
+    void facetsEndpointExposesPackCount() {
+        Product pack = new Product(
+                "Sitio", "Pack x2", 10000, null, "https://site.com/pack3", "img",
+                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 2);
+        Product single = producto("https://site.com/single3", 5000, SenalFinanciacion.EMPTY);
+        AggregatedResult result = new AggregatedResult(
+                List.of(pack, single), Map.of("Sitio", 2), Map.of(),
+                ResultAggregator.calcularFacets(List.of(pack, single)), 5000, 10000);
+        when(service.getLastResult()).thenReturn(result);
+
+        ResponseEntity<?> resp = controller.facets();
+
+        JsonNode body = (JsonNode) resp.getBody();
+        assertThat(body.path("packCount").asInt()).isEqualTo(1);
+    }
 }

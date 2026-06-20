@@ -105,4 +105,27 @@ class SenalEnricherTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).senal()).isEqualTo(Product.SenalCompra.EMPTY);
     }
+
+    @Test
+    void packProductPreservesCantidadUnidadesAfterEnrichment() {
+        // Regression for PR2: withSenal() previously rebuilt Product via the
+        // 16-arg legacy constructor, silently resetting cantidadUnidades to 1.
+        DatabaseService db = Mockito.mock(DatabaseService.class);
+        InflacionService inflacion = Mockito.mock(InflacionService.class);
+
+        when(db.getHistorialPrecios(anyList())).thenReturn(Map.of());
+        when(inflacion.factorInflacion(anyInt())).thenReturn(1.0);
+
+        Product pack = new Product(
+                "Sitio", "Pack x3 Remeras", 15000.0, null, "https://site.com/pack",
+                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 3);
+
+        SenalEnricher enricher = new SenalEnricher(db, inflacion);
+        List<Product> result = enricher.enriquecer(List.of(pack));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).cantidadUnidades()).isEqualTo(3);
+        assertThat(result.get(0).esPack()).isTrue();
+    }
 }
