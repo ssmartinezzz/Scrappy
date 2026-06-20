@@ -193,6 +193,11 @@ public class ApiController {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
+        // Preset activo de financiación — resuelto UNA sola vez por request,
+        // no por producto (evita N+1 lecturas a la DB sobre todo el catálogo).
+        String presetActivoLabel = db.cargarPresetActivo()
+                .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
+
         // 1. Aplicar filtros
         List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat);
 
@@ -293,6 +298,16 @@ public class ApiController {
             ObjectNode senalNode = n.putObject("senal");
             senalNode.put("senal",       senal.senal());
             senalNode.put("scoreCompra", senal.scoreCompra());
+
+            // Señal de financiación precomputada — independiente de senal/scoreCompra
+            // (nunca se fusionan en el mismo valor/badge). presetLabel viene del
+            // preset activo, resuelto una sola vez por request (no por producto).
+            Product.SenalFinanciacion finan = p.finan() != null ? p.finan() : Product.SenalFinanciacion.EMPTY;
+            ObjectNode finanNode = n.putObject("senalFinanciacion");
+            finanNode.put("senal",       finan.senal());
+            finanNode.put("ahorroReal",  finan.ahorroReal());
+            finanNode.put("vp",          finan.vp());
+            finanNode.put("presetLabel", presetActivoLabel);
         }
 
         return ResponseEntity.ok(root);
@@ -588,6 +603,160 @@ public class ApiController {
 
 
     // ─── Inflación INDEC ─────────────────────────────────────────────────────────
+
+
+    // ─── Presets de financiación ("¿conviene en cuotas?") ────────────────────────
+    // Endpoints mirroring /api/sitios + /api/config shapes (ADR-5 of
+    // financing-buy-signal design). Activate/edit/delete of the active preset
+    // trigger a SYNCHRONOUS in-memory recompute via ScraperService — no
+    // async/background job, since this is cheap O(n) arithmetic, not a
+    // subprocess call like MlEnricher/PythonRunner.
+
+    @GetMapping("/financiacion/presets")
+    public ResponseEntity<ObjectNode> listarPresets() {
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ArrayNode arr = root.putArray("presets");
+        for (var preset : db.listarPresets()) {
+            ObjectNode n = arr.addObject();
+            n.put("id",         preset.id());
+            n.put("label",      preset.label());
+            n.put("recargoPct", preset.recargoPct());
+            n.put("cuotas",     preset.cuotas());
+            n.put("activo",     preset.activo());
+        }
+        var activo = db.cargarPresetActivo();
+        if (activo.isPresent()) {
+            ObjectNode a = root.putObject("activo");
+            a.put("id",         activo.get().id());
+            a.put("label",      activo.get().label());
+            a.put("recargoPct", activo.get().recargoPct());
+            a.put("cuotas",     activo.get().cuotas());
+            a.put("activo",     true);
+        } else {
+            root.putNull("activo");
+        }
+        return ResponseEntity.ok(root);
+    }
+
+    @PostMapping("/financiacion/presets")
+    public ResponseEntity<ObjectNode> crearPreset(@RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
+            return ResponseEntity.status(409).body(resp);
+        }
+        String label = String.valueOf(body.getOrDefault("label", "")).trim();
+        Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
+        Integer cuotas = parseIntOrNull(body.get("cuotas"));
+
+        if (label.isBlank() || recargoPct == null || recargoPct < 0 || cuotas == null || cuotas <= 0) {
+            resp.put("ok", false);
+            resp.put("mensaje", "label, recargoPct (>=0) y cuotas (>0) son obligatorios");
+            return ResponseEntity.badRequest().body(resp);
+        }
+
+        int id = db.crearPreset(label, recargoPct, cuotas);
+        if (id < 0) {
+            resp.put("ok", false);
+            resp.put("mensaje", "No se pudo crear el preset");
+            return ResponseEntity.badRequest().body(resp);
+        }
+        resp.put("ok", true);
+        resp.put("mensaje", "Preset creado");
+        return ResponseEntity.ok(resp);
+    }
+
+    @PutMapping("/financiacion/presets/{id}/activar")
+    public ResponseEntity<ObjectNode> activarPreset(@PathVariable int id) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
+            return ResponseEntity.status(409).body(resp);
+        }
+        boolean ok = db.activarPreset(id);
+        if (!ok) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Preset no encontrado");
+            return ResponseEntity.status(404).body(resp);
+        }
+        service.recomputarFinanciacion(aggregator);
+        resp.put("ok", true);
+        return ResponseEntity.ok(resp);
+    }
+
+    @PutMapping("/financiacion/presets/{id}")
+    public ResponseEntity<ObjectNode> editarPreset(@PathVariable int id, @RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
+            return ResponseEntity.status(409).body(resp);
+        }
+        String label = String.valueOf(body.getOrDefault("label", "")).trim();
+        Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
+        Integer cuotas = parseIntOrNull(body.get("cuotas"));
+
+        if (label.isBlank() || recargoPct == null || recargoPct < 0 || cuotas == null || cuotas <= 0) {
+            resp.put("ok", false);
+            resp.put("mensaje", "label, recargoPct (>=0) y cuotas (>0) son obligatorios");
+            return ResponseEntity.badRequest().body(resp);
+        }
+
+        // Detectar si el preset editado es el activo ANTES de editar — editar
+        // no cambia el estado activo, solo label/recargoPct/cuotas.
+        boolean eraActivo = db.cargarPresetActivo()
+                .map(p -> p.id() == id).orElse(false);
+
+        boolean ok = db.editarPreset(id, label, recargoPct, cuotas);
+        if (!ok) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Preset no encontrado o datos inválidos");
+            return ResponseEntity.badRequest().body(resp);
+        }
+
+        if (eraActivo) service.recomputarFinanciacion(aggregator);
+        resp.put("ok", true);
+        resp.put("mensaje", "Preset actualizado");
+        return ResponseEntity.ok(resp);
+    }
+
+    @DeleteMapping("/financiacion/presets/{id}")
+    public ResponseEntity<ObjectNode> eliminarPreset(@PathVariable int id) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
+            return ResponseEntity.status(409).body(resp);
+        }
+        boolean eraActivo = db.cargarPresetActivo()
+                .map(p -> p.id() == id).orElse(false);
+
+        boolean borrado = db.eliminarPreset(id);
+        if (!borrado) {
+            resp.put("ok", false);
+            resp.put("mensaje", "Preset no encontrado");
+            return ResponseEntity.status(404).body(resp);
+        }
+
+        if (eraActivo) service.recomputarFinanciacion(aggregator);
+        resp.put("ok", true);
+        resp.put("mensaje", "Preset eliminado");
+        return ResponseEntity.ok(resp);
+    }
+
+    private Double parseDoubleOrNull(Object v) {
+        if (v == null) return null;
+        try { return Double.parseDouble(String.valueOf(v)); }
+        catch (Exception e) { return null; }
+    }
+
+    private Integer parseIntOrNull(Object v) {
+        if (v == null) return null;
+        try { return Integer.parseInt(String.valueOf(v).split("\\.")[0]); }
+        catch (Exception e) { return null; }
+    }
 
 
     // ─── Recomendacion de compra ─────────────────────────────────────────────────

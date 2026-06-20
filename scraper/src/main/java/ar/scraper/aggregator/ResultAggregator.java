@@ -53,6 +53,7 @@ public class ResultAggregator {
     public int                  getLastCatRefinadas(){ return lastCatRefinadas; }
     public MlEnricher           getMlEnricher()      { return mlEnricher; }
     public PythonRunner         getPythonRunner()    { return pythonRunner; }
+    public FinanciacionEnricher financiacionEnricher() { return financiacionEnricher; }
 
     // ─── Records ─────────────────────────────────────────────────────────────
 
