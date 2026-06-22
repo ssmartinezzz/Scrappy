@@ -1560,9 +1560,14 @@ public class ApiController {
                     if (packFiltro != null && packFiltro) {
                         if (!p.esPack()) return false;
                     }
-                    // Filtro rango de precio (additive, backward-compatible)
-                    if (precioMinFiltro != null && p.precio() < precioMinFiltro) return false;
-                    if (precioMaxFiltro != null && p.precio() > precioMaxFiltro) return false;
+                    // Filtro rango de precio (additive, backward-compatible).
+                    // Usa precio unitario (precio/cantidadUnidades), no el precio total del
+                    // pack — mismo criterio que precioUnitario expuesto al frontend y que el
+                    // pipeline ML, para que un pack de varias unidades no quede excluido/incluido
+                    // por su precio total en vez de su precio por unidad.
+                    double precioComparable = p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
+                    if (precioMinFiltro != null && precioComparable < precioMinFiltro) return false;
+                    if (precioMaxFiltro != null && precioComparable > precioMaxFiltro) return false;
                     // Filtro género
                     if (genero != null && !genero.isBlank()) {
                         String g = p.genero() != null ? p.genero() : "";

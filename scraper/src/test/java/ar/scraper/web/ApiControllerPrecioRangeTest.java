@@ -67,6 +67,13 @@ class ApiControllerPrecioRangeTest {
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
+    /** Pack/combo product — {@code precioTotal} is the bundle price, not the per-unit price. */
+    private Product productoPack(String url, double precioTotal, int cantidadUnidades) {
+        return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
+                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, cantidadUnidades);
+    }
+
     private AggregatedResult resultFor(Product... productos) {
         List<Product> lista = List.of(productos);
         double min = lista.stream().mapToDouble(Product::precio).min().orElse(0);
@@ -134,6 +141,38 @@ class ApiControllerPrecioRangeTest {
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).hasSize(2);
+    }
+
+    // ── Pack/combo products are filtered by unit price, not total price ────
+
+    @Test
+    void packProductIsFilteredByUnitPriceNotTotalPrice() {
+        // 3-pack at $36000 total => $12000/unit, falls inside [10000, 15000]
+        Product packDentroDelRango = productoPack("https://site.com/pack-in", 36000, 3);
+        // single unit at $36000, falls outside [10000, 15000]
+        Product unidadFueraDelRango = producto("https://site.com/unidad-out", 36000);
+        when(service.getLastResult()).thenReturn(resultFor(packDentroDelRango, unidadFueraDelRango));
+
+        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 10000.0, 15000.0);
+
+        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        assertThat(productos).hasSize(1);
+        assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/pack-in");
+    }
+
+    @Test
+    void packProductOutsideUnitPriceRangeIsExcludedEvenIfTotalPriceWouldMatch() {
+        // 5-pack at $12000 total => $2400/unit, total $12000 would match [10000, 15000]
+        // but the real per-unit price ($2400) does not — must be excluded.
+        Product pack = productoPack("https://site.com/pack-cheap-unit", 12000, 5);
+        when(service.getLastResult()).thenReturn(resultFor(pack));
+
+        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 10000.0, 15000.0);
+
+        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        assertThat(productos).isEmpty();
     }
 
     // ── Backward compatibility: omitting both params ────────────────────────
