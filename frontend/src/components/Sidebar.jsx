@@ -70,10 +70,12 @@ export default function Sidebar({
   const generos     = facets.generos    || {};
   const cats        = facets.categorias || {};
   const gymratCount = facets.gymratCount || 0;
+  const packCount   = facets.packCount   || 0;
 
   const activeCount = [filters.badge, filters.segment, filters.genero].filter(Boolean).length
     + (filters.categorias?.length || 0)
-    + (filters.gymrat ? 1 : 0);
+    + (filters.gymrat ? 1 : 0)
+    + (filters.pack ? 1 : 0);
 
   // Agrupar categorías semánticamente
   const grp = (regex) => Object.entries(cats).filter(([k]) => regex.test(k));
@@ -225,6 +227,19 @@ export default function Sidebar({
                 }
               </div>
             )}
+          </Section>
+        )}
+
+        {/* Packs / Combos */}
+        {packCount > 0 && (
+          <Section title="📦 Packs">
+            <Pill
+              label="Packs / combos"
+              count={packCount}
+              active={filters.pack}
+              color="#a371f7"
+              onClick={() => onFilter({ pack: !filters.pack })}
+            />
           </Section>
         )}
 

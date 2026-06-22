@@ -117,6 +117,7 @@ st.executeUpdate("""
                     marca        TEXT DEFAULT '',
                     gymrat       INTEGER DEFAULT 0,
                     marca_premium INTEGER DEFAULT 0,
+                    cantidad_unidades INTEGER DEFAULT 1,
                     activo       INTEGER DEFAULT 1,
                     touched_at   TEXT,
                     created_at   TEXT
@@ -124,6 +125,7 @@ st.executeUpdate("""
 
             migrarColumna(st, "productos", "gymrat INTEGER DEFAULT 0");
             migrarColumna(st, "productos", "marca_premium INTEGER DEFAULT 0");
+            migrarColumna(st, "productos", "cantidad_unidades INTEGER DEFAULT 1");
 
 st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precios_externos (
@@ -472,8 +474,8 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,cantidad_unidades,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -493,6 +495,7 @@ st.executeUpdate("""
                     marca        = excluded.marca,
                     gymrat       = excluded.gymrat,
                     marca_premium = excluded.marca_premium,
+                    cantidad_unidades = excluded.cantidad_unidades,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -537,8 +540,9 @@ st.executeUpdate("""
                     psUpsert.setString(17, p.marca() != null ? p.marca() : "");
                     psUpsert.setInt   (18, p.gymrat() ? 1 : 0);
                     psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
-                    psUpsert.setString(20, now);   // touched_at
-                    psUpsert.setString(21, now);   // created_at
+                    psUpsert.setInt   (20, p.cantidadUnidades());
+                    psUpsert.setString(21, now);   // touched_at
+                    psUpsert.setString(22, now);   // created_at
                     psUpsert.executeUpdate();
 
                     Double prevPrecio = preciosActuales.get(p.url());
@@ -639,8 +643,8 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,cantidad_unidades,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -654,6 +658,7 @@ st.executeUpdate("""
                     marca        = excluded.marca,
                     gymrat       = excluded.gymrat,
                     marca_premium = excluded.marca_premium,
+                    cantidad_unidades = excluded.cantidad_unidades,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -684,8 +689,9 @@ st.executeUpdate("""
                     psU.setString(17, p.marca() != null ? p.marca() : "");             // marca
                     psU.setInt   (18, p.gymrat() ? 1 : 0);                             // gymrat
                     psU.setInt   (19, p.marcaPremium() ? 1 : 0);                       // marca_premium
-                    psU.setString(20, now);                       // touched_at
-                    psU.setString(21, now);                       // created_at
+                    psU.setInt   (20, p.cantidadUnidades());                           // cantidad_unidades
+                    psU.setString(21, now);                       // touched_at
+                    psU.setString(22, now);                       // created_at
                     psU.executeUpdate();
                     Double prev = prevPrecios.get(p.url());
                     if (prev == null || Math.abs(prev - p.precio()) > 0.01) {
@@ -712,7 +718,7 @@ st.executeUpdate("""
              ResultSet rs = st.executeQuery(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium " +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades " +
                 "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
             while (rs.next()) {
                 result.add(productoDesdeFila(rs));
@@ -730,7 +736,7 @@ st.executeUpdate("""
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium FROM productos WHERE url=?")) {
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades FROM productos WHERE url=?")) {
             ps.setString(1, url);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return java.util.Optional.empty();
@@ -767,6 +773,8 @@ st.executeUpdate("""
         String rubro   = rs.getString("rubro");
         boolean gymrat = rs.getInt("gymrat") == 1;
         boolean marcaPremium = rs.getInt("marca_premium") == 1;
+        int cantidadUnidades = rs.getInt("cantidad_unidades");
+        if (cantidadUnidades < 1) cantidadUnidades = 1;
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
                 rs.getDouble("precio"), rs.getString("precio_orig"),
@@ -775,7 +783,7 @@ st.executeUpdate("""
                 talles, ml, marca != null ? marca : "",
                 rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
                 gymrat, marcaPremium, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY);
+                Product.SenalFinanciacion.EMPTY, cantidadUnidades);
     }
 
     // ─── ML Output ──────────────────────────────────────────────────────────

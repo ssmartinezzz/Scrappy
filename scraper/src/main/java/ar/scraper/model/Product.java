@@ -18,7 +18,8 @@ public record Product(
         boolean gymrat,       // tag transversal aditivo (no altera categoria/rubro)
         boolean marcaPremium, // tag transversal aditivo (no altera categoria/rubro/badge)
         SenalCompra senal,    // precomputed buy-signal (mirrors MlScore precompute pattern)
-        SenalFinanciacion finan // precomputed financing signal (independent from senal/scoreCompra)
+        SenalFinanciacion finan, // precomputed financing signal (independent from senal/scoreCompra)
+        int cantidadUnidades  // unit count detected from nombre (pack/combo); 1 = single unit
 ) implements Comparable<Product> {
 
     // ── Constructors legacy (retrocompatibles) ──────────────────────────────
@@ -27,35 +28,36 @@ public record Product(
                    List<String> talles) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
              categoria, genero, talles, MlScore.EMPTY, "", "indumentaria", false, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
     }
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles, MlScore ml) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
              categoria, genero, talles, ml, "", "indumentaria", false, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
     }
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles, MlScore ml, String marca) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
              categoria, genero, talles, ml, marca, "indumentaria", false, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
     }
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles, MlScore ml, String marca, String rubro, boolean gymrat) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
              categoria, genero, talles, ml, marca, rubro, gymrat, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
     }
 
     /**
      * Legacy 15-arg shape (the canonical constructor BEFORE {@code finan} was
      * added as the 16th component). Preserves source compatibility for the
      * ~12 call sites that build a {@code Product} up to {@code senal} only;
-     * defaults the new financing signal to {@link SenalFinanciacion#EMPTY}.
+     * defaults the new financing signal to {@link SenalFinanciacion#EMPTY}
+     * and {@code cantidadUnidades} to 1 (single unit).
      */
     public Product(String sitio, String nombre, double precio, String precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
@@ -63,7 +65,23 @@ public record Product(
                    boolean gymrat, boolean marcaPremium, SenalCompra senal) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
              categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
-             senal, SenalFinanciacion.EMPTY);
+             senal, SenalFinanciacion.EMPTY, 1);
+    }
+
+    /**
+     * Legacy 16-arg shape (the canonical constructor BEFORE
+     * {@code cantidadUnidades} was added as the 17th component). Preserves
+     * source compatibility for call sites built against the {@code finan}
+     * tail; defaults {@code cantidadUnidades} to 1 (single unit).
+     */
+    public Product(String sitio, String nombre, double precio, String precioOriginal,
+                   String url, String imagenUrl, String categoria, String genero,
+                   List<String> talles, MlScore ml, String marca, String rubro,
+                   boolean gymrat, boolean marcaPremium, SenalCompra senal,
+                   SenalFinanciacion finan) {
+        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
+             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
+             senal, finan, 1);
     }
 
     @Override
@@ -73,6 +91,7 @@ public record Product(
     public boolean esTech()          { return "tecnologia".equals(rubro); }
     public boolean esGymrat()        { return gymrat; }
     public boolean esMarcaPremium()  { return marcaPremium; }
+    public boolean esPack()          { return cantidadUnidades > 1; }
 
     public record MlScore(
             int     scoreP,
