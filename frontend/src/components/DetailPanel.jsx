@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
+import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
+
+// Visual cue marking a link that navigates AWAY from the app (new tab/external
+// site), as opposed to in-panel actions/sections that stay inside the Dialog.
+function ExternalCue() {
+  return <span aria-hidden="true" className="text-[.85em]">↗</span>;
+}
 
 // ─── Gauge ───────────────────────────────────────────────────────────────────
 function Gauge({ score = 50 }) {
@@ -45,7 +53,7 @@ function BoxPlot({ precio, st }) {
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 function Sparkline({ hist }) {
   const pts = hist?.puntos || [];
-  if (pts.length < 2) return <div style={{ fontSize:'.72rem', color:'var(--t4)' }}>Sin historial aún</div>;
+  if (pts.length < 2) return <div className="text-[.72rem] text-t4">Sin historial aún</div>;
   const W = 280, H = 60, PAD = 8;
   const prices = pts.map(p => p.precio);
   const minP = Math.min(...prices), maxP = Math.max(...prices), rangeP = maxP - minP || 1;
@@ -70,7 +78,9 @@ function Sparkline({ hist }) {
         </text>
       </svg>
       {delta !== undefined && (
-        <div style={{ fontSize:'.65rem', color:dc, textAlign:'right' }}>
+        // dc is a runtime-computed color (depends on delta sign) — not a static
+        // design token, kept inline per the Pill/chip precedent from PR2/PR3.
+        <div style={{ color: dc }} className="text-[.65rem] text-right">
           {delta > 0 ? '+' : ''}{delta}% vs inicio
         </div>
       )}
@@ -105,67 +115,59 @@ function PreciosExternos({ product }) {
     <div>
       <div className="detail-section-title">💹 Comparativa de precios</div>
 
-      {/* Botones de búsqueda directa — SIEMPRE visibles */}
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:'.75rem' }}>
+      {/* Botones de búsqueda directa — SIEMPRE visibles. Son anchors externos:
+          llevan el cue/aria-label de "se abre en otro sitio" (tasks 3/4). */}
+      <div className="flex flex-wrap gap-1.5 mb-[.75rem]">
         <a href={searchUrl} target="_blank" rel="noopener noreferrer"
-           style={{
-             padding:'6px 12px', borderRadius:6, fontSize:'.72rem', fontWeight:700,
-             background:'rgba(255,224,0,.1)', border:'1.5px solid #f0c000', color:'#f0c000',
-             textDecoration:'none',
-           }}>
-          🛒 Buscar en MercadoLibre
+           aria-label="Buscar en MercadoLibre (se abre en una pestaña nueva)"
+           className="flex items-center gap-1 rounded-btn border-[1.5px] border-[#f0c000]
+                      bg-[rgba(255,224,0,.1)] px-[.75rem] py-1.5 text-[.72rem] font-bold
+                      text-[#f0c000] no-underline">
+          🛒 Buscar en MercadoLibre <ExternalCue />
         </a>
         <a href={EXTERNAL_SEARCH.amazon(nombre)} target="_blank" rel="noopener noreferrer"
-           style={{
-             padding:'6px 12px', borderRadius:6, fontSize:'.72rem', fontWeight:600,
-             background:'var(--s2)', border:'1.5px solid var(--bd)', color:'var(--t2)',
-             textDecoration:'none',
-           }}>
-          📦 Amazon
+           aria-label="Buscar en Amazon (se abre en una pestaña nueva)"
+           className="flex items-center gap-1 rounded-btn border-[1.5px] border-border
+                      bg-s2 px-[.75rem] py-1.5 text-[.72rem] font-semibold text-t2 no-underline">
+          📦 Amazon <ExternalCue />
         </a>
         <a href={EXTERNAL_SEARCH.google(nombre)} target="_blank" rel="noopener noreferrer"
-           style={{
-             padding:'6px 12px', borderRadius:6, fontSize:'.72rem', fontWeight:600,
-             background:'var(--s2)', border:'1.5px solid var(--bd)', color:'var(--t2)',
-             textDecoration:'none',
-           }}>
-          🔍 Google Shopping
+           aria-label="Buscar en Google Shopping (se abre en una pestaña nueva)"
+           className="flex items-center gap-1 rounded-btn border-[1.5px] border-border
+                      bg-s2 px-[.75rem] py-1.5 text-[.72rem] font-semibold text-t2 no-underline">
+          🔍 Google Shopping <ExternalCue />
         </a>
       </div>
 
-      {/* Precios de ML — on demand */}
+      {/* Precios de ML — on demand, acción IN-PANEL (no navega, no lleva cue externo) */}
       {data === null && !loading && (
-        <button className="btn-sm btn-outline"
-          style={{ width:'100%', padding:'8px', fontSize:'.78rem' }}
+        <button className="btn-sm btn-outline w-full px-[8px] py-[8px] text-[.78rem]"
           onClick={cargar}>
           📊 Ver precios en MercadoLibre (automático)
         </button>
       )}
 
       {loading && (
-        <div style={{ fontSize:'.75rem', color:'var(--t4)', textAlign:'center', padding:'.5rem' }}>
+        <div className="py-[.5rem] text-center text-[.75rem] text-t4">
           Buscando precios...
         </div>
       )}
 
       {data !== null && (
-        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+        <div className="flex flex-col gap-1.5">
           {queryUsada && (
-            <div style={{ fontSize:'.62rem', color:'var(--t4)', marginBottom:2 }}>
-              🔎 Query usada: <em style={{color:'var(--t3)'}}>{queryUsada}</em>
+            <div className="mb-0.5 text-[.62rem] text-t4">
+              🔎 Query usada: <em className="text-t3">{queryUsada}</em>
             </div>
           )}
 
           {items.length === 0 && (
-            <div style={{
-              background:'var(--s2)', borderRadius:8, padding:'.65rem',
-              border:'1px solid var(--bd)', fontSize:'.75rem', color:'var(--t3)',
-              display:'flex', flexDirection:'column', gap:6,
-            }}>
+            <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-s2 p-2.5 text-[.75rem] text-t3">
               <span>Sin resultados automáticos. Buscá directamente:</span>
               <a href={searchUrl} target="_blank" rel="noopener noreferrer"
-                 style={{ color:'#f0c000', fontWeight:700, textDecoration:'none' }}>
-                🛒 Ver resultados en MercadoLibre →
+                 aria-label="Ver resultados en MercadoLibre (se abre en una pestaña nueva)"
+                 className="flex items-center gap-1 font-bold text-[#f0c000] no-underline">
+                🛒 Ver resultados en MercadoLibre <ExternalCue />
               </a>
             </div>
           )}
@@ -173,45 +175,39 @@ function PreciosExternos({ product }) {
           {/* Precio de referencia */}
           {items.length > 0 && (
             <>
-              <div style={{
-                background:'var(--s2)', borderRadius:8, padding:'.5rem .75rem',
-                display:'flex', justifyContent:'space-between', alignItems:'center',
-                border:'1px solid var(--bd)', fontSize:'.72rem',
-              }}>
-                <span style={{ color:'var(--t4)' }}>📍 Precio scrapeado (este sitio)</span>
-                <strong style={{ color:'var(--t1)' }}>${fmt(precio)}</strong>
+              <div className="flex items-center justify-between rounded-lg border border-border bg-s2 px-[.75rem] py-[.5rem] text-[.72rem]">
+                <span className="text-t4">📍 Precio scrapeado (este sitio)</span>
+                <strong className="text-t1">${fmt(precio)}</strong>
               </div>
 
               {items.map((item, i) => {
                 const d = delta(item.precio);
                 return (
                   <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
-                     style={{
-                       background:'var(--s2)', borderRadius:8, padding:'.5rem .75rem',
-                       border:'1px solid var(--bd)', textDecoration:'none',
-                       display:'flex', alignItems:'center', gap:10,
-                     }}>
+                     aria-label={`Ver "${item.titulo}" en MercadoLibre (se abre en una pestaña nueva)`}
+                     className="flex items-center gap-2.5 rounded-lg border border-border bg-s2 px-[.75rem] py-[.5rem] no-underline">
                     {item.thumbnail && (
                       <img src={item.thumbnail.replace('http://','https://')}
                            alt="" width="36" height="36"
-                           style={{ objectFit:'cover', borderRadius:4, flexShrink:0 }}
+                           className="flex-shrink-0 rounded object-cover"
                            onError={e=>e.target.style.display='none'} />
                     )}
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:'.7rem', color:'var(--t2)',
-                                    whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="overflow-hidden whitespace-nowrap text-ellipsis text-[.7rem] text-t2">
                         {item.titulo}
                       </div>
-                      <div style={{ fontSize:'.63rem', color:'var(--t4)', marginTop:2 }}>
+                      <div className="mt-0.5 text-[.63rem] text-t4">
                         {item.condicion === 'new' ? 'Nuevo' : 'Usado'} · MercadoLibre
                       </div>
                     </div>
-                    <div style={{ textAlign:'right', flexShrink:0 }}>
-                      <div style={{ fontSize:'.82rem', fontWeight:700, color:'var(--t1)' }}>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-[.82rem] font-bold text-t1">
                         ${fmt(item.precio)}
                       </div>
                       {d && (
-                        <div style={{ fontSize:'.65rem', color: d.color }}>
+                        // d.color is a runtime-computed comparison color (cheaper/pricier
+                        // vs scraped price) — kept inline per the established exception.
+                        <div style={{ color: d.color }} className="text-[.65rem]">
                           {+d.d > 0 ? '+' : ''}{d.d}%
                         </div>
                       )}
@@ -221,9 +217,9 @@ function PreciosExternos({ product }) {
               })}
 
               <a href={searchUrl} target="_blank" rel="noopener noreferrer"
-                 style={{ fontSize:'.68rem', color:'var(--p2)', textAlign:'right',
-                          textDecoration:'none' }}>
-                Ver todos los resultados en MercadoLibre →
+                 aria-label="Ver todos los resultados en MercadoLibre (se abre en una pestaña nueva)"
+                 className="flex items-center justify-end gap-1 text-right text-[.68rem] text-primary2 no-underline">
+                Ver todos los resultados en MercadoLibre <ExternalCue />
               </a>
             </>
           )}
@@ -306,14 +302,14 @@ function PriceContext({ product: p, st }) {
   return (
     <div>
       <div className="detail-section-title">🧠 Contexto de precio</div>
-      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+      <div className="flex flex-col gap-1.5">
         {items.slice(0, 4).map((item, i) => (
-          <div key={i} style={{
-            display:'flex', gap:10, alignItems:'flex-start',
-            background:'var(--s2)', borderRadius:8, padding:'.5rem .75rem',
-            border:`1px solid ${item.color}22`, fontSize:'.73rem', color:'var(--t3)',
-          }}>
-            <span style={{ flexShrink:0, fontSize:'.85rem' }}>{item.icon}</span>
+          // border color is per-item runtime data (item.color comes from the ML
+          // context computation above) — not a static design token, kept inline
+          // per the established Pill/chip exception.
+          <div key={i} style={{ border: `1px solid ${item.color}22` }}
+               className="flex items-start gap-2.5 rounded-lg bg-s2 px-[.75rem] py-[.5rem] text-[.73rem] text-t3">
+            <span className="flex-shrink-0 text-[.85rem]">{item.icon}</span>
             <span dangerouslySetInnerHTML={{ __html: item.text
               .replace(/\$[\d.,]+/g, m => `<strong style="color:${item.color}">${m}</strong>`)
             }}/>
@@ -335,18 +331,29 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
     if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));
   }, [p.url]);
 
-  useEffect(() => {
-    const h = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-
+  // DetailPanel only mounts while a product is selected (see AppLayout.jsx
+  // `{S.detailProd && <DetailPanel .../>}`), so it is always "open" for as long
+  // as it exists in the tree. Radix Dialog's onOpenChange(false) fires on ESC,
+  // outside-click, and the Close control — all map to the same onClose prop
+  // the parent already passes, so the open/close trigger logic is unchanged.
+  // This replaces the manual ESC keydown useEffect and the hand-rolled
+  // .detail-backdrop onClick with Radix's native focus-trap/ESC/backdrop-click.
+  // Mirrors Sidebar.jsx's wiring: use the raw DialogPrimitive.Content (not the
+  // generic DialogContent) so the existing .detail-panel/.detail-backdrop CSS
+  // classes keep their original z-index/positioning/responsive rules — Radix
+  // only supplies the open/close behavior, not the visual shell.
   return (
-    <>
-      <div className="detail-backdrop" onClick={onClose} />
-      <div className="detail-panel">
+    <Dialog open modal onOpenChange={next => { if (!next) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <DialogOverlay className="detail-backdrop" />
+      </DialogPrimitive.Portal>
+      <DialogPrimitive.Content
+        onEscapeKeyDown={onClose}
+        onPointerDownOutside={onClose}
+        className="detail-panel outline-none"
+      >
         <div className="detail-header">
-          <h3>{p.nombre}</h3>
+          <DialogTitle asChild><h3>{p.nombre}</h3></DialogTitle>
           <button className="detail-close" onClick={onClose}>✕</button>
         </div>
 
@@ -370,6 +377,8 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
               <div className="detail-stat-lbl">Precio scrapeado</div>
             </div>
             <div className="detail-stat">
+              {/* segment color is data-driven (ml.segment) — runtime value, not a
+                  static token, kept inline per the established exception. */}
               <div className="detail-stat-val"
                    style={{ color: segColors[ml.segment] || 'var(--t3)' }}>
                 {(ml.segment || '—').toUpperCase()}
@@ -392,11 +401,11 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
             <div>
               <div className="detail-section-title">Distribución en {p.categoria || '—'}</div>
               <BoxPlot precio={p.precio} st={st} />
-              <div style={{ display:'flex', gap:16, marginTop:8, flexWrap:'wrap' }}>
+              <div className="mt-1 flex flex-wrap gap-2">
                 {[['Mediana',fmt(st.median)],['Media',fmt(st.mean)],
                   ['Moda',fmt(st.mode)],['CV',`${st.cv}%`]].map(([l,v])=>(
-                  <span key={l} style={{ fontSize:'.7rem', color:'var(--t4)' }}>
-                    {l}: <strong style={{ color:'var(--t2)' }}>{v}</strong>
+                  <span key={l} className="text-[.7rem] text-t4">
+                    {l}: <strong className="text-t2">{v}</strong>
                   </span>
                 ))}
               </div>
@@ -406,6 +415,7 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
           {/* Contexto estadístico */}
           <PriceContext product={p} st={st} />
 
+          {/* Historial de precio: inline, sin cue externo — se queda en el panel */}
           <div>
             <div className="detail-section-title">Historial de precio</div>
             <Sparkline hist={hist} />
@@ -417,13 +427,13 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
 
           {p.url && (
             <a href={p.url} target="_blank" rel="noopener noreferrer"
-               className="btn-primary"
-               style={{ textAlign:'center', textDecoration:'none' }}>
-              Ver en {p.sitio} →
+               aria-label={`Ver en ${p.sitio} (se abre en una pestaña nueva)`}
+               className="btn-primary flex items-center justify-center gap-1.5 text-center no-underline">
+              Ver en {p.sitio} <ExternalCue />
             </a>
           )}
         </div>
-      </div>
-    </>
+      </DialogPrimitive.Content>
+    </Dialog>
   );
 }

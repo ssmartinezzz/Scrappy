@@ -1,13 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ===== CSS VARIABLES ===== */
+/* Refined dark palette — single theme, no toggle. Same dark family as the
+   original GitHub-dark-style tokens, modernized for shadcn/ui (Radix +
+   Tailwind) harmony. tailwind.config.js maps these via theme.extend. */
 :root {
-  --bg:  #0d1117; --s1: #161b22; --s2: #1c2128; --s3: #21262d;
-  --t1:  #e6edf3; --t2: #c9d1d9; --t3: #8b949e; --t4: #484f58;
-  --bd:  #30363d; --bd2: #21262d;
-  --p:   #6e40c9; --p2: #a371f7;
-  --g:   #3fb950; --r: #e84393; --y: #f0a500;
+  --bg:  #0b0e14; --s1: #13171f; --s2: #1a1f29; --s3: #222834;
+  --t1:  #eef2f8; --t2: #c9d1de; --t3: #8b94a6; --t4: #525b6b;
+  --bd:  #2a313d; --bd2: #1c222c;
+  --p:   #7c5cff; --p2: #a78bfa;
+  --g:   #3fb950; --r: #f0648c; --y: #e3a008;
   --font:'Segoe UI',system-ui,sans-serif;
   --mono:'Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
-  --rc:  10px; --rb: 8px;
+  --rc:  12px; --rb: 8px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -102,12 +109,15 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 /* ===== CONTENT ===== */
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .tab-bar { display: flex; gap: 0; border-bottom: 2px solid var(--bd);
-  position: sticky; top: 57px; z-index: 160; background: var(--s1); }
+  position: sticky; top: 57px; z-index: 160; background: var(--s1);
+  overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; -ms-overflow-style: none; }
+.tab-bar::-webkit-scrollbar { display: none; }
 .tab { padding: 8px 20px; font: 600 .8rem/1 var(--font); color: var(--t3); cursor: pointer;
   border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none;
-  display: inline-flex; align-items: center; text-decoration: none; }
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap; flex-shrink: 0; }
 .tab:hover { color: var(--t1); }
 .tab.active { color: var(--p2); border-bottom-color: var(--p2); }
+.tab-label { display: inline; }
 .search-hero { background: var(--s1); border-bottom: 1px solid var(--bd);
   padding: .65rem 1.25rem; position: sticky; top: 104px; z-index: 150; }
 .search-hero-inner { display: flex; gap: 8px; align-items: center; }
@@ -166,6 +176,11 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
   background: rgba(132,204,22,.15); color: #84cc16; border: 1px solid rgba(132,204,22,.35); }
 
+/* ===== PACK/COMBO BADGE (unit-price savings vs category median, grid card) ===== */
+.badge-pack { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+  border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
+  background: rgba(163,113,247,.15); color: #a371f7; border: 1px solid rgba(163,113,247,.35); }
+
 /* ===== SEÑAL BADGE (compact buy-signal pill, grid card) ===== */
 .badge-senal { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
@@ -223,6 +238,11 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   background: var(--s2); border: 1px solid var(--bd); color: var(--t3);
   font: .72rem var(--font); text-decoration: none; transition: all .15s; margin-top: 6px; }
 .ver-btn:hover { border-color: var(--p); color: var(--p2); }
+.card-detail-hint { display: block; text-align: center; margin-top: 4px;
+  color: var(--t4); font: .62rem/1.4 var(--font); opacity: 0; transition: opacity .15s;
+  pointer-events: none; }
+.card:hover .card-detail-hint { opacity: 1; }
+.grid.list-mode .card-detail-hint { display: none; }
 .card-compare-btn { position: absolute; bottom: 8px; right: 8px; z-index: 3;
   width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
   border: 1px solid rgba(255,255,255,.1); color: var(--t3); font-size: .7rem;
@@ -366,7 +386,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 @media (max-width: 900px) {
   /* Sidebar: overlay drawer */
   .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 300;
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 301;
     width: 260px; max-width: 85vw;
     transform: translateX(-100%); transition: transform .25s ease;
     box-shadow: 4px 0 24px rgba(0,0,0,.5);
@@ -402,8 +422,10 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   .detail-panel { right: 0; left: 0; width: 100%; height: 100%; border-radius: 0; }
   /* Compare bar stacks */
   .compare-bar { flex-direction: column; gap: 6px; padding: .65rem; }
-  /* Tabs: icons only, smaller */
+  /* Tabs: hide label text below mobile breakpoint, icon remains;
+     title/aria-label on the NavLink preserve accessibility/identification. */
   .tab { padding: .4rem .55rem; font-size: .7rem; }
+  .tab-label { display: none; }
   /* SearchHero compact */
   .search-hero-input { font-size: .78rem; }
   /* Topbar row 2 compact pills */

@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
 import { fetchData, fetchStatus, fetchFacets, fetchFavoritos } from '../api';
+import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
 import Sidebar       from './Sidebar';
 import SearchHero    from './SearchHero';
@@ -37,6 +38,8 @@ const init = {
   gymSubcats:   {},        // { [subcatLabel]: count } — derived from gymrat products
   gymSubcatFiltro: null,   // active gymrat sub-category filter (client-side)
   pack:         false,     // Packs/combos filter — mirrors gymrat (boolean toggle)
+  precioMin:    undefined, // Sidebar price-range filter (server-side, /api/data param)
+  precioMax:    undefined,
   orden:        'precio_asc',
   // Pagination / infinite scroll
   pag:          1,
@@ -69,6 +72,7 @@ function reducer(state, action) {
       busq:'', sitioFiltro:'', rubroFiltro:'', marca:'', badge:'',
       segment:'', genero:'', categorias:[], talles:[], gymrat:false,
       gymSubcats:{}, gymSubcatFiltro:null, pack:false,
+      precioMin:undefined, precioMax:undefined,
       pag:1, prods:[], hasMore:true,
     };
     case 'TOGGLE_TALLE': {
@@ -140,7 +144,7 @@ function CatalogoRoute() {
     <>
       <SearchHero
         busq={S.busq} view={S.view} orden={S.orden} total={S.totalProds}
-        topMarcas={Object.entries(S.facets?.marcas||{}).sort((a,b)=>b[1]-a[1])}
+        topMarcas={sortByCountDesc(S.facets?.marcas||{})}
         marca={S.marca}
         onBusq={v => setFilter({ busq:v })}
         onView={v => set({ view:v })}
@@ -260,7 +264,8 @@ export default function AppLayout() {
     if (S.pag !== 1) return; // only on reset
     loadFirstPage();
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
-      S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack, S.orden]);
+      S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
+      S.precioMin, S.precioMax, S.orden]);
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,
@@ -275,8 +280,11 @@ export default function AppLayout() {
     ...(S.talles.length     && { talle:      S.talles }),
     ...(S.gymrat      && { gymrat:     true }),
     ...(S.pack        && { pack:       true }),
+    ...(S.precioMin !== undefined && { precioMin: S.precioMin }),
+    ...(S.precioMax !== undefined && { precioMax: S.precioMax }),
   }), [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge, S.segment,
-       S.genero, S.categorias, S.talles, S.gymrat, S.pack, S.orden]);
+       S.genero, S.categorias, S.talles, S.gymrat, S.pack,
+       S.precioMin, S.precioMax, S.orden]);
 
   const loadFirstPage = useCallback(async () => {
     if (loadingRef.current) return;
@@ -351,7 +359,7 @@ export default function AppLayout() {
           filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
                      genero:S.genero, categorias:S.categorias, talles:S.talles,
                      gymrat:S.gymrat, gymSubcats:S.gymSubcats, gymSubcatFiltro:S.gymSubcatFiltro,
-                     pack:S.pack }}
+                     pack:S.pack, precioMin:S.precioMin, precioMax:S.precioMax }}
           onFilter={payload => {
             // gymSubcatFiltro is client-side only — do not reset pagination
             if ('gymSubcatFiltro' in payload) { set(payload); }
@@ -364,12 +372,12 @@ export default function AppLayout() {
         <div className="content">
           <div className="tab-bar">
             <button className="sidebar-toggle" onClick={() => setSidebarOpen(o=>!o)}>☰</button>
-            <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`}>🛍</NavLink>
-            <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`}>🏆</NavLink>
-            <NavLink to="/marcas"    className={({isActive}) => `tab ${isActive?'active':''}`}>🏷</NavLink>
-            <NavLink to="/grupos"    className={({isActive}) => `tab ${isActive?'active':''}`}>⚖</NavLink>
-            <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`}>📈</NavLink>
-            <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`}>⭐</NavLink>
+            <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Catálogo" aria-label="Catálogo">🛍 <span className="tab-label">Catálogo</span></NavLink>
+            <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`} title="Picks" aria-label="Picks">🏆 <span className="tab-label">Picks</span></NavLink>
+            <NavLink to="/marcas"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Marcas" aria-label="Marcas">🏷 <span className="tab-label">Marcas</span></NavLink>
+            <NavLink to="/grupos"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Comparar" aria-label="Comparar">⚖ <span className="tab-label">Comparar</span></NavLink>
+            <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`} title="Tendencias" aria-label="Tendencias">📈 <span className="tab-label">Tendencias</span></NavLink>
+            <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`} title="Favoritos" aria-label="Favoritos">⭐ <span className="tab-label">Favoritos</span></NavLink>
             <NavLink to="/outfits"   className={({isActive}) => `tab ${isActive?'active':''}`}>👕 Outfits</NavLink>
             <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`}>💳 Cuotas</NavLink>
           </div>

@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Sheet, SheetOverlay, SheetTitle } from './ui/sheet';
+import { cn, sortByCountDesc } from '@/lib/utils';
 import { BADGE_LABELS } from '../api';
 
 const SEGMENTOS = [
@@ -18,25 +21,22 @@ const BADGE_COLORS = {
 function Section({ title, count, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderBottom:'1px solid var(--s3)' }}>
-      <button onClick={() => setOpen(!open)} style={{
-        width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center',
-        padding:'.55rem .85rem', background:'none', border:'none', cursor:'pointer',
-        fontSize:'.63rem', fontWeight:700, color:'var(--t4)',
-        textTransform:'uppercase', letterSpacing:'.1em',
-      }}>
+    <div className="border-b border-s3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between bg-transparent px-3 py-2 text-[.63rem] font-bold uppercase tracking-[.1em] text-t4"
+      >
         <span>
           {title}
-          {count > 0 && <span style={{ color:'var(--p)', marginLeft:5 }}>{count}</span>}
+          {count > 0 && <span className="ml-1 text-primary">{count}</span>}
         </span>
-        <span style={{ fontSize:'.65rem', opacity:.5,
-                       transform: open ? 'rotate(180deg)' : 'none', transition:'transform .15s' }}>
+        <span
+          className={cn('text-[.65rem] opacity-50 transition-transform', open && 'rotate-180')}
+        >
           ▾
         </span>
       </button>
-      {open && (
-        <div style={{ padding:'0 .6rem .65rem' }}>{children}</div>
-      )}
+      {open && <div className="px-2.5 pb-2.5">{children}</div>}
     </div>
   );
 }
@@ -44,60 +44,78 @@ function Section({ title, count, children, defaultOpen = true }) {
 // ─── Pill button ─────────────────────────────────────────────────────────────
 function Pill({ label, count, active, color, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      padding:'3px 9px', borderRadius:16, margin:'2px',
-      border:`1.5px solid ${active ? (color || 'var(--p)') : 'var(--s3)'}`,
-      background: active ? `${color || 'var(--p)'}18` : 'transparent',
-      color: active ? (color || 'var(--p2)') : 'var(--t4)',
-      fontSize:'.68rem', fontWeight: active ? 700 : 400,
-      cursor:'pointer', transition:'all .1s',
-      display:'inline-flex', alignItems:'center', gap:3,
-    }}>
+    <button
+      onClick={onClick}
+      className="m-0.5 inline-flex items-center gap-1 rounded-full border-[1.5px] px-2.5 py-0.5 text-[.68rem] transition-colors"
+      style={{
+        borderColor: active ? (color || 'var(--p)') : 'var(--s3)',
+        background: active ? `${color || 'var(--p)'}18` : 'transparent',
+        color: active ? (color || 'var(--p2)') : 'var(--t4)',
+        fontWeight: active ? 700 : 400,
+      }}
+    >
       {label}
-      {count !== undefined && (
-        <span style={{ opacity:.55, fontSize:'.6rem' }}>{count}</span>
-      )}
+      {count !== undefined && <span className="text-[.6rem] opacity-55">{count}</span>}
     </button>
   );
 }
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 export default function Sidebar({
-  facets = {}, filters, onFilter, onToggleCat, onToggleTalle, onReset,
+  facets = {}, meta = {}, filters, onFilter, onToggleCat, onToggleTalle, onReset,
   open = false, onClose,
 }) {
   const badges      = facets.badges     || {};
   const generos     = facets.generos    || {};
   const cats        = facets.categorias || {};
+  const marcas      = facets.marcas     || {};
   const gymratCount = facets.gymratCount || 0;
   const packCount   = facets.packCount   || 0;
 
-  const activeCount = [filters.badge, filters.segment, filters.genero].filter(Boolean).length
+  const topMarcas = useMemo(() => sortByCountDesc(marcas).slice(0, 20), [marcas]);
+
+  // Controlled local strings for the price inputs so external resets (Limpiar)
+  // visibly clear them — uncontrolled defaultValue would not react to prop changes.
+  const [precioMinStr, setPrecioMinStr] = useState(filters.precioMin ?? '');
+  const [precioMaxStr, setPrecioMaxStr] = useState(filters.precioMax ?? '');
+  useEffect(() => { setPrecioMinStr(filters.precioMin ?? ''); }, [filters.precioMin]);
+  useEffect(() => { setPrecioMaxStr(filters.precioMax ?? ''); }, [filters.precioMax]);
+
+  // Empty string means "blur with an invalid/cleared value" -> clear the filter.
+  // Clamp to >= 0: a price floor/ceiling can't be negative.
+  const commitPrecio = (v) => {
+    if (v === '') return undefined;
+    const n = Number(v);
+    return Number.isNaN(n) ? undefined : Math.max(0, n);
+  };
+
+  const activeCount = [filters.badge, filters.segment, filters.genero, filters.marca].filter(Boolean).length
     + (filters.categorias?.length || 0)
     + (filters.gymrat ? 1 : 0)
-    + (filters.pack ? 1 : 0);
+    + (filters.pack ? 1 : 0)
+    + (filters.precioMin != null || filters.precioMax != null ? 1 : 0);
 
   // Agrupar categorías semánticamente
-  const grp = (regex) => Object.entries(cats).filter(([k]) => regex.test(k));
-  const calzado   = grp(/zapatilla|bota|ojota/i);
-  const superior  = grp(/remera|buzo|sweater|campera|musculosa|camisa|puffer/i);
-  const inferior  = grp(/jean|jogging|pantalón|short|calza|pollera/i);
-  const tech      = grp(/gpu|cpu|ram|ssd|monitor|teclado|mouse|notebook|gabinete|madre|placa|auricular|fuente/i);
-  const suppl     = grp(/suplemento|alimento|proteína/i);
-  const accesorio = grp(/mochila|gorra|medias|cinturón|bolso/i);
-  const shownKeys = new Set(
-    [...calzado, ...superior, ...inferior, ...tech, ...suppl, ...accesorio].map(([k]) => k)
-  );
-  const otros = Object.entries(cats).filter(([k]) => !shownKeys.has(k));
+  const { calzado, superior, inferior, tech, suppl, accesorio, otros } = useMemo(() => {
+    const grp = (regex) => Object.entries(cats).filter(([k]) => regex.test(k));
+    const calzado   = grp(/zapatilla|bota|ojota/i);
+    const superior  = grp(/remera|buzo|sweater|campera|musculosa|camisa|puffer/i);
+    const inferior  = grp(/jean|jogging|pantalón|short|calza|pollera/i);
+    const tech      = grp(/gpu|cpu|ram|ssd|monitor|teclado|mouse|notebook|gabinete|madre|placa|auricular|fuente/i);
+    const suppl     = grp(/suplemento|alimento|proteína/i);
+    const accesorio = grp(/mochila|gorra|medias|cinturón|bolso/i);
+    const shownKeys = new Set(
+      [...calzado, ...superior, ...inferior, ...tech, ...suppl, ...accesorio].map(([k]) => k)
+    );
+    const otros = Object.entries(cats).filter(([k]) => !shownKeys.has(k));
+    return { calzado, superior, inferior, tech, suppl, accesorio, otros };
+  }, [cats]);
 
   const CatGroup = ({ title, items }) => {
     if (!items.length) return null;
     return (
-      <div style={{ marginBottom:4 }}>
-        <div style={{ fontSize:'.58rem', color:'var(--t4)', margin:'4px 0 2px',
-                      textTransform:'uppercase', letterSpacing:'.1em' }}>
-          {title}
-        </div>
+      <div className="mb-1">
+        <div className="my-1 text-[.58rem] uppercase tracking-[.1em] text-t4">{title}</div>
         {items.slice(0, 12).map(([cat, n]) => (
           <Pill key={cat} label={cat} count={n}
             active={filters.categorias?.includes(cat)}
@@ -107,152 +125,192 @@ export default function Sidebar({
     );
   };
 
-  return (
-    <div>
-      {/* Mobile overlay backdrop */}
-      {open && (
-        <div
-          onClick={onClose}
-          style={{
-            position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:299,
-          }}
-        />
-      )}
-
-      {/* Sidebar panel */}
-      <div className={`sidebar${open ? ' open' : ''}`}
-           style={{ overflowY:'auto', overflowX:'hidden' }}>
-
-        {/* Header */}
-        <div style={{
-          padding:'.6rem .85rem', borderBottom:'1px solid var(--s3)',
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-          position:'sticky', top:0, background:'var(--s1)', zIndex:5,
-        }}>
-          <span style={{ fontSize:'.7rem', fontWeight:700, color:'var(--t3)' }}>
-            Filtros
-            {activeCount > 0 && (
-              <span style={{
-                background:'var(--p)', color:'#fff', borderRadius:20,
-                padding:'0px 7px', fontSize:'.58rem', marginLeft:5,
-              }}>
-                {activeCount}
-              </span>
-            )}
-          </span>
+  const content = (
+    <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden">
+      {/* Header */}
+      <div className="sticky top-0 z-[5] flex items-center justify-between border-b border-s3 bg-s1 px-3 py-2.5">
+        <span className="text-[.7rem] font-bold text-t3">
+          Filtros
           {activeCount > 0 && (
-            <button onClick={onReset} style={{
-              background:'none', border:'none', color:'var(--r)',
-              fontSize:'.65rem', cursor:'pointer', padding:0,
-            }}>
-              ✕ Limpiar
-            </button>
+            <span className="ml-1 rounded-full bg-primary px-1.5 py-0 text-[.58rem] text-white">
+              {activeCount}
+            </span>
           )}
-        </div>
-
-        {/* ML Badge */}
-        {Object.keys(badges).length > 0 && (
-          <Section title="🏷 Precio ML">
-            {Object.entries(BADGE_LABELS).map(([k, lbl]) => {
-              if (!badges[k]) return null;
-              return (
-                <Pill key={k} label={lbl} count={badges[k]}
-                  color={BADGE_COLORS[k]}
-                  active={filters.badge === k}
-                  onClick={() => onFilter({ badge: filters.badge === k ? '' : k })} />
-              );
-            })}
-          </Section>
-        )}
-
-        {/* Segmento */}
-        <Section title="💎 Segmento" defaultOpen={false}>
-          {SEGMENTOS.map(({ k, l, c }) => (
-            <Pill key={k} label={l} active={filters.segment === k} color={c}
-              onClick={() => onFilter({ segment: filters.segment === k ? '' : k })} />
-          ))}
-        </Section>
-
-        {/* Género */}
-        {Object.keys(generos).length > 0 && (
-          <Section title="👤 Género" defaultOpen={false}>
-            {Object.entries(generos).map(([g, n]) => (
-              <Pill key={g}
-                label={g.charAt(0).toUpperCase() + g.slice(1)}
-                count={n}
-                active={filters.genero === g}
-                onClick={() => onFilter({ genero: filters.genero === g ? '' : g })} />
-            ))}
-          </Section>
-        )}
-
-        {/* Categorías agrupadas */}
-        {Object.keys(cats).length > 0 && (
-          <Section title="📂 Categoría" count={filters.categorias?.length || 0}>
-            <CatGroup title="Calzado"    items={calzado} />
-            <CatGroup title="Superior"   items={superior} />
-            <CatGroup title="Inferior"   items={inferior} />
-            <CatGroup title="Tech"       items={tech} />
-            <CatGroup title="Nutrición"  items={suppl} />
-            <CatGroup title="Accesorios" items={accesorio} />
-            {otros.length > 0 && <CatGroup title="Otros" items={otros.slice(0, 8)} />}
-          </Section>
-        )}
-
-        {/* Gymrat / Modo GYM */}
-        {gymratCount > 0 && (
-          <Section title="🏋️ Modo GYM">
-            <Pill
-              label="Ropa gym"
-              count={gymratCount}
-              active={filters.gymrat}
-              color="#84cc16"
-              onClick={() => onFilter({ gymrat: !filters.gymrat })}
-            />
-            {filters.gymrat && filters.gymSubcats && Object.keys(filters.gymSubcats).length > 0 && (
-              <div className="gym-subcats">
-                {Object.entries(filters.gymSubcats)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([subcat, count]) => (
-                    <button
-                      key={subcat}
-                      className={`subcat-chip${filters.gymSubcatFiltro === subcat ? ' active' : ''}`}
-                      onClick={() => onFilter({
-                        gymSubcatFiltro: filters.gymSubcatFiltro === subcat ? null : subcat
-                      })}
-                    >
-                      {subcat} <small>({count})</small>
-                    </button>
-                  ))
-                }
-              </div>
-            )}
-          </Section>
-        )}
-
-        {/* Packs / Combos */}
-        {packCount > 0 && (
-          <Section title="📦 Packs">
-            <Pill
-              label="Packs / combos"
-              count={packCount}
-              active={filters.pack}
-              color="#a371f7"
-              onClick={() => onFilter({ pack: !filters.pack })}
-            />
-          </Section>
-        )}
-
-        {/* Empty state */}
-        {Object.keys(badges).length === 0 && Object.keys(cats).length === 0 && (
-          <div style={{
-            padding:'1.5rem .9rem', fontSize:'.75rem',
-            color:'var(--t4)', textAlign:'center',
-          }}>
-            Los filtros se cargan después del primer scraping.
-          </div>
+        </span>
+        {activeCount > 0 && (
+          <button onClick={onReset} className="bg-transparent p-0 text-[.65rem] text-danger">
+            ✕ Limpiar
+          </button>
         )}
       </div>
+
+      {/* ML Badge */}
+      {Object.keys(badges).length > 0 && (
+        <Section title="🏷 Precio ML">
+          {Object.entries(BADGE_LABELS).map(([k, lbl]) => {
+            if (!badges[k]) return null;
+            return (
+              <Pill key={k} label={lbl} count={badges[k]}
+                color={BADGE_COLORS[k]}
+                active={filters.badge === k}
+                onClick={() => onFilter({ badge: filters.badge === k ? '' : k })} />
+            );
+          })}
+        </Section>
+      )}
+
+      {/* Segmento */}
+      <Section title="💎 Segmento" defaultOpen={true}>
+        {SEGMENTOS.map(({ k, l, c }) => (
+          <Pill key={k} label={l} active={filters.segment === k} color={c}
+            onClick={() => onFilter({ segment: filters.segment === k ? '' : k })} />
+        ))}
+      </Section>
+
+      {/* Género */}
+      {Object.keys(generos).length > 0 && (
+        <Section title="👤 Género" defaultOpen={true}>
+          {Object.entries(generos).map(([g, n]) => (
+            <Pill key={g}
+              label={g.charAt(0).toUpperCase() + g.slice(1)}
+              count={n}
+              active={filters.genero === g}
+              onClick={() => onFilter({ genero: filters.genero === g ? '' : g })} />
+          ))}
+        </Section>
+      )}
+
+      {/* Marca */}
+      {topMarcas.length > 0 && (
+        <Section title="🏷 Marca" defaultOpen={true}>
+          {topMarcas.map(([marca, n]) => (
+            <Pill key={marca} label={marca} count={n}
+              active={filters.marca === marca}
+              onClick={() => onFilter({ marca: filters.marca === marca ? '' : marca })} />
+          ))}
+        </Section>
+      )}
+
+      {/* Precio */}
+      <Section title="💰 Precio" defaultOpen={true}>
+        <div className="flex items-center gap-1.5 px-0.5 py-1">
+          <input
+            type="number"
+            inputMode="numeric"
+            className="price-input"
+            placeholder={meta.rangMin != null ? String(meta.rangMin) : 'Min'}
+            value={precioMinStr}
+            onChange={e => setPrecioMinStr(e.target.value)}
+            onBlur={e => onFilter({ precioMin: commitPrecio(e.target.value) })}
+          />
+          <span className="price-sep">–</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="price-input"
+            placeholder={meta.rangMax != null ? String(meta.rangMax) : 'Max'}
+            value={precioMaxStr}
+            onChange={e => setPrecioMaxStr(e.target.value)}
+            onBlur={e => onFilter({ precioMax: commitPrecio(e.target.value) })}
+          />
+        </div>
+      </Section>
+
+      {/* Categorías agrupadas */}
+      {Object.keys(cats).length > 0 && (
+        <Section title="📂 Categoría" count={filters.categorias?.length || 0}>
+          <CatGroup title="Calzado"    items={calzado} />
+          <CatGroup title="Superior"   items={superior} />
+          <CatGroup title="Inferior"   items={inferior} />
+          <CatGroup title="Tech"       items={tech} />
+          <CatGroup title="Nutrición"  items={suppl} />
+          <CatGroup title="Accesorios" items={accesorio} />
+          {otros.length > 0 && <CatGroup title="Otros" items={otros.slice(0, 8)} />}
+        </Section>
+      )}
+
+      {/* Gymrat / Modo GYM */}
+      {gymratCount > 0 && (
+        <Section title="🏋️ Modo GYM">
+          <Pill
+            label="Ropa gym"
+            count={gymratCount}
+            active={filters.gymrat}
+            color="#84cc16"
+            onClick={() => onFilter({ gymrat: !filters.gymrat })}
+          />
+          {filters.gymrat && filters.gymSubcats && Object.keys(filters.gymSubcats).length > 0 && (
+            <div className="gym-subcats">
+              {Object.entries(filters.gymSubcats)
+                .sort((a, b) => b[1] - a[1])
+                .map(([subcat, count]) => (
+                  <button
+                    key={subcat}
+                    className={`subcat-chip${filters.gymSubcatFiltro === subcat ? ' active' : ''}`}
+                    onClick={() => onFilter({
+                      gymSubcatFiltro: filters.gymSubcatFiltro === subcat ? null : subcat
+                    })}
+                  >
+                    {subcat} <small>({count})</small>
+                  </button>
+                ))
+              }
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Packs / Combos */}
+      {packCount > 0 && (
+        <Section title="📦 Packs">
+          <Pill
+            label="Packs / combos"
+            count={packCount}
+            active={filters.pack}
+            color="#a371f7"
+            onClick={() => onFilter({ pack: !filters.pack })}
+          />
+        </Section>
+      )}
+
+      {/* Empty state */}
+      {Object.keys(badges).length === 0 && Object.keys(cats).length === 0 && (
+        <div className="px-3.5 py-6 text-center text-[.75rem] text-t4">
+          Los filtros se cargan después del primer scraping.
+        </div>
+      )}
     </div>
+  );
+
+  // Radix Dialog gives free focus-trap/ESC/ARIA when `open` is true (mobile/tablet
+  // drawer). `forceMount` keeps the Content permanently in the DOM so desktop can
+  // render it as a static in-flow column via the `.sidebar` CSS class.
+  // `modal={open}` is required alongside forceMount: Radix's modal Dialog content
+  // applies `aria-hidden` to the rest of the app on mount via an effect that only
+  // cleans up on unmount, not when `open` flips back to false. With forceMount the
+  // content never unmounts, so a plain `modal` (default true) would hide the whole
+  // app behind the sidebar permanently, even on desktop where the drawer is never
+  // actually opened. Tying `modal` to `open` makes Radix swap between its modal and
+  // non-modal Content variants as the drawer opens/closes, so aria-hidden/focus-trap
+  // only apply while the drawer is genuinely open and are reverted when it closes.
+  // Content is intentionally NOT wrapped in DialogPrimitive.Portal: portaling to
+  // document.body would pull it out of the `.layout` flex flow that positions it
+  // beside `.content` on desktop. Only the overlay backdrop is portaled (mobile-only,
+  // already unmounted by Radix when `open` is false).
+  return (
+    <Sheet open={open} modal={open} onOpenChange={next => { if (!next) onClose?.(); }}>
+      <DialogPrimitive.Portal>
+        <SheetOverlay />
+      </DialogPrimitive.Portal>
+      <DialogPrimitive.Content
+        forceMount
+        onEscapeKeyDown={onClose}
+        onPointerDownOutside={onClose}
+        className={cn('sidebar', open && 'open')}
+      >
+        <SheetTitle className="sr-only">Filtros</SheetTitle>
+        {content}
+      </DialogPrimitive.Content>
+    </Sheet>
   );
 }
