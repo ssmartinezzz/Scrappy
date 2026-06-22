@@ -189,7 +189,9 @@ public class ApiController {
             @RequestParam(required = false)     String rubro,
             @RequestParam(required = false)     Boolean gymrat,
             @RequestParam(defaultValue = "precio_asc") String orden,
-            @RequestParam(required = false)     Boolean pack
+            @RequestParam(required = false)     Boolean pack,
+            @RequestParam(required = false)     Double precioMin,
+            @RequestParam(required = false)     Double precioMax
     ) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
@@ -200,7 +202,7 @@ public class ApiController {
                 .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
 
         // 1. Aplicar filtros
-        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack);
+        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax);
 
         // 2. Ordenar
         filtrados = ordenar(filtrados, orden);
@@ -1511,7 +1513,9 @@ public class ApiController {
             String segmentFiltro,
             String rubroFiltro,
             Boolean gymratFiltro,
-            Boolean packFiltro
+            Boolean packFiltro,
+            Double precioMinFiltro,
+            Double precioMaxFiltro
     ) {
         return productos.stream()
                 .filter(p -> {
@@ -1556,6 +1560,9 @@ public class ApiController {
                     if (packFiltro != null && packFiltro) {
                         if (!p.esPack()) return false;
                     }
+                    // Filtro rango de precio (additive, backward-compatible)
+                    if (precioMinFiltro != null && p.precio() < precioMinFiltro) return false;
+                    if (precioMaxFiltro != null && p.precio() > precioMaxFiltro) return false;
                     // Filtro género
                     if (genero != null && !genero.isBlank()) {
                         String g = p.genero() != null ? p.genero() : "";
