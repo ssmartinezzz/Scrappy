@@ -26,6 +26,22 @@ function SenalBadge({ senal }) {
   );
 }
 
+// Ahorro del precio unitario del pack vs la mediana de la categoría
+function PackBadge({ product: p, catStats }) {
+  if (!p.esPack) return null;
+  const st = catStats?.[p.categoria];
+  let ahorro = null;
+  if (st?.median > 0 && p.precioUnitario > 0) {
+    const pct = Math.round((st.median - p.precioUnitario) / st.median * 100);
+    if (pct > 5) ahorro = pct;
+  }
+  return (
+    <span className="badge-pack" title={ahorro ? `Precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : undefined}>
+      📦 Pack x{p.cantidadUnidades}{ahorro ? ` · -${ahorro}%` : ''}
+    </span>
+  );
+}
+
 // Barra de posición en la distribución (si tenemos stats de categoría)
 function PriceBar({ precio, catStats, categoria }) {
   if (!catStats || !catStats[categoria]) return null;
@@ -96,6 +112,7 @@ const ProductCard = memo(function ProductCard({
         )}
         <SenalBadge senal={p.senal} />
         <FinanBadge finan={p.senalFinanciacion} />
+        <PackBadge product={p} catStats={catStats} />
 
         <p className="card-name">{p.nombre}</p>
 
