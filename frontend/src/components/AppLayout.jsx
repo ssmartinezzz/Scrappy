@@ -372,12 +372,12 @@ export default function AppLayout() {
         <div className="content">
           <div className="tab-bar">
             <button className="sidebar-toggle" onClick={() => setSidebarOpen(o=>!o)}>☰</button>
-            <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`}>🛍</NavLink>
-            <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`}>🏆</NavLink>
-            <NavLink to="/marcas"    className={({isActive}) => `tab ${isActive?'active':''}`}>🏷</NavLink>
-            <NavLink to="/grupos"    className={({isActive}) => `tab ${isActive?'active':''}`}>⚖</NavLink>
-            <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`}>📈</NavLink>
-            <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`}>⭐</NavLink>
+            <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Catálogo" aria-label="Catálogo">🛍 <span className="tab-label">Catálogo</span></NavLink>
+            <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`} title="Picks" aria-label="Picks">🏆 <span className="tab-label">Picks</span></NavLink>
+            <NavLink to="/marcas"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Marcas" aria-label="Marcas">🏷 <span className="tab-label">Marcas</span></NavLink>
+            <NavLink to="/grupos"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Comparar" aria-label="Comparar">⚖ <span className="tab-label">Comparar</span></NavLink>
+            <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`} title="Tendencias" aria-label="Tendencias">📈 <span className="tab-label">Tendencias</span></NavLink>
+            <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`} title="Favoritos" aria-label="Favoritos">⭐ <span className="tab-label">Favoritos</span></NavLink>
             <NavLink to="/outfits"   className={({isActive}) => `tab ${isActive?'active':''}`}>👕 Outfits</NavLink>
             <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`}>💳 Cuotas</NavLink>
           </div>
