@@ -66,9 +66,9 @@ export default function Topbar({
   return (
     <div className="flex-shrink-0 bg-s1 border-b border-border">
       {/* Row 1: Logo + Rubro tabs */}
-      <div className="flex items-center gap-2 px-4 py-[.45rem] border-b border-s3">
-        <span className="text-base mr-1">🛒</span>
-        <strong className="text-[.85rem] text-primary2 mr-3">Scraper AR</strong>
+      <div className="flex items-center gap-1 px-2 py-[.45rem] border-b border-s3">
+        <span className="text-base mr-[4px]">🛒</span>
+        <strong className="text-[.85rem] text-primary2 mr-[12px]">Scraper AR</strong>
 
         {/* Rubro tabs */}
         <div className="flex gap-[3px]">
@@ -78,7 +78,7 @@ export default function Topbar({
             return (
               <button key={r.key} onClick={() => onRubroChange(r.key)}
                 className={cn(
-                  'flex items-center gap-1 rounded-full border-none px-[10px] py-1',
+                  'flex items-center gap-[4px] rounded-full border-none px-[10px] py-[4px]',
                   'cursor-pointer text-[.72rem] font-bold transition-all duration-150',
                   active ? 'bg-primary text-white' : 'bg-transparent text-t4'
                 )}>
@@ -95,7 +95,7 @@ export default function Topbar({
 
         {/* ML Training indicator */}
         {mlStatus?.running && (
-          <div className="flex items-center gap-[5px] ml-2 rounded-full px-[10px] py-[3px]
+          <div className="flex items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
                           bg-[rgba(163,113,247,.18)] border border-[rgba(163,113,247,.4)]
                           text-[.68rem] text-[#c084fc] animate-[mlpulse_1.5s_ease-in-out_infinite]">
             <span className="text-[.75rem]">🤖</span>
@@ -103,7 +103,7 @@ export default function Topbar({
           </div>
         )}
         {mlStatus?.done && !mlStatus?.running && (
-          <div className="flex items-center gap-[5px] ml-2 rounded-full px-[10px] py-[3px]
+          <div className="flex items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
                           bg-[rgba(63,185,80,.15)] border border-[rgba(63,185,80,.4)]
                           text-[.68rem] text-success cursor-default"
             title='Modelo ML entrenado y activo'>
@@ -111,7 +111,7 @@ export default function Topbar({
           </div>
         )}
         {meta?.mlModeloActivo && !mlStatus?.running && !mlStatus?.done && (
-          <div className="flex items-center gap-1 ml-2 rounded-full px-[10px] py-[3px]
+          <div className="flex items-center gap-[4px] ml-1 rounded-full px-[10px] py-[3px]
                           bg-[rgba(63,185,80,.1)] border border-[rgba(63,185,80,.25)]
                           text-[.65rem] text-success"
             title={`Categorías refinadas por ML: ${(meta?.mlRefinadas||0).toLocaleString('es-AR')}`}>
@@ -142,7 +142,7 @@ export default function Topbar({
         {/* Re-scrape button */}
         <div className="ml-auto">
           <button onClick={onReScrape}
-            className="rounded-full border-[1.5px] border-border bg-transparent px-[10px] py-1
+            className="rounded-full border-[1.5px] border-border bg-transparent px-[10px] py-[4px]
                        text-[.7rem] text-t4 cursor-pointer">
             ↺ Nuevo scraping
           </button>
@@ -151,7 +151,7 @@ export default function Topbar({
 
       {/* Row 2: Sitio breadcrumbs */}
       {sitios.length > 0 && (
-        <div className="flex items-center gap-1 px-4 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
+        <div className="flex items-center gap-[4px] px-2 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
           <button
             onClick={() => onSitioChange('')}
             className={cn(
