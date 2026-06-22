@@ -117,38 +117,38 @@ function PreciosExternos({ product }) {
 
       {/* Botones de búsqueda directa — SIEMPRE visibles. Son anchors externos:
           llevan el cue/aria-label de "se abre en otro sitio" (tasks 3/4). */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      <div className="flex flex-wrap gap-1.5 mb-[.75rem]">
         <a href={searchUrl} target="_blank" rel="noopener noreferrer"
            aria-label="Buscar en MercadoLibre (se abre en una pestaña nueva)"
            className="flex items-center gap-1 rounded-btn border-[1.5px] border-[#f0c000]
-                      bg-[rgba(255,224,0,.1)] px-3 py-1.5 text-[.72rem] font-bold
+                      bg-[rgba(255,224,0,.1)] px-[.75rem] py-1.5 text-[.72rem] font-bold
                       text-[#f0c000] no-underline">
           🛒 Buscar en MercadoLibre <ExternalCue />
         </a>
         <a href={EXTERNAL_SEARCH.amazon(nombre)} target="_blank" rel="noopener noreferrer"
            aria-label="Buscar en Amazon (se abre en una pestaña nueva)"
            className="flex items-center gap-1 rounded-btn border-[1.5px] border-border
-                      bg-s2 px-3 py-1.5 text-[.72rem] font-semibold text-t2 no-underline">
+                      bg-s2 px-[.75rem] py-1.5 text-[.72rem] font-semibold text-t2 no-underline">
           📦 Amazon <ExternalCue />
         </a>
         <a href={EXTERNAL_SEARCH.google(nombre)} target="_blank" rel="noopener noreferrer"
            aria-label="Buscar en Google Shopping (se abre en una pestaña nueva)"
            className="flex items-center gap-1 rounded-btn border-[1.5px] border-border
-                      bg-s2 px-3 py-1.5 text-[.72rem] font-semibold text-t2 no-underline">
+                      bg-s2 px-[.75rem] py-1.5 text-[.72rem] font-semibold text-t2 no-underline">
           🔍 Google Shopping <ExternalCue />
         </a>
       </div>
 
       {/* Precios de ML — on demand, acción IN-PANEL (no navega, no lleva cue externo) */}
       {data === null && !loading && (
-        <button className="btn-sm btn-outline w-full py-2 text-[.78rem]"
+        <button className="btn-sm btn-outline w-full px-[8px] py-[8px] text-[.78rem]"
           onClick={cargar}>
           📊 Ver precios en MercadoLibre (automático)
         </button>
       )}
 
       {loading && (
-        <div className="py-2 text-center text-[.75rem] text-t4">
+        <div className="py-[.5rem] text-center text-[.75rem] text-t4">
           Buscando precios...
         </div>
       )}
@@ -175,7 +175,7 @@ function PreciosExternos({ product }) {
           {/* Precio de referencia */}
           {items.length > 0 && (
             <>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-s2 px-3 py-2 text-[.72rem]">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-s2 px-[.75rem] py-[.5rem] text-[.72rem]">
                 <span className="text-t4">📍 Precio scrapeado (este sitio)</span>
                 <strong className="text-t1">${fmt(precio)}</strong>
               </div>
@@ -185,7 +185,7 @@ function PreciosExternos({ product }) {
                 return (
                   <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
                      aria-label={`Ver "${item.titulo}" en MercadoLibre (se abre en una pestaña nueva)`}
-                     className="flex items-center gap-2.5 rounded-lg border border-border bg-s2 px-3 py-2 no-underline">
+                     className="flex items-center gap-2.5 rounded-lg border border-border bg-s2 px-[.75rem] py-[.5rem] no-underline">
                     {item.thumbnail && (
                       <img src={item.thumbnail.replace('http://','https://')}
                            alt="" width="36" height="36"
@@ -308,7 +308,7 @@ function PriceContext({ product: p, st }) {
           // context computation above) — not a static design token, kept inline
           // per the established Pill/chip exception.
           <div key={i} style={{ border: `1px solid ${item.color}22` }}
-               className="flex items-start gap-2.5 rounded-lg bg-s2 px-3 py-2 text-[.73rem] text-t3">
+               className="flex items-start gap-2.5 rounded-lg bg-s2 px-[.75rem] py-[.5rem] text-[.73rem] text-t3">
             <span className="flex-shrink-0 text-[.85rem]">{item.icon}</span>
             <span dangerouslySetInnerHTML={{ __html: item.text
               .replace(/\$[\d.,]+/g, m => `<strong style="color:${item.color}">${m}</strong>`)
@@ -345,12 +345,12 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
   return (
     <Dialog open modal onOpenChange={next => { if (!next) onClose(); }}>
       <DialogPrimitive.Portal>
-        <DialogOverlay className="detail-backdrop z-[399] bg-transparent" />
+        <DialogOverlay className="detail-backdrop" />
       </DialogPrimitive.Portal>
       <DialogPrimitive.Content
         onEscapeKeyDown={onClose}
         onPointerDownOutside={onClose}
-        className="detail-panel z-[400] outline-none"
+        className="detail-panel outline-none"
       >
         <div className="detail-header">
           <DialogTitle asChild><h3>{p.nombre}</h3></DialogTitle>
@@ -401,7 +401,7 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
             <div>
               <div className="detail-section-title">Distribución en {p.categoria || '—'}</div>
               <BoxPlot precio={p.precio} st={st} />
-              <div className="mt-2 flex flex-wrap gap-4">
+              <div className="mt-1 flex flex-wrap gap-2">
                 {[['Mediana',fmt(st.median)],['Media',fmt(st.mean)],
                   ['Moda',fmt(st.mode)],['CV',`${st.cv}%`]].map(([l,v])=>(
                   <span key={l} className="text-[.7rem] text-t4">
