@@ -148,6 +148,10 @@ const ProductCard = memo(function ProductCard({
             Ver producto →
           </a>
         )}
+
+        {/* Cue: toda la card (salvo los botones explícitos) es clickeable para
+            abrir el detalle */}
+        <span className="card-detail-hint" aria-hidden="true">📊 Ver detalle</span>
       </div>
 
       {/* Botón favorito */}
