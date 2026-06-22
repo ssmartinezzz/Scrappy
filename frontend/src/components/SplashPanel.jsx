@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchSitios, startScrape, exportarDB, importarDB, limpiarCatalogo, limpiarMl } from '../api';
+import { cn } from '../lib/utils';
 import MlStatusPanel from './MlStatusPanel';
 
 const RUBRO_META = {
@@ -11,13 +12,34 @@ const RUBRO_META = {
 function RubroLabel({ r }) {
   const m = RUBRO_META[r] || { icon:'🛍', color:'var(--t4)', label:r };
   return (
-    <span style={{ fontSize:'.58rem', fontWeight:700, color:m.color,
-                   textTransform:'uppercase', letterSpacing:'.08em' }}>
+    <span
+      className="text-[.58rem] font-bold uppercase tracking-[.08em]"
+      style={{ color: m.color }}
+    >
       {m.icon} {m.label}
     </span>
   );
 }
 
+// ─── Collapsible disclosure (same pattern as Sidebar's Section) ──────────────
+function Disclosure({ title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-t border-s3 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between bg-transparent text-[.7rem] font-semibold text-t4"
+      >
+        <span>{title}</span>
+        <span className={cn('text-[.65rem] opacity-50 transition-transform', open && 'rotate-180')}>
+          ▾
+        </span>
+      </button>
+      {open && <div className="mt-2.5">{children}</div>}
+    </div>
+  );
+}
 
 export default function SplashPanel({
   config, scrapeStatus, scrapeMsg, progreso,
@@ -114,72 +136,55 @@ export default function SplashPanel({
   }
 
   return (
-    <div style={{
-      position:'fixed', inset:0,
-      background:'var(--bg)',
-      display:'flex', flexDirection:'column',
-      alignItems:'center', justifyContent:'center',
-      padding:'1rem', gap:'1.25rem',
-    }}>
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-5 bg-bg p-4">
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div style={{ textAlign:'center' }}>
-        <div style={{
-          fontSize:'2.8rem', lineHeight:1,
-          filter:'drop-shadow(0 0 24px rgba(163,113,247,.6))',
-        }}>🛍</div>
-        <h1 style={{
-          fontSize:'1.5rem', fontWeight:900, margin:'8px 0 4px',
-          background:'linear-gradient(135deg, var(--p2), var(--p))',
-          WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
-          letterSpacing:'-.04em',
-        }}>
+      <div className="text-center">
+        <div className="text-[2.8rem] leading-none drop-shadow-[0_0_24px_rgba(163,113,247,.6)]">🛍</div>
+        <h1
+          className="my-1 bg-gradient-to-br from-primary2 to-primary bg-clip-text text-2xl font-black tracking-tight text-transparent"
+        >
           Scraper Ropa AR
         </h1>
-        <div style={{ fontSize:'.75rem', color:'var(--t4)' }}>
+        <div className="text-xs text-t4">
           Inteligencia de precios · Argentina
         </div>
       </div>
 
       {/* ── Card ───────────────────────────────────────────────── */}
-      <div style={{
-        background:'var(--s1)', border:'1px solid var(--bd)',
-        borderRadius:18, width:'100%', maxWidth:580,
-        boxShadow:'0 32px 80px rgba(0,0,0,.6)',
-        overflow:'hidden',
-      }}>
+      <div className="w-full max-w-[580px] overflow-hidden rounded-card border border-border bg-s1 shadow-[0_32px_80px_rgba(0,0,0,.6)]">
 
         {/* Tab bar */}
-        <div style={{ display:'flex', borderBottom:'1px solid var(--bd)' }}>
+        <div className="flex border-b border-border">
           {[['launch','▶ Lanzar'],['config','⚙ Config']].map(([k,l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{
-              flex:1, padding:'.7rem .5rem', background:'none', border:'none',
-              cursor:'pointer', fontSize:'.78rem', fontWeight:700,
-              color: tab===k ? 'var(--p2)' : 'var(--t4)',
-              borderBottom: `2px solid ${tab===k ? 'var(--p2)' : 'transparent'}`,
-              transition:'all .15s',
-            }}>{l}</button>
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={cn(
+                'flex-1 cursor-pointer border-b-2 border-transparent bg-transparent px-2 py-3 text-[.78rem] font-bold text-t4 transition-colors',
+                tab === k && 'border-primary2 text-primary2'
+              )}
+            >{l}</button>
           ))}
         </div>
 
-        <div style={{ padding:'1.25rem 1.5rem' }}>
+        <div className="px-6 py-5">
 
-          {/* ── TAB LAUNCH ──────────────────────────────────────── */}
+          {/* ── TAB LAUNCH — single vertical flow: precio → sitios → launch ── */}
           {tab === 'launch' && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'1.1rem' }}>
+            <div className="flex flex-col gap-[1.1rem]">
 
               {/* Precio range */}
               <div>
-                <div style={{ fontSize:'.65rem', fontWeight:700, color:'var(--t4)',
-                              textTransform:'uppercase', letterSpacing:'.1em', marginBottom:6 }}>
+                <div className="mb-1.5 text-[.65rem] font-bold uppercase tracking-[.1em] text-t4">
                   Rango de precio (ARS)
                 </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <input type="number" className="form-input" style={{ flex:1, fontSize:'.82rem' }}
+                <div className="flex items-center gap-2">
+                  <input type="number" className="form-input flex-1 text-[.82rem]"
                     placeholder="Mín" value={precioMin}
                     onChange={e => setPrecioMin(+e.target.value)} disabled={isRunning}/>
-                  <span style={{ color:'var(--t4)', fontSize:'.85rem' }}>—</span>
-                  <input type="number" className="form-input" style={{ flex:1, fontSize:'.82rem' }}
+                  <span className="text-[.85rem] text-t4">—</span>
+                  <input type="number" className="form-input flex-1 text-[.82rem]"
                     placeholder="Máx" value={precioMax}
                     onChange={e => setPrecioMax(+e.target.value)} disabled={isRunning}/>
                 </div>
@@ -188,14 +193,11 @@ export default function SplashPanel({
               {/* Sitios agrupados */}
               {sitios.length > 0 && (
                 <div>
-                  <div style={{
-                    display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8,
-                  }}>
-                    <div style={{ fontSize:'.65rem', fontWeight:700, color:'var(--t4)',
-                                  textTransform:'uppercase', letterSpacing:'.1em' }}>
-                      Sitios <span style={{ color:'var(--p2)' }}>({selected.length}/{sitios.length})</span>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-[.65rem] font-bold uppercase tracking-[.1em] text-t4">
+                      Sitios <span className="text-primary2">({selected.length}/{sitios.length})</span>
                     </div>
-                    <button className="btn-sm btn-ghost" style={{ fontSize:'.62rem', padding:'2px 8px' }}
+                    <button className="btn-sm btn-ghost px-2 py-0.5 text-[.62rem]"
                       onClick={() => setSelected(
                         selected.length === sitios.length ? [] : sitios.map(s => s.nombre)
                       )}>
@@ -204,9 +206,9 @@ export default function SplashPanel({
                   </div>
 
                   {Object.entries(byRubro).map(([rubro, items]) => (
-                    <div key={rubro} style={{ marginBottom:10 }}>
-                      <div style={{ marginBottom:5 }}><RubroLabel r={rubro}/></div>
-                      <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                    <div key={rubro} className="mb-2.5">
+                      <div className="mb-1"><RubroLabel r={rubro}/></div>
+                      <div className="flex flex-wrap gap-1.5">
                         {items.map(s => {
                           const sel   = selected.includes(s.nombre);
                           const state = getSitioState(s.nombre);
@@ -217,31 +219,32 @@ export default function SplashPanel({
                                 ? selected.filter(x => x !== s.nombre)
                                 : [...selected, s.nombre]
                               )}
+                              className={cn(
+                                'flex items-center gap-1.5 rounded-full border-[1.5px] px-2.5 py-1 text-[.72rem] font-semibold transition-colors',
+                                isRunning ? 'cursor-default' : 'cursor-pointer'
+                              )}
                               style={{
-                                padding:'5px 11px', borderRadius:20, fontSize:'.72rem',
-                                fontWeight:600, cursor: isRunning ? 'default' : 'pointer',
                                 background: sel
                                   ? (state === 'done' ? 'rgba(63,185,80,.15)' :
                                      state === 'error' ? 'rgba(232,67,147,.1)' :
                                      state === 'running' ? 'rgba(240,165,0,.15)' :
                                      'rgba(163,113,247,.15)')
                                   : 'transparent',
-                                border: `1.5px solid ${sel ? stateColor || 'var(--p)' : 'var(--s3)'}`,
+                                borderColor: sel ? (stateColor || 'var(--p)') : 'var(--s3)',
                                 color: sel
                                   ? (state !== 'idle' ? stateColor : 'var(--p2)')
                                   : 'var(--t4)',
-                                transition:'all .12s',
-                                display:'flex', alignItems:'center', gap:5,
                               }}>
                               {state === 'done'    && '✓ '}
                               {state === 'error'   && '✗ '}
-                              {state === 'running' && <span style={{
-                                display:'inline-block', width:7, height:7, borderRadius:'50%',
-                                background:'#f0a500', animation:'pulse 1s ease infinite',
-                              }}/>}
+                              {state === 'running' && (
+                                <span
+    className="inline-block h-[7px] w-[7px] rounded-full bg-[#f0a500] [animation:pulse_1s_ease_infinite]"
+                                />
+                              )}
                               {s.nombre}
                               {state === 'done' && progreso?.sitios?.find(x=>x.nombre===s.nombre)?.count > 0 && (
-                                <span style={{ opacity:.6, fontSize:'.6rem' }}>
+                                <span className="text-[.6rem] opacity-60">
                                   {progreso.sitios.find(x=>x.nombre===s.nombre).count}
                                 </span>
                               )}
@@ -256,58 +259,50 @@ export default function SplashPanel({
 
               {/* Progress bar */}
               {isRunning && (
-                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between',
-                                fontSize:'.7rem', color:'var(--t4)', marginBottom:2 }}>
+                <div className="flex flex-col gap-1.5">
+                  <div className="mb-0.5 flex justify-between text-[.7rem] text-t4">
                     <span>{scrapeMsg || 'Procesando...'}</span>
-                    <span style={{ fontWeight:700, color:'var(--p2)' }}>{Math.round(pct)}%</span>
+                    <span className="font-bold text-primary2">{Math.round(pct)}%</span>
                   </div>
-                  <div style={{ background:'var(--s3)', borderRadius:6, height:6, overflow:'hidden' }}>
-                    <div style={{
-                      height:'100%', borderRadius:6,
-                      width:`${pct}%`, transition:'width .5s ease',
-                      background:'linear-gradient(90deg, var(--p), var(--p2))',
-                      boxShadow:'0 0 12px var(--p)',
-                    }}/>
+                  <div className="h-1.5 overflow-hidden rounded-btn bg-s3">
+                    <div
+                      className="h-full rounded-btn bg-gradient-to-r from-primary to-primary2 shadow-[0_0_12px_var(--p)] transition-[width] duration-500"
+                      style={{ width:`${pct}%` }}
+                    />
                   </div>
                   {totalProds > 0 && (
-                    <button className="btn-primary" onClick={onGoToApp}
-                      style={{ padding:10, fontSize:'.82rem' }}>
+                    <button className="btn-primary p-2.5 text-[.82rem]" onClick={onGoToApp}>
                       👁 Ver {totalProds.toLocaleString('es-AR')} productos disponibles
                     </button>
                   )}
                 </div>
               )}
 
-              {/* Force retrain */}
+              {/* Opciones avanzadas (forceRetrain demoted to a collapsed disclosure) */}
               {!isRunning && (
-                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer',
-                                fontSize:'.73rem', color:'var(--t4)' }}>
-                  <input type="checkbox" checked={forceRetrain}
-                    onChange={e => setForceRetrain(e.target.checked)}/>
-                  Forzar reentrenamiento del modelo
-                </label>
+                <Disclosure title="⚙ Opciones avanzadas">
+                  <label className="flex cursor-pointer items-center gap-2 text-[.73rem] text-t4">
+                    <input type="checkbox" checked={forceRetrain}
+                      onChange={e => setForceRetrain(e.target.checked)}/>
+                    Forzar reentrenamiento del modelo
+                  </label>
+                </Disclosure>
               )}
 
-              {/* Launch button */}
+              {/* Launch button — pinned to the bottom of the vertical flow */}
               {!isRunning && (
-                <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+                <div className="flex flex-col gap-[7px]">
                   <button onClick={handleScrape} disabled={selected.length === 0}
-                    style={{
-                      padding:'13px', borderRadius:10, border:'none', cursor:'pointer',
-                      fontSize:'.92rem', fontWeight:800, letterSpacing:'-.01em',
-                      background: selected.length > 0
-                        ? 'linear-gradient(135deg, var(--p), var(--p2))'
-                        : 'var(--s3)',
-                      color: selected.length > 0 ? '#fff' : 'var(--t4)',
-                      boxShadow: selected.length > 0 ? '0 4px 20px rgba(163,113,247,.4)' : 'none',
-                      transition:'all .2s',
-                    }}>
+                    className={cn(
+                      'rounded-btn p-[13px] text-[.92rem] font-extrabold tracking-tight transition-all',
+                      selected.length > 0
+                        ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-white shadow-[0_4px_20px_rgba(163,113,247,.4)]'
+                        : 'cursor-not-allowed bg-s3 text-t4'
+                    )}>
                     ▶ Iniciar scraping — {selected.length} sitios
                   </button>
                   {totalProds > 0 && (
-                    <button className="btn-sm btn-ghost" onClick={onGoToApp}
-                      style={{ padding:'8px', fontSize:'.75rem', color:'var(--t4)' }}>
+                    <button className="btn-sm btn-ghost p-2 text-[.75rem] text-t4" onClick={onGoToApp}>
                       Ver resultados anteriores ({totalProds.toLocaleString('es-AR')} productos) →
                     </button>
                   )}
@@ -318,20 +313,17 @@ export default function SplashPanel({
 
           {/* ── TAB CONFIG ──────────────────────────────────────── */}
           {tab === 'config' && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+            <div className="flex flex-col gap-4">
 
               {/* DB */}
-              <div style={{
-                background:'var(--s2)', borderRadius:10, padding:'1rem',
-                border:'1px solid var(--bd)',
-              }}>
-                <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--t1)', marginBottom:4 }}>
+              <div className="rounded-card border border-border bg-s2 p-4">
+                <div className="mb-1 text-[.75rem] font-bold text-t1">
                   💾 Base de datos
                 </div>
-                <div style={{ fontSize:'.7rem', color:'var(--t4)', marginBottom:10, lineHeight:1.5 }}>
+                <div className="mb-2.5 text-[.7rem] leading-relaxed text-t4">
                   Exportá para backup · Importá para restaurar datos anteriores
                 </div>
-                <div style={{ display:'flex', gap:7 }}>
+                <div className="flex gap-[7px]">
                   <button className="btn-sm btn-outline" onClick={handleExport}>
                     ⬇ Exportar DB
                   </button>
@@ -339,34 +331,34 @@ export default function SplashPanel({
                     ⬆ Importar DB
                   </button>
                   <input ref={fileRef} type="file" accept=".db"
-                    style={{ display:'none' }} onChange={handleImport}/>
+                    className="hidden" onChange={handleImport}/>
                 </div>
                 {dbMsg && (
-                  <div style={{ fontSize:'.7rem', marginTop:8,
-                    color: dbMsg.startsWith('✓') ? '#3fb950' :
-                           dbMsg.startsWith('✗') ? '#e84393' : 'var(--t4)' }}>
+                  <div className={cn(
+                    'mt-2 text-[.7rem]',
+                    dbMsg.startsWith('✓') ? 'text-success' :
+                    dbMsg.startsWith('✗') ? 'text-danger' : 'text-t4'
+                  )}>
                     {dbMsg}
                   </div>
                 )}
 
-                <div style={{ marginTop:14, borderTop:'1px solid var(--s3)', paddingTop:12 }}>
-                  <div style={{ fontSize:'.68rem', fontWeight:700, color:'#ef4444',
-                                marginBottom:8, textTransform:'uppercase', letterSpacing:'.06em' }}>
+                <div className="mt-3.5 border-t border-s3 pt-3">
+                  <div className="mb-2 text-[.68rem] font-bold uppercase tracking-[.06em] text-danger">
                     Borrar datos
                   </div>
-                  <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
-                    <button className="btn-sm" onClick={handleBorrarCatalogo}
-                      style={{ background:'#ef4444', color:'#fff', border:'none', cursor:'pointer' }}>
+                  <div className="flex flex-wrap gap-[7px]">
+                    <button className="btn-sm cursor-pointer border-none bg-danger text-white"
+                      onClick={handleBorrarCatalogo}>
                       🗑 Borrar catálogo y historial
                     </button>
-                    <button className="btn-sm" onClick={handleBorrarMl}
-                      style={{ background:'#f97316', color:'#fff', border:'none', cursor:'pointer' }}>
+                    <button className="btn-sm cursor-pointer border-none bg-warning text-white"
+                      onClick={handleBorrarMl}>
                       🗑 Borrar solo datos ML
                     </button>
                   </div>
                   {clearMsg && (
-                    <div style={{ fontSize:'.7rem', marginTop:8,
-                      color: clearOk ? '#3fb950' : '#e84393' }}>
+                    <div className={cn('mt-2 text-[.7rem]', clearOk ? 'text-success' : 'text-danger')}>
                       {clearMsg}
                     </div>
                   )}
@@ -375,16 +367,15 @@ export default function SplashPanel({
 
               {/* Precio */}
               <div>
-                <div style={{ fontSize:'.65rem', fontWeight:700, color:'var(--t4)',
-                              textTransform:'uppercase', letterSpacing:'.1em', marginBottom:6 }}>
+                <div className="mb-1.5 text-[.65rem] font-bold uppercase tracking-[.1em] text-t4">
                   Rango de precio por defecto (ARS)
                 </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <input type="number" className="form-input" style={{ flex:1 }}
+                <div className="flex items-center gap-2">
+                  <input type="number" className="form-input flex-1"
                     placeholder="Mín" value={precioMin}
                     onChange={e => setPrecioMin(+e.target.value)}/>
-                  <span style={{ color:'var(--t4)' }}>—</span>
-                  <input type="number" className="form-input" style={{ flex:1 }}
+                  <span className="text-t4">—</span>
+                  <input type="number" className="form-input flex-1"
                     placeholder="Máx" value={precioMax}
                     onChange={e => setPrecioMax(+e.target.value)}/>
                 </div>
@@ -392,11 +383,11 @@ export default function SplashPanel({
 
 
               {/* ML Training */}
-              <div style={{ background:'var(--s2)', borderRadius:10, padding:'1rem', border:'1px solid var(--bd)' }}>
-                <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--t1)', marginBottom:4 }}>
+              <div className="rounded-card border border-border bg-s2 p-4">
+                <div className="mb-1 text-[.75rem] font-bold text-t1">
                   🤖 Modelo ML personalizado
                 </div>
-                <div style={{ fontSize:'.7rem', color:'var(--t4)', marginBottom:8, lineHeight:1.5 }}>
+                <div className="mb-2 text-[.7rem] leading-relaxed text-t4">
                   Entrenás un clasificador con los productos del DB.
                   <br/>• <strong>Fase 1</strong> — TF-IDF + LogReg (texto): ~1 min
                   <br/>• <strong>Fase 2</strong> — EfficientNet-B3 (GPU) / MobileNetV3 (CPU): ~10min con 3080
@@ -405,19 +396,15 @@ export default function SplashPanel({
               </div>
 
               {/* Info */}
-              <div style={{ borderTop:'1px solid var(--s3)', paddingTop:10 }}>
+              <div className="border-t border-s3 pt-2.5">
                 {[
                   ['🌐 Puerto', 'localhost:3000'],
                   ['🗄 Base de datos', 'scraper.db (SQLite)'],
                   ['🤖 ML', 'Python 3.11 · Percentil + Z-score + IQR'],
                 ].map(([label, val]) => (
-                  <div key={label} style={{
-                    display:'flex', justifyContent:'space-between',
-                    fontSize:'.72rem', padding:'4px 0',
-                    borderBottom:'1px solid var(--s3)',
-                  }}>
-                    <span style={{ color:'var(--t4)' }}>{label}</span>
-                    <span style={{ color:'var(--t2)', fontWeight:600 }}>{val}</span>
+                  <div key={label} className="flex justify-between border-b border-s3 py-1 text-[.72rem]">
+                    <span className="text-t4">{label}</span>
+                    <span className="font-semibold text-t2">{val}</span>
                   </div>
                 ))}
               </div>
