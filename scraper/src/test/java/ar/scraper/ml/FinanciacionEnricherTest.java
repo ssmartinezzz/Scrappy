@@ -114,4 +114,28 @@ class FinanciacionEnricherTest {
         assertThat(enricher.enriquecer(null)).isNull();
         Mockito.verify(db, Mockito.never()).cargarPresetActivo();
     }
+
+    @Test
+    void packProductPreservesCantidadUnidadesAfterEnrichment() {
+        // Regression for PR2: withFinan() previously rebuilt Product via the
+        // 16-arg legacy constructor, silently resetting cantidadUnidades to 1.
+        DatabaseService db = Mockito.mock(DatabaseService.class);
+        InflacionService inflacion = Mockito.mock(InflacionService.class);
+
+        Preset preset = new Preset(4, "Preset", 40.0, 12, true);
+        when(db.cargarPresetActivo()).thenReturn(Optional.of(preset));
+        when(inflacion.getInflacionMensual()).thenReturn(3.5);
+
+        Product pack = new Product(
+                "Sitio", "Combo x2 Buzo + Pantalon", 100000.0, null, "https://site.com/combo",
+                "", "Conjunto", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 2);
+
+        FinanciacionEnricher enricher = new FinanciacionEnricher(db, inflacion);
+        List<Product> result = enricher.enriquecer(List.of(pack));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).cantidadUnidades()).isEqualTo(2);
+        assertThat(result.get(0).esPack()).isTrue();
+    }
 }

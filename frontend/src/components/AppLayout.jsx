@@ -36,6 +36,7 @@ const init = {
   gymrat:       false,
   gymSubcats:   {},        // { [subcatLabel]: count } — derived from gymrat products
   gymSubcatFiltro: null,   // active gymrat sub-category filter (client-side)
+  pack:         false,     // Packs/combos filter — mirrors gymrat (boolean toggle)
   orden:        'precio_asc',
   // Pagination / infinite scroll
   pag:          1,
@@ -67,7 +68,7 @@ function reducer(state, action) {
       ...state,
       busq:'', sitioFiltro:'', rubroFiltro:'', marca:'', badge:'',
       segment:'', genero:'', categorias:[], talles:[], gymrat:false,
-      gymSubcats:{}, gymSubcatFiltro:null,
+      gymSubcats:{}, gymSubcatFiltro:null, pack:false,
       pag:1, prods:[], hasMore:true,
     };
     case 'TOGGLE_TALLE': {
@@ -259,7 +260,7 @@ export default function AppLayout() {
     if (S.pag !== 1) return; // only on reset
     loadFirstPage();
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
-      S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.orden]);
+      S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack, S.orden]);
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,
@@ -273,8 +274,9 @@ export default function AppLayout() {
     ...(S.categorias.length && { categorias: S.categorias }),
     ...(S.talles.length     && { talle:      S.talles }),
     ...(S.gymrat      && { gymrat:     true }),
+    ...(S.pack        && { pack:       true }),
   }), [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge, S.segment,
-       S.genero, S.categorias, S.talles, S.gymrat, S.orden]);
+       S.genero, S.categorias, S.talles, S.gymrat, S.pack, S.orden]);
 
   const loadFirstPage = useCallback(async () => {
     if (loadingRef.current) return;
@@ -348,7 +350,8 @@ export default function AppLayout() {
           meta={S.meta}
           filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
                      genero:S.genero, categorias:S.categorias, talles:S.talles,
-                     gymrat:S.gymrat, gymSubcats:S.gymSubcats, gymSubcatFiltro:S.gymSubcatFiltro }}
+                     gymrat:S.gymrat, gymSubcats:S.gymSubcats, gymSubcatFiltro:S.gymSubcatFiltro,
+                     pack:S.pack }}
           onFilter={payload => {
             // gymSubcatFiltro is client-side only — do not reset pagination
             if ('gymSubcatFiltro' in payload) { set(payload); }
