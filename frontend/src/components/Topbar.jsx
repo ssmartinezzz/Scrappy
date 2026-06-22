@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchMlResultado, fetchMlEstado, fetchStatus } from '../api';
 import { fmt } from '../api';
+import { cn } from '@/lib/utils';
 
 const RUBRO_DEF = [
   { key: '',              icon: '🛍', label: 'Todos'        },
@@ -63,32 +64,27 @@ export default function Topbar({
   const gymratCount = facets?.gymratCount || 0;
 
   return (
-    <div style={{ background:'var(--s1)', borderBottom:'1px solid var(--bd)', flexShrink:0 }}>
+    <div className="flex-shrink-0 bg-s1 border-b border-border">
       {/* Row 1: Logo + Rubro tabs */}
-      <div style={{
-        display:'flex', alignItems:'center', gap:8,
-        padding:'.45rem 1rem', borderBottom:'1px solid var(--s3)',
-      }}>
-        <span style={{ fontSize:'1rem', marginRight:4 }}>🛒</span>
-        <strong style={{ fontSize:'.85rem', color:'var(--p2)', marginRight:12 }}>Scraper AR</strong>
+      <div className="flex items-center gap-2 px-4 py-[.45rem] border-b border-s3">
+        <span className="text-base mr-1">🛒</span>
+        <strong className="text-[.85rem] text-primary2 mr-3">Scraper AR</strong>
 
         {/* Rubro tabs */}
-        <div style={{ display:'flex', gap:3 }}>
+        <div className="flex gap-[3px]">
           {rubros.map(r => {
             const count = r.key ? rubrosMap[r.key] || 0 : total;
             const active = rubroFiltro === r.key;
             return (
-              <button key={r.key} onClick={() => onRubroChange(r.key)} style={{
-                padding:'4px 10px', borderRadius:20, border:'none',
-                cursor:'pointer', fontSize:'.72rem', fontWeight:700,
-                background: active ? 'var(--p)' : 'transparent',
-                color: active ? '#fff' : 'var(--t4)',
-                transition:'all .12s',
-                display:'flex', alignItems:'center', gap:4,
-              }}>
+              <button key={r.key} onClick={() => onRubroChange(r.key)}
+                className={cn(
+                  'flex items-center gap-1 rounded-full border-none px-[10px] py-1',
+                  'cursor-pointer text-[.72rem] font-bold transition-all duration-150',
+                  active ? 'bg-primary text-white' : 'bg-transparent text-t4'
+                )}>
                 {r.icon} {r.label}
                 {count > 0 && (
-                  <span style={{ opacity:.7, fontSize:'.62rem' }}>
+                  <span className="opacity-70 text-[.62rem]">
                     {count.toLocaleString('es-AR')}
                   </span>
                 )}
@@ -99,34 +95,26 @@ export default function Topbar({
 
         {/* ML Training indicator */}
         {mlStatus?.running && (
-          <div style={{
-            display:'flex', alignItems:'center', gap:5,
-            padding:'3px 10px', borderRadius:20, marginLeft:8,
-            background:'rgba(163,113,247,.18)', border:'1px solid rgba(163,113,247,.4)',
-            fontSize:'.68rem', color:'#c084fc',
-            animation:'mlpulse 1.5s ease-in-out infinite',
-          }}>
-            <span style={{ fontSize:'.75rem' }}>🤖</span>
+          <div className="flex items-center gap-[5px] ml-2 rounded-full px-[10px] py-[3px]
+                          bg-[rgba(163,113,247,.18)] border border-[rgba(163,113,247,.4)]
+                          text-[.68rem] text-[#c084fc] animate-[mlpulse_1.5s_ease-in-out_infinite]">
+            <span className="text-[.75rem]">🤖</span>
             Entrenando ML...
           </div>
         )}
         {mlStatus?.done && !mlStatus?.running && (
-          <div style={{
-            display:'flex', alignItems:'center', gap:5,
-            padding:'3px 10px', borderRadius:20, marginLeft:8,
-            background:'rgba(63,185,80,.15)', border:'1px solid rgba(63,185,80,.4)',
-            fontSize:'.68rem', color:'#3fb950', cursor:'default',
-          }} title='Modelo ML entrenado y activo'>
+          <div className="flex items-center gap-[5px] ml-2 rounded-full px-[10px] py-[3px]
+                          bg-[rgba(63,185,80,.15)] border border-[rgba(63,185,80,.4)]
+                          text-[.68rem] text-success cursor-default"
+            title='Modelo ML entrenado y activo'>
             🤖 Modelo actualizado
           </div>
         )}
         {meta?.mlModeloActivo && !mlStatus?.running && !mlStatus?.done && (
-          <div style={{
-            display:'flex', alignItems:'center', gap:4,
-            padding:'3px 10px', borderRadius:20, marginLeft:8,
-            background:'rgba(63,185,80,.1)', border:'1px solid rgba(63,185,80,.25)',
-            fontSize:'.65rem', color:'#3fb950',
-          }} title={`Categorías refinadas por ML: ${(meta?.mlRefinadas||0).toLocaleString('es-AR')}`}>
+          <div className="flex items-center gap-1 ml-2 rounded-full px-[10px] py-[3px]
+                          bg-[rgba(63,185,80,.1)] border border-[rgba(63,185,80,.25)]
+                          text-[.65rem] text-success"
+            title={`Categorías refinadas por ML: ${(meta?.mlRefinadas||0).toLocaleString('es-AR')}`}>
             🤖 ML {(meta?.mlRefinadas||0) > 0 ? `·${meta.mlRefinadas} refinadas` : 'activo'}
           </div>
         )}
@@ -137,7 +125,7 @@ export default function Topbar({
           <div className="ipc-widget">
             <span>📊 IPC: <strong>{ipcData.mensual.toFixed(1)}%</strong>/mes</span>
             {ipcData.interanual != null && (
-              <span style={{ color:'var(--t4)' }}>| Anual: <strong style={{ color:'var(--t2)' }}>{Math.round(ipcData.interanual)}%</strong></span>
+              <span className="text-t4">| Anual: <strong className="text-t2">{Math.round(ipcData.interanual)}%</strong></span>
             )}
           </div>
         )}
@@ -152,12 +140,10 @@ export default function Topbar({
         )}
 
         {/* Re-scrape button */}
-        <div style={{ marginLeft:'auto' }}>
-          <button onClick={onReScrape} style={{
-            padding:'4px 10px', borderRadius:20, fontSize:'.7rem',
-            border:'1.5px solid var(--bd)', background:'transparent',
-            color:'var(--t4)', cursor:'pointer',
-          }}>
+        <div className="ml-auto">
+          <button onClick={onReScrape}
+            className="rounded-full border-[1.5px] border-border bg-transparent px-[10px] py-1
+                       text-[.7rem] text-t4 cursor-pointer">
             ↺ Nuevo scraping
           </button>
         </div>
@@ -165,32 +151,26 @@ export default function Topbar({
 
       {/* Row 2: Sitio breadcrumbs */}
       {sitios.length > 0 && (
-        <div style={{
-          display:'flex', gap:4, padding:'.3rem 1rem', overflowX:'auto',
-          scrollbarWidth:'none', flexWrap:'nowrap', alignItems:'center',
-        }}>
+        <div className="flex items-center gap-1 px-4 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
           <button
             onClick={() => onSitioChange('')}
-            style={{
-              padding:'2px 9px', borderRadius:12, flexShrink:0,
-              border:'none', cursor:'pointer', fontSize:'.68rem', fontWeight:700,
-              background: !sitioFiltro ? 'var(--p)' : 'var(--s2)',
-              color: !sitioFiltro ? '#fff' : 'var(--t4)',
-            }}>
-            Todas {total > 0 && <span style={{opacity:.7}}>{total.toLocaleString('es-AR')}</span>}
+            className={cn(
+              'flex-shrink-0 rounded-xl border-none px-[9px] py-[2px]',
+              'cursor-pointer text-[.68rem] font-bold',
+              !sitioFiltro ? 'bg-primary text-white' : 'bg-s2 text-t4'
+            )}>
+            Todas {total > 0 && <span className="opacity-70">{total.toLocaleString('es-AR')}</span>}
           </button>
 
           {gymratCount > 0 && (
             <button
               onClick={onGymratToggle}
-              style={{
-                padding:'2px 9px', borderRadius:12, flexShrink:0,
-                border:'none', cursor:'pointer', fontSize:'.67rem', fontWeight: gymrat ? 700 : 400,
-                background: gymrat ? '#84cc16' : 'var(--s2)',
-                color: gymrat ? '#fff' : 'var(--t4)',
-                whiteSpace:'nowrap', transition:'all .12s',
-              }}>
-              🏋️ Gym <span style={{ opacity:.8 }}>{gymratCount.toLocaleString('es-AR')}</span>
+              className={cn(
+                'flex-shrink-0 whitespace-nowrap rounded-xl border-none px-[9px] py-[2px]',
+                'cursor-pointer text-[.67rem] transition-all duration-150',
+                gymrat ? 'font-bold bg-[#84cc16] text-white' : 'font-normal bg-s2 text-t4'
+              )}>
+              🏋️ Gym <span className="opacity-80">{gymratCount.toLocaleString('es-AR')}</span>
             </button>
           )}
 
@@ -199,15 +179,13 @@ export default function Topbar({
             return (
               <button key={nombre}
                 onClick={() => onSitioChange(active ? '' : nombre)}
-                style={{
-                  padding:'2px 9px', borderRadius:12, flexShrink:0,
-                  border: `1px solid ${active ? 'var(--p)' : 'var(--bd)'}`,
-                  cursor:'pointer', fontSize:'.67rem', fontWeight: active ? 700 : 400,
-                  background: active ? 'rgba(163,113,247,.15)' : 'transparent',
-                  color: active ? 'var(--p2)' : 'var(--t4)',
-                  whiteSpace:'nowrap', transition:'all .12s',
-                }}>
-                {nombre} <span style={{ opacity:.6 }}>{count}</span>
+                className={cn(
+                  'flex-shrink-0 whitespace-nowrap rounded-xl px-[9px] py-[2px]',
+                  'cursor-pointer text-[.67rem] transition-all duration-150 border',
+                  active ? 'font-bold border-primary bg-[rgba(163,113,247,.15)] text-primary2'
+                         : 'font-normal border-border bg-transparent text-t4'
+                )}>
+                {nombre} <span className="opacity-60">{count}</span>
               </button>
             );
           })}
