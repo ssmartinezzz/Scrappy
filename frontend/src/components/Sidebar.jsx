@@ -37,11 +37,14 @@ function Section({ title, count, children, defaultOpen = true }) {
 }
 
 // ─── Pill button ─────────────────────────────────────────────────────────────
-function Pill({ label, count, active, color, onClick }) {
+function Pill({ label, count, active, color, onClick, size }) {
   return (
     <button
       onClick={onClick}
-      className="m-0.5 inline-flex items-center gap-1 rounded-full border-[1.5px] px-2.5 py-0.5 text-[.68rem] transition-colors"
+      className={cn(
+        'm-0.5 inline-flex items-center gap-1 rounded-full border-[1.5px] transition-colors',
+        size === 'lg' ? 'px-3 py-1 text-[.78rem]' : 'px-2.5 py-0.5 text-[.68rem]'
+      )}
       style={{
         borderColor: active ? (color || 'var(--p)') : 'var(--s3)',
         background: active ? `color-mix(in srgb, ${color || 'var(--p)'} 15%, transparent)` : 'transparent',
@@ -50,7 +53,9 @@ function Pill({ label, count, active, color, onClick }) {
       }}
     >
       {label}
-      {count !== undefined && <span className="text-[.6rem] opacity-55">{count}</span>}
+      {count !== undefined && (
+        <span className={cn('opacity-55', size === 'lg' ? 'text-[.66rem]' : 'text-[.6rem]')}>{count}</span>
+      )}
     </button>
   );
 }
@@ -109,10 +114,10 @@ export default function Sidebar({
   const CatGroup = ({ title, items }) => {
     if (!items.length) return null;
     return (
-      <div className="mb-1">
-        <div className="my-1 text-[.58rem] uppercase tracking-[.1em] text-t4">{title}</div>
+      <div className="cat-group">
+        <div className="cat-group-title">{title}</div>
         {items.slice(0, 12).map(([cat, n]) => (
-          <Pill key={cat} label={cat} count={n}
+          <Pill key={cat} label={cat} count={n} size="lg"
             active={filters.categorias?.includes(cat)}
             onClick={() => onToggleCat(cat)} />
         ))}
@@ -255,7 +260,7 @@ export default function Sidebar({
 
       {/* Categorías agrupadas */}
       {Object.keys(cats).length > 0 && (
-        <Section title="📂 Categoría" count={filters.categorias?.length || 0}>
+        <Section title="📂 Categoría" count={filters.categorias?.length || 0} defaultOpen={true}>
           <CatGroup title="Calzado"    items={calzado} />
           <CatGroup title="Superior"   items={superior} />
           <CatGroup title="Inferior"   items={inferior} />

@@ -8,7 +8,7 @@ import { FINANCIACION_CONFIG } from '../financiacionConfig';
 // Renders even in the sin_preset_activo state (distinct from the buy-signal's
 // SenalBadge, which hides on sin_datos) — sin_preset_activo is actionable
 // ("configure a preset"), not just "no data yet".
-export default function FinanBadge({ finan }) {
+export default function FinanBadge({ finan, compact }) {
   if (!finan || !finan.senal) return null;
   const cfg = FINANCIACION_CONFIG[finan.senal];
   if (!cfg) return null;
@@ -19,11 +19,11 @@ export default function FinanBadge({ finan }) {
 
   return (
     <span
-      className="badge-financiacion"
+      className={compact ? 'badge-compact' : 'badge-financiacion'}
       style={{ background: cfg.bg, borderColor: cfg.border, color: 'var(--t1)' }}
       title={title}
     >
-      {cfg.icon} {cfg.label}
+      {compact ? cfg.icon : <>{cfg.icon} {cfg.label}</>}
     </span>
   );
 }
