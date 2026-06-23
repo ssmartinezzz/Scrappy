@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { fetchSitios, startScrape, exportarDB, importarDB, limpiarCatalogo, limpiarMl } from '../api';
 import { cn } from '../lib/utils';
 import MlStatusPanel from './MlStatusPanel';
+import { SEMANTIC } from '../lib/colors';
 
 const RUBRO_META = {
-  indumentaria: { icon:'👕', color:'#a371f7', label:'Indumentaria' },
-  tecnologia:   { icon:'💻', color:'#58a6ff', label:'Tecnología'   },
-  suplementos:  { icon:'💊', color:'#3fb950', label:'Nutrición'    },
+  indumentaria: { icon:'👕', color: 'var(--p)',       label:'Indumentaria' },
+  tecnologia:   { icon:'💻', color: 'var(--p2)',       label:'Tecnología'   },
+  suplementos:  { icon:'💊', color: SEMANTIC.positive, label:'Nutrición'    },
 };
 
 function RubroLabel({ r }) {
@@ -119,7 +120,7 @@ export default function SplashPanel({
     return found?.estado || 'idle';
   };
 
-  const sitioColor = s => ({ done:'#3fb950', error:'#e84393', running:'#f0a500', idle:'var(--bd2)' }[s]);
+  const sitioColor = s => ({ done: SEMANTIC.positive, error: SEMANTIC.negative, running: SEMANTIC.warn, idle:'var(--bd2)' }[s]);
 
   // Export / Import
   async function handleExport() {
@@ -140,19 +141,19 @@ export default function SplashPanel({
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="text-center">
-        <div className="text-[2.8rem] leading-none drop-shadow-[0_0_24px_rgba(163,113,247,.6)]">🛍</div>
+        <div className="text-[2.8rem] leading-none drop-shadow-[0_0_24px_color-mix(in_srgb,var(--p)_60%,transparent)]">🛍</div>
         <h1
-          className="my-1 bg-gradient-to-br from-primary2 to-primary bg-clip-text text-2xl font-black tracking-tight text-transparent"
+          className="my-1 bg-gradient-to-br from-primary2 to-primary bg-clip-text font-display text-display-1 tracking-tight text-transparent"
         >
           Scraper Ropa AR
         </h1>
-        <div className="text-xs text-t4">
+        <div className="text-eyebrow text-t4">
           Inteligencia de precios · Argentina
         </div>
       </div>
 
       {/* ── Card ───────────────────────────────────────────────── */}
-      <div className="w-full max-w-[580px] overflow-hidden rounded-card border border-border bg-s1 shadow-[0_32px_80px_rgba(0,0,0,.6)]">
+      <div className="w-full max-w-[580px] overflow-hidden rounded-card border border-border bg-s1 shadow-[0_32px_80px_rgba(0,0,0,.18)]">
 
         {/* Tab bar */}
         <div className="flex border-b border-border">
@@ -225,10 +226,10 @@ export default function SplashPanel({
                               )}
                               style={{
                                 background: sel
-                                  ? (state === 'done' ? 'rgba(63,185,80,.15)' :
-                                     state === 'error' ? 'rgba(232,67,147,.1)' :
-                                     state === 'running' ? 'rgba(240,165,0,.15)' :
-                                     'rgba(163,113,247,.15)')
+                                  ? (state === 'done' ? `color-mix(in srgb, ${SEMANTIC.positive} 15%, transparent)` :
+                                     state === 'error' ? `color-mix(in srgb, ${SEMANTIC.negative} 10%, transparent)` :
+                                     state === 'running' ? `color-mix(in srgb, ${SEMANTIC.warn} 15%, transparent)` :
+                                     'color-mix(in srgb, var(--p) 15%, transparent)')
                                   : 'transparent',
                                 borderColor: sel ? (stateColor || 'var(--p)') : 'var(--s3)',
                                 color: sel
@@ -239,7 +240,7 @@ export default function SplashPanel({
                               {state === 'error'   && '✗ '}
                               {state === 'running' && (
                                 <span
-    className="inline-block h-[7px] w-[7px] rounded-full bg-[#f0a500] [animation:pulse_1s_ease_infinite]"
+    className="inline-block h-[7px] w-[7px] rounded-full bg-[var(--sem-warn)] [animation:pulse_1s_ease_infinite]"
                                 />
                               )}
                               {s.nombre}
@@ -296,7 +297,7 @@ export default function SplashPanel({
                     className={cn(
                       'rounded-btn p-[13px] text-[.92rem] font-extrabold tracking-tight transition-all',
                       selected.length > 0
-                        ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-white shadow-[0_4px_20px_rgba(163,113,247,.4)]'
+                        ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-white shadow-[0_4px_20px_color-mix(in_srgb,var(--p)_40%,transparent)]'
                         : 'cursor-not-allowed bg-s3 text-t4'
                     )}>
                     ▶ Iniciar scraping — {selected.length} sitios

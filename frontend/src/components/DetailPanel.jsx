@@ -3,6 +3,13 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
+import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
+
+// MercadoLibre's official brand yellow — third-party partner color, not one
+// of the 7 canonical semantic roles in lib/colors.js. Kept as a local named
+// constant (rather than inline hex) so the grep-for-stray-hex check
+// (Spec Scenario 1.2/2.2) has exactly one place to allowlist.
+const MERCADOLIBRE_YELLOW = '#f0c000';
 
 // Visual cue marking a link that navigates AWAY from the app (new tab/external
 // site), as opposed to in-panel actions/sections that stay inside the Dialog.
@@ -16,7 +23,7 @@ function Gauge({ score = 50 }) {
   const r = 52, cx = 70, cy = 70;
   const rad = ((c / 100) * 180 - 180) * Math.PI / 180;
   const x = cx + r * Math.cos(rad), y = cy + r * Math.sin(rad);
-  const color = c <= 33 ? '#3fb950' : c <= 66 ? '#f0a500' : '#e84393';
+  const color = gaugeColor(c);
   const label = c <= 20 ? 'Muy barato' : c <= 40 ? 'Barato' :
                 c <= 60 ? 'Normal' : c <= 80 ? 'Caro' : 'Muy caro';
   return (
@@ -40,9 +47,9 @@ function BoxPlot({ precio, st }) {
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ overflow:'visible' }}>
       <line x1={PAD} y1="20" x2={sc(hi)} y2="20" stroke="var(--t4)" strokeWidth="1.5"/>
       <rect x={sc(st.q1)} y="12" width={Math.max(2,sc(st.q3)-sc(st.q1))} height="16"
-            fill="rgba(110,64,201,.2)" stroke="var(--p)" strokeWidth="1.5" rx="2"/>
+            fill="color-mix(in srgb, var(--p) 20%, transparent)" stroke="var(--p)" strokeWidth="1.5" rx="2"/>
       <line x1={sc(st.median)} y1="11" x2={sc(st.median)} y2="29" stroke="var(--p2)" strokeWidth="2"/>
-      <circle cx={sc(precio)} cy="20" r="5" fill="#f0a500" stroke="var(--s1)" strokeWidth="1.5"/>
+      <circle cx={sc(precio)} cy="20" r="5" fill={SEMANTIC.warn} stroke="var(--s1)" strokeWidth="1.5"/>
       {[['Q1',sc(st.q1)],['Med',sc(st.median)],['Q3',sc(st.q3)]].map(([l,x])=>(
         <text key={l} x={x} y="38" textAnchor="middle" fontSize="8" fill="var(--t4)">{l}</text>
       ))}
@@ -120,9 +127,10 @@ function PreciosExternos({ product }) {
       <div className="flex flex-wrap gap-1.5 mb-[.75rem]">
         <a href={searchUrl} target="_blank" rel="noopener noreferrer"
            aria-label="Buscar en MercadoLibre (se abre en una pestaña nueva)"
-           className="flex items-center gap-1 rounded-btn border-[1.5px] border-[#f0c000]
-                      bg-[rgba(255,224,0,.1)] px-[.75rem] py-1.5 text-[.72rem] font-bold
-                      text-[#f0c000] no-underline">
+           style={{ borderColor: MERCADOLIBRE_YELLOW, color: MERCADOLIBRE_YELLOW,
+                    background: `color-mix(in srgb, ${MERCADOLIBRE_YELLOW} 10%, transparent)` }}
+           className="flex items-center gap-1 rounded-btn border-[1.5px]
+                      px-[.75rem] py-1.5 text-[.72rem] font-bold no-underline">
           🛒 Buscar en MercadoLibre <ExternalCue />
         </a>
         <a href={EXTERNAL_SEARCH.amazon(nombre)} target="_blank" rel="noopener noreferrer"
@@ -166,7 +174,8 @@ function PreciosExternos({ product }) {
               <span>Sin resultados automáticos. Buscá directamente:</span>
               <a href={searchUrl} target="_blank" rel="noopener noreferrer"
                  aria-label="Ver resultados en MercadoLibre (se abre en una pestaña nueva)"
-                 className="flex items-center gap-1 font-bold text-[#f0c000] no-underline">
+                 style={{ color: MERCADOLIBRE_YELLOW }}
+                 className="flex items-center gap-1 font-bold no-underline">
                 🛒 Ver resultados en MercadoLibre <ExternalCue />
               </a>
             </div>
@@ -239,26 +248,26 @@ function PriceContext({ product: p, st }) {
   if (ml.pctil !== undefined) {
     const pct = ml.pctil;
     if (pct <= 10)
-      items.push({ icon:'🏆', color:'#00b894', text: `Está en el ${pct}° percentil — uno de los más baratos de su categoría` });
+      items.push({ icon:'🏆', color: SEMANTIC.positive, text: `Está en el ${pct}° percentil — uno de los más baratos de su categoría` });
     else if (pct <= 25)
-      items.push({ icon:'💚', color:'#00b894', text: `Precio en el cuartil inferior — más barato que el ${100-pct}% del mercado` });
+      items.push({ icon:'💚', color: SEMANTIC.positive, text: `Precio en el cuartil inferior — más barato que el ${100-pct}% del mercado` });
     else if (pct <= 50)
       items.push({ icon:'◉', color:'var(--p2)', text: `Por debajo de la mediana — más barato que la mitad del catálogo en ${p.categoria||'su categoría'}` });
     else if (pct <= 75)
-      items.push({ icon:'⚠️', color:'#f0a500', text: `Precio por encima de la mediana (percentil ${pct}°) en ${p.categoria||'su categoría'}` });
+      items.push({ icon:'⚠️', color: SEMANTIC.warn, text: `Precio por encima de la mediana (percentil ${pct}°) en ${p.categoria||'su categoría'}` });
     else
-      items.push({ icon:'📈', color:'#e84393', text: `Precio alto — percentil ${pct}°, más caro que el ${pct}% del mercado` });
+      items.push({ icon:'📈', color: SEMANTIC.negative, text: `Precio alto — percentil ${pct}°, más caro que el ${pct}% del mercado` });
   }
 
   // 2. Vs media de la categoría
   if (st?.mean && p.precio > 0) {
     const diffPct = ((p.precio - st.mean) / st.mean * 100).toFixed(1);
     if (diffPct < -15)
-      items.push({ icon:'💰', color:'#00b894', text: `${Math.abs(diffPct)}% más barato que la media de ${p.categoria||'su categoría'} ($${p.precio > 0 ? Math.round(st.mean).toLocaleString('es-AR') : '—'})` });
+      items.push({ icon:'💰', color: SEMANTIC.positive, text: `${Math.abs(diffPct)}% más barato que la media de ${p.categoria||'su categoría'} ($${p.precio > 0 ? Math.round(st.mean).toLocaleString('es-AR') : '—'})` });
     else if (diffPct < 0)
       items.push({ icon:'◎', color:'var(--t3)', text: `Ligeramente por debajo de la media ($${Math.round(st.mean).toLocaleString('es-AR')}) de ${p.categoria||'su categoría'}` });
     else if (diffPct > 15)
-      items.push({ icon:'💎', color:'#f0a500', text: `${diffPct}% más caro que la media — podría ser premium o tener características especiales` });
+      items.push({ icon:'💎', color: SEMANTIC.warn, text: `${diffPct}% más caro que la media — podría ser premium o tener características especiales` });
   }
 
   // 3. Vs mediana
@@ -266,7 +275,7 @@ function PriceContext({ product: p, st }) {
     const diffMed = ((p.precio - st.median) / st.median * 100).toFixed(1);
     if (Math.abs(diffMed) > 5) {
       const dir = diffMed < 0 ? 'por debajo' : 'por encima';
-      const col = diffMed < 0 ? '#00b894' : '#f0a500';
+      const col = diffMed < 0 ? SEMANTIC.positive : SEMANTIC.warn;
       items.push({ icon: diffMed < 0 ? '📉' : '📊', color: col,
         text: `${Math.abs(diffMed)}% ${dir} de la mediana ($${Math.round(st.median).toLocaleString('es-AR')}) de ${p.categoria||'su categoría'}` });
     }
@@ -276,11 +285,11 @@ function PriceContext({ product: p, st }) {
   if (ml.zScore !== undefined) {
     const z = ml.zScore;
     if (z <= -2)
-      items.push({ icon:'⚡', color:'#00b894', text: `Z-score ${z.toFixed(2)}: estadísticamente muy barato — posible error de precio o promoción especial` });
+      items.push({ icon:'⚡', color: SEMANTIC.positive, text: `Z-score ${z.toFixed(2)}: estadísticamente muy barato — posible error de precio o promoción especial` });
     else if (z <= -1)
-      items.push({ icon:'✅', color:'#00b894', text: `Z-score ${z.toFixed(2)}: precio bien por debajo del promedio ajustado` });
+      items.push({ icon:'✅', color: SEMANTIC.positive, text: `Z-score ${z.toFixed(2)}: precio bien por debajo del promedio ajustado` });
     else if (z >= 2)
-      items.push({ icon:'🔴', color:'#e84393', text: `Z-score ${z.toFixed(2)}: estadísticamente caro — outlier superior` });
+      items.push({ icon:'🔴', color: SEMANTIC.negative, text: `Z-score ${z.toFixed(2)}: estadísticamente caro — outlier superior` });
   }
 
   // 5. CV de la categoría — qué tan fiable es la comparación
@@ -293,9 +302,9 @@ function PriceContext({ product: p, st }) {
 
   // 6. Historial
   if (ml.tendencia === 'bajando')
-    items.push({ icon:'📉', color:'#00b894', text: 'El precio viene bajando en los últimos días — buena oportunidad' });
+    items.push({ icon:'📉', color: SEMANTIC.positive, text: 'El precio viene bajando en los últimos días — buena oportunidad' });
   else if (ml.tendencia === 'subiendo')
-    items.push({ icon:'📈', color:'#f0a500', text: 'El precio está subiendo — conviene comprar pronto' });
+    items.push({ icon:'📈', color: SEMANTIC.warn, text: 'El precio está subiendo — conviene comprar pronto' });
 
   if (!items.length) return null;
 
@@ -325,7 +334,6 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
   const [hist, setHist] = useState(null);
   const ml  = p.ml || {};
   const st  = catStats?.[p.categoria];
-  const segColors = { budget:'#00b894', standard:'var(--p2)', premium:'#f0a500', luxury:'var(--r)' };
 
   useEffect(() => {
     if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));
@@ -380,7 +388,7 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
               {/* segment color is data-driven (ml.segment) — runtime value, not a
                   static token, kept inline per the established exception. */}
               <div className="detail-stat-val"
-                   style={{ color: segColors[ml.segment] || 'var(--t3)' }}>
+                   style={{ color: SEG_COLORS[ml.segment] || 'var(--t3)' }}>
                 {(ml.segment || '—').toUpperCase()}
               </div>
               <div className="detail-stat-lbl">Segmento</div>
