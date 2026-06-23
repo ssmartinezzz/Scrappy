@@ -354,6 +354,7 @@ export default function AppLayout() {
         <Sidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          onOpen={() => setSidebarOpen(true)}
           facets={S.facets}
           meta={S.meta}
           filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
