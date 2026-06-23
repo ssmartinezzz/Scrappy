@@ -529,6 +529,17 @@ body { overflow-x: hidden; }
 .outfit-fb-btn.dislike:hover { border-color: var(--r); color: var(--r); }
 .outfit-fb-sent { font: 700 .68rem/1 var(--font); color: var(--t4); text-transform: uppercase; letter-spacing: .05em; }
 
+/* ─── Recomendados ("Para ti" feed) ─────────────────────────────────────── */
+.recomendados-card-wrap { display: flex; flex-direction: column; }
+.recomendados-fb-row { display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
+  border-top: 1px solid var(--bd); padding-top: 10px; }
+.recomendados-fb-sent { font: 700 .68rem/1 var(--font); color: var(--t4); text-transform: uppercase;
+  letter-spacing: .05em; margin-top: 8px; border-top: 1px solid var(--bd); padding-top: 10px; }
+.recomendados-dismiss-cat-btn { padding: 5px 0; border-radius: var(--rb); border: 1px solid transparent;
+  background: transparent; cursor: pointer; font: 600 .62rem/1 var(--font); color: var(--t4);
+  text-align: center; transition: color .15s ease; }
+.recomendados-dismiss-cat-btn:hover { color: var(--r); }
+
 .reroll-btn { padding: 9px 20px; border-radius: 20px; border: none; cursor: pointer;
   font: 700 .8rem/1 var(--font); color: #fff; background: linear-gradient(135deg, var(--p), var(--p2));
   box-shadow: 0 6px 18px rgba(110,64,201,.35); transition: transform .15s ease, box-shadow .15s ease; }

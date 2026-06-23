@@ -42,6 +42,7 @@ class ApiControllerPrecioRangeTest {
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
+    private RecommendationService recommendationService;
     private ApiController controller;
 
     @BeforeEach
@@ -54,8 +55,9 @@ class ApiControllerPrecioRangeTest {
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
+        recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
-                db, grouping, pythonRunner, outfitService);
+                db, grouping, pythonRunner, outfitService, recommendationService);
 
         when(config.getMoneda()).thenReturn("ARS");
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());

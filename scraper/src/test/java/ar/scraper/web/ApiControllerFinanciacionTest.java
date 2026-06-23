@@ -47,6 +47,7 @@ class ApiControllerFinanciacionTest {
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
+    private RecommendationService recommendationService;
     private ApiController controller;
 
     @BeforeEach
@@ -59,8 +60,9 @@ class ApiControllerFinanciacionTest {
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
+        recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
-                db, grouping, pythonRunner, outfitService);
+                db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {

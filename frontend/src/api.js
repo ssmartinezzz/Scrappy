@@ -263,3 +263,41 @@ export async function sendOutfitFeedback(body) {
   });
   return r.ok ? r.json() : null;
 }
+
+// ─── Recomendados ("Para ti" feed) ───────────────────────────────────────────
+
+export async function fetchRecomendados(page = 1, size = 24, filters = {}) {
+  const p = new URLSearchParams({ page, size });
+  Object.entries(filters).forEach(([k, v]) => {
+    if (v !== '' && v !== null && v !== undefined) p.set(k, String(v));
+  });
+  const r = await fetch(`${BASE}/api/recomendados?${p}`);
+  if (r.status === 204) return null;
+  return r.ok ? r.json() : null;
+}
+
+// body shape: { genero, items: [{ url, liked }] } — per-card like/dislike,
+// writes to the same shared taste signal store as sendOutfitFeedback().
+export async function sendRecomendadosFeedback(genero, items) {
+  const r = await fetch(`${BASE}/api/recomendados/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ genero, items })
+  });
+  return r.ok ? r.json() : null;
+}
+
+export async function dismissCategoria(categoria) {
+  const r = await fetch(`${BASE}/api/recomendados/dismiss-categoria`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoria })
+  });
+  return r.ok ? r.json() : null;
+}
+
+export async function undismissCategoria(categoria) {
+  const r = await fetch(`${BASE}/api/recomendados/dismiss-categoria?categoria=${encodeURIComponent(categoria)}`,
+    { method: 'DELETE' });
+  return r.ok ? r.json() : null;
+}

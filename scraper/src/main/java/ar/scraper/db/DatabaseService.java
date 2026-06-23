@@ -232,6 +232,18 @@ st.executeUpdate("""
                 )""");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_liked ON outfit_feedback_item(liked)");
 
+            // categoria_dismiss — "no me interesa esta categoría" en el feed de
+            // recomendados (Decision 1 de design.md, personalized-recommendations-feed).
+            // Tabla dedicada, NO un sentinel blank-marca en outfit_feedback_item, para
+            // evitar colisión con productos sin marca reales (ver design.md Decision 1).
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS categoria_dismiss (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    categoria  TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )""");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_catdismiss_cat ON categoria_dismiss(categoria)");
+
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS financiacion_presets (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1146,6 +1158,68 @@ st.executeUpdate("""
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    // ─── Categoria dismiss (feed de recomendados) ────────────────────────────
+
+    /**
+     * Marca una categoria como "no me interesa" feed-wide (Decision 1 de
+     * design.md, personalized-recommendations-feed). Idempotente: si la
+     * categoria ya está dismissed, no inserta una fila duplicada.
+     */
+    public void guardarCategoriaDismiss(String categoria) {
+        if (conn == null || categoria == null || categoria.isBlank()) return;
+        try {
+            try (PreparedStatement check = conn.prepareStatement(
+                    "SELECT 1 FROM categoria_dismiss WHERE categoria=?")) {
+                check.setString(1, categoria);
+                try (ResultSet rs = check.executeQuery()) {
+                    if (rs.next()) return; // ya existe — no-op idempotente
+                }
+            }
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO categoria_dismiss (categoria, created_at)
+                    VALUES (?, ?)
+                    """)) {
+                ps.setString(1, categoria);
+                ps.setString(2, LocalDateTime.now().format(DT));
+                ps.executeUpdate();
+                conn.commit();
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
+    public void borrarCategoriaDismiss(String categoria) {
+        if (conn == null || categoria == null || categoria.isBlank()) return;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM categoria_dismiss WHERE categoria=?")) {
+            ps.setString(1, categoria);
+            ps.executeUpdate();
+            conn.commit();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Lee todas las categorias dismissed feed-wide. */
+    public Set<String> obtenerCategoriaDismiss() {
+        Set<String> result = new HashSet<>();
+        if (conn == null) return result;
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT categoria FROM categoria_dismiss")) {
+            while (rs.next()) {
+                result.add(rs.getString("categoria"));
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando categoria dismiss: {}", e.getMessage());
         }
         return result;
     }

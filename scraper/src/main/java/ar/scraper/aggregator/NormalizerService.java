@@ -326,7 +326,8 @@ public class NormalizerService {
 
     private static final String[] KW_LENTES = {
         "lentes","anteojos","gafas","sunglasses","sunglass",
-        "lentes de sol","anteojos de sol","goggles","polarizados"
+        "lentes de sol","anteojos de sol","goggles","polarizados",
+        "antiparras","antiparra"
     };
 
     private static final String[] KW_MEDIAS = {
