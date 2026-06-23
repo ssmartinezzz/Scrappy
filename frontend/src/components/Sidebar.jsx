@@ -3,19 +3,14 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Sheet, SheetOverlay, SheetTitle } from './ui/sheet';
 import { cn, sortByCountDesc } from '@/lib/utils';
 import { BADGE_LABELS } from '../api';
+import { SEG_COLORS, BADGE_COLORS, SEMANTIC } from '../lib/colors';
 
 const SEGMENTOS = [
-  { k:'budget',   l:'💚 Budget',  c:'#00b894' },
-  { k:'standard', l:'◉ Standard', c:'var(--p)' },
-  { k:'premium',  l:'⭐ Premium', c:'#f0a500' },
-  { k:'luxury',   l:'👑 Luxury',  c:'#e84393' },
+  { k:'budget',   l:'💚 Budget',  c: SEG_COLORS.budget },
+  { k:'standard', l:'◉ Standard', c: SEG_COLORS.standard },
+  { k:'premium',  l:'⭐ Premium', c: SEG_COLORS.premium },
+  { k:'luxury',   l:'👑 Luxury',  c: SEG_COLORS.luxury },
 ];
-
-const BADGE_COLORS = {
-  precio_historico_bajo:'#f0a500', precio_bajo:'#3fb950',
-  oferta_real:'#a371f7', tendencia:'#fd6400',
-  precio_bajando:'#3fb950', precio_alto:'#e84393', descuento_cosmetico:'var(--t4)',
-};
 
 // ─── Collapsible section ──────────────────────────────────────────────────────
 function Section({ title, count, children, defaultOpen = true }) {
@@ -49,7 +44,7 @@ function Pill({ label, count, active, color, onClick }) {
       className="m-0.5 inline-flex items-center gap-1 rounded-full border-[1.5px] px-2.5 py-0.5 text-[.68rem] transition-colors"
       style={{
         borderColor: active ? (color || 'var(--p)') : 'var(--s3)',
-        background: active ? `${color || 'var(--p)'}18` : 'transparent',
+        background: active ? `color-mix(in srgb, ${color || 'var(--p)'} 15%, transparent)` : 'transparent',
         color: active ? (color || 'var(--p2)') : 'var(--t4)',
         fontWeight: active ? 700 : 400,
       }}
@@ -63,7 +58,7 @@ function Pill({ label, count, active, color, onClick }) {
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 export default function Sidebar({
   facets = {}, meta = {}, filters, onFilter, onToggleCat, onToggleTalle, onReset,
-  open = false, onClose,
+  open = false, onClose, onOpen,
 }) {
   const badges      = facets.badges     || {};
   const generos     = facets.generos    || {};
@@ -125,75 +120,18 @@ export default function Sidebar({
     );
   };
 
-  const content = (
-    <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden">
-      {/* Header */}
-      <div className="sticky top-0 z-[5] flex items-center justify-between border-b border-s3 bg-s1 px-3 py-2.5">
-        <span className="text-[.7rem] font-bold text-t3">
-          Filtros
-          {activeCount > 0 && (
-            <span className="ml-1 rounded-full bg-primary px-1.5 py-0 text-[.58rem] text-white">
-              {activeCount}
-            </span>
-          )}
-        </span>
-        {activeCount > 0 && (
-          <button onClick={onReset} className="bg-transparent p-0 text-[.65rem] text-danger">
-            ✕ Limpiar
-          </button>
-        )}
-      </div>
-
-      {/* ML Badge */}
-      {Object.keys(badges).length > 0 && (
-        <Section title="🏷 Precio ML">
-          {Object.entries(BADGE_LABELS).map(([k, lbl]) => {
-            if (!badges[k]) return null;
-            return (
-              <Pill key={k} label={lbl} count={badges[k]}
-                color={BADGE_COLORS[k]}
-                active={filters.badge === k}
-                onClick={() => onFilter({ badge: filters.badge === k ? '' : k })} />
-            );
-          })}
-        </Section>
-      )}
-
-      {/* Segmento */}
-      <Section title="💎 Segmento" defaultOpen={true}>
-        {SEGMENTOS.map(({ k, l, c }) => (
-          <Pill key={k} label={l} active={filters.segment === k} color={c}
-            onClick={() => onFilter({ segment: filters.segment === k ? '' : k })} />
-        ))}
-      </Section>
-
-      {/* Género */}
-      {Object.keys(generos).length > 0 && (
-        <Section title="👤 Género" defaultOpen={true}>
-          {Object.entries(generos).map(([g, n]) => (
-            <Pill key={g}
-              label={g.charAt(0).toUpperCase() + g.slice(1)}
-              count={n}
-              active={filters.genero === g}
-              onClick={() => onFilter({ genero: filters.genero === g ? '' : g })} />
-          ))}
-        </Section>
-      )}
-
-      {/* Marca */}
-      {topMarcas.length > 0 && (
-        <Section title="🏷 Marca" defaultOpen={true}>
-          {topMarcas.map(([marca, n]) => (
-            <Pill key={marca} label={marca} count={n}
-              active={filters.marca === marca}
-              onClick={() => onFilter({ marca: filters.marca === marca ? '' : marca })} />
-          ))}
-        </Section>
-      )}
-
+  // ─── Rail: precio + género + segmento — always reachable with zero extra
+  // clicks (Spec Req 4). Rendered TWICE: once inline (desktop persistent
+  // rail, hidden on mobile via `.filter-rail`/CSS) and once inside the Sheet
+  // content below (mobile — the Sheet is the only surface on small widths,
+  // so the rail controls must also exist there). Same handlers, same state —
+  // no filter logic duplicated, only the markup placement differs.
+  const RailControls = () => (
+    <div className="flex flex-col gap-3">
       {/* Precio */}
-      <Section title="💰 Precio" defaultOpen={true}>
-        <div className="flex items-center gap-1.5 px-0.5 py-1">
+      <div>
+        <div className="mb-1.5 text-eyebrow text-t4">Precio</div>
+        <div className="flex items-center gap-1.5">
           <input
             type="number"
             inputMode="numeric"
@@ -214,7 +152,106 @@ export default function Sidebar({
             onBlur={e => onFilter({ precioMax: commitPrecio(e.target.value) })}
           />
         </div>
-      </Section>
+      </div>
+
+      {/* Género */}
+      {Object.keys(generos).length > 0 && (
+        <div>
+          <div className="mb-1.5 text-eyebrow text-t4">Género</div>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(generos).map(([g, n]) => (
+              <button
+                key={g}
+                onClick={() => onFilter({ genero: filters.genero === g ? '' : g })}
+                className={cn(
+                  'border-b-[1.5px] border-transparent px-0.5 py-0.5 text-[.72rem] transition-colors',
+                  filters.genero === g
+                    ? 'border-primary font-bold text-primary2'
+                    : 'text-t4 hover:text-t2'
+                )}
+              >
+                {g.charAt(0).toUpperCase() + g.slice(1)}
+                <span className="ml-1 text-[.6rem] opacity-55">{n}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Segmento */}
+      <div>
+        <div className="mb-1.5 text-eyebrow text-t4">Segmento</div>
+        <div className="flex flex-wrap gap-1">
+          {SEGMENTOS.map(({ k, l, c }) => (
+            <button
+              key={k}
+              onClick={() => onFilter({ segment: filters.segment === k ? '' : k })}
+              className="border-b-[1.5px] px-0.5 py-0.5 text-[.72rem] transition-colors"
+              style={{
+                borderColor: filters.segment === k ? c : 'transparent',
+                color: filters.segment === k ? c : 'var(--t4)',
+                fontWeight: filters.segment === k ? 700 : 400,
+              }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const content = (
+    <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden">
+      {/* Header */}
+      <div className="sticky top-0 z-[5] flex items-center justify-between border-b border-s3 bg-s1 px-3 py-2.5">
+        <span className="text-[.7rem] font-bold text-t3">
+          Filtros
+          {activeCount > 0 && (
+            <span className="ml-1 rounded-full bg-primary px-1.5 py-0 text-[.58rem] text-white">
+              {activeCount}
+            </span>
+          )}
+        </span>
+        {activeCount > 0 && (
+          <button onClick={onReset} className="bg-transparent p-0 text-[.65rem] text-danger">
+            ✕ Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Rail controls also live here so mobile (Sheet-only) keeps every
+          filter reachable — desktop hides this duplicate via .sidebar-sheet-rail
+          CSS since the persistent <Rail/> already covers it inline. */}
+      <div className="sidebar-sheet-rail border-b border-s3 px-3 py-2.5">
+        <RailControls />
+      </div>
+
+      {/* ML Badge */}
+      {Object.keys(badges).length > 0 && (
+        <Section title="🏷 Precio ML">
+          {Object.entries(BADGE_LABELS).map(([k, lbl]) => {
+            if (!badges[k]) return null;
+            return (
+              <Pill key={k} label={lbl} count={badges[k]}
+                color={BADGE_COLORS[k]}
+                active={filters.badge === k}
+                onClick={() => onFilter({ badge: filters.badge === k ? '' : k })} />
+            );
+          })}
+        </Section>
+      )}
+
+      {/* Marca */}
+      {topMarcas.length > 0 && (
+        <Section title="🏷 Marca" defaultOpen={true}>
+          {topMarcas.map(([marca, n]) => (
+            <Pill key={marca} label={marca} count={n}
+              active={filters.marca === marca}
+              onClick={() => onFilter({ marca: filters.marca === marca ? '' : marca })} />
+          ))}
+        </Section>
+      )}
 
       {/* Categorías agrupadas */}
       {Object.keys(cats).length > 0 && (
@@ -236,7 +273,7 @@ export default function Sidebar({
             label="Ropa gym"
             count={gymratCount}
             active={filters.gymrat}
-            color="#84cc16"
+            color={SEMANTIC.gym}
             onClick={() => onFilter({ gymrat: !filters.gymrat })}
           />
           {filters.gymrat && filters.gymSubcats && Object.keys(filters.gymSubcats).length > 0 && (
@@ -267,7 +304,7 @@ export default function Sidebar({
             label="Packs / combos"
             count={packCount}
             active={filters.pack}
-            color="#a371f7"
+            color={SEMANTIC.pack}
             onClick={() => onFilter({ pack: !filters.pack })}
           />
         </Section>
@@ -297,20 +334,59 @@ export default function Sidebar({
   // document.body would pull it out of the `.layout` flex flow that positions it
   // beside `.content` on desktop. Only the overlay backdrop is portaled (mobile-only,
   // already unmounted by Radix when `open` is false).
+  //
+  // Hybrid filter pattern (Spec Req 4-5): the persistent <Rail/> below is a
+  // SEPARATE, ALWAYS-VISIBLE-ON-DESKTOP block (precio/género/segmento) that
+  // sits next to `.content` in the `.layout` flex flow, independent of the
+  // Sheet's open/closed state — interacting with it never requires opening
+  // the Sheet first. The existing Sheet (categoría/marca/ML badge/GYM/packs)
+  // is reused as-is for both mobile (full drawer, rail duplicated inside via
+  // `.sidebar-sheet-rail` for reachability) and desktop ("Filtros" trigger
+  // opens the same Sheet content over the rail). No filter logic is
+  // duplicated — only RailControls' markup is rendered in two places.
   return (
-    <Sheet open={open} modal={open} onOpenChange={next => { if (!next) onClose?.(); }}>
-      <DialogPrimitive.Portal>
-        <SheetOverlay />
-      </DialogPrimitive.Portal>
-      <DialogPrimitive.Content
-        forceMount
-        onEscapeKeyDown={onClose}
-        onPointerDownOutside={onClose}
-        className={cn('sidebar', open && 'open')}
-      >
-        <SheetTitle className="sr-only">Filtros</SheetTitle>
-        {content}
-      </DialogPrimitive.Content>
-    </Sheet>
+    <>
+      <div className="filter-rail">
+        <div className="filter-rail-header">
+          <span className="text-eyebrow text-t3">
+            Filtros
+            {activeCount > 0 && (
+              <span className="ml-1 rounded-full bg-primary px-1.5 py-0 text-[.58rem] text-white">
+                {activeCount}
+              </span>
+            )}
+          </span>
+          {activeCount > 0 && (
+            <button onClick={onReset} className="bg-transparent p-0 text-[.65rem] text-danger">
+              ✕ Limpiar
+            </button>
+          )}
+        </div>
+        <RailControls />
+        <button onClick={onOpen} className="filter-rail-trigger">
+          ⚙ Más filtros
+          {(Object.keys(badges).length > 0 || topMarcas.length > 0 || Object.keys(cats).length > 0) && (
+            <span className="opacity-55">
+              {' '}(marca, categoría, ML, GYM, packs)
+            </span>
+          )}
+        </button>
+      </div>
+
+      <Sheet open={open} modal={open} onOpenChange={next => { if (!next) onClose?.(); }}>
+        <DialogPrimitive.Portal>
+          <SheetOverlay />
+        </DialogPrimitive.Portal>
+        <DialogPrimitive.Content
+          forceMount
+          onEscapeKeyDown={onClose}
+          onPointerDownOutside={onClose}
+          className={cn('sidebar', open && 'open')}
+        >
+          <SheetTitle className="sr-only">Filtros</SheetTitle>
+          {content}
+        </DialogPrimitive.Content>
+      </Sheet>
+    </>
   );
 }

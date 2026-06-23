@@ -1,12 +1,5 @@
 import { fmt, BADGE_LABELS } from '../api';
-
-const BADGE_COLOR = {
-  precio_historico_bajo: '#f0a500',
-  precio_bajo:           '#00b894',
-  oferta_real:           '#a371f7',
-  tendencia:             '#fd6400',
-  precio_bajando:        '#3fb950',
-};
+import { BADGE_COLORS, SEMANTIC } from '../lib/colors';
 
 export default function GroupCard({ grupo, onOpenDetail }) {
   const { nombre, categoria, img, precios = [], ahorroPct, precioMin, precioMax } = grupo;
@@ -36,7 +29,7 @@ export default function GroupCard({ grupo, onOpenDetail }) {
         {tieneAhorro && (
           <div style={{
             position:'absolute', top:8, right:8,
-            background:'rgba(0,184,148,.9)', color:'#fff',
+            background: SEMANTIC.positive, color:'#fff',
             fontSize:'.65rem', fontWeight:800, padding:'3px 8px', borderRadius:20,
           }}>
             💰 Ahorrás {ahorroPct.toFixed(0)}%
@@ -79,16 +72,16 @@ export default function GroupCard({ grupo, onOpenDetail }) {
                  style={{
                    display:'flex', alignItems:'center', gap:8,
                    padding:'5px 8px', borderRadius:7,
-                   background: isCheapest ? 'rgba(0,184,148,.1)' :
-                               isExpensive && tieneAhorro ? 'rgba(232,67,147,.07)' : 'var(--s2)',
-                   border: `1px solid ${isCheapest ? '#00b894' :
-                            isExpensive && tieneAhorro ? '#e84393' : 'var(--bd)'}`,
+                   background: isCheapest ? `color-mix(in srgb, ${SEMANTIC.positive} 10%, transparent)` :
+                               isExpensive && tieneAhorro ? `color-mix(in srgb, ${SEMANTIC.negative} 7%, transparent)` : 'var(--s2)',
+                   border: `1px solid ${isCheapest ? SEMANTIC.positive :
+                            isExpensive && tieneAhorro ? SEMANTIC.negative : 'var(--bd)'}`,
                    textDecoration:'none', transition:'all .12s',
                  }}
                  onMouseOver={e => e.currentTarget.style.borderColor = 'var(--p)'}
                  onMouseOut={e  => {
-                   e.currentTarget.style.borderColor = isCheapest ? '#00b894' :
-                     isExpensive && tieneAhorro ? '#e84393' : 'var(--bd)';
+                   e.currentTarget.style.borderColor = isCheapest ? SEMANTIC.positive :
+                     isExpensive && tieneAhorro ? SEMANTIC.negative : 'var(--bd)';
                  }}
               >
                 {/* Ícono sitio */}
@@ -107,9 +100,9 @@ export default function GroupCard({ grupo, onOpenDetail }) {
                 {p.badge && BADGE_LABELS[p.badge] && (
                   <span style={{
                     fontSize:'.55rem', padding:'1px 5px', borderRadius:10,
-                    background: `${BADGE_COLOR[p.badge] || 'var(--t4)'}22`,
-                    color: BADGE_COLOR[p.badge] || 'var(--t4)',
-                    border: `1px solid ${BADGE_COLOR[p.badge] || 'var(--bd)'}44`,
+                    background: `color-mix(in srgb, ${BADGE_COLORS[p.badge] || 'var(--t4)'} 13%, transparent)`,
+                    color: BADGE_COLORS[p.badge] || 'var(--t4)',
+                    border: `1px solid color-mix(in srgb, ${BADGE_COLORS[p.badge] || 'var(--bd)'} 27%, transparent)`,
                     flexShrink:0,
                   }}>{BADGE_LABELS[p.badge].split(' ')[0]}</span>
                 )}
@@ -117,8 +110,8 @@ export default function GroupCard({ grupo, onOpenDetail }) {
                 {/* Precio */}
                 <span style={{
                   fontSize:'.8rem', fontWeight:700, flexShrink:0,
-                  color: isCheapest ? '#00b894' :
-                         isExpensive && tieneAhorro ? '#e84393' : 'var(--t1)',
+                  color: isCheapest ? SEMANTIC.positive :
+                         isExpensive && tieneAhorro ? SEMANTIC.negative : 'var(--t1)',
                 }}>
                   ${fmt(p.precio)}
                 </span>
@@ -135,9 +128,9 @@ export default function GroupCard({ grupo, onOpenDetail }) {
             fontSize:'.68rem', color:'var(--t4)', paddingTop:4,
             borderTop:'1px solid var(--s3)',
           }}>
-            💡 <strong style={{ color:'#00b894' }}>{cheapest.sitio}</strong> es{' '}
-            <strong style={{ color:'#00b894' }}>${fmt(precioMax - precioMin)} más barato</strong>{' '}
-            que <strong style={{ color:'#e84393' }}>{priciest.sitio}</strong>
+            💡 <strong style={{ color: SEMANTIC.positive }}>{cheapest.sitio}</strong> es{' '}
+            <strong style={{ color: SEMANTIC.positive }}>${fmt(precioMax - precioMin)} más barato</strong>{' '}
+            que <strong style={{ color: SEMANTIC.negative }}>{priciest.sitio}</strong>
           </div>
         )}
       </div>

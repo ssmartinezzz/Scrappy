@@ -222,13 +222,20 @@ public class OutfitService {
      * exclude = pares marca|categoria con al menos un dislike (veto duro, permanente);
      * boostLikeCount = cantidad de likes por par marca|categoria (folding en
      * weightedRandomPick, Fase 2 — Task 2.6; no usado todavía en esta fase).
+     * excludeCategoria = categorias bare (sin marca) marcadas "no me interesa"
+     * feed-wide (Decision 1 de design.md, personalized-recommendations-feed) —
+     * eje de exclusión SEGUNDO e independiente del pair-exclude existente; un
+     * producto se excluye si su categoria bare está acá, sin importar marca,
+     * incluyendo productos sin marca de esa categoria. NO afecta exclude/
+     * boostLikeCount existentes.
      * Construido por ApiController.buildFeedbackModel() a partir de
-     * DatabaseService.obtenerOutfitFeedback() + el catálogo vivo (OutfitService
-     * permanece DB-agnostic, ADR-3 de outfit-builder).
+     * DatabaseService.obtenerOutfitFeedback() + DatabaseService.obtenerCategoriaDismiss()
+     * + el catálogo vivo (OutfitService permanece DB-agnostic, ADR-3 de outfit-builder).
      */
-    public record FeedbackModel(Set<String> exclude, Map<String, Integer> boostLikeCount) {
+    public record FeedbackModel(Set<String> exclude, Map<String, Integer> boostLikeCount,
+                                 Set<String> excludeCategoria) {
         public static FeedbackModel empty() {
-            return new FeedbackModel(Set.of(), Map.of());
+            return new FeedbackModel(Set.of(), Map.of(), Set.of());
         }
 
         /** marca|categoria, null-safe — null/blank colapsa al lado vacío de la key. */
@@ -348,17 +355,22 @@ public class OutfitService {
         if (productos == null) productos = List.of();
         if (feedback == null) feedback = FeedbackModel.empty();
         Set<String> exclude = feedback.exclude();
+        Set<String> excludeCategoria = feedback.excludeCategoria();
         StyleRule rule = STYLE_RULES.getOrDefault(estilo, DEFAULT_STYLE_RULE);
 
         // 1. Particionar por slot, solo gymrat (torso/piernas) o calzado elegible
         //    bajo la StyleRule activa.
         //    Hard exclude (ADR-2): se descarta cualquier producto cuyo marca|categoria
         //    esté en feedback.exclude() ANTES de que corra el fallback de 3 pasos.
+        //    Segundo eje (personalized-recommendations-feed, Decision 1): se descarta
+        //    también cualquier producto cuya categoria bare esté en excludeCategoria,
+        //    sin importar marca — independiente del pair-exclude anterior.
         Map<String, List<Product>> bySlot = new HashMap<>();
         for (Product p : productos) {
             String slot = slotDe(p, rule);
             if (slot == null) continue;
             if (exclude.contains(FeedbackModel.keyOf(p))) continue;
+            if (excludeCategoria.contains(p.categoria())) continue;
             if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
                 if (!p.gymrat()) continue;
             } else if (SLOT_CALZADO.equals(slot)) {

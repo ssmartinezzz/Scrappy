@@ -5,18 +5,14 @@ import {
   ResponsiveContainer, Cell, ScatterChart, Scatter,
   ReferenceLine, LabelList,
 } from 'recharts';
+import { SEMANTIC, BADGE_COLORS as BADGE_COLOR } from '../lib/colors';
 
 // ─── Paleta ──────────────────────────────────────────────────────────────────
+// CV_COLOR was a local hex map confirmed via grep during task planning — not
+// in the design's original migration-map table, repointed here per the
+// "no file left behind" instruction.
 const CV_COLOR = cv =>
-  cv < 40 ? '#3fb950' : cv < 80 ? '#f0a500' : '#e84393';
-
-const SEG_COLOR = { budget:'#3fb950', standard:'#a371f7', premium:'#f0a500', luxury:'#e84393' };
-
-const BADGE_COLOR = {
-  precio_historico_bajo: '#f0a500', precio_bajo: '#3fb950',
-  oferta_real: '#a371f7', tendencia: '#fd6400',
-  precio_bajando: '#3fb950', precio_alto: '#e84393',
-};
+  cv < 40 ? SEMANTIC.positive : cv < 80 ? SEMANTIC.warn : SEMANTIC.negative;
 
 // ─── Tooltip personalizado ────────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
@@ -76,9 +72,9 @@ const CategoryPriceChart = ({ data }) => {
         </BarChart>
       </ResponsiveContainer>
       <div style={{ display:'flex', gap:12, marginTop:4, justifyContent:'center' }}>
-        {[['#3fb950','CV bajo (<40%): precios homogéneos'],
-          ['#f0a500','CV medio (40-80%): variación moderada'],
-          ['#e84393','CV alto (>80%): precios muy dispersos']].map(([c,l]) => (
+        {[[SEMANTIC.positive,'CV bajo (<40%): precios homogéneos'],
+          [SEMANTIC.warn,'CV medio (40-80%): variación moderada'],
+          [SEMANTIC.negative,'CV alto (>80%): precios muy dispersos']].map(([c,l]) => (
           <span key={c} style={{ fontSize:'.62rem', color:'var(--t4)', display:'flex', gap:4, alignItems:'center' }}>
             <span style={{ width:10, height:10, borderRadius:2, background:c, display:'inline-block'}}/>
             {l}
@@ -289,7 +285,7 @@ export default function TrendsPanel({ onClusterClick, onProductClick }) {
 
   if (res.state === 'failed') return (
     <div className="trends-panel">
-      <div style={{ color:'#f0a500', textAlign:'center', padding:'3rem', fontSize:'.9rem' }}>
+      <div style={{ color: SEMANTIC.warn, textAlign:'center', padding:'3rem', fontSize:'.9rem' }}>
         El análisis ML no pudo generarse. Revisá los logs del servidor (scraper.log) y
         volvé a ejecutar un scraping.
       </div>
@@ -298,7 +294,7 @@ export default function TrendsPanel({ onClusterClick, onProductClick }) {
 
   if (res.state === 'error') return (
     <div className="trends-panel">
-      <div style={{ color:'#f0a500', textAlign:'center', padding:'3rem', fontSize:'.9rem' }}>
+      <div style={{ color: SEMANTIC.warn, textAlign:'center', padding:'3rem', fontSize:'.9rem' }}>
         No se pudo conectar con el servidor. Verificá tu conexión y volvé a intentar.
       </div>
     </div>
@@ -360,12 +356,12 @@ export default function TrendsPanel({ onClusterClick, onProductClick }) {
             {/* KPIs */}
             <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
               <KpiCard icon="📦" value={fmt(totalProds)} label="Productos scrapeados" color="var(--p2)"/>
-              <KpiCard icon="💰" value={`$${fmt(globalMed)}`} label="Precio mediano global" color="#3fb950"/>
+              <KpiCard icon="💰" value={`$${fmt(globalMed)}`} label="Precio mediano global" color={SEMANTIC.positive}/>
               <KpiCard icon="✅" value={badges.oferta_real || 0}
                        label="Ofertas reales" sub={`${((badges.oferta_real||0)/total*100).toFixed(1)}% del catálogo`}
-                       color="#a371f7"/>
+                       color={SEMANTIC.oferta}/>
               <KpiCard icon="🏆" value={badges.precio_historico_bajo || 0}
-                       label="Mínimos históricos" color="#f0a500"/>
+                       label="Mínimos históricos" color={SEMANTIC.warn}/>
             </div>
 
             {/* Bar chart */}

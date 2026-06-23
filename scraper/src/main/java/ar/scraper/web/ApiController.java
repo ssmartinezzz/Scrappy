@@ -50,6 +50,7 @@ public class ApiController {
     private final ar.scraper.aggregator.GroupingService grouping;
     private final ar.scraper.ml.PythonRunner pythonRunner;
     private final OutfitService outfitService;
+    private final RecommendationService recommendationService;
 
     public ApiController(ScraperService service,
                          InflacionService inflacionService, ScraperConfig config,
@@ -57,7 +58,8 @@ public class ApiController {
                          ar.scraper.db.DatabaseService db,
                          ar.scraper.aggregator.GroupingService grouping,
                          ar.scraper.ml.PythonRunner pythonRunner,
-                         OutfitService outfitService) {
+                         OutfitService outfitService,
+                         RecommendationService recommendationService) {
         this.service           = service;
         this.inflacionService  = inflacionService;
         this.config            = config;
@@ -66,6 +68,7 @@ public class ApiController {
         this.grouping          = grouping;
         this.pythonRunner      = pythonRunner;
         this.outfitService     = outfitService;
+        this.recommendationService = recommendationService;
     }
 
     // ---------------------------------------------------------------
@@ -869,7 +872,8 @@ public class ApiController {
         if (r == null) return ResponseEntity.noContent().build();
 
         var feedbackRows = db.obtenerOutfitFeedback();
-        var feedback = buildFeedbackModel(feedbackRows, r.productos());
+        var dismissCats  = db.obtenerCategoriaDismiss();
+        var feedback = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
 
         OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedback);
 
@@ -905,20 +909,30 @@ public class ApiController {
 
     /**
      * Construye el FeedbackModel a partir de las filas crudas de outfit_feedback_item +
-     * el catálogo vivo (join url→Product). Per ADR-1 de outfit-per-item-feedback:
+     * el catálogo vivo (join url→Product) + las categorias dismissed feed-wide.
+     * Per ADR-1 de outfit-per-item-feedback:
      * - Genero se ignora completamente (scope global, "MUST NOT vary by genero").
      * - URLs que no resuelven contra el catálogo vivo se saltean en silencio (sin
      *   error, sin log) — spec "Feedback references a delisted product".
      * - Cada fila es UN item calificado (slot, url, liked) — no hay broadcast a
-     *   otros slots de la misma submission (spec "no-broadcast constraint").
+     *   otros slots de la misma submission (spec "no-broadcast constraint"). Esto
+     *   incluye filas con slot="catalog" (recomendados feed, design.md Decision 2) —
+     *   se acumulan exactamente igual que filas de slots del outfit-builder, sin
+     *   distinción, porque ambos comparten la misma tabla y el mismo significado
+     *   (par marca|categoria con like/dislike).
      * - Orden de construcción: (a) acumular boostLikeCount sobre filas liked=1;
      *   (b) acumular exclude sobre filas liked=0; (c) NO se remueve un par de
-     *   boostLikeCount aunque también esté en exclude — el consumidor (OutfitService)
-     *   chequea exclude primero, así que el boost de un par excluido simplemente
-     *   nunca se lee (dislike es un veto duro y permanente que gana sobre cualquier like).
+     *   boostLikeCount aunque también esté en exclude — el consumidor (OutfitService/
+     *   RecommendationService) chequea exclude primero, así que el boost de un par
+     *   excluido simplemente nunca se lee (dislike es un veto duro y permanente que
+     *   gana sobre cualquier like).
+     * - excludeCategoria (Decision 1, personalized-recommendations-feed): eje
+     *   SEGUNDO e independiente, poblado directamente desde categoria_dismiss —
+     *   no requiere join con el catálogo vivo (no tiene marca asociada).
      */
     private OutfitService.FeedbackModel buildFeedbackModel(
-            List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos) {
+            List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos,
+            Set<String> dismissCategorias) {
         Map<String, Product> porUrl = new HashMap<>();
         for (Product p : productos) {
             if (p.url() != null && !p.url().isBlank()) porUrl.put(p.url(), p);
@@ -948,7 +962,10 @@ public class ApiController {
             exclude.add(OutfitService.FeedbackModel.keyOf(p));
         }
 
-        return new OutfitService.FeedbackModel(exclude, boostLikeCount);
+        Set<String> excludeCategoria = dismissCategorias != null
+                ? new HashSet<>(dismissCategorias) : new HashSet<>();
+
+        return new OutfitService.FeedbackModel(exclude, boostLikeCount, excludeCategoria);
     }
 
     @PostMapping("/outfits/feedback")
@@ -970,6 +987,106 @@ public class ApiController {
             }
         }
 
+        resp.put("ok", true);
+        return ResponseEntity.ok(resp);
+    }
+
+    // ─── Recomendados ("Para ti" feed) ──────────────────────────────────────────
+    // design.md (personalized-recommendations-feed) Decision 2: additive endpoints,
+    // /api/outfits/feedback stays untouched. The shared taste signal lives in the
+    // outfit_feedback_item TABLE (slot="catalog" sentinel here), not a shared URL —
+    // buildFeedbackModel() already reads ALL rows regardless of slot, so bidirectional
+    // sharing with the outfit-builder requires no extra wiring here.
+
+    @GetMapping("/recomendados")
+    public ResponseEntity<ObjectNode> recomendados(
+            @RequestParam(defaultValue = "1")  int page,
+            @RequestParam(defaultValue = "24") int size,
+            @RequestParam(required = false)    String genero,
+            @RequestParam(required = false)    String categoria) {
+        AggregatedResult r = service.getLastResult();
+        if (r == null) return ResponseEntity.noContent().build();
+
+        var feedbackRows = db.obtenerOutfitFeedback();
+        var dismissCats  = db.obtenerCategoriaDismiss();
+        var feedback = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
+
+        List<Product> candidatos = r.productos();
+        if (genero != null && !genero.isBlank()) {
+            String g = genero;
+            candidatos = candidatos.stream()
+                    .filter(p -> {
+                        String pg = p.genero() != null ? p.genero() : "";
+                        return pg.isEmpty() || "unisex".equalsIgnoreCase(pg) || pg.equalsIgnoreCase(g);
+                    })
+                    .collect(Collectors.toList());
+        }
+        if (categoria != null && !categoria.isBlank()) {
+            String c = categoria;
+            candidatos = candidatos.stream()
+                    .filter(p -> c.equalsIgnoreCase(p.categoria()))
+                    .collect(Collectors.toList());
+        }
+
+        List<Product> ranked = recommendationService.rank(candidatos, feedback);
+
+        int total = ranked.size();
+        int desde = Math.min((page - 1) * size, total);
+        int hasta = Math.min(desde + size, total);
+        List<Product> pagina = ranked.subList(desde, hasta);
+
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        root.put("page",  page);
+        root.put("size",  size);
+        root.put("total", total);
+        ArrayNode items = root.putArray("items");
+        for (Product p : pagina) {
+            ObjectNode n = items.addObject();
+            escribirProducto(n, p);
+        }
+        return ResponseEntity.ok(root);
+    }
+
+    @PostMapping("/recomendados/feedback")
+    public ResponseEntity<ObjectNode> recomendadosFeedback(@RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        String genero = String.valueOf(body.getOrDefault("genero", ""));
+
+        Object itemsObj = body.get("items");
+        if (itemsObj instanceof List<?> items) {
+            for (Object o : items) {
+                if (o instanceof Map<?, ?> m) {
+                    Object url   = m.get("url");
+                    Object liked = m.get("liked");
+                    if (url == null || liked == null) continue; // skip silencioso, mirrors outfits/feedback guard style
+                    boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
+                    db.guardarOutfitFeedbackItem(genero, "catalog", String.valueOf(url), likedBool);
+                }
+            }
+        }
+
+        resp.put("ok", true);
+        return ResponseEntity.ok(resp);
+    }
+
+    @PostMapping("/recomendados/dismiss-categoria")
+    public ResponseEntity<ObjectNode> dismissCategoria(@RequestBody Map<String, String> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        String categoria = body.getOrDefault("categoria", "").trim();
+        if (categoria.isBlank()) {
+            resp.put("ok", false);
+            resp.put("mensaje", "categoria es obligatoria");
+            return ResponseEntity.badRequest().body(resp);
+        }
+        db.guardarCategoriaDismiss(categoria);
+        resp.put("ok", true);
+        return ResponseEntity.ok(resp);
+    }
+
+    @DeleteMapping("/recomendados/dismiss-categoria")
+    public ResponseEntity<ObjectNode> undismissCategoria(@RequestParam String categoria) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        db.borrarCategoriaDismiss(categoria);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }
