@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchMarcasBrowser, fetchData, fmt, BADGE_LABELS } from '../api';
+import { SEMANTIC } from '../lib/colors';
 
 const RUBROS = [
   { k:'',             icon:'🛍', l:'Todas'       },
@@ -76,7 +77,7 @@ function MarcaCard({ marca, onClick }) {
               {marca.topCats || '—'}
             </div>
             <div style={{ display:'flex', gap:8, marginTop:5, alignItems:'baseline' }}>
-              <span style={{ fontSize:'.72rem', fontWeight:800, color:'#3fb950' }}>
+              <span style={{ fontSize:'.72rem', fontWeight:800, color: SEMANTIC.positive }}>
                 desde ${fmt(marca.precioMin)}
               </span>
               {marca.precioMax > marca.precioMin && (
