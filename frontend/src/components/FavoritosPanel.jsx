@@ -1,5 +1,6 @@
 import BuySignal from './BuySignal';
 import { rescrapeFavoritos } from '../api';
+import { SEMANTIC } from '../lib/colors';
 
 export default function FavoritosPanel({
   favoritos, scrapeStatus, onOpenDetail, onStartPolling, onRefreshFavoritos, onSetScraping,
@@ -78,8 +79,8 @@ export default function FavoritosPanel({
 
                   {f.descontinuado && (
                     <span style={{
-                      fontSize:'.6rem', fontWeight:700, color:'#e84393',
-                      background:'rgba(232,67,147,.12)', padding:'2px 8px', borderRadius:12,
+                      fontSize:'.6rem', fontWeight:700, color: SEMANTIC.negative,
+                      background: `color-mix(in srgb, ${SEMANTIC.negative} 12%, transparent)`, padding:'2px 8px', borderRadius:12,
                       whiteSpace:'nowrap',
                     }}>Descontinuado</span>
                   )}

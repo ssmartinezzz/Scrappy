@@ -3,6 +3,7 @@ import {
   fetchFinanciacionPresets, crearFinanciacionPreset, editarFinanciacionPreset,
   activarFinanciacionPreset, eliminarFinanciacionPreset,
 } from '../api';
+import { SEMANTIC } from '../lib/colors';
 
 const DISCLAIMER = 'Valores asumidos por vos — no es una tasa oficial ni proviene de ningún banco/financiera.';
 
@@ -54,7 +55,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
       <div style={{ fontSize:'.62rem', color:'var(--t4)', fontStyle:'italic' }}>
         ⚠️ {DISCLAIMER}
       </div>
-      {error && <div style={{ fontSize:'.68rem', color:'var(--r, #e84393)' }}>{error}</div>}
+      {error && <div style={{ fontSize:'.68rem', color: SEMANTIC.negative }}>{error}</div>}
       <div style={{ display:'flex', gap:6, marginTop:2 }}>
         <button type="submit" style={{
           padding:'5px 12px', borderRadius:6, border:'none', cursor:'pointer',
@@ -105,8 +106,8 @@ function PresetRow({ preset, onActivar, onEliminar, onGuardarEdicion }) {
           {preset.label}
           {isIlustrativo(preset.label) && (
             <span style={{
-              fontSize:'.58rem', fontWeight:700, color:'#f0a500',
-              border:'1px solid #f0a500', borderRadius:10, padding:'1px 6px',
+              fontSize:'.58rem', fontWeight:700, color: SEMANTIC.warn,
+              border: `1px solid ${SEMANTIC.warn}`, borderRadius:10, padding:'1px 6px',
             }}>
               ejemplo — editá
             </span>
@@ -205,7 +206,7 @@ export default function FinanPanel() {
         pagar en cuotas o al contado. {DISCLAIMER}
       </p>
 
-      {error && <div style={{ fontSize:'.68rem', color:'var(--r, #e84393)', marginBottom:8 }}>{error}</div>}
+      {error && <div style={{ fontSize:'.68rem', color: SEMANTIC.negative, marginBottom:8 }}>{error}</div>}
 
       {loading && (
         <div style={{ fontSize:'.75rem', color:'var(--t4)' }}>Cargando presets...</div>
@@ -246,7 +247,7 @@ export default function FinanPanel() {
         <div style={{ marginTop:14, fontSize:'.64rem', color:'var(--t4)' }}>
           Preset activo: <strong style={{ color:'var(--t2)' }}>{activo.label}</strong>
           {isIlustrativo(activo.label) && (
-            <span style={{ marginLeft:6, color:'#f0a500', fontWeight:700 }}>(ejemplo — editá)</span>
+            <span style={{ marginLeft:6, color: SEMANTIC.warn, fontWeight:700 }}>(ejemplo — editá)</span>
           )}
         </div>
       )}

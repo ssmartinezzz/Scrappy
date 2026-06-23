@@ -47,3 +47,4 @@ Thumbs.db
 
 # Local machine config
 .claude/settings.local.json
+identidad/

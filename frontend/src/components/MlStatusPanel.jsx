@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchMlEstado, startMlTraining, aplicarModeloML, fetchMlResultado } from '../api';
+import { SEMANTIC } from '../lib/colors';
 
 // ─── Toast helper ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -109,7 +110,7 @@ export default function MlStatusPanel() {
         </span>
         {running && (
           <span style={{
-            fontSize:'.65rem', color:'#c084fc', fontWeight:600,
+            fontSize:'.65rem', color:'var(--p)', fontWeight:600,
             animation:'pulse 1.5s ease-in-out infinite',
           }}>
             Entrenando...
@@ -128,7 +129,7 @@ export default function MlStatusPanel() {
           <Row
             active={hasText}
             title={hasText ? 'Clasificador de texto' : 'Sin modelo de texto'}
-            color={hasText ? '#3fb950' : '#666'}
+            color={hasText ? SEMANTIC.positive : 'var(--t4)'}
           >
             {meta ? (
               <span style={{ fontSize:'.67rem', color:'var(--t4)', lineHeight:1.7 }}>
@@ -148,7 +149,7 @@ export default function MlStatusPanel() {
           <Row
             active={hasImage}
             title={hasImage ? 'Clasificador de imágenes (EfficientNet-B3)' : 'Sin modelo de imagen'}
-            color={hasImage ? '#f0a500' : '#666'}
+            color={hasImage ? SEMANTIC.warn : 'var(--t4)'}
           >
             <span style={{ fontSize:'.67rem', color:'var(--t4)' }}>
               {hasImage
@@ -162,14 +163,14 @@ export default function MlStatusPanel() {
       {/* Actions */}
       {!running && (
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <Btn color='#c084fc' bg='rgba(163,113,247,.12)' onClick={() => handleTrain(true)}>
+          <Btn color='var(--p)' bg='color-mix(in srgb, var(--p) 12%, transparent)' onClick={() => handleTrain(true)}>
             Re-entrenar (texto + GPU)
           </Btn>
           <Btn color='var(--t3)' bg='var(--s3)' onClick={() => handleTrain(false)}>
             Solo texto
           </Btn>
           {hasText && (
-            <Btn color='#3fb950' bg='rgba(63,185,80,.1)'
+            <Btn color={SEMANTIC.positive} bg={`color-mix(in srgb, ${SEMANTIC.positive} 10%, transparent)`}
               onClick={handleApply} disabled={applying}>
               {applying ? 'Aplicando...' : 'Aplicar a datos'}
             </Btn>
@@ -185,14 +186,14 @@ function TrainingProgress({ ts, tick }) {
   const pct        = ts.pct ?? 0;
   const isError    = ts.phase === 'error' || ts.phase === 'timeout';
 
-  const barColor = isError ? '#f85149'
-    : ts.phase === 'image' || ts.phase === 'image_download' ? '#f0a500'
-    : '#c084fc';
+  const barColor = isError ? SEMANTIC.negative
+    : ts.phase === 'image' || ts.phase === 'image_download' ? SEMANTIC.warn
+    : 'var(--p)';
 
   return (
     <div style={{
-      background:'rgba(163,113,247,.06)',
-      border:'1px solid rgba(163,113,247,.2)',
+      background:'color-mix(in srgb, var(--p) 6%, transparent)',
+      border:'1px solid color-mix(in srgb, var(--p) 20%, transparent)',
       borderRadius:10, padding:'.75rem .9rem',
       display:'flex', flexDirection:'column', gap:8,
     }}>
@@ -212,8 +213,8 @@ function TrainingProgress({ ts, tick }) {
       }}>
         <div style={{
           height:'100%', width:`${pct}%`,
-          background: isError ? '#f85149'
-            : `linear-gradient(90deg, ${barColor}99, ${barColor})`,
+          background: isError ? SEMANTIC.negative
+            : `linear-gradient(90deg, color-mix(in srgb, ${barColor} 60%, transparent), ${barColor})`,
           borderRadius:3,
           transition:'width .6s ease',
           ...(pct > 0 && pct < 100 && !isError ? {
@@ -241,8 +242,8 @@ function Row({ active, title, color, children }) {
     <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
       <div style={{
         width:8, height:8, borderRadius:'50%', flexShrink:0, marginTop:4,
-        background: active ? color : '#444',
-        boxShadow: active ? `0 0 6px ${color}88` : 'none',
+        background: active ? color : 'var(--bd2)',
+        boxShadow: active ? `0 0 6px color-mix(in srgb, ${color} 55%, transparent)` : 'none',
       }}/>
       <div style={{ flex:1 }}>
         <div style={{ fontSize:'.74rem', fontWeight:700, color: active ? color : 'var(--t4)' }}>

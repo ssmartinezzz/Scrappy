@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchMejores, fmt, BADGE_LABELS } from '../api';
+import { TIPO_META, SEMANTIC } from '../lib/colors';
 
 const RUBROS = [
   { k:'',             icon:'🛍', l:'Todos'        },
@@ -7,13 +8,6 @@ const RUBROS = [
   { k:'tecnologia',   icon:'💻', l:'Tecnología'   },
   { k:'suplementos',  icon:'💊', l:'Suplementos'  },
 ];
-
-const TIPO_META = {
-  valor:   { icon:'🥇', color:'#3fb950', label:'Mejor precio/calidad' },
-  premium: { icon:'💎', color:'#f0a500', label:'Premium accesible'    },
-  histLow: { icon:'🏆', color:'#a371f7', label:'Mínimo histórico'     },
-  oferta:  { icon:'🔥', color:'#fd6400', label:'Oferta real'           },
-};
 
 // Genera tagline a partir de datos estadísticos
 function tagline(cat, pick, mediana) {
@@ -94,7 +88,7 @@ function CatCard({ cat, onClick }) {
         )}
         {/* Best price */}
         {pick1 && (
-          <div style={{ fontSize:'.75rem', fontWeight:800, color:'#3fb950', marginTop:4 }}>
+          <div style={{ fontSize:'.75rem', fontWeight:800, color: SEMANTIC.positive, marginTop:4 }}>
             desde ${fmt(pick1.precio)}
           </div>
         )}
@@ -172,7 +166,7 @@ function CatDetail({ cat, onBack, onProductClick }) {
                   )}
                 </div>
                 {pctBajoMedia && pctBajoMedia > 5 && (
-                  <div style={{ fontSize:'.65rem', color:'#3fb950', marginTop:2 }}>
+                  <div style={{ fontSize:'.65rem', color: SEMANTIC.positive, marginTop:2 }}>
                     {pctBajoMedia}% por debajo de la mediana
                   </div>
                 )}

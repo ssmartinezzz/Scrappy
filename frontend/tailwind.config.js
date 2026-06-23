@@ -35,6 +35,12 @@ export default {
       fontFamily: {
         sans: ['Segoe UI', 'system-ui', 'sans-serif'],
         mono: ['Cascadia Code', 'JetBrains Mono', 'Consolas', 'SF Mono', 'Menlo', 'monospace'],
+        display: ['Archivo', 'Segoe UI', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        'display-1': ['2.5rem', { fontWeight: '800', lineHeight: '1.1' }],
+        'display-2': ['1.875rem', { fontWeight: '800', lineHeight: '1.15' }],
+        eyebrow: ['.68rem', { fontWeight: '700', letterSpacing: '.08em', lineHeight: '1.4' }],
       },
     },
   },

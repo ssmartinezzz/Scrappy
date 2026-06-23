@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SEÑAL_CONFIG, scoreColor } from '../senalConfig';
+import { SEÑAL_CONFIG, scoreColor, SEMANTIC } from '../lib/colors';
 
 function MiniSparkline({ url }) {
   const [hist, setHist] = useState([]);
@@ -113,7 +113,7 @@ export default function BuySignal({ url }) {
               Rango hist.: <strong style={{ color:'var(--t2)' }}>{data.pctDelMin}° pct.</strong>
             </span>
             <span style={{ color:'var(--t4)' }}>
-              Cambio real: <strong style={{ color: data.cambioReal < 0 ? '#3fb950' : '#e84393' }}>
+              Cambio real: <strong style={{ color: data.cambioReal < 0 ? SEMANTIC.positive : SEMANTIC.negative }}>
                 {data.cambioReal > 0 ? '+' : ''}{data.cambioReal}%
               </strong>
             </span>
@@ -126,7 +126,7 @@ export default function BuySignal({ url }) {
           </div>
 
           <div style={{ fontSize:'.62rem', color:'var(--t4)', marginTop:6, display:'flex', gap:10, flexWrap:'wrap' }}>
-            <span>Tendencia: <strong style={{ color: data.tendencia==='bajando'?'#3fb950':data.tendencia==='subiendo'?'#e84393':'var(--t3)' }}>
+            <span>Tendencia: <strong style={{ color: data.tendencia==='bajando'?SEMANTIC.positive:data.tendencia==='subiendo'?SEMANTIC.negative:'var(--t3)' }}>
               {data.tendencia==='bajando'?'↘ bajando':data.tendencia==='subiendo'?'↗ subiendo':'→ estable'}
             </strong></span>
             {inflacion?.mensual && (

@@ -3,15 +3,23 @@
 @tailwind utilities;
 
 /* ===== CSS VARIABLES ===== */
-/* Refined dark palette — single theme, no toggle. Same dark family as the
-   original GitHub-dark-style tokens, modernized for shadcn/ui (Radix +
-   Tailwind) harmony. tailwind.config.js maps these via theme.extend. */
+/* Warm editorial palette — single theme, no toggle. Light warm-neutral base,
+   one confident terracotta accent, near-black ink headlines. Token names are
+   KEPT identical to the prior dark theme (only values repointed) to minimize
+   diff surface; tailwind.config.js maps these via theme.extend unchanged.
+   --sem-* are NEW: canonical semantic/badge roles mirroring lib/colors.js
+   (single source of truth — see design "Decision: Badge/semantic color
+   single source of truth"). */
 :root {
-  --bg:  #0b0e14; --s1: #13171f; --s2: #1a1f29; --s3: #222834;
-  --t1:  #eef2f8; --t2: #c9d1de; --t3: #8b94a6; --t4: #525b6b;
-  --bd:  #2a313d; --bd2: #1c222c;
-  --p:   #7c5cff; --p2: #a78bfa;
-  --g:   #3fb950; --r: #f0648c; --y: #e3a008;
+  --bg:  #F5F0E6; --s1: #FBF7EF; --s2: #EFE8DA; --s3: #E5DCCB;
+  --t1:  #1F1B16; --t2: #3D362C; --t3: #6E6354; --t4: #9A8E7B;
+  --bd:  #E0D7C6; --bd2: #ECE5D7;
+  --p:   #C4502E; --p2: #A23E22;
+  --g:   #2E7D52; --r: #C0392B; --y: #D08A1E;
+  --contrast-bg: #221E1A; --contrast-ink: #F5F0E6;
+  --sem-positive: #2E7D52; --sem-negative: #C0392B; --sem-warn: #D08A1E;
+  --sem-oferta:   #8E5BD6; --sem-trend:    #D2622A; --sem-gym:  #6E9B2E;
+  --sem-pack:     #8E5BD6;
   --font:'Segoe UI',system-ui,sans-serif;
   --mono:'Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
   --rc:  12px; --rb: 8px;
@@ -51,15 +59,49 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .btn-outline:disabled { opacity: .4; cursor: not-allowed; }
 .btn-primary { padding: 9px 18px; border-radius: var(--rb); background: var(--p);
   color: #fff; font: 700 .85rem/1 var(--font); border: none; cursor: pointer; transition: background .15s; }
-.btn-primary:hover { background: #5a33b5; }
+.btn-primary:hover { background: var(--p2); }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ===== LAYOUT ===== */
 .layout { display: flex; min-height: calc(100vh - 57px); }
 
-/* ===== SIDEBAR ===== */
-.sidebar { width: 220px; flex-shrink: 0; background: var(--s1); border-right: 1px solid var(--bd);
-  display: flex; flex-direction: column; overflow-y: auto; padding-bottom: 2rem; }
+/* ===== HYBRID FILTER RAIL (Spec Req 4-5) =====
+   Persistent rail: precio/género/segmento, always reachable on desktop with
+   zero extra clicks — sits in the `.layout` flex flow next to `.content`,
+   independent of the Sheet/drawer's open state. Hidden on mobile/tablet
+   (≤900px) where the Sheet alone covers every filter (rail controls are
+   duplicated inside the Sheet content via `.sidebar-sheet-rail` so nothing
+   becomes unreachable at that width — Spec Scenario 5.7). */
+.filter-rail { width: 200px; flex-shrink: 0; background: var(--s1); border-right: 1px solid var(--bd);
+  padding: .85rem .9rem; display: flex; flex-direction: column; gap: .85rem; }
+.filter-rail-header { display: flex; align-items: center; justify-content: space-between; }
+.filter-rail-trigger { margin-top: .25rem; padding: 7px 10px; border-radius: var(--rb);
+  border: 1.5px dashed var(--bd2); background: transparent; color: var(--t3);
+  font: 600 .72rem var(--font); cursor: pointer; transition: all .15s; text-align: left; }
+.filter-rail-trigger:hover { border-color: var(--p); color: var(--p2); }
+.filter-rail-trigger span { font-size: .62rem; }
+
+/* The Sheet's own copy of the rail controls is the mobile fallback only —
+   desktop already shows the persistent .filter-rail, so hide the duplicate
+   inside the Sheet content at desktop widths to avoid showing it twice. */
+.sidebar-sheet-rail { display: none; }
+
+/* ===== SIDEBAR (Sheet — categoría, marca, ML badge, GYM, packs) =====
+   At ALL widths this is an overlay drawer, not a static flex column: the
+   Hybrid pattern requires the persistent .filter-rail to be the only
+   always-visible filter surface, with the Sheet opening on demand via the
+   "Filtros" trigger (desktop) or the tab-bar toggle (mobile). `forceMount`
+   keeps it in the DOM (see Sidebar.jsx comment); `position:fixed` + the
+   `.open` transform control visibility/animation at every breakpoint —
+   this used to be desktop-static/mobile-overlay before the Hybrid rail
+   existed, now it is overlay-only everywhere so it never duplicates the
+   rail's reachable controls as a permanent second column. */
+.sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 301;
+  width: 260px; max-width: 85vw; background: var(--s1); border-right: 1px solid var(--bd);
+  display: flex; flex-direction: column; overflow-y: auto; padding-bottom: 2rem;
+  transform: translateX(-100%); transition: transform .25s ease;
+  box-shadow: 4px 0 24px rgba(0,0,0,.18); }
+.sidebar.open { transform: translateX(0); }
 .sidebar::-webkit-scrollbar { width: 4px; }
 .sidebar::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 2px; }
 .sb-section { font: 700 .65rem/1 var(--font); text-transform: uppercase; letter-spacing: .1em;
@@ -75,18 +117,18 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   background: transparent; color: var(--t3); font: .68rem/1.4 var(--font); cursor: pointer;
   transition: all .15s; display: inline-flex; align-items: center; gap: 3px; }
 .fpill:hover { border-color: var(--p); color: var(--p2); }
-.fpill.active { background: rgba(110,64,201,.18); border-color: var(--p); color: var(--p2); }
+.fpill.active { background: color-mix(in srgb, var(--p) 18%, transparent); border-color: var(--p); color: var(--p2); }
 .fcnt { opacity: .55; font-size: .6rem; }
 .ml-filter-row { display: flex; flex-wrap: wrap; gap: 3px; padding: .25rem .85rem .5rem; }
 .ml-badge-btn { padding: 3px 9px; border-radius: 20px; border: 1.5px solid var(--bd2);
   background: transparent; font: 600 .68rem/1.4 var(--font); cursor: pointer; transition: all .15s;
   display: flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--t3); }
 .ml-badge-btn:hover { border-color: var(--p); color: var(--p2); }
-.ml-badge-btn.active { border-color: var(--p); background: rgba(110,64,201,.15); color: var(--p2); }
-.ml-badge-btn.active.b-precio_bajo { background: rgba(0,184,148,.15); border-color: #00b894; color: #00b894; }
-.ml-badge-btn.active.b-oferta_real { background: rgba(110,64,201,.15); border-color: var(--p); color: var(--p2); }
-.ml-badge-btn.active.b-tendencia { background: rgba(253,100,0,.15); border-color: #fd6400; color: #fd6400; }
-.ml-badge-btn.active.b-precio_historico_bajo { background: rgba(240,165,0,.15); border-color: var(--y); color: var(--y); }
+.ml-badge-btn.active { border-color: var(--p); background: color-mix(in srgb, var(--p) 15%, transparent); color: var(--p2); }
+.ml-badge-btn.active.b-precio_bajo { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); border-color: var(--sem-positive); color: var(--sem-positive); }
+.ml-badge-btn.active.b-oferta_real { background: color-mix(in srgb, var(--sem-oferta) 15%, transparent); border-color: var(--sem-oferta); color: var(--sem-oferta); }
+.ml-badge-btn.active.b-tendencia { background: color-mix(in srgb, var(--sem-trend) 15%, transparent); border-color: var(--sem-trend); color: var(--sem-trend); }
+.ml-badge-btn.active.b-precio_historico_bajo { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); border-color: var(--y); color: var(--y); }
 .marca-search { width: calc(100% - 1.7rem); margin: 0 .85rem .35rem;
   padding: 5px 8px; border-radius: 6px; border: 1.5px solid var(--bd2);
   background: var(--s3); color: var(--t1); font: .75rem var(--font); outline: none; }
@@ -95,10 +137,10 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .segment-btns { display: flex; flex-wrap: wrap; gap: 3px; padding: .25rem .85rem .5rem; }
 .seg-btn { padding: 3px 9px; border-radius: 20px; border: 1.5px solid var(--bd2);
   background: transparent; font: .68rem/1.4 var(--font); cursor: pointer; transition: all .15s; color: var(--t3); }
-.seg-btn:hover,.seg-btn.active { border-color: var(--p); background: rgba(110,64,201,.12); color: var(--p2); }
-.seg-btn.active.seg-budget { border-color: #00b894; background: rgba(0,184,148,.12); color: #00b894; }
-.seg-btn.active.seg-premium { border-color: var(--y); background: rgba(240,165,0,.12); color: var(--y); }
-.seg-btn.active.seg-luxury { border-color: var(--r); background: rgba(232,67,147,.12); color: var(--r); }
+.seg-btn:hover,.seg-btn.active { border-color: var(--p); background: color-mix(in srgb, var(--p) 12%, transparent); color: var(--p2); }
+.seg-btn.active.seg-budget { border-color: var(--sem-positive); background: color-mix(in srgb, var(--sem-positive) 12%, transparent); color: var(--sem-positive); }
+.seg-btn.active.seg-premium { border-color: var(--y); background: color-mix(in srgb, var(--sem-warn) 12%, transparent); color: var(--y); }
+.seg-btn.active.seg-luxury { border-color: var(--r); background: color-mix(in srgb, var(--sem-negative) 12%, transparent); color: var(--r); }
 .active-filters-summary { font-size: .7rem; color: var(--t4); padding: .25rem .85rem; min-height: 1.2rem; }
 .clear-filters { margin: .25rem .85rem; padding: 5px 10px; border-radius: 6px;
   background: transparent; border: 1.5px solid var(--bd2); color: var(--t3);
@@ -149,12 +191,16 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   flex-direction: column; position: relative; cursor: pointer; }
 .card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,.55); border-color: var(--p); }
 .grid.list-mode .card { flex-direction: row; height: 100px; }
-.card-img-wrap { position: relative; padding-top: 110%; overflow: hidden; background: var(--s2); flex-shrink: 0; }
-.grid.list-mode .card-img-wrap { width: 100px; padding-top: 0; height: 100px; }
+/* aspect-ratio is now set via the Tailwind `aspect-[3/4]` utility on the
+   element itself (ProductCard.jsx) — this rule only supplies position/overflow.
+   list-mode keeps its own fixed-size override below. */
+.card-img-wrap { position: relative; overflow: hidden; background: var(--s2); flex-shrink: 0; }
+.grid.list-mode .card-img-wrap { width: 100px; aspect-ratio: unset; height: 100px; }
 .card-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
   transition: opacity .2s; }
-.card-img-placeholder { position: absolute; inset: 0; display: flex; align-items: center;
-  justify-content: center; font-size: 2rem; color: var(--t4); }
+.card-img-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px; font-size: 2rem; color: var(--t4); }
+.card-img-placeholder.hidden { display: none; }
 .ov-marca { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.7);
   color: var(--t2); font: 700 .6rem/1 var(--font); padding: 3px 7px; border-radius: 20px;
   letter-spacing: .05em; text-transform: uppercase; z-index: 1; }
@@ -163,23 +209,23 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .card-body { padding: .65rem .75rem; flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .badge-ml { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px; }
-.badge-precio_historico_bajo { background: rgba(240,165,0,.15); color: var(--y); border: 1px solid rgba(240,165,0,.3); }
-.badge-precio_bajo { background: rgba(0,184,148,.15); color: #00b894; border: 1px solid rgba(0,184,148,.3); }
-.badge-oferta_real { background: rgba(110,64,201,.15); color: var(--p2); border: 1px solid rgba(110,64,201,.3); }
-.badge-tendencia { background: rgba(253,100,0,.15); color: #fd6400; border: 1px solid rgba(253,100,0,.3); }
-.badge-precio_bajando { background: rgba(63,185,80,.15); color: var(--g); border: 1px solid rgba(63,185,80,.3); }
-.badge-descuento_cosmetico { background: rgba(99,110,150,.12); color: var(--t3); border: 1px solid var(--bd2); }
-.badge-precio_alto { background: rgba(232,67,147,.1); color: var(--r); border: 1px solid rgba(232,67,147,.2); }
+.badge-precio_historico_bajo { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); color: var(--y); border: 1px solid color-mix(in srgb, var(--sem-warn) 30%, transparent); }
+.badge-precio_bajo { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); color: var(--sem-positive); border: 1px solid color-mix(in srgb, var(--sem-positive) 30%, transparent); }
+.badge-oferta_real { background: color-mix(in srgb, var(--sem-oferta) 15%, transparent); color: var(--sem-oferta); border: 1px solid color-mix(in srgb, var(--sem-oferta) 30%, transparent); }
+.badge-tendencia { background: color-mix(in srgb, var(--sem-trend) 15%, transparent); color: var(--sem-trend); border: 1px solid color-mix(in srgb, var(--sem-trend) 30%, transparent); }
+.badge-precio_bajando { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); color: var(--g); border: 1px solid color-mix(in srgb, var(--sem-positive) 30%, transparent); }
+.badge-descuento_cosmetico { background: color-mix(in srgb, var(--t3) 12%, transparent); color: var(--t3); border: 1px solid var(--bd2); }
+.badge-precio_alto { background: color-mix(in srgb, var(--sem-negative) 10%, transparent); color: var(--r); border: 1px solid color-mix(in srgb, var(--sem-negative) 20%, transparent); }
 
 /* ===== GYMRAT BADGE ===== */
 .badge-gymrat { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
-  background: rgba(132,204,22,.15); color: #84cc16; border: 1px solid rgba(132,204,22,.35); }
+  background: color-mix(in srgb, var(--sem-gym) 15%, transparent); color: var(--sem-gym); border: 1px solid color-mix(in srgb, var(--sem-gym) 35%, transparent); }
 
 /* ===== PACK/COMBO BADGE (unit-price savings vs category median, grid card) ===== */
 .badge-pack { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px;
-  background: rgba(163,113,247,.15); color: #a371f7; border: 1px solid rgba(163,113,247,.35); }
+  background: color-mix(in srgb, var(--sem-pack) 15%, transparent); color: var(--sem-pack); border: 1px solid color-mix(in srgb, var(--sem-pack) 35%, transparent); }
 
 /* ===== SEÑAL BADGE (compact buy-signal pill, grid card) ===== */
 .badge-senal { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
@@ -198,27 +244,28 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .ipc-widget strong { color: var(--t2); }
 
 /* ===== ML BANNER ===== */
-.ml-banner { font-size: .72rem; color: #818cf8; padding: 3px 10px;
-  background: rgba(67,56,202,.12); border-radius: 6px; border: 1px solid rgba(67,56,202,.3); white-space: nowrap; }
+.ml-banner { font-size: .72rem; color: var(--p2); padding: 3px 10px;
+  background: color-mix(in srgb, var(--p) 12%, transparent); border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--p) 30%, transparent); white-space: nowrap; }
 
 /* ===== GYM SUBCATEGORY CHIPS ===== */
 .gym-subcats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.subcat-chip { padding: 3px 10px; border-radius: 12px; border: 1px solid #84cc16;
-  color: #84cc16; background: transparent; cursor: pointer; font-size: .7rem; }
-.subcat-chip:hover, .subcat-chip.active { background: #84cc16; color: #0f0f0f; }
+.subcat-chip { padding: 3px 10px; border-radius: 12px; border: 1px solid var(--sem-gym);
+  color: var(--sem-gym); background: transparent; cursor: pointer; font-size: .7rem; }
+.subcat-chip:hover, .subcat-chip.active { background: var(--sem-gym); color: var(--contrast-ink); }
 
 /* ===== TOAST ===== */
 .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
   border-radius: 8px; color: #fff; font-size: .82rem; z-index: 9999;
   animation: toastIn .3s ease; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
-.toast-success { background: #0d7a3e; }
-.toast-error { background: #b91c1c; }
+.toast-success { background: var(--sem-positive); }
+.toast-error { background: var(--sem-negative); }
 @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ===== ML APRENDIZAJE PANEL ===== */
 .ml-aprendizaje-panel { margin-top: 16px; padding: 14px 16px; background: var(--s2);
   border-radius: 8px; border: 1px solid var(--bd); }
-.ml-aprendizaje-panel h4 { margin: 0 0 10px 0; font-size: .78rem; color: #818cf8; font-weight: 700; }
+.ml-aprendizaje-panel h4 { margin: 0 0 10px 0; font-size: .78rem; color: var(--p2); font-weight: 700; }
 .badge-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .badge-stat { padding: 3px 10px; border-radius: 12px; background: var(--s3);
   font-size: .68rem; color: var(--t4); border: 1px solid var(--bd); }
@@ -231,7 +278,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .card-prices { margin-top: auto; padding-top: 6px; }
 .card-price { font: 800 1rem/1 var(--font); color: var(--t1); }
 .card-price-orig { font: .7rem/1 var(--font); color: var(--t4); text-decoration: line-through; margin-top: 2px; }
-.card-price-unit { font: 700 .68rem/1.3 var(--font); color: #a371f7; margin-top: 2px; }
+.card-price-unit { font: 700 .68rem/1.3 var(--font); color: var(--sem-pack); margin-top: 2px; }
 .card-price-bar { height: 3px; border-radius: 2px; background: var(--s3); margin: 5px 0 4px; overflow: hidden; }
 .card-price-bar-fill { height: 100%; border-radius: 2px; transition: width .4s; }
 .ver-btn { display: block; text-align: center; padding: 6px; border-radius: var(--rb);
@@ -243,14 +290,15 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   pointer-events: none; }
 .card:hover .card-detail-hint { opacity: 1; }
 .grid.list-mode .card-detail-hint { display: none; }
-.card-compare-btn { position: absolute; bottom: 8px; right: 8px; z-index: 3;
-  width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
-  border: 1px solid rgba(255,255,255,.1); color: var(--t3); font-size: .7rem;
+/* fav/comparar are now a single floating cluster bottom-right of the photo
+   (positioned by the Tailwind wrapper in ProductCard.jsx) — these rules only
+   style the buttons themselves, no longer their absolute placement. */
+.card-compare-btn { width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
+  border: 1px solid rgba(255,255,255,.15); color: #fff; font-size: .7rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .card-compare-btn:hover,.card-compare-btn.added { background: var(--p); border-color: var(--p); color: #fff; }
-.card-fav-btn { position: absolute; bottom: 8px; left: 8px; z-index: 3;
-  width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
-  border: 1px solid rgba(255,255,255,.1); color: var(--t3); font-size: .85rem;
+.card-fav-btn { width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
+  border: 1px solid rgba(255,255,255,.15); color: #fff; font-size: .85rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .card-fav-btn:hover,.card-fav-btn.added { background: var(--y); border-color: var(--y); color: #000; }
 
@@ -384,14 +432,15 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 
 /* Tablet: ≤ 900px */
 @media (max-width: 900px) {
-  /* Sidebar: overlay drawer */
-  .sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 301;
-    width: 260px; max-width: 85vw;
-    transform: translateX(-100%); transition: transform .25s ease;
-    box-shadow: 4px 0 24px rgba(0,0,0,.5);
-  }
-  .sidebar.open { transform: translateX(0); }
+  /* Hybrid rail collapses into the Sheet/drawer at this width — the
+     persistent inline rail no longer fits, and the Sheet (drawer) becomes
+     the single filter surface carrying its own rail copy instead
+     (Spec Scenario 5.7: no filter becomes unreachable at any width).
+     .sidebar's overlay positioning is now global (see base rule above) —
+     only the rail/rail-copy visibility toggle is breakpoint-specific. */
+  .filter-rail { display: none; }
+  .sidebar-sheet-rail { display: block; }
+
   .sidebar-toggle { display: flex; align-items: center; justify-content: center;
                     padding: 5px 8px; background: none; border: none;
                     color: var(--t3); font-size: 1rem; cursor: pointer;
@@ -479,6 +528,17 @@ body { overflow-x: hidden; }
 .outfit-fb-btn.like:hover { border-color: var(--g); color: var(--g); }
 .outfit-fb-btn.dislike:hover { border-color: var(--r); color: var(--r); }
 .outfit-fb-sent { font: 700 .68rem/1 var(--font); color: var(--t4); text-transform: uppercase; letter-spacing: .05em; }
+
+/* ─── Recomendados ("Para ti" feed) ─────────────────────────────────────── */
+.recomendados-card-wrap { display: flex; flex-direction: column; }
+.recomendados-fb-row { display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
+  border-top: 1px solid var(--bd); padding-top: 10px; }
+.recomendados-fb-sent { font: 700 .68rem/1 var(--font); color: var(--t4); text-transform: uppercase;
+  letter-spacing: .05em; margin-top: 8px; border-top: 1px solid var(--bd); padding-top: 10px; }
+.recomendados-dismiss-cat-btn { padding: 5px 0; border-radius: var(--rb); border: 1px solid transparent;
+  background: transparent; cursor: pointer; font: 600 .62rem/1 var(--font); color: var(--t4);
+  text-align: center; transition: color .15s ease; }
+.recomendados-dismiss-cat-btn:hover { color: var(--r); }
 
 .reroll-btn { padding: 9px 20px; border-radius: 20px; border: none; cursor: pointer;
   font: 700 .8rem/1 var(--font); color: #fff; background: linear-gradient(135deg, var(--p), var(--p2));

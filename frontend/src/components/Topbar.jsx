@@ -96,15 +96,15 @@ export default function Topbar({
         {/* ML Training indicator */}
         {mlStatus?.running && (
           <div className="flex items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
-                          bg-[rgba(163,113,247,.18)] border border-[rgba(163,113,247,.4)]
-                          text-[.68rem] text-[#c084fc] animate-[mlpulse_1.5s_ease-in-out_infinite]">
+                          bg-[color-mix(in_srgb,var(--p)_18%,transparent)] border border-[color-mix(in_srgb,var(--p)_40%,transparent)]
+                          text-[.68rem] text-primary animate-[mlpulse_1.5s_ease-in-out_infinite]">
             <span className="text-[.75rem]">🤖</span>
             Entrenando ML...
           </div>
         )}
         {mlStatus?.done && !mlStatus?.running && (
           <div className="flex items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
-                          bg-[rgba(63,185,80,.15)] border border-[rgba(63,185,80,.4)]
+                          bg-[color-mix(in_srgb,var(--sem-positive)_15%,transparent)] border border-[color-mix(in_srgb,var(--sem-positive)_40%,transparent)]
                           text-[.68rem] text-success cursor-default"
             title='Modelo ML entrenado y activo'>
             🤖 Modelo actualizado
@@ -112,7 +112,7 @@ export default function Topbar({
         )}
         {meta?.mlModeloActivo && !mlStatus?.running && !mlStatus?.done && (
           <div className="flex items-center gap-[4px] ml-1 rounded-full px-[10px] py-[3px]
-                          bg-[rgba(63,185,80,.1)] border border-[rgba(63,185,80,.25)]
+                          bg-[color-mix(in_srgb,var(--sem-positive)_10%,transparent)] border border-[color-mix(in_srgb,var(--sem-positive)_25%,transparent)]
                           text-[.65rem] text-success"
             title={`Categorías refinadas por ML: ${(meta?.mlRefinadas||0).toLocaleString('es-AR')}`}>
             🤖 ML {(meta?.mlRefinadas||0) > 0 ? `·${meta.mlRefinadas} refinadas` : 'activo'}
@@ -168,7 +168,7 @@ export default function Topbar({
               className={cn(
                 'flex-shrink-0 whitespace-nowrap rounded-xl border-none px-[9px] py-[2px]',
                 'cursor-pointer text-[.67rem] transition-all duration-150',
-                gymrat ? 'font-bold bg-[#84cc16] text-white' : 'font-normal bg-s2 text-t4'
+                gymrat ? 'font-bold bg-[var(--sem-gym)] text-white' : 'font-normal bg-s2 text-t4'
               )}>
               🏋️ Gym <span className="opacity-80">{gymratCount.toLocaleString('es-AR')}</span>
             </button>
@@ -182,7 +182,7 @@ export default function Topbar({
                 className={cn(
                   'flex-shrink-0 whitespace-nowrap rounded-xl px-[9px] py-[2px]',
                   'cursor-pointer text-[.67rem] transition-all duration-150 border',
-                  active ? 'font-bold border-primary bg-[rgba(163,113,247,.15)] text-primary2'
+                  active ? 'font-bold border-primary bg-[color-mix(in_srgb,var(--p)_15%,transparent)] text-primary2'
                          : 'font-normal border-border bg-transparent text-t4'
                 )}>
                 {nombre} <span className="opacity-60">{count}</span>

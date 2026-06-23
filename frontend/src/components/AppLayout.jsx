@@ -18,6 +18,7 @@ const MarcasPanel    = lazy(() => import('./MarcasPanel'));
 const FavoritosPanel = lazy(() => import('./FavoritosPanel'));
 const OutfitsPanel   = lazy(() => import('./OutfitsPanel'));
 const FinanPanel     = lazy(() => import('./FinanPanel'));
+const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 48;
@@ -218,9 +219,14 @@ function FinanRoute() {
   return <FinanPanel/>;
 }
 
+function RecomendadosRoute() {
+  return <RecomendadosPanel/>;
+}
+
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
+  RecomendadosRoute as RecomendadosPanelRoute,
   TrendsRoute as TrendsPanelRoute, FavoritosRoute as FavoritosPanelRoute,
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
 };
@@ -354,6 +360,7 @@ export default function AppLayout() {
         <Sidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          onOpen={() => setSidebarOpen(true)}
           facets={S.facets}
           meta={S.meta}
           filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
@@ -379,6 +386,7 @@ export default function AppLayout() {
             <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`} title="Tendencias" aria-label="Tendencias">📈 <span className="tab-label">Tendencias</span></NavLink>
             <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`} title="Favoritos" aria-label="Favoritos">⭐ <span className="tab-label">Favoritos</span></NavLink>
             <NavLink to="/outfits"   className={({isActive}) => `tab ${isActive?'active':''}`}>👕 Outfits</NavLink>
+            <NavLink to="/recomendados" className={({isActive}) => `tab ${isActive?'active':''}`}>✨ Para ti</NavLink>
             <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`}>💳 Cuotas</NavLink>
           </div>
 
