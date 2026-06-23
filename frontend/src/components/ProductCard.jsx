@@ -11,23 +11,23 @@ function gymSubcat(product) {
 
 // Badge compacto de señal de compra — sourced del precompute embebido en /api/data.
 // Sin request adicional. Oculto cuando no hay señal confiable (null/sin_datos).
-function SenalBadge({ senal }) {
+function SenalBadge({ senal, compact }) {
   if (!senal || !senal.senal || senal.senal === 'sin_datos') return null;
   const cfg = SEÑAL_CONFIG[senal.senal];
   if (!cfg) return null;
   return (
     <span
-      className="badge-senal"
+      className={compact ? 'badge-compact' : 'badge-senal badge-senal-lg'}
       style={{ background: cfg.bg, borderColor: cfg.border, color: 'var(--t1)' }}
       title={`${cfg.label} · ${senal.scoreCompra}/100`}
     >
-      {cfg.icon} {senal.scoreCompra}
+      {cfg.icon} {compact ? senal.scoreCompra : `${senal.scoreCompra}/100 · ${cfg.label}`}
     </span>
   );
 }
 
 // Ahorro del precio unitario del pack vs la mediana de la categoría
-function PackBadge({ product: p, catStats }) {
+function PackBadge({ product: p, catStats, compact }) {
   if (!p.esPack) return null;
   const st = catStats?.[p.categoria];
   let ahorro = null;
@@ -35,8 +35,12 @@ function PackBadge({ product: p, catStats }) {
     const pct = Math.round((st.median - p.precioUnitario) / st.median * 100);
     if (pct > 5) ahorro = pct;
   }
+  const title = `Pack x${p.cantidadUnidades}${ahorro ? ` · precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : ''}`;
+  if (compact) {
+    return <span className="badge-compact" title={title}>📦{ahorro ? ` -${ahorro}%` : ''}</span>;
+  }
   return (
-    <span className="badge-pack" title={ahorro ? `Precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : undefined}>
+    <span className="badge-pack" title={ahorro ? title : undefined}>
       📦 Pack x{p.cantidadUnidades}{ahorro ? ` · -${ahorro}%` : ''}
     </span>
   );
@@ -57,31 +61,44 @@ function PriceBar({ precio, catStats, categoria }) {
   );
 }
 
-// Cluster acotado de badges sobre la foto (top-left): max 2 visibles + "+N"
-// overflow. Preserva la lógica condicional de cada badge (p.ej. SenalBadge
-// oculto sin señal confiable) — solo cambia DÓNDE se renderiza cada uno.
+// Jerarquía visual de badges sobre la foto (top-left): UN badge primario con
+// el chip grande (ML badge si existe, sino Señal de compra) + un cluster
+// secundario compacto (icon-forward) con el resto, capeado a 3 + "+N". Cada
+// badge preserva su condición de visibilidad original (p.ej. SenalBadge
+// oculto sin señal confiable, PackBadge solo si esPack) — solo cambia el
+// PESO visual y a qué slot (primario/secundario) va cada uno.
 function BadgeCluster({ p, ml, badge, catStats }) {
-  const candidates = [
-    badge && <span key="ml" className={`badge-ml badge-${ml.badge}`}>{badge}</span>,
-    gymSubcat(p) && <span key="gym" className="badge-gymrat">🏋️ {gymSubcat(p)}</span>,
-    p.senal?.senal && p.senal.senal !== 'sin_datos' && SEÑAL_CONFIG[p.senal.senal] && (
-      <SenalBadge key="senal" senal={p.senal} />
-    ),
-    p.senalFinanciacion?.senal && <FinanBadge key="finan" finan={p.senalFinanciacion} />,
-    p.esPack && <PackBadge key="pack" product={p} catStats={catStats} />,
+  const hasSenal = p.senal?.senal && p.senal.senal !== 'sin_datos' && SEÑAL_CONFIG[p.senal.senal];
+
+  const primary = badge
+    ? <span key="ml" className={`badge-ml badge-${ml.badge}`}>{badge}</span>
+    : hasSenal
+      ? <SenalBadge key="senal" senal={p.senal} />
+      : null;
+
+  const secondary = [
+    badge && hasSenal && <SenalBadge key="senal" senal={p.senal} compact />,
+    gymSubcat(p) && <span key="gym" className="badge-compact" title={gymSubcat(p)}>🏋️</span>,
+    p.senalFinanciacion?.senal && <FinanBadge key="finan" finan={p.senalFinanciacion} compact />,
+    p.esPack && <PackBadge key="pack" product={p} catStats={catStats} compact />,
   ].filter(Boolean);
 
-  if (candidates.length === 0) return null;
-  const visible  = candidates.slice(0, 2);
-  const overflow = candidates.length - visible.length;
+  if (!primary && secondary.length === 0) return null;
+  const visibleSecondary = secondary.slice(0, 3);
+  const overflow = secondary.length - visibleSecondary.length;
 
   return (
-    <div className="absolute left-2 top-2 z-[2] flex max-w-[calc(100%-1rem)] flex-wrap items-start gap-1">
-      {visible}
-      {overflow > 0 && (
-        <span className="badge-ml" style={{ background: 'rgba(0,0,0,.55)', color: '#fff', border: 'none' }}>
-          +{overflow}
-        </span>
+    <div className="absolute left-2 top-2 z-[2] flex max-w-[calc(100%-1rem)] flex-col items-start gap-1">
+      {primary}
+      {(visibleSecondary.length > 0 || overflow > 0) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {visibleSecondary}
+          {overflow > 0 && (
+            <span className="badge-compact" style={{ background: 'rgba(0,0,0,.55)', color: '#fff', borderColor: 'transparent' }}>
+              +{overflow}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
