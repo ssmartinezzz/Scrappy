@@ -585,6 +585,16 @@ def main():
             return parent
         return nc   # usar igualmente, incluso si es pequeño
 
+    # Precio por unidad (pack/combo aware): unidades>1 → precio_unit = precio/unidades;
+    # unidades==1 (default, producto sin pack) → precio_unit == precio, sin cambios de
+    # comportamiento. Se usa para TODO el agrupamiento de precios y scoring por producto
+    # (percentile/z/composite/segment/oferta_real), nunca para display, descuento (precioOriginal)
+    # ni historial — esos siguen trackeando el precio de estantería (shelf price).
+    def precio_unitario(p):
+        unidades = max(1, int(p.get('cantidadUnidades', 1) or 1))
+        precio   = p.get('precio', 0)
+        return precio / unidades if unidades > 1 else precio
+
     grupos_precios = defaultdict(list)
     for p in productos:
         cat   = (p.get('categoria') or 'General').strip() or 'General'
@@ -594,13 +604,15 @@ def main():
         # Para ropa, añadir género como dimensión secundaria solo si grupo grande
         if rubro != 'tecnologia' and genero and cat_counts.get(norm_cat(cat), 0) >= 20:
             key = f"{key}|{genero}"
-        grupos_precios[key].append(p.get('precio', 0))
+        grupos_precios[key].append(precio_unitario(p))
 
-    # Categoría normalizada sola (para stats de display y tabla ML)
+    # Categoría normalizada sola (para stats de scoring por producto — distinta de
+    # cat_prices/cat_stats_output más abajo, que es SOLO para el panel de tendencias y
+    # se mantiene en precio de estantería)
     cats_precios = defaultdict(list)
     for p in productos:
         cat = norm_cat((p.get('categoria') or 'General').strip() or 'General')
-        cats_precios[cat].append(p.get('precio', 0))
+        cats_precios[cat].append(precio_unitario(p))
 
     # Construir objetos PriceStats
     stats_grupos = {key: PriceStats(vals) for key, vals in grupos_precios.items()}
@@ -665,6 +677,7 @@ def main():
         pid    = p.get('url', '') or p.get('nombre', '')
         rubro  = (p.get('rubro') or 'indumentaria').strip()
         precio = p.get('precio', 0)
+        precio_unit = precio_unitario(p)
         cat    = (p.get('categoria') or 'General').strip() or 'General'
         genero = (p.get('genero') or '').strip()
 
@@ -676,20 +689,22 @@ def main():
             st = (stats_grupos.get(key_full)
                   or stats_grupos.get(key_base)
                   or stats_cats.get(cat_nc)
-                  or PriceStats([precio]))
+                  or PriceStats([precio_unit]))
         else:
             st = (stats_grupos.get(key_base)
                   or stats_cats.get(cat_nc)
-                  or PriceStats([precio]))
+                  or PriceStats([precio_unit]))
 
-        # Scores estadísticos
-        pct          = st.percentile_rank(precio)
-        z            = st.z_score(precio)
-        mz           = st.z_score_modified(precio)
-        composite    = st.composite_score(precio)
-        segment      = st.price_segment(precio)
-        cheap_outlier = st.is_cheap_outlier(precio)
-        exp_outlier   = st.is_expensive_outlier(precio)
+        # Scores estadísticos — calculados sobre precio_unit (precio/unidades cuando
+        # es un pack/combo; precio_unit == precio cuando unidades==1, sin cambio de
+        # comportamiento para productos de unidad simple)
+        pct          = st.percentile_rank(precio_unit)
+        z            = st.z_score(precio_unit)
+        mz           = st.z_score_modified(precio_unit)
+        composite    = st.composite_score(precio_unit)
+        segment      = st.price_segment(precio_unit)
+        cheap_outlier = st.is_cheap_outlier(precio_unit)
+        exp_outlier   = st.is_expensive_outlier(precio_unit)
 
         # Análisis histórico
         hist_pts  = history.get(pid, [])
