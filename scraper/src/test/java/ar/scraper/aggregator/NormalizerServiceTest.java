@@ -171,4 +171,40 @@ class NormalizerServiceTest {
         // "Pack x99" exceeds the sane max (12) -> treated as ambiguous/model-like.
         assertThat(service.detectarCantidadUnidades("Pack x99 Remeras", "Remera")).isEqualTo(1);
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // KW_*_MODELO/GENERICO split (mejores-picks-fixes Issue 3): a bare
+    // generic term (e.g. "running", "training") must NOT, by itself,
+    // classify a product as a shoe. It must co-occur with a shoe-noun
+    // (esZapatilla) OR the name must match an unambiguous MODELO entry.
+    // ══════════════════════════════════════════════════════════════════
+
+    @Test
+    void bareRunningKeywordWithoutShoeNounIsNotClassifiedAsShoe() {
+        assertThat(service.normalizarCategoria(null, "Running Sleeves")).isNotEqualTo("Zapatilla Running");
+    }
+
+    @Test
+    void bareTrainingKeywordWithoutShoeNounIsNotClassifiedAsShoe() {
+        assertThat(service.normalizarCategoria(null, "Training Gloves")).isNotEqualTo("Zapatilla Entrenamiento");
+    }
+
+    @Test
+    void genericRunningKeywordWithShoeNounStillClassifiesAsShoe() {
+        assertThat(service.normalizarCategoria(null, "Zapatillas Running Hombre")).isEqualTo("Zapatilla Running");
+    }
+
+    @Test
+    void unambiguousModeloNameClassifiesAsShoeWithoutShoeNoun() {
+        assertThat(service.normalizarCategoria(null, "Adidas Ultraboost 22")).isEqualTo("Zapatilla Running");
+    }
+
+    @Test
+    void otherUnambiguousRunningModeloNamesStillClassifyAsShoe() {
+        assertThat(service.normalizarCategoria(null, "Nike Pegasus 40")).as("Pegasus").isEqualTo("Zapatilla Running");
+        assertThat(service.normalizarCategoria(null, "Asics Gel-Kayano 30")).as("Gel-Kayano").isEqualTo("Zapatilla Running");
+        assertThat(service.normalizarCategoria(null, "Brooks Ghost 15")).as("Ghost").isEqualTo("Zapatilla Running");
+        assertThat(service.normalizarCategoria(null, "Hoka Clifton 9")).as("Clifton").isEqualTo("Zapatilla Running");
+        assertThat(service.normalizarCategoria(null, "New Balance 1080")).as("NB1080").isEqualTo("Zapatilla Running");
+    }
 }
