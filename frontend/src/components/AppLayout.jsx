@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
-import { fetchData, fetchStatus, fetchFacets, fetchFavoritos } from '../api';
+import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, deleteProducto } from '../api';
 import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
 import Sidebar       from './Sidebar';
@@ -99,9 +99,22 @@ function reducer(state, action) {
       }] };
     }
     case 'SET_FAVORITOS': return { ...state, favoritos: action.payload || [] };
+    case 'REMOVE_PROD': {
+      return {
+        ...state,
+        prods: state.prods.filter(p => p.url !== action.url),
+        totalProds: Math.max(0, state.totalProds - 1),
+      };
+    }
     case 'APPEND_PRODS': {  // Infinite scroll: append, cap at 300
       const MAX_PRODS = 300;
-      const newProds  = [...state.prods, ...(action.payload.prods||[])];
+      // Dedup por url: la página actual puede solaparse con lo ya acumulado
+      // (p.ej. dos efectos de montaje disparando loadFirstPage casi a la vez,
+      // o un re-fetch de la misma página) — sin esto, React renderiza keys
+      // duplicadas y queda en un estado de reconciliación indefinido.
+      const seenUrls  = new Set(state.prods.map(p => p.url));
+      const incoming  = (action.payload.prods || []).filter(p => !seenUrls.has(p.url));
+      const newProds  = [...state.prods, ...incoming];
       const capped    = newProds.length > MAX_PRODS ? newProds.slice(-MAX_PRODS) : newProds;
       const total     = action.payload.total || state.totalProds;
 
@@ -141,6 +154,11 @@ function CatalogoRoute() {
       })
     : S.prods;
 
+  async function handleDelete(prod) {
+    const ok = await deleteProducto(prod.url);
+    if (ok) dispatch({ type: 'REMOVE_PROD', url: prod.url });
+  }
+
   return (
     <>
       <SearchHero
@@ -165,6 +183,7 @@ function CatalogoRoute() {
         onToggleComparar={prod => dispatch({ type:'TOGGLE_COMPARAR', prod })}
         onToggleFavorito={prod => dispatch({ type:'TOGGLE_FAVORITO', prod })}
         onLoadMore={loadNextPage}
+        onDeleteProducto={handleDelete}
       />
     </>
   );

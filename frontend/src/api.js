@@ -31,6 +31,11 @@ export async function fetchData(filters) {
   return r.ok ? r.json() : null;
 }
 
+export async function deleteProducto(url) {
+  const r = await fetch(`${BASE}/api/data?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
+  return r.ok;
+}
+
 export async function fetchFacets() {
   const r = await fetch(`${BASE}/api/facets`);
   return r.ok ? r.json() : null;

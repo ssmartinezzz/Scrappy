@@ -122,6 +122,22 @@ public class ScraperService {
     public List<SitioExtra> getSitiosExtras() { return Collections.unmodifiableList(sitiosExtras); }
     public void             clearLastResult() { synchronized (catalogLock) { this.lastResult = null; } }
 
+    /** Saca un producto del catálogo en memoria tras un soft-delete manual en DB
+     *  (db.marcarDescontinuado ya puso activo=0; /api/data lee de lastResult, no de
+     *  la DB en cada request, así que sin esto el producto seguiría apareciendo
+     *  hasta el próximo scrape/restart). */
+    public void eliminarProductoDeMemoria(String url) {
+        synchronized (catalogLock) {
+            if (lastResult == null || url == null) return;
+            List<Product> filtrados = lastResult.productos().stream()
+                    .filter(p -> !url.equals(p.url()))
+                    .toList();
+            lastResult = new AggregatedResult(filtrados, lastResult.conteoPorSitio(),
+                    lastResult.erroresPorSitio(), lastResult.facets(),
+                    lastResult.minPrecio(), lastResult.maxPrecio());
+        }
+    }
+
     /**
      * Test seam — replaces the in-memory catalog directly, without going
      * through a scrape/fromDB cycle. Package-visible would suffice but this
