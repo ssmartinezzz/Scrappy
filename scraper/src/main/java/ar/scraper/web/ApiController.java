@@ -999,18 +999,6 @@ public class ApiController {
     // sharing with the outfit-builder requires no extra wiring here.
 
     /**
-     * Reserved tunable for {@link #broadenGenero}'s relaxation gate. Spec.md
-     * (Genero filtering on /api/recomendados) requires the gate to be
-     * "zero candidates for that categoria", not a variety threshold — so
-     * this constant is currently unused by the zero-candidates gate below.
-     * Kept declared/documented (like {@code PRICE_BAND_PCT}) in case a
-     * future revision needs a soft threshold instead of the hard zero-gate;
-     * intentionally not wired in to avoid deviating from the spec's exact
-     * acceptance criteria.
-     */
-    private static final int RECOMENDADOS_GENERO_MIN_VARIETY = 6;
-
-    /**
      * Self-contained duplication of the unisex-bridge + relaxation SHAPE from
      * OutfitService.armar() (steps 0/2, L397-408) and generoElegible()
      * (L325-333). OutfitService is intentionally NOT reused/extracted (locked
