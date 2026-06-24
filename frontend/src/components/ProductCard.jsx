@@ -61,12 +61,13 @@ function PriceBar({ precio, catStats, categoria }) {
   );
 }
 
-// Jerarquía visual de badges sobre la foto (top-left): UN badge primario con
-// el chip grande (ML badge si existe, sino Señal de compra) + un cluster
-// secundario compacto (icon-forward) con el resto, capeado a 3 + "+N". Cada
-// badge preserva su condición de visibilidad original (p.ej. SenalBadge
-// oculto sin señal confiable, PackBadge solo si esPack) — solo cambia el
-// PESO visual y a qué slot (primario/secundario) va cada uno.
+// Jerarquía visual de badges (footer de la card, debajo de "Ver producto"):
+// UN badge primario con el chip grande (ML badge si existe, sino Señal de
+// compra) + un cluster secundario compacto (icon-forward) con el resto,
+// capeado a 3 + "+N". Cada badge preserva su condición de visibilidad
+// original (p.ej. SenalBadge oculto sin señal confiable, PackBadge solo si
+// esPack) — solo cambia el PESO visual y a qué slot (primario/secundario) va
+// cada uno.
 function BadgeCluster({ p, ml, badge, catStats }) {
   const hasSenal = p.senal?.senal && p.senal.senal !== 'sin_datos' && SEÑAL_CONFIG[p.senal.senal];
 
@@ -88,7 +89,7 @@ function BadgeCluster({ p, ml, badge, catStats }) {
   const overflow = secondary.length - visibleSecondary.length;
 
   return (
-    <div className="flex flex-col items-start gap-1 mb-1">
+    <div className="flex flex-col items-start gap-1">
       {primary}
       {(visibleSecondary.length > 0 || overflow > 0) && (
         <div className="flex flex-wrap items-center gap-1">
@@ -161,9 +162,6 @@ const ProductCard = memo(function ProductCard({
           <span className="text-[.6rem] text-t4">{p.sitio}</span>
         </div>
 
-        <span className="ov-marca">{p.sitio}</span>
-        {p.descuento && <span className="ov-badge">OFERTA</span>}
-
         {/* Cluster favorito + comparar — unificado bottom-right de la foto */}
         <div className="absolute bottom-2 right-2 z-[3] flex gap-1.5">
           <button
@@ -188,7 +186,6 @@ const ProductCard = memo(function ProductCard({
 
       {/* Body */}
       <div className="card-body">
-        <BadgeCluster p={p} ml={ml} badge={badge} catStats={catStats} />
         <p className="card-name">{p.nombre}</p>
 
         {p.talles?.length > 0 && (
@@ -223,6 +220,14 @@ const ProductCard = memo(function ProductCard({
             Ver producto →
           </a>
         )}
+
+        {/* Badges abajo del todo — separados de la foto para no tapar el
+            producto ni competir visualmente con él */}
+        <div className="card-badges-footer">
+          <span className="badge-sitio">{p.sitio}</span>
+          {p.descuento && <span className="badge-oferta">OFERTA</span>}
+          <BadgeCluster p={p} ml={ml} badge={badge} catStats={catStats} />
+        </div>
 
         {/* Cue: toda la card (salvo los botones explícitos) es clickeable para
             abrir el detalle */}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { fetchMejores, fmt, BADGE_LABELS } from '../api';
 import { TIPO_META, SEMANTIC } from '../lib/colors';
 
@@ -9,13 +9,16 @@ const RUBROS = [
   { k:'suplementos',  icon:'💊', l:'Suplementos'  },
 ];
 
+const INITIAL_BATCH = 9;
+const BATCH_STEP     = 9;
+
 // Genera tagline a partir de datos estadísticos
 function tagline(cat, pick, mediana) {
   if (!pick) return '';
   const badge = pick.badge;
   const pctil = pick.pctil;
   const pct = mediana > 0 ? ((mediana - pick.precio) / mediana * 100).toFixed(0) : null;
-  
+
   if (badge === 'precio_historico_bajo') return 'Nunca estuvo tan barato — mínimo histórico';
   if (badge === 'oferta_real')           return 'Descuento verificado estadísticamente';
   if (pct && pct >= 25)  return `Un ${pct}% más barato que la media de ${cat}`;
@@ -25,73 +28,187 @@ function tagline(cat, pick, mediana) {
   return `El mejor precio/calidad en ${cat} en este momento`;
 }
 
-// ─── Tarjeta de categoría (grilla) ───────────────────────────────────────────
-function CatCard({ cat, onClick }) {
+// ─── Imagen con fallback editorial (mirrors ProductCard.jsx onError pattern) ─
+function CardImage({ img, alt }) {
+  return (
+    <>
+      {img
+        ? <img className="picks-card-img" src={img} alt={alt} loading="lazy"
+               onError={e => { e.target.style.display = 'none'; e.target.nextSibling?.classList.remove('hidden'); }} />
+        : null
+      }
+      <div className={`picks-card-placeholder ${img ? 'hidden' : ''}`}>
+        <span>🛍</span>
+      </div>
+    </>
+  );
+}
+
+// ─── Banner de categoría (única variante — full-width, mismo tamaño) ────────
+function CategoryBanner({ cat, onClick, cardRef }) {
   const pick1 = cat.picks?.[0];
   const img   = cat.imgCat || pick1?.img || '';
 
   return (
-    <div onClick={() => onClick(cat)}
-      style={{
-        position:'relative', borderRadius:12, overflow:'hidden',
-        aspectRatio:'3/4', cursor:'pointer',
-        background:'var(--s2)', border:'1px solid var(--bd)',
-        transition:'transform .15s, box-shadow .15s',
-      }}
-      onMouseOver={e => {
-        e.currentTarget.style.transform = 'translateY(-3px)';
-        e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,0,0,.6)';
-      }}
-      onMouseOut={e => {
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.boxShadow = 'none';
-      }}>
-
-      {/* Product image bg */}
-      {img ? (
-        <img src={img} alt={cat.categoria} loading="lazy"
-          style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
-          onError={e => e.target.style.display='none'}/>
-      ) : (
-        <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center',
-                      justifyContent:'center', fontSize:'2rem' }}>🛍</div>
-      )}
-
-      {/* Gradient overlay */}
-      <div style={{
-        position:'absolute', inset:0,
-        background:'linear-gradient(to top, rgba(0,0,0,.88) 45%, transparent 75%)',
-      }}/>
-
-      {/* Count badge */}
-      <div style={{
-        position:'absolute', top:8, right:8,
-        background:'rgba(0,0,0,.6)', color:'var(--t3)',
-        fontSize:'.58rem', fontWeight:700, padding:'2px 7px', borderRadius:12,
-      }}>
-        {(cat.count||0).toLocaleString('es-AR')}
-      </div>
-
-      {/* Category name + tagline */}
-      <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'10px 10px 8px' }}>
-        <div style={{ fontSize:'.82rem', fontWeight:800, color:'#fff', lineHeight:1.2 }}>
-          {cat.categoria}
-        </div>
+    <div ref={cardRef} data-cat={cat.categoria}
+      className="picks-card" onClick={() => onClick(cat)}>
+      <CardImage img={img} alt={cat.categoria} />
+      <div className="picks-card-overlay"/>
+      <div className="picks-card-count">{(cat.count||0).toLocaleString('es-AR')}</div>
+      <div className="picks-card-info">
+        <div className="picks-card-name">{cat.categoria}</div>
         {pick1 && (
-          <div style={{
-            fontSize:'.6rem', color:'rgba(255,255,255,.7)', marginTop:3,
-            lineHeight:1.35, display:'-webkit-box',
-            WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden',
-          }}>
-            {tagline(cat.categoria, pick1, cat.mediana)}
-          </div>
+          <div className="picks-card-tagline">{tagline(cat.categoria, pick1, cat.mediana)}</div>
         )}
-        {/* Best price */}
         {pick1 && (
-          <div style={{ fontSize:'.75rem', fontWeight:800, color: SEMANTIC.positive, marginTop:4 }}>
+          <div className="picks-card-price" style={{ color: SEMANTIC.positive }}>
             desde ${fmt(pick1.precio)}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Search bar (sticky, live filter) ────────────────────────────────────────
+function CategorySearchBar({ value, onChange }) {
+  return (
+    <input
+      className="picks-search"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder="Buscar categoría..."
+      aria-label="Buscar categoría"
+    />
+  );
+}
+
+// ─── Scroll-spy index ─────────────────────────────────────────────────────────
+function CategoryIndex({ cats, activeCat, onJump }) {
+  if (!cats.length) return null;
+  return (
+    <nav className="picks-index" aria-label="Índice de categorías">
+      {cats.map(cat => (
+        <button
+          key={cat.categoria}
+          type="button"
+          className={`picks-index-item ${activeCat === cat.categoria ? 'active' : ''}`}
+          onClick={() => onJump(cat.categoria)}
+        >
+          {cat.categoria}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ─── Gallery: hero + grid + search + scroll-spy, con reveal progresivo ──────
+function PicksGallery({ cats, busq, onSearch, onSelectCat }) {
+  const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
+  const [activeCat, setActiveCat]       = useState(null);
+
+  const cardRefs   = useRef(new Map());
+  const sentinelRef = useRef(null);
+
+  const filtered = useMemo(() => (
+    busq
+      ? cats.filter(c => c.categoria.toLowerCase().includes(busq.toLowerCase()))
+      : cats
+  ), [cats, busq]);
+
+  // Reset reveal cursor whenever the filtered set changes (new search query)
+  useEffect(() => {
+    setVisibleCount(INITIAL_BATCH);
+  }, [filtered]);
+
+  const visible  = filtered.slice(0, visibleCount);
+
+  function setCardRef(catKey, el) {
+    if (el) cardRefs.current.set(catKey, el);
+    else cardRefs.current.delete(catKey);
+  }
+
+  // Sentinel observer — grows visibleCount, no-ops once everything is revealed
+  useEffect(() => {
+    if (visibleCount >= filtered.length) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(v => Math.min(v + BATCH_STEP, filtered.length));
+        }
+      },
+      { rootMargin: '600px', threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visibleCount, filtered.length]);
+
+  // Scroll-spy observer — single shared observer over all currently-rendered cards
+  useEffect(() => {
+    const entries = Array.from(cardRefs.current.entries());
+    if (!entries.length) return;
+
+    const observer = new IntersectionObserver(
+      (observedEntries) => {
+        let best = null;
+        for (const entry of observedEntries) {
+          if (entry.isIntersecting && (!best || entry.intersectionRatio > best.intersectionRatio)) {
+            best = entry;
+          }
+        }
+        if (best) setActiveCat(best.target.dataset.cat);
+      },
+      { rootMargin: '-10% 0px -60% 0px', threshold: [0, .25, .5, .75, 1] }
+    );
+
+    entries.forEach(([, el]) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [visible.length, filtered]);
+
+  function handleJump(catKey) {
+    const el = cardRefs.current.get(catKey);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  return (
+    <div className="picks-immersive">
+      <div className="picks-header">
+        <div>
+          <div className="picks-title">🏆 Mejor picks</div>
+          <div className="picks-subtitle">El mejor de cada categoría según precio/calidad</div>
+        </div>
+        <CategorySearchBar value={busq} onChange={onSearch} />
+      </div>
+
+      <div className="picks-body">
+        <div className="picks-main">
+          {filtered.length === 0 ? (
+            <div className="picks-empty">
+              Sin resultados para "{busq}". Probá otra búsqueda.
+            </div>
+          ) : (
+            <>
+              <div className="picks-grid">
+                {visible.map(cat => (
+                  <CategoryBanner
+                    key={cat.categoria}
+                    cat={cat}
+                    onClick={onSelectCat}
+                    cardRef={el => setCardRef(cat.categoria, el)}
+                  />
+                ))}
+              </div>
+              {visibleCount < filtered.length && (
+                <div ref={sentinelRef} className="picks-sentinel" />
+              )}
+            </>
+          )}
+        </div>
+
+        <CategoryIndex cats={filtered} activeCat={activeCat} onJump={handleJump} />
       </div>
     </div>
   );
@@ -208,10 +325,6 @@ export default function PicksPanel({ onProductClick }) {
 
   useEffect(() => { load(rubro); }, [rubro]);
 
-  const visible = busq
-    ? cats.filter(c => c.categoria.toLowerCase().includes(busq.toLowerCase()))
-    : cats;
-
   if (selCat) return (
     <div style={{ flex:1, overflowY:'auto' }}>
       <CatDetail cat={selCat} onBack={() => setSelCat(null)}
@@ -221,63 +334,36 @@ export default function PicksPanel({ onProductClick }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Header */}
+      {/* Rubro tabs — stays outside the immersive theme so it reads as
+          dashboard chrome, not part of the editorial gallery surface */}
       <div style={{
-        padding:'.65rem 1.25rem', background:'var(--s1)',
+        padding:'.5rem 1.25rem', background:'var(--s1)',
         borderBottom:'1px solid var(--bd)',
-        display:'flex', flexWrap:'wrap', gap:8, alignItems:'center',
-        position:'sticky', top:0, zIndex:10,
+        display:'flex', gap:5, flexWrap:'wrap',
       }}>
-        <div>
-          <div style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)' }}>
-            🏆 Mejor picks
-          </div>
-          <div style={{ fontSize:'.65rem', color:'var(--t4)' }}>
-            El mejor de cada categoría según precio/calidad
-          </div>
-        </div>
-
-        <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginLeft:'auto' }}>
-          {RUBROS.map(r => (
-            <button key={r.k} onClick={() => setRubro(r.k)} style={{
-              padding:'4px 10px', borderRadius:16, border:'none',
-              cursor:'pointer', fontSize:'.72rem', fontWeight:700,
-              background: rubro===r.k ? 'var(--p)' : 'var(--s2)',
-              color: rubro===r.k ? '#fff' : 'var(--t4)',
-            }}>{r.icon} {r.l}</button>
-          ))}
-        </div>
-
-        <input value={busq} onChange={e => setBusq(e.target.value)}
-          placeholder="Filtrar categorías..."
-          style={{
-            padding:'5px 10px', borderRadius:8, border:'1.5px solid var(--bd2)',
-            background:'var(--s3)', color:'var(--t1)', font:'.75rem var(--font)',
-            outline:'none', width:140,
-          }}/>
+        {RUBROS.map(r => (
+          <button key={r.k} onClick={() => setRubro(r.k)} style={{
+            padding:'4px 10px', borderRadius:16, border:'none',
+            cursor:'pointer', fontSize:'.72rem', fontWeight:700,
+            background: rubro===r.k ? 'var(--p)' : 'var(--s2)',
+            color: rubro===r.k ? '#fff' : 'var(--t4)',
+          }}>{r.icon} {r.l}</button>
+        ))}
       </div>
 
-      {/* Grid */}
-      <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
+      <div style={{ flex:1, overflowY:'auto' }}>
         {loading && (
           <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
             Calculando mejores picks...
           </div>
         )}
-        {!loading && visible.length === 0 && (
+        {!loading && cats.length === 0 && (
           <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
             Sin datos. Ejecutá un scraping primero.
           </div>
         )}
-        {!loading && visible.length > 0 && (
-          <div style={{
-            display:'grid', gap:10,
-            gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))',
-          }}>
-            {visible.map(cat => (
-              <CatCard key={cat.categoria} cat={cat} onClick={setSelCat}/>
-            ))}
-          </div>
+        {!loading && cats.length > 0 && (
+          <PicksGallery cats={cats} busq={busq} onSearch={setBusq} onSelectCat={setSelCat} />
         )}
       </div>
     </div>

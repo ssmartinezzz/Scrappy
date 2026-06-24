@@ -207,12 +207,16 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .card-img-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px; font-size: 2rem; color: var(--t4); }
 .card-img-placeholder.hidden { display: none; }
-.ov-marca { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.7);
-  color: #fff; font: 700 .6rem/1 var(--font); padding: 3px 7px; border-radius: 20px;
-  letter-spacing: .05em; text-transform: uppercase; z-index: 1; }
-.ov-badge { position: absolute; top: 8px; right: 8px; background: var(--r);
-  color: #fff; font: 700 .6rem/1 var(--font); padding: 3px 7px; border-radius: 20px; z-index: 1; }
 .card-body { padding: .65rem .75rem; flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+/* ===== BADGES FOOTER (debajo de "Ver producto" — fuera de la foto) ===== */
+.card-badges-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  margin-top: 2px; padding-top: 6px; border-top: 1px solid var(--bd2); }
+.badge-sitio { display: inline-flex; align-items: center; background: var(--s2);
+  color: var(--t3); font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px;
+  letter-spacing: .05em; text-transform: uppercase; border: 1px solid var(--bd2); }
+.badge-oferta { display: inline-flex; align-items: center; background: var(--r);
+  color: #fff; font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px; }
 .badge-ml { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px; }
 .badge-precio_historico_bajo { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); color: var(--y); border: 1px solid color-mix(in srgb, var(--sem-warn) 30%, transparent); }
@@ -591,4 +595,92 @@ body { overflow-x: hidden; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.5em; }
 .supl-card-price { font: 700 .92rem/1 var(--mono); color: var(--g); font-variant-numeric: tabular-nums; }
 .supl-card-marca { font: .62rem/1 var(--mono); color: var(--t4); text-transform: uppercase; letter-spacing: .03em; }
+
+/* ===== PICKS IMMERSIVE GALLERY (/picks view only) =====
+   Editorial surface that reuses the SAME light/warm palette as the rest of
+   the dashboard (var(--bg)/--s1../--t1../--bd/--bd2 from :root) — no scoped
+   color override. The "photo-forward" effect comes from banner SIZE relative
+   to its photo's native resolution, not from a dark background. Banners sit
+   in a dynamic multi-column grid (see .picks-grid) — column count recomputes
+   from viewport width instead of one fixed banner per row. */
+.picks-immersive {
+  background: var(--bg);
+  color: var(--t1);
+  min-height: 100%;
+}
+
+.picks-header { position: sticky; top: 0; z-index: 10; display: flex;
+  flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: .75rem 1.25rem; background: var(--s1); border-bottom: 1px solid var(--bd); }
+.picks-title { font: 800 .9rem/1.2 var(--font); color: var(--t1); }
+.picks-subtitle { font: .65rem/1.4 var(--font); color: var(--t4); margin-top: 2px; }
+
+.picks-search { padding: 7px 12px; border-radius: 20px; border: 1.5px solid var(--bd2);
+  background: var(--s2); color: var(--t1); font: .78rem var(--font); outline: none;
+  width: 220px; transition: border-color .15s, box-shadow .15s; }
+.picks-search::placeholder { color: var(--t4); }
+.picks-search:focus-visible { border-color: var(--p); box-shadow: 0 0 0 3px rgba(196,80,46,.35); }
+
+.picks-body { display: flex; gap: 0; align-items: flex-start; }
+.picks-main { flex: 1; min-width: 0; padding: 1rem 1.25rem; }
+
+/* Dynamic column count, no hardcoded breakpoint count — auto-fill recomputes
+   columns from available width (minmax(300px,1fr)), naturally landing near
+   4 columns at ~1440px desktop content width and fewer on narrower viewports.
+   This is the "metric to normalize the view" requested by the user, instead
+   of a fixed column number. */
+.picks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+
+.picks-card { position: relative; border-radius: 14px; overflow: hidden;
+  width: 100%; aspect-ratio: 4/5; cursor: pointer; background: var(--s2);
+  border: 1px solid var(--bd); transition: transform .18s, box-shadow .18s; }
+.picks-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(31,27,22,.18); }
+
+.picks-card-img { position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block; }
+.picks-card-placeholder { position: absolute; inset: 0; display: flex;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; font-size: 2.4rem; color: var(--t4); background: var(--s2); }
+.picks-card-placeholder.hidden { display: none; }
+
+.picks-card-overlay { position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(31,27,22,.78) 30%, transparent 75%); }
+
+.picks-card-count { position: absolute; top: 10px; right: 10px; z-index: 2;
+  background: rgba(31,27,22,.55); color: #F5F0E6; font: 700 .6rem/1 var(--font);
+  padding: 3px 8px; border-radius: 12px; }
+
+.picks-card-info { position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
+  padding: 12px 14px 10px; }
+.picks-card-name { font: 600 .85rem/1.35 var(--font); color: #fff; }
+.picks-card-tagline { font: .62rem/1.4 var(--font); color: rgba(255,255,255,.78);
+  margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.picks-card-price { font: 800 .8rem/1 var(--mono); margin-top: 6px; }
+
+.picks-sentinel { height: 1px; margin-top: 4px; }
+
+.picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
+
+/* Scroll-spy index — compact rail, hidden on narrow viewports where there's
+   no room for it alongside the banners (see responsive breakpoints below). */
+.picks-index { position: sticky; top: 64px; flex-shrink: 0; width: 160px;
+  max-height: calc(100vh - 80px); overflow-y: auto; padding: 1rem .75rem;
+  display: flex; flex-direction: column; gap: 2px; }
+.picks-index-item { background: none; border: none; text-align: left;
+  color: var(--t3); font: 600 .68rem/1.3 var(--font); padding: 5px 8px;
+  border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; transition: background .15s, color .15s; }
+.picks-index-item:hover { background: var(--s2); color: var(--t2); }
+.picks-index-item.active { background: var(--s3); color: var(--p); font-weight: 800; }
+.picks-index-item:focus-visible { outline: 2px solid var(--p); outline-offset: 1px; }
+
+@media (max-width: 560px) {
+  .picks-body { flex-direction: column; }
+  .picks-index { display: none; }
+  .picks-header { flex-direction: column; align-items: stretch; }
+  .picks-search { width: 100%; }
+  /* auto-fill already collapses to 1-2 columns at this width via the
+     minmax(300px,1fr) track — no aspect-ratio override needed anymore. */
+}
 * { box-sizing: border-box; }
