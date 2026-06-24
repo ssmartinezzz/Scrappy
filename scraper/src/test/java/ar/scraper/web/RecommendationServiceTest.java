@@ -20,8 +20,14 @@ class RecommendationServiceTest {
 
     private Product producto(String nombre, String url, String categoria, String marca,
                               int scoreP, String badge, boolean ofertaReal, String tendencia) {
+        return producto(nombre, url, categoria, marca, scoreP, badge, ofertaReal, tendencia, "hombre");
+    }
+
+    private Product producto(String nombre, String url, String categoria, String marca,
+                              int scoreP, String badge, boolean ofertaReal, String tendencia,
+                              String genero) {
         return new Product("TestSitio", nombre, 10000, null, url, "https://img/test.jpg",
-                categoria, "hombre", List.of(),
+                categoria, genero, List.of(),
                 new Product.MlScore(scoreP, badge, ofertaReal, tendencia, scoreP, 0.0, "standard"),
                 marca, "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
@@ -119,5 +125,24 @@ class RecommendationServiceTest {
         List<Product> ranked = service.rank(List.of(plain, oferta), OutfitService.FeedbackModel.empty());
 
         assertThat(ranked.get(0)).isEqualTo(oferta);
+    }
+
+    @Test
+    void infantilProductIsHardVetoedEvenAmongMixedGeneroCandidates() {
+        Product infantil = producto("Zapatilla Niño", "https://t/1", "Zapatilla", "Nike",
+                50, "", false, "estable", "infantil");
+        Product hombre   = producto("Zapatilla Hombre", "https://t/2", "Zapatilla", "Adidas",
+                50, "", false, "estable", "hombre");
+        Product mujer    = producto("Zapatilla Mujer", "https://t/3", "Zapatilla", "Puma",
+                50, "", false, "estable", "mujer");
+        Product unisex   = producto("Zapatilla Unisex", "https://t/4", "Zapatilla", "Vans",
+                50, "", false, "estable", "unisex");
+
+        List<Product> ranked = service.rank(
+                List.of(infantil, hombre, mujer, unisex), OutfitService.FeedbackModel.empty());
+
+        assertThat(ranked).noneMatch(p -> "infantil".equalsIgnoreCase(p.genero()));
+        assertThat(ranked).hasSize(3);
+        assertThat(ranked).containsExactlyInAnyOrder(hombre, mujer, unisex);
     }
 }
