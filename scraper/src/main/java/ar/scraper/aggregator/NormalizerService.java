@@ -22,7 +22,14 @@ public class NormalizerService {
     // CALZADO — keywords ordenados de más específico a más genérico
     // ══════════════════════════════════════════════════════════════════
 
-    private static final String[] KW_RUNNING = {
+    // KW_*_MODELO: standalone, unambiguous shoe-model/proper names — match
+    // WITHOUT requiring esZapatilla co-occurrence (the name itself is the
+    // shoe signal, e.g. "ultraboost", "pegasus", "old skool").
+    // KW_*_GENERICO: bare/generic words reused across apparel/accessories by
+    // the same brands — require esZapatilla co-occurrence in clasificar()
+    // (e.g. "running"/"training" alone must NOT classify "Running Sleeves"
+    // or "Training Gloves" as a shoe). See clasificar() L~775 for the gate.
+    private static final String[] KW_RUNNING_MODELO = {
         "ultraboost","adizero","solarboost","duramo",
         "pegasus","vomero","air zoom","free run","air max",
         "gel-kayano","gel-nimbus","gel-cumulus","gel-pulse",
@@ -31,39 +38,51 @@ public class NormalizerService {
         "clifton","bondi","speedgoat","mach",
         "fresh foam","1080","990","880","860",
         "wave rider","wave inspire","wave horizon",
-        "speedcross","sense","x-ultra",
+        "speedcross","sense","x-ultra"
+    };
+
+    private static final String[] KW_RUNNING_GENERICO = {
         "running","correr","corrida","maraton","marathon","trail",
         "atletismo","atletica","ligera","velocidad"
     };
 
-    private static final String[] KW_TRAINING = {
+    private static final String[] KW_TRAINING_MODELO = {
         "metcon","free metcon","superrep",
-        "adipower","powerlift","nano","legacy lifter",
+        "adipower","powerlift","nano","legacy lifter"
+    };
+
+    private static final String[] KW_TRAINING_GENERICO = {
         "cross training","crossfit","training","cross","gym",
         "hiit","funcional","multideporte","indoor",
         "weightlift","levantamiento"
     };
 
-    private static final String[] KW_SKATE = {
+    private static final String[] KW_SKATE_MODELO = {
         "old skool","sk8-hi","era vans","authentic vans",
-        "pure dc","dc court","skateboarding",
-        "skate","etnies","emerica",
+        "pure dc","dc court","etnies","emerica",
         "half cab","full cab"
     };
 
-    private static final String[] KW_URBANA = {
+    private static final String[] KW_SKATE_GENERICO = {
+        "skate","skateboarding"
+    };
+
+    private static final String[] KW_URBANA_MODELO = {
         "air force 1","af1","air force one",
         "stan smith","superstar","campus","gazelle","samba",
         "forum","nmd","continental","ozweego",
         "chuck taylor","all star","converse",
         "suede puma","basket puma","cali puma","rs-x",
         "classic leather","aztrek",
-        "cortez","waffle",
+        "cortez","waffle"
+    };
+
+    private static final String[] KW_URBANA_GENERICO = {
         "urbana","casual","lifestyle","street","everyday",
         "clasica","clasico","moda","fashion"
     };
 
-    private static final String[] KW_SNEAKER = {
+    private static final String[] KW_SNEAKER_MODELO = {
         "jordan 1","jordan 4","jordan 11","jordan 3","jordan 6","jordan 5",
         "air jordan","travis scott","off-white","fragment","union","chicago",
         "bred","shadow","university blue","royal",
@@ -71,7 +90,10 @@ public class NormalizerService {
         "dunk low","dunk high","sb dunk","panda dunk",
         "air max 1 ","air max 90","air max 95","air max 97",
         "new balance 550","new balance 990","new balance 2002",
-        "new balance 574","new balance 327",
+        "new balance 574","new balance 327"
+    };
+
+    private static final String[] KW_SNEAKER_GENERICO = {
         "hype","retro","og ","collab","limited","drop","release","sneaker"
     };
 
@@ -637,7 +659,13 @@ public class NormalizerService {
         // Solo mirar inicio (primeras 3 palabras = ~25 chars)
         String inicio = lower.length() > 35 ? lower.substring(0, 35) : lower;
         for (String kw : NO_TEXTIL_INICIO) {
-            if (inicio.startsWith(kw.trim()) || inicio.contains(" " + kw.trim())) {
+            String trimmed = kw.trim();
+            // Word-boundary match on BOTH sides: avoids false positives like
+            // "Asics Gel-Kayano" matching the cosmetic "gel " filter via a bare
+            // " gel" substring (no closing boundary) — a real false-positive
+            // surfaced by the KW_RUNNING_MODELO regression test (Issue 3).
+            if (inicio.startsWith(trimmed + " ") || inicio.equals(trimmed)
+                    || inicio.contains(" " + trimmed + " ")) {
                 return true;
             }
         }
@@ -764,27 +792,33 @@ public class NormalizerService {
 
         // ── CALZADO POR MODELO/MARCA (fallback, sin sustantivo explícito) ─
         // Corre AL FINAL, después de todos los sustantivos explícitos de arriba:
-        // KW_RUNNING/KW_TRAINING/KW_SKATE/KW_URBANA mezclan nombres de modelo de
-        // zapatilla (ultraboost, old skool, air force 1) con palabras genéricas
-        // (training, gym, skate, urbana) que las marcas reusan en mochilas, bolsos
-        // y ropa (ej. "Mochila Vans Old Skool", "Buzo Saucony Triumph", "Bolso
-        // Training Barrel"). Si corriera primero, esos productos quedaban
-        // clasificados como zapatillas en lugar de Mochila/Bolso/Buzo. Puesto acá,
+        // KW_*_MODELO mezcla nombres de modelo de zapatilla (ultraboost, old
+        // skool, air force 1) que SON el sustantivo (no requieren esZapatilla).
+        // KW_*_GENERICO son palabras genéricas (training, gym, skate, urbana)
+        // que las marcas reusan en mochilas, bolsos y ropa (ej. "Mochila Vans
+        // Old Skool", "Bolso Training Barrel", "Running Sleeves"). Por eso
+        // GENERICO solo cuenta si esZapatilla también matchea — nunca solo.
+        // Si MODELO/esZapatilla corriera después de los sustantivos de arriba,
+        // esos productos quedaban mal clasificados como zapatillas. Puesto acá,
         // cualquier sustantivo explícito de arriba (mochila, buzo, musculosa...)
         // gana siempre sobre esta inferencia por palabra clave.
-        if (anyMatch(t, KW_SNEAKER))   return "Sneaker";
+        if (anyMatch(t, KW_SNEAKER_MODELO)) return "Sneaker";
 
         boolean esZapatilla = t.contains("zapatilla") || t.contains("sneaker")
                 || t.contains("calzado") || t.contains("shoe") || t.contains("tenis")
                 || t.contains("footwear");
 
-        if (esZapatilla || anyMatch(t, KW_RUNNING) || anyMatch(t, KW_TRAINING)
-                        || anyMatch(t, KW_SKATE)   || anyMatch(t, KW_URBANA)) {
-            if (anyMatch(t, KW_RUNNING))  return "Zapatilla Running";
-            if (anyMatch(t, KW_TRAINING)) return "Zapatilla Entrenamiento";
-            if (anyMatch(t, KW_SKATE))    return "Zapatilla Skate";
-            if (anyMatch(t, KW_URBANA))   return "Zapatilla Urbana";
-            if (esZapatilla)              return "Zapatilla";
+        boolean shoe = esZapatilla
+                || anyMatch(t, KW_RUNNING_MODELO) || anyMatch(t, KW_TRAINING_MODELO)
+                || anyMatch(t, KW_SKATE_MODELO)   || anyMatch(t, KW_URBANA_MODELO);
+
+        if (shoe) {
+            if (anyMatch(t, KW_RUNNING_MODELO)  || anyMatch(t, KW_RUNNING_GENERICO))  return "Zapatilla Running";
+            if (anyMatch(t, KW_TRAINING_MODELO) || anyMatch(t, KW_TRAINING_GENERICO)) return "Zapatilla Entrenamiento";
+            if (anyMatch(t, KW_SKATE_MODELO)    || anyMatch(t, KW_SKATE_GENERICO))    return "Zapatilla Skate";
+            if (anyMatch(t, KW_URBANA_MODELO)   || anyMatch(t, KW_URBANA_GENERICO))   return "Zapatilla Urbana";
+            if (anyMatch(t, KW_SNEAKER_GENERICO)) return "Sneaker";
+            if (esZapatilla) return "Zapatilla";
         }
 
         return "";
