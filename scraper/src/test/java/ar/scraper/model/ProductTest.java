@@ -101,3 +101,4 @@ class ProductTest {
         assertThat(single.esPack()).isFalse();
     }
 }
+
