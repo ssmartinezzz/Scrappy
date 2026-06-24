@@ -998,6 +998,64 @@ public class ApiController {
     // buildFeedbackModel() already reads ALL rows regardless of slot, so bidirectional
     // sharing with the outfit-builder requires no extra wiring here.
 
+    /**
+     * Self-contained duplication of the unisex-bridge + relaxation SHAPE from
+     * OutfitService.armar() (steps 0/2, L397-408) and generoElegible()
+     * (L325-333). OutfitService is intentionally NOT reused/extracted (locked
+     * scope for mejores-picks-fixes). Keep in sync if that pattern changes.
+     *
+     * Relaxation order per categoria (only advances when the prior step
+     * yields zero candidates FOR THAT categoria):
+     *   1. own genero (or blank/unisex) + unisex — always eligible.
+     *   2. unisex-only (own-genero-exact dropped).
+     *   3. opposite-genero (last resort).
+     * Infantil is never re-admitted here — RecommendationService.rank()
+     * vetoes it unconditionally before/after this relaxation runs.
+     */
+    private List<Product> broadenGenero(List<Product> base, String generoSolicitado) {
+        Map<String, List<Product>> byCategoria = base.stream()
+                .collect(Collectors.groupingBy(
+                        p -> p.categoria() == null ? "" : p.categoria(),
+                        LinkedHashMap::new, Collectors.toList()));
+
+        List<Product> result = new ArrayList<>();
+        for (Map.Entry<String, List<Product>> entry : byCategoria.entrySet()) {
+            List<Product> productosCategoria = entry.getValue();
+
+            // Paso 1: propio genero (o sin pedido / unisex) + unisex.
+            List<Product> step1 = productosCategoria.stream()
+                    .filter(p -> generoBridgeMatch(p, generoSolicitado))
+                    .collect(Collectors.toList());
+            if (!step1.isEmpty()) {
+                result.addAll(step1);
+                continue;
+            }
+
+            // Paso 2: relajar a unisex-only.
+            List<Product> step2 = productosCategoria.stream()
+                    .filter(p -> "unisex".equalsIgnoreCase(p.genero() != null ? p.genero().trim() : ""))
+                    .collect(Collectors.toList());
+            if (!step2.isEmpty()) {
+                result.addAll(step2);
+                continue;
+            }
+
+            // Paso 3: relajar a genero opuesto (ultimo recurso).
+            result.addAll(productosCategoria);
+        }
+        return result;
+    }
+
+    /** Step 1 match: blank/null genero, "unisex" genero, blank/null/"unisex" pedido, or exact match. */
+    private boolean generoBridgeMatch(Product p, String generoSolicitado) {
+        String g = p.genero() != null ? p.genero().trim() : "";
+        if (g.isEmpty()) return true;
+        if ("unisex".equalsIgnoreCase(g)) return true;
+        if (generoSolicitado == null || generoSolicitado.isBlank()) return true;
+        if ("unisex".equalsIgnoreCase(generoSolicitado)) return true;
+        return g.equalsIgnoreCase(generoSolicitado);
+    }
+
     @GetMapping("/recomendados")
     public ResponseEntity<ObjectNode> recomendados(
             @RequestParam(defaultValue = "1")  int page,
@@ -1012,21 +1070,13 @@ public class ApiController {
         var feedback = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
 
         List<Product> candidatos = r.productos();
-        if (genero != null && !genero.isBlank()) {
-            String g = genero;
-            candidatos = candidatos.stream()
-                    .filter(p -> {
-                        String pg = p.genero() != null ? p.genero() : "";
-                        return pg.isEmpty() || "unisex".equalsIgnoreCase(pg) || pg.equalsIgnoreCase(g);
-                    })
-                    .collect(Collectors.toList());
-        }
         if (categoria != null && !categoria.isBlank()) {
             String c = categoria;
             candidatos = candidatos.stream()
                     .filter(p -> c.equalsIgnoreCase(p.categoria()))
                     .collect(Collectors.toList());
         }
+        candidatos = broadenGenero(candidatos, genero);
 
         List<Product> ranked = recommendationService.rank(candidatos, feedback);
 
