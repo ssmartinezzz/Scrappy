@@ -211,7 +211,6 @@ record Product(
 | Panel Tendencias badges repetidos en clusters | Bigrams mejoraron pero aún hay duplicados | Parcialmente resuelto |
 | Eldon 0 productos (intermittent) | `TargetClosedError` de Playwright en pagina intermedia abortaba todo el run sin try/catch por-página en `scrapeJs()` | Resuelto — ahora corta paginación y conserva productos ya acumulados |
 | Pack/combo pricing detection — drift de distribución ML | `cantidadUnidades`/`precioUnitario` ya están detectados, propagados y consumidos end-to-end (Normalizer → DB → ML → API → frontend). En categorías con alta densidad de packs, sustituir precio por precio-unitario en `ml_pipeline.py` puede correr la mediana/IQR de esa categoría, perturbando levemente scores de productos de unidad simple que comparten la misma distribución. Monitorear distribución de badges (`precio_alto`/`oferta_real`) post-deploy; re-calibrar thresholds queda fuera de alcance de este change (ver `docs/ML_PIPELINE.md` → "Precio por unidad") | Live — monitoreo de drift pendiente, no resolver thresholds todavía |
-| `RECOMENDADOS_GENERO_MIN_VARIETY` declarada pero no usada en `ApiController.broadenGenero()` | El diseño original proponía un threshold de variedad para relajar a género opuesto; el spec final exigió gate de "cero candidatos" exacto (no threshold), así que la constante quedó documentada como reservada/sin wire-in para no desviarse del acceptance criteria | Resuelto por diseño — no requiere acción, dejar la constante si una futura revisión pide un threshold soft |
 
 ---
 
