@@ -45,8 +45,12 @@ class ApiControllerRecomendadosBidirectionalTest {
     private ResultAggregator aggregator;
 
     private Product producto(String url, String marca, String categoria) {
+        return producto(url, marca, categoria, "hombre");
+    }
+
+    private Product producto(String url, String marca, String categoria, String genero) {
         return new Product("TestSitio", "Producto " + url, 10000, null, url, "img",
-                categoria, "hombre", List.of(), Product.MlScore.EMPTY, marca, "indumentaria", true);
+                categoria, genero, List.of(), Product.MlScore.EMPTY, marca, "indumentaria", true);
     }
 
     @BeforeEach
@@ -118,5 +122,100 @@ class ApiControllerRecomendadosBidirectionalTest {
         JsonNode items = recoResp.getBody().get("items");
         // Nike|Zapatilla boosted -> must rank first (equal base ML score otherwise).
         assertThat(items.get(0).get("marca").asText()).isEqualTo("Nike");
+    }
+
+    @Test
+    void unisexProductAlwaysEligibleRegardlessOfRequestedGenero() {
+        Product unisexRemera = producto("https://t/unisex-remera", "Vans", "Remeras", "unisex");
+        AggregatedResult result = mock(AggregatedResult.class);
+        when(result.productos()).thenReturn(List.of(unisexRemera));
+        when(service.getLastResult()).thenReturn(result);
+
+        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
+                controller.recomendados(1, 24, "mujer", "Remeras");
+
+        JsonNode items = resp.getBody().get("items");
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).get("nombre").asText()).isEqualTo("Producto https://t/unisex-remera");
+    }
+
+    @Test
+    void noGeneroParamStillBridgesAndExcludesInfantil() {
+        Product hombre   = producto("https://t/hombre", "Nike", "Zapatillas", "hombre");
+        Product mujer    = producto("https://t/mujer", "Puma", "Zapatillas", "mujer");
+        Product unisex   = producto("https://t/unisex", "Vans", "Zapatillas", "unisex");
+        Product infantil = producto("https://t/infantil", "Nike", "Zapatillas", "infantil");
+        AggregatedResult result = mock(AggregatedResult.class);
+        when(result.productos()).thenReturn(List.of(hombre, mujer, unisex, infantil));
+        when(service.getLastResult()).thenReturn(result);
+
+        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
+                controller.recomendados(1, 24, null, "Zapatillas");
+
+        JsonNode items = resp.getBody().get("items");
+        List<String> nombres = new java.util.ArrayList<>();
+        for (JsonNode n : items) nombres.add(n.get("nombre").asText());
+
+        assertThat(nombres).containsExactlyInAnyOrder(
+                "Producto https://t/hombre", "Producto https://t/mujer", "Producto https://t/unisex");
+        assertThat(nombres).doesNotContain("Producto https://t/infantil");
+    }
+
+    @Test
+    void insufficientOwnGeneroStockTriggersOppositeGeneroFallback() {
+        List<Product> productos = new java.util.ArrayList<>();
+        // categoria "Camperas": zero mujer, zero unisex, only hombre stock.
+        for (int i = 0; i < 3; i++) {
+            productos.add(producto("https://t/campera-hombre-" + i, "Nike", "Camperas", "hombre"));
+        }
+        AggregatedResult result = mock(AggregatedResult.class);
+        when(result.productos()).thenReturn(productos);
+        when(service.getLastResult()).thenReturn(result);
+
+        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
+                controller.recomendados(1, 24, "mujer", "Camperas");
+
+        JsonNode items = resp.getBody().get("items");
+        // Step 1 and step 2 both yield zero -> step 3 fallback admits hombre stock.
+        assertThat(items).hasSize(3);
+    }
+
+    @Test
+    void sufficientOwnGeneroStockDoesNotRelaxToOppositeGenero() {
+        List<Product> productos = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            productos.add(producto("https://t/pantalon-mujer-" + i, "Adidas", "Pantalones", "mujer"));
+        }
+        for (int i = 0; i < 8; i++) {
+            productos.add(producto("https://t/pantalon-hombre-" + i, "Nike", "Pantalones", "hombre"));
+        }
+        AggregatedResult result = mock(AggregatedResult.class);
+        when(result.productos()).thenReturn(productos);
+        when(service.getLastResult()).thenReturn(result);
+
+        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
+                controller.recomendados(1, 24, "mujer", "Pantalones");
+
+        JsonNode items = resp.getBody().get("items");
+        for (JsonNode n : items) {
+            assertThat(n.get("marca").asText()).isNotEqualTo("Nike");
+        }
+        assertThat(items).hasSize(8);
+    }
+
+    @Test
+    void infantilExcludedEvenAsRelaxationFallbackCandidate() {
+        List<Product> productos = new java.util.ArrayList<>();
+        // categoria "Zapatillas": zero hombre/mujer/unisex, only infantil stock.
+        productos.add(producto("https://t/zap-infantil", "Nike", "Zapatillas", "infantil"));
+        AggregatedResult result = mock(AggregatedResult.class);
+        when(result.productos()).thenReturn(productos);
+        when(service.getLastResult()).thenReturn(result);
+
+        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
+                controller.recomendados(1, 24, "hombre", "Zapatillas");
+
+        JsonNode items = resp.getBody().get("items");
+        assertThat(items).isEmpty();
     }
 }

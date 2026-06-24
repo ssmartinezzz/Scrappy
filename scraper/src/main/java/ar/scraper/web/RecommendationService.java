@@ -31,6 +31,16 @@ import java.util.stream.Collectors;
 @Service
 public class RecommendationService {
 
+    /**
+     * Hard veto: genero=="infantil" never appears in recomendados, regardless
+     * of caller, query params, or relaxation fallback. Mirrors
+     * {@code OutfitService.CALZADO_VETADO}'s static-veto style (L101) and
+     * {@code OutfitService.generoElegible()}'s infantil exclusion (L327) —
+     * scoped here to the recomendados ranking core so the veto applies even
+     * if a future caller forgets the pre-filter.
+     */
+    private static final String GENERO_VETADO = "infantil";
+
     private static final int    BONUS_OFERTA_REAL_FLAG      = 25;
     private static final int    BONUS_BADGE_OFERTA_REAL      = 15;
     private static final int    BONUS_BADGE_PRECIO_HIST_BAJO = 15;
@@ -55,6 +65,8 @@ public class RecommendationService {
         Map<String, Integer> boostLikeCount = feedback.boostLikeCount();
 
         return productos.stream()
+                // 0. Infantil hard veto — runs FIRST, before pair/categoria exclude.
+                .filter(p -> !GENERO_VETADO.equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
                 // 1. Veto — pair-exclude OR category-wide exclude, regardless of marca.
                 .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
                 .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
