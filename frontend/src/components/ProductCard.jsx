@@ -88,7 +88,7 @@ function BadgeCluster({ p, ml, badge, catStats }) {
   const overflow = secondary.length - visibleSecondary.length;
 
   return (
-    <div className="absolute left-2 top-2 z-[2] flex max-w-[calc(100%-1rem)] flex-col items-start gap-1">
+    <div className="flex flex-col items-start gap-1 mb-1">
       {primary}
       {(visibleSecondary.length > 0 || overflow > 0) && (
         <div className="flex flex-wrap items-center gap-1">
@@ -112,6 +112,7 @@ const ProductCard = memo(function ProductCard({
   onOpenDetail,
   onToggleComparar,
   onToggleFavorito,
+  onDelete,
 }) {
   const ml    = p.ml || {};
   const badge = ml.badge && BADGE_LABELS[ml.badge];
@@ -120,6 +121,7 @@ const ProductCard = memo(function ProductCard({
     // No abrir detalle si se hace click en botones específicos
     if (e.target.closest('.card-compare-btn') ||
         e.target.closest('.card-fav-btn') ||
+        e.target.closest('.card-delete-btn') ||
         e.target.closest('.ver-btn')) return;
     onOpenDetail(p);  // ← pasa el objeto directo, sin URL lookup
   }
@@ -134,6 +136,13 @@ const ProductCard = memo(function ProductCard({
     if (isFavorito) removeFavorito(p.url);
     else addFavorito({ url: p.url, sitio: p.sitio, nombre: p.nombre });
     onToggleFavorito?.(p);
+  }
+
+  function handleDeleteClick(e) {
+    e.stopPropagation();
+    if (window.confirm('¿Eliminar este producto de tu catálogo? Puede volver a aparecer si el sitio lo sigue vendiendo en el próximo scraping.')) {
+      onDelete(p);
+    }
   }
 
   return (
@@ -152,8 +161,6 @@ const ProductCard = memo(function ProductCard({
           <span className="text-[.6rem] text-t4">{p.sitio}</span>
         </div>
 
-        <BadgeCluster p={p} ml={ml} badge={badge} catStats={catStats} />
-
         <span className="ov-marca">{p.sitio}</span>
         {p.descuento && <span className="ov-badge">OFERTA</span>}
 
@@ -169,11 +176,19 @@ const ProductCard = memo(function ProductCard({
             onClick={handleCompareClick}
             title="Comparar"
           >⚖</button>
+          {onDelete && (
+            <button
+              className="card-delete-btn"
+              onClick={handleDeleteClick}
+              title="Eliminar producto"
+            >🗑</button>
+          )}
         </div>
       </div>
 
       {/* Body */}
       <div className="card-body">
+        <BadgeCluster p={p} ml={ml} badge={badge} catStats={catStats} />
         <p className="card-name">{p.nombre}</p>
 
         {p.talles?.length > 0 && (

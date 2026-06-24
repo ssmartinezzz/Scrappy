@@ -1166,6 +1166,15 @@ public class ApiController {
         return ResponseEntity.ok(resp);
     }
 
+    @DeleteMapping("/data")
+    public ResponseEntity<ObjectNode> eliminarProducto(@RequestParam String url) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        db.marcarDescontinuado(url);
+        service.eliminarProductoDeMemoria(url);
+        resp.put("ok", true);
+        return ResponseEntity.ok(resp);
+    }
+
     @PostMapping("/favoritos/rescrape")
     public ResponseEntity<ObjectNode> rescrapeFavoritos() {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();

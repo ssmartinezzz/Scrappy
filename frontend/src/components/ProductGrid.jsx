@@ -3,7 +3,8 @@ import ProductCard from './ProductCard';
 
 export default function ProductGrid({
   prods, view, meta, catStats, hasMore, total,
-  comparar, favoritos, onOpenDetail, onToggleComparar, onToggleFavorito, onLoadMore
+  comparar, favoritos, onOpenDetail, onToggleComparar, onToggleFavorito, onLoadMore,
+  onDeleteProducto,
 }) {
   const loaderRef    = useRef(null);
   const [loading, setLoading] = useState(false);
@@ -61,6 +62,7 @@ export default function ProductGrid({
             onOpenDetail={onOpenDetail}
             onToggleComparar={onToggleComparar}
             onToggleFavorito={onToggleFavorito}
+            onDelete={onDeleteProducto ? () => onDeleteProducto(p) : undefined}
           />
         ))}
       </div>
