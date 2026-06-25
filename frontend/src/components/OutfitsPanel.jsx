@@ -13,8 +13,8 @@ const SLOT_LABELS = Object.fromEntries(SLOT_ORDER.map(s => [s.key, s.label]));
 const SLOT_INDEX  = Object.fromEntries(SLOT_ORDER.map((s, i) => [s.key, i + 1]));
 
 // ─── OutfitCard ──────────────────────────────────────────────────────────────
-function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentSlots }) {
-  const slots = outfit.slots || [];
+function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentSlots, removedSlots, onRemoveSlot }) {
+  const slots = (outfit.slots || []).filter(s => !removedSlots?.has(s.slot));
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:1040, margin:'0 auto', width:'100%' }}>
@@ -57,6 +57,10 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
                         className="outfit-fb-btn swap"
                         onClick={() => onSwapSlot(s.url)}
                         title="Cambiar este item">↻</button>
+                      <button
+                        className="outfit-fb-btn remove"
+                        onClick={() => onRemoveSlot?.(s.slot)}
+                        title="Quitar este item">✕</button>
                     </>
                   )}
                 </div>
@@ -76,16 +80,20 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
 }
 
 // ─── SuplementosCombo ─────────────────────────────────────────────────────────
-function SuplementosCombo({ items }) {
+function SuplementosCombo({ items, removedSupls, onRemoveSupl }) {
   if (!items || items.length === 0) return null;
-  const total = items.reduce((s, it) => s + (it.precio || 0), 0);
+  const visibleItems = items.filter((_, i) => !removedSupls?.has(i));
+  if (visibleItems.length === 0) return null;
+  const total = visibleItems.reduce((s, it) => s + (it.precio || 0), 0);
 
   return (
     <div className="supl-section" style={{ maxWidth:1040, marginTop:4 }}>
       <div className="supl-eyebrow">Sugerido para vos</div>
       <div className="supl-title">Stack de suplementos</div>
       <div className="supl-grid">
-        {items.map(it => (
+        {items.map((it, i) => {
+          if (removedSupls?.has(i)) return null;
+          return (
             <div key={it.tipo} className="supl-card">
               <div className="supl-tipo-header">{it.tipo}</div>
 
@@ -100,9 +108,15 @@ function SuplementosCombo({ items }) {
                 <div className="supl-card-name">{it.nombre || '—'}</div>
                 <div className="supl-card-price">${fmt(it.precio)}</div>
                 <div className="supl-card-marca">{it.marca || it.sitio}</div>
+                <button
+                  className="outfit-fb-btn remove"
+                  onClick={() => onRemoveSupl?.(i)}
+                  title="Quitar suplemento"
+                  style={{ marginTop:6, alignSelf:'flex-start' }}>✕</button>
               </div>
             </div>
-        ))}
+          );
+        })}
       </div>
       {total > 0 && (
         <div style={{ fontSize:'.8rem', fontWeight:600, color:'var(--t2)', marginTop:8 }}>
@@ -124,6 +138,8 @@ function GymTab({ favoritos, onAddFavorito }) {
   const [rerolling, setRerolling] = useState(false);
   const [sentSlots, setSentSlots] = useState(() => new Set());
   const [error, setError] = useState(false);
+  const [removedSlots, setRemovedSlots] = useState(() => new Set());
+  const [removedSupls, setRemovedSupls] = useState(() => new Set());
 
   const load = useCallback(async (busy, excluir = excluirUrls) => {
     busy === 'reroll' ? setRerolling(true) : setLoading(true);
@@ -170,8 +186,24 @@ function GymTab({ favoritos, onAddFavorito }) {
 
   function handleReroll() {
     setExcluirUrls([]);
+    setRemovedSlots(new Set());
+    setRemovedSupls(new Set());
     load('reroll', []);
   }
+
+  function handleRemoveSlot(slotKey) {
+    setRemovedSlots(prev => new Set(prev).add(slotKey));
+  }
+
+  function handleRemoveSupl(idx) {
+    setRemovedSupls(prev => new Set(prev).add(idx));
+  }
+
+  // Totals recalculated excluding removed items
+  const totalVisibleSlots = outfit
+    ? (outfit.slots || []).filter(s => !removedSlots.has(s.slot)).reduce((sum, s) => sum + s.precio, 0)
+    : 0;
+  const presupuestoExcedido = presupuesto > 0 && totalVisibleSlots > presupuesto;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -240,18 +272,24 @@ function GymTab({ favoritos, onAddFavorito }) {
                 outfit={outfit}
                 rerolling={rerolling}
                 sentSlots={sentSlots}
+                removedSlots={removedSlots}
+                onRemoveSlot={handleRemoveSlot}
                 onReroll={handleReroll}
                 onFeedback={handleFeedback}
                 onSwapSlot={handleSwapSlot}
               />
-              {outfit.totalEstimado > 0 && (
+              {totalVisibleSlots > 0 && (
                 <div style={{ fontSize:'.8rem', fontWeight:600,
-                              color: outfit.presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
-                  Total estimado: ${fmt(outfit.totalEstimado)}
-                  {outfit.presupuestoExcedido && ' · Excede el presupuesto'}
+                              color: presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
+                  Total estimado: ${fmt(totalVisibleSlots)}
+                  {presupuestoExcedido && ' · Excede el presupuesto'}
                 </div>
               )}
-              <SuplementosCombo items={outfit.suplementos} />
+              <SuplementosCombo
+                items={outfit.suplementos}
+                removedSupls={removedSupls}
+                onRemoveSupl={handleRemoveSupl}
+              />
             </>
           )}
         </>
