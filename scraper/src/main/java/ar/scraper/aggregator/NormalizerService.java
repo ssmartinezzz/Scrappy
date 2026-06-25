@@ -97,10 +97,21 @@ public class NormalizerService {
         "hype","retro","og ","collab","limited","drop","release","sneaker"
     };
 
+    // Tier A — unambiguous, distinctive football-boot tokens. Plain contains()
+    // is safe: these strings appear nowhere else in the file and are not
+    // common word fragments.
     private static final String[] KW_BOTIN = {
-        "botin","botin ","botin","cleats","tachon","tachos","chimpun",
-        "bota futbol","bota de futbol","future","predator","mercurial",
-        "tiempo","phantom","ace","copa","nemeziz"
+        "botin","cleats","tachon","tachos","chimpun",
+        "bota futbol","bota de futbol","predator","mercurial",
+        "phantom","nemeziz"
+    };
+
+    // Tier B — ambiguous dictionary-like tokens reused inside unrelated words
+    // ("ace"⊂Embrace, "copa"⊂Copacabana, "tiempo"⊂entretiempo, "future" is a
+    // common English word). Only classify as Botines when esContextoBotin()
+    // also matches — mirrors the KW_*_GENERICO + esZapatilla guard pattern.
+    private static final String[] KW_BOTIN_GENERICO = {
+        "ace","copa","tiempo","future"
     };
 
     private static final String[] KW_BOTA = {
@@ -125,7 +136,7 @@ public class NormalizerService {
         "birkenstock","crocs","havaianas","reef ","ipanema","kenner",
         "zueco","clogs","clog","slide sandal","pool slide",
         "rasteira","chinelo","badeleta","babuchas","suela plana",
-        "sandalia","sandal"
+        "sandalia","sandal","diapositiva","slide"
     };
 
     private static final String[] KW_MOCASIN = {
@@ -458,14 +469,6 @@ public class NormalizerService {
         "harvey"
     );
 
-    private static final Set<String> NO_MARCA = Set.of(
-        "zapatillas","zapatilla","remera","campera","pantalon","short","buzo","calza",
-        "pollera","medias","gorra","mochila","accesorio","bota","botin","ojota",
-        "sandalia","musculosa","top","chaleco","bermuda","jean","cargo","jogger",
-        "hoodie","sweater","jacket","ropa","calzado","talle","modelo","hombre",
-        "mujer","unisex","nuevo","original","importado","coleccion"
-    );
-
     // ══════════════════════════════════════════════════════════════════
     private static final String[] KW_SUPLEMENTO = {
         "proteina","protein","whey","isolate","concentrate",
@@ -732,6 +735,7 @@ public class NormalizerService {
 
         // ── CALZADO (más específico primero) ──────────────────────────
         if (anyMatch(t, KW_BOTIN))     return "Botines";
+        if (anyMatch(t, KW_BOTIN_GENERICO) && esContextoBotin(t)) return "Botines";
         if (anyMatch(t, KW_BORCEGO))   return "Borcego";
         if (anyMatch(t, KW_PANTUFLA))  return "Pantufla";
         if (anyMatch(t, KW_ZAPATO))    return "Zapato";
@@ -827,6 +831,18 @@ public class NormalizerService {
     private boolean anyMatch(String text, String[] keywords) {
         for (String kw : keywords) if (text.contains(kw)) return true;
         return false;
+    }
+
+    /**
+     * Footwear/football context guard for {@link #KW_BOTIN_GENERICO} (Tier B).
+     * These tokens are ambiguous dictionary words ("ace", "copa", "tiempo",
+     * "future") that also appear inside unrelated words (Embrace, Copacabana,
+     * entretiempo) or as common nouns — they only classify as "Botines" when
+     * a footwear/football-specific signal also co-occurs in the title.
+     */
+    private boolean esContextoBotin(String t) {
+        return t.contains("botin") || t.contains("futbol") || t.contains("tachon")
+            || t.contains("cleats") || t.contains("cancha");
     }
 
     /**
@@ -1136,15 +1152,6 @@ public class NormalizerService {
 
         for (String marca : MARCAS) {
             if (lower.contains(marca.toLowerCase())) return marca;
-        }
-
-        // Fallback: primera palabra en mayúscula que no es categoría
-        for (String w : nombre.trim().split(" +")) {
-            String wl = w.toLowerCase().replaceAll("[^a-záéíóúñ]", "");
-            if (wl.length() >= 3 && !NO_MARCA.contains(wl)
-                    && w.length() > 0 && Character.isUpperCase(w.charAt(0))) {
-                return w.replaceAll("[^a-zA-ZáéíóúñÁÉÍÓÚÑ'\\-]", "");
-            }
         }
 
         return sitio != null ? sitio : "";
