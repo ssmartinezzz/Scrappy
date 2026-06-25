@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import java.util.Comparator;
 
 /**
  * Armador de outfits (Gym): combina productos del catálogo agregado en
@@ -168,20 +169,51 @@ public class OutfitService {
      * junto al outfit, independiente de género/estilo — best-effort por subtipo
      * (subtipo sin candidatos se omite del combo, mismo criterio que el accesorio
      * del armador de outfits).
+     * Backward-compat overload: sin límite de presupuesto (comportamiento original).
      */
     public List<SupplementPick> armarComboSuplementos(List<Product> productos) {
+        return armarComboSuplementos(productos, 0);
+    }
+
+    /**
+     * Combo de suplementos con presupuesto independiente opcional.
+     * presupuesto=0 → sin límite (comportamiento original).
+     * Budget-aware: por subtipo, filtra candidatos por precio ≤ remaining. Si ninguno
+     * cabe dentro del presupuesto restante, elige el más barato disponible (no bloquea
+     * el slot — combo completo > slot vacío).
+     */
+    public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto) {
         if (productos == null) productos = List.of();
         List<Product> suplementos = productos.stream()
                 .filter(p -> "Suplemento".equals(p.categoria()))
                 .collect(Collectors.toList());
 
         List<SupplementPick> combo = new ArrayList<>();
+        double remainingBudget = presupuesto;
         for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
             List<Product> candidatos = suplementos.stream()
                     .filter(p -> matchesSubtipo(p.nombre(), subtipo.keywords()))
                     .collect(Collectors.toList());
             if (candidatos.isEmpty()) continue;
-            Product elegido = elegirPorMarcaPrioridad(candidatos);
+
+            Product elegido;
+            if (presupuesto > 0) {
+                final double rem = remainingBudget;
+                List<Product> affordable = candidatos.stream()
+                        .filter(p -> p.precio() <= rem)
+                        .collect(Collectors.toList());
+                if (!affordable.isEmpty()) {
+                    elegido = elegirPorMarcaPrioridad(affordable);
+                } else {
+                    // Ningún candidato cabe — elige el más barato (no bloquea el slot)
+                    elegido = candidatos.stream()
+                            .min(Comparator.comparingDouble(Product::precio))
+                            .orElse(candidatos.get(0));
+                }
+                remainingBudget = Math.max(0, remainingBudget - elegido.precio());
+            } else {
+                elegido = elegirPorMarcaPrioridad(candidatos);
+            }
             combo.add(toSupplementPick(subtipo.tipo(), elegido));
         }
         return combo;

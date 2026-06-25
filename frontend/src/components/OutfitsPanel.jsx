@@ -13,8 +13,8 @@ const SLOT_LABELS = Object.fromEntries(SLOT_ORDER.map(s => [s.key, s.label]));
 const SLOT_INDEX  = Object.fromEntries(SLOT_ORDER.map((s, i) => [s.key, i + 1]));
 
 // ─── OutfitCard ──────────────────────────────────────────────────────────────
-function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentSlots }) {
-  const slots = outfit.slots || [];
+function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentSlots, removedSlots, onRemoveSlot }) {
+  const slots = (outfit.slots || []).filter(s => !removedSlots?.has(s.slot));
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:1040, margin:'0 auto', width:'100%' }}>
@@ -57,6 +57,10 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
                         className="outfit-fb-btn swap"
                         onClick={() => onSwapSlot(s.url)}
                         title="Cambiar este item">↻</button>
+                      <button
+                        className="outfit-fb-btn remove"
+                        onClick={() => onRemoveSlot?.(s.slot)}
+                        title="Quitar este item">✕</button>
                     </>
                   )}
                 </div>
@@ -76,15 +80,20 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
 }
 
 // ─── SuplementosCombo ─────────────────────────────────────────────────────────
-function SuplementosCombo({ items }) {
+function SuplementosCombo({ items, removedSupls, onRemoveSupl }) {
   if (!items || items.length === 0) return null;
+  const visibleItems = items.filter((_, i) => !removedSupls?.has(i));
+  if (visibleItems.length === 0) return null;
+  const total = visibleItems.reduce((s, it) => s + (it.precio || 0), 0);
 
   return (
     <div className="supl-section" style={{ maxWidth:1040, marginTop:4 }}>
       <div className="supl-eyebrow">Sugerido para vos</div>
       <div className="supl-title">Stack de suplementos</div>
       <div className="supl-grid">
-        {items.map(it => (
+        {items.map((it, i) => {
+          if (removedSupls?.has(i)) return null;
+          return (
             <div key={it.tipo} className="supl-card">
               <div className="supl-tipo-header">{it.tipo}</div>
 
@@ -99,31 +108,46 @@ function SuplementosCombo({ items }) {
                 <div className="supl-card-name">{it.nombre || '—'}</div>
                 <div className="supl-card-price">${fmt(it.precio)}</div>
                 <div className="supl-card-marca">{it.marca || it.sitio}</div>
+                <button
+                  className="outfit-fb-btn remove"
+                  onClick={() => onRemoveSupl?.(i)}
+                  title="Quitar suplemento"
+                  style={{ marginTop:6, alignSelf:'flex-start' }}>✕</button>
               </div>
             </div>
-        ))}
+          );
+        })}
       </div>
+      {total > 0 && (
+        <div style={{ fontSize:'.8rem', fontWeight:600, color:'var(--t2)', marginTop:8 }}>
+          Total suplementos: ${fmt(total)}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── GymTab ──────────────────────────────────────────────────────────────────
-function GymTab({ favoritos, onAddFavorito }) {
+function GymTab({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   const [genero, setGenero] = useState('hombre');
   const [presupuesto, setPresupuesto] = useState(0);
+  const [presupuestoSuplementos, setPresupuestoSuplementos] = useState(0);
   const [excluirUrls, setExcluirUrls] = useState([]);
   const [outfit, setOutfit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rerolling, setRerolling] = useState(false);
   const [sentSlots, setSentSlots] = useState(() => new Set());
   const [error, setError] = useState(false);
+  const [removedSlots, setRemovedSlots] = useState(() => new Set());
+  const [removedSupls, setRemovedSupls] = useState(() => new Set());
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (busy, excluir = excluirUrls) => {
     busy === 'reroll' ? setRerolling(true) : setLoading(true);
     setError(false);
     setSentSlots(new Set());
     try {
-      const data = await fetchOutfit(genero, presupuesto, excluir);
+      const data = await fetchOutfit(genero, presupuesto, excluir, presupuestoSuplementos);
       setOutfit(data);
       if (data === null) setError(true);
     } catch {
@@ -133,7 +157,7 @@ function GymTab({ favoritos, onAddFavorito }) {
       setLoading(false);
       setRerolling(false);
     }
-  }, [genero, presupuesto, excluirUrls]);
+  }, [genero, presupuesto, presupuestoSuplementos, excluirUrls]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -163,22 +187,68 @@ function GymTab({ favoritos, onAddFavorito }) {
 
   function handleReroll() {
     setExcluirUrls([]);
+    setRemovedSlots(new Set());
+    setRemovedSupls(new Set());
     load('reroll', []);
   }
 
+  function handleRemoveSlot(slotKey) {
+    setRemovedSlots(prev => new Set(prev).add(slotKey));
+  }
+
+  function handleRemoveSupl(idx) {
+    setRemovedSupls(prev => new Set(prev).add(idx));
+  }
+
+  async function handleSaveOutfit() {
+    if (!outfit || !onSaveOutfit || saving) return;
+    setSaving(true);
+    const nombre = `Outfit ${(savedOutfits?.length || 0) + 1}`;
+    const visibleSlots = (outfit.slots || []).filter(s => !removedSlots.has(s.slot));
+    const visibleSupls = (outfit.suplementos || []).filter((_, i) => !removedSupls.has(i));
+    const totalEstimado = visibleSlots.reduce((sum, s) => sum + s.precio, 0);
+    try {
+      await onSaveOutfit({ nombre, slots: visibleSlots, suplementos: visibleSupls, totalEstimado });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Totals recalculated excluding removed items
+  const totalVisibleSlots = outfit
+    ? (outfit.slots || []).filter(s => !removedSlots.has(s.slot)).reduce((sum, s) => sum + s.precio, 0)
+    : 0;
+  const presupuestoExcedido = presupuesto > 0 && totalVisibleSlots > presupuesto;
+
+  const hasActiveOutfit = !loading && !error && outfit &&
+    outfit.slots && outfit.slots.length > 0;
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      {/* Budget input */}
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto:</span>
-        <input
-          type="number"
-          placeholder="Sin límite"
-          value={presupuesto || ''}
-          onChange={e => setPresupuesto(Number(e.target.value) || 0)}
-          style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
-                   border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
-        />
+      {/* Budget inputs */}
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto outfit:</span>
+          <input
+            type="number"
+            placeholder="Sin límite"
+            value={presupuesto || ''}
+            onChange={e => setPresupuesto(Number(e.target.value) || 0)}
+            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+          />
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto suplementos (opcional):</span>
+          <input
+            type="number"
+            placeholder="Sin límite"
+            value={presupuestoSuplementos || ''}
+            onChange={e => setPresupuestoSuplementos(Number(e.target.value) || 0)}
+            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+          />
+        </div>
       </div>
 
       {/* Genero selector */}
@@ -220,18 +290,37 @@ function GymTab({ favoritos, onAddFavorito }) {
                 outfit={outfit}
                 rerolling={rerolling}
                 sentSlots={sentSlots}
+                removedSlots={removedSlots}
+                onRemoveSlot={handleRemoveSlot}
                 onReroll={handleReroll}
                 onFeedback={handleFeedback}
                 onSwapSlot={handleSwapSlot}
               />
-              {outfit.totalEstimado > 0 && (
+              {totalVisibleSlots > 0 && (
                 <div style={{ fontSize:'.8rem', fontWeight:600,
-                              color: outfit.presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
-                  Total estimado: ${fmt(outfit.totalEstimado)}
-                  {outfit.presupuestoExcedido && ' · Excede el presupuesto'}
+                              color: presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
+                  Total estimado: ${fmt(totalVisibleSlots)}
+                  {presupuestoExcedido && ' · Excede el presupuesto'}
                 </div>
               )}
-              <SuplementosCombo items={outfit.suplementos} />
+              <SuplementosCombo
+                items={outfit.suplementos}
+                removedSupls={removedSupls}
+                onRemoveSupl={handleRemoveSupl}
+              />
+              {hasActiveOutfit && onSaveOutfit && (
+                <button
+                  onClick={handleSaveOutfit}
+                  disabled={saving}
+                  style={{
+                    alignSelf:'flex-start', padding:'6px 16px', borderRadius:8,
+                    border:'1px solid var(--p)', background:'var(--p)', color:'#fff',
+                    fontSize:'.78rem', fontWeight:700, cursor: saving ? 'default' : 'pointer',
+                    opacity: saving ? .7 : 1,
+                  }}>
+                  {saving ? 'Guardando...' : '⭐ Guardar outfit'}
+                </button>
+              )}
             </>
           )}
         </>
@@ -250,7 +339,7 @@ function PlaceholderTab({ label }) {
 }
 
 // ─── OutfitsPanel principal ────────────────────────────────────────────────────
-export default function OutfitsPanel({ favoritos = [], onAddFavorito }) {
+export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfits = [], onSaveOutfit }) {
   const [tab, setTab] = useState('gym'); // gym | casual | formal
 
   return (
@@ -271,7 +360,14 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito }) {
       </div>
 
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
-        {tab === 'gym'    && <GymTab favoritos={favoritos} onAddFavorito={onAddFavorito}/>}
+        {tab === 'gym'    && (
+          <GymTab
+            favoritos={favoritos}
+            onAddFavorito={onAddFavorito}
+            savedOutfits={savedOutfits}
+            onSaveOutfit={onSaveOutfit}
+          />
+        )}
         {tab === 'casual' && <PlaceholderTab label="Casual"/>}
         {tab === 'formal' && <PlaceholderTab label="Formal"/>}
       </div>

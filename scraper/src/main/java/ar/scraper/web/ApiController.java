@@ -876,7 +876,8 @@ public class ApiController {
     public ResponseEntity<ObjectNode> outfits(
             @RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
-            @RequestParam(required = false, defaultValue = "") String excluir) {
+            @RequestParam(required = false, defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "0") double presupuestoSuplementos) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
@@ -911,8 +912,13 @@ public class ApiController {
             n.put("marca",     safe(pick.marca()));
         }
 
+        var suplementosList = outfitService.armarComboSuplementos(r.productos(), presupuestoSuplementos);
+        double totalSuplementos = suplementosList.stream()
+                .mapToDouble(OutfitService.SupplementPick::precio).sum();
+        root.put("totalSuplementos", totalSuplementos);
+
         ArrayNode suplArr = root.putArray("suplementos");
-        for (var pick : outfitService.armarComboSuplementos(r.productos())) {
+        for (var pick : suplementosList) {
             ObjectNode n = suplArr.addObject();
             n.put("tipo",   pick.tipo());
             n.put("sitio",  safe(pick.sitio()));
@@ -1007,6 +1013,69 @@ public class ApiController {
 
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
+    }
+
+    // ─── Outfits guardados ───────────────────────────────────────────────────────
+
+    @PostMapping("/outfits/save")
+    public ResponseEntity<ObjectNode> saveOutfit(@RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        try {
+            String nombre = String.valueOf(body.getOrDefault("nombre", "Outfit")).trim();
+            Object slotsObj = body.get("slots");
+            Object suplObj  = body.get("suplementos");
+            double totalEstimado = body.containsKey("totalEstimado")
+                    ? Double.parseDouble(String.valueOf(body.get("totalEstimado"))) : 0.0;
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String slotsJson = mapper.writeValueAsString(slotsObj != null ? slotsObj : List.of());
+            String suplJson  = suplObj != null ? mapper.writeValueAsString(suplObj) : null;
+            int id = db.guardarOutfit(nombre, slotsJson, suplJson, totalEstimado);
+            if (id < 0) {
+                resp.put("ok", false);
+                resp.put("mensaje", "No se pudo guardar el outfit");
+                return ResponseEntity.internalServerError().body(resp);
+            }
+            resp.put("ok", true);
+            resp.put("id", id);
+            resp.put("nombre", nombre);
+            resp.put("totalEstimado", totalEstimado);
+            return ResponseEntity.ok(resp);
+        } catch (Exception e) {
+            LOG.warn("[API] saveOutfit error: {}", e.getMessage());
+            resp.put("ok", false);
+            resp.put("mensaje", e.getMessage());
+            return ResponseEntity.internalServerError().body(resp);
+        }
+    }
+
+    @GetMapping("/outfits/saved")
+    public ResponseEntity<Object> getSavedOutfits() {
+        return ResponseEntity.ok(db.obtenerOutfitsGuardados());
+    }
+
+    @DeleteMapping("/outfits/saved/{id}")
+    public ResponseEntity<ObjectNode> deleteSavedOutfit(@PathVariable int id) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        boolean ok = db.eliminarOutfitGuardado(id);
+        resp.put("ok", ok);
+        resp.put("mensaje", ok ? "Outfit eliminado" : "Outfit no encontrado");
+        return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
+    }
+
+    @PatchMapping("/outfits/saved/{id}/nombre")
+    public ResponseEntity<ObjectNode> renameSavedOutfit(@PathVariable int id,
+                                                         @RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
+        if (nombre.isBlank()) {
+            resp.put("ok", false);
+            resp.put("mensaje", "nombre es obligatorio");
+            return ResponseEntity.badRequest().body(resp);
+        }
+        boolean ok = db.renombrarOutfit(id, nombre);
+        resp.put("ok", ok);
+        resp.put("mensaje", ok ? "Outfit renombrado" : "Outfit no encontrado");
+        return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
     }
 
     // ─── Recomendados ("Para ti" feed) ──────────────────────────────────────────

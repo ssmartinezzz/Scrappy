@@ -1,7 +1,8 @@
 import { useReducer, useEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
 import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, deleteProducto,
-         fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo } from '../api';
+         fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
+         fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit } from '../api';
 import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
 import Sidebar       from './Sidebar';
@@ -58,6 +59,7 @@ const init = {
   comparar:     [],
   compareOpen:  false,
   favoritos:    [],   // array of favorito objects {url, sitio, nombre, addedAt, lastCheckedAt, descontinuado}
+  savedOutfits: [],   // array of saved outfit objects {id, nombre, slots, suplementos, totalEstimado, createdAt}
   // Scraping
   scrapeStatus: 'IDLE',
   scrapeMsg:    '',
@@ -100,7 +102,18 @@ function reducer(state, action) {
         descontinuado: false,
       }] };
     }
-    case 'SET_FAVORITOS': return { ...state, favoritos: action.payload || [] };
+    case 'SET_FAVORITOS':      return { ...state, favoritos: action.payload || [] };
+    case 'SET_SAVED_OUTFITS':  return { ...state, savedOutfits: action.payload || [] };
+    case 'ADD_SAVED_OUTFIT':
+      return { ...state, savedOutfits: [action.payload, ...state.savedOutfits] };
+    case 'REMOVE_SAVED_OUTFIT':
+      return { ...state, savedOutfits: state.savedOutfits.filter(o => o.id !== action.id) };
+    case 'RENAME_SAVED_OUTFIT':
+      return {
+        ...state,
+        savedOutfits: state.savedOutfits.map(o =>
+          o.id === action.id ? { ...o, nombre: action.nombre } : o),
+      };
     case 'ADD_FAVORITO':
       return {
         ...state,
@@ -257,11 +270,20 @@ function FavoritosRoute() {
   return (
     <FavoritosPanel
       favoritos={S.favoritos}
+      savedOutfits={S.savedOutfits || []}
       scrapeStatus={S.scrapeStatus}
       onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}
       onStartPolling={startPolling}
       onRefreshFavoritos={loadFavoritos}
       onSetScraping={() => set({ scrapeStatus:'RUNNING' })}
+      onDeleteSavedOutfit={async (id) => {
+        await deleteSavedOutfit(id);
+        dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });
+      }}
+      onRenameSavedOutfit={async (id, nombre) => {
+        await renameOutfit(id, nombre);
+        dispatch({ type: 'RENAME_SAVED_OUTFIT', id, nombre });
+      }}
     />
   );
 }
@@ -271,9 +293,23 @@ function OutfitsRoute() {
   return (
     <OutfitsPanel
       favoritos={S.favoritos || []}
+      savedOutfits={S.savedOutfits || []}
       onAddFavorito={(item) => {
         addFavorito(item);
         dispatch({ type: 'ADD_FAVORITO', payload: item });
+      }}
+      onSaveOutfit={async (payload) => {
+        const result = await saveOutfit(payload);
+        if (result?.ok) {
+          dispatch({ type: 'ADD_SAVED_OUTFIT', payload: {
+            id: result.id,
+            nombre: result.nombre,
+            totalEstimado: result.totalEstimado,
+            slots: payload.slots || [],
+            suplementos: payload.suplementos || [],
+            createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+          }});
+        }
       }}
     />
   );
@@ -383,8 +419,15 @@ export default function AppLayout() {
 
   useEffect(() => () => stopGpuPolling(), [stopGpuPolling]);
 
+  // Load saved outfits once on mount (independent of scrape data)
+  const loadSavedOutfits = useCallback(async () => {
+    const data = await fetchSavedOutfits();
+    dispatch({ type: 'SET_SAVED_OUTFITS', payload: data || [] });
+  }, []);
+
   // On mount: check if we already have data → load facets/favoritos/first page
   useEffect(() => {
+    loadSavedOutfits();
     fetchStatus().then(st => {
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
