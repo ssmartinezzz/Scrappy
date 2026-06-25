@@ -236,6 +236,64 @@ public class ResultAggregator {
     }
 
     /**
+     * Re-aplica las reglas actuales de {@link NormalizerService} sobre el
+     * catálogo YA persistido en la DB, sin re-scrapear (no toca internet, no
+     * usa Playwright). Cierra el gap entre "arreglamos una regla de
+     * clasificación" y "el catálogo guardado sigue con valores viejos hasta
+     * el próximo scrape". Pensado para correr automáticamente antes de cada
+     * entrenamiento de imagen con GPU, así el clasificador no aprende de
+     * etiquetas stale.
+     */
+    public Map<String, Integer> renormalizarCatalogo() {
+        List<Product> actuales      = db.cargarProductos();
+        List<Product> renormalizados = normalizer.normalizar(actuales);
+
+        int totalRevisados   = 0;
+        int categoriaCambiada = 0;
+        int marcaCambiada     = 0;
+
+        int n = Math.min(actuales.size(), renormalizados.size());
+        for (int i = 0; i < n; i++) {
+            Product antes  = actuales.get(i);
+            Product ahora  = renormalizados.get(i);
+            if (antes.url() == null || !antes.url().equals(ahora.url())) continue; // safety: mismo índice, misma URL
+
+            totalRevisados++;
+            String catAntes = antes.categoria() != null ? antes.categoria() : "";
+            String catAhora = ahora.categoria() != null ? ahora.categoria() : "";
+            String marcaAntes = antes.marca() != null ? antes.marca() : "";
+            String marcaAhora = ahora.marca() != null ? ahora.marca() : "";
+            String genAntes = antes.genero() != null ? antes.genero() : "";
+            String genAhora = ahora.genero() != null ? ahora.genero() : "";
+            List<String> tallesAntes = antes.talles() != null ? antes.talles() : List.of();
+            List<String> tallesAhora = ahora.talles() != null ? ahora.talles() : List.of();
+
+            boolean catCambio    = !catAntes.equals(catAhora);
+            boolean marcaCambio  = !marcaAntes.equals(marcaAhora);
+            boolean genCambio    = !genAntes.equals(genAhora);
+            boolean tallesCambio = !tallesAntes.equals(tallesAhora);
+
+            if (catCambio)   categoriaCambiada++;
+            if (marcaCambio) marcaCambiada++;
+
+            if (catCambio || marcaCambio || genCambio || tallesCambio) {
+                try {
+                    db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora);
+                } catch (Exception ignored) {}
+            }
+        }
+
+        LOG.info("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada",
+                totalRevisados, categoriaCambiada, marcaCambiada);
+
+        return Map.of(
+                "totalRevisados", totalRevisados,
+                "categoriaCambiada", categoriaCambiada,
+                "marcaCambiada", marcaCambiada
+        );
+    }
+
+    /**
      * Reconstruye un {@link AggregatedResult} desde productos cargados de la DB
      * (startup/restart o tras un rescrape parcial de favoritos). A diferencia de
      * {@link #agregar}, este camino NO corre el pipeline ML — pero SÍ debe correr

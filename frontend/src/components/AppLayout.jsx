@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
-import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, deleteProducto } from '../api';
+import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, deleteProducto,
+         fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo } from '../api';
 import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
 import Sidebar       from './Sidebar';
@@ -8,6 +9,7 @@ import SearchHero    from './SearchHero';
 import ProductGrid   from './ProductGrid';
 import DetailPanel   from './DetailPanel';
 import RouteFallback from './RouteFallback';
+import GpuTrainingOverlay from './GpuTrainingOverlay';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 
@@ -143,7 +145,7 @@ function reducer(state, action) {
 
 // ─── CatalogoRoute (eager) ─────────────────────────────────────────────────────
 function CatalogoRoute() {
-  const { S, set, setFilter, dispatch, loadNextPage } = useOutletContext();
+  const { S, set, setFilter, dispatch, loadNextPage, gpuTraining, triggerGpuTraining } = useOutletContext();
 
   // Client-side gym subcat filter (ADR-3): filter after fetch when subcat is active
   const visibleProds = S.gymSubcatFiltro
@@ -159,8 +161,35 @@ function CatalogoRoute() {
     if (ok) dispatch({ type: 'REMOVE_PROD', url: prod.url });
   }
 
+  const gpuRunning = !!gpuTraining?.running;
+
   return (
     <>
+      <style>{`
+        @keyframes gpu-btn-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--p) 45%, transparent)}50%{box-shadow:0 0 0 10px color-mix(in srgb, var(--p) 0%, transparent)}}
+      `}</style>
+      <div style={{
+        position:'fixed', right:24, bottom:24, zIndex:40,
+      }}>
+        <button
+          onClick={triggerGpuTraining}
+          disabled={gpuRunning}
+          style={{
+            padding:'12px 20px', borderRadius:999,
+            border:'1px solid var(--p)',
+            background: gpuRunning ? 'var(--s3)' : 'var(--p)',
+            color: gpuRunning ? 'var(--t3)' : '#fff',
+            fontWeight:800, fontSize:'.82rem',
+            cursor: gpuRunning ? 'not-allowed' : 'pointer',
+            boxShadow:'0 4px 18px color-mix(in srgb, var(--p) 35%, transparent)',
+            animation: gpuRunning ? 'none' : 'gpu-btn-pulse 2.2s ease-in-out infinite',
+            transition:'opacity .15s',
+          }}
+        >
+          {gpuRunning ? 'Entrenando...' : '⚡ Re-entrenar IA con GPU'}
+        </button>
+      </div>
+
       <SearchHero
         busq={S.busq} view={S.view} orden={S.orden} total={S.totalProds}
         topMarcas={sortByCountDesc(S.facets?.marcas||{})}
@@ -260,6 +289,84 @@ export default function AppLayout() {
   const loadingRef = useRef(false);
   const navigate = useNavigate();
 
+  // GPU fine-tuning blocking overlay state — separate useState (not the main
+  // reducer) so it stays isolated from the catalog/filter state machine above.
+  const [gpuTraining, setGpuTraining] = useState(null);
+  const gpuPollingRef = useRef(null);
+
+  const stopGpuPolling = useCallback(() => {
+    if (gpuPollingRef.current) { clearInterval(gpuPollingRef.current); gpuPollingRef.current = null; }
+  }, []);
+
+  // Polling pattern mirrors MlStatusPanel.jsx lines 43-76: poll fetchMlEstado
+  // + fetchMlResultado every 2s while training is running, stop when
+  // !training.running, differentiate success vs error via phase==='error'.
+  const startGpuPolling = useCallback(() => {
+    stopGpuPolling();
+    gpuPollingRef.current = setInterval(async () => {
+      const [e, res] = await Promise.all([
+        fetchMlEstado().catch(() => null),
+        fetchMlResultado().catch(() => null),
+      ]);
+      if (!e) return;
+      const ts = e.training || {};
+      if (ts.running) {
+        setGpuTraining(prev => ({
+          ...prev, running:true, phase:ts.phase, pct:ts.pct,
+          msg:ts.msg, startedAt:ts.startedAt, error:null, success:false,
+        }));
+        return;
+      }
+      // Training finished — differentiate success vs error
+      stopGpuPolling();
+      const isError = res?.phase === 'error' || ts.phase === 'error';
+      if (isError) {
+        setGpuTraining(prev => ({
+          ...prev, running:false, phase:ts.phase || res?.phase,
+          msg: res?.msg || ts.msg, error: res?.msg || ts.msg || 'Error desconocido', success:false,
+        }));
+      } else {
+        setGpuTraining(prev => ({
+          ...prev, running:false, phase:ts.phase, msg: res?.msg || ts.msg,
+          error:null, success:true,
+        }));
+      }
+    }, 2000);
+  }, [stopGpuPolling]);
+
+  const triggerGpuTraining = useCallback(async () => {
+    if (gpuTraining?.running) return; // guard against double-trigger; backend also rejects with 400
+    setGpuTraining({ running:true, phase:'renormalizando', pct:0, msg:'Actualizando categorías y marcas con las reglas más recientes...', startedAt:new Date().toISOString(), error:null, success:false });
+    try {
+      // Re-normaliza el catálogo ya persistido (sin re-scrapear) ANTES de
+      // entrenar, para que el clasificador de imagen no aprenda de etiquetas
+      // categoria/marca stale dejadas por reglas viejas de NormalizerService.
+      await renormalizarCatalogo();
+      setGpuTraining(prev => ({ ...prev, phase:'starting', msg:'' }));
+      await startMlTraining(true, 8);
+      startGpuPolling();
+    } catch {
+      // Network failure on renormalización o en el POST inicial — surface the
+      // error escape hatch instead of leaving the blocking overlay stuck.
+      setGpuTraining(prev => ({ ...prev, running:false, error:'No se pudo iniciar el entrenamiento (error de red).' }));
+    }
+  }, [gpuTraining, startGpuPolling]);
+
+  const closeGpuOverlay = useCallback(() => {
+    stopGpuPolling();
+    setGpuTraining(null);
+  }, [stopGpuPolling]);
+
+  // Auto-hide overlay shortly after a successful run completes (no click needed)
+  useEffect(() => {
+    if (gpuTraining?.success) {
+      const t = setTimeout(() => setGpuTraining(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [gpuTraining?.success]);
+
+  useEffect(() => () => stopGpuPolling(), [stopGpuPolling]);
+
   // On mount: check if we already have data → load facets/favoritos/first page
   useEffect(() => {
     fetchStatus().then(st => {
@@ -270,6 +377,14 @@ export default function AppLayout() {
         loadFavoritos();
       }
     });
+    // Recover an in-progress GPU training across page refreshes — don't lose it
+    fetchMlEstado().then(e => {
+      if (e?.training?.running) {
+        const ts = e.training;
+        setGpuTraining({ running:true, phase:ts.phase, pct:ts.pct, msg:ts.msg, startedAt:ts.startedAt, error:null, success:false });
+        startGpuPolling();
+      }
+    }).catch(() => {});
   }, []);
 
   // Load facets once on mount
@@ -413,6 +528,7 @@ export default function AppLayout() {
             <Outlet context={{
               S, set, setFilter, dispatch, loadNextPage, startPolling,
               loadFavoritos, sidebarOpen, setSidebarOpen, onClusterClick,
+              gpuTraining, triggerGpuTraining,
             }}/>
           </Suspense>
         </div>
@@ -430,6 +546,10 @@ export default function AppLayout() {
       )}
       {S.compareOpen && (
         <CompareModal items={S.comparar} onClose={() => set({ compareOpen:false })}/>
+      )}
+
+      {gpuTraining && (
+        <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
       )}
     </div>
   );

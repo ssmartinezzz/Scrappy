@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchMarcasBrowser, fetchData, fmt, BADGE_LABELS } from '../api';
 import { SEMANTIC } from '../lib/colors';
+import { getBrandLogoUrl, getBrandInitials, getBrandColor } from '../lib/brandLogos';
 
 const RUBROS = [
   { k:'',             icon:'🛍', l:'Todas'       },
@@ -18,7 +19,9 @@ const SORT_OPTS = [
 // ─── Tarjeta de marca (estilo actress card) ──────────────────────────────────
 function MarcaCard({ marca, onClick }) {
   const [hovered, setHovered] = useState(false);
-  const img = marca.img || marca.bestPick?.img || '';
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoUrl = getBrandLogoUrl(marca.marca);
+  const showLogo = logoUrl && !logoFailed;
 
   return (
     <div
@@ -26,24 +29,31 @@ function MarcaCard({ marca, onClick }) {
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
       style={{
-        position:'relative', cursor:'pointer', borderRadius:10, overflow:'hidden',
-        aspectRatio:'2/3',   // retrato estilo actress card
+        position:'relative', cursor:'pointer', borderRadius:14, overflow:'hidden',
+        aspectRatio:'4/5',   // mismo tamaño/disposición que Mejores Picks
         background:'var(--s2)', border:`1px solid ${hovered?'var(--p)':'var(--bd)'}`,
         transition:'border-color .12s, transform .15s, box-shadow .15s',
         transform: hovered ? 'translateY(-4px)' : 'none',
         boxShadow: hovered ? '0 14px 40px rgba(0,0,0,.65)' : 'none',
       }}>
 
-      {/* Background image */}
-      {img ? (
-        <img src={img} alt={marca.marca} loading="lazy"
-          style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
-          onError={e => { e.target.style.display='none'; }}/>
+      {/* Brand logo, contained and centered over a neutral background */}
+      {showLogo ? (
+        <div style={{ width:'100%', height:'100%', display:'flex',
+                      alignItems:'center', justifyContent:'center',
+                      background:'var(--s3)', padding:'18%' }}>
+          <img src={logoUrl} alt={marca.marca} loading="lazy"
+            style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }}
+            onError={() => setLogoFailed(true)}/>
+        </div>
       ) : (
         <div style={{ width:'100%', height:'100%', display:'flex',
                       alignItems:'center', justifyContent:'center',
-                      fontSize:'2.5rem', background:'var(--s3)' }}>
-          {marca.rubro === 'tecnologia' ? '💻' : marca.rubro === 'suplementos' ? '💊' : '👕'}
+                      background: getBrandColor(marca.marca) }}>
+          <span style={{ fontSize:'2.2rem', fontWeight:900, color:'#fff',
+                         letterSpacing:'.02em' }}>
+            {getBrandInitials(marca.marca)}
+          </span>
         </div>
       )}
 
@@ -290,8 +300,8 @@ export default function MarcasPanel({ onProductClick }) {
         )}
         {!loading && marcas.length > 0 && (
           <div style={{
-            display:'grid', gap:10,
-            gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))',
+            display:'grid', gap:14,
+            gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))',
           }}>
             {marcas.map(m => (
               <MarcaCard key={m.marca} marca={m} onClick={setSelMarca}/>
