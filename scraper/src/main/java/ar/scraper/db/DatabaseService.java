@@ -1050,6 +1050,29 @@ st.executeUpdate("""
         }
     }
 
+    /**
+     * Actualiza categoria/marca/genero/talles de un producto ya existente en la
+     * DB sin re-scrapear. Usado por la re-normalización del catálogo: aplica las
+     * reglas actuales de {@code NormalizerService} sobre datos ya persistidos.
+     */
+    public void actualizarNormalizacion(String url, String categoria, String marca,
+                                         String genero, List<String> talles) {
+        if (conn == null || url == null) return;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=? WHERE url=?")) {
+            ps.setString(1, categoria != null ? categoria : "");
+            ps.setString(2, marca != null ? marca : "");
+            ps.setString(3, genero != null ? genero : "");
+            ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
+            ps.setString(5, url);
+            ps.executeUpdate();
+            conn.commit();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+        }
+    }
+
 
     // ─── Favoritos ───────────────────────────────────────────────────────────
 

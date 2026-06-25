@@ -769,6 +769,7 @@ def main():
             'histLow':         hist_low,
             'histMin':         hist_min,
             'histMax':         hist_max,
+            'histN':           len(hist_pts),
             # Metadata
             'rubro':        rubro,
             'statQuality':  stat_quality,
@@ -975,6 +976,17 @@ def main():
         desc_sig = s['descuentoSig']
         desc_pct = s['descuentoPct']
         orig_p   = s['origPrice']
+        hist_n   = s['histN']
+
+        # Guard de oferta cosmética: si ya tenemos suficiente historial de precio
+        # PROPIO de este producto (≥3 puntos), el descuento solo cuenta como real
+        # si el precio resultante está cerca de su mínimo histórico (hist=histLow,
+        # ya calculado con tolerancia 5%). Sin esto, un "precio original" inflado
+        # recién antes del descuento pasaba como oferta real apenas la categoría
+        # tuviera buenos descuentos en general — sin chequear contra el propio
+        # historial de ESTE producto. Si no hay historial suficiente (producto
+        # nuevo), no se penaliza: se conserva el criterio estadístico de categoría.
+        no_es_cosmetica_vs_historial = (hist_n < 3) or hist
 
         # OFERTA REAL: descuento estadísticamente significativo Y precio competitivo
         # Condiciones:
@@ -983,12 +995,14 @@ def main():
         #   - Descuento de al menos 20%
         #   - Precio post-descuento en mitad inferior del mercado
         #   - Descuento supera la mediana de descuentos de la categoría (o fallback global)
+        #   - No contradice el historial de precio propio del producto (ver guard arriba)
         es_oferta_real = (ratio > 0
               and 1.20 <= ratio <= 3.5        # mínimo 20% de descuento real
               and orig_p > 0
               and desc_pct >= 20              # al menos 20% de descuento
               and comp <= 40                  # precio resultante en cuartil inferior
               and desc_sig                    # supera la mediana de descuentos de la categoría
+              and no_es_cosmetica_vs_historial # no contradice el historial propio
               and not (isinstance(ratio, float) and (ratio != ratio)))
         scores[pid]['ofertaReal'] = bool(es_oferta_real)
         # NOTA: ofertaReal es un campo independiente del badge mostrado. Un producto

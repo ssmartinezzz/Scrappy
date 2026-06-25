@@ -4,6 +4,7 @@ import ar.scraper.model.Product;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -455,6 +456,12 @@ public class NormalizerService {
         "Caterpillar","Keen","Palladium","Crocs","Birkenstock",
         "Bulks","Fuark","Harvey Willys","Harvey"
     );
+
+    // Word-boundary patterns (no substring matches) — evita falsos positivos
+    // como "DC" matcheando dentro de "Hardcore" o "HDCP" (ver bug category-brand-quality-fixes).
+    private static final List<Pattern> MARCA_PATTERNS = MARCAS.stream()
+            .map(m -> Pattern.compile("\\b" + Pattern.quote(m.toLowerCase()) + "\\b"))
+            .collect(Collectors.toList());
 
     // ══════════════════════════════════════════════════════════════════
     // SITIOS PREMIUM — tag transversal aditivo "marcaPremium"
@@ -1150,8 +1157,8 @@ public class NormalizerService {
         if (nombre == null || nombre.isBlank()) return "";
         String lower = nombre.toLowerCase();
 
-        for (String marca : MARCAS) {
-            if (lower.contains(marca.toLowerCase())) return marca;
+        for (int i = 0; i < MARCAS.size(); i++) {
+            if (MARCA_PATTERNS.get(i).matcher(lower).find()) return MARCAS.get(i);
         }
 
         return sitio != null ? sitio : "";

@@ -27,6 +27,12 @@ scraper/precio_historico.json
 _models/
 scraper/_models/
 
+# Runtime-extracted copies of ml_pipeline.py (PythonRunner.java extracts from the JAR
+# next to scraper.jar at startup) — the only source of truth lives in
+# scraper/src/main/resources/ml/ml_pipeline.py
+/ml_pipeline.py
+scraper/ml_pipeline.py
+
 # Vendored toolchain
 _tools/
 

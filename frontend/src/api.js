@@ -223,6 +223,11 @@ export async function aplicarModeloML() {
   return r.ok ? r.json() : null;
 }
 
+export async function renormalizarCatalogo() {
+  const r = await fetch('/api/ml/renormalizar', { method: 'POST' });
+  return r.ok ? r.json() : null;
+}
+
 // ─── Favoritos ─────────────────────────────────────────────────────────────
 
 export async function fetchFavoritos() {
