@@ -619,6 +619,13 @@ public class ApiController {
     }
 
 
+    @PostMapping("/ml/renormalizar")
+    public ResponseEntity<Object> mlRenormalizar() {
+        var resultado = aggregator.renormalizarCatalogo();
+        return ResponseEntity.ok(resultado);
+    }
+
+
     // ─── Inflación INDEC ─────────────────────────────────────────────────────────
 
 
