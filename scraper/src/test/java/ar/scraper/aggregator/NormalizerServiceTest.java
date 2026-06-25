@@ -281,4 +281,76 @@ class NormalizerServiceTest {
         assertThat(service.extraerMarca("Zapatillas Dc Court Graffik Ss", "City")).isEqualTo("DC");
         assertThat(service.extraerMarca("Botas de Invierno Dc Shoes Crisis 2 Hi", "Dcshoes")).isEqualTo("DC");
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // outfits-v2 — Gender inference: feminine-coded categories
+    //
+    // Covers the FEMININE_CODED_CATEGORIES override that must fire BEFORE
+    // the combined-check (raw+nombre), preventing VTEX catalog-level raw
+    // tags like "Hombre" from leaking into women's apparel.
+    // ══════════════════════════════════════════════════════════════════
+
+    @Test
+    void calzaConRawVtexHombreDevuelveMujer() {
+        // VTEX sets raw="Hombre" at category level even for women's calzas.
+        // The feminine-coded override must fire before combined.contains("hombre").
+        assertThat(service.normalizarGenero("Hombre", "Calza Nike Training", "Calza"))
+                .isEqualTo("mujer");
+    }
+
+    @Test
+    void calzaSinSenalDevuelveMujer() {
+        // No raw, no nombre signal — FEMININE_CODED_CATEGORIES fallback produces "mujer".
+        assertThat(service.normalizarGenero("", "Calza Sport Corta", "Calza"))
+                .isEqualTo("mujer");
+    }
+
+    @Test
+    void calzaConDeHombreEnNombreDevuelveHombre() {
+        // Explicit masculine signal "de Hombre" in nombre overrides category inference.
+        assertThat(service.normalizarGenero("", "Calza adidas Techfit De Hombre", "Calza"))
+                .isEqualTo("hombre");
+    }
+
+    @Test
+    void calzaConHombreComoTokenEnNombreDevuelveHombre() {
+        // Standalone "hombre" in nombre (e.g. "Calza Hombre Training") is a valid
+        // masculine signal — must NOT be overridden to mujer.
+        assertThat(service.normalizarGenero("", "Calza Hombre Training", "Calza"))
+                .isEqualTo("hombre");
+    }
+
+    @Test
+    void leggingConRawHombreDevuelveMujer() {
+        // "Legging" normalizes to category Calza — same FEMININE_CODED override applies.
+        assertThat(service.normalizarGenero("Hombre", "Legging Gym Pro", "Calza"))
+                .isEqualTo("mujer");
+    }
+
+    @Test
+    void polleraConRawHombreDevuelveMujer() {
+        // Pollera is feminine-coded; raw="Hombre" from any site must be overridden.
+        assertThat(service.normalizarGenero("Hombre", "Pollera Mini Tiro Alto", "Pollera"))
+                .isEqualTo("mujer");
+    }
+
+    @Test
+    void vestidoConRawHombreDevuelveMujer() {
+        assertThat(service.normalizarGenero("Hombre", "Vestido Playero", "Vestido"))
+                .isEqualTo("mujer");
+    }
+
+    @Test
+    void categoriaNoFemeninaConRawHombreDevuelveHombre() {
+        // Categories outside FEMININE_CODED_CATEGORIES must NOT be overridden.
+        assertThat(service.normalizarGenero("Hombre", "Remera Deportiva", "Remera"))
+                .isEqualTo("hombre");
+    }
+
+    @Test
+    void categoriaNoFemeninaConRawMujerDevuelveMujer() {
+        // Verify non-feminine categories still respect raw="mujer" normally.
+        assertThat(service.normalizarGenero("mujer", "Remera Básica", "Remera"))
+                .isEqualTo("mujer");
+    }
 }

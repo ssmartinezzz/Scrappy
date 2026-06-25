@@ -95,4 +95,81 @@ class OutfitServiceTest {
         // with no exclusion applied (spec: existing overload unaffected).
         assertThat(outfit.slots()).isNotEmpty();
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // outfits-v2 — Paso-2 fallback: género correctness
+    //
+    // Paso 2 is the last resort before marking a slot partial. It must
+    // include ONLY products with genero="" (ungendered) or genero="unisex".
+    // It MUST NOT include products of the opposite gender — previously,
+    // filtrar(base, "unisex", ...) would call generoElegible(p, "unisex")
+    // which returned true for ALL genders, leaking women's calzas into
+    // men's outfits when the piernas pool was small.
+    // ══════════════════════════════════════════════════════════════════
+
+    @Test
+    void paso2FallbackNoIncluyeProductosMujerEnOutfitHombre() {
+        // Only a women's calza is available for piernas — paso 2 must NOT
+        // pick it; the slot must be left empty (partial=true).
+        Product remera    = producto("Remera Nike",      20000, "Remera",    "hombre", "Nike",   true);
+        Product zapatilla = producto("Zapatilla Adidas", 80000, "Zapatilla", "hombre", "Adidas", false);
+        Product calzaMujer = producto("Calza Mujer Pro", 25000, "Calza",     "mujer",  "Nike",   true);
+
+        OutfitService.Outfit outfit = service.armar(
+                List.of(remera, zapatilla, calzaMujer), "hombre", "gym",
+                OutfitService.FeedbackModel.empty());
+
+        assertThat(outfit.partial()).isTrue();
+        assertThat(outfit.slots()).noneMatch(s -> "piernas".equals(s.slot()));
+    }
+
+    @Test
+    void paso2FallbackIncluyeProductoUnisexEnOutfitHombre() {
+        // When only a mujer calza and a unisex calza are available, paso 2
+        // must pick the unisex one for a hombre outfit.
+        Product remera       = producto("Remera Nike",      20000, "Remera",    "hombre",  "Nike",   true);
+        Product zapatilla    = producto("Zapatilla Adidas", 80000, "Zapatilla", "hombre",  "Adidas", false);
+        Product calzaMujer   = producto("Calza Mujer Pro",  25000, "Calza",     "mujer",   "Nike",   true);
+        Product calzaUnisex  = producto("Calza Unisex Pro", 24000, "Calza",     "unisex",  "Adidas", true);
+
+        OutfitService.Outfit outfit = service.armar(
+                List.of(remera, zapatilla, calzaMujer, calzaUnisex), "hombre", "gym",
+                OutfitService.FeedbackModel.empty());
+
+        assertThat(outfit.partial()).isFalse();
+        assertThat(outfit.slots())
+                .filteredOn(s -> "piernas".equals(s.slot()))
+                .allMatch(s -> !"Calza Mujer Pro".equals(s.nombre()));
+    }
+
+    @Test
+    void productosConGeneroVacioSonElegiblesEnOutfitHombre() {
+        // Products with genero="" are ungendered — they must be eligible in
+        // steps 0 and 1 (not just paso 2) for any requested gender.
+        Product remera       = producto("Remera Nike",      20000, "Remera",    "hombre", "Nike",   true);
+        Product zapatilla    = producto("Zapatilla Adidas", 80000, "Zapatilla", "hombre", "Adidas", false);
+        Product shortVacio   = producto("Short Generico",   22000, "Short",     "",       "Generic", true);
+
+        OutfitService.Outfit outfit = service.armar(
+                List.of(remera, zapatilla, shortVacio), "hombre", "gym",
+                OutfitService.FeedbackModel.empty());
+
+        assertThat(outfit.partial()).isFalse();
+        assertThat(outfit.slots()).anyMatch(s -> "piernas".equals(s.slot()));
+    }
+
+    @Test
+    void paso2FallbackNoIncluyeProductosMujerEnOutfitMujer_regresion() {
+        // Mirror test: hombre products must not leak into a mujer outfit via paso 2.
+        Product remera       = producto("Remera Mujer",     20000, "Remera",    "mujer",  "Nike",   true);
+        Product zapatilla    = producto("Zapatilla Mujer",  80000, "Zapatilla", "mujer",  "Adidas", false);
+        Product shortHombre  = producto("Short Hombre Pro", 22000, "Short",     "hombre", "Nike",   true);
+
+        OutfitService.Outfit outfit = service.armar(
+                List.of(remera, zapatilla, shortHombre), "mujer", "gym",
+                OutfitService.FeedbackModel.empty());
+
+        assertThat(outfit.partial()).isTrue();
+        assertThat(outfit.slots()).noneMatch(s -> "piernas".equals(s.slot()));
+    }
 }
