@@ -13,12 +13,12 @@ const SLOT_LABELS = Object.fromEntries(SLOT_ORDER.map(s => [s.key, s.label]));
 const SLOT_INDEX  = Object.fromEntries(SLOT_ORDER.map((s, i) => [s.key, i + 1]));
 
 // ─── OutfitCard ──────────────────────────────────────────────────────────────
-function OutfitCard({ outfit, onReroll, onFeedback, rerolling, sentSlots }) {
+function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentSlots }) {
   const slots = outfit.slots || [];
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:1040 }}>
-      <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap', justifyContent:'center' }}>
         {slots.map(s => {
           const sent = sentSlots.has(s.slot);
           return (
@@ -53,6 +53,10 @@ function OutfitCard({ outfit, onReroll, onFeedback, rerolling, sentSlots }) {
                       <button className="outfit-fb-btn dislike" onClick={() => onFeedback(s.slot, s.url, false)}>
                         No me gusta
                       </button>
+                      <button
+                        className="outfit-fb-btn swap"
+                        onClick={() => onSwapSlot(s.url)}
+                        title="Cambiar este item">↻</button>
                     </>
                   )}
                 </div>
@@ -104,20 +108,22 @@ function SuplementosCombo({ items }) {
 }
 
 // ─── GymTab ──────────────────────────────────────────────────────────────────
-function GymTab() {
+function GymTab({ favoritos, onAddFavorito }) {
   const [genero, setGenero] = useState('hombre');
+  const [presupuesto, setPresupuesto] = useState(0);
+  const [excluirUrls, setExcluirUrls] = useState([]);
   const [outfit, setOutfit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rerolling, setRerolling] = useState(false);
   const [sentSlots, setSentSlots] = useState(() => new Set());
   const [error, setError] = useState(false);
 
-  const load = useCallback(async (busy) => {
+  const load = useCallback(async (busy, excluir = excluirUrls) => {
     busy === 'reroll' ? setRerolling(true) : setLoading(true);
     setError(false);
     setSentSlots(new Set());
     try {
-      const data = await fetchOutfit(genero);
+      const data = await fetchOutfit(genero, presupuesto, excluir);
       setOutfit(data);
       if (data === null) setError(true);
     } catch {
@@ -127,7 +133,7 @@ function GymTab() {
       setLoading(false);
       setRerolling(false);
     }
-  }, [genero]);
+  }, [genero, presupuesto, excluirUrls]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -139,10 +145,42 @@ function GymTab() {
     };
     const ok = await sendOutfitFeedback(body);
     if (ok) setSentSlots(prev => new Set(prev).add(slot));
+
+    // R4: like → auto-add to favoritos (optimistic, idempotent)
+    if (liked && onAddFavorito) {
+      const item = outfit.slots.find(s => s.url === url);
+      if (item && !favoritos.some(f => f.url === url)) {
+        onAddFavorito({ url: item.url, sitio: item.sitio, nombre: item.nombre });
+      }
+    }
+  }
+
+  function handleSwapSlot(url) {
+    const next = [...excluirUrls, url];
+    setExcluirUrls(next);
+    load('reroll', next);
+  }
+
+  function handleReroll() {
+    setExcluirUrls([]);
+    load('reroll', []);
   }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      {/* Budget input */}
+      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto:</span>
+        <input
+          type="number"
+          placeholder="Sin límite"
+          value={presupuesto || ''}
+          onChange={e => setPresupuesto(Number(e.target.value) || 0)}
+          style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                   border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+        />
+      </div>
+
       {/* Genero selector */}
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
         <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
@@ -182,9 +220,17 @@ function GymTab() {
                 outfit={outfit}
                 rerolling={rerolling}
                 sentSlots={sentSlots}
-                onReroll={() => load('reroll')}
+                onReroll={handleReroll}
                 onFeedback={handleFeedback}
+                onSwapSlot={handleSwapSlot}
               />
+              {outfit.totalEstimado > 0 && (
+                <div style={{ fontSize:'.8rem', fontWeight:600,
+                              color: outfit.presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
+                  Total estimado: ${fmt(outfit.totalEstimado)}
+                  {outfit.presupuestoExcedido && ' · Excede el presupuesto'}
+                </div>
+              )}
               <SuplementosCombo items={outfit.suplementos} />
             </>
           )}
@@ -204,7 +250,7 @@ function PlaceholderTab({ label }) {
 }
 
 // ─── OutfitsPanel principal ────────────────────────────────────────────────────
-export default function OutfitsPanel() {
+export default function OutfitsPanel({ favoritos = [], onAddFavorito }) {
   const [tab, setTab] = useState('gym'); // gym | casual | formal
 
   return (
@@ -225,7 +271,7 @@ export default function OutfitsPanel() {
       </div>
 
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
-        {tab === 'gym'    && <GymTab/>}
+        {tab === 'gym'    && <GymTab favoritos={favoritos} onAddFavorito={onAddFavorito}/>}
         {tab === 'casual' && <PlaceholderTab label="Casual"/>}
         {tab === 'formal' && <PlaceholderTab label="Formal"/>}
       </div>

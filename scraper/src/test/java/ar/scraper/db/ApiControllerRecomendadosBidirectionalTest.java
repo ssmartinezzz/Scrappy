@@ -91,7 +91,7 @@ class ApiControllerRecomendadosBidirectionalTest {
         ));
 
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> outfitsResp =
-                controller.outfits("hombre");
+                controller.outfits("hombre", 0, "");
 
         JsonNode slots = outfitsResp.getBody().get("slots");
         boolean pumaBuzoPresent = false;
