@@ -258,4 +258,27 @@ class NormalizerServiceTest {
     void extraerMarcaCuradaTieneSiemprePrioridad() {
         assertThat(service.extraerMarca("Nike Air Max", "VCP")).isEqualTo("Nike");
     }
+
+    // ── extraerMarca: word-boundary matching, no substring false positives ──
+    // Bug real visto en producción: "DC" (2 letras) matcheaba como substring
+    // dentro de "Hardcore" y "HDCP", asignando marca "DC" a jeans/camperas/
+    // cables que no tienen nada que ver con la marca de skate.
+
+    @Test
+    void extraerMarcaNoMatcheaDcDentroDeHardcore() {
+        assertThat(service.extraerMarca("Jean [ Hardcore Desire ] Stone", "Bullbenny")).isEqualTo("Bullbenny");
+        assertThat(service.extraerMarca("Campera [ Hardcore Desire ] Stone", "Bullbenny")).isEqualTo("Bullbenny");
+    }
+
+    @Test
+    void extraerMarcaNoMatcheaDcDentroDeHdcp() {
+        assertThat(service.extraerMarca("Cable Display Port 8k 60hz Hdr G-sync Hdcp 3 M Vention", "Compragamer"))
+                .isEqualTo("Compragamer");
+    }
+
+    @Test
+    void extraerMarcaSigueMatcheandoDcComoTokenReal() {
+        assertThat(service.extraerMarca("Zapatillas Dc Court Graffik Ss", "City")).isEqualTo("DC");
+        assertThat(service.extraerMarca("Botas de Invierno Dc Shoes Crisis 2 Hi", "Dcshoes")).isEqualTo("DC");
+    }
 }
