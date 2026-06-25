@@ -78,6 +78,7 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
 // ─── SuplementosCombo ─────────────────────────────────────────────────────────
 function SuplementosCombo({ items }) {
   if (!items || items.length === 0) return null;
+  const total = items.reduce((s, it) => s + (it.precio || 0), 0);
 
   return (
     <div className="supl-section" style={{ maxWidth:1040, marginTop:4 }}>
@@ -103,6 +104,11 @@ function SuplementosCombo({ items }) {
             </div>
         ))}
       </div>
+      {total > 0 && (
+        <div style={{ fontSize:'.8rem', fontWeight:600, color:'var(--t2)', marginTop:8 }}>
+          Total suplementos: ${fmt(total)}
+        </div>
+      )}
     </div>
   );
 }
@@ -111,6 +117,7 @@ function SuplementosCombo({ items }) {
 function GymTab({ favoritos, onAddFavorito }) {
   const [genero, setGenero] = useState('hombre');
   const [presupuesto, setPresupuesto] = useState(0);
+  const [presupuestoSuplementos, setPresupuestoSuplementos] = useState(0);
   const [excluirUrls, setExcluirUrls] = useState([]);
   const [outfit, setOutfit] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -123,7 +130,7 @@ function GymTab({ favoritos, onAddFavorito }) {
     setError(false);
     setSentSlots(new Set());
     try {
-      const data = await fetchOutfit(genero, presupuesto, excluir);
+      const data = await fetchOutfit(genero, presupuesto, excluir, presupuestoSuplementos);
       setOutfit(data);
       if (data === null) setError(true);
     } catch {
@@ -133,7 +140,7 @@ function GymTab({ favoritos, onAddFavorito }) {
       setLoading(false);
       setRerolling(false);
     }
-  }, [genero, presupuesto, excluirUrls]);
+  }, [genero, presupuesto, presupuestoSuplementos, excluirUrls]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -168,17 +175,30 @@ function GymTab({ favoritos, onAddFavorito }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      {/* Budget input */}
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto:</span>
-        <input
-          type="number"
-          placeholder="Sin límite"
-          value={presupuesto || ''}
-          onChange={e => setPresupuesto(Number(e.target.value) || 0)}
-          style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
-                   border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
-        />
+      {/* Budget inputs */}
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto outfit:</span>
+          <input
+            type="number"
+            placeholder="Sin límite"
+            value={presupuesto || ''}
+            onChange={e => setPresupuesto(Number(e.target.value) || 0)}
+            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+          />
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto suplementos (opcional):</span>
+          <input
+            type="number"
+            placeholder="Sin límite"
+            value={presupuestoSuplementos || ''}
+            onChange={e => setPresupuestoSuplementos(Number(e.target.value) || 0)}
+            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+          />
+        </div>
       </div>
 
       {/* Genero selector */}

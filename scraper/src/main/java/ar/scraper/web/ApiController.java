@@ -876,7 +876,8 @@ public class ApiController {
     public ResponseEntity<ObjectNode> outfits(
             @RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
-            @RequestParam(required = false, defaultValue = "") String excluir) {
+            @RequestParam(required = false, defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "0") double presupuestoSuplementos) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
@@ -911,8 +912,13 @@ public class ApiController {
             n.put("marca",     safe(pick.marca()));
         }
 
+        var suplementosList = outfitService.armarComboSuplementos(r.productos(), presupuestoSuplementos);
+        double totalSuplementos = suplementosList.stream()
+                .mapToDouble(OutfitService.SupplementPick::precio).sum();
+        root.put("totalSuplementos", totalSuplementos);
+
         ArrayNode suplArr = root.putArray("suplementos");
-        for (var pick : outfitService.armarComboSuplementos(r.productos())) {
+        for (var pick : suplementosList) {
             ObjectNode n = suplArr.addObject();
             n.put("tipo",   pick.tipo());
             n.put("sitio",  safe(pick.sitio()));
