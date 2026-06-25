@@ -253,6 +253,16 @@ st.executeUpdate("""
                     activo     INTEGER DEFAULT 0,
                     created_at TEXT NOT NULL
                 )""");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS saved_outfits (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre           TEXT NOT NULL DEFAULT 'Outfit',
+                    slots_json       TEXT NOT NULL,
+                    suplementos_json TEXT,
+                    total_estimado   REAL NOT NULL DEFAULT 0,
+                    created_at       TEXT NOT NULL
+                )""");
         }
         seedPresetIlustrativoSiVacio();
     }
@@ -1370,6 +1380,96 @@ st.executeUpdate("""
         } catch (SQLException e) {
             conn.rollback();
             throw e;
+        }
+    }
+
+    // ─── Saved Outfits ────────────────────────────────────────────────────────────
+
+    /**
+     * Persiste un outfit generado con su nombre, slots y suplementos en JSON, y el
+     * total estimado. Retorna el id generado por AUTOINCREMENT, o -1 en error.
+     */
+    public int guardarOutfit(String nombre, String slotsJson, String suplementosJson, double total) {
+        if (conn == null) return -1;
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO saved_outfits (nombre, slots_json, suplementos_json, total_estimado, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, nombre != null ? nombre : "Outfit");
+            ps.setString(2, slotsJson != null ? slotsJson : "[]");
+            ps.setString(3, suplementosJson);
+            ps.setDouble(4, total);
+            ps.setString(5, LocalDateTime.now().format(DT));
+            ps.executeUpdate();
+            conn.commit();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getInt(1) : -1;
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+            return -1;
+        }
+    }
+
+    /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
+    public List<Map<String, Object>> obtenerOutfitsGuardados() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (conn == null) return result;
+        try (java.sql.Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id, nombre, slots_json, suplementos_json, total_estimado, created_at " +
+                "FROM saved_outfits ORDER BY created_at DESC")) {
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id",            rs.getInt("id"));
+                row.put("nombre",        rs.getString("nombre"));
+                row.put("totalEstimado", rs.getDouble("total_estimado"));
+                row.put("createdAt",     rs.getString("created_at"));
+                String slotsJson = rs.getString("slots_json");
+                String suplJson  = rs.getString("suplementos_json");
+                try { row.put("slots",       MAPPER.readValue(slotsJson, List.class)); }
+                catch (Exception e) { row.put("slots", List.of()); }
+                try { row.put("suplementos", suplJson != null ? MAPPER.readValue(suplJson, List.class) : List.of()); }
+                catch (Exception e) { row.put("suplementos", List.of()); }
+                result.add(row);
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    /** Elimina un outfit guardado por id. Retorna true si existía. */
+    public boolean eliminarOutfitGuardado(int id) {
+        if (conn == null) return false;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM saved_outfits WHERE id=?")) {
+            ps.setInt(1, id);
+            int rows = ps.executeUpdate();
+            conn.commit();
+            return rows > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
+        }
+    }
+
+    /** Renombra un outfit guardado. Retorna true si existía. */
+    public boolean renombrarOutfit(int id, String nombre) {
+        if (conn == null || nombre == null || nombre.isBlank()) return false;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
+            ps.setString(1, nombre.trim());
+            ps.setInt(2, id);
+            int rows = ps.executeUpdate();
+            conn.commit();
+            return rows > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+            return false;
         }
     }
 

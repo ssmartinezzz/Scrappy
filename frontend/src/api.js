@@ -256,14 +256,45 @@ export async function rescrapeFavoritos() {
 
 // ─── Outfits (armador Gym) ───────────────────────────────────────────────────
 
-export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = []) {
+export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], presupuestoSuplementos = 0) {
   const p = new URLSearchParams();
   if (genero) p.set('genero', genero);
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
   if (excluirUrls.length) p.set('excluir', excluirUrls.join(','));
+  if (presupuestoSuplementos > 0) p.set('presupuestoSuplementos', presupuestoSuplementos);
   const r = await fetch(`${BASE}/api/outfits?${p}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;
+}
+
+// ─── Saved Outfits ───────────────────────────────────────────────────────────
+
+export async function saveOutfit(body) {
+  const r = await fetch(`${BASE}/api/outfits/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.ok ? r.json() : null;
+}
+
+export async function fetchSavedOutfits() {
+  const r = await fetch(`${BASE}/api/outfits/saved`);
+  return r.ok ? r.json() : [];
+}
+
+export async function deleteSavedOutfit(id) {
+  const r = await fetch(`${BASE}/api/outfits/saved/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+export async function renameOutfit(id, nombre) {
+  const r = await fetch(`${BASE}/api/outfits/saved/${id}/nombre`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre }),
+  });
+  return r.ok;
 }
 
 // body shape: { genero, items: [{ slot, url, liked }] } — one POST per rated item (per-item feedback contract).
