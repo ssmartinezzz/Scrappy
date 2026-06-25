@@ -129,8 +129,9 @@ public class OutfitService {
             String url, String img, String categoria, String marca) {
     }
 
-    /** Resultado completo de armar() — outfit con slots, genero usado y flag partial. */
-    public record Outfit(List<SlotPick> slots, String genero, boolean partial) {
+    /** Resultado completo de armar() — outfit con slots, genero usado, flag partial, total y flag de presupuesto. */
+    public record Outfit(List<SlotPick> slots, String genero, boolean partial,
+                         double totalEstimado, boolean presupuestoExcedido) {
     }
 
     /** Resultado de un ítem del combo de suplementos (independiente de los slots del outfit). */
@@ -345,15 +346,28 @@ public class OutfitService {
     }
 
     /**
-     * Armar un outfit para el genero y estilo solicitados, con feedback de
-     * usuario aplicado (ADR-1/ADR-2/ADR-3 de design.md, outfit-recommendation-quality).
-     * estilo resuelve la StyleRule activa vía STYLE_RULES (default: sin restricción
-     * de estilo) — agregar un estilo nuevo no requiere tocar este método, solo
-     * STYLE_RULES (spec "New style can be added without rewriting armar()").
+     * Overload de compatibilidad 4-arg: delega al 6-arg con presupuesto=0 (sin límite)
+     * y sin excluirUrls. Comportamiento idéntico al pre-existente.
      */
     public Outfit armar(List<Product> productos, String generoSolicitado, String estilo, FeedbackModel feedback) {
+        return armar(productos, generoSolicitado, estilo, feedback, 0, Set.of());
+    }
+
+    /**
+     * Armar un outfit para el genero y estilo solicitados, con feedback de
+     * usuario aplicado, presupuesto opcional y URLs a excluir por slot-swap.
+     *
+     * presupuesto=0 → sin límite de presupuesto (comportamiento original).
+     * excluirUrls → URLs de productos a excluir (slot-swap del usuario).
+     * Budget-aware selection: por slot, si presupuesto > 0, filtra candidatos por
+     * precio ≤ (presupuesto - runningTotal). Si ninguno cabe, usa el pool completo
+     * (fallback — mejor dar un outfit completo que uno parcial por presupuesto).
+     */
+    public Outfit armar(List<Product> productos, String generoSolicitado, String estilo,
+                        FeedbackModel feedback, double presupuesto, Set<String> excluirUrls) {
         if (productos == null) productos = List.of();
         if (feedback == null) feedback = FeedbackModel.empty();
+        if (excluirUrls == null) excluirUrls = Set.of();
         Set<String> exclude = feedback.exclude();
         Set<String> excludeCategoria = feedback.excludeCategoria();
         StyleRule rule = STYLE_RULES.getOrDefault(estilo, DEFAULT_STYLE_RULE);
@@ -365,12 +379,15 @@ public class OutfitService {
         //    Segundo eje (personalized-recommendations-feed, Decision 1): se descarta
         //    también cualquier producto cuya categoria bare esté en excludeCategoria,
         //    sin importar marca — independiente del pair-exclude anterior.
+        //    excluirUrls: exclusión a nivel URL (slot-swap por el usuario).
+        final Set<String> excluirUrlsFinal = excluirUrls;
         Map<String, List<Product>> bySlot = new HashMap<>();
         for (Product p : productos) {
             String slot = slotDe(p, rule);
             if (slot == null) continue;
             if (exclude.contains(FeedbackModel.keyOf(p))) continue;
             if (excludeCategoria.contains(p.categoria())) continue;
+            if (excluirUrlsFinal.contains(p.url())) continue;
             if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
                 if (!p.gymrat()) continue;
             } else if (SLOT_CALZADO.equals(slot)) {
@@ -390,21 +407,35 @@ public class OutfitService {
 
         boolean partial = false;
         Map<String, SlotPick> picks = new LinkedHashMap<>();
+        double runningTotal = 0.0;
 
         for (String slot : SLOTS_REQUERIDOS) {
             List<Product> base = bySlot.getOrDefault(slot, List.of());
 
+            // Budget-aware candidate pre-filtering: si hay presupuesto activo,
+            // intentar primero candidatos que quepan en el restante. Si ninguno
+            // cabe, usar el pool completo (fallback — outfit completo > outfit parcial).
+            List<Product> baseFiltered = base;
+            if (presupuesto > 0) {
+                double remaining = presupuesto - runningTotal;
+                List<Product> affordable = base.stream()
+                        .filter(p -> p.precio() <= remaining)
+                        .collect(Collectors.toList());
+                if (!affordable.isEmpty()) baseFiltered = affordable;
+                // else: fallback al pool completo del slot
+            }
+
             // Paso 0: genero + banda de precio
-            List<Product> cands = filtrar(base, generoSolicitado, band[0], band[1]);
+            List<Product> cands = filtrar(baseFiltered, generoSolicitado, band[0], band[1]);
 
             // Paso 1: relajar banda de precio (mantener genero)
             if (cands.isEmpty()) {
-                cands = filtrar(base, generoSolicitado, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+                cands = filtrar(baseFiltered, generoSolicitado, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
             }
 
             // Paso 2: relajar genero a unisex-only (mantener banda completa)
             if (cands.isEmpty()) {
-                cands = filtrar(base, "unisex", Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+                cands = filtrar(baseFiltered, "unisex", Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
             }
 
             // Paso 3: sin candidatos tras ambas relajaciones → partial, sin fabricar producto
@@ -415,14 +446,24 @@ public class OutfitService {
 
             Product elegido = weightedRandomPick(cands, band, feedback.boostLikeCount());
             picks.put(slot, toSlotPick(slot, elegido));
+            runningTotal += elegido.precio();
         }
 
         // Accesorio: best-effort, sin fallback (ADR confirmado en design.md / spec).
+        // También aplica budget-aware filtering si hay presupuesto activo.
         List<Product> accesorios = bySlot.getOrDefault(SLOT_ACCESORIO, List.of());
         List<Product> accesoriosElegibles = filtrar(accesorios, generoSolicitado,
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         if (!accesoriosElegibles.isEmpty()) {
-            Product accesorio = weightedRandomPick(accesoriosElegibles, band, feedback.boostLikeCount());
+            List<Product> accesorioPool = accesoriosElegibles;
+            if (presupuesto > 0) {
+                double remaining = presupuesto - runningTotal;
+                List<Product> affordable = accesoriosElegibles.stream()
+                        .filter(p -> p.precio() <= remaining)
+                        .collect(Collectors.toList());
+                if (!affordable.isEmpty()) accesorioPool = affordable;
+            }
+            Product accesorio = weightedRandomPick(accesorioPool, band, feedback.boostLikeCount());
             picks.put(SLOT_ACCESORIO, toSlotPick(SLOT_ACCESORIO, accesorio));
         }
 
@@ -434,7 +475,9 @@ public class OutfitService {
 
         String generoResultado = (generoSolicitado != null && !generoSolicitado.isBlank())
                 ? generoSolicitado : "unisex";
-        return new Outfit(ordenados, generoResultado, partial);
+        double totalEstimado = ordenados.stream().mapToDouble(SlotPick::precio).sum();
+        boolean presupuestoExcedido = presupuesto > 0 && totalEstimado > presupuesto;
+        return new Outfit(ordenados, generoResultado, partial, totalEstimado, presupuestoExcedido);
     }
 
     private List<Product> filtrar(List<Product> base, String generoSolicitado, double min, double max) {

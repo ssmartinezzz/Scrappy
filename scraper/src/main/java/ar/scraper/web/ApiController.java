@@ -874,19 +874,30 @@ public class ApiController {
 
     @GetMapping("/outfits")
     public ResponseEntity<ObjectNode> outfits(
-            @RequestParam(required = false) String genero) {
+            @RequestParam(required = false) String genero,
+            @RequestParam(required = false, defaultValue = "0") double presupuesto,
+            @RequestParam(required = false, defaultValue = "") String excluir) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
+
+        Set<String> excluirUrls = excluir.isBlank() ? Set.of()
+                : Arrays.stream(excluir.split(","))
+                        .map(String::strip)
+                        .filter(s -> !s.isBlank())
+                        .collect(Collectors.toSet());
 
         var feedbackRows = db.obtenerOutfitFeedback();
         var dismissCats  = db.obtenerCategoriaDismiss();
         var feedback = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
 
-        OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedback);
+        OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedback,
+                presupuesto, excluirUrls);
 
         ObjectNode root = JsonNodeFactory.instance.objectNode();
-        root.put("genero",  outfit.genero());
-        root.put("partial", outfit.partial());
+        root.put("genero",              outfit.genero());
+        root.put("partial",             outfit.partial());
+        root.put("totalEstimado",       outfit.totalEstimado());
+        root.put("presupuestoExcedido", outfit.presupuestoExcedido());
         ArrayNode slotsArr = root.putArray("slots");
         for (var pick : outfit.slots()) {
             ObjectNode n = slotsArr.addObject();
