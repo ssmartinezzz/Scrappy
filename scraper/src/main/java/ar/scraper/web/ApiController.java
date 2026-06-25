@@ -1015,6 +1015,69 @@ public class ApiController {
         return ResponseEntity.ok(resp);
     }
 
+    // ─── Outfits guardados ───────────────────────────────────────────────────────
+
+    @PostMapping("/outfits/save")
+    public ResponseEntity<ObjectNode> saveOutfit(@RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        try {
+            String nombre = String.valueOf(body.getOrDefault("nombre", "Outfit")).trim();
+            Object slotsObj = body.get("slots");
+            Object suplObj  = body.get("suplementos");
+            double totalEstimado = body.containsKey("totalEstimado")
+                    ? Double.parseDouble(String.valueOf(body.get("totalEstimado"))) : 0.0;
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String slotsJson = mapper.writeValueAsString(slotsObj != null ? slotsObj : List.of());
+            String suplJson  = suplObj != null ? mapper.writeValueAsString(suplObj) : null;
+            int id = db.guardarOutfit(nombre, slotsJson, suplJson, totalEstimado);
+            if (id < 0) {
+                resp.put("ok", false);
+                resp.put("mensaje", "No se pudo guardar el outfit");
+                return ResponseEntity.internalServerError().body(resp);
+            }
+            resp.put("ok", true);
+            resp.put("id", id);
+            resp.put("nombre", nombre);
+            resp.put("totalEstimado", totalEstimado);
+            return ResponseEntity.ok(resp);
+        } catch (Exception e) {
+            LOG.warn("[API] saveOutfit error: {}", e.getMessage());
+            resp.put("ok", false);
+            resp.put("mensaje", e.getMessage());
+            return ResponseEntity.internalServerError().body(resp);
+        }
+    }
+
+    @GetMapping("/outfits/saved")
+    public ResponseEntity<Object> getSavedOutfits() {
+        return ResponseEntity.ok(db.obtenerOutfitsGuardados());
+    }
+
+    @DeleteMapping("/outfits/saved/{id}")
+    public ResponseEntity<ObjectNode> deleteSavedOutfit(@PathVariable int id) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        boolean ok = db.eliminarOutfitGuardado(id);
+        resp.put("ok", ok);
+        resp.put("mensaje", ok ? "Outfit eliminado" : "Outfit no encontrado");
+        return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
+    }
+
+    @PatchMapping("/outfits/saved/{id}/nombre")
+    public ResponseEntity<ObjectNode> renameSavedOutfit(@PathVariable int id,
+                                                         @RequestBody Map<String, Object> body) {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
+        if (nombre.isBlank()) {
+            resp.put("ok", false);
+            resp.put("mensaje", "nombre es obligatorio");
+            return ResponseEntity.badRequest().body(resp);
+        }
+        boolean ok = db.renombrarOutfit(id, nombre);
+        resp.put("ok", ok);
+        resp.put("mensaje", ok ? "Outfit renombrado" : "Outfit no encontrado");
+        return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
+    }
+
     // ─── Recomendados ("Para ti" feed) ──────────────────────────────────────────
     // design.md (personalized-recommendations-feed) Decision 2: additive endpoints,
     // /api/outfits/feedback stays untouched. The shared taste signal lives in the

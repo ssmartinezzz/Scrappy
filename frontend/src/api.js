@@ -267,6 +267,36 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
   return r.ok ? r.json() : null;
 }
 
+// ─── Saved Outfits ───────────────────────────────────────────────────────────
+
+export async function saveOutfit(body) {
+  const r = await fetch(`${BASE}/api/outfits/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.ok ? r.json() : null;
+}
+
+export async function fetchSavedOutfits() {
+  const r = await fetch(`${BASE}/api/outfits/saved`);
+  return r.ok ? r.json() : [];
+}
+
+export async function deleteSavedOutfit(id) {
+  const r = await fetch(`${BASE}/api/outfits/saved/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+export async function renameOutfit(id, nombre) {
+  const r = await fetch(`${BASE}/api/outfits/saved/${id}/nombre`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre }),
+  });
+  return r.ok;
+}
+
 // body shape: { genero, items: [{ slot, url, liked }] } — one POST per rated item (per-item feedback contract).
 export async function sendOutfitFeedback(body) {
   const r = await fetch(`${BASE}/api/outfits/feedback`, {
