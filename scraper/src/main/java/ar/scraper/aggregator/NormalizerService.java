@@ -1098,6 +1098,14 @@ public class NormalizerService {
     // Género
     // ──────────────────────────────────────────────────────────────────
 
+    // Categorias cuya naturaleza es predominantemente femenina en este catálogo
+    // (confirmado por revisión del usuario). Cuando una de estas categorias aparece
+    // SIN señal masculina explícita en el nombre del producto, el género se fuerza a
+    // "mujer" antes de que el combined-check (que incluye raw VTEX) lo pise.
+    // Ver outfits-v2 design — R1/T1.
+    private static final Set<String> FEMININE_CODED_CATEGORIES =
+            Set.of("Calza", "Pollera", "Vestido", "Enterito", "Corpino", "Malla");
+
     String normalizarGenero(String raw, String nombre, String categoria) {
         String nombreNorm = normalizarAcentos(nombre != null ? nombre : "");
         String combined = normalizarAcentos((raw != null ? raw : "") + " " + (nombre != null ? nombre : ""));
@@ -1116,6 +1124,19 @@ public class NormalizerService {
         // una calza de mujer en outfits de hombre.
         if (nombreNorm.contains("de mujer") || nombreNorm.contains("para mujer")) return "mujer";
         if (nombreNorm.contains("de hombre") || nombreNorm.contains("para hombre")) return "hombre";
+
+        // Feminine-coded category override: si la categoría es inherentemente femenina
+        // Y el nombre del producto no tiene señal masculina explícita, forzar "mujer"
+        // ANTES de que combined.contains("hombre") lo pise con el raw VTEX.
+        // Cubre: Calza, Pollera, Vestido, Enterito, Corpino, Malla.
+        boolean hasExplicitMascSignal = nombreNorm.contains("de hombre")
+                || nombreNorm.contains("para hombre")
+                || nombreNorm.contains(" hombre")
+                || nombreNorm.contains("masculino")
+                || nombreNorm.contains("caballero");
+        if (FEMININE_CODED_CATEGORIES.contains(categoria) && !hasExplicitMascSignal) {
+            return "mujer";
+        }
 
         if (combined.contains("hombre") || combined.contains("masculino") ||
             combined.contains(" men")   || combined.contains("male")      ||
