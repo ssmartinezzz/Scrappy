@@ -256,9 +256,11 @@ export async function rescrapeFavoritos() {
 
 // ─── Outfits (armador Gym) ───────────────────────────────────────────────────
 
-export async function fetchOutfit(genero) {
+export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = []) {
   const p = new URLSearchParams();
   if (genero) p.set('genero', genero);
+  if (presupuesto > 0) p.set('presupuesto', presupuesto);
+  if (excluirUrls.length) p.set('excluir', excluirUrls.join(','));
   const r = await fetch(`${BASE}/api/outfits?${p}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;

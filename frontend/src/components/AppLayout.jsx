@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
-import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, deleteProducto,
+import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo } from '../api';
 import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
@@ -101,6 +101,13 @@ function reducer(state, action) {
       }] };
     }
     case 'SET_FAVORITOS': return { ...state, favoritos: action.payload || [] };
+    case 'ADD_FAVORITO':
+      return {
+        ...state,
+        favoritos: state.favoritos.some(f => f.url === action.payload.url)
+          ? state.favoritos
+          : [...state.favoritos, action.payload],
+      };
     case 'REMOVE_PROD': {
       return {
         ...state,
@@ -260,7 +267,16 @@ function FavoritosRoute() {
 }
 
 function OutfitsRoute() {
-  return <OutfitsPanel/>;
+  const { S, dispatch } = useOutletContext();
+  return (
+    <OutfitsPanel
+      favoritos={S.favoritos || []}
+      onAddFavorito={(item) => {
+        addFavorito(item);
+        dispatch({ type: 'ADD_FAVORITO', payload: item });
+      }}
+    />
+  );
 }
 
 function FinanRoute() {
