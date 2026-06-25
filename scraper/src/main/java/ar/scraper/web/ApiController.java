@@ -1415,6 +1415,7 @@ public class ApiController {
             .filter(p -> p.categoria() != null && !p.categoria().isBlank())
             .filter(p -> rubro == null || rubro.isBlank()
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
+            .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
             .collect(java.util.stream.Collectors.groupingBy(Product::categoria));
 
         var result = MAPPER.createArrayNode();
