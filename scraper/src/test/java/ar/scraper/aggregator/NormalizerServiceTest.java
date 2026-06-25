@@ -207,4 +207,55 @@ class NormalizerServiceTest {
         assertThat(service.normalizarCategoria(null, "Hoka Clifton 9")).as("Clifton").isEqualTo("Zapatilla Running");
         assertThat(service.normalizarCategoria(null, "New Balance 1080")).as("NB1080").isEqualTo("Zapatilla Running");
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // category-brand-quality-fixes — Phase 1 (RED): NormalizerService
+    // ══════════════════════════════════════════════════════════════════
+
+    // ── KW_OJOTA: bare "diapositiva"/"slide" tokens (Bug: slide sandals) ────
+
+    @Test
+    void clasificarOjotaSlideYDiapositiva() {
+        assertThat(service.normalizarCategoria(null, "DC Diapositiva Slide Sandal")).isEqualTo("Ojotas");
+        assertThat(service.normalizarCategoria(null, "Slide")).isEqualTo("Ojotas");
+    }
+
+    // ── KW_BOTIN Tier A: unambiguous tokens still match unconditionally ─────
+
+    @Test
+    void clasificarBotinTierAUnambiguousStillMatches() {
+        assertThat(service.normalizarCategoria(null, "Botines Predator")).isEqualTo("Botines");
+        assertThat(service.normalizarCategoria(null, "Botines Ace 17 FG")).isEqualTo("Botines");
+    }
+
+    // ── KW_BOTIN Tier B: ambiguous tokens require footwear context ─────────
+
+    @Test
+    void clasificarBotinGenericoSinContextoNoMatchea() {
+        assertThat(service.normalizarCategoria(null, "Embrace tee")).isNotEqualTo("Botines");
+        assertThat(service.normalizarCategoria(null, "Gorra Saucony Pro Future")).isNotEqualTo("Botines");
+        assertThat(service.normalizarCategoria(null, "Pantalón Tiempo Libre")).isNotEqualTo("Botines");
+    }
+
+    @Test
+    void clasificarBotinGenericoConContextoMatchea() {
+        assertThat(service.normalizarCategoria(null, "Botín de Fútbol Copa")).isEqualTo("Botines");
+    }
+
+    // ── extraerMarca: no capitalized-word fallback, falls back to sitio ────
+
+    @Test
+    void extraerMarcaSinMatchCuradoUsaSitio() {
+        assertThat(service.extraerMarca("Remera Oversize Crop", "VCP")).isEqualTo("VCP");
+    }
+
+    @Test
+    void extraerMarcaSinMatchYSinSitioRetornaVacio() {
+        assertThat(service.extraerMarca("Remera Oversize Crop", null)).isEqualTo("");
+    }
+
+    @Test
+    void extraerMarcaCuradaTieneSiemprePrioridad() {
+        assertThat(service.extraerMarca("Nike Air Max", "VCP")).isEqualTo("Nike");
+    }
 }
