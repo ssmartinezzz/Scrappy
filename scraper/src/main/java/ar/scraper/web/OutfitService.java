@@ -433,9 +433,15 @@ public class OutfitService {
                 cands = filtrar(baseFiltered, generoSolicitado, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
             }
 
-            // Paso 2: relajar genero a unisex-only (mantener banda completa)
+            // Paso 2: relajar a productos sin género o explícitamente unisex.
+            // NO usar generoElegible(p, "unisex") — esa ruta devuelve true para
+            // TODOS los géneros (spec de compatibilidad), lo que cuela productos
+            // del género opuesto cuando el catálogo de un slot es pequeño.
             if (cands.isEmpty()) {
-                cands = filtrar(baseFiltered, "unisex", Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+                cands = baseFiltered.stream()
+                        .filter(p -> { String g = p.genero() != null ? p.genero().trim() : "";
+                                       return g.isEmpty() || "unisex".equalsIgnoreCase(g); })
+                        .collect(Collectors.toList());
             }
 
             // Paso 3: sin candidatos tras ambas relajaciones → partial, sin fabricar producto
