@@ -148,9 +148,9 @@ export default function Topbar({
         </div>
       </div>
 
-      {/* Row 2: Sitio breadcrumbs */}
+      {/* Row 2: Sitio breadcrumbs — hidden below md via topbar-meta */}
       {sitios.length > 0 && (
-        <div className="flex items-center gap-[4px] px-2 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
+        <div className="topbar-meta items-center gap-[4px] px-2 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
           <button
             onClick={() => onSitioChange('')}
             className={cn(

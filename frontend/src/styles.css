@@ -547,6 +547,7 @@ body { overflow-x: hidden; }
 
 /* ===== FINAN PANEL ===== */
 .finan-panel { padding: 1rem; width: 100%; max-width: 560px; }
+.finan-preset-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .finan-field-row { display: flex; flex-direction: column; gap: 8px; }
 @media (min-width: 768px) { .finan-field-row { flex-direction: row; } }
 

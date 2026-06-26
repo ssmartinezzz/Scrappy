@@ -25,10 +25,8 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{
-      display:'flex', flexDirection:'column', gap:8, padding:10,
-      border:'1px solid var(--bd)', borderRadius:8, background:'var(--s2)', marginTop:8,
-    }}>
+    <form onSubmit={handleSubmit} className="finan-preset-form"
+      style={{ border:'1px solid var(--bd)', borderRadius:8, background:'var(--s2)', marginTop:8 }}>
       <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
         Nombre
         <input value={label} onChange={e => setLabel(e.target.value)}
