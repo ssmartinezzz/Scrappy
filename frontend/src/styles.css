@@ -48,8 +48,8 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 
 /* ===== TOPBAR ===== */
 /* Topbar meta widgets (IPC, ML banners, training pills) — visible at md+, hidden below */
-.topbar-meta { display: none; }
-@media (min-width: 768px) { .topbar-meta { display: flex; } }
+.topbar-root .topbar-meta { display: none; }
+@media (min-width: 768px) { .topbar-root .topbar-meta { display: flex; } }
 .topbar-inner { display: flex; align-items: center; gap: .75rem;
   height: 100%; padding: 0 1.25rem; max-width: 100%; flex-wrap: nowrap; overflow-x: auto; }
 .topbar-inner::-webkit-scrollbar { height: 3px; }
@@ -195,9 +195,10 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   color: var(--t4); font-size: .9rem; pointer-events: none; }
 .search-hero-input { width: 100%; padding: 9px 36px 9px 36px; border-radius: var(--rc);
   border: 1.5px solid var(--bd2); background: var(--s2); color: var(--t1);
-  font: .88rem var(--font); outline: none; transition: all .2s; }
+  font: .78rem var(--font); outline: none; transition: all .2s; }
 .search-hero-input:focus { border-color: var(--p); background: var(--s3); box-shadow: 0 0 0 3px rgba(110,64,201,.15); }
 .search-hero-input::placeholder { color: var(--t4); }
+@media (min-width: 560px) { .search-hero-input { font-size: .88rem; } }
 .search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   background: none; border: none; color: var(--t4); cursor: pointer; font-size: .8rem; padding: 2px; }
 .view-toggle { display: flex; gap: 3px; }
@@ -436,7 +437,10 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   display: flex; align-items: flex-start; justify-content: center;
   padding: 2rem 1rem; overflow-y: auto; backdrop-filter: blur(4px); }
 .compare-modal-inner { background: var(--s1); border: 1px solid var(--bd);
-  border-radius: var(--rc); width: 100%; max-width: 1100px; overflow: hidden; }
+  border-radius: 0; width: 100%; max-width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; }
+@media (min-width: 560px) {
+  .compare-modal-inner { max-width: 1100px; border-radius: var(--rc); height: auto; }
+}
 .compare-modal-header { display: flex; justify-content: space-between; align-items: center;
   padding: 1rem 1.5rem; border-bottom: 1px solid var(--bd); }
 .compare-cell { padding: .6rem 1rem; border-bottom: 1px solid var(--s3); font-size: .8rem; }
@@ -504,12 +508,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
                     border-radius: 6px; flex-shrink: 0; }
 }
 
-/* ≤ sm: remaining desktop-first overrides not yet migrated */
-@media (max-width: 560px) {
-  .search-hero-input { font-size: .78rem; }
-  .compare-modal-inner { max-width: 100vw; border-radius: 0; height: 100vh; height: 100dvh; }
-}
-
 /* Prevent horizontal scroll globally */
 body { overflow-x: hidden; }
 
@@ -529,6 +527,8 @@ body { overflow-x: hidden; }
 .finan-preset-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .finan-field-row { display: flex; flex-direction: column; gap: 8px; }
 @media (min-width: 768px) { .finan-field-row { flex-direction: row; } }
+.finan-action-row { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.finan-field-row label { flex: 1; }
 
 /* ===== OUTFITS PANEL ===== */
 .genero-pill { padding: 6px 16px; border-radius: 20px; border: 1.5px solid var(--bd2);
@@ -652,12 +652,16 @@ body { overflow-x: hidden; }
 @media (min-width: 560px) { .picks-body { flex-direction: row; } }
 .picks-main { flex: 1; min-width: 0; padding: 1rem 1.25rem; }
 
-/* Dynamic column count, no hardcoded breakpoint count — auto-fill recomputes
-   columns from available width (minmax(300px,1fr)), naturally landing near
-   4 columns at ~1440px desktop content width and fewer on narrower viewports.
-   This is the "metric to normalize the view" requested by the user, instead
-   of a fixed column number. */
-.picks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+/* Dynamic column count — mobile-first breakpoints. Base gives 2-up at 375px
+   (2*160+10=330 <= 335px content width). Bumps to 220 at sm for tablet and
+   280 at lg for desktop, preserving ~3-4 columns at 1440px (pre-change feel). */
+.picks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+@media (min-width: 560px) {
+  .picks-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+}
+@media (min-width: 900px) {
+  .picks-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
 
 .picks-card { position: relative; border-radius: 14px; overflow: hidden;
   width: 100%; aspect-ratio: 4/5; cursor: pointer; background: var(--s2);
@@ -687,6 +691,42 @@ body { overflow-x: hidden; }
 .picks-card-price { font: 800 .8rem/1 var(--mono); margin-top: 6px; }
 
 .picks-sentinel { height: 1px; margin-top: 4px; }
+
+/* ===== PICKS DETAIL + PANEL CHROME ===== */
+/* Panel shell + rubro chrome */
+.picks-panel { display: flex; flex-direction: column; height: 100%; }
+.picks-scroll { flex: 1; overflow-y: auto; }
+.picks-state-msg { color: var(--t4); text-align: center; padding: 3rem; }
+.picks-rubro-bar { padding: .5rem 1.25rem; background: var(--s1);
+  border-bottom: 1px solid var(--bd); display: flex; gap: 5px; flex-wrap: wrap; }
+.picks-rubro-btn { padding: 4px 10px; border-radius: 16px; border: none; cursor: pointer;
+  font-size: .72rem; font-weight: 700; background: var(--s2); color: var(--t4); }
+.picks-rubro-btn.active { background: var(--p); color: #fff; }
+
+/* CatDetail header */
+.picks-catdetail { padding: 1rem 1.25rem; max-width: 680px; }
+.picks-back-btn { background: none; border: none; cursor: pointer; color: var(--p2);
+  font-size: .8rem; margin-bottom: 12px; padding: 0; display: flex; align-items: center; gap: 5px; }
+.picks-catdetail-title { font-size: 1.1rem; font-weight: 900; color: var(--t1); margin-bottom: 2px; }
+.picks-catdetail-meta { font-size: .72rem; color: var(--t4); margin-bottom: 4px; }
+.picks-catdetail-tagline { font-size: .78rem; color: var(--p2); margin-bottom: 1.2rem; font-style: italic; }
+
+/* CatDetail pick list */
+.picks-pick-list { display: flex; flex-direction: column; gap: 10px; }
+.picks-pick-item { display: flex; gap: 12px; align-items: center; background: var(--s2);
+  border-radius: 10px; padding: .75rem; border: 1.5px solid; cursor: pointer; transition: all .15s; }
+.picks-pick-rank { font-size: 1.5rem; flex-shrink: 0; }
+.picks-pick-img { object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.picks-pick-info { flex: 1; min-width: 0; }
+.picks-pick-label { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.picks-pick-name { font-size: .8rem; font-weight: 600; color: var(--t1); margin-top: 2px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.picks-pick-meta { font-size: .65rem; color: var(--t4); margin-top: 2px; }
+.picks-pick-badge { color: var(--p2); margin-left: 5px; }
+.picks-pick-pct { font-size: .65rem; margin-top: 2px; }
+.picks-pick-price { text-align: right; flex-shrink: 0; }
+.picks-pick-price-val { font-size: .92rem; font-weight: 800; color: var(--t1); }
+.picks-pick-score { font-size: .6rem; color: var(--t4); }
 
 .picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
 

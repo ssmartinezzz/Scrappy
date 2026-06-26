@@ -35,14 +35,14 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
                     border:'1px solid var(--bd)', background:'var(--s1)', color:'var(--t1)' }} />
       </label>
       <div className="finan-field-row">
-        <label style={{ fontSize:'.7rem', color:'var(--t3)', flex:1 }}>
+        <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
           Recargo (%)
           <input type="number" step="0.1" min="0" value={recargoPct}
             onChange={e => setRecargoPct(e.target.value)}
             style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
                       border:'1px solid var(--bd)', background:'var(--s1)', color:'var(--t1)' }} />
         </label>
-        <label style={{ fontSize:'.7rem', color:'var(--t3)', flex:1 }}>
+        <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
           Cuotas
           <input type="number" step="1" min="1" value={cuotas}
             onChange={e => setCuotas(e.target.value)}
@@ -54,7 +54,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
         ⚠️ {DISCLAIMER}
       </div>
       {error && <div style={{ fontSize:'.68rem', color: SEMANTIC.negative }}>{error}</div>}
-      <div style={{ display:'flex', gap:6, marginTop:2, flexWrap:'wrap' }}>
+      <div className="finan-action-row">
         <button type="submit" style={{
           padding:'5px 12px', borderRadius:6, border:'none', cursor:'pointer',
           background:'var(--p)', color:'#fff', fontSize:'.7rem', fontWeight:700,
