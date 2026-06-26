@@ -47,8 +47,6 @@ html, body, #root { height: 100%; }
 body { background: var(--bg); color: var(--t1); font-family: var(--font); font-size: 14px; }
 
 /* ===== TOPBAR ===== */
-.topbar { position: sticky; top: 0; z-index: var(--z-chrome-top); background: var(--s1);
-  border-bottom: 1px solid var(--bd); height: 57px; }
 /* Topbar meta widgets (IPC, ML banners, training pills) — visible at md+, hidden below */
 .topbar-meta { display: none; }
 @media (min-width: 768px) { .topbar-meta { display: flex; } }
@@ -83,7 +81,8 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ===== LAYOUT ===== */
-.layout { display: flex; min-height: calc(100vh - var(--topbar-h)); }
+.app-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.layout { display: flex; min-height: calc(100vh - var(--topbar-h)); min-height: calc(100dvh - var(--topbar-h)); }
 
 /* ===== HYBRID FILTER RAIL (Spec Req 4-5) =====
    Persistent rail: precio/género/segmento, always reachable on desktop with
@@ -365,7 +364,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 /* ===== DETAIL PANEL ===== */
 .detail-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6);
   z-index: var(--z-detail-backdrop); backdrop-filter: blur(3px); }
-.detail-panel { position: fixed; top: 0; right: 0; left: 0; width: 100%; height: 100vh;
+.detail-panel { position: fixed; top: 0; right: 0; left: 0; width: 100%; height: 100vh; height: 100dvh;
   background: var(--s1); border-left: 1px solid var(--bd); z-index: var(--z-detail);
   display: flex; flex-direction: column; overflow-y: auto; box-shadow: -8px 0 40px rgba(0,0,0,.5);
   transition: transform .2s ease; }
@@ -508,7 +507,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 /* ≤ sm: remaining desktop-first overrides not yet migrated */
 @media (max-width: 560px) {
   .search-hero-input { font-size: .78rem; }
-  .compare-modal-inner { max-width: 100vw; border-radius: 0; height: 100vh; }
+  .compare-modal-inner { max-width: 100vw; border-radius: 0; height: 100vh; height: 100dvh; }
 }
 
 /* Prevent horizontal scroll globally */
@@ -693,7 +692,7 @@ body { overflow-x: hidden; }
 
 /* Scroll-spy index — hidden on phone, visible at sm+ */
 .picks-index { position: sticky; top: var(--sticky-offset); z-index: var(--z-chrome-sub);
-  flex-shrink: 0; width: 160px; max-height: calc(100vh - 80px); overflow-y: auto;
+  flex-shrink: 0; width: 160px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto;
   padding: 1rem .75rem; display: none; flex-direction: column; gap: 2px; }
 @media (min-width: 560px) { .picks-index { display: flex; } }
 .picks-index-item { background: none; border: none; text-align: left;
