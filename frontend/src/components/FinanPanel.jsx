@@ -36,7 +36,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
           style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
                     border:'1px solid var(--bd)', background:'var(--s1)', color:'var(--t1)' }} />
       </label>
-      <div style={{ display:'flex', gap:8 }}>
+      <div className="finan-field-row">
         <label style={{ fontSize:'.7rem', color:'var(--t3)', flex:1 }}>
           Recargo (%)
           <input type="number" step="0.1" min="0" value={recargoPct}
@@ -56,7 +56,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
         ⚠️ {DISCLAIMER}
       </div>
       {error && <div style={{ fontSize:'.68rem', color: SEMANTIC.negative }}>{error}</div>}
-      <div style={{ display:'flex', gap:6, marginTop:2 }}>
+      <div style={{ display:'flex', gap:6, marginTop:2, flexWrap:'wrap' }}>
         <button type="submit" style={{
           padding:'5px 12px', borderRadius:6, border:'none', cursor:'pointer',
           background:'var(--p)', color:'#fff', fontSize:'.7rem', fontWeight:700,
@@ -197,7 +197,7 @@ export default function FinanPanel() {
   }
 
   return (
-    <div style={{ padding:'1rem', maxWidth:560 }}>
+    <div className="finan-panel">
       <h3 style={{ fontSize:'.9rem', color:'var(--t1)', marginBottom:4 }}>
         💳 Presets de financiación
       </h3>
