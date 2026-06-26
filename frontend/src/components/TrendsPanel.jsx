@@ -335,7 +335,7 @@ export default function TrendsPanel({ onClusterClick, onProductClick }) {
       {/* Sub-tab bar */}
       <div style={{
         display:'flex', borderBottom:'1px solid var(--bd)',
-        background:'var(--s1)', position:'sticky', top:104, zIndex:149,
+        background:'var(--s1)', position:'sticky', top:'var(--sticky-offset)', zIndex:'var(--z-chrome-sub)',
       }}>
         {[['mercado','📈 Mercado'],['oportunidades','💰 Oportunidades'],['clusters','🔥 Clusters']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)} style={{

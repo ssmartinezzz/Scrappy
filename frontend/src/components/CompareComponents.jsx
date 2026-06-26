@@ -46,7 +46,7 @@ export function CompareModal({ items, onClose }) {
           <button className="detail-close" onClick={onClose}>✕</button>
         </div>
         <div style={{ overflowX:'auto' }}>
-          <div style={{ display:'grid', gridTemplateColumns:`repeat(${items.length}, 1fr)` }}>
+          <div style={{ display:'grid', gridTemplateColumns:`repeat(${items.length}, minmax(150px, 1fr))` }}>
             {rows.map(row => (
               items.map((p, pi) => (
                 <div key={`${row.label}-${pi}`}
