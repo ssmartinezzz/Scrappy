@@ -217,26 +217,22 @@ function PicksGallery({ cats, busq, onSearch, onSelectCat }) {
 // ─── Vista de picks de una categoría ─────────────────────────────────────────
 function CatDetail({ cat, onBack, onProductClick }) {
   return (
-    <div style={{ padding:'1rem 1.25rem', maxWidth:680 }}>
-      <button onClick={onBack} style={{
-        background:'none', border:'none', cursor:'pointer',
-        color:'var(--p2)', fontSize:'.8rem', marginBottom:12, padding:0,
-        display:'flex', alignItems:'center', gap:5,
-      }}>
+    <div className="picks-catdetail">
+      <button onClick={onBack} className="picks-back-btn">
         ← Volver
       </button>
 
-      <h2 style={{ fontSize:'1.1rem', fontWeight:900, color:'var(--t1)', marginBottom:2 }}>
+      <h2 className="picks-catdetail-title">
         {cat.categoria}
       </h2>
-      <p style={{ fontSize:'.72rem', color:'var(--t4)', marginBottom:4 }}>
+      <p className="picks-catdetail-meta">
         {(cat.count||0).toLocaleString('es-AR')} productos · mediana ${fmt(cat.mediana)}
       </p>
-      <p style={{ fontSize:'.78rem', color:'var(--p2)', marginBottom:'1.2rem', fontStyle:'italic' }}>
+      <p className="picks-catdetail-tagline">
         "{tagline(cat.categoria, cat.picks?.[0], cat.mediana)}"
       </p>
 
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+      <div className="picks-pick-list">
         {(cat.picks||[]).map((pick, i) => {
           const m = TIPO_META[pick.tipo] || TIPO_META.valor;
           const pctBajoMedia = cat.mediana > 0 && pick.precio > 0
@@ -245,57 +241,49 @@ function CatDetail({ cat, onBack, onProductClick }) {
           return (
             <div key={i}
               onClick={() => onProductClick(pick)}
-              style={{
-                display:'flex', gap:12, alignItems:'center',
-                background:'var(--s2)', borderRadius:10, padding:'.75rem',
-                border:`1.5px solid ${m.color}33`, cursor:'pointer',
-                transition:'all .15s',
-              }}
+              className="picks-pick-item"
+              style={{ borderColor: `${m.color}33` }}
               onMouseOver={e => e.currentTarget.style.borderColor = m.color}
               onMouseOut={e => e.currentTarget.style.borderColor = `${m.color}33`}>
 
               {/* Rank icon */}
-              <div style={{ fontSize:'1.5rem', flexShrink:0 }}>{m.icon}</div>
+              <div className="picks-pick-rank">{m.icon}</div>
 
               {/* Image */}
               {pick.img && (
                 <img src={pick.img} alt={pick.nombre} width="60" height="60"
-                  style={{ objectFit:'cover', borderRadius:8, flexShrink:0 }}
+                  className="picks-pick-img"
                   onError={e => e.target.style.display='none'}/>
               )}
 
               {/* Info */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:'.6rem', fontWeight:700, color: m.color,
-                               textTransform:'uppercase', letterSpacing:'.08em' }}>
+              <div className="picks-pick-info">
+                <div className="picks-pick-label" style={{ color: m.color }}>
                   {m.label}
                 </div>
-                <div style={{
-                  fontSize:'.8rem', fontWeight:600, color:'var(--t1)', marginTop:2,
-                  overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
-                }}>{pick.nombre}</div>
-                <div style={{ fontSize:'.65rem', color:'var(--t4)', marginTop:2 }}>
+                <div className="picks-pick-name">{pick.nombre}</div>
+                <div className="picks-pick-meta">
                   {pick.sitio} · {pick.marca || ''}
                   {pick.badge && BADGE_LABELS[pick.badge] && (
-                    <span style={{ color:'var(--p2)', marginLeft:5 }}>
+                    <span className="picks-pick-badge">
                       · {BADGE_LABELS[pick.badge]}
                     </span>
                   )}
                 </div>
                 {pctBajoMedia && pctBajoMedia > 5 && (
-                  <div style={{ fontSize:'.65rem', color: SEMANTIC.positive, marginTop:2 }}>
+                  <div className="picks-pick-pct" style={{ color: SEMANTIC.positive }}>
                     {pctBajoMedia}% por debajo de la mediana
                   </div>
                 )}
               </div>
 
               {/* Price */}
-              <div style={{ textAlign:'right', flexShrink:0 }}>
-                <div style={{ fontSize:'.92rem', fontWeight:800, color:'var(--t1)' }}>
+              <div className="picks-pick-price">
+                <div className="picks-pick-price-val">
                   ${fmt(pick.precio)}
                 </div>
                 {pick.scoreP > 0 && (
-                  <div style={{ fontSize:'.6rem', color:'var(--t4)' }}>
+                  <div className="picks-pick-score">
                     score {pick.scoreP}
                   </div>
                 )}
@@ -326,39 +314,32 @@ export default function PicksPanel({ onProductClick }) {
   useEffect(() => { load(rubro); }, [rubro]);
 
   if (selCat) return (
-    <div style={{ flex:1, overflowY:'auto' }}>
+    <div className="picks-scroll">
       <CatDetail cat={selCat} onBack={() => setSelCat(null)}
                  onProductClick={onProductClick}/>
     </div>
   );
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div className="picks-panel">
       {/* Rubro tabs — stays outside the immersive theme so it reads as
           dashboard chrome, not part of the editorial gallery surface */}
-      <div style={{
-        padding:'.5rem 1.25rem', background:'var(--s1)',
-        borderBottom:'1px solid var(--bd)',
-        display:'flex', gap:5, flexWrap:'wrap',
-      }}>
+      <div className="picks-rubro-bar">
         {RUBROS.map(r => (
-          <button key={r.k} onClick={() => setRubro(r.k)} style={{
-            padding:'4px 10px', borderRadius:16, border:'none',
-            cursor:'pointer', fontSize:'.72rem', fontWeight:700,
-            background: rubro===r.k ? 'var(--p)' : 'var(--s2)',
-            color: rubro===r.k ? '#fff' : 'var(--t4)',
-          }}>{r.icon} {r.l}</button>
+          <button key={r.k} onClick={() => setRubro(r.k)}
+            className={`picks-rubro-btn${rubro===r.k ? ' active' : ''}`}
+          >{r.icon} {r.l}</button>
         ))}
       </div>
 
-      <div style={{ flex:1, overflowY:'auto' }}>
+      <div className="picks-scroll">
         {loading && (
-          <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
+          <div className="picks-state-msg">
             Calculando mejores picks...
           </div>
         )}
         {!loading && cats.length === 0 && (
-          <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
+          <div className="picks-state-msg">
             Sin datos. Ejecutá un scraping primero.
           </div>
         )}
