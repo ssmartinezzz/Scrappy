@@ -29,7 +29,7 @@ export default function GruposPanel({ onOpenDetail }) {
       <div style={{
         padding:'.65rem 1.25rem', background:'var(--s1)',
         borderBottom:'1px solid var(--bd)', display:'flex', gap:10, alignItems:'center',
-        position:'sticky', top:104, zIndex:150,
+        position:'sticky', top:'var(--sticky-offset)', zIndex:'var(--z-chrome-sub)',
       }}>
         <input
           type="text" placeholder="Buscar producto..."

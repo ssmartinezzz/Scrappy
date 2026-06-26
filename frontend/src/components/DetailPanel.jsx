@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
@@ -339,6 +339,52 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
     if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));
   }, [p.url]);
 
+  // Swipe-to-dismiss (TASK-8) — native touch events, no library.
+  // Right-ward swipe only; horizontal-dominant gesture required to avoid
+  // hijacking vertical scroll inside the panel body.
+  const touchStart  = useRef(null);
+  const isDragging  = useRef(false);
+
+  const handleTouchStart = (e) => {
+    touchStart.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      t: performance.now(),
+    };
+    isDragging.current = false;
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStart.current) return;
+    const dx = e.touches[0].clientX - touchStart.current.x;
+    const dy = e.touches[0].clientY - touchStart.current.y;
+    if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
+      isDragging.current = true;
+      e.currentTarget.style.transform = `translateX(${dx}px)`;
+      e.currentTarget.style.transition = 'none';
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStart.current || !isDragging.current) {
+      touchStart.current = null;
+      return;
+    }
+    const el  = e.currentTarget;
+    const dx  = e.changedTouches[0].clientX - touchStart.current.x;
+    const dt  = performance.now() - touchStart.current.t;
+    const vel = dx / dt; // px/ms
+    touchStart.current = null;
+    isDragging.current = false;
+    if (dx >= 80 || (dx >= 40 && vel >= 0.5)) {
+      onClose();
+    } else {
+      // snap back — CSS transition handles the animation
+      el.style.transition = 'transform .2s ease';
+      el.style.transform  = 'translateX(0)';
+    }
+  };
+
   // DetailPanel only mounts while a product is selected (see AppLayout.jsx
   // `{S.detailProd && <DetailPanel .../>}`), so it is always "open" for as long
   // as it exists in the tree. Radix Dialog's onOpenChange(false) fires on ESC,
@@ -359,6 +405,9 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
         onEscapeKeyDown={onClose}
         onPointerDownOutside={onClose}
         className="detail-panel outline-none"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         <div className="detail-header">
           <DialogTitle asChild><h3>{p.nombre}</h3></DialogTitle>

@@ -18,7 +18,7 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:1040, margin:'0 auto', width:'100%' }}>
-      <div style={{ display:'flex', gap:16, flexWrap:'wrap', justifyContent:'center' }}>
+      <div className="outfit-row">
         {slots.map(s => {
           const sent = sentSlots.has(s.slot);
           return (

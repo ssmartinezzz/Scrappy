@@ -185,12 +185,7 @@ function CatalogoRoute() {
 
   return (
     <>
-      <style>{`
-        @keyframes gpu-btn-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--p) 45%, transparent)}50%{box-shadow:0 0 0 10px color-mix(in srgb, var(--p) 0%, transparent)}}
-      `}</style>
-      <div style={{
-        position:'fixed', right:24, bottom:24, zIndex:40,
-      }}>
+      <div className="gpu-fab">
         <button
           onClick={triggerGpuTraining}
           disabled={gpuRunning}
@@ -208,7 +203,7 @@ function CatalogoRoute() {
         >
           {gpuRunning ? 'Entrenando...' : '⚡ Re-entrenar IA con GPU'}
         </button>
-      </div>
+      </div>{/* .gpu-fab */}
 
       <SearchHero
         busq={S.busq} view={S.view} orden={S.orden} total={S.totalProds}
@@ -340,6 +335,8 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const loadingRef = useRef(false);
   const navigate = useNavigate();
+  const topbarRef = useRef(null);
+  const tabbarRef  = useRef(null);
 
   // GPU fine-tuning blocking overlay state — separate useState (not the main
   // reducer) so it stays isolated from the catalog/filter state machine above.
@@ -418,6 +415,33 @@ export default function AppLayout() {
   }, [gpuTraining?.success]);
 
   useEffect(() => () => stopGpuPolling(), [stopGpuPolling]);
+
+  // TASK-2: ResizeObserver — keep --topbar-h / --tabbar-h / --sticky-offset in sync
+  // with the actual rendered heights so any sticky consumer (search-hero, grupos,
+  // trends sub-tab) stays anchored correctly even when Topbar content wraps.
+  useEffect(() => {
+    const topbarNode = topbarRef.current;
+    const tabbarNode = tabbarRef.current;
+    if (!topbarNode || !tabbarNode) return;
+    const update = () => {
+      const th = topbarNode.offsetHeight;
+      const tb = tabbarNode.offsetHeight;
+      document.documentElement.style.setProperty('--topbar-h', th + 'px');
+      document.documentElement.style.setProperty('--tabbar-h', tb + 'px');
+      document.documentElement.style.setProperty('--sticky-offset', (th + tb) + 'px');
+    };
+    const ro = new ResizeObserver(update);
+    ro.observe(topbarNode);
+    ro.observe(tabbarNode);
+    update(); // initial measurement before first resize event
+    return () => ro.disconnect();
+  }, []);
+
+  // TASK-4: --compare-bar-h lifts the GPU FAB above the CompareBar when visible
+  useEffect(() => {
+    const val = S.comparar.length > 0 ? '64px' : '0px';
+    document.documentElement.style.setProperty('--compare-bar-h', val);
+  }, [S.comparar.length]);
 
   // Load saved outfits once on mount (independent of scrape data)
   const loadSavedOutfits = useCallback(async () => {
@@ -538,6 +562,7 @@ export default function AppLayout() {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh' }}>
+      <div ref={topbarRef}>
       <Topbar
         meta={S.meta}
         facets={S.facets}
@@ -549,6 +574,7 @@ export default function AppLayout() {
         gymrat={S.gymrat}
         onGymratToggle={() => setFilter({ gymrat: !S.gymrat })}
       />
+      </div>{/* topbarRef wrapper */}
       <div className="layout">
         <Sidebar
           open={sidebarOpen}
@@ -570,7 +596,7 @@ export default function AppLayout() {
           onReset={() => dispatch({ type:'RESET_FILTERS' })}
         />
         <div className="content">
-          <div className="tab-bar">
+          <div className="tab-bar" ref={tabbarRef}>
             <button className="sidebar-toggle" onClick={() => setSidebarOpen(o=>!o)}>☰</button>
             <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Catálogo" aria-label="Catálogo">🛍 <span className="tab-label">Catálogo</span></NavLink>
             <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`} title="Picks" aria-label="Picks">🏆 <span className="tab-label">Picks</span></NavLink>
@@ -578,9 +604,9 @@ export default function AppLayout() {
             <NavLink to="/grupos"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Comparar" aria-label="Comparar">⚖ <span className="tab-label">Comparar</span></NavLink>
             <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`} title="Tendencias" aria-label="Tendencias">📈 <span className="tab-label">Tendencias</span></NavLink>
             <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`} title="Favoritos" aria-label="Favoritos">⭐ <span className="tab-label">Favoritos</span></NavLink>
-            <NavLink to="/outfits"   className={({isActive}) => `tab ${isActive?'active':''}`}>👕 Outfits</NavLink>
-            <NavLink to="/recomendados" className={({isActive}) => `tab ${isActive?'active':''}`}>✨ Para ti</NavLink>
-            <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`}>💳 Cuotas</NavLink>
+            <NavLink to="/outfits"      className={({isActive}) => `tab ${isActive?'active':''}`} title="Outfits" aria-label="Outfits">👕 <span className="tab-label">Outfits</span></NavLink>
+            <NavLink to="/recomendados" className={({isActive}) => `tab ${isActive?'active':''}`} title="Para ti" aria-label="Para ti">✨ <span className="tab-label">Para ti</span></NavLink>
+            <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`} title="Cuotas" aria-label="Cuotas">💳 <span className="tab-label">Cuotas</span></NavLink>
           </div>
 
           <Suspense fallback={<RouteFallback/>}>

@@ -15,7 +15,6 @@ export default function Topbar({
   onSitioChange, onRubroChange, onReScrape,
   gymrat, onGymratToggle,
 }) {
-  const [collapsed, setCollapsed] = useState(false);
   const sitioMap  = meta?.marcas        || {};
   const rubrosMap = facets?.rubros      || {};
   const total     = meta?.total         || 0;
@@ -64,7 +63,7 @@ export default function Topbar({
   const gymratCount = facets?.gymratCount || 0;
 
   return (
-    <div className="flex-shrink-0 bg-s1 border-b border-border">
+    <div className="topbar-root flex-shrink-0 bg-s1 border-b border-border">
       {/* Row 1: Logo + Rubro tabs */}
       <div className="flex items-center gap-1 px-2 py-[.45rem] border-b border-s3">
         <span className="text-base mr-[4px]">🛒</span>
@@ -93,9 +92,9 @@ export default function Topbar({
           })}
         </div>
 
-        {/* ML Training indicator */}
+        {/* ML Training indicator — hidden below md (topbar-meta) */}
         {mlStatus?.running && (
-          <div className="flex items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
+          <div className="topbar-meta items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
                           bg-[color-mix(in_srgb,var(--p)_18%,transparent)] border border-[color-mix(in_srgb,var(--p)_40%,transparent)]
                           text-[.68rem] text-primary animate-[mlpulse_1.5s_ease-in-out_infinite]">
             <span className="text-[.75rem]">🤖</span>
@@ -103,7 +102,7 @@ export default function Topbar({
           </div>
         )}
         {mlStatus?.done && !mlStatus?.running && (
-          <div className="flex items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
+          <div className="topbar-meta items-center gap-[5px] ml-1 rounded-full px-[10px] py-[3px]
                           bg-[color-mix(in_srgb,var(--sem-positive)_15%,transparent)] border border-[color-mix(in_srgb,var(--sem-positive)_40%,transparent)]
                           text-[.68rem] text-success cursor-default"
             title='Modelo ML entrenado y activo'>
@@ -111,7 +110,7 @@ export default function Topbar({
           </div>
         )}
         {meta?.mlModeloActivo && !mlStatus?.running && !mlStatus?.done && (
-          <div className="flex items-center gap-[4px] ml-1 rounded-full px-[10px] py-[3px]
+          <div className="topbar-meta items-center gap-[4px] ml-1 rounded-full px-[10px] py-[3px]
                           bg-[color-mix(in_srgb,var(--sem-positive)_10%,transparent)] border border-[color-mix(in_srgb,var(--sem-positive)_25%,transparent)]
                           text-[.65rem] text-success"
             title={`Categorías refinadas por ML: ${(meta?.mlRefinadas||0).toLocaleString('es-AR')}`}>
@@ -120,9 +119,9 @@ export default function Topbar({
         )}
         <style>{`@keyframes mlpulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
 
-        {/* IPC Widget */}
+        {/* IPC Widget — hidden below md (topbar-meta) */}
         {ipcData?.mensual != null && (
-          <div className="ipc-widget">
+          <div className="ipc-widget topbar-meta">
             <span>📊 IPC: <strong>{ipcData.mensual.toFixed(1)}%</strong>/mes</span>
             {ipcData.interanual != null && (
               <span className="text-t4">| Anual: <strong className="text-t2">{Math.round(ipcData.interanual)}%</strong></span>
@@ -130,9 +129,9 @@ export default function Topbar({
           </div>
         )}
 
-        {/* ML Banner */}
+        {/* ML Banner — hidden below md (topbar-meta) */}
         {mlBanner && (
-          <div className="ml-banner">
+          <div className="ml-banner topbar-meta">
             {mlBanner.ml?.hasTextModel && mlBanner.ml?.textMeta
               ? `🧠 ML ${(mlBanner.ml.textMeta.accuracy != null ? (mlBanner.ml.textMeta.accuracy * 100).toFixed(1) : '?')}% acc · ${mlBanner.st?.mlRefinadas || 0} ref.`
               : '🧠 ML estadístico'}
@@ -149,9 +148,9 @@ export default function Topbar({
         </div>
       </div>
 
-      {/* Row 2: Sitio breadcrumbs */}
+      {/* Row 2: Sitio breadcrumbs — hidden below md via topbar-meta */}
       {sitios.length > 0 && (
-        <div className="flex items-center gap-[4px] px-2 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
+        <div className="topbar-meta items-center gap-[4px] px-2 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
           <button
             onClick={() => onSitioChange('')}
             className={cn(
