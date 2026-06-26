@@ -384,6 +384,7 @@ public class ApiController {
             n.put("nombre", s.nombre());
             n.put("url", s.url());
             n.put("tipo", "config");
+            n.put("rubro", s.rubro());
         }
         ArrayNode extras = root.putArray("extras");
         for (var s : service.getSitiosExtras()) {
