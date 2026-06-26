@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
+import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
 import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
@@ -416,10 +416,10 @@ export default function AppLayout() {
 
   useEffect(() => () => stopGpuPolling(), [stopGpuPolling]);
 
-  // TASK-2: ResizeObserver — keep --topbar-h / --tabbar-h / --sticky-offset in sync
-  // with the actual rendered heights so any sticky consumer (search-hero, grupos,
-  // trends sub-tab) stays anchored correctly even when Topbar content wraps.
-  useEffect(() => {
+  // ResizeObserver — keeps --topbar-h / --tabbar-h / --sticky-offset in sync before paint
+  // useLayoutEffect fires synchronously after DOM mutations and before the browser paints,
+  // eliminating the first-frame flash where sticky elements use the CSS fallback value.
+  useLayoutEffect(() => {
     const topbarNode = topbarRef.current;
     const tabbarNode = tabbarRef.current;
     if (!topbarNode || !tabbarNode) return;
@@ -561,7 +561,7 @@ export default function AppLayout() {
   }, [navigate]);
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh' }}>
+    <div className="app-shell">
       <div ref={topbarRef}>
       <Topbar
         meta={S.meta}
