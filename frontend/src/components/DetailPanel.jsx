@@ -358,7 +358,7 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
     if (!touchStart.current) return;
     const dx = e.touches[0].clientX - touchStart.current.x;
     const dy = e.touches[0].clientY - touchStart.current.y;
-    if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 0 && Math.abs(dx) > 2 * Math.abs(dy)) {
       isDragging.current = true;
       e.currentTarget.style.transform = `translateX(${dx}px)`;
       e.currentTarget.style.transition = 'none';
