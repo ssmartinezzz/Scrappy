@@ -121,9 +121,15 @@ public class NormalizerService {
     };
 
     private static final String[] KW_BORCEGO = {
-        "borcego","borcegos","hiker","hiking","work boot","timberland",
+        "borcego","borcegos","hiker","hiking","work boot",
         "dr martens","martens","dr. martens","1460","chunky boot",
         "plataforma alta","lug sole","bota alta","boot alta"
+    };
+
+    // Tier B — marcas que venden TAMBIÉN ropa/camperas (timberland). Solo
+    // clasificar como Borcego si hay contexto de calzado en el mismo nombre.
+    private static final String[] KW_BORCEGO_MARCA = {
+        "timberland"
     };
 
     private static final String[] KW_SANDALIA = {
@@ -179,8 +185,9 @@ public class NormalizerService {
 
     private static final String[] KW_PUFFER = {
         "puffer","plumon","pluma","down jacket","down coat",
-        "inflable","acolchada","acolchado","inflado",
-        "anorak termico","termica","puffy","quilted"
+        "campera inflable","chaleco inflable","abrigo inflable","parka inflable",
+        "acolchada","acolchado",
+        "anorak termico"
     };
 
     private static final String[] KW_PILOTO = {
@@ -228,6 +235,14 @@ public class NormalizerService {
         "musculosa","tank top","camiseta de tirantes","sin mangas",
         "top deportivo","sports bra","corpino deportivo",
         " top " // "Top" suelto (sin "deportivo"/"interior"/"cuello") — palabra completa
+    };
+
+    // Palabras 100% culinarias — corren al inicio de clasificar() para que
+    // keywords genéricos de ropa (" top ", "knit", "fleece") no clasifiquen
+    // salsas, condimentos o alimentos como indumentaria. Se agregan aquí y no
+    // a KW_COMIDA porque KW_COMIDA se evalúa DESPUÉS del bloque de indumentaria.
+    private static final String[] KW_ALIMENTO_TEMPRANO = {
+        "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia "
     };
 
     private static final String[] KW_REMERA = {
@@ -368,6 +383,12 @@ public class NormalizerService {
         "media","medias","sock","socks","calcetin","calcetines","tobillera sock"
     };
 
+    private static final String[] KW_ACCESORIO_DEPORTIVO = {
+        "munequera","muñequera","rodillera","codillera","tobillera deportiva",
+        "vendaje deportivo","cinta deportiva","soporte rodilla","soporte muneca",
+        "shaker","bidon","bidón","botella deportiva","botella termica","termo deportivo"
+    };
+
     // ══════════════════════════════════════════════════════════════════
     // TECH
     // ══════════════════════════════════════════════════════════════════
@@ -477,6 +498,45 @@ public class NormalizerService {
     );
 
     // ══════════════════════════════════════════════════════════════════
+    // Subcategorías de suplemento — corren ANTES de KW_SUPLEMENTO en clasificar()
+    private static final String[] KW_CREATINA = {
+        "creatina","creatine","monohidrato de creatina"
+    };
+
+    private static final String[] KW_PROTEINA = {
+        "proteina ","protein ","whey","isolate","concentrate","caseina","casein",
+        "proteina isolada","proteina hidrolizada"
+    };
+
+    private static final String[] KW_COLAGENO = {
+        "colageno","collagen","hidrolizado de colageno","colageno marino"
+    };
+
+    private static final String[] KW_MAGNESIO = {
+        "magnesio","magnesium","citrato de magnesio","bisglicinato de magnesio"
+    };
+
+    private static final String[] KW_PRE_WORKOUT_SUP = {
+        "pre workout","preworkout","pre-workout","pre entreno","cafeina en polvo"
+    };
+
+    private static final String[] KW_BCAA_SUP = {
+        "bcaa","aminoacido","amino acid","glutamina","glutamine"
+    };
+
+    private static final String[] KW_VITAMINAS = {
+        "vitamina ","vitamin ","multivitaminico","omega 3","omega3","omega-3"
+    };
+
+    private static final String[] KW_QUEMADORES = {
+        "quemador de grasa","fat burner","termogenico","l-carnitina","l carnitina",
+        "carnitina","cla "
+    };
+
+    private static final String[] KW_GAINERS = {
+        "mass gainer","hipercalorico"
+    };
+
     private static final String[] KW_SUPLEMENTO = {
         "proteina","protein","whey","isolate","concentrate",
         "creatina","creatine","monohidrato",
@@ -494,7 +554,10 @@ public class NormalizerService {
     private static final String[] KW_COMIDA = {
         "yerba","mate","cafe","te verde","infusion","cereal","granola",
         "frutos secos","almendra","mani","cacao","chocolate proteico",
-        "avena","harina de avena","pasta","arroz"
+        "avena","harina de avena","pasta","arroz",
+        "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
+        "pudding","chia ","semillas","fruta","miel","mermelada","dulce de",
+        "snack saludable","galletita","galleta","tostada","pan proteico"
     };
 
     private static final String[] KW_PERFUME = {
@@ -555,7 +618,10 @@ public class NormalizerService {
         String sitioKey = (p.sitio() != null ? p.sitio() : "").toLowerCase()
                           .replaceAll("[^a-z0-9]","");
         boolean catEsTextil = esIndumentariaOCalzado(cat);
-        boolean catEsSuppl  = "Suplemento".equals(cat) || "Alimentos".equals(cat);
+        boolean catEsSuppl  = "Suplemento".equals(cat) || "Alimentos".equals(cat)
+            || "Creatina".equals(cat) || "Proteína".equals(cat) || "Colágeno".equals(cat)
+            || "Magnesio".equals(cat) || "Pre-Workout".equals(cat) || "BCAA".equals(cat)
+            || "Vitaminas".equals(cat) || "Quemadores".equals(cat) || "Gainer".equals(cat);
 
         String rubro;
         if (TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))) {
@@ -627,7 +693,8 @@ public class NormalizerService {
                    "Vestido","Enterito","Pantalón",
                    "Calzoncillos","Corpino","Malla",
                    "Mochila","Bolso","Riñonera","Billetera","Cinturón",
-                   "Bufanda","Guantes","Gorro","Gorra","Lentes","Medias"
+                   "Bufanda","Guantes","Gorro","Gorra","Lentes","Medias",
+                   "Accesorio Deportivo"
                ).contains(cat);
     }
 
@@ -702,7 +769,16 @@ public class NormalizerService {
                 return capitalize(cleaned.split("\\s+")[0]); // Solo primera palabra
             }
         }
+        if (tieneIndicadorPeso(nombre)) return "Alimentos";
         return "Indumentaria";
+    }
+
+    private static final java.util.regex.Pattern PESO_VOLUMEN =
+        java.util.regex.Pattern.compile("\\d+\\s*(g|ml|kg|mg|oz|l)\\s*$", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    private boolean tieneIndicadorPeso(String nombre) {
+        if (nombre == null || nombre.isBlank()) return false;
+        return PESO_VOLUMEN.matcher(nombre.trim()).find();
     }
 
     /**
@@ -719,6 +795,12 @@ public class NormalizerService {
                         .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
                         .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
                         .replaceAll("[úùü]","u").replaceAll("[ñ]","n") + " ";
+
+        // ── PRE-CHECK CULINARIO (antes de ropa) ─────────────────────────────
+        // Palabras 100% culinarias que no pueden ser colores/materiales de ropa.
+        // Corre antes del bloque de indumentaria para evitar que " top " clasifique
+        // "MRS TASTE BBQ Salsa Top Chef" como Musculosa.
+        if (anyMatch(t, KW_ALIMENTO_TEMPRANO)) return "Alimentos";
 
         // ── COMBO / MULTI-PIEZA (ver ADR-4) — corre ANTES de cualquier otro
         // bloque para que un SKU combo nunca quede first-matched como una sola
@@ -744,6 +826,7 @@ public class NormalizerService {
         if (anyMatch(t, KW_BOTIN))     return "Botines";
         if (anyMatch(t, KW_BOTIN_GENERICO) && esContextoBotin(t)) return "Botines";
         if (anyMatch(t, KW_BORCEGO))   return "Borcego";
+        if (anyMatch(t, KW_BORCEGO_MARCA) && esContextoBorcego(t)) return "Borcego";
         if (anyMatch(t, KW_PANTUFLA))  return "Pantufla";
         if (anyMatch(t, KW_ZAPATO))    return "Zapato";
         if (anyMatch(t, KW_MOCASIN))   return "Mocasin";
@@ -783,10 +866,19 @@ public class NormalizerService {
         if (anyMatch(t, KW_POLLERA))  return "Pollera";
         if (anyMatch(t, KW_PANTALON)) return "Pantalón";
 
-        // ── SUPLEMENTOS / NUTRICIÓN ───────────────────────────────────
-        if (anyMatch(t, KW_SUPLEMENTO)) return "Suplemento";
-        if (anyMatch(t, KW_COMIDA))     return "Alimentos";
-        if (anyMatch(t, KW_PERFUME))    return "Perfume";
+        // ── SUPLEMENTOS / NUTRICIÓN (específico → genérico) ──────────
+        if (anyMatch(t, KW_CREATINA))        return "Creatina";
+        if (anyMatch(t, KW_PROTEINA))        return "Proteína";
+        if (anyMatch(t, KW_COLAGENO))        return "Colágeno";
+        if (anyMatch(t, KW_MAGNESIO))        return "Magnesio";
+        if (anyMatch(t, KW_PRE_WORKOUT_SUP)) return "Pre-Workout";
+        if (anyMatch(t, KW_BCAA_SUP))        return "BCAA";
+        if (anyMatch(t, KW_VITAMINAS))       return "Vitaminas";
+        if (anyMatch(t, KW_QUEMADORES))      return "Quemadores";
+        if (anyMatch(t, KW_GAINERS))         return "Gainer";
+        if (anyMatch(t, KW_SUPLEMENTO))      return "Suplemento";
+        if (anyMatch(t, KW_COMIDA))          return "Alimentos";
+        if (anyMatch(t, KW_PERFUME))         return "Perfume";
 
         // ── ACCESORIOS (más específico primero) ───────────────────────
         if (anyMatch(t, KW_BILLETERA))  return "Billetera";
@@ -800,6 +892,7 @@ public class NormalizerService {
         if (anyMatch(t, KW_GORRO))      return "Gorro";
         if (anyMatch(t, KW_GORRA))      return "Gorra";
         if (anyMatch(t, KW_MEDIAS))     return "Medias";
+        if (anyMatch(t, KW_ACCESORIO_DEPORTIVO)) return "Accesorio Deportivo";
 
         // ── CALZADO POR MODELO/MARCA (fallback, sin sustantivo explícito) ─
         // Corre AL FINAL, después de todos los sustantivos explícitos de arriba:
@@ -850,6 +943,11 @@ public class NormalizerService {
     private boolean esContextoBotin(String t) {
         return t.contains("botin") || t.contains("futbol") || t.contains("tachon")
             || t.contains("cleats") || t.contains("cancha");
+    }
+
+    private boolean esContextoBorcego(String t) {
+        return t.contains("borcego") || t.contains("bota") || t.contains("boot")
+            || t.contains("hiker") || t.contains("hiking") || t.contains("calzado");
     }
 
     /**
