@@ -504,7 +504,7 @@ public class ScraperService {
     private List<ScraperConfig.SiteConfig> buildSiteList(Set<String> seleccionados) {
         List<ScraperConfig.SiteConfig> todos = new ArrayList<>(config.getSitiosActivos());
         for (SitioExtra extra : sitiosExtras)
-            todos.add(new ScraperConfig.SiteConfig(extra.nombre(), extra.url()));
+            todos.add(new ScraperConfig.SiteConfig(extra.nombre(), extra.url(), "indumentaria"));
         if (seleccionados != null && !seleccionados.isEmpty()) {
             todos = todos.stream()
                     .filter(s -> seleccionados.stream()
