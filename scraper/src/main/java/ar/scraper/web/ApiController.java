@@ -997,8 +997,19 @@ public class ApiController {
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
                 r.productos(), catList, presupuesto, genero, feedback);
 
+        // Determine status per spec API contract
+        String status;
+        if (result.slots().isEmpty()) {
+            status = "no-fit";
+        } else if (!result.categoriasVacias().isEmpty()) {
+            status = "partial";
+        } else {
+            status = "ok";
+        }
+
         // Build response JSON
         ObjectNode root = JsonNodeFactory.instance.objectNode();
+        root.put("status", status);
         ArrayNode slotsArr = root.putArray("slots");
         for (var pick : result.slots()) {
             ObjectNode n = slotsArr.addObject();
@@ -1019,6 +1030,9 @@ public class ApiController {
         result.categoriasVacias().forEach(vaciasArr::add);
         ArrayNode sinPresupArr = root.putArray("categoriasSinPresupuesto");
         result.categoriasSinPresupuesto().forEach(sinPresupArr::add);
+        if ("no-fit".equals(status)) {
+            root.put("reason", "No valid combination fits within the budget.");
+        }
 
         return ResponseEntity.ok(root);
     }
