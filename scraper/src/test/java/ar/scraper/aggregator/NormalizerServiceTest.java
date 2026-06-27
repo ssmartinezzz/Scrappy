@@ -353,4 +353,139 @@ class NormalizerServiceTest {
         assertThat(service.normalizarGenero("mujer", "Remera Básica", "Remera"))
                 .isEqualTo("mujer");
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // classifier-quality-fixes — category precision bugs
+    // ══════════════════════════════════════════════════════════════════
+
+    // ── Timberland: brand name must NOT classify clothing as Borcego ──
+
+    @Test
+    void timberlandRemeraNoEsBorcego() {
+        assertThat(service.normalizarCategoria(null, "Remera Timberland Hombre")).isNotEqualTo("Borcego");
+    }
+
+    @Test
+    void timberlandCamperaNoEsBorcego() {
+        assertThat(service.normalizarCategoria(null, "Campera Timberland Manga Larga")).isNotEqualTo("Borcego");
+    }
+
+    @Test
+    void timberlandBootSigueEsBorcego() {
+        assertThat(service.normalizarCategoria(null, "Timberland Boot Hiking Hombre")).isEqualTo("Borcego");
+    }
+
+    // ── Puffer: broad keywords must not fire on non-jacket items ─────
+
+    @Test
+    void infladorNoEsPuffer() {
+        assertThat(service.normalizarCategoria(null, "Inflador de pelotas Adidas")).isNotEqualTo("Puffer");
+    }
+
+    @Test
+    void botellaTermicaNoEsPuffer() {
+        assertThat(service.normalizarCategoria(null, "Botella Termica 500ml Acero")).isNotEqualTo("Puffer");
+    }
+
+    @Test
+    void remeraTermicaNoEsPuffer() {
+        assertThat(service.normalizarCategoria(null, "Remera Termica Hombre Under Armour")).isNotEqualTo("Puffer");
+    }
+
+    @Test
+    void remeraTermicaEsRemera() {
+        assertThat(service.normalizarCategoria(null, "Remera Termica Hombre Under Armour")).isEqualTo("Remera");
+    }
+
+    @Test
+    void camperaInflableEsPuffer() {
+        assertThat(service.normalizarCategoria(null, "Campera Inflable The North Face")).isEqualTo("Puffer");
+    }
+
+    @Test
+    void camperaAcolchadaEsPuffer() {
+        assertThat(service.normalizarCategoria(null, "Campera Acolchada Mujer Nike")).isEqualTo("Puffer");
+    }
+
+    // ── Accesorios deportivos: muñequera, shaker ─────────────────────
+
+    @Test
+    void munecueraDezapatillasNoEsZapatilla() {
+        assertThat(service.normalizarCategoria(null, "Muñequera adidas de Zapatillas Grande Unisex"))
+                .isNotIn("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento", "Zapatilla Urbana", "Sneaker");
+    }
+
+    @Test
+    void munecueraEsAccesorioDeportivo() {
+        assertThat(service.normalizarCategoria(null, "Muñequera adidas de Zapatillas Grande Unisex"))
+                .isEqualTo("Accesorio Deportivo");
+    }
+
+    @Test
+    void shakerEsAccesorioDeportivo() {
+        assertThat(service.normalizarCategoria(null, "Raw Shaker Elite 700ml Transparente"))
+                .isEqualTo("Accesorio Deportivo");
+    }
+
+    // ── Alimentos: comidas sin keywords previos caen bien ─────────────
+
+    @Test
+    void chiaPuddingEsAlimentos() {
+        assertThat(service.normalizarCategoria(null, "GRANGER Chia Pudding 300g")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void salsaMrsTasteEsAlimentos() {
+        assertThat(service.normalizarCategoria(null, "MRS TASTE BBQ Salsa Top Chef")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void salsaNoEsMusculosa() {
+        assertThat(service.normalizarCategoria(null, "MRS TASTE BBQ Salsa Top Chef")).isNotEqualTo("Musculosa");
+    }
+
+    // ── Suplemento subcategorías ──────────────────────────────────────
+
+    @Test
+    void creatinaMononhidratoEsCreatina() {
+        assertThat(service.normalizarCategoria(null, "Creatina Monohidrato 300g Myprotein")).isEqualTo("Creatina");
+    }
+
+    @Test
+    void wheyProteinEsProteina() {
+        assertThat(service.normalizarCategoria(null, "Whey Protein Isolate 2kg Vanilla")).isEqualTo("Proteína");
+    }
+
+    @Test
+    void magnesioEsMagnesio() {
+        assertThat(service.normalizarCategoria(null, "Magnesio Citrato 500mg 60 capsulas")).isEqualTo("Magnesio");
+    }
+
+    @Test
+    void preWorkoutEsPreWorkout() {
+        assertThat(service.normalizarCategoria(null, "Pre Workout Explosivo 300g")).isEqualTo("Pre-Workout");
+    }
+
+    @Test
+    void bcaaEsBcaa() {
+        assertThat(service.normalizarCategoria(null, "BCAA 2:1:1 200g Limón")).isEqualTo("BCAA");
+    }
+
+    @Test
+    void vitaminaEsVitaminas() {
+        assertThat(service.normalizarCategoria(null, "Vitamina C 1000mg 60 capsulas")).isEqualTo("Vitaminas");
+    }
+
+    @Test
+    void omega3EsVitaminas() {
+        assertThat(service.normalizarCategoria(null, "Omega 3 Fish Oil 1000mg 90 softgels")).isEqualTo("Vitaminas");
+    }
+
+    // ── Fallback peso/volumen: no-textil con indicador de peso ────────
+
+    @Test
+    void productoConPesoSinKeywordNoEsIndumentaria() {
+        // productos sin keyword conocido pero con indicador de peso → Alimentos, no Indumentaria
+        assertThat(service.normalizarCategoria(null, "GRANGER Chia Pudding 300g")).isNotEqualTo("Indumentaria");
+    }
 }
