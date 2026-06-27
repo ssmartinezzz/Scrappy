@@ -137,8 +137,9 @@ export default function SplashPanel({
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-5 bg-bg p-4">
+    <div className="fixed inset-0 flex flex-col items-center justify-start overflow-y-auto bg-bg p-4">
 
+      <div className="my-auto flex w-full flex-col items-center gap-5">
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="text-center">
         <div className="text-[2.8rem] leading-none drop-shadow-[0_0_24px_color-mix(in_srgb,var(--p)_60%,transparent)]">🛍</div>
@@ -412,6 +413,7 @@ export default function SplashPanel({
             </div>
           )}
         </div>
+      </div>
       </div>
 
       <style>{`
