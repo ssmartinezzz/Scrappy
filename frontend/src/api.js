@@ -279,11 +279,15 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
  * @param {string}   [params.genero]    optional gender filter
  * @returns {Promise<Object|null>} builder result or null on error
  */
-export async function fetchOutfitBuilder({ categorias, presupuesto, genero }) {
+export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false }) {
   const p = new URLSearchParams();
   if (categorias && categorias.length) p.set('categorias', categorias.join(','));
-  if (presupuesto > 0) p.set('presupuesto', presupuesto);
+  // presupuesto=0 or empty means no limit → send a large ceiling so the API accepts it
+  const budget = presupuesto > 0 ? presupuesto : 100_000_000;
+  p.set('presupuesto', budget);
   if (genero) p.set('genero', genero);
+  if (excluir && excluir.length) p.set('excluir', excluir.join(','));
+  if (greedy) p.set('greedy', 'true');
   const r = await fetch(`${BASE}/api/outfits/builder?${p}`);
   if (r.status === 204) return null;
   if (!r.ok) return null;
