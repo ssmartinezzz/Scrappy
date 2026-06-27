@@ -186,6 +186,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   const [sentSlots, setSentSlots]               = useState(() => new Set());
   const [removedSlots, setRemovedSlots]         = useState(() => new Set());
   const [saving, setSaving]                     = useState(false);
+  const [greedyToast, setGreedyToast]           = useState(false);
 
   // Core load function — called on mount and on re-roll
   const load = useCallback(async (excluir = [], isGreedy = false) => {
@@ -223,6 +224,10 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     const next = attemptCount + 1;
     setAttemptCount(next);
     setRemovedSlots(new Set());
+    if (next === 11) {
+      setGreedyToast(true);
+      setTimeout(() => setGreedyToast(false), 3500);
+    }
     load(currentOutfitUrls, next > 10);
   }
 
@@ -323,6 +328,12 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+      {greedyToast && (
+        <div className="greedy-toast">
+          Modo variedad máxima activado — explorando combinaciones menos obvias
+        </div>
+      )}
 
       {/* Gender tabs — Hombre / Mujer only (UOB-02) */}
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>

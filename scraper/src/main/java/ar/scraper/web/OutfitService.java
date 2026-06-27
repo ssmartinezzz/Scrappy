@@ -142,7 +142,9 @@ public class OutfitService {
             m.put(cat, SLOT_PIERNAS);
         }
         for (String cat : List.of(
-                "Botines", "Borcego", "Botas", "Ojotas", "Sneaker")) {
+                "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
+                "Zapatilla Skate", "Zapatilla Urbana", "Sneaker",
+                "Botines", "Borcego", "Botas", "Ojotas")) {
             m.put(cat, SLOT_CALZADO);
         }
         for (String cat : List.of(
@@ -703,43 +705,48 @@ public class OutfitService {
                     presupuesto, 0.0, false, List.of(), List.of(), null);
         }
 
-        // Deduplicate preserving request order
+        // Deduplicate and group by slot — one product per slot group in the final outfit
         List<String> cats = new ArrayList<>(new LinkedHashSet<>(categorias));
         final Set<String> excluirFinal = excluirUrls;
 
-        // Greedy path — bypasses MCKP entirely
+        Map<String, Set<String>> catsBySlot = new LinkedHashMap<>();
+        for (String cat : cats) {
+            String slot = CATEGORIA_SLOT.get(cat);
+            if (slot == null) continue;
+            catsBySlot.computeIfAbsent(slot, k -> new LinkedHashSet<>()).add(cat);
+        }
+        List<String> slotOrder = new ArrayList<>(catsBySlot.keySet());
+
         if (greedy) {
-            return armarGreedy(productos, cats, presupuesto, genero, feedback, excluirFinal);
+            return armarGreedy(productos, slotOrder, catsBySlot, presupuesto, genero, feedback, excluirFinal);
         }
 
         Set<String> exclude          = feedback.exclude();
         Set<String> excludeCategoria = feedback.excludeCategoria();
 
-        List<String>        categoriasVacias = new ArrayList<>();
-        List<List<Product>> allPools         = new ArrayList<>();
-        List<Boolean>       rawNonEmpty      = new ArrayList<>();
+        List<String>        slotsVacios = new ArrayList<>();
+        List<List<Product>> allPools    = new ArrayList<>();
+        List<Boolean>       rawNonEmpty = new ArrayList<>();
 
-        for (String cat : cats) {
-            final String slot = CATEGORIA_SLOT.get(cat);
+        for (String slot : slotOrder) {
+            Set<String> slotCats = catsBySlot.get(slot);
 
-            // Raw pool: cat + gender + feedback + gymrat gate + excluirUrls (no price filter)
             List<Product> rawPool = productos.stream()
-                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirFinal.contains(p.url()))
                     .filter(p -> {
-                        // Gymrat gate: torso and piernas require gymrat=true
                         if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
-                        return true; // calzado and accesorio: no gymrat filter
+                        return true;
                     })
                     .collect(Collectors.toList());
 
             if (rawPool.isEmpty()) {
-                categoriasVacias.add(cat);
+                slotsVacios.add(slot);
                 allPools.add(List.of());
                 rawNonEmpty.add(false);
                 continue;
@@ -747,73 +754,57 @@ public class OutfitService {
 
             rawNonEmpty.add(true);
 
-            // Shuffle for variety:
-            // 1. Sort rawPool desc by baseMlScore
-            // 2. Take top-30 (or all if < 30)
-            // 3. Randomly sample 20 (or keep all if ≤ 20)
-            // 4. CRITICAL re-sort desc — branch-and-bound requires pool.get(0) to be max score
             List<Product> sortedRaw = rawPool.stream()
                     .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
                     .collect(Collectors.toList());
 
-            List<Product> top30 = new ArrayList<>(sortedRaw.subList(0, Math.min(30, sortedRaw.size())));
-
-            if (top30.size() > 20) {
-                Collections.shuffle(top30, new Random());
-                top30 = top30.subList(0, 20);
-            }
-
-            // Apply price filter after sampling, then re-sort desc + cap at K
-            List<Product> filteredPool = top30.stream()
+            // Take top-60 by score, shuffle to 30, filter by price — no re-sort after
+            // shuffle so each regen sees a different candidate set (variety).
+            List<Product> top60 = new ArrayList<>(sortedRaw.subList(0, Math.min(60, sortedRaw.size())));
+            Collections.shuffle(top60, new Random());
+            List<Product> filteredPool = top60.stream()
                     .filter(p -> p.precio() <= presupuesto)
-                    .sorted(Comparator
-                            .comparingDouble((Product p) -> -recommendationService.baseMlScore(p))
-                            .thenComparingInt(p -> p.ml() != null ? p.ml().scoreP() : 50)
-                            .thenComparing(p -> p.url() != null ? p.url() : ""))
                     .limit(BUILDER_POOL_K)
                     .collect(Collectors.toList());
 
             allPools.add(filteredPool);
         }
 
-        // Phase 2: MCKP recursive enumeration
         MckpSolver solver = new MckpSolver(recommendationService, allPools, presupuesto);
-        solver.solve(0, 0.0, 0.0, new Product[cats.size()]);
+        solver.solve(0, 0.0, 0.0, new Product[slotOrder.size()]);
 
-        // Phase 3: Build result
         Product[] bestSolution = solver.best;
-        Set<String> catsInSolution = new HashSet<>();
+        Set<String> slotsInSolution = new HashSet<>();
         List<SlotPick> slots = new ArrayList<>();
 
-        for (int i = 0; i < cats.size(); i++) {
+        for (int i = 0; i < slotOrder.size(); i++) {
             Product p = bestSolution[i];
             if (p != null) {
-                slots.add(toSlotPick(cats.get(i), p));
-                catsInSolution.add(cats.get(i));
+                slots.add(toSlotPick(slotOrder.get(i), p));
+                slotsInSolution.add(slotOrder.get(i));
             }
         }
 
-        // categoriasSinPresupuesto: had raw candidates but optimizer couldn't include them
-        List<String> categoriasSinPresupuesto = new ArrayList<>();
-        for (int i = 0; i < cats.size(); i++) {
-            String cat = cats.get(i);
-            if (rawNonEmpty.get(i) && !catsInSolution.contains(cat)) {
-                categoriasSinPresupuesto.add(cat);
+        List<String> slotsSinPresupuesto = new ArrayList<>();
+        for (int i = 0; i < slotOrder.size(); i++) {
+            String slot = slotOrder.get(i);
+            if (rawNonEmpty.get(i) && !slotsInSolution.contains(slot)) {
+                slotsSinPresupuesto.add(slot);
             }
         }
 
-        boolean noCumplePresupuesto = !categoriasSinPresupuesto.isEmpty();
+        boolean noCumplePresupuesto = !slotsSinPresupuesto.isEmpty();
         double totalEstimado = slots.stream().mapToDouble(SlotPick::precio).sum();
         String generoResultado = genero != null ? genero : "";
 
-        // minimoBudgetNecesario: populated only on no-fit (no slots assembled)
         Double minimoBudgetNecesario = null;
         if (slots.isEmpty()) {
-            minimoBudgetNecesario = calcularMinimoBudget(productos, cats, genero, feedback, excluirFinal);
+            minimoBudgetNecesario = calcularMinimoBudget(
+                    productos, slotOrder, catsBySlot, genero, feedback, excluirFinal);
         }
 
         return new OutfitBuilderResult(slots, generoResultado, presupuesto,
-                totalEstimado, noCumplePresupuesto, categoriasVacias, categoriasSinPresupuesto,
+                totalEstimado, noCumplePresupuesto, slotsVacios, slotsSinPresupuesto,
                 minimoBudgetNecesario);
     }
 
@@ -827,7 +818,8 @@ public class OutfitService {
      * (MCKP, greedy, calcularMinimoBudget) use identical eligibility rules.
      */
     private OutfitBuilderResult armarGreedy(
-            List<Product> productos, List<String> cats, double presupuesto,
+            List<Product> productos, List<String> slotOrder,
+            Map<String, Set<String>> catsBySlot, double presupuesto,
             String genero, FeedbackModel feedback, Set<String> excluirUrls) {
         if (productos == null) productos = List.of();
 
@@ -837,11 +829,11 @@ public class OutfitService {
         List<SlotPick> slots = new ArrayList<>();
         double runningTotal  = 0.0;
 
-        for (String cat : cats) {
-            final String slot = CATEGORIA_SLOT.get(cat);
+        for (String slot : slotOrder) {
+            Set<String> slotCats = catsBySlot.get(slot);
 
             List<Product> pool = productos.stream()
-                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
@@ -862,7 +854,7 @@ public class OutfitService {
 
             if (pick.isPresent()) {
                 Product chosen = pick.get();
-                slots.add(toSlotPick(cat, chosen));
+                slots.add(toSlotPick(slot, chosen));
                 runningTotal += chosen.precio();
             }
         }
@@ -883,7 +875,8 @@ public class OutfitService {
      * no-fit responses so the frontend can show "Necesitás al menos $X más".
      */
     private Double calcularMinimoBudget(
-            List<Product> productos, List<String> cats, String genero,
+            List<Product> productos, List<String> slotOrder,
+            Map<String, Set<String>> catsBySlot, String genero,
             FeedbackModel feedback, Set<String> excluirUrls) {
         if (productos == null) return null;
 
@@ -891,11 +884,11 @@ public class OutfitService {
         Set<String> excludeCategoria = feedback.excludeCategoria();
 
         double total = 0.0;
-        for (String cat : cats) {
-            final String slot = CATEGORIA_SLOT.get(cat);
+        for (String slot : slotOrder) {
+            Set<String> slotCats = catsBySlot.get(slot);
 
             OptionalDouble minPrecio = productos.stream()
-                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
@@ -910,7 +903,7 @@ public class OutfitService {
                     .min();
 
             if (minPrecio.isEmpty()) {
-                return null; // catalog gap — no eligible product for this category
+                return null; // catalog gap — no eligible product for this slot
             }
             total += minPrecio.getAsDouble();
         }
@@ -949,7 +942,9 @@ public class OutfitService {
                 List<Product> pool = pools.get(i);
                 // Pool is sorted desc by baseMlScore; first element is the max
                 maxScorePerCat[i] = pool.isEmpty()
-                        ? 0.0 : recService.baseMlScore(pool.get(0));
+                        ? 0.0 : pool.stream()
+                            .mapToDouble(recService::baseMlScore)
+                            .max().orElse(0.0);
             }
         }
 

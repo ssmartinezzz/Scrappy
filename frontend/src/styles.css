@@ -599,6 +599,18 @@ body { overflow-x: hidden; }
   border: 1px solid rgba(240,165,0,.3); border-radius: 10px; padding: 10px 14px;
   display: flex; align-items: center; gap: 8px; }
 
+.greedy-toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--p); color: #fff;
+  font-size: .78rem; font-weight: 600; letter-spacing: .02em;
+  padding: 10px 20px; border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  animation: toast-in .25s ease, toast-out .3s ease 3.2s forwards;
+  z-index: 9999; white-space: nowrap;
+}
+@keyframes toast-in  { from { opacity:0; transform: translateX(-50%) translateY(10px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+@keyframes toast-out { from { opacity:1; } to { opacity:0; } }
+
 .supl-section { border-top: 1.5px solid var(--bd); padding-top: 16px; }
 .supl-eyebrow { font: 700 .62rem/1 var(--font); color: var(--p2); text-transform: uppercase;
   letter-spacing: .12em; margin-bottom: 4px; }

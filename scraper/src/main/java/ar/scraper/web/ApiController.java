@@ -984,8 +984,8 @@ public class ApiController {
             return ResponseEntity.badRequest().body(err);
         }
 
-        if (catList.size() > 10) {
-            err.put("error", "Too many categories (max 10 allowed)");
+        if (catList.size() > 20) {
+            err.put("error", "Too many categories (max 20 allowed)");
             return ResponseEntity.badRequest().body(err);
         }
 
