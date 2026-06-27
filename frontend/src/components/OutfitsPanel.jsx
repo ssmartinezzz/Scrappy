@@ -127,208 +127,6 @@ function SuplementosCombo({ items, removedSupls, onRemoveSupl }) {
   );
 }
 
-// ─── GymTab ──────────────────────────────────────────────────────────────────
-function GymTab({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
-  const [genero, setGenero] = useState('hombre');
-  const [presupuesto, setPresupuesto] = useState(0);
-  const [presupuestoSuplementos, setPresupuestoSuplementos] = useState(0);
-  const [excluirUrls, setExcluirUrls] = useState([]);
-  const [outfit, setOutfit] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [rerolling, setRerolling] = useState(false);
-  const [sentSlots, setSentSlots] = useState(() => new Set());
-  const [error, setError] = useState(false);
-  const [removedSlots, setRemovedSlots] = useState(() => new Set());
-  const [removedSupls, setRemovedSupls] = useState(() => new Set());
-  const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async (busy, excluir = excluirUrls) => {
-    busy === 'reroll' ? setRerolling(true) : setLoading(true);
-    setError(false);
-    setSentSlots(new Set());
-    try {
-      const data = await fetchOutfit(genero, presupuesto, excluir, presupuestoSuplementos);
-      setOutfit(data);
-      if (data === null) setError(true);
-    } catch {
-      setOutfit(null);
-      setError(true);
-    } finally {
-      setLoading(false);
-      setRerolling(false);
-    }
-  }, [genero, presupuesto, presupuestoSuplementos, excluirUrls]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function handleFeedback(slot, url, liked) {
-    if (!outfit) return;
-    const body = {
-      genero: outfit.genero,
-      items: [{ slot, url, liked }],
-    };
-    const ok = await sendOutfitFeedback(body);
-    if (ok) setSentSlots(prev => new Set(prev).add(slot));
-
-    // R4: like → auto-add to favoritos (optimistic, idempotent)
-    if (liked && onAddFavorito) {
-      const item = outfit.slots.find(s => s.url === url);
-      if (item && !favoritos.some(f => f.url === url)) {
-        onAddFavorito({ url: item.url, sitio: item.sitio, nombre: item.nombre });
-      }
-    }
-  }
-
-  function handleSwapSlot(url) {
-    const next = [...excluirUrls, url];
-    setExcluirUrls(next);
-    load('reroll', next);
-  }
-
-  function handleReroll() {
-    setExcluirUrls([]);
-    setRemovedSlots(new Set());
-    setRemovedSupls(new Set());
-    load('reroll', []);
-  }
-
-  function handleRemoveSlot(slotKey) {
-    setRemovedSlots(prev => new Set(prev).add(slotKey));
-  }
-
-  function handleRemoveSupl(idx) {
-    setRemovedSupls(prev => new Set(prev).add(idx));
-  }
-
-  async function handleSaveOutfit() {
-    if (!outfit || !onSaveOutfit || saving) return;
-    setSaving(true);
-    const nombre = `Outfit ${(savedOutfits?.length || 0) + 1}`;
-    const visibleSlots = (outfit.slots || []).filter(s => !removedSlots.has(s.slot));
-    const visibleSupls = (outfit.suplementos || []).filter((_, i) => !removedSupls.has(i));
-    const totalEstimado = visibleSlots.reduce((sum, s) => sum + s.precio, 0);
-    try {
-      await onSaveOutfit({ nombre, slots: visibleSlots, suplementos: visibleSupls, totalEstimado });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // Totals recalculated excluding removed items
-  const totalVisibleSlots = outfit
-    ? (outfit.slots || []).filter(s => !removedSlots.has(s.slot)).reduce((sum, s) => sum + s.precio, 0)
-    : 0;
-  const presupuestoExcedido = presupuesto > 0 && totalVisibleSlots > presupuesto;
-
-  const hasActiveOutfit = !loading && !error && outfit &&
-    outfit.slots && outfit.slots.length > 0;
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      {/* Budget inputs */}
-      <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto outfit:</span>
-          <input
-            type="number"
-            placeholder="Sin límite"
-            value={presupuesto || ''}
-            onChange={e => setPresupuesto(Number(e.target.value) || 0)}
-            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
-                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
-          />
-        </div>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto suplementos (opcional):</span>
-          <input
-            type="number"
-            placeholder="Sin límite"
-            value={presupuestoSuplementos || ''}
-            onChange={e => setPresupuestoSuplementos(Number(e.target.value) || 0)}
-            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
-                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
-          />
-        </div>
-      </div>
-
-      {/* Genero selector */}
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
-        {['hombre', 'mujer', 'unisex'].map(g => (
-          <button key={g} onClick={() => setGenero(g)}
-            className={`genero-pill ${genero === g ? 'active' : ''}`}>{g}</button>
-        ))}
-      </div>
-
-      {loading && (
-        <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', fontSize:'.85rem' }}>
-          Generando outfit...
-        </div>
-      )}
-
-      {!loading && error && (
-        <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', fontSize:'.85rem' }}>
-          No hay catálogo cargado todavía. Ejecutá un scraping para generar outfits.
-        </div>
-      )}
-
-      {!loading && !error && outfit && (
-        <>
-          {outfit.partial && (
-            <div className="partial-warning">
-              <strong>Catálogo limitado.</strong> No hay suficientes productos para completar un outfit para este género — mostrando lo disponible.
-            </div>
-          )}
-
-          {(!outfit.slots || outfit.slots.length === 0) ? (
-            <div style={{ color:'var(--t4)', textAlign:'center', padding:'2rem', fontSize:'.85rem' }}>
-              No se encontraron productos para armar un outfit con este filtro.
-            </div>
-          ) : (
-            <>
-              <OutfitCard
-                outfit={outfit}
-                rerolling={rerolling}
-                sentSlots={sentSlots}
-                removedSlots={removedSlots}
-                onRemoveSlot={handleRemoveSlot}
-                onReroll={handleReroll}
-                onFeedback={handleFeedback}
-                onSwapSlot={handleSwapSlot}
-              />
-              {totalVisibleSlots > 0 && (
-                <div style={{ fontSize:'.8rem', fontWeight:600,
-                              color: presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
-                  Total estimado: ${fmt(totalVisibleSlots)}
-                  {presupuestoExcedido && ' · Excede el presupuesto'}
-                </div>
-              )}
-              <SuplementosCombo
-                items={outfit.suplementos}
-                removedSupls={removedSupls}
-                onRemoveSupl={handleRemoveSupl}
-              />
-              {hasActiveOutfit && onSaveOutfit && (
-                <button
-                  onClick={handleSaveOutfit}
-                  disabled={saving}
-                  style={{
-                    alignSelf:'flex-start', padding:'6px 16px', borderRadius:8,
-                    border:'1px solid var(--p)', background:'var(--p)', color:'#fff',
-                    fontSize:'.78rem', fontWeight:700, cursor: saving ? 'default' : 'pointer',
-                    opacity: saving ? .7 : 1,
-                  }}>
-                  {saving ? 'Guardando...' : '⭐ Guardar outfit'}
-                </button>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 // ─── Placeholder tab (Casual / Formal) ────────────────────────────────────────
 function PlaceholderTab({ label }) {
   return (
@@ -338,7 +136,7 @@ function PlaceholderTab({ label }) {
   );
 }
 
-// ─── Budget Builder taxonomy ───────────────────────────────────────────────────
+// ─── OutfitPanel taxonomy ─────────────────────────────────────────────────────
 const BUILDER_GROUPS = [
   {
     key: 'torso', label: 'Torso',
@@ -362,56 +160,180 @@ const BUILDER_GROUPS = [
   },
 ];
 
-// ─── BuilderTab ───────────────────────────────────────────────────────────────
-function BuilderTab() {
-  const [selectedCats, setSelectedCats] = useState(new Set());
-  const [presupuesto, setPresupuesto]   = useState('');
-  const [genero, setGenero]             = useState('');
-  const [expanded, setExpanded]         = useState({ torso:true, piernas:true, calzado:true, accesorio:true });
-  const [loading, setLoading]           = useState(false);
-  const [result, setResult]             = useState(null);
-  const [error, setError]               = useState(null);
+// Default gym categories pre-selected on mount (UOB-03, UOB-05)
+const GYM_DEFAULT_CATS = new Set([
+  'Remera', 'Buzo', 'Musculosa', 'Campera',                                    // torso
+  'Short', 'Calza', 'Jogging', 'Pantalón',                                     // piernas
+  'Zapatilla', 'Zapatilla Running', 'Zapatilla Entrenamiento',
+  'Zapatilla Urbana', 'Sneaker',                                                // calzado
+]);
 
+// ─── OutfitPanel ──────────────────────────────────────────────────────────────
+// Unified outfit component that replaces GymTab + BuilderTab.
+// Renders gender tabs, an editable category picker, budget inputs, and a
+// live outfit result card with re-roll variety logic (MCKP → greedy after 10).
+function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
+  const [genero, setGenero]                     = useState('hombre');
+  const [selectedCats, setSelectedCats]         = useState(new Set(GYM_DEFAULT_CATS));
+  const [presupuesto, setPresupuesto]           = useState('');
+  const [presupuestoSuplementos, setPresupuestoSuplementos] = useState('');
+  const [attemptCount, setAttemptCount]         = useState(0);
+  const [currentOutfitUrls, setCurrentOutfitUrls] = useState([]);
+  const [result, setResult]                     = useState(null);
+  const [loading, setLoading]                   = useState(false);
+  const [error, setError]                       = useState(null);
+  const [expanded, setExpanded]                 = useState({ torso:true, piernas:true, calzado:true, accesorio:false });
+  const [sentSlots, setSentSlots]               = useState(() => new Set());
+  const [removedSlots, setRemovedSlots]         = useState(() => new Set());
+  const [saving, setSaving]                     = useState(false);
+
+  // Core load function — called on mount and on re-roll
+  const load = useCallback(async (excluir = [], isGreedy = false) => {
+    setLoading(true);
+    setError(null);
+    setSentSlots(new Set());
+    try {
+      const data = await fetchOutfitBuilder({
+        categorias: [...selectedCats],
+        presupuesto: Number(presupuesto) || 0,
+        genero,
+        excluir,
+        greedy: isGreedy,
+      });
+      if (data === null) {
+        setError('No hay catálogo cargado. Ejecutá un scraping primero.');
+        setResult(null);
+      } else {
+        setResult(data);
+        setCurrentOutfitUrls((data.slots || []).map(s => s.url));
+      }
+    } catch {
+      setError('Error de conexión.');
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCats, presupuesto, genero]);
+
+  // Auto-generate on mount with gym defaults (UOB-05)
+  useEffect(() => { load([], false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-roll: attempts 1–10 use MCKP+excluir; >10 switch to greedy (UOB-07)
+  function handleReroll() {
+    const next = attemptCount + 1;
+    setAttemptCount(next);
+    setRemovedSlots(new Set());
+    load(currentOutfitUrls, next > 10);
+  }
+
+  // Gender tab switch: reset counter and exclusions (UOB-07)
+  function handleGeneroChange(g) {
+    setGenero(g);
+    setAttemptCount(0);
+    setCurrentOutfitUrls([]);
+  }
+
+  // Category toggle: reset counter and exclusions (UOB-04, UOB-07)
   function toggleCat(cat) {
     setSelectedCats(prev => {
       const next = new Set(prev);
       next.has(cat) ? next.delete(cat) : next.add(cat);
       return next;
     });
+    setAttemptCount(0);
+    setCurrentOutfitUrls([]);
   }
 
   function toggleGroup(key) {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
-  async function handleArmar() {
-    if (!selectedCats.size) { setError('Seleccioná al menos una categoría.'); return; }
-    const budget = Number(presupuesto);
-    if (!budget || budget <= 0) { setError('Ingresá un presupuesto válido.'); return; }
-    setError(null);
-    setLoading(true);
-    setResult(null);
-    try {
-      const data = await fetchOutfitBuilder({
-        categorias: [...selectedCats],
-        presupuesto: budget,
-        genero: genero || undefined,
-      });
-      if (data === null) { setError('No hay catálogo cargado. Ejecutá un scraping primero.'); }
-      else { setResult(data); }
-    } catch {
-      setError('Error de conexión.');
-    } finally {
-      setLoading(false);
+  // Budget change: reset counter and exclusions (UOB-07)
+  function handlePresupuestoChange(v) {
+    setPresupuesto(v);
+    setAttemptCount(0);
+    setCurrentOutfitUrls([]);
+  }
+
+  async function handleFeedback(slot, url, liked) {
+    if (!result) return;
+    const body = {
+      genero: result.genero || genero,
+      items: [{ slot, url, liked }],
+    };
+    const ok = await sendOutfitFeedback(body);
+    if (ok) setSentSlots(prev => new Set(prev).add(slot));
+
+    if (liked && onAddFavorito) {
+      const item = (result.slots || []).find(s => s.url === url);
+      if (item && !favoritos?.some(f => f.url === url)) {
+        onAddFavorito({ url: item.url, sitio: item.sitio, nombre: item.nombre });
+      }
     }
   }
 
-  const noFit = result && result.noCumplePresupuesto && (!result.slots || result.slots.length === 0);
+  function handleSwapSlot(url) {
+    const next = [...currentOutfitUrls.filter(u => u !== url), url];
+    setCurrentOutfitUrls(next);
+    load(next, attemptCount > 10);
+  }
+
+  function handleRemoveSlot(slotKey) {
+    setRemovedSlots(prev => new Set(prev).add(slotKey));
+  }
+
+  async function handleSaveOutfit() {
+    if (!result || !onSaveOutfit || saving) return;
+    setSaving(true);
+    const nombre = `Outfit ${(savedOutfits?.length || 0) + 1}`;
+    const visibleSlots = (result.slots || []).filter(s => !removedSlots.has(s.slot));
+    const totalEstimado = visibleSlots.reduce((sum, s) => sum + s.precio, 0);
+    try {
+      await onSaveOutfit({ nombre, slots: visibleSlots, suplementos: [], totalEstimado });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const hasSlots = result && result.slots && result.slots.length > 0;
+  const isNoFit  = result && (!result.slots || result.slots.length === 0);
+  const budget   = Number(presupuesto);
+
+  // No-fit messaging (UOB-11)
+  let noFitMessage = null;
+  if (isNoFit) {
+    if (result.minimoBudgetNecesario != null) {
+      const gap = result.minimoBudgetNecesario - budget;
+      noFitMessage = budget > 0
+        ? `Necesitás al menos $${fmt(gap)} más para armar este outfit.`
+        : `El outfit mínimo cuesta $${fmt(result.minimoBudgetNecesario)}.`;
+    } else {
+      const emptycat = result.categoriasVacias?.[0];
+      noFitMessage = emptycat
+        ? `Sin productos en catálogo para ${emptycat}.`
+        : 'No se encontraron productos para las categorías seleccionadas.';
+    }
+  }
+
+  const totalVisibleSlots = hasSlots
+    ? (result.slots || []).filter(s => !removedSlots.has(s.slot)).reduce((sum, s) => sum + s.precio, 0)
+    : 0;
+  const presupuestoExcedido = budget > 0 && totalVisibleSlots > budget;
+  const hasActiveOutfit = !loading && !error && hasSlots;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-      {/* Category selector — 4 collapsible groups */}
+      {/* Gender tabs — Hombre / Mujer only (UOB-02) */}
+      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
+        {['hombre', 'mujer'].map(g => (
+          <button key={g} onClick={() => handleGeneroChange(g)}
+            className={`genero-pill ${genero === g ? 'active' : ''}`}>{g}</button>
+        ))}
+      </div>
+
+      {/* Category picker — 4 collapsible groups (UOB-04) */}
       {BUILDER_GROUPS.map(group => (
         <div key={group.key} style={{ borderRadius:8, border:'1px solid var(--bd)', overflow:'hidden' }}>
           <button
@@ -452,138 +374,125 @@ function BuilderTab() {
         </div>
       ))}
 
-      {/* Budget + gender + action */}
-      <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto total:</span>
+      {/* Budget inputs (UOB-08, UOB-09) */}
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto outfit:</span>
           <input
-            type="number" placeholder="Ej: 80000"
+            type="number"
+            placeholder="Sin límite"
             value={presupuesto}
-            onChange={e => setPresupuesto(e.target.value)}
+            onChange={e => handlePresupuestoChange(e.target.value)}
             style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
                      border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
           />
         </div>
-        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
-          {['', 'hombre', 'mujer', 'unisex'].map(g => (
-            <button key={g || 'todos'} onClick={() => setGenero(g)}
-              className={`genero-pill ${genero === g ? 'active' : ''}`}>
-              {g || 'todos'}
-            </button>
-          ))}
+        {/* TODO: supplement budget — wire to builder endpoint when /api/outfits/builder supports supplements
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto suplementos (opcional):</span>
+          <input
+            type="number"
+            placeholder="Sin límite"
+            value={presupuestoSuplementos}
+            onChange={e => setPresupuestoSuplementos(e.target.value)}
+            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+          />
         </div>
+        */}
         <button
-          onClick={handleArmar}
-          disabled={loading}
+          onClick={() => { setAttemptCount(0); setCurrentOutfitUrls([]); load([], false); }}
+          disabled={loading || !selectedCats.size}
           style={{
             padding:'5px 18px', borderRadius:8, border:'1px solid var(--p)',
             background:'var(--p)', color:'#fff', fontSize:'.78rem', fontWeight:700,
-            cursor: loading ? 'default' : 'pointer', opacity: loading ? .7 : 1,
+            cursor: (loading || !selectedCats.size) ? 'default' : 'pointer',
+            opacity: (loading || !selectedCats.size) ? .7 : 1,
           }}>
           {loading ? 'Buscando...' : 'Armar'}
         </button>
       </div>
 
-      {/* Validation / error message */}
-      {error && (
-        <div style={{ color:'#ef4444', fontSize:'.78rem', fontWeight:600 }}>{error}</div>
+      {/* Re-roll counter indicator */}
+      {attemptCount > 0 && (
+        <div style={{ fontSize:'.7rem', color:'var(--t4)' }}>
+          Intento {attemptCount}{attemptCount > 10 ? ' · modo greedy activo' : ''}
+        </div>
       )}
 
-      {/* No-fit empty state */}
-      {noFit && (
+      {/* Loading state */}
+      {loading && (
+        <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', fontSize:'.85rem' }}>
+          Generando outfit...
+        </div>
+      )}
+
+      {/* Error state */}
+      {!loading && error && (
+        <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', fontSize:'.85rem' }}>
+          {error}
+        </div>
+      )}
+
+      {/* No-fit state (UOB-11) */}
+      {!loading && !error && isNoFit && (
         <div style={{ padding:'1.5rem', borderRadius:8, border:'1px solid var(--bd)',
                       background:'var(--s1)', display:'flex', flexDirection:'column', gap:10 }}>
           <div style={{ fontWeight:700, color:'var(--t1)', fontSize:'.9rem' }}>
-            No se puede armar dentro de ${fmt(Number(presupuesto))}
+            No se puede armar el outfit
+            {budget > 0 ? ` dentro de $${fmt(budget)}` : ''}
           </div>
-          {result.categoriasVacias?.length > 0 && (
-            <div>
-              <div style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600, marginBottom:4 }}>
-                Sin productos en catálogo:
-              </div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {result.categoriasVacias.map(c => (
-                  <span key={c} style={{ padding:'2px 8px', borderRadius:12, fontSize:'.7rem',
-                    background:'var(--s2)', border:'1px solid var(--bd)', color:'var(--t3)' }}>
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
+          {noFitMessage && (
+            <div style={{ fontSize:'.82rem', color:'var(--t3)' }}>{noFitMessage}</div>
           )}
-          {result.categoriasSinPresupuesto?.length > 0 && (
-            <div>
-              <div style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600, marginBottom:4 }}>
-                No entran en el presupuesto:
-              </div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {result.categoriasSinPresupuesto.map(c => (
-                  <span key={c} style={{ padding:'2px 8px', borderRadius:12, fontSize:'.7rem',
-                    background:'var(--s2)', border:'1px solid var(--bd)', color:'var(--t3)' }}>
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <button className="reroll-btn" onClick={handleReroll} disabled={loading}>
+            Intentar de nuevo
+          </button>
         </div>
       )}
 
-      {/* Partial-fit or full-fit result */}
-      {result && result.slots && result.slots.length > 0 && (
-        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          {/* Partial-fit warning: categories with no products */}
-          {result.categoriasVacias?.length > 0 && (
-            <div style={{ fontSize:'.78rem', color:'var(--t4)', display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
-              <span style={{ fontWeight:600 }}>Sin productos:</span>
-              {result.categoriasVacias.map(c => (
-                <span key={c} style={{ padding:'2px 8px', borderRadius:12, fontSize:'.7rem',
-                  background:'var(--s2)', border:'1px solid var(--bd)', color:'var(--t3)' }}>
-                  {c}
-                </span>
-              ))}
+      {/* Success state */}
+      {!loading && !error && hasSlots && (
+        <>
+          {result.partial && (
+            <div className="partial-warning">
+              <strong>Catálogo limitado.</strong> No hay suficientes productos para completar el outfit — mostrando lo disponible.
             </div>
           )}
 
-          {/* Product cards */}
-          <div className="outfit-row">
-            {result.slots.map(s => (
-              <div key={s.slot} className="outfit-card">
-                <div className="kit-tag">
-                  <span className="kit-tag-label">{s.slot}</span>
-                </div>
-                {s.img && (
-                  <div className="outfit-img-wrap">
-                    <img src={s.img} alt={s.nombre} loading="lazy"
-                         onError={e => { e.target.parentElement.style.display = 'none'; }}/>
-                    {(s.marca || s.sitio) && (
-                      <span className="outfit-marca-pill">{s.marca || s.sitio}</span>
-                    )}
-                  </div>
-                )}
-                <div className="outfit-card-body">
-                  <div className="outfit-card-name">{s.nombre || '—'}</div>
-                  <div className="outfit-card-price">${fmt(s.precio)}</div>
-                  <a href={s.url} target="_blank" rel="noreferrer"
-                    style={{ fontSize:'.68rem', color:'var(--p2)', marginTop:4, display:'block' }}>
-                    Ver producto
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
+          <OutfitCard
+            outfit={result}
+            rerolling={loading}
+            sentSlots={sentSlots}
+            removedSlots={removedSlots}
+            onRemoveSlot={handleRemoveSlot}
+            onReroll={handleReroll}
+            onFeedback={handleFeedback}
+            onSwapSlot={handleSwapSlot}
+          />
 
-          {/* Total */}
-          <div style={{ fontSize:'.8rem', fontWeight:700, color:'var(--t2)' }}>
-            Total estimado: ${fmt(result.totalEstimado)}
-            {result.noCumplePresupuesto && (
-              <span style={{ color:'var(--t4)', fontWeight:400, marginLeft:8 }}>
-                · Algunas categorías no entraron en el presupuesto
-              </span>
-            )}
-          </div>
-        </div>
+          {totalVisibleSlots > 0 && (
+            <div style={{ fontSize:'.8rem', fontWeight:600,
+                          color: presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
+              Total estimado: ${fmt(totalVisibleSlots)}
+              {presupuestoExcedido && ' · Excede el presupuesto'}
+            </div>
+          )}
+
+          {hasActiveOutfit && onSaveOutfit && (
+            <button
+              onClick={handleSaveOutfit}
+              disabled={saving}
+              style={{
+                alignSelf:'flex-start', padding:'6px 16px', borderRadius:8,
+                border:'1px solid var(--p)', background:'var(--p)', color:'#fff',
+                fontSize:'.78rem', fontWeight:700, cursor: saving ? 'default' : 'pointer',
+                opacity: saving ? .7 : 1,
+              }}>
+              {saving ? 'Guardando...' : '⭐ Guardar outfit'}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -591,7 +500,7 @@ function BuilderTab() {
 
 // ─── OutfitsPanel principal ────────────────────────────────────────────────────
 export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfits = [], onSaveOutfit }) {
-  const [tab, setTab] = useState('gym'); // gym | builder | casual | formal
+  const [tab, setTab] = useState('outfit'); // outfit | casual | formal
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -600,7 +509,7 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
         display:'flex', borderBottom:'1px solid var(--bd)',
         background:'var(--s1)', position:'sticky', top:0, zIndex:10,
       }}>
-        {[['gym', 'Gym'], ['builder', 'Armar por presupuesto'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
+        {[['outfit', 'Outfit'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             padding:'.55rem 1rem', background:'none', border:'none', cursor:'pointer',
             fontSize:'.78rem', fontWeight:600, letterSpacing:'.02em',
@@ -611,15 +520,14 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
       </div>
 
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
-        {tab === 'gym'     && (
-          <GymTab
+        {tab === 'outfit'  && (
+          <OutfitPanel
             favoritos={favoritos}
             onAddFavorito={onAddFavorito}
             savedOutfits={savedOutfits}
             onSaveOutfit={onSaveOutfit}
           />
         )}
-        {tab === 'builder' && <BuilderTab />}
         {tab === 'casual'  && <PlaceholderTab label="Casual"/>}
         {tab === 'formal'  && <PlaceholderTab label="Formal"/>}
       </div>
