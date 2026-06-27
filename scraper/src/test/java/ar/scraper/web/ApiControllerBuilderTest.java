@@ -151,6 +151,7 @@ class ApiControllerBuilderTest {
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body).isNotNull();
+        assertThat(body.path("status").asText()).isEqualTo("ok");
         assertThat(body.path("slots").isArray()).isTrue();
         assertThat(body.path("slots").size()).isEqualTo(2);
         assertThat(body.path("totalEstimado").asDouble()).isEqualTo(35_000);
@@ -158,6 +159,7 @@ class ApiControllerBuilderTest {
         assertThat(body.path("presupuesto").asDouble()).isEqualTo(50_000);
         assertThat(body.path("categoriasVacias").isArray()).isTrue();
         assertThat(body.path("categoriasSinPresupuesto").isArray()).isTrue();
+        assertThat(body.has("reason")).isFalse();
     }
 
     @Test
@@ -176,8 +178,10 @@ class ApiControllerBuilderTest {
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body).isNotNull();
+        assertThat(body.path("status").asText()).isEqualTo("no-fit");
         assertThat(body.path("slots").size()).isEqualTo(0);
         assertThat(body.path("noCumplePresupuesto").asBoolean()).isTrue();
         assertThat(body.path("totalEstimado").asDouble()).isEqualTo(0.0);
+        assertThat(body.path("reason").asText()).isNotBlank();
     }
 }
