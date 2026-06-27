@@ -22,6 +22,10 @@ public class ScraperConfig {
         }
     }
 
+    ScraperConfig(Properties seed) {
+        this.props.putAll(seed);
+    }
+
     public double getPrecioMaximo() {
         return Double.parseDouble(props.getProperty("precio.maximo", "300000"));
     }
@@ -46,12 +50,13 @@ public class ScraperConfig {
             if (key.startsWith("sitio.") && key.endsWith(".url")) {
                 String nombre = key.replace("sitio.", "").replace(".url", "");
                 if (Boolean.parseBoolean(props.getProperty("sitio." + nombre + ".activo", "true"))) {
-                    list.add(new SiteConfig(nombre, props.getProperty(key)));
+                    String rubro = props.getProperty("sitio." + nombre + ".rubro", "indumentaria");
+                    list.add(new SiteConfig(nombre, props.getProperty(key), rubro));
                 }
             }
         }
         return list;
     }
 
-    public record SiteConfig(String nombre, String url) {}
+    public record SiteConfig(String nombre, String url, String rubro) {}
 }
