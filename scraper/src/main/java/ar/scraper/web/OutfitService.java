@@ -177,9 +177,11 @@ public class OutfitService {
      * @param noCumplePresupuesto    true when ≥1 category had candidates but
      *                               the optimizer could not include them within budget
      * @param categoriasVacias       categories with no eligible products after
-     *                               catalog + gender filter (catalog gap)
+     *                               catalog + gender + gymrat filter (catalog gap)
      * @param categoriasSinPresupuesto categories that had products but none fit
      *                               within the remaining budget during optimization
+     * @param minimoBudgetNecesario  sum of cheapest eligible product per category
+     *                               (null = at least one category has no eligible products)
      */
     public record OutfitBuilderResult(
             List<SlotPick> slots,
@@ -188,7 +190,8 @@ public class OutfitService {
             double totalEstimado,
             boolean noCumplePresupuesto,
             List<String> categoriasVacias,
-            List<String> categoriasSinPresupuesto) {
+            List<String> categoriasSinPresupuesto,
+            Double minimoBudgetNecesario) {
     }
 
     /** Resultado de un ítem del combo de suplementos (independiente de los slots del outfit). */
@@ -650,57 +653,89 @@ public class OutfitService {
     private static final int BUILDER_POOL_K = 20;
 
     /**
-     * Assembles the globally-optimal product combination for the requested
-     * category set within a hard budget ceiling using the Multi-Choice
-     * Knapsack Problem (MCKP) algorithm.
-     *
-     * <p>Algorithm phases:
-     * <ol>
-     *   <li>Build per-category candidate pools: filter by categoria, gender,
-     *       feedback exclusions, and {@code precio ≤ presupuesto}; sort by
-     *       {@code baseMlScore} desc (tie-break scoreP asc, url asc); cap at K=20.</li>
-     *   <li>Recursive enumeration with branch-and-bound pruning.</li>
-     *   <li>Build {@link OutfitBuilderResult} from the best solution found.</li>
-     * </ol>
-     *
-     * <p>INVARIANT: {@code result.totalEstimado() ≤ presupuesto} always holds.
-     * No over-budget item is ever returned.
-     *
-     * @param productos  in-memory catalog (from {@code ScraperService.lastResult})
-     * @param categorias requested canonical category names (deduplicated, ordered)
-     * @param presupuesto hard budget ceiling (must be &gt; 0)
-     * @param genero     optional gender filter; null/blank = no filter
-     * @param feedback   veto/boost model; null treated as empty
-     * @return optimal assignment or no-fit result
+     * Backward-compatible 5-arg overload. Delegates to the 7-arg implementation
+     * with no exclusions and MCKP mode. Keeps all existing callers and tests unchanged.
      */
     public OutfitBuilderResult armarPorCategorias(
             List<Product> productos, List<String> categorias,
             double presupuesto, String genero, FeedbackModel feedback) {
+        return armarPorCategorias(productos, categorias, presupuesto, genero, feedback,
+                Set.of(), false);
+    }
+
+    /**
+     * Assembles the globally-optimal product combination for the requested
+     * category set within a hard budget ceiling using the Multi-Choice
+     * Knapsack Problem (MCKP) algorithm, or the greedy fallback when
+     * {@code greedy=true}.
+     *
+     * <p>Algorithm phases (MCKP):
+     * <ol>
+     *   <li>Build per-category raw pools: filter by categoria, gender, feedback
+     *       exclusions, gymrat gate (torso/piernas only), and excluirUrls.</li>
+     *   <li>Shuffle for variety: sort desc, take top-30, random-sample 20,
+     *       re-sort desc (INVARIANT: pool.get(0) must be max score for B&B).</li>
+     *   <li>Apply price filter (≤ presupuesto), cap at K=20.</li>
+     *   <li>Recursive branch-and-bound enumeration.</li>
+     *   <li>Build result; on no-fit, compute minimoBudgetNecesario.</li>
+     * </ol>
+     *
+     * <p>INVARIANT: {@code result.totalEstimado() ≤ presupuesto} always holds.
+     *
+     * @param productos    in-memory catalog (from {@code ScraperService.lastResult})
+     * @param categorias   requested canonical category names (deduplicated, ordered)
+     * @param presupuesto  hard budget ceiling (must be &gt; 0)
+     * @param genero       optional gender filter; null/blank = no filter
+     * @param feedback     veto/boost model; null treated as empty
+     * @param excluirUrls  URLs to exclude per-request (temp, not persisted)
+     * @param greedy       when true, use greedy (best-per-category) instead of MCKP
+     * @return optimal assignment or no-fit result
+     */
+    public OutfitBuilderResult armarPorCategorias(
+            List<Product> productos, List<String> categorias,
+            double presupuesto, String genero, FeedbackModel feedback,
+            Set<String> excluirUrls, boolean greedy) {
         if (productos == null) productos = List.of();
         if (feedback == null) feedback = FeedbackModel.empty();
+        if (excluirUrls == null) excluirUrls = Set.of();
         if (categorias == null || categorias.isEmpty()) {
             return new OutfitBuilderResult(List.of(), genero != null ? genero : "",
-                    presupuesto, 0.0, false, List.of(), List.of());
+                    presupuesto, 0.0, false, List.of(), List.of(), null);
         }
 
         // Deduplicate preserving request order
         List<String> cats = new ArrayList<>(new LinkedHashSet<>(categorias));
+        final Set<String> excluirFinal = excluirUrls;
 
-        Set<String> exclude         = feedback.exclude();
+        // Greedy path — bypasses MCKP entirely
+        if (greedy) {
+            return armarGreedy(productos, cats, presupuesto, genero, feedback, excluirFinal);
+        }
+
+        Set<String> exclude          = feedback.exclude();
         Set<String> excludeCategoria = feedback.excludeCategoria();
 
-        List<String>              categoriasVacias = new ArrayList<>();
-        List<List<Product>>       allPools         = new ArrayList<>();
-        // Parallel lists — index i corresponds to cats.get(i)
-        List<Boolean>             rawNonEmpty      = new ArrayList<>();
+        List<String>        categoriasVacias = new ArrayList<>();
+        List<List<Product>> allPools         = new ArrayList<>();
+        List<Boolean>       rawNonEmpty      = new ArrayList<>();
 
         for (String cat : cats) {
-            // Raw pool: category + gender + feedback exclusions (no price filter)
+            final String slot = CATEGORIA_SLOT.get(cat);
+
+            // Raw pool: cat + gender + feedback + gymrat gate + excluirUrls (no price filter)
             List<Product> rawPool = productos.stream()
                     .filter(p -> cat.equals(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
+                    .filter(p -> !excluirFinal.contains(p.url()))
+                    .filter(p -> {
+                        // Gymrat gate: torso and piernas require gymrat=true
+                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                            return p.gymrat();
+                        }
+                        return true; // calzado and accesorio: no gymrat filter
+                    })
                     .collect(Collectors.toList());
 
             if (rawPool.isEmpty()) {
@@ -711,8 +746,25 @@ public class OutfitService {
             }
 
             rawNonEmpty.add(true);
-            // Filtered pool: price ≤ presupuesto, sorted desc by baseMlScore, capped at K
-            List<Product> filteredPool = rawPool.stream()
+
+            // Shuffle for variety:
+            // 1. Sort rawPool desc by baseMlScore
+            // 2. Take top-30 (or all if < 30)
+            // 3. Randomly sample 20 (or keep all if ≤ 20)
+            // 4. CRITICAL re-sort desc — branch-and-bound requires pool.get(0) to be max score
+            List<Product> sortedRaw = rawPool.stream()
+                    .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
+                    .collect(Collectors.toList());
+
+            List<Product> top30 = new ArrayList<>(sortedRaw.subList(0, Math.min(30, sortedRaw.size())));
+
+            if (top30.size() > 20) {
+                Collections.shuffle(top30, new Random());
+                top30 = top30.subList(0, 20);
+            }
+
+            // Apply price filter after sampling, then re-sort desc + cap at K
+            List<Product> filteredPool = top30.stream()
                     .filter(p -> p.precio() <= presupuesto)
                     .sorted(Comparator
                             .comparingDouble((Product p) -> -recommendationService.baseMlScore(p))
@@ -754,8 +806,115 @@ public class OutfitService {
         double totalEstimado = slots.stream().mapToDouble(SlotPick::precio).sum();
         String generoResultado = genero != null ? genero : "";
 
+        // minimoBudgetNecesario: populated only on no-fit (no slots assembled)
+        Double minimoBudgetNecesario = null;
+        if (slots.isEmpty()) {
+            minimoBudgetNecesario = calcularMinimoBudget(productos, cats, genero, feedback, excluirFinal);
+        }
+
         return new OutfitBuilderResult(slots, generoResultado, presupuesto,
-                totalEstimado, noCumplePresupuesto, categoriasVacias, categoriasSinPresupuesto);
+                totalEstimado, noCumplePresupuesto, categoriasVacias, categoriasSinPresupuesto,
+                minimoBudgetNecesario);
+    }
+
+    /**
+     * Greedy outfit assembler: for each category in order, picks the highest
+     * baseMlScore candidate where {@code precio ≤ remainingBudget}. Hard budget
+     * is always enforced (never exceeded). Categories with no affordable candidate
+     * are skipped.
+     *
+     * <p>Applies the same gymrat gate as the MCKP path so all three paths
+     * (MCKP, greedy, calcularMinimoBudget) use identical eligibility rules.
+     */
+    private OutfitBuilderResult armarGreedy(
+            List<Product> productos, List<String> cats, double presupuesto,
+            String genero, FeedbackModel feedback, Set<String> excluirUrls) {
+        if (productos == null) productos = List.of();
+
+        Set<String> exclude          = feedback.exclude();
+        Set<String> excludeCategoria = feedback.excludeCategoria();
+
+        List<SlotPick> slots = new ArrayList<>();
+        double runningTotal  = 0.0;
+
+        for (String cat : cats) {
+            final String slot = CATEGORIA_SLOT.get(cat);
+
+            List<Product> pool = productos.stream()
+                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> generoElegible(p, genero))
+                    .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
+                    .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
+                    .filter(p -> !excluirUrls.contains(p.url()))
+                    .filter(p -> {
+                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                            return p.gymrat();
+                        }
+                        return true;
+                    })
+                    .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
+                    .collect(Collectors.toList());
+
+            final double remaining = presupuesto - runningTotal;
+            Optional<Product> pick = pool.stream()
+                    .filter(p -> p.precio() <= remaining)
+                    .findFirst();
+
+            if (pick.isPresent()) {
+                Product chosen = pick.get();
+                slots.add(toSlotPick(cat, chosen));
+                runningTotal += chosen.precio();
+            }
+        }
+
+        String generoResultado = genero != null ? genero : "";
+        double totalEstimado   = slots.stream().mapToDouble(SlotPick::precio).sum();
+        return new OutfitBuilderResult(slots, generoResultado, presupuesto,
+                totalEstimado, false, List.of(), List.of(), null);
+    }
+
+    /**
+     * Returns the minimum budget needed to assemble one product per category,
+     * using the same eligibility filters as the MCKP pool (gymrat gate, gender,
+     * feedback, excluirUrls) but ignoring price. Returns null if any category
+     * has zero eligible products (catalog gap).
+     *
+     * <p>Used to populate {@link OutfitBuilderResult#minimoBudgetNecesario()} on
+     * no-fit responses so the frontend can show "Necesitás al menos $X más".
+     */
+    private Double calcularMinimoBudget(
+            List<Product> productos, List<String> cats, String genero,
+            FeedbackModel feedback, Set<String> excluirUrls) {
+        if (productos == null) return null;
+
+        Set<String> exclude          = feedback.exclude();
+        Set<String> excludeCategoria = feedback.excludeCategoria();
+
+        double total = 0.0;
+        for (String cat : cats) {
+            final String slot = CATEGORIA_SLOT.get(cat);
+
+            OptionalDouble minPrecio = productos.stream()
+                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> generoElegible(p, genero))
+                    .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
+                    .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
+                    .filter(p -> !excluirUrls.contains(p.url()))
+                    .filter(p -> {
+                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                            return p.gymrat();
+                        }
+                        return true;
+                    })
+                    .mapToDouble(Product::precio)
+                    .min();
+
+            if (minPrecio.isEmpty()) {
+                return null; // catalog gap — no eligible product for this category
+            }
+            total += minPrecio.getAsDouble();
+        }
+        return total;
     }
 
     /**
