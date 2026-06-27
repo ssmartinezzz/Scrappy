@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -22,6 +23,13 @@ import java.util.Comparator;
  */
 @Service
 public class OutfitService {
+
+    private final RecommendationService recommendationService;
+
+    @Autowired
+    public OutfitService(RecommendationService recommendationService) {
+        this.recommendationService = recommendationService;
+    }
 
     /** Slots requeridos para un outfit completo. */
     public static final String SLOT_TORSO     = "torso";
@@ -101,6 +109,27 @@ public class OutfitService {
      */
     private static final Set<String> CALZADO_VETADO = Set.of("Botines");
 
+    /**
+     * Union of all canonical categories across the four taxonomy groups
+     * (Torso / Piernas / Calzado / Accesorio). Used by the Budget Builder
+     * endpoint to reject or ignore unknown category names sent by the client.
+     */
+    public static final Set<String> KNOWN_CATEGORIAS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    // Torso
+                    "Puffer", "Campera", "Sweater", "Buzo", "Musculosa", "Camisa", "Remera",
+                    "Chomba", "Casaca", "Chaleco", "Saco", "Traje", "Piloto",
+                    // Piernas
+                    "Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón",
+                    // Calzado
+                    "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
+                    "Zapatilla Skate", "Zapatilla Urbana", "Sneaker",
+                    "Botines", "Borcego", "Botas", "Ojotas",
+                    // Accesorio
+                    "Mochila", "Bolso", "Riñonera", "Billetera", "Cinturón", "Bufanda",
+                    "Guantes", "Gorro", "Gorra", "Lentes", "Medias", "Suplemento"
+            )));
+
     private static Map<String, String> buildCategoriaSlotMap() {
         Map<String, String> m = new HashMap<>();
         for (String cat : List.of(
@@ -133,6 +162,33 @@ public class OutfitService {
     /** Resultado completo de armar() — outfit con slots, genero usado, flag partial, total y flag de presupuesto. */
     public record Outfit(List<SlotPick> slots, String genero, boolean partial,
                          double totalEstimado, boolean presupuestoExcedido) {
+    }
+
+    /**
+     * Result of {@link #armarPorCategorias}: globally-optimal product picks
+     * within the requested budget, or an empty set when no valid combination
+     * fits. Never exceeds {@code presupuesto} — the hard-budget invariant is
+     * always enforced.
+     *
+     * @param slots                  chosen products (SlotPick.slot == categoria)
+     * @param genero                 gender filter applied (empty = no filter)
+     * @param presupuesto            the original budget ceiling
+     * @param totalEstimado          sum of selected item prices (always ≤ presupuesto)
+     * @param noCumplePresupuesto    true when ≥1 category had candidates but
+     *                               the optimizer could not include them within budget
+     * @param categoriasVacias       categories with no eligible products after
+     *                               catalog + gender filter (catalog gap)
+     * @param categoriasSinPresupuesto categories that had products but none fit
+     *                               within the remaining budget during optimization
+     */
+    public record OutfitBuilderResult(
+            List<SlotPick> slots,
+            String genero,
+            double presupuesto,
+            double totalEstimado,
+            boolean noCumplePresupuesto,
+            List<String> categoriasVacias,
+            List<String> categoriasSinPresupuesto) {
     }
 
     /** Resultado de un ítem del combo de suplementos (independiente de los slots del outfit). */
@@ -586,6 +642,186 @@ public class OutfitService {
             if (r <= acumulado) return candidatos.get(i);
         }
         return candidatos.get(candidatos.size() - 1);
+    }
+
+    // ─── Budget Builder (MCKP) ───────────────────────────────────────────────────
+
+    /** Maximum candidates considered per category during MCKP enumeration. */
+    private static final int BUILDER_POOL_K = 20;
+
+    /**
+     * Assembles the globally-optimal product combination for the requested
+     * category set within a hard budget ceiling using the Multi-Choice
+     * Knapsack Problem (MCKP) algorithm.
+     *
+     * <p>Algorithm phases:
+     * <ol>
+     *   <li>Build per-category candidate pools: filter by categoria, gender,
+     *       feedback exclusions, and {@code precio ≤ presupuesto}; sort by
+     *       {@code baseMlScore} desc (tie-break scoreP asc, url asc); cap at K=20.</li>
+     *   <li>Recursive enumeration with branch-and-bound pruning.</li>
+     *   <li>Build {@link OutfitBuilderResult} from the best solution found.</li>
+     * </ol>
+     *
+     * <p>INVARIANT: {@code result.totalEstimado() ≤ presupuesto} always holds.
+     * No over-budget item is ever returned.
+     *
+     * @param productos  in-memory catalog (from {@code ScraperService.lastResult})
+     * @param categorias requested canonical category names (deduplicated, ordered)
+     * @param presupuesto hard budget ceiling (must be &gt; 0)
+     * @param genero     optional gender filter; null/blank = no filter
+     * @param feedback   veto/boost model; null treated as empty
+     * @return optimal assignment or no-fit result
+     */
+    public OutfitBuilderResult armarPorCategorias(
+            List<Product> productos, List<String> categorias,
+            double presupuesto, String genero, FeedbackModel feedback) {
+        if (productos == null) productos = List.of();
+        if (feedback == null) feedback = FeedbackModel.empty();
+        if (categorias == null || categorias.isEmpty()) {
+            return new OutfitBuilderResult(List.of(), genero != null ? genero : "",
+                    presupuesto, 0.0, false, List.of(), List.of());
+        }
+
+        // Deduplicate preserving request order
+        List<String> cats = new ArrayList<>(new LinkedHashSet<>(categorias));
+
+        Set<String> exclude         = feedback.exclude();
+        Set<String> excludeCategoria = feedback.excludeCategoria();
+
+        List<String>              categoriasVacias = new ArrayList<>();
+        List<List<Product>>       allPools         = new ArrayList<>();
+        // Parallel lists — index i corresponds to cats.get(i)
+        List<Boolean>             rawNonEmpty      = new ArrayList<>();
+
+        for (String cat : cats) {
+            // Raw pool: category + gender + feedback exclusions (no price filter)
+            List<Product> rawPool = productos.stream()
+                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> generoElegible(p, genero))
+                    .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
+                    .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
+                    .collect(Collectors.toList());
+
+            if (rawPool.isEmpty()) {
+                categoriasVacias.add(cat);
+                allPools.add(List.of());
+                rawNonEmpty.add(false);
+                continue;
+            }
+
+            rawNonEmpty.add(true);
+            // Filtered pool: price ≤ presupuesto, sorted desc by baseMlScore, capped at K
+            List<Product> filteredPool = rawPool.stream()
+                    .filter(p -> p.precio() <= presupuesto)
+                    .sorted(Comparator
+                            .comparingDouble((Product p) -> -recommendationService.baseMlScore(p))
+                            .thenComparingInt(p -> p.ml() != null ? p.ml().scoreP() : 50)
+                            .thenComparing(p -> p.url() != null ? p.url() : ""))
+                    .limit(BUILDER_POOL_K)
+                    .collect(Collectors.toList());
+
+            allPools.add(filteredPool);
+        }
+
+        // Phase 2: MCKP recursive enumeration
+        MckpSolver solver = new MckpSolver(recommendationService, allPools, presupuesto);
+        solver.solve(0, 0.0, 0.0, new Product[cats.size()]);
+
+        // Phase 3: Build result
+        Product[] bestSolution = solver.best;
+        Set<String> catsInSolution = new HashSet<>();
+        List<SlotPick> slots = new ArrayList<>();
+
+        for (int i = 0; i < cats.size(); i++) {
+            Product p = bestSolution[i];
+            if (p != null) {
+                slots.add(toSlotPick(cats.get(i), p));
+                catsInSolution.add(cats.get(i));
+            }
+        }
+
+        // categoriasSinPresupuesto: had raw candidates but optimizer couldn't include them
+        List<String> categoriasSinPresupuesto = new ArrayList<>();
+        for (int i = 0; i < cats.size(); i++) {
+            String cat = cats.get(i);
+            if (rawNonEmpty.get(i) && !catsInSolution.contains(cat)) {
+                categoriasSinPresupuesto.add(cat);
+            }
+        }
+
+        boolean noCumplePresupuesto = !categoriasSinPresupuesto.isEmpty();
+        double totalEstimado = slots.stream().mapToDouble(SlotPick::precio).sum();
+        String generoResultado = genero != null ? genero : "";
+
+        return new OutfitBuilderResult(slots, generoResultado, presupuesto,
+                totalEstimado, noCumplePresupuesto, categoriasVacias, categoriasSinPresupuesto);
+    }
+
+    /**
+     * Multi-Choice Knapsack Problem solver.
+     * One item is chosen from each category group (or the group is skipped),
+     * subject to {@code sum(prices) ≤ presupuesto}. Maximizes total
+     * {@code baseMlScore} across all selected items.
+     *
+     * <p>Branch-and-bound pruning: at each node, the upper bound is the
+     * current running score plus the sum of the best (index-0) score for
+     * each remaining category pool. If this upper bound cannot beat the
+     * current best solution, the branch is pruned.
+     */
+    private static final class MckpSolver {
+        private final RecommendationService recService;
+        private final List<List<Product>>   pools;
+        private final double                presupuesto;
+        private final double[]              maxScorePerCat;
+
+        Product[] best;
+        double    bestScore = Double.NEGATIVE_INFINITY;
+
+        MckpSolver(RecommendationService recService,
+                   List<List<Product>> pools, double presupuesto) {
+            this.recService  = recService;
+            this.pools       = pools;
+            this.presupuesto = presupuesto;
+            int n = pools.size();
+            this.best           = new Product[n];
+            this.maxScorePerCat = new double[n];
+            for (int i = 0; i < n; i++) {
+                List<Product> pool = pools.get(i);
+                // Pool is sorted desc by baseMlScore; first element is the max
+                maxScorePerCat[i] = pool.isEmpty()
+                        ? 0.0 : recService.baseMlScore(pool.get(0));
+            }
+        }
+
+        void solve(int idx, double total, double score, Product[] current) {
+            if (idx == pools.size()) {
+                if (score > bestScore) {
+                    bestScore = score;
+                    System.arraycopy(current, 0, best, 0, current.length);
+                }
+                return;
+            }
+
+            // Branch-and-bound: if max possible score from here ≤ bestScore, prune
+            double upperBound = score;
+            for (int i = idx; i < pools.size(); i++) upperBound += maxScorePerCat[i];
+            if (upperBound <= bestScore) return;
+
+            // Option A: skip this category (partial outfit)
+            current[idx] = null;
+            solve(idx + 1, total, score, current);
+
+            // Option B: pick an affordable candidate
+            double remaining = presupuesto - total;
+            for (Product p : pools.get(idx)) {
+                if (p.precio() > remaining) continue;
+                current[idx] = p;
+                solve(idx + 1, total + p.precio(),
+                      score + recService.baseMlScore(p), current);
+            }
+            current[idx] = null; // backtrack
+        }
     }
 
     private SlotPick toSlotPick(String slot, Product p) {

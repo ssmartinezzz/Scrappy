@@ -267,6 +267,29 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
   return r.ok ? r.json() : null;
 }
 
+// ─── Budget-Aware Outfit Builder ─────────────────────────────────────────────
+
+/**
+ * Calls GET /api/outfits/builder to find the globally-optimal product
+ * combination across the requested categories within the budget ceiling.
+ *
+ * @param {Object} params
+ * @param {string[]} params.categorias  canonical category names (1–10)
+ * @param {number}   params.presupuesto hard budget ceiling (must be > 0)
+ * @param {string}   [params.genero]    optional gender filter
+ * @returns {Promise<Object|null>} builder result or null on error
+ */
+export async function fetchOutfitBuilder({ categorias, presupuesto, genero }) {
+  const p = new URLSearchParams();
+  if (categorias && categorias.length) p.set('categorias', categorias.join(','));
+  if (presupuesto > 0) p.set('presupuesto', presupuesto);
+  if (genero) p.set('genero', genero);
+  const r = await fetch(`${BASE}/api/outfits/builder?${p}`);
+  if (r.status === 204) return null;
+  if (!r.ok) return null;
+  return r.json();
+}
+
 // ─── Saved Outfits ───────────────────────────────────────────────────────────
 
 export async function saveOutfit(body) {

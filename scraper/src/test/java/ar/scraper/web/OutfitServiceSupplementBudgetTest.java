@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OutfitServiceSupplementBudgetTest {
 
-    private final OutfitService service = new OutfitService();
+    private final OutfitService service = new OutfitService(new RecommendationService());
 
     private Product suplemento(String nombre, double precio, String marca) {
         return new Product("TestSitio", nombre, precio, null,
