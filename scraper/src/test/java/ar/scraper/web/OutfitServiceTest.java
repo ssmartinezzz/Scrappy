@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class OutfitServiceTest {
 
-    private final OutfitService service = new OutfitService();
+    private final OutfitService service = new OutfitService(new RecommendationService());
 
     private Product producto(String nombre, double precio, String categoria, String genero,
                               String marca, boolean gymrat) {

@@ -64,8 +64,8 @@ class ApiControllerRecomendadosBidirectionalTest {
         aggregator                        = mock(ResultAggregator.class);
         GroupingService grouping          = mock(GroupingService.class);
         PythonRunner pythonRunner         = mock(PythonRunner.class);
-        OutfitService outfitService       = new OutfitService();
         RecommendationService recommendationService = new RecommendationService();
+        OutfitService outfitService       = new OutfitService(recommendationService);
 
         when(config.getMoneda()).thenReturn("ARS");
 

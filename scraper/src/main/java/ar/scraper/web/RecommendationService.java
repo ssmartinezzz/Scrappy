@@ -88,7 +88,7 @@ public class RecommendationService {
     }
 
     /** 2. Base ML opportunity score + additive badge bonuses. */
-    private double baseMlScore(Product p) {
+    public double baseMlScore(Product p) {
         Product.MlScore ml = p.ml() != null ? p.ml() : Product.MlScore.EMPTY;
         double base = 100 - ml.scoreP();
 

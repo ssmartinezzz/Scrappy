@@ -932,6 +932,97 @@ public class ApiController {
         return ResponseEntity.ok(root);
     }
 
+    // ─── Budget-Aware Outfit Builder ─────────────────────────────────────────────
+
+    /**
+     * Builds the globally-optimal product combination for the requested categories
+     * within a hard budget ceiling (MCKP algorithm in {@link OutfitService}).
+     *
+     * <p>Validation (400):
+     * <ul>
+     *   <li>missing or blank {@code categorias}</li>
+     *   <li>{@code presupuesto} ≤ 0</li>
+     *   <li>no valid categories remain after filtering against {@link OutfitService#KNOWN_CATEGORIAS}</li>
+     *   <li>more than 10 categories requested (bounds worst-case K^N enumeration)</li>
+     * </ul>
+     *
+     * <p>No-fit is NOT an error — returns HTTP 200 with {@code noCumplePresupuesto:true}
+     * and an empty {@code slots} array.
+     */
+    @GetMapping("/outfits/builder")
+    public ResponseEntity<ObjectNode> outfitsBuilder(
+            @RequestParam(required = false) String categorias,
+            @RequestParam(required = false, defaultValue = "0") double presupuesto,
+            @RequestParam(required = false) String genero) {
+
+        ObjectNode err = JsonNodeFactory.instance.objectNode();
+
+        // Validate categorias
+        if (categorias == null || categorias.isBlank()) {
+            err.put("error", "Missing required parameter: categorias");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        // Validate presupuesto
+        if (presupuesto <= 0) {
+            err.put("error", "presupuesto must be a positive number");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        // Parse, filter unknowns, deduplicate
+        List<String> catList = Arrays.stream(categorias.split(","))
+                .map(String::strip)
+                .filter(s -> !s.isBlank())
+                .filter(OutfitService.KNOWN_CATEGORIAS::contains)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (catList.isEmpty()) {
+            err.put("error", "No valid categories provided. Use canonical category names.");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        if (catList.size() > 10) {
+            err.put("error", "Too many categories (max 10 allowed)");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        AggregatedResult r = service.getLastResult();
+        if (r == null) return ResponseEntity.noContent().build();
+
+        var feedbackRows = db.obtenerOutfitFeedback();
+        var dismissCats  = db.obtenerCategoriaDismiss();
+        var feedback     = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
+
+        OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
+                r.productos(), catList, presupuesto, genero, feedback);
+
+        // Build response JSON
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ArrayNode slotsArr = root.putArray("slots");
+        for (var pick : result.slots()) {
+            ObjectNode n = slotsArr.addObject();
+            n.put("slot",      pick.slot());
+            n.put("sitio",     safe(pick.sitio()));
+            n.put("nombre",    safe(pick.nombre()));
+            n.put("precio",    pick.precio());
+            n.put("url",       safe(pick.url()));
+            n.put("img",       safe(pick.img()));
+            n.put("categoria", safe(pick.categoria()));
+            n.put("marca",     safe(pick.marca()));
+        }
+        root.put("genero",               safe(result.genero()));
+        root.put("presupuesto",          result.presupuesto());
+        root.put("totalEstimado",        result.totalEstimado());
+        root.put("noCumplePresupuesto",  result.noCumplePresupuesto());
+        ArrayNode vaciasArr = root.putArray("categoriasVacias");
+        result.categoriasVacias().forEach(vaciasArr::add);
+        ArrayNode sinPresupArr = root.putArray("categoriasSinPresupuesto");
+        result.categoriasSinPresupuesto().forEach(sinPresupArr::add);
+
+        return ResponseEntity.ok(root);
+    }
+
     /**
      * Construye el FeedbackModel a partir de las filas crudas de outfit_feedback_item +
      * el catálogo vivo (join url→Product) + las categorias dismissed feed-wide.

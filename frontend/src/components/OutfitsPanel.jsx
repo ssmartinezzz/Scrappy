@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { fetchOutfit, sendOutfitFeedback, fmt } from '../api';
+import { fetchOutfit, sendOutfitFeedback, fetchOutfitBuilder, fmt } from '../api';
 
 // Orden real en que se compone un outfit (de torso a calzado, accesorio al final) —
 // el índice no es decorativo, refleja la secuencia con la que te vestís.
@@ -338,9 +338,260 @@ function PlaceholderTab({ label }) {
   );
 }
 
+// ─── Budget Builder taxonomy ───────────────────────────────────────────────────
+const BUILDER_GROUPS = [
+  {
+    key: 'torso', label: 'Torso',
+    cats: ['Puffer', 'Campera', 'Sweater', 'Buzo', 'Musculosa', 'Camisa',
+           'Remera', 'Chomba', 'Casaca', 'Chaleco', 'Saco', 'Traje', 'Piloto'],
+  },
+  {
+    key: 'piernas', label: 'Piernas',
+    cats: ['Calza', 'Baggy', 'Jean', 'Jogging', 'Short', 'Bermuda', 'Pollera', 'Pantalón'],
+  },
+  {
+    key: 'calzado', label: 'Calzado',
+    cats: ['Zapatilla', 'Zapatilla Running', 'Zapatilla Entrenamiento',
+           'Zapatilla Skate', 'Zapatilla Urbana', 'Sneaker',
+           'Botines', 'Borcego', 'Botas', 'Ojotas'],
+  },
+  {
+    key: 'accesorio', label: 'Accesorio',
+    cats: ['Mochila', 'Bolso', 'Riñonera', 'Billetera', 'Cinturón', 'Bufanda',
+           'Guantes', 'Gorro', 'Gorra', 'Lentes', 'Medias', 'Suplemento'],
+  },
+];
+
+// ─── BuilderTab ───────────────────────────────────────────────────────────────
+function BuilderTab() {
+  const [selectedCats, setSelectedCats] = useState(new Set());
+  const [presupuesto, setPresupuesto]   = useState('');
+  const [genero, setGenero]             = useState('');
+  const [expanded, setExpanded]         = useState({ torso:true, piernas:true, calzado:true, accesorio:true });
+  const [loading, setLoading]           = useState(false);
+  const [result, setResult]             = useState(null);
+  const [error, setError]               = useState(null);
+
+  function toggleCat(cat) {
+    setSelectedCats(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  }
+
+  function toggleGroup(key) {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  async function handleArmar() {
+    if (!selectedCats.size) { setError('Seleccioná al menos una categoría.'); return; }
+    const budget = Number(presupuesto);
+    if (!budget || budget <= 0) { setError('Ingresá un presupuesto válido.'); return; }
+    setError(null);
+    setLoading(true);
+    setResult(null);
+    try {
+      const data = await fetchOutfitBuilder({
+        categorias: [...selectedCats],
+        presupuesto: budget,
+        genero: genero || undefined,
+      });
+      if (data === null) { setError('No hay catálogo cargado. Ejecutá un scraping primero.'); }
+      else { setResult(data); }
+    } catch {
+      setError('Error de conexión.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const noFit = result && result.noCumplePresupuesto && (!result.slots || result.slots.length === 0);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+      {/* Category selector — 4 collapsible groups */}
+      {BUILDER_GROUPS.map(group => (
+        <div key={group.key} style={{ borderRadius:8, border:'1px solid var(--bd)', overflow:'hidden' }}>
+          <button
+            onClick={() => toggleGroup(group.key)}
+            style={{
+              width:'100%', textAlign:'left', padding:'.5rem .75rem',
+              background:'var(--s1)', border:'none', cursor:'pointer',
+              fontSize:'.75rem', fontWeight:700, color:'var(--t2)',
+              display:'flex', justifyContent:'space-between', alignItems:'center',
+            }}>
+            <span>{group.label}</span>
+            <span style={{ fontSize:'.65rem', color:'var(--t4)' }}>
+              {expanded[group.key] ? '▲' : '▼'}
+            </span>
+          </button>
+
+          {expanded[group.key] && (
+            <div style={{ padding:'.5rem .75rem', display:'flex', flexWrap:'wrap', gap:6 }}>
+              {group.cats.map(cat => {
+                const active = selectedCats.has(cat);
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCat(cat)}
+                    style={{
+                      padding:'3px 10px', borderRadius:20, fontSize:'.7rem', fontWeight:600,
+                      cursor:'pointer',
+                      border: active ? '1.5px solid var(--p2)' : '1px solid var(--bd)',
+                      background: active ? 'var(--p2)' : 'var(--s2)',
+                      color: active ? '#fff' : 'var(--t3)',
+                    }}>
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Budget + gender + action */}
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto total:</span>
+          <input
+            type="number" placeholder="Ej: 80000"
+            value={presupuesto}
+            onChange={e => setPresupuesto(e.target.value)}
+            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
+                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+          />
+        </div>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
+          {['', 'hombre', 'mujer', 'unisex'].map(g => (
+            <button key={g || 'todos'} onClick={() => setGenero(g)}
+              className={`genero-pill ${genero === g ? 'active' : ''}`}>
+              {g || 'todos'}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleArmar}
+          disabled={loading}
+          style={{
+            padding:'5px 18px', borderRadius:8, border:'1px solid var(--p)',
+            background:'var(--p)', color:'#fff', fontSize:'.78rem', fontWeight:700,
+            cursor: loading ? 'default' : 'pointer', opacity: loading ? .7 : 1,
+          }}>
+          {loading ? 'Buscando...' : 'Armar'}
+        </button>
+      </div>
+
+      {/* Validation / error message */}
+      {error && (
+        <div style={{ color:'#ef4444', fontSize:'.78rem', fontWeight:600 }}>{error}</div>
+      )}
+
+      {/* No-fit empty state */}
+      {noFit && (
+        <div style={{ padding:'1.5rem', borderRadius:8, border:'1px solid var(--bd)',
+                      background:'var(--s1)', display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ fontWeight:700, color:'var(--t1)', fontSize:'.9rem' }}>
+            No se puede armar dentro de ${fmt(Number(presupuesto))}
+          </div>
+          {result.categoriasVacias?.length > 0 && (
+            <div>
+              <div style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600, marginBottom:4 }}>
+                Sin productos en catálogo:
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {result.categoriasVacias.map(c => (
+                  <span key={c} style={{ padding:'2px 8px', borderRadius:12, fontSize:'.7rem',
+                    background:'var(--s2)', border:'1px solid var(--bd)', color:'var(--t3)' }}>
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {result.categoriasSinPresupuesto?.length > 0 && (
+            <div>
+              <div style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600, marginBottom:4 }}>
+                No entran en el presupuesto:
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {result.categoriasSinPresupuesto.map(c => (
+                  <span key={c} style={{ padding:'2px 8px', borderRadius:12, fontSize:'.7rem',
+                    background:'var(--s2)', border:'1px solid var(--bd)', color:'var(--t3)' }}>
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Partial-fit or full-fit result */}
+      {result && result.slots && result.slots.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Partial-fit warning: categories with no products */}
+          {result.categoriasVacias?.length > 0 && (
+            <div style={{ fontSize:'.78rem', color:'var(--t4)', display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+              <span style={{ fontWeight:600 }}>Sin productos:</span>
+              {result.categoriasVacias.map(c => (
+                <span key={c} style={{ padding:'2px 8px', borderRadius:12, fontSize:'.7rem',
+                  background:'var(--s2)', border:'1px solid var(--bd)', color:'var(--t3)' }}>
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Product cards */}
+          <div className="outfit-row">
+            {result.slots.map(s => (
+              <div key={s.slot} className="outfit-card">
+                <div className="kit-tag">
+                  <span className="kit-tag-label">{s.slot}</span>
+                </div>
+                {s.img && (
+                  <div className="outfit-img-wrap">
+                    <img src={s.img} alt={s.nombre} loading="lazy"
+                         onError={e => { e.target.parentElement.style.display = 'none'; }}/>
+                    {(s.marca || s.sitio) && (
+                      <span className="outfit-marca-pill">{s.marca || s.sitio}</span>
+                    )}
+                  </div>
+                )}
+                <div className="outfit-card-body">
+                  <div className="outfit-card-name">{s.nombre || '—'}</div>
+                  <div className="outfit-card-price">${fmt(s.precio)}</div>
+                  <a href={s.url} target="_blank" rel="noreferrer"
+                    style={{ fontSize:'.68rem', color:'var(--p2)', marginTop:4, display:'block' }}>
+                    Ver producto
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Total */}
+          <div style={{ fontSize:'.8rem', fontWeight:700, color:'var(--t2)' }}>
+            Total estimado: ${fmt(result.totalEstimado)}
+            {result.noCumplePresupuesto && (
+              <span style={{ color:'var(--t4)', fontWeight:400, marginLeft:8 }}>
+                · Algunas categorías no entraron en el presupuesto
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── OutfitsPanel principal ────────────────────────────────────────────────────
 export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfits = [], onSaveOutfit }) {
-  const [tab, setTab] = useState('gym'); // gym | casual | formal
+  const [tab, setTab] = useState('gym'); // gym | builder | casual | formal
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -349,7 +600,7 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
         display:'flex', borderBottom:'1px solid var(--bd)',
         background:'var(--s1)', position:'sticky', top:0, zIndex:10,
       }}>
-        {[['gym', 'Gym'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
+        {[['gym', 'Gym'], ['builder', 'Armar por presupuesto'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             padding:'.55rem 1rem', background:'none', border:'none', cursor:'pointer',
             fontSize:'.78rem', fontWeight:600, letterSpacing:'.02em',
@@ -360,7 +611,7 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
       </div>
 
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
-        {tab === 'gym'    && (
+        {tab === 'gym'     && (
           <GymTab
             favoritos={favoritos}
             onAddFavorito={onAddFavorito}
@@ -368,8 +619,9 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
             onSaveOutfit={onSaveOutfit}
           />
         )}
-        {tab === 'casual' && <PlaceholderTab label="Casual"/>}
-        {tab === 'formal' && <PlaceholderTab label="Formal"/>}
+        {tab === 'builder' && <BuilderTab />}
+        {tab === 'casual'  && <PlaceholderTab label="Casual"/>}
+        {tab === 'formal'  && <PlaceholderTab label="Formal"/>}
       </div>
     </div>
   );
