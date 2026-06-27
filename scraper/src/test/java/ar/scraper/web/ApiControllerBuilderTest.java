@@ -9,6 +9,7 @@ import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -17,10 +18,13 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -36,6 +40,12 @@ import static org.mockito.Mockito.when;
  * Tests 4.2 — success paths (200):
  *   - success JSON shape (slots, total, noCumplePresupuesto:false)
  *   - no-fit JSON shape (slots empty, noCumplePresupuesto:true)
+ *
+ * Tests 4.3 — new params (UOB-10, UOB-11):
+ *   - excluir CSV param parsed and passed as Set
+ *   - greedy=true triggers greedy path
+ *   - minimoBudgetNecesario in no-fit JSON response
+ *   - minimoBudgetNecesario absent/null on success
  */
 class ApiControllerBuilderTest {
 
@@ -81,28 +91,28 @@ class ApiControllerBuilderTest {
 
     @Test
     void missingCategorias_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder(null, 50_000, "hombre");
+        ResponseEntity<?> resp = controller.outfitsBuilder(null, 50_000, "hombre", "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void blankCategorias_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("   ", 50_000, "hombre");
+        ResponseEntity<?> resp = controller.outfitsBuilder("   ", 50_000, "hombre", "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void presupuestoZero_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 0, "hombre");
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 0, "hombre", "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void presupuestoNegative_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", -1000, "hombre");
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", -1000, "hombre", "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -112,14 +122,14 @@ class ApiControllerBuilderTest {
         // 11 canonical categories (all valid, none duplicated)
         String cats = "Buzo,Remera,Camisa,Short,Jean,Zapatilla,Zapatilla Running," +
                       "Gorra,Medias,Mochila,Puffer";
-        ResponseEntity<?> resp = controller.outfitsBuilder(cats, 500_000, null);
+        ResponseEntity<?> resp = controller.outfitsBuilder(cats, 500_000, null, "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void allUnknownCategories_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Zapato,Vestido,Medias Largas", 50_000, null);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Zapato,Vestido,Medias Largas", 50_000, null, "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -128,10 +138,8 @@ class ApiControllerBuilderTest {
 
     @Test
     void successResponse_containsExpectedJsonShape() {
-        // Stub ScraperService to return a non-null result
         when(service.getLastResult()).thenReturn(aggregatedResult(List.of()));
 
-        // Stub OutfitService to return a 2-slot result
         OutfitService.SlotPick buzoSlot = new OutfitService.SlotPick(
                 "Buzo", "Sitio", "Buzo Nike", 20_000,
                 "https://test/buzo", "https://img/buzo.jpg", "Buzo", "Nike");
@@ -141,12 +149,12 @@ class ApiControllerBuilderTest {
         OutfitService.OutfitBuilderResult stubbedResult = new OutfitService.OutfitBuilderResult(
                 List.of(buzoSlot, shortSlot),
                 "hombre", 50_000, 35_000,
-                false, List.of(), List.of());
+                false, List.of(), List.of(), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
                 .thenReturn(stubbedResult);
 
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 50_000, "hombre");
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 50_000, "hombre", "", false);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
@@ -168,12 +176,12 @@ class ApiControllerBuilderTest {
 
         OutfitService.OutfitBuilderResult noFitResult = new OutfitService.OutfitBuilderResult(
                 List.of(), "hombre", 5_000, 0.0,
-                true, List.of(), List.of("Buzo"));
+                true, List.of(), List.of("Buzo"), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
                 .thenReturn(noFitResult);
 
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre");
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", false);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
@@ -183,5 +191,91 @@ class ApiControllerBuilderTest {
         assertThat(body.path("noCumplePresupuesto").asBoolean()).isTrue();
         assertThat(body.path("totalEstimado").asDouble()).isEqualTo(0.0);
         assertThat(body.path("reason").asText()).isNotBlank();
+    }
+
+    // ── Test 4.3 — New params: excluir, greedy, minimoBudgetNecesario ────────
+
+    @Test
+    void excluirParamParsedAndPassedThrough() {
+        when(service.getLastResult()).thenReturn(aggregatedResult(List.of()));
+
+        OutfitService.OutfitBuilderResult stub = new OutfitService.OutfitBuilderResult(
+                List.of(), "hombre", 50_000, 0.0, false, List.of(), List.of(), null);
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+                .thenReturn(stub);
+
+        controller.outfitsBuilder("Buzo,Short", 50_000, "hombre",
+                "https://site/p1,https://site/p2", false);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<String>> excluirCaptor = ArgumentCaptor.forClass(Set.class);
+        verify(outfitService).armarPorCategorias(
+                anyList(), anyList(), anyDouble(), anyString(), any(),
+                excluirCaptor.capture(), anyBoolean());
+
+        Set<String> captured = excluirCaptor.getValue();
+        assertThat(captured).containsExactlyInAnyOrder("https://site/p1", "https://site/p2");
+    }
+
+    @Test
+    void greedyParamTriggersModeFlag() {
+        when(service.getLastResult()).thenReturn(aggregatedResult(List.of()));
+
+        OutfitService.OutfitBuilderResult stub = new OutfitService.OutfitBuilderResult(
+                List.of(), "hombre", 50_000, 0.0, false, List.of(), List.of(), null);
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+                .thenReturn(stub);
+
+        controller.outfitsBuilder("Buzo", 50_000, "hombre", "", true);
+
+        ArgumentCaptor<Boolean> greedyCaptor = ArgumentCaptor.forClass(Boolean.class);
+        verify(outfitService).armarPorCategorias(
+                anyList(), anyList(), anyDouble(), anyString(), any(),
+                anySet(), greedyCaptor.capture());
+
+        assertThat(greedyCaptor.getValue()).isTrue();
+    }
+
+    @Test
+    void minimoBudgetNecesarioInNoFitResponse() {
+        when(service.getLastResult()).thenReturn(aggregatedResult(List.of()));
+
+        OutfitService.OutfitBuilderResult noFitWithMinimo = new OutfitService.OutfitBuilderResult(
+                List.of(), "hombre", 5_000, 0.0,
+                true, List.of(), List.of("Buzo"), 20_000.0);
+
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+                .thenReturn(noFitWithMinimo);
+
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", false);
+
+        JsonNode body = (JsonNode) resp.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("status").asText()).isEqualTo("no-fit");
+        assertThat(body.has("minimoBudgetNecesario")).isTrue();
+        assertThat(body.path("minimoBudgetNecesario").asDouble()).isEqualTo(20_000.0);
+    }
+
+    @Test
+    void minimoBudgetNecesarioAbsentOnSuccess() {
+        when(service.getLastResult()).thenReturn(aggregatedResult(List.of()));
+
+        OutfitService.SlotPick slot = new OutfitService.SlotPick(
+                "Buzo", "Sitio", "Buzo Nike", 20_000,
+                "https://test/buzo", "https://img/buzo.jpg", "Buzo", "Nike");
+        OutfitService.OutfitBuilderResult success = new OutfitService.OutfitBuilderResult(
+                List.of(slot), "hombre", 50_000, 20_000,
+                false, List.of(), List.of(), null);
+
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+                .thenReturn(success);
+
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 50_000, "hombre", "", false);
+
+        JsonNode body = (JsonNode) resp.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("status").asText()).isEqualTo("ok");
+        // minimoBudgetNecesario should be absent or null for success
+        assertThat(body.has("minimoBudgetNecesario")).isFalse();
     }
 }

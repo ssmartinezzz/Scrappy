@@ -953,7 +953,9 @@ public class ApiController {
     public ResponseEntity<ObjectNode> outfitsBuilder(
             @RequestParam(required = false) String categorias,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
-            @RequestParam(required = false) String genero) {
+            @RequestParam(required = false) String genero,
+            @RequestParam(required = false, defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "false") boolean greedy) {
 
         ObjectNode err = JsonNodeFactory.instance.objectNode();
 
@@ -987,6 +989,14 @@ public class ApiController {
             return ResponseEntity.badRequest().body(err);
         }
 
+        // Parse excluir CSV → Set (temporary per-request exclusion, not persisted)
+        Set<String> excluirUrls = (excluir == null || excluir.isBlank())
+                ? Set.of()
+                : Arrays.stream(excluir.split(","))
+                        .map(String::strip)
+                        .filter(s -> !s.isBlank())
+                        .collect(Collectors.toSet());
+
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
@@ -995,7 +1005,7 @@ public class ApiController {
         var feedback     = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                r.productos(), catList, presupuesto, genero, feedback);
+                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy);
 
         // Determine status per spec API contract
         String status;
@@ -1032,6 +1042,9 @@ public class ApiController {
         result.categoriasSinPresupuesto().forEach(sinPresupArr::add);
         if ("no-fit".equals(status)) {
             root.put("reason", "No valid combination fits within the budget.");
+            if (result.minimoBudgetNecesario() != null) {
+                root.put("minimoBudgetNecesario", result.minimoBudgetNecesario());
+            }
         }
 
         return ResponseEntity.ok(root);
