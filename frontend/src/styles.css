@@ -646,6 +646,10 @@ body { overflow-x: hidden; }
 @media (min-width: 560px) { .picks-search { width: 220px; } }
 .picks-search::placeholder { color: var(--t4); }
 .picks-search:focus-visible { border-color: var(--p); box-shadow: 0 0 0 3px rgba(196,80,46,.35); }
+@media (max-width: 559.98px) {
+  .picks-header { gap: 8px; }
+  .picks-search { border-radius: 10px; }
+}
 
 /* picks-body: single column on phone, row at sm+ */
 .picks-body { display: flex; gap: 0; align-items: flex-start; flex-direction: column; }
