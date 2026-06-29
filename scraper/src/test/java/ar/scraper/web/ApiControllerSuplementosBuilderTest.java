@@ -83,30 +83,31 @@ class ApiControllerSuplementosBuilderTest {
         JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(body.isArray()).isTrue();
-        assertThat(body.size()).isEqualTo(0);
+        assertThat(body.get("picks").isArray()).isTrue();
+        assertThat(body.get("picks").size()).isEqualTo(0);
+        assertThat(body.get("sinStock").isArray()).isTrue();
     }
 
     @Test
     void suplementosBuilder_returnsOnePickPerRequestedType() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
         var pick1 = new OutfitService.SupplementPick(
-                "Proteína", "Sitio1", "Whey 1kg", 5000.0, "https://a.com/p1", "img1.jpg", "ENA");
+                "Proteína en Polvo", "Sitio1", "Whey 1kg", 5000.0, "https://a.com/p1", "img1.jpg", "ENA");
         var pick2 = new OutfitService.SupplementPick(
                 "Creatina", "Sitio2", "Creatina 300g", 3000.0, "https://a.com/p2", "img2.jpg", "STAR");
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any()))
                 .thenReturn(List.of(pick1, pick2));
 
-        var resp = controller.suplementosBuilder("Proteína,Creatina", 0);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        var resp = controller.suplementosBuilder("Proteína en Polvo,Creatina", 0);
+        JsonNode picks = new ObjectMapper().valueToTree(resp.getBody()).get("picks");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(body.size()).isEqualTo(2);
-        assertThat(body.get(0).get("tipo").asText()).isEqualTo("Proteína");
-        assertThat(body.get(0).get("nombre").asText()).isEqualTo("Whey 1kg");
-        assertThat(body.get(0).get("precio").asDouble()).isEqualTo(5000.0);
-        assertThat(body.get(0).get("url").asText()).isEqualTo("https://a.com/p1");
-        assertThat(body.get(1).get("tipo").asText()).isEqualTo("Creatina");
+        assertThat(picks.size()).isEqualTo(2);
+        assertThat(picks.get(0).get("tipo").asText()).isEqualTo("Proteína en Polvo");
+        assertThat(picks.get(0).get("nombre").asText()).isEqualTo("Whey 1kg");
+        assertThat(picks.get(0).get("precio").asDouble()).isEqualTo(5000.0);
+        assertThat(picks.get(0).get("url").asText()).isEqualTo("https://a.com/p1");
+        assertThat(picks.get(1).get("tipo").asText()).isEqualTo("Creatina");
     }
 
     @Test

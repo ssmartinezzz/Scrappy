@@ -27,18 +27,19 @@ class OutfitServiceSuplementosBuilderTest {
         var creatina = suplemento("Creatina Monohidrato 300g", 3000);
 
         List<OutfitService.SupplementPick> result =
-                outfitService.armarComboSuplementos(List.of(proteina, creatina), 0, Set.of("Proteína"));
+                outfitService.armarComboSuplementos(List.of(proteina, creatina), 0, Set.of("Proteína en Polvo"));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).tipo()).isEqualTo("Proteína");
+        assertThat(result.get(0).tipo()).isEqualTo("Proteína en Polvo");
     }
 
     @Test
     void armarComboSuplementos_returnsEmptyWhenNoProductsMatchType() {
         var creatina = suplemento("Creatina Monohidrato 300g", 3000);
 
+        // "Vitamina C" is now a subtype; creatina has no vitamin keywords → empty
         List<OutfitService.SupplementPick> result =
-                outfitService.armarComboSuplementos(List.of(creatina), 0, Set.of("Vitaminas"));
+                outfitService.armarComboSuplementos(List.of(creatina), 0, Set.of("Vitamina C"));
 
         assertThat(result).isEmpty();
     }
@@ -47,11 +48,12 @@ class OutfitServiceSuplementosBuilderTest {
     void armarComboSuplementos_vitaminasKeywordMatching() {
         var vitamina = suplemento("Vitamina C 1000mg", 2000);
 
+        // "Vitaminas" is split — "Vitamina C 1000mg" matches the "Vitamina C" subtype
         List<OutfitService.SupplementPick> result =
-                outfitService.armarComboSuplementos(List.of(vitamina), 0, Set.of("Vitaminas"));
+                outfitService.armarComboSuplementos(List.of(vitamina), 0, Set.of("Vitamina C"));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).tipo()).isEqualTo("Vitaminas");
+        assertThat(result.get(0).tipo()).isEqualTo("Vitamina C");
     }
 
     @Test
@@ -65,7 +67,7 @@ class OutfitServiceSuplementosBuilderTest {
                 outfitService.armarComboSuplementos(List.of(proteina, creatina, vitamina), 0, null);
 
         assertThat(result).extracting(OutfitService.SupplementPick::tipo)
-                .containsExactlyInAnyOrder("Proteína", "Creatina", "Vitaminas");
+                .containsExactlyInAnyOrder("Proteína en Polvo", "Creatina", "Vitamina C");
     }
 
     @Test
@@ -74,10 +76,10 @@ class OutfitServiceSuplementosBuilderTest {
 
         // presupuesto 1000 < precio 2000 → no candidate is affordable → fallback picks cheapest
         List<OutfitService.SupplementPick> result =
-                outfitService.armarComboSuplementos(List.of(expensive), 1000, Set.of("Proteína"));
+                outfitService.armarComboSuplementos(List.of(expensive), 1000, Set.of("Proteína en Polvo"));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).tipo()).isEqualTo("Proteína");
+        assertThat(result.get(0).tipo()).isEqualTo("Proteína en Polvo");
         assertThat(result.get(0).precio()).isEqualTo(2000.0);
     }
 
@@ -88,10 +90,10 @@ class OutfitServiceSuplementosBuilderTest {
         var whey3 = suplemento("Protein Concentrate 2kg", 7000);
 
         List<OutfitService.SupplementPick> result =
-                outfitService.armarComboSuplementos(List.of(whey1, whey2, whey3), 0, Set.of("Proteína"));
+                outfitService.armarComboSuplementos(List.of(whey1, whey2, whey3), 0, Set.of("Proteína en Polvo"));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).tipo()).isEqualTo("Proteína");
+        assertThat(result.get(0).tipo()).isEqualTo("Proteína en Polvo");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
