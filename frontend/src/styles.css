@@ -644,24 +644,17 @@ body { overflow-x: hidden; }
 }
 
 .picks-header { position: sticky; top: var(--sticky-offset); z-index: var(--z-chrome-sub); display: flex;
-  flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
-  padding: .75rem 1.25rem; background: var(--s1); border-bottom: 1px solid var(--bd);
-  /* mobile-first: single column below sm */
-  flex-direction: column; align-items: stretch; }
-@media (min-width: 560px) { .picks-header { flex-direction: row; align-items: center; } }
+  flex-direction: column; align-items: stretch; gap: 8px;
+  padding: .75rem 1.25rem; background: var(--s1); border-bottom: 1px solid var(--bd); }
 .picks-title { font: 800 .9rem/1.2 var(--font); color: var(--t1); }
 .picks-subtitle { font: .65rem/1.4 var(--font); color: var(--t4); margin-top: 2px; }
 
 .picks-search { padding: 7px 12px; border-radius: 20px; border: 1.5px solid var(--bd2);
   background: var(--s2); color: var(--t1); font: .78rem var(--font); outline: none;
-  width: 100%; transition: border-color .15s, box-shadow .15s; }
-@media (min-width: 560px) { .picks-search { width: 220px; } }
+  width: 100%; max-width: 400px; align-self: center;
+  transition: border-color .15s, box-shadow .15s; }
 .picks-search::placeholder { color: var(--t4); }
 .picks-search:focus-visible { border-color: var(--p); box-shadow: 0 0 0 3px rgba(196,80,46,.35); }
-@media (max-width: 559.98px) {
-  .picks-header { gap: 8px; }
-  .picks-search { border-radius: 10px; }
-}
 
 /* picks-body: single column on phone, row at sm+ */
 .picks-body { display: flex; gap: 0; align-items: flex-start; flex-direction: column; }
@@ -710,8 +703,8 @@ body { overflow-x: hidden; }
 
 /* ===== PICKS DETAIL + PANEL CHROME ===== */
 /* Panel shell + rubro chrome */
-.picks-panel { display: flex; flex-direction: column; height: 100%; }
-.picks-scroll { flex: 1; overflow-y: auto; }
+.picks-panel { display: flex; flex-direction: column; }
+.picks-scroll { flex: 1; }
 .picks-state-msg { color: var(--t4); text-align: center; padding: 3rem; }
 .picks-rubro-bar { padding: .5rem 1.25rem; background: var(--s1);
   border-bottom: 1px solid var(--bd); display: flex; gap: 5px; flex-wrap: wrap; }

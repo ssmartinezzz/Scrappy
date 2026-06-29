@@ -534,11 +534,11 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
   const [tab, setTab] = useState('outfit'); // outfit | casual | formal
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div style={{ display:'flex', flexDirection:'column' }}>
       {/* Sub-tab bar */}
       <div style={{
         display:'flex', borderBottom:'1px solid var(--bd)',
-        background:'var(--s1)', position:'sticky', top:0, zIndex:10,
+        background:'var(--s1)', position:'sticky', top:'var(--sticky-offset)', zIndex:'var(--z-chrome-sub)',
       }}>
         {[['outfit', 'Outfit'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{
@@ -550,7 +550,7 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
         ))}
       </div>
 
-      <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
+      <div style={{ padding:'1rem 1.25rem' }}>
         {tab === 'outfit'  && (
           <OutfitPanel
             favoritos={favoritos}
