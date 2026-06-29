@@ -242,7 +242,17 @@ public class OutfitService {
      * Gym ni los facets del dashboard, que dependen del string "Suplemento").
      */
     private static final List<SubtipoSuplemento> SUPLEMENTO_SUBTIPOS = List.of(
-            new SubtipoSuplemento("Proteína", new String[]{"proteina", "protein", "whey", "isolate", "concentrate"}),
+            new SubtipoSuplemento("Proteína", new String[]{
+                    "proteina", "protein", "whey", "isolate", "concentrate",
+                    "caseina", "casein",
+                    "barra proteica", "barra protein", "barra de proteina",
+                    "snack proteico", "snack proteica",
+                    "pancake proteico", "pancake protein", "panqueque proteico",
+                    "waffle proteico", "waffle protein",
+                    "cookie proteica", "cookie protein",
+                    "budín proteico", "budin proteico",
+                    "proteico", "proteica"
+            }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
             new SubtipoSuplemento("Vitaminas", new String[]{"vitamina", "vitamin", "multivitamin", "zinc", "omega", "complejo b"}),

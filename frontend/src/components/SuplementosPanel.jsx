@@ -145,6 +145,15 @@ export default function SuplementosPanel() {
       {resultado !== null && resultado.length > 0 && (
         <>
           <div style={{
+            display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline',
+            gap: 8, marginBottom: 16,
+          }}>
+            <span style={{ color: 'var(--t3)', fontSize: '.8rem', fontWeight: 600 }}>Total stack</span>
+            <span style={{ color: 'var(--p)', fontSize: '1.3rem', fontWeight: 800 }}>
+              ${fmt(resultado.reduce((acc, p) => acc + p.precio, 0))}
+            </span>
+          </div>
+          <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
             gap: 16,
