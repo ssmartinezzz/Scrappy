@@ -210,6 +210,12 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
       if (data === null) {
         setError('No hay catálogo cargado. Ejecutá un scraping primero.');
         setResult(null);
+      } else if ((data.slots || []).length === 0 && excluir.length > 0) {
+        // Catalog exhausted due to accumulated exclusions — reset and retry fresh.
+        setGreedyExcluded([]);
+        setCurrentOutfitUrls([]);
+        setAttemptCount(0);
+        load([], false);
       } else {
         setResult(data);
         setCurrentOutfitUrls((data.slots || []).map(s => s.url));
