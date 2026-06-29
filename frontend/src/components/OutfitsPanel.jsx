@@ -535,10 +535,10 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Sub-tab bar */}
+      {/* Sub-tab bar — always visible at top; content scrolls below */}
       <div style={{
         display:'flex', borderBottom:'1px solid var(--bd)',
-        background:'var(--s1)', position:'sticky', top:0, zIndex:10,
+        background:'var(--s1)', flexShrink:0,
       }}>
         {[['outfit', 'Outfit'], ['casual', 'Casual'], ['formal', 'Formal']].map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{
