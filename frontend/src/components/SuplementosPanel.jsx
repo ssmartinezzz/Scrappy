@@ -12,10 +12,13 @@ const TIPOS_DISPONIBLES = [
   { tipo: 'Omega 3',           grupo: 'Vitaminas' },
   { tipo: 'Complejo B',        grupo: 'Vitaminas' },
   { tipo: 'Zinc',              grupo: 'Vitaminas' },
-  { tipo: 'Creatina',          grupo: null },
-  { tipo: 'Magnesio',          grupo: null },
-  { tipo: 'Aderezos',          grupo: null },
-  { tipo: 'Quemador',          grupo: null },
+  { tipo: 'Mayonesa',          grupo: 'Aderezos' },
+  { tipo: 'Ketchup / Salsa',  grupo: 'Aderezos' },
+  { tipo: 'Mostaza',          grupo: 'Aderezos' },
+  { tipo: 'Maple / Sirope',   grupo: 'Aderezos' },
+  { tipo: 'Creatina',         grupo: null },
+  { tipo: 'Magnesio',         grupo: null },
+  { tipo: 'Quemador',         grupo: null },
 ];
 const DEFAULT_TIPOS = new Set(['Proteína en Polvo', 'Creatina', 'Magnesio']);
 
@@ -80,7 +83,7 @@ export default function SuplementosPanel() {
           ¿Qué suplementos necesitás?
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {['Proteína', 'Vitaminas', null].map(grupo => (
+          {['Proteína', 'Vitaminas', 'Aderezos', null].map(grupo => (
             <div key={grupo ?? 'otros'}>
               <p style={{ color: 'var(--t4)', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 8px' }}>
                 {grupo ?? 'Otros'}

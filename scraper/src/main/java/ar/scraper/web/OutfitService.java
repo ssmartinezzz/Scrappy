@@ -284,15 +284,26 @@ public class OutfitService {
                     "zinc", "gluconato de zinc", "picolinato de zinc", "citrato de zinc"
             }),
             new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"}),
-            new SubtipoSuplemento("Aderezos", new String[]{
-                    "mayonesa", "mayo fit", "mayonesa fit", "mayonesa light", "mayonesa proteica",
-                    "ketchup", "ketchup fit", "ketchup zero",
-                    "mostaza",
-                    "maple", "jarabe de arce", "maple sin azucar", "maple zero",
-                    "sirope", "sirope fit", "sirope zero",
+            new SubtipoSuplemento("Mayonesa", new String[]{
+                    "mayonesa fit", "mayonesa light", "mayonesa proteica", "mayonesa zero",
+                    "mayo fit", "mayo proteica", "mayo light",
+                    "mayonesa"
+            }),
+            new SubtipoSuplemento("Ketchup / Salsa", new String[]{
+                    "ketchup", "ketchup fit", "ketchup zero", "ketchup sin azucar",
+                    "salsa fit", "salsa zero", "salsa de tomate fit",
                     "topping proteico", "topping fit",
-                    "aderezo", "aderezo fit", "aderezo proteico",
-                    "vinagre balsamico", "vinagre balsámico", "salsa fit", "salsa zero"
+                    "aderezo fit", "aderezo proteico"
+            }),
+            new SubtipoSuplemento("Mostaza", new String[]{
+                    "mostaza fit", "mostaza light", "mostaza zero", "mostaza dijón",
+                    "mostaza dijon", "mostaza americana", "mostaza de grano",
+                    "salsa mostaza"
+            }),
+            new SubtipoSuplemento("Maple / Sirope", new String[]{
+                    "maple", "maple fit", "maple sin azucar", "maple zero",
+                    "jarabe de arce", "sirope", "sirope fit", "sirope zero",
+                    "sirope sin azucar"
             })
     );
 
