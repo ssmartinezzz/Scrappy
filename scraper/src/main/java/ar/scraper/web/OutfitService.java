@@ -283,7 +283,17 @@ public class OutfitService {
             new SubtipoSuplemento("Zinc", new String[]{
                     "zinc", "gluconato de zinc", "picolinato de zinc", "citrato de zinc"
             }),
-            new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"})
+            new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"}),
+            new SubtipoSuplemento("Aderezos", new String[]{
+                    "mayonesa", "mayo fit", "mayonesa fit", "mayonesa light", "mayonesa proteica",
+                    "ketchup", "ketchup fit", "ketchup zero",
+                    "mostaza",
+                    "maple", "jarabe de arce", "maple sin azucar", "maple zero",
+                    "sirope", "sirope fit", "sirope zero",
+                    "topping proteico", "topping fit",
+                    "aderezo", "aderezo fit", "aderezo proteico",
+                    "vinagre balsamico", "vinagre balsámico", "salsa fit", "salsa zero"
+            })
     );
 
     /**

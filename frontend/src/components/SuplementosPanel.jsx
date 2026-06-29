@@ -14,6 +14,7 @@ const TIPOS_DISPONIBLES = [
   { tipo: 'Zinc',              grupo: 'Vitaminas' },
   { tipo: 'Creatina',          grupo: null },
   { tipo: 'Magnesio',          grupo: null },
+  { tipo: 'Aderezos',          grupo: null },
   { tipo: 'Quemador',          grupo: null },
 ];
 const DEFAULT_TIPOS = new Set(['Proteína en Polvo', 'Creatina', 'Magnesio']);
