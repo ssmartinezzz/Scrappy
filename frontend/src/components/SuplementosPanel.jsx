@@ -18,7 +18,8 @@ export default function SuplementosPanel() {
   const [presupuesto, setPresupuesto] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [resultado, setResultado] = useState(null);
+  const [picks, setPicks] = useState(null);
+  const [sinStock, setSinStock] = useState([]);
 
   function toggleTipo(tipo) {
     setTipos(prev => {
@@ -41,7 +42,8 @@ export default function SuplementosPanel() {
         tipos: Array.from(tipos),
         presupuesto: presupuesto ? Number(presupuesto) : 0,
       });
-      setResultado(data ?? []);
+      setPicks(data?.picks ?? []);
+      setSinStock(data?.sinStock ?? []);
     } catch {
       setError('Error al conectar con el servidor.');
     } finally {
@@ -143,32 +145,35 @@ export default function SuplementosPanel() {
         </div>
       )}
 
-      {/* Empty state */}
-      {resultado !== null && resultado.length === 0 && (
+      {/* Empty state — nothing found at all */}
+      {picks !== null && picks.length === 0 && sinStock.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--t3)', fontSize: '.95rem' }}>
           No se encontraron suplementos para los tipos seleccionados. Probá corriendo un scraping primero.
         </div>
       )}
 
-      {/* Results grid */}
-      {resultado !== null && resultado.length > 0 && (
+      {/* Results */}
+      {picks !== null && (picks.length > 0 || sinStock.length > 0) && (
         <>
-          <div style={{
-            display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline',
-            gap: 8, marginBottom: 16,
-          }}>
-            <span style={{ color: 'var(--t3)', fontSize: '.8rem', fontWeight: 600 }}>Total stack</span>
-            <span style={{ color: 'var(--p)', fontSize: '1.3rem', fontWeight: 800 }}>
-              ${fmt(resultado.reduce((acc, p) => acc + p.precio, 0))}
-            </span>
-          </div>
+          {picks.length > 0 && (
+            <div style={{
+              display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline',
+              gap: 8, marginBottom: 16,
+            }}>
+              <span style={{ color: 'var(--t3)', fontSize: '.8rem', fontWeight: 600 }}>Total stack</span>
+              <span style={{ color: 'var(--p)', fontSize: '1.3rem', fontWeight: 800 }}>
+                ${fmt(picks.reduce((acc, p) => acc + p.precio, 0))}
+              </span>
+            </div>
+          )}
+
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
             gap: 16,
             marginBottom: 24,
           }}>
-            {resultado.map((pick, i) => (
+            {picks.map((pick, i) => (
               <a
                 key={i}
                 href={pick.url}
@@ -182,7 +187,6 @@ export default function SuplementosPanel() {
                   transition: 'box-shadow .15s',
                   height: '100%',
                 }}>
-                  {/* Image */}
                   <div style={{ position: 'relative', background: 'var(--s2)', height: 160, overflow: 'hidden' }}>
                     {pick.img ? (
                       <img
@@ -210,8 +214,6 @@ export default function SuplementosPanel() {
                       {pick.tipo}
                     </span>
                   </div>
-
-                  {/* Info */}
                   <div style={{ padding: '14px 16px 18px' }}>
                     <p style={{
                       color: 'var(--t1)', fontWeight: 700, fontSize: '.88rem',
@@ -231,6 +233,29 @@ export default function SuplementosPanel() {
                   </div>
                 </div>
               </a>
+            ))}
+
+            {/* Sin stock cards */}
+            {sinStock.map(tipo => (
+              <div key={tipo} style={{
+                background: 'var(--s1)', borderRadius: 14,
+                border: '1.5px dashed var(--s3)', opacity: 0.6,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                minHeight: 200, padding: 20, gap: 8,
+              }}>
+                <span style={{ fontSize: '1.6rem' }}>🔍</span>
+                <span style={{
+                  background: 'var(--s3)', color: 'var(--t3)',
+                  fontSize: '.68rem', fontWeight: 700, padding: '3px 9px',
+                  borderRadius: 999, textTransform: 'uppercase', letterSpacing: '.07em',
+                }}>
+                  {tipo}
+                </span>
+                <span style={{ color: 'var(--t4)', fontSize: '.78rem', textAlign: 'center' }}>
+                  Sin stock en tu catálogo
+                </span>
+              </div>
             ))}
           </div>
 

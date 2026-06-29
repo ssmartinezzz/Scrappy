@@ -247,16 +247,19 @@ public class OutfitService {
                     "caseina", "casein", "proteina isolada", "proteina hidrolizada"
             }),
             new SubtipoSuplemento("Barra Proteica", new String[]{
-                    "barra proteica", "barra protein", "barra de proteina", "bar proteica"
+                    "barra proteica", "barra protein", "barra de proteina", "bar proteica",
+                    "barra energetica", "barrita proteica", "barrita protein", "barrita"
             }),
             new SubtipoSuplemento("Pancake / Waffle", new String[]{
-                    "pancake", "panqueque", "waffle", "hotcake proteico"
+                    "pancake", "panqueque", "waffle", "hotcake proteico",
+                    "preparo pancake", "mezcla pancake", "mix pancake"
             }),
             new SubtipoSuplemento("Snack Proteico", new String[]{
                     "snack proteico", "snack proteica",
                     "cookie proteica", "cookie protein",
                     "budín proteico", "budin proteico",
-                    "muffin proteico", "brownie proteico", "alfajor proteico"
+                    "muffin proteico", "brownie proteico", "alfajor proteico",
+                    "tortita proteica", "galleta proteica"
             }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),

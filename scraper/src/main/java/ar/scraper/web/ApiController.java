@@ -1089,7 +1089,16 @@ public class ApiController {
         List<OutfitService.SupplementPick> picks =
                 outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet);
 
-        ArrayNode arr = JsonNodeFactory.instance.arrayNode();
+        Set<String> foundTipos = picks.stream()
+                .map(OutfitService.SupplementPick::tipo)
+                .collect(Collectors.toSet());
+        List<String> sinStock = tiposSet.stream()
+                .filter(t -> !foundTipos.contains(t))
+                .sorted()
+                .collect(Collectors.toList());
+
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ArrayNode arr = root.putArray("picks");
         for (var pick : picks) {
             ObjectNode n = arr.addObject();
             n.put("tipo",   pick.tipo());
@@ -1100,7 +1109,9 @@ public class ApiController {
             n.put("img",    safe(pick.img()));
             n.put("marca",  safe(pick.marca()));
         }
-        return ResponseEntity.ok(arr);
+        ArrayNode sinStockArr = root.putArray("sinStock");
+        sinStock.forEach(sinStockArr::add);
+        return ResponseEntity.ok(root);
     }
 
     /**
