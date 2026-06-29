@@ -118,10 +118,11 @@ class ApiControllerBuilderTest {
     }
 
     @Test
-    void moreThan10ValidCategories_returns400() {
-        // 11 canonical categories (all valid, none duplicated)
+    void moreThan20ValidCategories_returns400() {
+        // 21 canonical categories (all valid, none duplicated) — exceeds the max-20 guard
         String cats = "Buzo,Remera,Camisa,Short,Jean,Zapatilla,Zapatilla Running," +
-                      "Gorra,Medias,Mochila,Puffer";
+                      "Gorra,Medias,Mochila,Puffer,Campera,Sweater,Calza,Baggy," +
+                      "Jogging,Bermuda,Pollera,Sneaker,Botines,Borcego";
         ResponseEntity<?> resp = controller.outfitsBuilder(cats, 500_000, null, "", false);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);

@@ -984,8 +984,8 @@ public class ApiController {
             return ResponseEntity.badRequest().body(err);
         }
 
-        if (catList.size() > 10) {
-            err.put("error", "Too many categories (max 10 allowed)");
+        if (catList.size() > 20) {
+            err.put("error", "Too many categories (max 20 allowed)");
             return ResponseEntity.badRequest().body(err);
         }
 
@@ -1047,6 +1047,70 @@ public class ApiController {
             }
         }
 
+        return ResponseEntity.ok(root);
+    }
+
+    // ─── Supplement Builder ──────────────────────────────────────────────────────
+
+    /**
+     * Picks one product per requested supplement type from the in-memory catalog.
+     *
+     * <p>GET /api/suplementos/builder?tipos=Proteína,Creatina&presupuesto=50000
+     *
+     * @param tipos       comma-separated supplement type names (required; 400 if blank)
+     * @param presupuesto optional budget ceiling; 0 = no limit (default)
+     * @return 200 with JSON array, 204 when no scrape data exists, 400 when tipos is blank
+     */
+    @GetMapping("/suplementos/builder")
+    public ResponseEntity<Object> suplementosBuilder(
+            @RequestParam(required = false) String tipos,
+            @RequestParam(defaultValue = "0") double presupuesto) {
+
+        if (tipos == null || tipos.isBlank()) {
+            ObjectNode err = JsonNodeFactory.instance.objectNode();
+            err.put("error", "tipos is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        AggregatedResult r = service.getLastResult();
+        if (r == null) return ResponseEntity.noContent().build();
+
+        Set<String> tiposSet = Arrays.stream(tipos.split(","))
+                .map(String::strip)
+                .filter(s -> !s.isBlank())
+                .collect(Collectors.toSet());
+
+        if (tiposSet.isEmpty()) {
+            ObjectNode err = JsonNodeFactory.instance.objectNode();
+            err.put("error", "tipos is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        List<OutfitService.SupplementPick> picks =
+                outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet);
+
+        Set<String> foundTipos = picks.stream()
+                .map(OutfitService.SupplementPick::tipo)
+                .collect(Collectors.toSet());
+        List<String> sinStock = tiposSet.stream()
+                .filter(t -> !foundTipos.contains(t))
+                .sorted()
+                .collect(Collectors.toList());
+
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ArrayNode arr = root.putArray("picks");
+        for (var pick : picks) {
+            ObjectNode n = arr.addObject();
+            n.put("tipo",   pick.tipo());
+            n.put("sitio",  safe(pick.sitio()));
+            n.put("nombre", safe(pick.nombre()));
+            n.put("precio", pick.precio());
+            n.put("url",    safe(pick.url()));
+            n.put("img",    safe(pick.img()));
+            n.put("marca",  safe(pick.marca()));
+        }
+        ArrayNode sinStockArr = root.putArray("sinStock");
+        sinStock.forEach(sinStockArr::add);
         return ResponseEntity.ok(root);
     }
 

@@ -556,6 +556,7 @@ public class NormalizerService {
         "frutos secos","almendra","mani","cacao","chocolate proteico",
         "avena","harina de avena","pasta","arroz",
         "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
+        "maple","jarabe de arce","sirope","topping proteico","topping fit",
         "pudding","chia ","semillas","fruta","miel","mermelada","dulce de",
         "snack saludable","galletita","galleta","tostada","pan proteico"
     };

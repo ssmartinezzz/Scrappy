@@ -130,6 +130,37 @@ public class OutfitService {
                     "Guantes", "Gorro", "Gorra", "Lentes", "Medias", "Suplemento"
             )));
 
+    // Sub-slot keys for the budget builder (armarPorCategorias).
+    // Torso is split into base + outer layers; accesorio into head/feet/body.
+    // Piernas and calzado remain single-pick and reuse their slot key directly.
+    static final String SUBSLOT_TORSO_BASE      = "torso-base";
+    static final String SUBSLOT_TORSO_OUTER     = "torso-outer";
+    static final String SUBSLOT_ACCESORIO_HEAD  = "accesorio-head";
+    static final String SUBSLOT_ACCESORIO_FEET  = "accesorio-feet";
+    static final String SUBSLOT_ACCESORIO_BODY  = "accesorio-body";
+
+    private static final Map<String, String> CATEGORIA_SUBSLOT = buildCategoriaSubslotMap();
+
+    private static Map<String, String> buildCategoriaSubslotMap() {
+        Map<String, String> m = new HashMap<>();
+        for (String cat : List.of("Remera", "Musculosa", "Camisa", "Chomba"))
+            m.put(cat, SUBSLOT_TORSO_BASE);
+        for (String cat : List.of("Buzo", "Campera", "Sweater", "Puffer", "Casaca", "Chaleco", "Saco", "Traje", "Piloto"))
+            m.put(cat, SUBSLOT_TORSO_OUTER);
+        for (String cat : List.of("Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón"))
+            m.put(cat, SLOT_PIERNAS);
+        for (String cat : List.of("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
+                "Zapatilla Skate", "Zapatilla Urbana", "Sneaker", "Botines", "Borcego", "Botas", "Ojotas"))
+            m.put(cat, SLOT_CALZADO);
+        for (String cat : List.of("Gorra", "Gorro"))
+            m.put(cat, SUBSLOT_ACCESORIO_HEAD);
+        m.put("Medias", SUBSLOT_ACCESORIO_FEET);
+        for (String cat : List.of("Riñonera", "Cinturón", "Lentes", "Bufanda", "Guantes", "Billetera"))
+            m.put(cat, SUBSLOT_ACCESORIO_BODY);
+        // Mochila, Bolso, Suplemento are excluded (vetoed or handled separately)
+        return Collections.unmodifiableMap(m);
+    }
+
     private static Map<String, String> buildCategoriaSlotMap() {
         Map<String, String> m = new HashMap<>();
         for (String cat : List.of(
@@ -142,7 +173,9 @@ public class OutfitService {
             m.put(cat, SLOT_PIERNAS);
         }
         for (String cat : List.of(
-                "Botines", "Borcego", "Botas", "Ojotas", "Sneaker")) {
+                "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
+                "Zapatilla Skate", "Zapatilla Urbana", "Sneaker",
+                "Botines", "Borcego", "Botas", "Ojotas")) {
             m.put(cat, SLOT_CALZADO);
         }
         for (String cat : List.of(
@@ -209,10 +242,69 @@ public class OutfitService {
      * Gym ni los facets del dashboard, que dependen del string "Suplemento").
      */
     private static final List<SubtipoSuplemento> SUPLEMENTO_SUBTIPOS = List.of(
-            new SubtipoSuplemento("Proteína", new String[]{"proteina", "protein", "whey", "isolate", "concentrate"}),
+            new SubtipoSuplemento("Proteína en Polvo", new String[]{
+                    "proteina", "protein", "whey", "isolate", "concentrate",
+                    "caseina", "casein", "proteina isolada", "proteina hidrolizada"
+            }),
+            new SubtipoSuplemento("Barra Proteica", new String[]{
+                    "barra proteica", "barra protein", "barra de proteina", "bar proteica",
+                    "barra energetica", "barrita proteica", "barrita protein", "barrita"
+            }),
+            new SubtipoSuplemento("Pancake / Waffle", new String[]{
+                    "pancake", "panqueque", "waffle", "hotcake proteico",
+                    "preparo pancake", "mezcla pancake", "mix pancake"
+            }),
+            new SubtipoSuplemento("Snack Proteico", new String[]{
+                    "snack proteico", "snack proteica",
+                    "cookie proteica", "cookie protein",
+                    "budín proteico", "budin proteico",
+                    "muffin proteico", "brownie proteico", "alfajor proteico",
+                    "tortita proteica", "galleta proteica"
+            }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
-            new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"})
+            new SubtipoSuplemento("Vitamina C", new String[]{
+                    "vitamina c", "vitamin c", "acido ascorbico", "ascórbico", "ascorbico"
+            }),
+            new SubtipoSuplemento("Multivitamínico", new String[]{
+                    "multivitaminico", "multivitamin", "polivitaminico", "complejo vitaminico",
+                    "complejo vitamínico", "multivit"
+            }),
+            new SubtipoSuplemento("Vitamina D", new String[]{
+                    "vitamina d", "vitamin d", "colecalciferol", "vitamina d3", "vit d"
+            }),
+            new SubtipoSuplemento("Omega 3", new String[]{
+                    "omega 3", "omega3", "omega-3", "aceite de pescado", "fish oil", "dha", "epa"
+            }),
+            new SubtipoSuplemento("Complejo B", new String[]{
+                    "complejo b", "vitamina b", "vitaminas b", "b12", "b6", "b complex",
+                    "cianocobalamina", "metilcobalamina"
+            }),
+            new SubtipoSuplemento("Zinc", new String[]{
+                    "zinc", "gluconato de zinc", "picolinato de zinc", "citrato de zinc"
+            }),
+            new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"}),
+            new SubtipoSuplemento("Mayonesa", new String[]{
+                    "mayonesa fit", "mayonesa light", "mayonesa proteica", "mayonesa zero",
+                    "mayo fit", "mayo proteica", "mayo light",
+                    "mayonesa"
+            }),
+            new SubtipoSuplemento("Ketchup / Salsa", new String[]{
+                    "ketchup", "ketchup fit", "ketchup zero", "ketchup sin azucar",
+                    "salsa fit", "salsa zero", "salsa de tomate fit",
+                    "topping proteico", "topping fit",
+                    "aderezo fit", "aderezo proteico"
+            }),
+            new SubtipoSuplemento("Mostaza", new String[]{
+                    "mostaza fit", "mostaza light", "mostaza zero", "mostaza dijón",
+                    "mostaza dijon", "mostaza americana", "mostaza de grano",
+                    "salsa mostaza"
+            }),
+            new SubtipoSuplemento("Maple / Sirope", new String[]{
+                    "maple", "maple fit", "maple sin azucar", "maple zero",
+                    "jarabe de arce", "sirope", "sirope fit", "sirope zero",
+                    "sirope sin azucar"
+            })
     );
 
     /**
@@ -222,6 +314,12 @@ public class OutfitService {
      * se scrapee esa marca, sin tocar este código de nuevo.
      */
     private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD = List.of("ENA", "STAR", "BCC");
+
+    /** All canonical supplement categories assigned by NormalizerService. */
+    private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(
+            "Suplemento", "Proteína", "Creatina", "Colágeno", "Magnesio",
+            "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos"
+    );
 
     /**
      * Combo de suplementos (Proteína/Creatina/Quemador/Magnesio) a mostrar siempre
@@ -244,7 +342,7 @@ public class OutfitService {
     public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto) {
         if (productos == null) productos = List.of();
         List<Product> suplementos = productos.stream()
-                .filter(p -> "Suplemento".equals(p.categoria()))
+                .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
 
         List<SupplementPick> combo = new ArrayList<>();
@@ -265,6 +363,47 @@ public class OutfitService {
                     elegido = elegirPorMarcaPrioridad(affordable);
                 } else {
                     // Ningún candidato cabe — elige el más barato (no bloquea el slot)
+                    elegido = candidatos.stream()
+                            .min(Comparator.comparingDouble(Product::precio))
+                            .orElse(candidatos.get(0));
+                }
+                remainingBudget = Math.max(0, remainingBudget - elegido.precio());
+            } else {
+                elegido = elegirPorMarcaPrioridad(candidatos);
+            }
+            combo.add(toSupplementPick(subtipo.tipo(), elegido));
+        }
+        return combo;
+    }
+
+    /**
+     * Combo de suplementos filtrado por tipos solicitados (subset de SUPLEMENTO_SUBTIPOS).
+     * tipos vacío o null → usa todos los subtipos (backward-compat con el overload de 2 args).
+     */
+    public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
+        if (productos == null) productos = List.of();
+        List<Product> suplementos = productos.stream()
+                .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
+                .collect(Collectors.toList());
+
+        List<SupplementPick> combo = new ArrayList<>();
+        double remainingBudget = presupuesto;
+        for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
+            if (tipos != null && !tipos.isEmpty() && !tipos.contains(subtipo.tipo())) continue;
+            List<Product> candidatos = suplementos.stream()
+                    .filter(p -> matchesSubtipo(p.nombre(), subtipo.keywords()))
+                    .collect(Collectors.toList());
+            if (candidatos.isEmpty()) continue;
+
+            Product elegido;
+            if (presupuesto > 0) {
+                final double rem = remainingBudget;
+                List<Product> affordable = candidatos.stream()
+                        .filter(p -> p.precio() <= rem)
+                        .collect(Collectors.toList());
+                if (!affordable.isEmpty()) {
+                    elegido = elegirPorMarcaPrioridad(affordable);
+                } else {
                     elegido = candidatos.stream()
                             .min(Comparator.comparingDouble(Product::precio))
                             .orElse(candidatos.get(0));
@@ -703,43 +842,49 @@ public class OutfitService {
                     presupuesto, 0.0, false, List.of(), List.of(), null);
         }
 
-        // Deduplicate preserving request order
+        // Deduplicate; resolve each category to its sub-slot key via CATEGORIA_SUBSLOT.
+        // torso-base / torso-outer are independent picks (layering); piernas and calzado
+        // group all selected categories into one pick; accesorio splits into head/feet/body.
         List<String> cats = new ArrayList<>(new LinkedHashSet<>(categorias));
         final Set<String> excluirFinal = excluirUrls;
 
-        // Greedy path — bypasses MCKP entirely
+        Map<String, Set<String>> catsBySlot = new LinkedHashMap<>();
+        for (String cat : cats) {
+            String subslot = CATEGORIA_SUBSLOT.get(cat);
+            if (subslot == null) continue;
+            catsBySlot.computeIfAbsent(subslot, k -> new LinkedHashSet<>()).add(cat);
+        }
+        List<String> slotOrder = new ArrayList<>(catsBySlot.keySet());
+
         if (greedy) {
-            return armarGreedy(productos, cats, presupuesto, genero, feedback, excluirFinal);
+            return armarGreedy(productos, slotOrder, catsBySlot, presupuesto, genero, feedback, excluirFinal);
         }
 
         Set<String> exclude          = feedback.exclude();
         Set<String> excludeCategoria = feedback.excludeCategoria();
 
-        List<String>        categoriasVacias = new ArrayList<>();
-        List<List<Product>> allPools         = new ArrayList<>();
-        List<Boolean>       rawNonEmpty      = new ArrayList<>();
+        List<String>        slotsVacios = new ArrayList<>();
+        List<List<Product>> allPools    = new ArrayList<>();
+        List<Boolean>       rawNonEmpty = new ArrayList<>();
 
-        for (String cat : cats) {
-            final String slot = CATEGORIA_SLOT.get(cat);
-
-            // Raw pool: cat + gender + feedback + gymrat gate + excluirUrls (no price filter)
+        for (String slot : slotOrder) {
+            Set<String> slotCats = catsBySlot.get(slot);
             List<Product> rawPool = productos.stream()
-                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirFinal.contains(p.url()))
                     .filter(p -> {
-                        // Gymrat gate: torso and piernas require gymrat=true
-                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
-                        return true; // calzado and accesorio: no gymrat filter
+                        return true;
                     })
                     .collect(Collectors.toList());
 
             if (rawPool.isEmpty()) {
-                categoriasVacias.add(cat);
+                slotsVacios.addAll(catsBySlot.get(slot));
                 allPools.add(List.of());
                 rawNonEmpty.add(false);
                 continue;
@@ -747,73 +892,57 @@ public class OutfitService {
 
             rawNonEmpty.add(true);
 
-            // Shuffle for variety:
-            // 1. Sort rawPool desc by baseMlScore
-            // 2. Take top-30 (or all if < 30)
-            // 3. Randomly sample 20 (or keep all if ≤ 20)
-            // 4. CRITICAL re-sort desc — branch-and-bound requires pool.get(0) to be max score
             List<Product> sortedRaw = rawPool.stream()
                     .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
                     .collect(Collectors.toList());
 
-            List<Product> top30 = new ArrayList<>(sortedRaw.subList(0, Math.min(30, sortedRaw.size())));
-
-            if (top30.size() > 20) {
-                Collections.shuffle(top30, new Random());
-                top30 = top30.subList(0, 20);
-            }
-
-            // Apply price filter after sampling, then re-sort desc + cap at K
-            List<Product> filteredPool = top30.stream()
+            // Take top-60 by score, shuffle to 30, filter by price — no re-sort after
+            // shuffle so each regen sees a different candidate set (variety).
+            List<Product> top60 = new ArrayList<>(sortedRaw.subList(0, Math.min(60, sortedRaw.size())));
+            Collections.shuffle(top60, new Random());
+            List<Product> filteredPool = top60.stream()
                     .filter(p -> p.precio() <= presupuesto)
-                    .sorted(Comparator
-                            .comparingDouble((Product p) -> -recommendationService.baseMlScore(p))
-                            .thenComparingInt(p -> p.ml() != null ? p.ml().scoreP() : 50)
-                            .thenComparing(p -> p.url() != null ? p.url() : ""))
                     .limit(BUILDER_POOL_K)
                     .collect(Collectors.toList());
 
             allPools.add(filteredPool);
         }
 
-        // Phase 2: MCKP recursive enumeration
         MckpSolver solver = new MckpSolver(recommendationService, allPools, presupuesto);
-        solver.solve(0, 0.0, 0.0, new Product[cats.size()]);
+        solver.solve(0, 0.0, 0.0, new Product[slotOrder.size()]);
 
-        // Phase 3: Build result
         Product[] bestSolution = solver.best;
-        Set<String> catsInSolution = new HashSet<>();
+        Set<String> slotsInSolution = new HashSet<>();
         List<SlotPick> slots = new ArrayList<>();
 
-        for (int i = 0; i < cats.size(); i++) {
+        for (int i = 0; i < slotOrder.size(); i++) {
             Product p = bestSolution[i];
             if (p != null) {
-                slots.add(toSlotPick(cats.get(i), p));
-                catsInSolution.add(cats.get(i));
+                slots.add(toSlotPick(slotOrder.get(i), p));
+                slotsInSolution.add(slotOrder.get(i));
             }
         }
 
-        // categoriasSinPresupuesto: had raw candidates but optimizer couldn't include them
-        List<String> categoriasSinPresupuesto = new ArrayList<>();
-        for (int i = 0; i < cats.size(); i++) {
-            String cat = cats.get(i);
-            if (rawNonEmpty.get(i) && !catsInSolution.contains(cat)) {
-                categoriasSinPresupuesto.add(cat);
+        List<String> slotsSinPresupuesto = new ArrayList<>();
+        for (int i = 0; i < slotOrder.size(); i++) {
+            String slot = slotOrder.get(i);
+            if (rawNonEmpty.get(i) && !slotsInSolution.contains(slot)) {
+                slotsSinPresupuesto.addAll(catsBySlot.get(slot));
             }
         }
 
-        boolean noCumplePresupuesto = !categoriasSinPresupuesto.isEmpty();
+        boolean noCumplePresupuesto = !slotsSinPresupuesto.isEmpty();
         double totalEstimado = slots.stream().mapToDouble(SlotPick::precio).sum();
         String generoResultado = genero != null ? genero : "";
 
-        // minimoBudgetNecesario: populated only on no-fit (no slots assembled)
         Double minimoBudgetNecesario = null;
         if (slots.isEmpty()) {
-            minimoBudgetNecesario = calcularMinimoBudget(productos, cats, genero, feedback, excluirFinal);
+            minimoBudgetNecesario = calcularMinimoBudget(
+                    productos, slotOrder, catsBySlot, genero, feedback, excluirFinal);
         }
 
         return new OutfitBuilderResult(slots, generoResultado, presupuesto,
-                totalEstimado, noCumplePresupuesto, categoriasVacias, categoriasSinPresupuesto,
+                totalEstimado, noCumplePresupuesto, slotsVacios, slotsSinPresupuesto,
                 minimoBudgetNecesario);
     }
 
@@ -827,7 +956,8 @@ public class OutfitService {
      * (MCKP, greedy, calcularMinimoBudget) use identical eligibility rules.
      */
     private OutfitBuilderResult armarGreedy(
-            List<Product> productos, List<String> cats, double presupuesto,
+            List<Product> productos, List<String> slotOrder,
+            Map<String, Set<String>> catsBySlot, double presupuesto,
             String genero, FeedbackModel feedback, Set<String> excluirUrls) {
         if (productos == null) productos = List.of();
 
@@ -837,23 +967,27 @@ public class OutfitService {
         List<SlotPick> slots = new ArrayList<>();
         double runningTotal  = 0.0;
 
-        for (String cat : cats) {
-            final String slot = CATEGORIA_SLOT.get(cat);
-
-            List<Product> pool = productos.stream()
-                    .filter(p -> cat.equals(p.categoria()))
+        for (String slot : slotOrder) {
+            Set<String> slotCats = catsBySlot.get(slot);
+            List<Product> sorted = productos.stream()
+                    .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirUrls.contains(p.url()))
                     .filter(p -> {
-                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
                         return true;
                     })
                     .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
                     .collect(Collectors.toList());
+
+            // Shuffle top-30 by score for variety across re-rolls (same pattern as MCKP pool).
+            // Without this the greedy is deterministic and always returns the identical outfit.
+            List<Product> pool = new ArrayList<>(sorted.subList(0, Math.min(30, sorted.size())));
+            Collections.shuffle(pool, new Random());
 
             final double remaining = presupuesto - runningTotal;
             Optional<Product> pick = pool.stream()
@@ -862,7 +996,7 @@ public class OutfitService {
 
             if (pick.isPresent()) {
                 Product chosen = pick.get();
-                slots.add(toSlotPick(cat, chosen));
+                slots.add(toSlotPick(slot, chosen));
                 runningTotal += chosen.precio();
             }
         }
@@ -883,7 +1017,8 @@ public class OutfitService {
      * no-fit responses so the frontend can show "Necesitás al menos $X más".
      */
     private Double calcularMinimoBudget(
-            List<Product> productos, List<String> cats, String genero,
+            List<Product> productos, List<String> slotOrder,
+            Map<String, Set<String>> catsBySlot, String genero,
             FeedbackModel feedback, Set<String> excluirUrls) {
         if (productos == null) return null;
 
@@ -891,17 +1026,16 @@ public class OutfitService {
         Set<String> excludeCategoria = feedback.excludeCategoria();
 
         double total = 0.0;
-        for (String cat : cats) {
-            final String slot = CATEGORIA_SLOT.get(cat);
-
+        for (String slot : slotOrder) {
+            Set<String> slotCats = catsBySlot.get(slot);
             OptionalDouble minPrecio = productos.stream()
-                    .filter(p -> cat.equals(p.categoria()))
+                    .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirUrls.contains(p.url()))
                     .filter(p -> {
-                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
                         return true;
@@ -910,7 +1044,7 @@ public class OutfitService {
                     .min();
 
             if (minPrecio.isEmpty()) {
-                return null; // catalog gap — no eligible product for this category
+                return null; // catalog gap — no eligible product for this slot
             }
             total += minPrecio.getAsDouble();
         }
@@ -949,7 +1083,9 @@ public class OutfitService {
                 List<Product> pool = pools.get(i);
                 // Pool is sorted desc by baseMlScore; first element is the max
                 maxScorePerCat[i] = pool.isEmpty()
-                        ? 0.0 : recService.baseMlScore(pool.get(0));
+                        ? 0.0 : pool.stream()
+                            .mapToDouble(recService::baseMlScore)
+                            .max().orElse(0.0);
             }
         }
 

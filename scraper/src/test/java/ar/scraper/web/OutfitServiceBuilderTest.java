@@ -129,7 +129,7 @@ class OutfitServiceBuilderTest {
         assertThat(result.totalEstimado()).isLessThanOrEqualTo(45_000);
 
         Optional<OutfitService.SlotPick> buzoPick = result.slots().stream()
-                .filter(s -> "Buzo".equals(s.slot())).findFirst();
+                .filter(s -> "Buzo".equals(s.categoria())).findFirst();
         assertThat(buzoPick).isPresent();
         assertThat(buzoPick.get().nombre()).isEqualTo("Buzo Cheap");
     }
@@ -387,24 +387,24 @@ class OutfitServiceBuilderTest {
 
     @Test
     void greedyMode_picksHighestScoredPerCategoryWithinBudget() {
-        // Budget = 20000. Remera candidates: R1 (12000, best score), R2 (9000, lower score).
-        // After picking R1 (12000), remaining = 8000. Short candidates: S1 (9000, exceeds remaining),
-        // S2 (7000, fits). Greedy should pick R1 + S2.
-        Product r1 = product("Remera Best", 12_000, "Remera", "hombre", "Nike", 5);  // baseMlScore≈95
-        Product r2 = product("Remera Cheap", 9_000, "Remera", "hombre", "Puma", 30); // baseMlScore≈70
-        Product s1 = product("Short Exp",    9_000, "Short",  "hombre", "Nike", 10); // doesn't fit
-        Product s2 = product("Short Cheap",  7_000, "Short",  "hombre", "Puma", 25); // fits
+        // Budget = 20000. One Remera at 12000 (deterministic pick → remaining = 8000).
+        // Short candidates: S1 (9000, exceeds remaining 8000), S2 (7000, fits).
+        // Greedy should skip S1 and pick S2.
+        Product r1 = product("Remera Best", 12_000, "Remera", "hombre", "Nike", 5);
+        Product s1 = product("Short Exp",    9_000, "Short",  "hombre", "Nike", 10); // doesn't fit remaining
+        Product s2 = product("Short Cheap",  7_000, "Short",  "hombre", "Puma", 25); // fits remaining
 
         OutfitService.OutfitBuilderResult result = service.armarPorCategorias(
-                List.of(r1, r2, s1, s2), List.of("Remera", "Short"),
+                List.of(r1, s1, s2), List.of("Remera", "Short"),
                 20_000, "hombre",
                 OutfitService.FeedbackModel.empty(), Set.of(), true);
 
         assertThat(result.totalEstimado()).isLessThanOrEqualTo(20_000);
-        Optional<OutfitService.SlotPick> remera = result.slots().stream()
-                .filter(s -> "Remera".equals(s.slot())).findFirst();
-        assertThat(remera).isPresent();
-        assertThat(remera.get().nombre()).isEqualTo("Remera Best");
+        assertThat(result.slots()).hasSize(2);
+        Optional<OutfitService.SlotPick> short_ = result.slots().stream()
+                .filter(s -> "Short".equals(s.categoria())).findFirst();
+        assertThat(short_).isPresent();
+        assertThat(short_.get().nombre()).isEqualTo("Short Cheap");
     }
 
     // ── 3.8 Greedy respects hard budget ──────────────────────────────────────

@@ -22,6 +22,7 @@ const FavoritosPanel = lazy(() => import('./FavoritosPanel'));
 const OutfitsPanel   = lazy(() => import('./OutfitsPanel'));
 const FinanPanel     = lazy(() => import('./FinanPanel'));
 const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
+const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 48;
@@ -318,12 +319,17 @@ function RecomendadosRoute() {
   return <RecomendadosPanel/>;
 }
 
+function SuplementosRoute() {
+  return <SuplementosPanel/>;
+}
+
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
   RecomendadosRoute as RecomendadosPanelRoute,
   TrendsRoute as TrendsPanelRoute, FavoritosRoute as FavoritosPanelRoute,
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
+  SuplementosRoute as SuplementosPanelRoute,
 };
 
 // ─── AppLayout ───────────────────────────────────────────────────────────────
@@ -605,6 +611,7 @@ export default function AppLayout() {
             <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`} title="Tendencias" aria-label="Tendencias">📈 <span className="tab-label">Tendencias</span></NavLink>
             <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`} title="Favoritos" aria-label="Favoritos">⭐ <span className="tab-label">Favoritos</span></NavLink>
             <NavLink to="/outfits"      className={({isActive}) => `tab ${isActive?'active':''}`} title="Outfits" aria-label="Outfits">👕 <span className="tab-label">Outfits</span></NavLink>
+            <NavLink to="/suplementos"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Suplementos" aria-label="Suplementos">💊 <span className="tab-label">Suplementos</span></NavLink>
             <NavLink to="/recomendados" className={({isActive}) => `tab ${isActive?'active':''}`} title="Para ti" aria-label="Para ti">✨ <span className="tab-label">Para ti</span></NavLink>
             <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`} title="Cuotas" aria-label="Cuotas">💳 <span className="tab-label">Cuotas</span></NavLink>
           </div>
