@@ -884,7 +884,7 @@ public class OutfitService {
                     .collect(Collectors.toList());
 
             if (rawPool.isEmpty()) {
-                slotsVacios.add(slot);
+                slotsVacios.addAll(catsBySlot.get(slot));
                 allPools.add(List.of());
                 rawNonEmpty.add(false);
                 continue;
@@ -927,7 +927,7 @@ public class OutfitService {
         for (int i = 0; i < slotOrder.size(); i++) {
             String slot = slotOrder.get(i);
             if (rawNonEmpty.get(i) && !slotsInSolution.contains(slot)) {
-                slotsSinPresupuesto.add(slot);
+                slotsSinPresupuesto.addAll(catsBySlot.get(slot));
             }
         }
 

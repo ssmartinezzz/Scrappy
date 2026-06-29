@@ -129,7 +129,7 @@ class OutfitServiceBuilderTest {
         assertThat(result.totalEstimado()).isLessThanOrEqualTo(45_000);
 
         Optional<OutfitService.SlotPick> buzoPick = result.slots().stream()
-                .filter(s -> "Buzo".equals(s.slot())).findFirst();
+                .filter(s -> "Buzo".equals(s.categoria())).findFirst();
         assertThat(buzoPick).isPresent();
         assertThat(buzoPick.get().nombre()).isEqualTo("Buzo Cheap");
     }
@@ -402,7 +402,7 @@ class OutfitServiceBuilderTest {
 
         assertThat(result.totalEstimado()).isLessThanOrEqualTo(20_000);
         Optional<OutfitService.SlotPick> remera = result.slots().stream()
-                .filter(s -> "Remera".equals(s.slot())).findFirst();
+                .filter(s -> "Remera".equals(s.categoria())).findFirst();
         assertThat(remera).isPresent();
         assertThat(remera.get().nombre()).isEqualTo("Remera Best");
     }
