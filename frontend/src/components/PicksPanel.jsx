@@ -103,7 +103,7 @@ function CategoryIndex({ cats, activeCat, onJump }) {
 }
 
 // ─── Gallery: hero + grid + search + scroll-spy, con reveal progresivo ──────
-function PicksGallery({ cats, busq, onSearch, onSelectCat }) {
+function PicksGallery({ cats, busq, onSelectCat }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
   const [activeCat, setActiveCat]       = useState(null);
 
@@ -176,11 +176,8 @@ function PicksGallery({ cats, busq, onSearch, onSelectCat }) {
   return (
     <div className="picks-immersive">
       <div className="picks-header">
-        <div>
-          <div className="picks-title">🏆 Mejor picks</div>
-          <div className="picks-subtitle">El mejor de cada categoría según precio/calidad</div>
-        </div>
-        <CategorySearchBar value={busq} onChange={onSearch} />
+        <div className="picks-title">🏆 Mejor picks</div>
+        <div className="picks-subtitle">El mejor de cada categoría según precio/calidad</div>
       </div>
 
       <div className="picks-body">
@@ -330,6 +327,7 @@ export default function PicksPanel({ onProductClick }) {
             className={`picks-rubro-btn${rubro===r.k ? ' active' : ''}`}
           >{r.icon} {r.l}</button>
         ))}
+        <CategorySearchBar value={busq} onChange={setBusq} />
       </div>
 
       <div className="picks-scroll">
@@ -344,7 +342,7 @@ export default function PicksPanel({ onProductClick }) {
           </div>
         )}
         {!loading && cats.length > 0 && (
-          <PicksGallery cats={cats} busq={busq} onSearch={setBusq} onSelectCat={setSelCat} />
+          <PicksGallery cats={cats} busq={busq} onSelectCat={setSelCat} />
         )}
       </div>
     </div>
