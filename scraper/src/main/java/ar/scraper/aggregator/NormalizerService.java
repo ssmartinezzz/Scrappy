@@ -625,13 +625,16 @@ public class NormalizerService {
             || "Vitaminas".equals(cat) || "Quemadores".equals(cat) || "Gainer".equals(cat);
 
         String rubro;
-        if (TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))) {
+        if (TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
+                && !catEsTextil) {
             rubro = "tecnologia";
         } else if (catEsSuppl) {
             rubro = "suplementos";
         } else if (SUPPL_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
                    && !catEsTextil) {
             rubro = "suplementos";
+        } else if (catEsTextil) {
+            rubro = "indumentaria";
         } else if (p.rubro() != null && !p.rubro().isBlank()) {
             rubro = p.rubro();
         } else {
