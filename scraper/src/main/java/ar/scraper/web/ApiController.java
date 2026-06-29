@@ -1050,6 +1050,59 @@ public class ApiController {
         return ResponseEntity.ok(root);
     }
 
+    // ─── Supplement Builder ──────────────────────────────────────────────────────
+
+    /**
+     * Picks one product per requested supplement type from the in-memory catalog.
+     *
+     * <p>GET /api/suplementos/builder?tipos=Proteína,Creatina&presupuesto=50000
+     *
+     * @param tipos       comma-separated supplement type names (required; 400 if blank)
+     * @param presupuesto optional budget ceiling; 0 = no limit (default)
+     * @return 200 with JSON array, 204 when no scrape data exists, 400 when tipos is blank
+     */
+    @GetMapping("/suplementos/builder")
+    public ResponseEntity<Object> suplementosBuilder(
+            @RequestParam(required = false) String tipos,
+            @RequestParam(defaultValue = "0") double presupuesto) {
+
+        if (tipos == null || tipos.isBlank()) {
+            ObjectNode err = JsonNodeFactory.instance.objectNode();
+            err.put("error", "tipos is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        AggregatedResult r = service.getLastResult();
+        if (r == null) return ResponseEntity.noContent().build();
+
+        Set<String> tiposSet = Arrays.stream(tipos.split(","))
+                .map(String::strip)
+                .filter(s -> !s.isBlank())
+                .collect(Collectors.toSet());
+
+        if (tiposSet.isEmpty()) {
+            ObjectNode err = JsonNodeFactory.instance.objectNode();
+            err.put("error", "tipos is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        List<OutfitService.SupplementPick> picks =
+                outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet);
+
+        ArrayNode arr = JsonNodeFactory.instance.arrayNode();
+        for (var pick : picks) {
+            ObjectNode n = arr.addObject();
+            n.put("tipo",   pick.tipo());
+            n.put("sitio",  safe(pick.sitio()));
+            n.put("nombre", safe(pick.nombre()));
+            n.put("precio", pick.precio());
+            n.put("url",    safe(pick.url()));
+            n.put("img",    safe(pick.img()));
+            n.put("marca",  safe(pick.marca()));
+        }
+        return ResponseEntity.ok(arr);
+    }
+
     /**
      * Construye el FeedbackModel a partir de las filas crudas de outfit_feedback_item +
      * el catálogo vivo (join url→Product) + las categorias dismissed feed-wide.

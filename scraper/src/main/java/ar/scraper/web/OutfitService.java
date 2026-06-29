@@ -245,6 +245,7 @@ public class OutfitService {
             new SubtipoSuplemento("Proteína", new String[]{"proteina", "protein", "whey", "isolate", "concentrate"}),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
+            new SubtipoSuplemento("Vitaminas", new String[]{"vitamina", "vitamin", "multivitamin", "zinc", "omega", "complejo b"}),
             new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"})
     );
 
@@ -298,6 +299,47 @@ public class OutfitService {
                     elegido = elegirPorMarcaPrioridad(affordable);
                 } else {
                     // Ningún candidato cabe — elige el más barato (no bloquea el slot)
+                    elegido = candidatos.stream()
+                            .min(Comparator.comparingDouble(Product::precio))
+                            .orElse(candidatos.get(0));
+                }
+                remainingBudget = Math.max(0, remainingBudget - elegido.precio());
+            } else {
+                elegido = elegirPorMarcaPrioridad(candidatos);
+            }
+            combo.add(toSupplementPick(subtipo.tipo(), elegido));
+        }
+        return combo;
+    }
+
+    /**
+     * Combo de suplementos filtrado por tipos solicitados (subset de SUPLEMENTO_SUBTIPOS).
+     * tipos vacío o null → usa todos los subtipos (backward-compat con el overload de 2 args).
+     */
+    public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
+        if (productos == null) productos = List.of();
+        List<Product> suplementos = productos.stream()
+                .filter(p -> "Suplemento".equals(p.categoria()))
+                .collect(Collectors.toList());
+
+        List<SupplementPick> combo = new ArrayList<>();
+        double remainingBudget = presupuesto;
+        for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
+            if (tipos != null && !tipos.isEmpty() && !tipos.contains(subtipo.tipo())) continue;
+            List<Product> candidatos = suplementos.stream()
+                    .filter(p -> matchesSubtipo(p.nombre(), subtipo.keywords()))
+                    .collect(Collectors.toList());
+            if (candidatos.isEmpty()) continue;
+
+            Product elegido;
+            if (presupuesto > 0) {
+                final double rem = remainingBudget;
+                List<Product> affordable = candidatos.stream()
+                        .filter(p -> p.precio() <= rem)
+                        .collect(Collectors.toList());
+                if (!affordable.isEmpty()) {
+                    elegido = elegirPorMarcaPrioridad(affordable);
+                } else {
                     elegido = candidatos.stream()
                             .min(Comparator.comparingDouble(Product::precio))
                             .orElse(candidatos.get(0));
