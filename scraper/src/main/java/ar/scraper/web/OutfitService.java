@@ -263,7 +263,26 @@ public class OutfitService {
             }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
-            new SubtipoSuplemento("Vitaminas", new String[]{"vitamina", "vitamin", "multivitamin", "zinc", "omega", "complejo b"}),
+            new SubtipoSuplemento("Vitamina C", new String[]{
+                    "vitamina c", "vitamin c", "acido ascorbico", "ascórbico", "ascorbico"
+            }),
+            new SubtipoSuplemento("Multivitamínico", new String[]{
+                    "multivitaminico", "multivitamin", "polivitaminico", "complejo vitaminico",
+                    "complejo vitamínico", "multivit"
+            }),
+            new SubtipoSuplemento("Vitamina D", new String[]{
+                    "vitamina d", "vitamin d", "colecalciferol", "vitamina d3", "vit d"
+            }),
+            new SubtipoSuplemento("Omega 3", new String[]{
+                    "omega 3", "omega3", "omega-3", "aceite de pescado", "fish oil", "dha", "epa"
+            }),
+            new SubtipoSuplemento("Complejo B", new String[]{
+                    "complejo b", "vitamina b", "vitaminas b", "b12", "b6", "b complex",
+                    "cianocobalamina", "metilcobalamina"
+            }),
+            new SubtipoSuplemento("Zinc", new String[]{
+                    "zinc", "gluconato de zinc", "picolinato de zinc", "citrato de zinc"
+            }),
             new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"})
     );
 
