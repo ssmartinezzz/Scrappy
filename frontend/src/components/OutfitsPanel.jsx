@@ -4,10 +4,15 @@ import { fetchOutfit, sendOutfitFeedback, fetchOutfitBuilder, fmt } from '../api
 // Orden real en que se compone un outfit (de torso a calzado, accesorio al final) —
 // el índice no es decorativo, refleja la secuencia con la que te vestís.
 const SLOT_ORDER = [
-  { key: 'torso',     label: 'Torso' },
-  { key: 'piernas',   label: 'Piernas' },
-  { key: 'calzado',   label: 'Calzado' },
-  { key: 'accesorio', label: 'Accesorio' },
+  { key: 'torso',          label: 'Torso' },
+  { key: 'torso-base',     label: 'Base' },
+  { key: 'torso-outer',    label: 'Abrigo' },
+  { key: 'piernas',        label: 'Piernas' },
+  { key: 'calzado',        label: 'Calzado' },
+  { key: 'accesorio',      label: 'Accesorio' },
+  { key: 'accesorio-head', label: 'Gorra' },
+  { key: 'accesorio-feet', label: 'Medias' },
+  { key: 'accesorio-body', label: 'Accesorio' },
 ];
 const SLOT_LABELS = Object.fromEntries(SLOT_ORDER.map(s => [s.key, s.label]));
 const SLOT_INDEX  = Object.fromEntries(SLOT_ORDER.map((s, i) => [s.key, i + 1]));
@@ -19,12 +24,12 @@ function OutfitCard({ outfit, onReroll, onFeedback, onSwapSlot, rerolling, sentS
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:1040, margin:'0 auto', width:'100%' }}>
       <div className="outfit-row">
-        {slots.map(s => {
+        {slots.map((s, idx) => {
           const sent = sentSlots.has(s.slot);
           return (
             <div key={s.slot} className="outfit-card">
               <div className="kit-tag">
-                <span className="kit-tag-idx">{String(SLOT_INDEX[s.slot] || '–').padStart(2, '0')}</span>
+                <span className="kit-tag-idx">{String(idx + 1).padStart(2, '0')}</span>
                 <span className="kit-tag-label">{SLOT_LABELS[s.slot] || s.slot}</span>
               </div>
 
@@ -186,6 +191,8 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   const [sentSlots, setSentSlots]               = useState(() => new Set());
   const [removedSlots, setRemovedSlots]         = useState(() => new Set());
   const [saving, setSaving]                     = useState(false);
+  const [greedyToast, setGreedyToast]           = useState(false);
+  const [greedyExcluded, setGreedyExcluded]     = useState([]);
 
   // Core load function — called on mount and on re-roll
   const load = useCallback(async (excluir = [], isGreedy = false) => {
@@ -203,6 +210,12 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
       if (data === null) {
         setError('No hay catálogo cargado. Ejecutá un scraping primero.');
         setResult(null);
+      } else if ((data.slots || []).length === 0 && excluir.length > 0) {
+        // Catalog exhausted due to accumulated exclusions — reset and retry fresh.
+        setGreedyExcluded([]);
+        setCurrentOutfitUrls([]);
+        setAttemptCount(0);
+        load([], false);
       } else {
         setResult(data);
         setCurrentOutfitUrls((data.slots || []).map(s => s.url));
@@ -223,7 +236,16 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     const next = attemptCount + 1;
     setAttemptCount(next);
     setRemovedSlots(new Set());
-    load(currentOutfitUrls, next > 10);
+    if (next === 11) {
+      setGreedyToast(true);
+      setTimeout(() => setGreedyToast(false), 3500);
+    }
+    // Always accumulate excluded URLs across re-rolls (both MCKP and greedy)
+    // so the same outfit can't cycle back — replacing-only caused A→B→A→B loops
+    // even with MCKP shuffle when the affordable pool is small.
+    const accumulated = [...new Set([...greedyExcluded, ...currentOutfitUrls])];
+    setGreedyExcluded(accumulated);
+    load(accumulated, next > 10);
   }
 
   // Gender tab switch: reset counter and exclusions (UOB-07)
@@ -231,6 +253,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     setGenero(g);
     setAttemptCount(0);
     setCurrentOutfitUrls([]);
+    setGreedyExcluded([]);
   }
 
   // Category toggle: reset counter and exclusions (UOB-04, UOB-07)
@@ -242,6 +265,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     });
     setAttemptCount(0);
     setCurrentOutfitUrls([]);
+    setGreedyExcluded([]);
   }
 
   function toggleGroup(key) {
@@ -253,6 +277,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     setPresupuesto(v);
     setAttemptCount(0);
     setCurrentOutfitUrls([]);
+    setGreedyExcluded([]);
   }
 
   async function handleFeedback(slot, url, liked) {
@@ -323,6 +348,12 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+      {greedyToast && (
+        <div className="greedy-toast">
+          Modo variedad máxima activado — explorando combinaciones menos obvias
+        </div>
+      )}
 
       {/* Gender tabs — Hombre / Mujer only (UOB-02) */}
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>

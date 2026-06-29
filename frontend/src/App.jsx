@@ -12,6 +12,7 @@ import AppLayout, {
   OutfitsPanelRoute,
   FinanPanelRoute,
   RecomendadosPanelRoute,
+  SuplementosPanelRoute,
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
@@ -96,6 +97,7 @@ export default function App() {
         <Route path="tendencias" element={<TrendsPanelRoute/>}/>
         <Route path="favoritos"  element={<FavoritosPanelRoute/>}/>
         <Route path="outfits"    element={<OutfitsPanelRoute/>}/>
+        <Route path="suplementos" element={<SuplementosPanelRoute/>}/>
         <Route path="recomendados" element={<RecomendadosPanelRoute/>}/>
         <Route path="financiacion" element={<FinanPanelRoute/>}/>
         <Route path="*" element={<NotFound/>}/>

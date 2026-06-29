@@ -371,3 +371,15 @@ export async function undismissCategoria(categoria) {
     { method: 'DELETE' });
   return r.ok ? r.json() : null;
 }
+
+// ─── Supplement Builder ───────────────────────────────────────────────────────
+
+export async function fetchSuplementosBuilder({ tipos, presupuesto = 0 }) {
+  const p = new URLSearchParams();
+  p.set('tipos', tipos.join(','));
+  if (presupuesto > 0) p.set('presupuesto', presupuesto);
+  const r = await fetch(`${BASE}/api/suplementos/builder?${p}`);
+  if (r.status === 204) return null;
+  if (!r.ok) return null;
+  return r.json();
+}

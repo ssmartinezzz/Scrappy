@@ -67,7 +67,7 @@ class OutfitServiceSupplementBudgetTest {
 
         assertThat(combo).hasSize(2);
         assertThat(combo.stream().map(OutfitService.SupplementPick::tipo))
-                .containsExactlyInAnyOrder("Proteína", "Creatina");
+                .containsExactlyInAnyOrder("Proteína en Polvo", "Creatina");
     }
 
     @Test
@@ -97,6 +97,6 @@ class OutfitServiceSupplementBudgetTest {
         List<OutfitService.SupplementPick> combo = service.armarComboSuplementos(List.of(whey), 0);
 
         assertThat(combo).hasSize(1);
-        assertThat(combo.get(0).tipo()).isEqualTo("Proteína");
+        assertThat(combo.get(0).tipo()).isEqualTo("Proteína en Polvo");
     }
 }
