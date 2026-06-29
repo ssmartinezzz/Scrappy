@@ -61,6 +61,7 @@ export default function SuplementosPanel() {
   }
 
   return (
+    <div style={{ height: '100%', overflowY: 'auto' }}>
     <div style={{ padding: '24px 20px', maxWidth: 920, margin: '0 auto' }}>
       <p style={{
         color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.12em',
@@ -285,6 +286,7 @@ export default function SuplementosPanel() {
           </div>
         </>
       )}
+    </div>
     </div>
   );
 }

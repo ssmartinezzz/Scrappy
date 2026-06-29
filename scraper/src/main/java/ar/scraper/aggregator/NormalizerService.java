@@ -503,6 +503,21 @@ public class NormalizerService {
         "creatina","creatine","monohidrato de creatina"
     };
 
+    private static final String[] KW_PROTEINA_BARRA = {
+        "barra proteica","protein bar","barra de proteina","barita proteica",
+        "bar proteico"
+    };
+
+    private static final String[] KW_PROTEINA_PANCAKE = {
+        "pancake","panqueque proteico","waffle mix","mezcla para pancake",
+        "mezcla para panqueque","mix de pancake"
+    };
+
+    private static final String[] KW_PROTEINA_SNACK = {
+        "snack proteico","cookie proteica","galleta proteica","brownie proteico",
+        "muffin proteico","torta de arroz proteica","snack fit"
+    };
+
     private static final String[] KW_PROTEINA = {
         "proteina ","protein ","whey","isolate","concentrate","caseina","casein",
         "proteina isolada","proteina hidrolizada"
@@ -622,16 +637,21 @@ public class NormalizerService {
         boolean catEsSuppl  = "Suplemento".equals(cat) || "Alimentos".equals(cat)
             || "Creatina".equals(cat) || "Proteína".equals(cat) || "Colágeno".equals(cat)
             || "Magnesio".equals(cat) || "Pre-Workout".equals(cat) || "BCAA".equals(cat)
-            || "Vitaminas".equals(cat) || "Quemadores".equals(cat) || "Gainer".equals(cat);
+            || "Vitaminas".equals(cat) || "Quemadores".equals(cat) || "Gainer".equals(cat)
+            || "Barra Proteica".equals(cat) || "Pancake Proteico".equals(cat)
+            || "Snack Proteico".equals(cat);
 
         String rubro;
-        if (TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))) {
+        if (TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
+                && !catEsTextil) {
             rubro = "tecnologia";
         } else if (catEsSuppl) {
             rubro = "suplementos";
         } else if (SUPPL_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
                    && !catEsTextil) {
             rubro = "suplementos";
+        } else if (catEsTextil) {
+            rubro = "indumentaria";
         } else if (p.rubro() != null && !p.rubro().isBlank()) {
             rubro = p.rubro();
         } else {
@@ -868,7 +888,10 @@ public class NormalizerService {
         if (anyMatch(t, KW_PANTALON)) return "Pantalón";
 
         // ── SUPLEMENTOS / NUTRICIÓN (específico → genérico) ──────────
-        if (anyMatch(t, KW_CREATINA))        return "Creatina";
+        if (anyMatch(t, KW_CREATINA))         return "Creatina";
+        if (anyMatch(t, KW_PROTEINA_BARRA))  return "Barra Proteica";
+        if (anyMatch(t, KW_PROTEINA_PANCAKE)) return "Pancake Proteico";
+        if (anyMatch(t, KW_PROTEINA_SNACK))  return "Snack Proteico";
         if (anyMatch(t, KW_PROTEINA))        return "Proteína";
         if (anyMatch(t, KW_COLAGENO))        return "Colágeno";
         if (anyMatch(t, KW_MAGNESIO))        return "Magnesio";
@@ -910,14 +933,15 @@ public class NormalizerService {
         if (anyMatch(t, KW_SNEAKER_MODELO)) return "Sneaker";
 
         boolean esZapatilla = t.contains("zapatilla") || t.contains("sneaker")
-                || t.contains("calzado") || t.contains("shoe") || t.contains("tenis")
-                || t.contains("footwear");
+                || t.contains("calzado") || (" " + t + " ").contains(" shoe ")
+                || t.contains("tenis") || t.contains("footwear");
 
         boolean shoe = esZapatilla
                 || anyMatch(t, KW_RUNNING_MODELO) || anyMatch(t, KW_TRAINING_MODELO)
                 || anyMatch(t, KW_SKATE_MODELO)   || anyMatch(t, KW_URBANA_MODELO);
 
         if (shoe) {
+            if (tieneIndicadorPeso(texto)) return "Alimentos";
             if (anyMatch(t, KW_RUNNING_MODELO)  || anyMatch(t, KW_RUNNING_GENERICO))  return "Zapatilla Running";
             if (anyMatch(t, KW_TRAINING_MODELO) || anyMatch(t, KW_TRAINING_GENERICO)) return "Zapatilla Entrenamiento";
             if (anyMatch(t, KW_SKATE_MODELO)    || anyMatch(t, KW_SKATE_GENERICO))    return "Zapatilla Skate";
