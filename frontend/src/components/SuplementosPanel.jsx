@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { fetchSuplementosBuilder, fmt } from '../api';
 
-const TIPOS_DISPONIBLES = ['Proteína', 'Creatina', 'Magnesio', 'Vitaminas', 'Quemador'];
-const DEFAULT_TIPOS = new Set(['Proteína', 'Creatina', 'Magnesio']);
+const TIPOS_DISPONIBLES = [
+  { tipo: 'Proteína en Polvo', grupo: 'Proteína' },
+  { tipo: 'Barra Proteica',    grupo: 'Proteína' },
+  { tipo: 'Pancake / Waffle',  grupo: 'Proteína' },
+  { tipo: 'Snack Proteico',    grupo: 'Proteína' },
+  { tipo: 'Creatina',          grupo: null },
+  { tipo: 'Magnesio',          grupo: null },
+  { tipo: 'Vitaminas',         grupo: null },
+  { tipo: 'Quemador',          grupo: null },
+];
+const DEFAULT_TIPOS = new Set(['Proteína en Polvo', 'Creatina', 'Magnesio']);
 
 export default function SuplementosPanel() {
   const [tipos, setTipos] = useState(DEFAULT_TIPOS);
@@ -62,28 +71,28 @@ export default function SuplementosPanel() {
         <p style={{ color: 'var(--t2)', fontWeight: 600, fontSize: '.85rem', margin: '0 0 14px' }}>
           ¿Qué suplementos necesitás?
         </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {TIPOS_DISPONIBLES.map(tipo => {
-            const checked = tipos.has(tipo);
-            return (
-              <label key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleTipo(tipo)}
-                  style={{ accentColor: 'var(--p)', width: 16, height: 16, cursor: 'pointer' }}
-                />
-                <span style={{
-                  color: checked ? 'var(--p)' : 'var(--t2)',
-                  fontWeight: checked ? 700 : 400,
-                  fontSize: '.9rem',
-                  transition: 'color .15s',
-                }}>
-                  {tipo}
-                </span>
-              </label>
-            );
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {['Proteína', null].map(grupo => (
+            <div key={grupo ?? 'otros'}>
+              <p style={{ color: 'var(--t4)', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 8px' }}>
+                {grupo ?? 'Otros'}
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {TIPOS_DISPONIBLES.filter(t => t.grupo === grupo).map(({ tipo }) => {
+                  const checked = tipos.has(tipo);
+                  return (
+                    <label key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleTipo(tipo)}
+                        style={{ accentColor: 'var(--p)', width: 16, height: 16, cursor: 'pointer' }} />
+                      <span style={{ color: checked ? 'var(--p)' : 'var(--t2)', fontWeight: checked ? 700 : 400, fontSize: '.9rem', transition: 'color .15s' }}>
+                        {tipo}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
