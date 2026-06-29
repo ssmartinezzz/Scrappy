@@ -130,6 +130,37 @@ public class OutfitService {
                     "Guantes", "Gorro", "Gorra", "Lentes", "Medias", "Suplemento"
             )));
 
+    // Sub-slot keys for the budget builder (armarPorCategorias).
+    // Torso is split into base + outer layers; accesorio into head/feet/body.
+    // Piernas and calzado remain single-pick and reuse their slot key directly.
+    static final String SUBSLOT_TORSO_BASE      = "torso-base";
+    static final String SUBSLOT_TORSO_OUTER     = "torso-outer";
+    static final String SUBSLOT_ACCESORIO_HEAD  = "accesorio-head";
+    static final String SUBSLOT_ACCESORIO_FEET  = "accesorio-feet";
+    static final String SUBSLOT_ACCESORIO_BODY  = "accesorio-body";
+
+    private static final Map<String, String> CATEGORIA_SUBSLOT = buildCategoriaSubslotMap();
+
+    private static Map<String, String> buildCategoriaSubslotMap() {
+        Map<String, String> m = new HashMap<>();
+        for (String cat : List.of("Remera", "Musculosa", "Camisa", "Chomba"))
+            m.put(cat, SUBSLOT_TORSO_BASE);
+        for (String cat : List.of("Buzo", "Campera", "Sweater", "Puffer", "Casaca", "Chaleco", "Saco", "Traje", "Piloto"))
+            m.put(cat, SUBSLOT_TORSO_OUTER);
+        for (String cat : List.of("Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón"))
+            m.put(cat, SLOT_PIERNAS);
+        for (String cat : List.of("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
+                "Zapatilla Skate", "Zapatilla Urbana", "Sneaker", "Botines", "Borcego", "Botas", "Ojotas"))
+            m.put(cat, SLOT_CALZADO);
+        for (String cat : List.of("Gorra", "Gorro"))
+            m.put(cat, SUBSLOT_ACCESORIO_HEAD);
+        m.put("Medias", SUBSLOT_ACCESORIO_FEET);
+        for (String cat : List.of("Riñonera", "Cinturón", "Lentes", "Bufanda", "Guantes", "Billetera"))
+            m.put(cat, SUBSLOT_ACCESORIO_BODY);
+        // Mochila, Bolso, Suplemento are excluded (vetoed or handled separately)
+        return Collections.unmodifiableMap(m);
+    }
+
     private static Map<String, String> buildCategoriaSlotMap() {
         Map<String, String> m = new HashMap<>();
         for (String cat : List.of(
@@ -705,15 +736,17 @@ public class OutfitService {
                     presupuesto, 0.0, false, List.of(), List.of(), null);
         }
 
-        // Deduplicate and group by slot — one product per slot group in the final outfit
+        // Deduplicate; resolve each category to its sub-slot key via CATEGORIA_SUBSLOT.
+        // torso-base / torso-outer are independent picks (layering); piernas and calzado
+        // group all selected categories into one pick; accesorio splits into head/feet/body.
         List<String> cats = new ArrayList<>(new LinkedHashSet<>(categorias));
         final Set<String> excluirFinal = excluirUrls;
 
         Map<String, Set<String>> catsBySlot = new LinkedHashMap<>();
         for (String cat : cats) {
-            String slot = CATEGORIA_SLOT.get(cat);
-            if (slot == null) continue;
-            catsBySlot.computeIfAbsent(slot, k -> new LinkedHashSet<>()).add(cat);
+            String subslot = CATEGORIA_SUBSLOT.get(cat);
+            if (subslot == null) continue;
+            catsBySlot.computeIfAbsent(subslot, k -> new LinkedHashSet<>()).add(cat);
         }
         List<String> slotOrder = new ArrayList<>(catsBySlot.keySet());
 
@@ -730,7 +763,6 @@ public class OutfitService {
 
         for (String slot : slotOrder) {
             Set<String> slotCats = catsBySlot.get(slot);
-
             List<Product> rawPool = productos.stream()
                     .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
@@ -738,7 +770,7 @@ public class OutfitService {
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirFinal.contains(p.url()))
                     .filter(p -> {
-                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
                         return true;
@@ -831,21 +863,25 @@ public class OutfitService {
 
         for (String slot : slotOrder) {
             Set<String> slotCats = catsBySlot.get(slot);
-
-            List<Product> pool = productos.stream()
+            List<Product> sorted = productos.stream()
                     .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirUrls.contains(p.url()))
                     .filter(p -> {
-                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
                         return true;
                     })
                     .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
                     .collect(Collectors.toList());
+
+            // Shuffle top-30 by score for variety across re-rolls (same pattern as MCKP pool).
+            // Without this the greedy is deterministic and always returns the identical outfit.
+            List<Product> pool = new ArrayList<>(sorted.subList(0, Math.min(30, sorted.size())));
+            Collections.shuffle(pool, new Random());
 
             final double remaining = presupuesto - runningTotal;
             Optional<Product> pick = pool.stream()
@@ -886,7 +922,6 @@ public class OutfitService {
         double total = 0.0;
         for (String slot : slotOrder) {
             Set<String> slotCats = catsBySlot.get(slot);
-
             OptionalDouble minPrecio = productos.stream()
                     .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
@@ -894,7 +929,7 @@ public class OutfitService {
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirUrls.contains(p.url()))
                     .filter(p -> {
-                        if (SLOT_TORSO.equals(slot) || SLOT_PIERNAS.equals(slot)) {
+                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
                             return p.gymrat();
                         }
                         return true;
