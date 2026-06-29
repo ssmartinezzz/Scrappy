@@ -257,6 +257,12 @@ public class OutfitService {
      */
     private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD = List.of("ENA", "STAR", "BCC");
 
+    /** All canonical supplement categories assigned by NormalizerService. */
+    private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(
+            "Suplemento", "Proteína", "Creatina", "Colágeno", "Magnesio",
+            "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos"
+    );
+
     /**
      * Combo de suplementos (Proteína/Creatina/Quemador/Magnesio) a mostrar siempre
      * junto al outfit, independiente de género/estilo — best-effort por subtipo
@@ -278,7 +284,7 @@ public class OutfitService {
     public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto) {
         if (productos == null) productos = List.of();
         List<Product> suplementos = productos.stream()
-                .filter(p -> "Suplemento".equals(p.categoria()))
+                .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
 
         List<SupplementPick> combo = new ArrayList<>();
@@ -319,7 +325,7 @@ public class OutfitService {
     public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
         if (productos == null) productos = List.of();
         List<Product> suplementos = productos.stream()
-                .filter(p -> "Suplemento".equals(p.categoria()))
+                .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
 
         List<SupplementPick> combo = new ArrayList<>();
