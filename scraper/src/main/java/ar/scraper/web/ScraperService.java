@@ -134,7 +134,8 @@ public class ScraperService {
                     .toList();
             lastResult = new AggregatedResult(filtrados, lastResult.conteoPorSitio(),
                     lastResult.erroresPorSitio(), lastResult.facets(),
-                    lastResult.minPrecio(), lastResult.maxPrecio());
+                    lastResult.minPrecio(), lastResult.maxPrecio(),
+                    lastResult.statsPorSitio());
         }
     }
 
@@ -170,7 +171,8 @@ public class ScraperService {
             List<Product> reenriquecidos = aggregator.financiacionEnricher().enriquecer(actual.productos());
             this.lastResult = new AggregatedResult(
                     reenriquecidos, actual.conteoPorSitio(), actual.erroresPorSitio(),
-                    actual.facets(), actual.minPrecio(), actual.maxPrecio());
+                    actual.facets(), actual.minPrecio(), actual.maxPrecio(),
+                    actual.statsPorSitio());
         }
     }
 
