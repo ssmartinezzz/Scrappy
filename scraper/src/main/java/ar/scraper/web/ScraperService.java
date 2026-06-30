@@ -239,9 +239,13 @@ public class ScraperService {
             final var site = todos.get(i);
             RUN_LOG.info("[INICIO]  {} scrapeando...", String.format("%-15s", site.nombre()));
             ecs.submit(() -> {
-                try (Playwright pw = Playwright.create()) {
-                    BaseScraper scraper = ScraperFactory.crear(config, site);
-                    return scraper.ejecutar(pw);
+                try {
+                    return withRetry(() -> {
+                        try (Playwright pw = Playwright.create()) {
+                            BaseScraper scraper = ScraperFactory.crear(config, site);
+                            return scraper.ejecutar(pw);
+                        }
+                    }, 3, 2000);
                 } catch (Exception e) {
                     return new ScrapeResult(site.nombre(), List.of(), e.getMessage(), 0);
                 }
@@ -460,6 +464,7 @@ public class ScraperService {
                      .setLocale("es-AR"));
              Page page = ctx.newPage()) {
 
+            page.addInitScript(BaseScraper.STEALTH_INIT_SCRIPT);
             page.setDefaultTimeout(config.getTimeoutMs());
             page.route("**/*.{woff,woff2,ttf,otf}", r -> r.abort());
             page.route("**/analytics**", r -> r.abort());
@@ -537,6 +542,39 @@ public class ScraperService {
     }
     private static String truncar(String s, int max) {
         if (s == null) return ""; return s.length() <= max ? s : s.substring(0, max) + "...";
+    }
+
+    // ── Retry ────────────────────────────────────────────────────────────────
+
+    /**
+     * Executes {@code task} up to {@code maxAttempts} times, sleeping
+     * {@code baseDelayMs * attemptNumber} milliseconds between failures.
+     * Re-throws {@link InterruptedException} immediately to preserve thread
+     * interrupt semantics. On exhaustion returns a {@link ScrapeResult} with
+     * an empty products list and the last exception message as the error field.
+     *
+     * <p>Package-private so {@code ScraperServiceRetryTest} (same package) can
+     * call it directly without exposing it as a public API.</p>
+     */
+    static ScrapeResult withRetry(java.util.concurrent.Callable<ScrapeResult> task,
+                                  int maxAttempts, long baseDelayMs)
+            throws InterruptedException {
+        Exception last = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return task.call();
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw ie;
+            } catch (Exception e) {
+                last = e;
+                if (attempt < maxAttempts && baseDelayMs > 0) {
+                    Thread.sleep(baseDelayMs * attempt);
+                }
+            }
+        }
+        return new ScrapeResult("", List.of(),
+                last != null ? last.getMessage() : "retry exhausted", 0);
     }
 
     // ── CSV ──────────────────────────────────────────────────────────────────
