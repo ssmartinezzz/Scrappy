@@ -314,7 +314,7 @@ public class TiendanubePage extends BasePage {
             }
 
             // Intentar encontrar la siguiente página
-            String nextUrl = nextPageUrl();
+            String nextUrl = nextPageUrl(pagina);
 
             // Fallback: construir URL ?page=N si el DOM no tiene el link
             if (nextUrl == null && pagina < 25) {
@@ -496,7 +496,23 @@ public class TiendanubePage extends BasePage {
             "return JSON.stringify(results);" +
             "})()";
     }
-    private String nextPageUrl() {
+    /**
+     * Pure static helper — extracts the max page number from a list of rendered
+     * hrefs and returns maxN+1 iff maxN > currentPage and maxN < 1000.
+     * No browser dependency; fully unit-testable.
+     */
+    public static OptionalInt resolveNextPageFromHrefs(List<String> hrefs, int currentPage) {
+        var pat = java.util.regex.Pattern.compile("[?&]page=(\\d+)");
+        int maxN = -1;
+        for (String h : hrefs) {
+            if (h == null) continue;
+            java.util.regex.Matcher m = pat.matcher(h);
+            while (m.find()) maxN = Math.max(maxN, Integer.parseInt(m.group(1)));
+        }
+        return (maxN > currentPage && maxN < 1000) ? OptionalInt.of(maxN + 1) : OptionalInt.empty();
+    }
+
+    private String nextPageUrl(int currentPage) {
         // Prioridad 1: <link rel="next"> en el head — TN lo incluye para SEO
         try {
             String headNext = (String) page.evaluate(
@@ -523,6 +539,32 @@ public class TiendanubePage extends BasePage {
                 }
             } catch (Exception ignored) {}
         }
+
+        // Prioridad 3: escanear hrefs renderizados → buscar max page en el DOM
+        try {
+            Object raw = page.evaluate("() => Array.from(document.querySelectorAll('a[href]'))" +
+                    ".map(a => a.getAttribute('href')).filter(h => h && h.includes('page='))");
+            if (raw instanceof List<?> list) {
+                List<String> hrefs = list.stream().map(String::valueOf).toList();
+                var next = resolveNextPageFromHrefs(hrefs, currentPage);
+                if (next.isPresent()) return urlPagina(baseUrl, next.getAsInt());
+            }
+        } catch (Exception ignored) {}
+
+        // Prioridad 4 (hint, last resort): window.dataLayer
+        try {
+            String dl = (String) page.evaluate(
+                    "() => { try { return JSON.stringify(window.dataLayer); } catch(e){ return null; } }");
+            if (dl != null) {
+                JsonNode arr = MAPPER.readTree(dl);
+                for (JsonNode node : arr) {
+                    JsonNode pg = node.has("page") ? node.get("page") : node.get("currentPage");
+                    if (pg != null && pg.isInt() && pg.asInt() > currentPage)
+                        return urlPagina(baseUrl, currentPage + 1);
+                }
+            }
+        } catch (Exception ignored) {}
+
         return null;
     }
 
