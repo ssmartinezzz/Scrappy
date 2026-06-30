@@ -43,6 +43,7 @@ const init = {
   gymSubcats:   {},        // { [subcatLabel]: count } — derived from gymrat products
   gymSubcatFiltro: null,   // active gymrat sub-category filter (client-side)
   pack:         false,     // Packs/combos filter — mirrors gymrat (boolean toggle)
+  subCategoria: [],        // activity/sport sub-dimension multi-select (server-side OR filter)
   precioMin:    undefined, // Sidebar price-range filter (server-side, /api/data param)
   precioMax:    undefined,
   orden:        'precio_asc',
@@ -77,7 +78,7 @@ function reducer(state, action) {
       ...state,
       busq:'', sitioFiltro:'', rubroFiltro:'', marca:'', badge:'',
       segment:'', genero:'', categorias:[], talles:[], gymrat:false,
-      gymSubcats:{}, gymSubcatFiltro:null, pack:false,
+      gymSubcats:{}, gymSubcatFiltro:null, pack:false, subCategoria:[],
       precioMin:undefined, precioMax:undefined,
       pag:1, prods:[], hasMore:true,
     };
@@ -88,6 +89,10 @@ function reducer(state, action) {
     case 'TOGGLE_CAT': {
       const c = state.categorias;
       return { ...state, categorias: c.includes(action.v)?c.filter(x=>x!==action.v):[...c,action.v], pag:1, prods:[], hasMore:true };
+    }
+    case 'TOGGLE_SUBCAT': {
+      const sc = state.subCategoria;
+      return { ...state, subCategoria: sc.includes(action.v)?sc.filter(x=>x!==action.v):[...sc,action.v], pag:1, prods:[], hasMore:true };
     }
     case 'TOGGLE_COMPARAR': {
       const exists = state.comparar.find(p => p.url === action.prod.url);
@@ -499,7 +504,7 @@ export default function AppLayout() {
     loadFirstPage();
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
       S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
-      S.precioMin, S.precioMax, S.orden]);
+      S.precioMin, S.precioMax, S.orden, S.subCategoria]);
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,
@@ -516,9 +521,10 @@ export default function AppLayout() {
     ...(S.pack        && { pack:       true }),
     ...(S.precioMin !== undefined && { precioMin: S.precioMin }),
     ...(S.precioMax !== undefined && { precioMax: S.precioMax }),
+    ...(S.subCategoria.length && { subCategoria: S.subCategoria }),
   }), [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge, S.segment,
        S.genero, S.categorias, S.talles, S.gymrat, S.pack,
-       S.precioMin, S.precioMax, S.orden]);
+       S.precioMin, S.precioMax, S.orden, S.subCategoria]);
 
   const loadFirstPage = useCallback(async () => {
     if (loadingRef.current) return;
@@ -596,13 +602,15 @@ export default function AppLayout() {
           filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
                      genero:S.genero, categorias:S.categorias, talles:S.talles,
                      gymrat:S.gymrat, gymSubcats:S.gymSubcats, gymSubcatFiltro:S.gymSubcatFiltro,
-                     pack:S.pack, precioMin:S.precioMin, precioMax:S.precioMax }}
+                     pack:S.pack, precioMin:S.precioMin, precioMax:S.precioMax,
+                     subCategoria:S.subCategoria }}
           onFilter={payload => {
             // gymSubcatFiltro is client-side only — do not reset pagination
             if ('gymSubcatFiltro' in payload) { set(payload); }
             else { setFilter(payload); }
           }}
           onToggleCat={v => dispatch({ type:'TOGGLE_CAT', v })}
+          onToggleSubcat={v => dispatch({ type:'TOGGLE_SUBCAT', v })}
           onToggleTalle={v => dispatch({ type:'TOGGLE_TALLE', v })}
           onReset={() => dispatch({ type:'RESET_FILTERS' })}
         />

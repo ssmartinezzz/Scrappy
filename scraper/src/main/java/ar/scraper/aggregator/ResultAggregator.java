@@ -62,7 +62,8 @@ public class ResultAggregator {
             Map<String, Long> generos,
             Map<String, Long> categorias,
             Map<String, Long> marcas,
-            Map<String, Long> badges
+            Map<String, Long> badges,
+            Map<String, Long> subCategorias
     ) {}
 
     /** Per-site extraction quality counters produced by {@link #agregar}. */
@@ -232,7 +233,17 @@ public class ResultAggregator {
             if (!b.isBlank()) badges.merge(b, 1L, Long::sum);
         }
 
-        return new Facets(talles, generos, categorias, marcas, badges);
+        Map<String, Long> subCategorias = new LinkedHashMap<>();
+        for (Product p : productos) {
+            String sc = p.subCategoria() != null ? p.subCategoria().trim() : "";
+            if (!sc.isBlank()) subCategorias.merge(sc, 1L, Long::sum);
+        }
+        subCategorias = subCategorias.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (a, b) -> a, LinkedHashMap::new));
+
+        return new Facets(talles, generos, categorias, marcas, badges, subCategorias);
     }
 
     private static Map<String, Long> sortTalles(Map<String, Long> talles) {
@@ -292,17 +303,20 @@ public class ResultAggregator {
             List<String> tallesAntes = antes.talles() != null ? antes.talles() : List.of();
             List<String> tallesAhora = ahora.talles() != null ? ahora.talles() : List.of();
 
-            boolean catCambio    = !catAntes.equals(catAhora);
-            boolean marcaCambio  = !marcaAntes.equals(marcaAhora);
-            boolean genCambio    = !genAntes.equals(genAhora);
-            boolean tallesCambio = !tallesAntes.equals(tallesAhora);
+            boolean catCambio       = !catAntes.equals(catAhora);
+            boolean marcaCambio     = !marcaAntes.equals(marcaAhora);
+            boolean genCambio       = !genAntes.equals(genAhora);
+            boolean tallesCambio    = !tallesAntes.equals(tallesAhora);
+            String subCatAntes      = antes.subCategoria() != null ? antes.subCategoria() : "";
+            String subCatAhora      = ahora.subCategoria() != null ? ahora.subCategoria() : "";
+            boolean subCatCambio    = !subCatAntes.equals(subCatAhora);
 
             if (catCambio)   categoriaCambiada++;
             if (marcaCambio) marcaCambiada++;
 
-            if (catCambio || marcaCambio || genCambio || tallesCambio) {
+            if (catCambio || marcaCambio || genCambio || tallesCambio || subCatCambio) {
                 try {
-                    db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora);
+                    db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
                 } catch (Exception ignored) {}
             }
         }

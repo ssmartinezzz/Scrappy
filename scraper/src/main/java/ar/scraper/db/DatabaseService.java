@@ -118,6 +118,7 @@ st.executeUpdate("""
                     gymrat       INTEGER DEFAULT 0,
                     marca_premium INTEGER DEFAULT 0,
                     cantidad_unidades INTEGER DEFAULT 1,
+                    sub_categoria TEXT DEFAULT '',
                     activo       INTEGER DEFAULT 1,
                     touched_at   TEXT,
                     created_at   TEXT
@@ -126,6 +127,7 @@ st.executeUpdate("""
             migrarColumna(st, "productos", "gymrat INTEGER DEFAULT 0");
             migrarColumna(st, "productos", "marca_premium INTEGER DEFAULT 0");
             migrarColumna(st, "productos", "cantidad_unidades INTEGER DEFAULT 1");
+            migrarColumna(st, "productos", "sub_categoria TEXT DEFAULT ''");
 
 st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precios_externos (
@@ -496,8 +498,8 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,cantidad_unidades,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -518,6 +520,7 @@ st.executeUpdate("""
                     gymrat       = excluded.gymrat,
                     marca_premium = excluded.marca_premium,
                     cantidad_unidades = excluded.cantidad_unidades,
+                    sub_categoria = excluded.sub_categoria,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -563,8 +566,9 @@ st.executeUpdate("""
                     psUpsert.setInt   (18, p.gymrat() ? 1 : 0);
                     psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
                     psUpsert.setInt   (20, p.cantidadUnidades());
-                    psUpsert.setString(21, now);   // touched_at
-                    psUpsert.setString(22, now);   // created_at
+                    psUpsert.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
+                    psUpsert.setString(22, now);   // touched_at
+                    psUpsert.setString(23, now);   // created_at
                     psUpsert.executeUpdate();
 
                     Double prevPrecio = preciosActuales.get(p.url());
@@ -665,8 +669,8 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,cantidad_unidades,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -681,6 +685,7 @@ st.executeUpdate("""
                     gymrat       = excluded.gymrat,
                     marca_premium = excluded.marca_premium,
                     cantidad_unidades = excluded.cantidad_unidades,
+                    sub_categoria = excluded.sub_categoria,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -712,8 +717,9 @@ st.executeUpdate("""
                     psU.setInt   (18, p.gymrat() ? 1 : 0);                             // gymrat
                     psU.setInt   (19, p.marcaPremium() ? 1 : 0);                       // marca_premium
                     psU.setInt   (20, p.cantidadUnidades());                           // cantidad_unidades
-                    psU.setString(21, now);                       // touched_at
-                    psU.setString(22, now);                       // created_at
+                    psU.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
+                    psU.setString(22, now);                       // touched_at
+                    psU.setString(23, now);                       // created_at
                     psU.executeUpdate();
                     Double prev = prevPrecios.get(p.url());
                     if (prev == null || Math.abs(prev - p.precio()) > 0.01) {
@@ -740,7 +746,7 @@ st.executeUpdate("""
              ResultSet rs = st.executeQuery(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades " +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria " +
                 "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
             while (rs.next()) {
                 result.add(productoDesdeFila(rs));
@@ -758,7 +764,7 @@ st.executeUpdate("""
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades FROM productos WHERE url=?")) {
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria FROM productos WHERE url=?")) {
             ps.setString(1, url);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return java.util.Optional.empty();
@@ -797,6 +803,7 @@ st.executeUpdate("""
         boolean marcaPremium = rs.getInt("marca_premium") == 1;
         int cantidadUnidades = rs.getInt("cantidad_unidades");
         if (cantidadUnidades < 1) cantidadUnidades = 1;
+        String subCategoria = rs.getString("sub_categoria");
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
                 rs.getDouble("precio"), rs.getString("precio_orig"),
@@ -805,7 +812,8 @@ st.executeUpdate("""
                 talles, ml, marca != null ? marca : "",
                 rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
                 gymrat, marcaPremium, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, cantidadUnidades);
+                Product.SenalFinanciacion.EMPTY, cantidadUnidades,
+                subCategoria != null ? subCategoria : "");
     }
 
     // ─── ML Output ──────────────────────────────────────────────────────────
@@ -1066,15 +1074,16 @@ st.executeUpdate("""
      * reglas actuales de {@code NormalizerService} sobre datos ya persistidos.
      */
     public void actualizarNormalizacion(String url, String categoria, String marca,
-                                         String genero, List<String> talles) {
+                                         String genero, List<String> talles, String subCategoria) {
         if (conn == null || url == null) return;
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=? WHERE url=?")) {
+                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
             ps.setString(1, categoria != null ? categoria : "");
             ps.setString(2, marca != null ? marca : "");
             ps.setString(3, genero != null ? genero : "");
             ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-            ps.setString(5, url);
+            ps.setString(5, subCategoria != null ? subCategoria : "");
+            ps.setString(6, url);
             ps.executeUpdate();
             conn.commit();
         } catch (Exception e) {
