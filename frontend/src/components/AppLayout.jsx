@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
-import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, deleteProducto,
+import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit } from '../api';
 import { sortByCountDesc } from '../lib/utils';
@@ -273,6 +273,10 @@ function FavoritosRoute() {
       onStartPolling={startPolling}
       onRefreshFavoritos={loadFavoritos}
       onSetScraping={() => set({ scrapeStatus:'RUNNING' })}
+      onDeleteFavorito={async (url) => {
+        await removeFavorito(url);
+        dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
+      }}
       onDeleteSavedOutfit={async (id) => {
         await deleteSavedOutfit(id);
         dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });

@@ -161,7 +161,7 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
 // ─── FavoritosPanel ───────────────────────────────────────────────────────────
 export default function FavoritosPanel({
   favoritos, scrapeStatus, onOpenDetail, onStartPolling, onRefreshFavoritos, onSetScraping,
-  savedOutfits, onDeleteSavedOutfit, onRenameSavedOutfit,
+  savedOutfits, onDeleteSavedOutfit, onRenameSavedOutfit, onDeleteFavorito,
 }) {
   const items = favoritos || [];
   const outfits = savedOutfits || [];
@@ -276,6 +276,13 @@ export default function FavoritosPanel({
                         whiteSpace:'nowrap',
                       }}>Descontinuado</span>
                     )}
+                    <button
+                      onClick={e => { e.stopPropagation(); onDeleteFavorito?.(f.url); }}
+                      title="Quitar de favoritos"
+                      style={{
+                        background:'none', border:'none', cursor:'pointer',
+                        fontSize:'.8rem', color:'var(--t4)', padding:'2px 4px', flexShrink:0,
+                      }}>✕</button>
                   </div>
 
                   <div style={{ display:'flex', gap:8, alignItems:'center' }}>
