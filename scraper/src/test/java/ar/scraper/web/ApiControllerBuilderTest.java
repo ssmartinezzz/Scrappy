@@ -152,7 +152,7 @@ class ApiControllerBuilderTest {
                 "hombre", 50_000, 35_000,
                 false, List.of(), List.of(), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
                 .thenReturn(stubbedResult);
 
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 50_000, "hombre", "", "", false);
@@ -179,7 +179,7 @@ class ApiControllerBuilderTest {
                 List.of(), "hombre", 5_000, 0.0,
                 true, List.of(), List.of("Buzo"), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
                 .thenReturn(noFitResult);
 
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false);
@@ -202,7 +202,7 @@ class ApiControllerBuilderTest {
 
         OutfitService.OutfitBuilderResult stub = new OutfitService.OutfitBuilderResult(
                 List.of(), "hombre", 50_000, 0.0, false, List.of(), List.of(), null);
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
                 .thenReturn(stub);
 
         controller.outfitsBuilder("Buzo,Short", 50_000, "hombre",
@@ -212,7 +212,7 @@ class ApiControllerBuilderTest {
         ArgumentCaptor<Set<String>> excluirCaptor = ArgumentCaptor.forClass(Set.class);
         verify(outfitService).armarPorCategorias(
                 anyList(), anyList(), anyDouble(), anyString(), any(),
-                excluirCaptor.capture(), anyBoolean());
+                excluirCaptor.capture(), anyBoolean(), anyList());
 
         Set<String> captured = excluirCaptor.getValue();
         assertThat(captured).containsExactlyInAnyOrder("https://site/p1", "https://site/p2");
@@ -224,7 +224,7 @@ class ApiControllerBuilderTest {
 
         OutfitService.OutfitBuilderResult stub = new OutfitService.OutfitBuilderResult(
                 List.of(), "hombre", 50_000, 0.0, false, List.of(), List.of(), null);
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
                 .thenReturn(stub);
 
         controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", true);
@@ -232,7 +232,7 @@ class ApiControllerBuilderTest {
         ArgumentCaptor<Boolean> greedyCaptor = ArgumentCaptor.forClass(Boolean.class);
         verify(outfitService).armarPorCategorias(
                 anyList(), anyList(), anyDouble(), anyString(), any(),
-                anySet(), greedyCaptor.capture());
+                anySet(), greedyCaptor.capture(), anyList());
 
         assertThat(greedyCaptor.getValue()).isTrue();
     }
@@ -245,7 +245,7 @@ class ApiControllerBuilderTest {
                 List.of(), "hombre", 5_000, 0.0,
                 true, List.of(), List.of("Buzo"), 20_000.0);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
                 .thenReturn(noFitWithMinimo);
 
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false);
@@ -268,7 +268,7 @@ class ApiControllerBuilderTest {
                 List.of(slot), "hombre", 50_000, 20_000,
                 false, List.of(), List.of(), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
                 .thenReturn(success);
 
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", false);
