@@ -1227,6 +1227,19 @@ st.executeUpdate("""
         }
     }
 
+    /** Borra todo el historial de feedback del outfit builder (me gusta / no me gusta). */
+    public void limpiarOutfitFeedback() {
+        if (conn == null) return;
+        try (Statement st = conn.createStatement()) {
+            st.executeUpdate("DELETE FROM outfit_feedback_item");
+            st.executeUpdate("DELETE FROM outfit_feedback");
+            conn.commit();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+        }
+    }
+
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
     public void borrarCategoriaDismiss(String categoria) {
         if (conn == null || categoria == null || categoria.isBlank()) return;

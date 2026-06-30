@@ -966,6 +966,7 @@ public class ApiController {
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
             @RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "") String excluir,
+            @RequestParam(required = false, defaultValue = "") String pin,
             @RequestParam(defaultValue = "false") boolean greedy) {
 
         ObjectNode err = JsonNodeFactory.instance.objectNode();
@@ -1008,6 +1009,14 @@ public class ApiController {
                         .filter(s -> !s.isBlank())
                         .collect(Collectors.toSet());
 
+        // Parse pin CSV → ordered list of URLs to lock into their sub-slots
+        List<String> pinUrls = (pin == null || pin.isBlank())
+                ? List.of()
+                : Arrays.stream(pin.split(","))
+                        .map(String::strip)
+                        .filter(s -> !s.isBlank())
+                        .collect(Collectors.toList());
+
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
@@ -1015,8 +1024,17 @@ public class ApiController {
         var dismissCats  = db.obtenerCategoriaDismiss();
         var feedback     = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
 
+        // Resolve pin URLs → Product objects; unresolved URLs are silently dropped
+        List<Product> pinned = pinUrls.stream()
+                .map(u -> r.productos().stream()
+                        .filter(p -> u.equals(p.url()))
+                        .findFirst()
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy);
+                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned);
 
         // Determine status per spec API contract
         String status;
@@ -1270,6 +1288,15 @@ public class ApiController {
         resp.put("ok", ok);
         resp.put("mensaje", ok ? "Outfit renombrado" : "Outfit no encontrado");
         return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
+    }
+
+    @DeleteMapping("/outfits/feedback")
+    public ResponseEntity<ObjectNode> resetOutfitFeedback() {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        db.limpiarOutfitFeedback();
+        resp.put("ok", true);
+        resp.put("mensaje", "Historial de feedback reseteado");
+        return ResponseEntity.ok(resp);
     }
 
     // ─── Recomendados ("Para ti" feed) ──────────────────────────────────────────

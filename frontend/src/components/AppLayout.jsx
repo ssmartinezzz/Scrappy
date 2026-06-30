@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
-import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, deleteProducto,
+import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit } from '../api';
 import { sortByCountDesc } from '../lib/utils';
@@ -100,6 +100,7 @@ function reducer(state, action) {
       if (exists) return { ...state, favoritos: state.favoritos.filter(f=>f.url!==action.prod.url) };
       return { ...state, favoritos: [...state.favoritos, {
         url: action.prod.url, sitio: action.prod.sitio, nombre: action.prod.nombre,
+        img: action.prod.img, precio: action.prod.precio,
         descontinuado: false,
       }] };
     }
@@ -272,6 +273,10 @@ function FavoritosRoute() {
       onStartPolling={startPolling}
       onRefreshFavoritos={loadFavoritos}
       onSetScraping={() => set({ scrapeStatus:'RUNNING' })}
+      onDeleteFavorito={async (url) => {
+        await removeFavorito(url);
+        dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
+      }}
       onDeleteSavedOutfit={async (id) => {
         await deleteSavedOutfit(id);
         dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });

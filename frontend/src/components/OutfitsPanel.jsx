@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { fetchOutfit, sendOutfitFeedback, fetchOutfitBuilder, fmt } from '../api';
+import { fetchOutfit, sendOutfitFeedback, fetchOutfitBuilder, resetOutfitFeedback, fmt } from '../api';
 
 // Orden real en que se compone un outfit (de torso a calzado, accesorio al final) —
 // el índice no es decorativo, refleja la secuencia con la que te vestís.
@@ -193,9 +193,10 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   const [saving, setSaving]                     = useState(false);
   const [greedyToast, setGreedyToast]           = useState(false);
   const [greedyExcluded, setGreedyExcluded]     = useState([]);
+  const [resetting, setResetting]               = useState(false);
 
   // Core load function — called on mount and on re-roll
-  const load = useCallback(async (excluir = [], isGreedy = false) => {
+  const load = useCallback(async (excluir = [], isGreedy = false, pinUrls = []) => {
     setLoading(true);
     setError(null);
     setSentSlots(new Set());
@@ -206,6 +207,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
         genero,
         excluir,
         greedy: isGreedy,
+        pin: pinUrls,
       });
       if (data === null) {
         setError('No hay catálogo cargado. Ejecutá un scraping primero.');
@@ -246,6 +248,17 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     const accumulated = [...new Set([...greedyExcluded, ...currentOutfitUrls])];
     setGreedyExcluded(accumulated);
     load(accumulated, next > 10);
+  }
+
+  async function handleResetFeedback() {
+    if (resetting) return;
+    setResetting(true);
+    await resetOutfitFeedback();
+    setResetting(false);
+    setAttemptCount(0);
+    setCurrentOutfitUrls([]);
+    setGreedyExcluded([]);
+    load([], false);
   }
 
   // Gender tab switch: reset counter and exclusions (UOB-07)
@@ -298,9 +311,10 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   }
 
   function handleSwapSlot(url) {
-    const next = [...currentOutfitUrls.filter(u => u !== url), url];
-    setCurrentOutfitUrls(next);
-    load(next, attemptCount > 10);
+    const nextExcluded = [...new Set([...greedyExcluded, url])];
+    setGreedyExcluded(nextExcluded);
+    const pinUrls = currentOutfitUrls.filter(u => u !== url);
+    load(nextExcluded, attemptCount > 10, pinUrls);
   }
 
   function handleRemoveSlot(slotKey) {
@@ -356,12 +370,24 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
       )}
 
       {/* Gender tabs — Hombre / Mujer only (UOB-02) */}
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
         <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
         {['hombre', 'mujer'].map(g => (
           <button key={g} onClick={() => handleGeneroChange(g)}
             className={`genero-pill ${genero === g ? 'active' : ''}`}>{g}</button>
         ))}
+        <button
+          onClick={handleResetFeedback}
+          disabled={resetting}
+          title="Borra el historial de Me gusta / No me gusta para que el generador empiece desde cero"
+          style={{
+            marginLeft:'auto', padding:'3px 10px', borderRadius:6, fontSize:'.72rem',
+            fontWeight:600, cursor: resetting ? 'default' : 'pointer',
+            background:'var(--s3)', border:'1px solid var(--bd)',
+            color:'var(--t2)', opacity: resetting ? .5 : 1,
+          }}>
+          {resetting ? 'Reseteando...' : '↺ Resetear gustos'}
+        </button>
       </div>
 
       {/* Category picker — 4 collapsible groups (UOB-04) */}
