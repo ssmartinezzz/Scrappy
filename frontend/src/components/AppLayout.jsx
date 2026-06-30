@@ -100,6 +100,7 @@ function reducer(state, action) {
       if (exists) return { ...state, favoritos: state.favoritos.filter(f=>f.url!==action.prod.url) };
       return { ...state, favoritos: [...state.favoritos, {
         url: action.prod.url, sitio: action.prod.sitio, nombre: action.prod.nombre,
+        img: action.prod.img, precio: action.prod.precio,
         descontinuado: false,
       }] };
     }

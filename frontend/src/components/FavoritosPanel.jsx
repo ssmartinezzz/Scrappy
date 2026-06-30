@@ -7,8 +7,10 @@ import { SEMANTIC } from '../lib/colors';
 function SavedOutfitCard({ outfit, onDelete, onRename }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(outfit.nombre || 'Outfit');
+  const [expanded, setExpanded] = useState(false);
 
-  function startEdit() {
+  function startEdit(e) {
+    e.stopPropagation();
     setEditName(outfit.nombre || 'Outfit');
     setEditing(true);
   }
@@ -39,8 +41,10 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
       border:'1.5px solid var(--bd)',
       display:'flex', flexDirection:'column', gap:8,
     }}>
-      {/* Name + delete */}
-      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      {/* Name + expand toggle + price + delete */}
+      <div
+        onClick={() => !editing && setExpanded(p => !p)}
+        style={{ display:'flex', alignItems:'center', gap:8, cursor: editing ? 'default' : 'pointer' }}>
         {editing ? (
           <input
             autoFocus
@@ -48,6 +52,7 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
             onChange={e => setEditName(e.target.value)}
             onBlur={confirmEdit}
             onKeyDown={handleKeyDown}
+            onClick={e => e.stopPropagation()}
             style={{
               flex:1, fontSize:'.82rem', fontWeight:700, color:'var(--t1)',
               background:'var(--s3)', border:'1px solid var(--p2)',
@@ -56,11 +61,11 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
           />
         ) : (
           <div
-            onClick={startEdit}
-            title="Clic para renombrar"
+            onDoubleClick={startEdit}
+            title="Doble clic para renombrar · clic para expandir"
             style={{
               flex:1, fontSize:'.82rem', fontWeight:700, color:'var(--t1)',
-              cursor:'pointer', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+              overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
             }}>
             {outfit.nombre || 'Outfit'}
           </div>
@@ -68,8 +73,9 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
         <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--t2)', whiteSpace:'nowrap' }}>
           ${fmt(outfit.totalEstimado)}
         </div>
+        <span style={{ fontSize:'.65rem', color:'var(--t4)' }}>{expanded ? '▲' : '▼'}</span>
         <button
-          onClick={() => onDelete?.(outfit.id)}
+          onClick={e => { e.stopPropagation(); onDelete?.(outfit.id); }}
           title="Eliminar outfit"
           style={{
             background:'none', border:'none', cursor:'pointer',
@@ -77,8 +83,8 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
           }}>✕</button>
       </div>
 
-      {/* Slot thumbnails */}
-      {slots.length > 0 && (
+      {/* Collapsed: small thumbnails */}
+      {!expanded && slots.length > 0 && (
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {slots.map((s, i) => s.img ? (
             <img
@@ -92,6 +98,55 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
               onError={e => { e.target.style.display = 'none'; }}
             />
           ) : null)}
+        </div>
+      )}
+
+      {/* Expanded: full slot list */}
+      {expanded && slots.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {slots.map((s, i) => (
+            <div key={i} style={{
+              display:'flex', gap:10, alignItems:'center',
+              background:'var(--s1)', borderRadius:8, padding:'.5rem .65rem',
+              border:'1px solid var(--bd)',
+            }}>
+              {s.img && (
+                <img
+                  src={s.img}
+                  alt={s.nombre}
+                  loading="lazy"
+                  style={{ width:64, height:64, objectFit:'cover', borderRadius:6,
+                           flexShrink:0, border:'1px solid var(--bd)' }}
+                  onError={e => { e.target.style.display = 'none'; }}
+                />
+              )}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{
+                  fontSize:'.78rem', fontWeight:600, color:'var(--t1)',
+                  overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+                }}>{s.nombre || '—'}</div>
+                <div style={{ fontSize:'.7rem', color:'var(--t3)' }}>{s.sitio}</div>
+                {s.precio > 0 && (
+                  <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--p2)', marginTop:2 }}>
+                    ${fmt(s.precio)}
+                  </div>
+                )}
+              </div>
+              {s.url && (
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    fontSize:'.65rem', color:'var(--p)', fontWeight:600,
+                    textDecoration:'none', whiteSpace:'nowrap', flexShrink:0,
+                  }}>
+                  Ver →
+                </a>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -188,7 +243,7 @@ export default function FavoritosPanel({
               <div key={f.url}
                 onClick={() => onOpenDetail?.(f)}
                 style={{
-                  display:'flex', flexDirection:'column', gap:6,
+                  display:'flex', gap:10, alignItems:'flex-start',
                   background:'var(--s2)', borderRadius:10, padding:'.75rem',
                   border:'1.5px solid var(--bd)', cursor:'pointer',
                   transition:'border-color .15s',
@@ -196,26 +251,44 @@ export default function FavoritosPanel({
                 onMouseOver={e => e.currentTarget.style.borderColor = 'var(--p2)'}
                 onMouseOut={e => e.currentTarget.style.borderColor = 'var(--bd)'}>
 
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <div style={{
-                    fontSize:'.8rem', fontWeight:600, color:'var(--t1)', flex:1,
-                    overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
-                  }}>{f.nombre || f.url}</div>
+                {f.img && (
+                  <img
+                    src={f.img}
+                    alt={f.nombre}
+                    loading="lazy"
+                    style={{ width:64, height:64, objectFit:'cover', borderRadius:8,
+                             flexShrink:0, border:'1px solid var(--bd)' }}
+                    onError={e => { e.target.style.display = 'none'; }}
+                  />
+                )}
 
-                  {f.descontinuado && (
-                    <span style={{
-                      fontSize:'.6rem', fontWeight:700, color: SEMANTIC.negative,
-                      background: `color-mix(in srgb, ${SEMANTIC.negative} 12%, transparent)`, padding:'2px 8px', borderRadius:12,
-                      whiteSpace:'nowrap',
-                    }}>Descontinuado</span>
-                  )}
+                <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style={{
+                      fontSize:'.8rem', fontWeight:600, color:'var(--t1)', flex:1,
+                      overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+                    }}>{f.nombre || f.url}</div>
+
+                    {f.descontinuado && (
+                      <span style={{
+                        fontSize:'.6rem', fontWeight:700, color: SEMANTIC.negative,
+                        background: `color-mix(in srgb, ${SEMANTIC.negative} 12%, transparent)`, padding:'2px 8px', borderRadius:12,
+                        whiteSpace:'nowrap',
+                      }}>Descontinuado</span>
+                    )}
+                  </div>
+
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <span style={{ fontSize:'.65rem', color:'var(--t4)' }}>{f.sitio}</span>
+                    {f.precio > 0 && (
+                      <span style={{ fontSize:'.72rem', fontWeight:700, color:'var(--p2)' }}>
+                        ${fmt(f.precio)}
+                      </span>
+                    )}
+                  </div>
+
+                  {!f.descontinuado && <BuySignal url={f.url}/>}
                 </div>
-
-                <div style={{ fontSize:'.65rem', color:'var(--t4)' }}>
-                  {f.sitio}
-                </div>
-
-                {!f.descontinuado && <BuySignal url={f.url}/>}
               </div>
             ))}
           </div>
