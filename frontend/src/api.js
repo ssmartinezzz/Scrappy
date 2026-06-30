@@ -324,6 +324,11 @@ export async function renameOutfit(id, nombre) {
   return r.ok;
 }
 
+export async function resetOutfitFeedback() {
+  const r = await fetch(`${BASE}/api/outfits/feedback`, { method: 'DELETE' });
+  return r.ok;
+}
+
 // body shape: { genero, items: [{ slot, url, liked }] } — one POST per rated item (per-item feedback contract).
 export async function sendOutfitFeedback(body) {
   const r = await fetch(`${BASE}/api/outfits/feedback`, {

@@ -1272,6 +1272,15 @@ public class ApiController {
         return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
     }
 
+    @DeleteMapping("/outfits/feedback")
+    public ResponseEntity<ObjectNode> resetOutfitFeedback() {
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        db.limpiarOutfitFeedback();
+        resp.put("ok", true);
+        resp.put("mensaje", "Historial de feedback reseteado");
+        return ResponseEntity.ok(resp);
+    }
+
     // ─── Recomendados ("Para ti" feed) ──────────────────────────────────────────
     // design.md (personalized-recommendations-feed) Decision 2: additive endpoints,
     // /api/outfits/feedback stays untouched. The shared taste signal lives in the
