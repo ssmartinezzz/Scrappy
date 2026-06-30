@@ -86,6 +86,17 @@ public class ApiController {
             // Stats ML del último scraping
             b.put("mlRefinadas", service.getUltimasCategoriasRefinadas());
             b.put("mlModeloActivo", new java.io.File("_models/text_classifier.pkl").exists());
+            // Extraction quality stats — additive, does not change existing keys
+            var st = lr.statsPorSitio();
+            if (st != null && !st.isEmpty()) {
+                ObjectNode sNode = b.putObject("extractionStats");
+                st.forEach((sitio, s) -> {
+                    ObjectNode sn = sNode.putObject(sitio);
+                    sn.put("total",  s.total());
+                    sn.put("valid",  s.valid());
+                    sn.put("misses", s.misses());
+                });
+            }
         }
 
         // Progreso en tiempo real

@@ -65,26 +65,50 @@ public class ResultAggregator {
             Map<String, Long> badges
     ) {}
 
+    /** Per-site extraction quality counters produced by {@link #agregar}. */
+    public record ExtractionStats(String sitio, int total, int valid, int misses) {}
+
     public record AggregatedResult(
-            List<Product>        productos,
-            Map<String, Integer> conteoPorSitio,
-            Map<String, String>  erroresPorSitio,
-            Facets               facets,
-            double               minPrecio,
-            double               maxPrecio
-    ) {}
+            List<Product>                productos,
+            Map<String, Integer>         conteoPorSitio,
+            Map<String, String>          erroresPorSitio,
+            Facets                       facets,
+            double                       minPrecio,
+            double                       maxPrecio,
+            Map<String, ExtractionStats> statsPorSitio
+    ) {
+        /** Legacy 6-arg constructor — defaults statsPorSitio to empty map for backward compatibility. */
+        public AggregatedResult(List<Product> productos, Map<String, Integer> conteoPorSitio,
+                                Map<String, String> erroresPorSitio, Facets facets,
+                                double minPrecio, double maxPrecio) {
+            this(productos, conteoPorSitio, erroresPorSitio, facets, minPrecio, maxPrecio, Map.of());
+        }
+    }
 
     // ─── Aggregation ─────────────────────────────────────────────────────────
 
+    /** A product is valid iff nombre is non-blank, precio > 0, and url is non-blank. */
+    private static boolean isValid(Product p) {
+        return p.nombre() != null && !p.nombre().isBlank()
+                && p.precio() > 0
+                && p.url() != null && !p.url().isBlank();
+    }
+
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain) {
-        Map<String, Integer> conteo  = new LinkedHashMap<>();
-        Map<String, String>  errores = new LinkedHashMap<>();
-        List<Product>        todos   = new ArrayList<>();
+        Map<String, Integer>         conteo  = new LinkedHashMap<>();
+        Map<String, String>          errores = new LinkedHashMap<>();
+        Map<String, ExtractionStats> stats   = new LinkedHashMap<>();
+        List<Product>                todos   = new ArrayList<>();
 
         for (ScrapeResult r : resultados) {
-            conteo.put(r.sitio(), r.productos().size());
+            List<Product> valid  = r.productos().stream().filter(ResultAggregator::isValid).toList();
+            int           misses = r.productos().size() - valid.size();
+            conteo.put(r.sitio(), r.productos().size());   // RAW count unchanged
+            stats.put(r.sitio(), new ExtractionStats(r.sitio(), r.productos().size(), valid.size(), misses));
+            if (misses > 0)
+                LOG.warn("[METRICS] {}: {}/{} válidos ({} misses)", r.sitio(), valid.size(), r.productos().size(), misses);
             if (!r.exitoso()) errores.put(r.sitio(), r.error());
-            todos.addAll(r.productos());
+            todos.addAll(valid);   // only valid products flow downstream
         }
 
         // Dedup por sitio + nombre normalizado
@@ -154,7 +178,7 @@ public class ResultAggregator {
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(dbPath, forceRetrain);
 
-        return new AggregatedResult(conFinanciacion, conteo, errores, facets, minP, maxP);
+        return new AggregatedResult(conFinanciacion, conteo, errores, facets, minP, maxP, stats);
     }
 
     public AggregatedResult agregar(List<ScrapeResult> resultados) {
@@ -310,6 +334,6 @@ public class ResultAggregator {
         Facets facets = calcularFacets(conFinanciacion);
         double minP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
         double maxP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
-        return new AggregatedResult(conFinanciacion, conteo, Map.of(), facets, minP, maxP);
+        return new AggregatedResult(conFinanciacion, conteo, Map.of(), facets, minP, maxP, Map.of());
     }
 }
