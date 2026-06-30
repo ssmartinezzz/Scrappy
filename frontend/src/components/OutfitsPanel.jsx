@@ -310,9 +310,9 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   }
 
   function handleSwapSlot(url) {
-    const next = [...currentOutfitUrls.filter(u => u !== url), url];
-    setCurrentOutfitUrls(next);
-    load(next, attemptCount > 10);
+    const nextExcluded = [...new Set([...greedyExcluded, url])];
+    setGreedyExcluded(nextExcluded);
+    load(nextExcluded, attemptCount > 10);
   }
 
   function handleRemoveSlot(slotKey) {
