@@ -111,44 +111,53 @@ public class VaypolPage extends BasePage {
      * 8 threads concurrentes → ~600 productos en ~10-15 segundos.
      * NO usa Playwright — solo GET HTTP simple, el meta-og:image está en los primeros 2KB.
      */
+    private static final int    IMG_THREADS       = 6;
+    private static final int    IMG_DELAY_MS      = 300;  // between requests per thread
+    private static final int    IMG_RETRIES       = 2;
+    private static final int    IMG_RETRY_WAIT_MS = 1500; // backoff on 429/503
+    private static final int    IMG_REQ_TIMEOUT_S = 20;
+
     private List<Product> enricherImagenesHttp(List<Product> productos) {
         var client = java.net.http.HttpClient.newBuilder()
-                .connectTimeout(java.time.Duration.ofSeconds(6))
+                .connectTimeout(java.time.Duration.ofSeconds(8))
                 .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
                 .build();
-        var executor = java.util.concurrent.Executors.newFixedThreadPool(8);
+
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(IMG_THREADS);
         var imgMap   = new java.util.concurrent.ConcurrentHashMap<String, String>();
         var tasks    = new java.util.ArrayList<java.util.concurrent.CompletableFuture<Void>>();
+
+        var cntOk        = new java.util.concurrent.atomic.AtomicInteger(0);
+        var cntNoOgImage = new java.util.concurrent.atomic.AtomicInteger(0);
+        var cntRateLimit = new java.util.concurrent.atomic.AtomicInteger(0);
+        var cntHttpError = new java.util.concurrent.atomic.AtomicInteger(0);
+        var cntTimeout   = new java.util.concurrent.atomic.AtomicInteger(0);
+        var cntConnErr   = new java.util.concurrent.atomic.AtomicInteger(0);
 
         for (Product p : productos) {
             if (p.imagenUrl() != null && !p.imagenUrl().isBlank()) continue;
             if (p.url()      == null  ||  p.url().isBlank())       continue;
 
             tasks.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
-                try {
-                    var req = java.net.http.HttpRequest.newBuilder()
-                            .uri(java.net.URI.create(p.url()))
-                            .GET()
-                            .header("User-Agent", "Mozilla/5.0 (compatible)")
-                            .header("Accept",     "text/html")
-                            .build();
-                    var resp = client.send(req,
-                            java.net.http.HttpResponse.BodyHandlers.ofString());
-                    String img = extraerOgImage(resp.body());
-                    if (!img.isBlank()) imgMap.put(p.url(), img);
-                } catch (Exception ignored) {}
+                String img = fetchOgImageWithRetry(client, p.url(),
+                        cntOk, cntNoOgImage, cntRateLimit, cntHttpError, cntTimeout, cntConnErr);
+                if (img != null) imgMap.put(p.url(), img);
+                try { Thread.sleep(IMG_DELAY_MS); } catch (InterruptedException ignored) {}
             }, executor));
         }
 
-        // Esperar máximo 45 segundos en total
         try {
             java.util.concurrent.CompletableFuture
                     .allOf(tasks.toArray(new java.util.concurrent.CompletableFuture[0]))
-                    .get(45, java.util.concurrent.TimeUnit.SECONDS);
+                    .get(); // no global timeout — let every request finish
         } catch (Exception ignored) {}
         executor.shutdown();
 
-        log.info("[{}] HttpClient: {}/{} imágenes obtenidas", sitio, imgMap.size(), tasks.size());
+        log.info("[{}] HttpClient diagnóstico — total={} ok={} sin-og={} rate-limit={} http-err={} timeout={} conn-err={} ({}threads, {}ms-delay)",
+                sitio, tasks.size(),
+                cntOk.get(), cntNoOgImage.get(), cntRateLimit.get(),
+                cntHttpError.get(), cntTimeout.get(), cntConnErr.get(),
+                IMG_THREADS, IMG_DELAY_MS);
 
         return productos.stream().map(p -> {
             String img = imgMap.get(p.url());
@@ -157,6 +166,73 @@ public class VaypolPage extends BasePage {
                         p.url(), img, p.categoria(), p.genero(), p.talles());
             return p;
         }).collect(java.util.stream.Collectors.toList());
+    }
+
+    private String fetchOgImageWithRetry(
+            java.net.http.HttpClient client, String url,
+            java.util.concurrent.atomic.AtomicInteger cntOk,
+            java.util.concurrent.atomic.AtomicInteger cntNoOgImage,
+            java.util.concurrent.atomic.AtomicInteger cntRateLimit,
+            java.util.concurrent.atomic.AtomicInteger cntHttpError,
+            java.util.concurrent.atomic.AtomicInteger cntTimeout,
+            java.util.concurrent.atomic.AtomicInteger cntConnErr) {
+
+        for (int attempt = 0; attempt <= IMG_RETRIES; attempt++) {
+            try {
+                var req = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(url))
+                        .timeout(java.time.Duration.ofSeconds(IMG_REQ_TIMEOUT_S))
+                        .GET()
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+                        .header("Accept", "text/html,application/xhtml+xml")
+                        .header("Accept-Language", "es-AR,es;q=0.9")
+                        .build();
+
+                var resp   = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+                int status = resp.statusCode();
+
+                if (status == 429 || status == 503) {
+                    cntRateLimit.incrementAndGet();
+                    log.debug("[{}] rate-limit ({}) attempt={} → {}", sitio, status, attempt, url);
+                    if (attempt < IMG_RETRIES) {
+                        Thread.sleep(IMG_RETRY_WAIT_MS * (attempt + 1));
+                        continue;
+                    }
+                    return null;
+                }
+                if (status >= 400) {
+                    cntHttpError.incrementAndGet();
+                    log.debug("[{}] HTTP {} → {}", sitio, status, url);
+                    return null;
+                }
+
+                String img = extraerOgImage(resp.body());
+                if (!img.isBlank()) {
+                    cntOk.incrementAndGet();
+                    return img;
+                }
+                cntNoOgImage.incrementAndGet();
+                log.debug("[{}] sin og:image ({} chars) → {}", sitio, resp.body().length(), url);
+                return null;
+
+            } catch (java.net.http.HttpTimeoutException e) {
+                cntTimeout.incrementAndGet();
+                log.debug("[{}] timeout attempt={} → {}", sitio, attempt, url);
+            } catch (java.io.IOException e) {
+                cntConnErr.incrementAndGet();
+                log.debug("[{}] conn-err attempt={} → {} ({})", sitio, attempt, url, e.getMessage());
+                if (attempt < IMG_RETRIES) {
+                    try { Thread.sleep(IMG_RETRY_WAIT_MS); } catch (InterruptedException ignored) {}
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            } catch (Exception e) {
+                log.debug("[{}] error inesperado → {} ({})", sitio, url, e.getMessage());
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
