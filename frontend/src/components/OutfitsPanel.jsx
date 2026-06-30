@@ -196,7 +196,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   const [resetting, setResetting]               = useState(false);
 
   // Core load function — called on mount and on re-roll
-  const load = useCallback(async (excluir = [], isGreedy = false) => {
+  const load = useCallback(async (excluir = [], isGreedy = false, pinUrls = []) => {
     setLoading(true);
     setError(null);
     setSentSlots(new Set());
@@ -207,6 +207,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
         genero,
         excluir,
         greedy: isGreedy,
+        pin: pinUrls,
       });
       if (data === null) {
         setError('No hay catálogo cargado. Ejecutá un scraping primero.');
@@ -312,7 +313,8 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   function handleSwapSlot(url) {
     const nextExcluded = [...new Set([...greedyExcluded, url])];
     setGreedyExcluded(nextExcluded);
-    load(nextExcluded, attemptCount > 10);
+    const pinUrls = currentOutfitUrls.filter(u => u !== url);
+    load(nextExcluded, attemptCount > 10, pinUrls);
   }
 
   function handleRemoveSlot(slotKey) {
