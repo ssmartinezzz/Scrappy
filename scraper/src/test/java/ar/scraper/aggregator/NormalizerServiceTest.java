@@ -576,4 +576,13 @@ class NormalizerServiceTest {
         assertThat(service.resolverSubCategoria("Buzo Invierno Premium", "Buzo"))
                 .isEqualTo("");
     }
+
+    // ── Botas Snowboarding: gap probe ─────────────────────────────────
+
+    @Test
+    void resolverSubCategoriaBotasSnowboarding() {
+        // Botas has no tier-1 rules; tier-2 sport fallback fires on "snowboarding"
+        assertThat(service.resolverSubCategoria("Botas Snowboarding Nike", "Botas"))
+                .isEqualTo("snowboarding");
+    }
 }

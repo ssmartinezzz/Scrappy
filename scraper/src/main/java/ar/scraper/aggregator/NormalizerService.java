@@ -1109,8 +1109,9 @@ public class NormalizerService {
         new String[]{"running",    "running", "runner"},    // guard: skipped if categoria contains "running"
         new String[]{"vóley",      "voley", "volleyball"},
         new String[]{"básquet",    "basket", "basketball"},
-        new String[]{"ciclismo",   "ciclismo", "cycling"},
-        new String[]{"escalada",   "escalada", "climbing"}
+        new String[]{"ciclismo",      "ciclismo", "cycling"},
+        new String[]{"escalada",      "escalada", "climbing"},
+        new String[]{"snowboarding",  "snowboard", "snowboarding"}
     );
 
     /**
