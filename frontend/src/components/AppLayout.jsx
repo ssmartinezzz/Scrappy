@@ -504,7 +504,7 @@ export default function AppLayout() {
     loadFirstPage();
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
       S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
-      S.precioMin, S.precioMax, S.orden]);
+      S.precioMin, S.precioMax, S.orden, S.subCategoria]);
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,
@@ -602,7 +602,8 @@ export default function AppLayout() {
           filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
                      genero:S.genero, categorias:S.categorias, talles:S.talles,
                      gymrat:S.gymrat, gymSubcats:S.gymSubcats, gymSubcatFiltro:S.gymSubcatFiltro,
-                     pack:S.pack, precioMin:S.precioMin, precioMax:S.precioMax }}
+                     pack:S.pack, precioMin:S.precioMin, precioMax:S.precioMax,
+                     subCategoria:S.subCategoria }}
           onFilter={payload => {
             // gymSubcatFiltro is client-side only — do not reset pagination
             if ('gymSubcatFiltro' in payload) { set(payload); }
