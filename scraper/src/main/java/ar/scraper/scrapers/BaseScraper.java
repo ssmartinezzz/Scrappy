@@ -9,6 +9,20 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 public abstract class BaseScraper {
+
+    /**
+     * JS init script applied to every new page to spoof bot-detection fingerprints.
+     * Must be {@code public} so that {@link ar.scraper.web.ScraperService} (different
+     * package) can reference it at the second call-site in {@code rescrapearSitio()}.
+     */
+    public static final String STEALTH_INIT_SCRIPT = """
+            // Spoof: navigator.webdriver, navigator.plugins, navigator.languages, window.chrome
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'plugins',   {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['es-AR', 'es', 'en']});
+            window.chrome = { runtime: {} };
+            """;
+
     protected final Logger log = LoggerFactory.getLogger(getClass());
     protected final ScraperConfig config;
     protected final String sitio;
@@ -29,6 +43,7 @@ public abstract class BaseScraper {
                     .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
                     .setLocale("es-AR"))) {
                 try (Page page = ctx.newPage()) {
+                    page.addInitScript(STEALTH_INIT_SCRIPT);
                     page.setDefaultTimeout(config.getTimeoutMs());
                     page.route("**/*.{woff,woff2,ttf,otf}", r -> r.abort());
                     page.route("**/analytics**", r -> r.abort());
