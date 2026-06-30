@@ -122,7 +122,7 @@ class ApiControllerOutfitsGymTest {
     // ── helpers ──────────────────────────────────────────────────────────
 
     private AggregatedResult mockResult(List<Product> products) {
-        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         return new AggregatedResult(products, Map.of(), Map.of(), facets, 0, 0);
     }
 }

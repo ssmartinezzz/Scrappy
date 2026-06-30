@@ -62,15 +62,16 @@ function Pill({ label, count, active, color, onClick, size }) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 export default function Sidebar({
-  facets = {}, meta = {}, filters, onFilter, onToggleCat, onToggleTalle, onReset,
+  facets = {}, meta = {}, filters, onFilter, onToggleCat, onToggleSubcat, onToggleTalle, onReset,
   open = false, onClose, onOpen,
 }) {
-  const badges      = facets.badges     || {};
-  const generos     = facets.generos    || {};
-  const cats        = facets.categorias || {};
-  const marcas      = facets.marcas     || {};
-  const gymratCount = facets.gymratCount || 0;
-  const packCount   = facets.packCount   || 0;
+  const badges        = facets.badges        || {};
+  const generos       = facets.generos       || {};
+  const cats          = facets.categorias    || {};
+  const marcas        = facets.marcas        || {};
+  const gymratCount   = facets.gymratCount   || 0;
+  const packCount     = facets.packCount     || 0;
+  const subCategorias = facets.subCategorias || {};
 
   const topMarcas = useMemo(() => sortByCountDesc(marcas).slice(0, 20), [marcas]);
 
@@ -93,7 +94,8 @@ export default function Sidebar({
     + (filters.categorias?.length || 0)
     + (filters.gymrat ? 1 : 0)
     + (filters.pack ? 1 : 0)
-    + (filters.precioMin != null || filters.precioMax != null ? 1 : 0);
+    + (filters.precioMin != null || filters.precioMax != null ? 1 : 0)
+    + (filters.subCategoria?.length || 0);
 
   // Agrupar categorías semánticamente
   const { calzado, superior, inferior, tech, suppl, accesorio, otros } = useMemo(() => {
@@ -312,6 +314,17 @@ export default function Sidebar({
             color={SEMANTIC.pack}
             onClick={() => onFilter({ pack: !filters.pack })}
           />
+        </Section>
+      )}
+
+      {/* Actividad (subcategory activity/sport dimension) */}
+      {Object.keys(subCategorias).length > 0 && (
+        <Section title="🎯 Actividad" count={filters.subCategoria?.length || 0} defaultOpen={false}>
+          {Object.entries(subCategorias).map(([sc, n]) => (
+            <Pill key={sc} label={sc} count={n}
+              active={filters.subCategoria?.includes(sc)}
+              onClick={() => onToggleSubcat(sc)} />
+          ))}
         </Section>
       )}
 

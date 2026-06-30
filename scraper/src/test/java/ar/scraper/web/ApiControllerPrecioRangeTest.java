@@ -94,7 +94,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(barato, medio, caro));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, 10000.0, 20000.0);
+                null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode productos = body.path("productos");
@@ -110,7 +110,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(barato, caro));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, 5000.0, null);
+                null, null, null, null, "precio_asc", null, 5000.0, null, null);
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).hasSize(1);
@@ -124,7 +124,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(barato, caro));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, 5000.0);
+                null, null, null, null, "precio_asc", null, null, 5000.0, null);
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).hasSize(1);
@@ -139,7 +139,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(atMin, atMax, outside));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, 10000.0, 20000.0);
+                null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null);
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).hasSize(2);
@@ -156,7 +156,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(packDentroDelRango, unidadFueraDelRango));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, 10000.0, 15000.0);
+                null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null);
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).hasSize(1);
@@ -171,7 +171,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(pack));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, 10000.0, 15000.0);
+                null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null);
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).isEmpty();
@@ -186,7 +186,7 @@ class ApiControllerPrecioRangeTest {
         when(service.getLastResult()).thenReturn(resultFor(a, b));
 
         ResponseEntity<?> respWithoutNewParams = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode body = (JsonNode) respWithoutNewParams.getBody();
         assertThat(body.path("productos")).hasSize(2);

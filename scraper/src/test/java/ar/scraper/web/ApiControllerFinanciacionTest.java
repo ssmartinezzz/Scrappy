@@ -344,7 +344,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode prod0 = body.path("productos").get(0);
@@ -369,7 +369,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
 
         controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         verify(db, times(1)).cargarPresetActivo();
     }
@@ -386,7 +386,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode finanNode = body.path("productos").get(0).path("senalFinanciacion");
@@ -411,7 +411,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode prod0 = body.path("productos").get(0);
@@ -451,7 +451,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode prod0 = ((JsonNode) resp.getBody()).path("productos").get(0);
         assertThat(prod0.path("cantidadUnidades").asInt()).isEqualTo(3);
@@ -470,7 +470,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode prod0 = ((JsonNode) resp.getBody()).path("productos").get(0);
         assertThat(prod0.path("cantidadUnidades").asInt()).isEqualTo(1);
@@ -493,7 +493,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode facetsNode = ((JsonNode) resp.getBody()).path("meta").path("facets");
         assertThat(facetsNode.path("packCount").asInt()).isEqualTo(1);
@@ -518,7 +518,7 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", true, null, null);
+                null, null, null, null, "precio_asc", true, null, null, null);
 
         JsonNode prods = ((JsonNode) resp.getBody()).path("productos");
         assertThat(prods).hasSize(1);
@@ -541,9 +541,9 @@ class ApiControllerFinanciacionTest {
         when(db.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> respNull = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", null, null, null);
+                null, null, null, null, "precio_asc", null, null, null, null);
         ResponseEntity<?> respFalse = controller.data(1, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", false, null, null);
+                null, null, null, null, "precio_asc", false, null, null, null);
 
         assertThat(((JsonNode) respNull.getBody()).path("productos")).hasSize(2);
         assertThat(((JsonNode) respFalse.getBody()).path("productos")).hasSize(2);
