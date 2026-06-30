@@ -280,8 +280,10 @@ export default function FavoritosPanel({
                       onClick={e => { e.stopPropagation(); onDeleteFavorito?.(f.url); }}
                       title="Quitar de favoritos"
                       style={{
-                        background:'none', border:'none', cursor:'pointer',
-                        fontSize:'.8rem', color:'var(--t4)', padding:'2px 4px', flexShrink:0,
+                        background:'var(--s3)', border:'1px solid var(--bd)',
+                        borderRadius:6, cursor:'pointer',
+                        fontSize:'.72rem', color:'var(--t2)',
+                        padding:'2px 7px', flexShrink:0, lineHeight:1.4,
                       }}>✕</button>
                   </div>
 
