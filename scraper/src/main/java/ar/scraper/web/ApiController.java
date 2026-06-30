@@ -205,7 +205,8 @@ public class ApiController {
             @RequestParam(defaultValue = "precio_asc") String orden,
             @RequestParam(required = false)     Boolean pack,
             @RequestParam(required = false)     Double precioMin,
-            @RequestParam(required = false)     Double precioMax
+            @RequestParam(required = false)     Double precioMax,
+            @RequestParam(required = false)     List<String> subCategoria
     ) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
@@ -216,7 +217,7 @@ public class ApiController {
                 .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
 
         // 1. Aplicar filtros
-        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax);
+        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax, subCategoria);
 
         // 2. Ordenar
         filtrados = ordenar(filtrados, orden);
@@ -257,6 +258,8 @@ public class ApiController {
         facets.marcas().forEach(marcasNode::put);
         ObjectNode badgesNode = facetsNode.putObject("badges");
         facets.badges().forEach(badgesNode::put);
+        ObjectNode subCategoriasNode = facetsNode.putObject("subCategorias");
+        facets.subCategorias().forEach(subCategoriasNode::put);
         // Rubros con conteo
         ObjectNode rubrosNode = facetsNode.putObject("rubros");
         r.productos().stream()
@@ -303,6 +306,7 @@ public class ApiController {
             n.put("cantidadUnidades", p.cantidadUnidades());
             n.put("esPack",     p.esPack());
             n.put("precioUnitario", p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio());
+            n.put("sub_categoria", safe(p.subCategoria()));
             ArrayNode tallesArr = n.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesArr::add);
             // ML score — siempre serializar para el panel de detalle
@@ -358,6 +362,8 @@ public class ApiController {
         facets.marcas().forEach(marcasNode2::put);
         ObjectNode badgesNode2 = root.putObject("badges");
         facets.badges().forEach(badgesNode2::put);
+        ObjectNode subCategoriasNode2 = root.putObject("subCategorias");
+        facets.subCategorias().forEach(subCategoriasNode2::put);
 
         // Conteo de productos gymrat
         long gymratCount = r.productos().stream().filter(Product::gymrat).count();
@@ -2000,7 +2006,8 @@ public class ApiController {
             Boolean gymratFiltro,
             Boolean packFiltro,
             Double precioMinFiltro,
-            Double precioMaxFiltro
+            Double precioMaxFiltro,
+            List<String> subCategoriaFiltro
     ) {
         return productos.stream()
                 .filter(p -> {
@@ -2067,6 +2074,12 @@ public class ApiController {
                                 || prodCat.startsWith(s + " ")
                                 || s.startsWith(prodCat + " ");
                         });
+                        if (!match) return false;
+                    }
+                    // Filtro subCategoria: OR exact match (accent-sensitive, values already stored normalized)
+                    if (subCategoriaFiltro != null && !subCategoriaFiltro.isEmpty()) {
+                        String sc = p.subCategoria() != null ? p.subCategoria() : "";
+                        boolean match = subCategoriaFiltro.stream().anyMatch(sel -> sc.equalsIgnoreCase(sel));
                         if (!match) return false;
                     }
                     // Búsqueda full-text

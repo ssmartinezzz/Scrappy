@@ -145,7 +145,7 @@ class ApiControllerMlOpsTest {
 
     @Test
     void mlAplicarReturnsStartedWhenDataExists() {
-        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         var result = new AggregatedResult(List.of(), Map.of(), Map.of(), facets, 0, 0);
         when(service.getLastResult()).thenReturn(result);
 
