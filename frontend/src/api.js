@@ -279,7 +279,7 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
  * @param {string}   [params.genero]    optional gender filter
  * @returns {Promise<Object|null>} builder result or null on error
  */
-export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false }) {
+export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false, pin = [] }) {
   const p = new URLSearchParams();
   if (categorias && categorias.length) p.set('categorias', categorias.join(','));
   // presupuesto=0 or empty means no limit → send a large ceiling so the API accepts it
@@ -287,6 +287,7 @@ export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excl
   p.set('presupuesto', budget);
   if (genero) p.set('genero', genero);
   if (excluir && excluir.length) p.set('excluir', excluir.join(','));
+  if (pin && pin.length) p.set('pin', pin.join(','));
   if (greedy) p.set('greedy', 'true');
   const r = await fetch(`${BASE}/api/outfits/builder?${p}`);
   if (r.status === 204) return null;
@@ -321,6 +322,11 @@ export async function renameOutfit(id, nombre) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nombre }),
   });
+  return r.ok;
+}
+
+export async function resetOutfitFeedback() {
+  const r = await fetch(`${BASE}/api/outfits/feedback`, { method: 'DELETE' });
   return r.ok;
 }
 

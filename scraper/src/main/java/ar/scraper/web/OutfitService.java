@@ -834,9 +834,27 @@ public class OutfitService {
             List<Product> productos, List<String> categorias,
             double presupuesto, String genero, FeedbackModel feedback,
             Set<String> excluirUrls, boolean greedy) {
+        return armarPorCategorias(productos, categorias, presupuesto, genero,
+                feedback, excluirUrls, greedy, List.of());
+    }
+
+    /**
+     * Pin-aware outfit assembler. Like the 7-arg overload but accepts a list of
+     * products to lock into their resolved sub-slots before the optimizer runs.
+     * Pinned products are excluded from the MCKP/greedy search; the remaining
+     * budget ({@code presupuesto - Σ pinned.precio}, floored at 0) is used for
+     * the open slots. Pinned products that cannot be resolved (unknown category,
+     * sub-slot not in the requested set, URL in {@code excluirUrls}) are silently
+     * dropped and their slot is treated as open.
+     */
+    public OutfitBuilderResult armarPorCategorias(
+            List<Product> productos, List<String> categorias,
+            double presupuesto, String genero, FeedbackModel feedback,
+            Set<String> excluirUrls, boolean greedy, List<Product> pinned) {
         if (productos == null) productos = List.of();
         if (feedback == null) feedback = FeedbackModel.empty();
         if (excluirUrls == null) excluirUrls = Set.of();
+        if (pinned == null) pinned = List.of();
         if (categorias == null || categorias.isEmpty()) {
             return new OutfitBuilderResult(List.of(), genero != null ? genero : "",
                     presupuesto, 0.0, false, List.of(), List.of(), null);
@@ -856,8 +874,44 @@ public class OutfitService {
         }
         List<String> slotOrder = new ArrayList<>(catsBySlot.keySet());
 
+        // Pin pre-processing — lock requested products into their sub-slots.
+        // Rules: exclude wins over pin; unknown categories and out-of-scope sub-slots
+        // are skipped; first pin wins on duplicate sub-slot collisions.
+        Map<String, Product> pinnedBySlot = new LinkedHashMap<>();
+        for (Product pin : pinned) {
+            if (pin == null) continue;
+            if (excluirFinal.contains(pin.url())) continue;
+            String subslot = CATEGORIA_SUBSLOT.get(pin.categoria());
+            if (subslot == null) continue;
+            if (!slotOrder.contains(subslot)) continue;
+            if (pinnedBySlot.containsKey(subslot)) continue; // first-wins on collision
+            pinnedBySlot.put(subslot, pin);
+        }
+
+        double pinnedTotal   = pinnedBySlot.values().stream().mapToDouble(Product::precio).sum();
+        double reducedBudget = Math.max(0.0, presupuesto - pinnedTotal);
+
+        List<String> openSlotOrder = slotOrder.stream()
+                .filter(s -> !pinnedBySlot.containsKey(s))
+                .collect(Collectors.toList());
+        Map<String, Set<String>> openCatsBySlot = new LinkedHashMap<>();
+        for (String s : openSlotOrder) openCatsBySlot.put(s, catsBySlot.get(s));
+
+        // All-pinned short-circuit: no open slots to optimize — return immediately.
+        if (openSlotOrder.isEmpty()) {
+            List<SlotPick> picks = slotOrder.stream()
+                    .filter(pinnedBySlot::containsKey)
+                    .map(s -> toSlotPick(s, pinnedBySlot.get(s)))
+                    .collect(Collectors.toList());
+            String g = genero != null ? genero : "";
+            return new OutfitBuilderResult(picks, g, presupuesto, pinnedTotal,
+                    false, List.of(), List.of(), null);
+        }
+
         if (greedy) {
-            return armarGreedy(productos, slotOrder, catsBySlot, presupuesto, genero, feedback, excluirFinal);
+            OutfitBuilderResult open = armarGreedy(productos, openSlotOrder, openCatsBySlot,
+                    reducedBudget, genero, feedback, excluirFinal);
+            return mergePinned(open, pinnedBySlot, slotOrder, presupuesto);
         }
 
         Set<String> exclude          = feedback.exclude();
@@ -867,8 +921,8 @@ public class OutfitService {
         List<List<Product>> allPools    = new ArrayList<>();
         List<Boolean>       rawNonEmpty = new ArrayList<>();
 
-        for (String slot : slotOrder) {
-            Set<String> slotCats = catsBySlot.get(slot);
+        for (String slot : openSlotOrder) {
+            Set<String> slotCats = openCatsBySlot.get(slot);
             List<Product> rawPool = productos.stream()
                     .filter(p -> slotCats.contains(p.categoria()))
                     .filter(p -> generoElegible(p, genero))
@@ -884,7 +938,7 @@ public class OutfitService {
                     .collect(Collectors.toList());
 
             if (rawPool.isEmpty()) {
-                slotsVacios.addAll(catsBySlot.get(slot));
+                slotsVacios.addAll(openCatsBySlot.get(slot));
                 allPools.add(List.of());
                 rawNonEmpty.add(false);
                 continue;
@@ -901,33 +955,33 @@ public class OutfitService {
             List<Product> top60 = new ArrayList<>(sortedRaw.subList(0, Math.min(60, sortedRaw.size())));
             Collections.shuffle(top60, new Random());
             List<Product> filteredPool = top60.stream()
-                    .filter(p -> p.precio() <= presupuesto)
+                    .filter(p -> p.precio() <= reducedBudget)
                     .limit(BUILDER_POOL_K)
                     .collect(Collectors.toList());
 
             allPools.add(filteredPool);
         }
 
-        MckpSolver solver = new MckpSolver(recommendationService, allPools, presupuesto);
-        solver.solve(0, 0.0, 0.0, new Product[slotOrder.size()]);
+        MckpSolver solver = new MckpSolver(recommendationService, allPools, reducedBudget);
+        solver.solve(0, 0.0, 0.0, new Product[openSlotOrder.size()]);
 
         Product[] bestSolution = solver.best;
         Set<String> slotsInSolution = new HashSet<>();
         List<SlotPick> slots = new ArrayList<>();
 
-        for (int i = 0; i < slotOrder.size(); i++) {
+        for (int i = 0; i < openSlotOrder.size(); i++) {
             Product p = bestSolution[i];
             if (p != null) {
-                slots.add(toSlotPick(slotOrder.get(i), p));
-                slotsInSolution.add(slotOrder.get(i));
+                slots.add(toSlotPick(openSlotOrder.get(i), p));
+                slotsInSolution.add(openSlotOrder.get(i));
             }
         }
 
         List<String> slotsSinPresupuesto = new ArrayList<>();
-        for (int i = 0; i < slotOrder.size(); i++) {
-            String slot = slotOrder.get(i);
+        for (int i = 0; i < openSlotOrder.size(); i++) {
+            String slot = openSlotOrder.get(i);
             if (rawNonEmpty.get(i) && !slotsInSolution.contains(slot)) {
-                slotsSinPresupuesto.addAll(catsBySlot.get(slot));
+                slotsSinPresupuesto.addAll(openCatsBySlot.get(slot));
             }
         }
 
@@ -938,12 +992,50 @@ public class OutfitService {
         Double minimoBudgetNecesario = null;
         if (slots.isEmpty()) {
             minimoBudgetNecesario = calcularMinimoBudget(
-                    productos, slotOrder, catsBySlot, genero, feedback, excluirFinal);
+                    productos, openSlotOrder, openCatsBySlot, genero, feedback, excluirFinal);
         }
 
-        return new OutfitBuilderResult(slots, generoResultado, presupuesto,
+        OutfitBuilderResult open = new OutfitBuilderResult(slots, generoResultado, reducedBudget,
                 totalEstimado, noCumplePresupuesto, slotsVacios, slotsSinPresupuesto,
                 minimoBudgetNecesario);
+        return mergePinned(open, pinnedBySlot, slotOrder, presupuesto);
+    }
+
+    /**
+     * Merges pinned slot picks with the open-slot result, ordering by the original
+     * slot order so pinned and freshly-chosen items interleave naturally.
+     * Reports the original (unreduced) budget ceiling and adds pinned prices to
+     * the open total. Diagnostic fields ({@code categoriasVacias},
+     * {@code categoriasSinPresupuesto}, {@code minimoBudgetNecesario},
+     * {@code noCumplePresupuesto}) are taken from the open result only —
+     * pinned slots are satisfied by definition.
+     */
+    private OutfitBuilderResult mergePinned(
+            OutfitBuilderResult open, Map<String, Product> pinnedBySlot,
+            List<String> originalSlotOrder, double presupuestoOriginal) {
+        Map<String, SlotPick> bySlot = new LinkedHashMap<>();
+        for (SlotPick sp : open.slots()) bySlot.put(sp.slot(), sp);
+        for (Map.Entry<String, Product> e : pinnedBySlot.entrySet()) {
+            bySlot.put(e.getKey(), toSlotPick(e.getKey(), e.getValue()));
+        }
+
+        List<SlotPick> merged = originalSlotOrder.stream()
+                .filter(bySlot::containsKey)
+                .map(bySlot::get)
+                .collect(Collectors.toList());
+
+        double pinnedTotal   = pinnedBySlot.values().stream().mapToDouble(Product::precio).sum();
+        double totalEstimado = open.totalEstimado() + pinnedTotal;
+
+        return new OutfitBuilderResult(
+                merged,
+                open.genero(),
+                presupuestoOriginal,
+                totalEstimado,
+                open.noCumplePresupuesto(),
+                open.categoriasVacias(),
+                open.categoriasSinPresupuesto(),
+                open.minimoBudgetNecesario());
     }
 
     /**
