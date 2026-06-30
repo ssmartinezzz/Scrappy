@@ -61,17 +61,56 @@ public abstract class BasePage {
         return List.of();
     }
 
+    /**
+     * JS Promise that scrolls down in 600 px increments and resolves when the
+     * image count stops growing (stable DOM) or after 20 checks — whichever
+     * comes first. Replaces the old fixed Java-side {@code waitForTimeout} loop
+     * so timing is driven by actual DOM mutations rather than a fixed delay.
+     */
+    private static final String SCROLL_JS = """
+            () => new Promise(resolve => {
+              let lastCount = 0, checks = 0;
+              const maxChecks = 20;
+              const check = () => {
+                const count = document.querySelectorAll('img').length;
+                if (count === lastCount || ++checks >= maxChecks) { resolve(); return; }
+                lastCount = count;
+                window.scrollBy(0, 600);
+                setTimeout(check, 800);
+              };
+              check();
+            })
+            """;
+
     protected void scrollToBottom() {
         try {
-            for (int i = 0; i < 20; i++) {
-                long before = (long) page.evaluate("window.scrollY");
-                page.evaluate("window.scrollBy(0, 900)");
-                page.waitForTimeout(350);
-                if ((long) page.evaluate("window.scrollY") <= before) break;
-            }
-            page.evaluate("window.scrollTo(0,0)");
-            page.waitForTimeout(300);
+            page.evaluate(SCROLL_JS);
         } catch (Exception e) { log.debug("scroll: {}", e.getMessage()); }
+    }
+
+    /**
+     * JS function that recursively traverses shadow roots and concatenates the
+     * {@code outerHTML} of every element — including those nested inside
+     * shadow DOM trees that are invisible to normal {@code querySelectorAll}.
+     */
+    private static final String SHADOW_DOM_JS = """
+            () => {
+              function flatten(root) {
+                const els = Array.from(root.querySelectorAll('*'));
+                return els.flatMap(el => el.shadowRoot
+                  ? [el, ...flatten(el.shadowRoot)] : [el]);
+              }
+              return flatten(document.body).map(el => el.outerHTML).join('');
+            }
+            """;
+
+    /**
+     * Returns a flat HTML string containing the {@code outerHTML} of every
+     * element reachable through the document's shadow DOM tree.
+     * Additive — no existing {@link BasePage} method signatures change.
+     */
+    protected String flattenedShadowHtml() {
+        return (String) page.evaluate(SHADOW_DOM_JS);
     }
 
     protected Optional<Double> parsePrecio(String raw) {
