@@ -379,10 +379,10 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
           disabled={resetting}
           title="Borra el historial de Me gusta / No me gusta para que el generador empiece desde cero"
           style={{
-            marginLeft:'auto', padding:'3px 10px', borderRadius:12, fontSize:'.68rem',
+            marginLeft:'auto', padding:'3px 10px', borderRadius:6, fontSize:'.72rem',
             fontWeight:600, cursor: resetting ? 'default' : 'pointer',
-            background:'none', border:'1px solid var(--bd)',
-            color:'var(--t4)', opacity: resetting ? .5 : 1,
+            background:'var(--s3)', border:'1px solid var(--bd)',
+            color:'var(--t2)', opacity: resetting ? .5 : 1,
           }}>
           {resetting ? 'Reseteando...' : '↺ Resetear gustos'}
         </button>
