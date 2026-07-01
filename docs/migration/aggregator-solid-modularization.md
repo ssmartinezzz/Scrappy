@@ -13,7 +13,7 @@ every work unit below leaves `mvn test` green.
 - [x] Slice 1: GroupingService characterization tests + scaffold
 - [x] Slice 2: Grouping package split (ProductGroup, ProductIdentity, JaccardSimilarity, AccentStripper)
 - [x] Slice 3: Data/predicate holders (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
-- [ ] Slice 4: PackQuantityDetector (literal cut-paste)
+- [x] Slice 4: PackQuantityDetector (literal cut-paste)
 - [ ] Slice 5: CategoryClassifier
 - [ ] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
 - [ ] Slice 7: SubcategoryResolver
@@ -67,11 +67,29 @@ every work unit below leaves `mvn test` green.
   `TORSO_KEYWORDS_FLAT`/`PIERNAS_KEYWORDS_FLAT` are byte-identical to a
   frozen snapshot taken at extraction time.
 
+### Slice 4 — PackQuantityDetector (DONE)
+- `ar.scraper.aggregator.normalize.PackQuantityDetector` — literal cut-paste
+  of `detectarCantidadUnidades` + all patterns (`PACK_KEYWORD_COUNT`,
+  `KEYWORD_NEAR_X_COUNT`, `N_PIEZAS`, `RANGO_TALLE`, `CONTEO_COLOR`,
+  `GARMENT_PLURAL_ROOTS`/`PATTERNS`, `COMBO_CONNECTOR`,
+  `MAX_COMBO_CONNECTOR_GAP`, `firstMatchSpan`,
+  `matchesTorsoPiernasComboConConector`, `esRangoDeTalle`, `esConteoDeColor`,
+  `cap`). No logic rewrite. Reads `TORSO_KEYWORDS_FLAT`/`PIERNAS_KEYWORDS_FLAT`
+  from `GarmentTaxonomy` and uses `NonTextileGuard`. Public entry point:
+  `detectar(String, String)`.
+- RISK MITIGATION: a temporary diff-check test compared old
+  `NormalizerService.detectarCantidadUnidades` output vs new
+  `PackQuantityDetector.detectar` output across the full fixture set (all
+  migrated pack/combo test cases + a broader corpus of ~70 product-name
+  strings) — zero deltas confirmed before the old method was removed.
+- `NormalizerService` field-initializes a `PackQuantityDetector` instance
+  (constructor injection lands in Work Unit 8) and delegates
+  `cantidadUnidades` resolution to it.
+- Pack/combo tests migrated to `PackQuantityDetectorTest`; originals removed
+  from `NormalizerServiceTest` in the same commit.
+
 ## Remaining slices (Batch 2+)
 
-- Slice 4: `PackQuantityDetector` literal cut-paste from
-  `detectarCantidadUnidades` + patterns; diff-against-original before
-  removing the old method.
 - Slice 5: `CategoryClassifier` (clasificar + context guards + torso/piernas
   block matchers).
 - Slice 6: `BrandExtractor` + `GenderResolver` + `SizeNormalizer`.
