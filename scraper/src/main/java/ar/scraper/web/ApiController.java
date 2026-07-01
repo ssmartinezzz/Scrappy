@@ -197,7 +197,7 @@ public class ApiController {
             @RequestParam(required = false)     List<String> categoria,
             @RequestParam(required = false)     String q,
             @RequestParam(required = false)     String sitio,
-            @RequestParam(required = false)     String marca,
+            @RequestParam(required = false)     List<String> marca,
             @RequestParam(required = false)     String badge,
             @RequestParam(required = false)     String segment,
             @RequestParam(required = false)     String rubro,
@@ -1999,7 +1999,7 @@ public class ApiController {
             List<String> categorias,
             String q,
             String sitioFiltro,
-            String marcaFiltro,
+            List<String> marcaFiltro,
             String badgeFiltro,
             String segmentFiltro,
             String rubroFiltro,
@@ -2024,10 +2024,11 @@ public class ApiController {
                                         pt.equalsIgnoreCase(t)));
                         if (!match) return false;
                     }
-                    // Filtro marca
-                    if (marcaFiltro != null && !marcaFiltro.isBlank()) {
+                    // Filtro marca: OR — el producto matchea al menos una marca pedida
+                    if (marcaFiltro != null && !marcaFiltro.isEmpty()) {
                         String m = p.marca() != null ? p.marca() : "";
-                        if (!m.equalsIgnoreCase(marcaFiltro)) return false;
+                        boolean match = marcaFiltro.stream().anyMatch(sel -> m.equalsIgnoreCase(sel));
+                        if (!match) return false;
                     }
                     // Filtro badge ML
                     if (badgeFiltro != null && !badgeFiltro.isBlank()) {
