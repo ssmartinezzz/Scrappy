@@ -40,6 +40,9 @@
   /* ===== STICKY CHROME LAYOUT =====
      Fallback values for first-paint (before ResizeObserver fires in AppLayout). */
   --topbar-h: 57px; --tabbar-h: 48px; --sticky-offset: 104px; --compare-bar-h: 0px;
+  /* Fallback for first-paint before useStickyFilterBar's ResizeObserver fires
+     (Catálogo-only — never read/written by other tabs). */
+  --catalogo-hero-h: 56px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,45 +87,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .app-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .layout { display: flex; min-height: calc(100vh - var(--topbar-h)); min-height: calc(100dvh - var(--topbar-h)); }
 
-/* ===== HYBRID FILTER RAIL (Spec Req 4-5) =====
-   Persistent rail: precio/género/segmento, always reachable on desktop with
-   zero extra clicks — sits in the `.layout` flex flow next to `.content`,
-   independent of the Sheet/drawer's open state. Hidden on mobile/tablet
-   (≤900px) where the Sheet alone covers every filter (rail controls are
-   duplicated inside the Sheet content via `.sidebar-sheet-rail` so nothing
-   becomes unreachable at that width — Spec Scenario 5.7). */
-.filter-rail { width: 200px; flex-shrink: 0; background: var(--s1); border-right: 1px solid var(--bd);
-  padding: .85rem .9rem; display: flex; flex-direction: column; gap: .85rem; }
-.filter-rail-header { display: flex; align-items: center; justify-content: space-between; }
-.filter-rail-trigger { margin-top: .25rem; padding: 7px 10px; border-radius: var(--rb);
-  border: 1.5px dashed var(--bd2); background: transparent; color: var(--t3);
-  font: 600 .72rem var(--font); cursor: pointer; transition: all .15s; text-align: left; }
-.filter-rail-trigger:hover { border-color: var(--p); color: var(--p2); }
-.filter-rail-trigger span { font-size: .62rem; }
-
-/* The Sheet's own copy of the rail controls is the mobile fallback only —
-   desktop already shows the persistent .filter-rail, so hide the duplicate
-   inside the Sheet content at desktop widths to avoid showing it twice. */
-.sidebar-sheet-rail { display: none; }
-
-/* ===== SIDEBAR (Sheet — categoría, marca, ML badge, GYM, packs) =====
-   At ALL widths this is an overlay drawer, not a static flex column: the
-   Hybrid pattern requires the persistent .filter-rail to be the only
-   always-visible filter surface, with the Sheet opening on demand via the
-   "Filtros" trigger (desktop) or the tab-bar toggle (mobile). `forceMount`
-   keeps it in the DOM (see Sidebar.jsx comment); `position:fixed` + the
-   `.open` transform control visibility/animation at every breakpoint —
-   this used to be desktop-static/mobile-overlay before the Hybrid rail
-   existed, now it is overlay-only everywhere so it never duplicates the
-   rail's reachable controls as a permanent second column. */
-.sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: var(--z-sidebar);
-  width: 260px; max-width: 85vw; background: var(--s1); border-right: 1px solid var(--bd);
-  display: flex; flex-direction: column; overflow-y: auto; padding-bottom: 2rem;
-  transform: translateX(-100%); transition: transform .25s ease;
-  box-shadow: 4px 0 24px rgba(0,0,0,.18); }
-.sidebar.open { transform: translateX(0); }
-.sidebar::-webkit-scrollbar { width: 4px; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 2px; }
 .sb-section { font: 700 .65rem/1 var(--font); text-transform: uppercase; letter-spacing: .1em;
   color: var(--t4); padding: .65rem .85rem .25rem; }
 .sb-price-range { padding: .4rem .85rem .5rem; display: flex; flex-direction: column; gap: 6px; }
@@ -206,6 +170,58 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   background: transparent; color: var(--t3); cursor: pointer; transition: all .15s; font-size: .8rem; }
 .vtbtn.active,.vtbtn:hover { border-color: var(--p); color: var(--p2); background: rgba(110,64,201,.1); }
 .counter { font: .72rem/1 var(--font); color: var(--t4); white-space: nowrap; }
+
+/* ===== CATALOGO FILTER BAR (sticky sub-bar, /catalogo only) =====
+   Mounted only inside CatalogoRoute (AppLayout.jsx) — never global. Sticky
+   layer stacked right below SearchHero: top = sticky-offset + hero height
+   (--catalogo-hero-h, set by useStickyFilterBar's ResizeObserver on the
+   SearchHero wrapper). Scroll hide/reveal uses ONLY its own transform —
+   never mutates --topbar-h/--tabbar-h/--sticky-offset. */
+.catalogo-filter-bar {
+  position: sticky; top: calc(var(--sticky-offset) + var(--catalogo-hero-h));
+  z-index: calc(var(--z-chrome-sub) - 1);
+  display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+  overflow-x: auto; scrollbar-width: none;
+  background: var(--s1); border-bottom: 1px solid var(--bd);
+  padding: .45rem .85rem; transition: transform .25s ease;
+}
+.catalogo-filter-bar::-webkit-scrollbar { display: none; }
+.catalogo-filter-bar--hidden { transform: translateY(-100%); }
+.cfb-trigger { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 11px; border-radius: 20px; border: 1.5px solid var(--bd2);
+  background: transparent; color: var(--t3); font: 600 .72rem var(--font);
+  cursor: pointer; transition: all .15s; white-space: nowrap; }
+.cfb-trigger:hover { border-color: var(--p); color: var(--p2); }
+.cfb-mas { margin-left: auto; }
+.cfb-count { display: inline-flex; align-items: center; justify-content: center;
+  min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px;
+  background: var(--p); color: #fff; font-size: .6rem; font-weight: 700; }
+.cfb-genero-group { display: flex; gap: 2px; flex-shrink: 0; }
+.cfb-genero-pill { flex-shrink: 0; padding: 6px 9px; border-radius: 20px;
+  border: 1.5px solid transparent; background: transparent; color: var(--t4);
+  font: 600 .72rem var(--font); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.cfb-genero-pill:hover { color: var(--t2); }
+.cfb-genero-pill.active { border-color: var(--p); background: color-mix(in srgb, var(--p) 15%, transparent); color: var(--p2); }
+.cfb-genero-count { margin-left: 3px; font-size: .6rem; opacity: .55; }
+.cfb-clear { flex-shrink: 0; padding: 6px 10px; border-radius: 20px; border: none;
+  background: transparent; color: var(--r); font: 600 .68rem var(--font); cursor: pointer; }
+
+/* Sheet panel body — same width/scroll convention the old .sidebar used
+   (260px desktop / 85vw mobile, from ui/sheet.jsx's sheetVariants CVA). */
+.cfb-sheet { display: flex; flex-direction: column; overflow-y: auto; padding: 0; }
+.cfb-sheet-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center;
+  justify-content: space-between; border-bottom: 1px solid var(--s3); background: var(--s1);
+  padding: .65rem .85rem; }
+.cfb-sheet-title { font: 700 .78rem var(--font); color: var(--t2); }
+.cfb-sheet-close { background: transparent; border: none; color: var(--t4);
+  font-size: .85rem; cursor: pointer; padding: 2px 6px; }
+.cfb-sheet-close:hover { color: var(--t1); }
+.cfb-sheet-body { flex: 1; overflow-y: auto; padding-bottom: 1rem; }
+.cfb-pill-list { display: flex; flex-wrap: wrap; gap: 2px; padding: .65rem .85rem; }
+
+@media (min-width: 900px) {
+  .catalogo-filter-bar { padding: .5rem 1.25rem; gap: 8px; }
+}
 
 /* ===== GRID (mobile-first) ===== */
 /* phone base — 2 columns */
@@ -486,10 +502,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 /* phone-base card-body padding, restored at sm */
 .card-body { padding: .5rem .6rem; }
 @media (min-width: 560px) { .card-body { padding: .75rem .85rem; } }
-.sidebar button:hover { background: var(--s2) !important; }
-
-/* ── Sidebar toggle (hidden on desktop) ── */
-.sidebar-toggle { display: none; }
 
 /* ── Horizontal scroll rows (no scrollbar) ── */
 .scroll-row { display: flex; gap: 5px; overflow-x: auto; flex-wrap: nowrap;
@@ -497,16 +509,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .scroll-row::-webkit-scrollbar { display: none; }
 
 /* ===== RESPONSIVE ===== */
-
-/* ≤ lg: sidebar collapses into Sheet/drawer */
-@media (max-width: 900px) {
-  .filter-rail { display: none; }
-  .sidebar-sheet-rail { display: block; }
-  .sidebar-toggle { display: flex; align-items: center; justify-content: center;
-                    padding: 5px 8px; background: none; border: none;
-                    color: var(--t3); font-size: 1rem; cursor: pointer;
-                    border-radius: 6px; flex-shrink: 0; }
-}
 
 /* Prevent horizontal scroll globally */
 body { overflow-x: hidden; }

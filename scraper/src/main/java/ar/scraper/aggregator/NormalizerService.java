@@ -140,10 +140,18 @@ public class NormalizerService {
 
     private static final String[] KW_OJOTA = {
         "ojota","ojotas","flip flop","chancleta",
-        "birkenstock","crocs","havaianas","reef ","ipanema","kenner",
+        "birkenstock","crocs","havaianas","ipanema","kenner",
         "zueco","clogs","clog","slide sandal","pool slide",
         "rasteira","chinelo","badeleta","babuchas","suela plana",
         "sandalia","sandal","diapositiva","slide"
+    };
+
+    // Tier B — "Reef" es marca de indumentaria/accesorios de playa que también
+    // vende mochilas, gorras, buzos y billeteras, no solo ojotas/sandalias.
+    // Solo clasificar como Ojotas vía este keyword si hay contexto de calzado
+    // en el mismo título — mirrors el patrón KW_BORCEGO_MARCA/esContextoBorcego.
+    private static final String[] KW_OJOTA_MARCA = {
+        "reef "
     };
 
     private static final String[] KW_MOCASIN = {
@@ -220,8 +228,17 @@ public class NormalizerService {
     };
 
     private static final String[] KW_CHOMBA = {
-        "chomba","polo ","polo shirt","polera","rugby shirt",
+        "chomba","polo shirt","polera","rugby shirt",
         "pique polo","lacoste polo","fred perry polo"
+    };
+
+    // Tier B — "polo" suelto también es nombre de marca/línea en accesorios que
+    // no son indumentaria superior ("Medias Polo Green", "Gorra US Polo Assn",
+    // "Mochila Polo Club"). Solo clasificar como Chomba vía este keyword si no
+    // hay un sustantivo de accesorio explícito en el mismo título — mirrors el
+    // patrón KW_BORCEGO_MARCA/esContextoBorcego.
+    private static final String[] KW_CHOMBA_MARCA = {
+        "polo "
     };
 
     private static final String[] KW_CASACA = {
@@ -853,7 +870,8 @@ public class NormalizerService {
         if (anyMatch(t, KW_ZAPATO))    return "Zapato";
         if (anyMatch(t, KW_MOCASIN))   return "Mocasin";
         if (anyMatch(t, KW_SANDALIA))  return "Sandalia";
-        if (anyMatch(t, KW_OJOTA))     return "Ojotas";
+        if (anyMatch(t, KW_OJOTA) || (anyMatch(t, KW_OJOTA_MARCA) && esContextoOjota(t)))
+            return "Ojotas";
         if (anyMatch(t, KW_BOTA))      return "Botas";
 
         // ── ROPA INTERIOR / BAÑO ──────────────────────────────────────
@@ -871,7 +889,8 @@ public class NormalizerService {
         if (anyMatch(t, KW_SWEATER))  return "Sweater";
         if (anyMatch(t, KW_BUZO))     return "Buzo";
         if (anyMatch(t, KW_CASACA))   return "Casaca";
-        if (anyMatch(t, KW_CHOMBA))   return "Chomba";
+        if (anyMatch(t, KW_CHOMBA) || (anyMatch(t, KW_CHOMBA_MARCA) && esContextoChomba(t)))
+            return "Chomba";
         if (anyMatch(t, KW_MUSCULOSA)) return "Musculosa";
         if (anyMatch(t, KW_CAMISA))   return "Camisa";
         if (anyMatch(t, KW_REMERA))   return "Remera";
@@ -974,6 +993,34 @@ public class NormalizerService {
     private boolean esContextoBorcego(String t) {
         return t.contains("borcego") || t.contains("bota") || t.contains("boot")
             || t.contains("hiker") || t.contains("hiking") || t.contains("calzado");
+    }
+
+    /**
+     * Footwear context guard for {@link #KW_OJOTA_MARCA} (Tier B). "Reef" is
+     * both a sandal brand and a beachwear/accessories brand (mochilas,
+     * gorras, buzos, billeteras) — only classify as Ojotas via the bare
+     * brand keyword when an explicit footwear signal co-occurs.
+     */
+    private boolean esContextoOjota(String t) {
+        return t.contains("ojota") || t.contains("sandalia") || t.contains("chancla")
+            || t.contains("chinelo") || t.contains("slide") || t.contains("flip flop")
+            || t.contains("zueco") || t.contains("rasteira") || t.contains("babucha");
+    }
+
+    /**
+     * Brand-name guard for {@link #KW_CHOMBA_MARCA} (Tier B). "Polo" is both
+     * a garment word (chomba/polo shirt) and a brand/línea name used on
+     * accessories that are NOT indumentaria superior (medias, gorras,
+     * mochilas, bolsos, billeteras, cinturones, bufandas, guantes, lentes).
+     * Only classify as Chomba via the bare "polo" keyword when none of those
+     * accessory nouns co-occur in the same title.
+     */
+    private boolean esContextoChomba(String t) {
+        return !anyMatch(t, KW_MEDIAS)   && !anyMatch(t, KW_GORRA)
+            && !anyMatch(t, KW_GORRO)    && !anyMatch(t, KW_MOCHILA)
+            && !anyMatch(t, KW_BOLSO)    && !anyMatch(t, KW_BILLETERA)
+            && !anyMatch(t, KW_CINTURON) && !anyMatch(t, KW_BUFANDA)
+            && !anyMatch(t, KW_GUANTES)  && !anyMatch(t, KW_LENTES);
     }
 
     /**
