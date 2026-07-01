@@ -87,45 +87,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .app-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .layout { display: flex; min-height: calc(100vh - var(--topbar-h)); min-height: calc(100dvh - var(--topbar-h)); }
 
-/* ===== HYBRID FILTER RAIL (Spec Req 4-5) =====
-   Persistent rail: precio/género/segmento, always reachable on desktop with
-   zero extra clicks — sits in the `.layout` flex flow next to `.content`,
-   independent of the Sheet/drawer's open state. Hidden on mobile/tablet
-   (≤900px) where the Sheet alone covers every filter (rail controls are
-   duplicated inside the Sheet content via `.sidebar-sheet-rail` so nothing
-   becomes unreachable at that width — Spec Scenario 5.7). */
-.filter-rail { width: 200px; flex-shrink: 0; background: var(--s1); border-right: 1px solid var(--bd);
-  padding: .85rem .9rem; display: flex; flex-direction: column; gap: .85rem; }
-.filter-rail-header { display: flex; align-items: center; justify-content: space-between; }
-.filter-rail-trigger { margin-top: .25rem; padding: 7px 10px; border-radius: var(--rb);
-  border: 1.5px dashed var(--bd2); background: transparent; color: var(--t3);
-  font: 600 .72rem var(--font); cursor: pointer; transition: all .15s; text-align: left; }
-.filter-rail-trigger:hover { border-color: var(--p); color: var(--p2); }
-.filter-rail-trigger span { font-size: .62rem; }
-
-/* The Sheet's own copy of the rail controls is the mobile fallback only —
-   desktop already shows the persistent .filter-rail, so hide the duplicate
-   inside the Sheet content at desktop widths to avoid showing it twice. */
-.sidebar-sheet-rail { display: none; }
-
-/* ===== SIDEBAR (Sheet — categoría, marca, ML badge, GYM, packs) =====
-   At ALL widths this is an overlay drawer, not a static flex column: the
-   Hybrid pattern requires the persistent .filter-rail to be the only
-   always-visible filter surface, with the Sheet opening on demand via the
-   "Filtros" trigger (desktop) or the tab-bar toggle (mobile). `forceMount`
-   keeps it in the DOM (see Sidebar.jsx comment); `position:fixed` + the
-   `.open` transform control visibility/animation at every breakpoint —
-   this used to be desktop-static/mobile-overlay before the Hybrid rail
-   existed, now it is overlay-only everywhere so it never duplicates the
-   rail's reachable controls as a permanent second column. */
-.sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: var(--z-sidebar);
-  width: 260px; max-width: 85vw; background: var(--s1); border-right: 1px solid var(--bd);
-  display: flex; flex-direction: column; overflow-y: auto; padding-bottom: 2rem;
-  transform: translateX(-100%); transition: transform .25s ease;
-  box-shadow: 4px 0 24px rgba(0,0,0,.18); }
-.sidebar.open { transform: translateX(0); }
-.sidebar::-webkit-scrollbar { width: 4px; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 2px; }
 .sb-section { font: 700 .65rem/1 var(--font); text-transform: uppercase; letter-spacing: .1em;
   color: var(--t4); padding: .65rem .85rem .25rem; }
 .sb-price-range { padding: .4rem .85rem .5rem; display: flex; flex-direction: column; gap: 6px; }
@@ -541,10 +502,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 /* phone-base card-body padding, restored at sm */
 .card-body { padding: .5rem .6rem; }
 @media (min-width: 560px) { .card-body { padding: .75rem .85rem; } }
-.sidebar button:hover { background: var(--s2) !important; }
-
-/* ── Sidebar toggle (hidden on desktop) ── */
-.sidebar-toggle { display: none; }
 
 /* ── Horizontal scroll rows (no scrollbar) ── */
 .scroll-row { display: flex; gap: 5px; overflow-x: auto; flex-wrap: nowrap;
@@ -552,16 +509,6 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .scroll-row::-webkit-scrollbar { display: none; }
 
 /* ===== RESPONSIVE ===== */
-
-/* ≤ lg: sidebar collapses into Sheet/drawer */
-@media (max-width: 900px) {
-  .filter-rail { display: none; }
-  .sidebar-sheet-rail { display: block; }
-  .sidebar-toggle { display: flex; align-items: center; justify-content: center;
-                    padding: 5px 8px; background: none; border: none;
-                    color: var(--t3); font-size: 1rem; cursor: pointer;
-                    border-radius: 6px; flex-shrink: 0; }
-}
 
 /* Prevent horizontal scroll globally */
 body { overflow-x: hidden; }
