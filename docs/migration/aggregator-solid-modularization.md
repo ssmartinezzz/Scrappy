@@ -16,7 +16,7 @@ every work unit below leaves `mvn test` green.
 - [x] Slice 4: PackQuantityDetector (literal cut-paste)
 - [x] Slice 5: CategoryClassifier
 - [x] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
-- [ ] Slice 7: SubcategoryResolver
+- [x] Slice 7: SubcategoryResolver
 - [ ] Slice 8: RubroResolver + GymratTagger + orchestrator cleanup + NormalizerServiceTestFactory
 - [ ] Slice 9 (final): ResultAggregator decomposition + FacetCalculator extraction
 
@@ -129,9 +129,23 @@ every work unit below leaves `mvn test` green.
   `GenderResolverTest`; originals removed from `NormalizerServiceTest` in the
   same commit. No pre-existing `SizeNormalizer` tests to migrate.
 
+### Slice 7 — SubcategoryResolver (DONE)
+- `ar.scraper.aggregator.normalize.SubcategoryResolver` — moved
+  `resolverSubCategoria` + `SUBCATEG_TIER1` + `SUBCATEG_TIER2`. Local
+  accent-normalization helper delegates to `AccentStripper.strip` (ADR-4)
+  instead of duplicating the regex chain — the last consumer of
+  `NormalizerService`'s private `normalizarAcentos`, which is now fully
+  removed from `NormalizerService`.
+- `NormalizerService` field-initializes a `SubcategoryResolver` instance and
+  delegates `subCategoria` resolution to it.
+- `resolverSubCategoria*` (tier1/tier2/word-boundary/accent) tests migrated
+  to `SubcategoryResolverTest`; originals removed from `NormalizerServiceTest`
+  in the same commit. `productLegacyConstructorDefaultsSubCategoriaToEmpty`
+  stays in `NormalizerServiceTest` — it tests `Product`'s legacy constructor
+  directly, not `resolverSubCategoria`.
+
 ## Remaining slices (Batch 2+)
 
-- Slice 7: `SubcategoryResolver`.
 - Slice 8: `RubroResolver` + `GymratTagger` + orchestrator cleanup +
   `NormalizerServiceTestFactory` (test-only wiring, not a production facade).
 - Slice 9 (final): `ResultAggregator.agregar()` named-method decomposition +
