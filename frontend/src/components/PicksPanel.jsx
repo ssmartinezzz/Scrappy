@@ -65,7 +65,7 @@ function CategoryBanner({ cat, onClick, cardRef }) {
           <div className="picks-card-price" style={{ color: SEMANTIC.positive }}>
             desde ${fmt(pick1.precio)}
             {pick1.esPack && (
-              <span className="picks-card-price-unit"> · ${fmt(pick1.precioUnitario)} c/u · x{pick1.cantidadUnidades}</span>
+              <span className="card-price-unit"> · ${fmt(pick1.precioUnitario)} c/u · x{pick1.cantidadUnidades}</span>
             )}
           </div>
         )}
