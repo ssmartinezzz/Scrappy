@@ -1,12 +1,14 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.aggregator.normalize.BrandExtractor;
 import ar.scraper.aggregator.normalize.CategoryClassifier;
+import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
+import ar.scraper.aggregator.normalize.SizeNormalizer;
 import ar.scraper.model.Product;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static ar.scraper.aggregator.normalize.CategoryGroups.esCalzado;
@@ -28,9 +30,11 @@ import static ar.scraper.aggregator.normalize.SiteClassification.*;
  * the non-textile guard live in {@code ar.scraper.aggregator.normalize}
  * (Work Unit 3 of the aggregator SOLID modularization) and are consumed here
  * via static import — pure relocation, no behavior change. Pack-quantity
- * detection is delegated to {@link PackQuantityDetector} (Work Unit 4) and
- * category classification to {@link CategoryClassifier} (Work Unit 5). This
- * class still owns gender/brand/size resolution and orchestration; those
+ * detection is delegated to {@link PackQuantityDetector} (Work Unit 4),
+ * category classification to {@link CategoryClassifier} (Work Unit 5), and
+ * brand/gender/size resolution to {@link BrandExtractor}, {@link GenderResolver},
+ * and {@link SizeNormalizer} (Work Unit 6). This class still owns subcategory
+ * resolution, gymrat tagging, rubro selection, and orchestration; those
  * collaborators are extracted in later work units.</p>
  */
 @Component
@@ -42,44 +46,9 @@ public class NormalizerService {
     // identical either way.
     private final PackQuantityDetector packQuantityDetector = new PackQuantityDetector();
     private final CategoryClassifier categoryClassifier = new CategoryClassifier();
-
-    // ══════════════════════════════════════════════════════════════════
-    // MARCAS conocidas en Argentina
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final List<String> MARCAS = List.of(
-        "Nike","Adidas","Puma","Reebok","New Balance","Asics","Saucony","Brooks",
-        "Hoka","On Running","Salomon","Mizuno","Under Armour","Fila","Umbro",
-        "Vans","Converse","DC","Etnies","Volcom","Quiksilver","Billabong",
-        "The North Face","Columbia","Patagonia","Timberland","Merrell",
-        "Topper","Flecha","Jaguar","Gola","Penalty","Olympikus",
-        "Lacoste","Tommy","Calvin Klein","Levi's","Levis","Wrangler",
-        "Champion","Kappa","Ellesse","Le Coq Sportif","Fred Perry",
-        "Caterpillar","Keen","Palladium","Crocs","Birkenstock",
-        "Bulks","Fuark","Harvey Willys","Harvey"
-    );
-
-    // Word-boundary patterns (no substring matches) — evita falsos positivos
-    // como "DC" matcheando dentro de "Hardcore" o "HDCP" (ver bug category-brand-quality-fixes).
-    private static final List<Pattern> MARCA_PATTERNS = MARCAS.stream()
-            .map(m -> Pattern.compile("\\b" + Pattern.quote(m.toLowerCase()) + "\\b"))
-            .collect(Collectors.toList());
-
-    // Talles
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final Map<String, String> TALLE_MAP = new LinkedHashMap<>();
-    static {
-        TALLE_MAP.put("extra small", "XS"); TALLE_MAP.put("extrasmall","XS"); TALLE_MAP.put("xxs","XXS");
-        TALLE_MAP.put("small","S");   TALLE_MAP.put("chico","S");   TALLE_MAP.put("ch","S");
-        TALLE_MAP.put("medium","M");  TALLE_MAP.put("mediano","M"); TALLE_MAP.put("med","M");
-        TALLE_MAP.put("large","L");   TALLE_MAP.put("grande","L");  TALLE_MAP.put("gr","L");
-        TALLE_MAP.put("extra large","XL"); TALLE_MAP.put("extralarge","XL");
-        TALLE_MAP.put("xxlarge","XXL"); TALLE_MAP.put("extra extra large","XXL");
-        TALLE_MAP.put("xxxlarge","XXXL"); TALLE_MAP.put("3xl","XXXL"); TALLE_MAP.put("3 xl","XXXL");
-        TALLE_MAP.put("talle unico","Único"); TALLE_MAP.put("unico","Único"); TALLE_MAP.put("unique","Único");
-        TALLE_MAP.put("default title","");
-    }
+    private final BrandExtractor brandExtractor = new BrandExtractor();
+    private final GenderResolver genderResolver = new GenderResolver();
+    private final SizeNormalizer sizeNormalizer = new SizeNormalizer();
 
     // ══════════════════════════════════════════════════════════════════
     // Normalización principal
@@ -94,10 +63,10 @@ public class NormalizerService {
     private Product normalizarProducto(Product p) {
         String nombre = p.nombre() != null ? p.nombre() : "";
         String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre);
-        String genero = normalizarGenero(p.genero(), nombre, cat);
-        List<String> talles = normalizarTalles(p.talles());
+        String genero = genderResolver.resolver(p.genero(), nombre, cat);
+        List<String> talles = sizeNormalizer.normalizar(p.talles());
         String marca  = (p.marca() == null || p.marca().isBlank())
-                        ? extraerMarca(nombre, p.sitio())
+                        ? brandExtractor.extraer(nombre, p.sitio())
                         : p.marca();
 
         // Determinar rubro: forzar por sitio, luego por categoría, luego usar existente
@@ -345,120 +314,18 @@ public class NormalizerService {
         return "";
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // Género
-    // ──────────────────────────────────────────────────────────────────
-
-    // Categorias cuya naturaleza es predominantemente femenina en este catálogo
-    // (confirmado por revisión del usuario). Cuando una de estas categorias aparece
-    // SIN señal masculina explícita en el nombre del producto, el género se fuerza a
-    // "mujer" antes de que el combined-check (que incluye raw VTEX) lo pise.
-    // Ver outfits-v2 design — R1/T1.
-    private static final Set<String> FEMININE_CODED_CATEGORIES =
-            Set.of("Calza", "Pollera", "Vestido", "Enterito", "Corpino", "Malla");
-
-    String normalizarGenero(String raw, String nombre, String categoria) {
-        String nombreNorm = normalizarAcentos(nombre != null ? nombre : "");
-        String combined = normalizarAcentos((raw != null ? raw : "") + " " + (nombre != null ? nombre : ""));
-
-        // Infantil primero: "niños"/"niñas" no debe perderse contra ningún otro
-        // match (gym armador los excluye explícitamente — no son adultos).
-        if (combined.contains("nino") || combined.contains("nina") ||
-            combined.contains("kids") || combined.contains("infantil") ||
-            combined.contains("bebe")) return "infantil";
-
-        // Señal explícita "de hombre"/"de mujer" en el NOMBRE del producto gana
-        // sobre un spec de género del sitio (raw) que puede estar mal taggeado
-        // a nivel catálogo — bug encontrado en vivo: "Calza Nike One De Mujer"
-        // (Sporting) traía raw="Hombre" del spec VTEX y el combined check de
-        // abajo (que mira raw+nombre con "hombre" primero) lo pisaba, mostrando
-        // una calza de mujer en outfits de hombre.
-        if (nombreNorm.contains("de mujer") || nombreNorm.contains("para mujer")) return "mujer";
-        if (nombreNorm.contains("de hombre") || nombreNorm.contains("para hombre")) return "hombre";
-
-        // Feminine-coded category override: si la categoría es inherentemente femenina
-        // Y el nombre del producto no tiene señal masculina explícita, forzar "mujer"
-        // ANTES de que combined.contains("hombre") lo pise con el raw VTEX.
-        // Cubre: Calza, Pollera, Vestido, Enterito, Corpino, Malla.
-        boolean hasExplicitMascSignal = nombreNorm.contains("de hombre")
-                || nombreNorm.contains("para hombre")
-                || nombreNorm.contains(" hombre")
-                || nombreNorm.contains("masculino")
-                || nombreNorm.contains("caballero");
-        if (FEMININE_CODED_CATEGORIES.contains(categoria) && !hasExplicitMascSignal) {
-            return "mujer";
-        }
-
-        if (combined.contains("hombre") || combined.contains("masculino") ||
-            combined.contains(" men")   || combined.contains("male")      ||
-            combined.contains("caballero") || combined.contains("varones")) return "hombre";
-
-        if (combined.contains("mujer")  || combined.contains("femenino") ||
-            combined.contains("women")  || combined.contains("female")   ||
-            combined.contains("dama")   || combined.contains("damas")) return "mujer";
-
-        if (combined.contains("unisex") || combined.contains("neutro")) return "unisex";
-
-        // Inferir por nombre de producto (modelos icónicos)
-        if (combined.contains("wmns") || combined.contains("w ") ||
-            combined.contains(" w)")) return "mujer";
-
-        if (raw != null && !raw.isBlank()) return raw.trim().toLowerCase();
-
-        // Sin ninguna señal de género (ni nombre ni spec del sitio): Calza es,
-        // en este catálogo, predominantemente de mujer (80 mujer vs. un puñado
-        // de hombre, todas estas últimas con tag explícito) — confirmado por el
-        // usuario tras ver calzas sin género coladas en outfits de hombre.
-        if ("Calza".equals(categoria)) return "mujer";
-
-        return "";
-    }
-
+    /**
+     * Accent-normalization helper used by {@link #resolverSubCategoria}
+     * (SubcategoryResolver extraction lands in Work Unit 7). Género/marca/talle
+     * accent handling moved with their respective collaborators in Work Unit 6
+     * — {@code GenderResolver} delegates to {@code AccentStripper} (ADR-4);
+     * {@code BrandExtractor} and the size normalizer never needed accent
+     * stripping (see {@code BrandExtractor}/{@code SizeNormalizer} javadoc).
+     */
     private String normalizarAcentos(String s) {
         return s.toLowerCase()
                 .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
                 .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
                 .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
     }
-
-    // ──────────────────────────────────────────────────────────────────
-    // Marca
-    // ──────────────────────────────────────────────────────────────────
-
-    public String extraerMarca(String nombre, String sitio) {
-        if (nombre == null || nombre.isBlank()) return "";
-        String lower = nombre.toLowerCase();
-
-        for (int i = 0; i < MARCAS.size(); i++) {
-            if (MARCA_PATTERNS.get(i).matcher(lower).find()) return MARCAS.get(i);
-        }
-
-        return sitio != null ? sitio : "";
-    }
-
-    // ──────────────────────────────────────────────────────────────────
-
-
-    // Talles
-    // ──────────────────────────────────────────────────────────────────
-
-    List<String> normalizarTalles(List<String> talles) {
-        if (talles == null) return List.of();
-        return talles.stream()
-                .map(this::normalizarTalle)
-                .filter(t -> !t.isBlank())
-                .distinct()
-                .collect(Collectors.toList());
-    }
-
-    private String normalizarTalle(String raw) {
-        if (raw == null || raw.isBlank()) return "";
-        String lower = raw.trim().toLowerCase();
-        String mapped = TALLE_MAP.get(lower);
-        if (mapped != null) return mapped;
-        // Devolver el talle original en mayúsculas si parece válido
-        String clean = raw.trim().toUpperCase().replaceAll("[^A-Z0-9./]", "");
-        return clean.length() <= 6 ? clean : "";
-    }
-
 }

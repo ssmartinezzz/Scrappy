@@ -15,7 +15,7 @@ every work unit below leaves `mvn test` green.
 - [x] Slice 3: Data/predicate holders (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
 - [x] Slice 4: PackQuantityDetector (literal cut-paste)
 - [x] Slice 5: CategoryClassifier
-- [ ] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
+- [x] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
 - [ ] Slice 7: SubcategoryResolver
 - [ ] Slice 8: RubroResolver + GymratTagger + orchestrator cleanup + NormalizerServiceTestFactory
 - [ ] Slice 9 (final): ResultAggregator decomposition + FacetCalculator extraction
@@ -107,9 +107,30 @@ every work unit below leaves `mvn test` green.
   `productoConPesoSinKeyword…`) migrated to `CategoryClassifierTest`;
   originals removed from `NormalizerServiceTest` in the same commit.
 
+### Slice 6 — BrandExtractor + GenderResolver + SizeNormalizer (DONE)
+- `ar.scraper.aggregator.normalize.BrandExtractor` — moved `extraerMarca` +
+  `MARCAS` + `MARCA_PATTERNS`. Design-vs-actual-code note: the original
+  method never called `normalizarAcentos` (word-boundary regex operates
+  directly on lower-cased text), so there was no accent chain to delegate
+  to `AccentStripper` here.
+- `ar.scraper.aggregator.normalize.GenderResolver` — moved `normalizarGenero`
+  + `FEMININE_CODED_CATEGORIES`. Its local accent-normalization helper now
+  delegates to `AccentStripper.strip` (ADR-4) instead of duplicating the
+  6-replacement regex chain — same output, one fewer copy.
+- `ar.scraper.aggregator.normalize.SizeNormalizer` — moved `normalizarTalles`,
+  `normalizarTalle`, `TALLE_MAP`. Design-vs-actual-code note: `normalizarTalle`
+  never called `capitalize` (it upper-cases directly), so nothing to move
+  from that utility (already relocated to `CategoryClassifier` in Slice 5).
+- `NormalizerService` field-initializes the three new collaborators and
+  delegates `marca`/`genero`/`talles` resolution to them. `normalizarAcentos`
+  stays in `NormalizerService` (private) — still used by `resolverSubCategoria`
+  until Slice 7.
+- Brand tests migrated to `BrandExtractorTest`, gender tests to
+  `GenderResolverTest`; originals removed from `NormalizerServiceTest` in the
+  same commit. No pre-existing `SizeNormalizer` tests to migrate.
+
 ## Remaining slices (Batch 2+)
 
-- Slice 6: `BrandExtractor` + `GenderResolver` + `SizeNormalizer`.
 - Slice 7: `SubcategoryResolver`.
 - Slice 8: `RubroResolver` + `GymratTagger` + orchestrator cleanup +
   `NormalizerServiceTestFactory` (test-only wiring, not a production facade).

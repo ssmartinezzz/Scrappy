@@ -8,130 +8,20 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link NormalizerService}'s brand, gender, subcategory,
- * gymrat, and orchestration behavior.
+ * Unit tests for {@link NormalizerService}'s subcategory resolution, gymrat
+ * tagging, and orchestration behavior.
  *
  * <p>Pack/combo unit-count detection tests migrated to
- * {@code ar.scraper.aggregator.normalize.PackQuantityDetectorTest} (Work Unit 4)
- * and category classification tests to
- * {@code ar.scraper.aggregator.normalize.CategoryClassifierTest} (Work Unit 5)
- * of the aggregator SOLID modularization.</p>
+ * {@code ar.scraper.aggregator.normalize.PackQuantityDetectorTest} (Work Unit 4),
+ * category classification tests to
+ * {@code ar.scraper.aggregator.normalize.CategoryClassifierTest} (Work Unit 5),
+ * and brand/gender resolution tests to
+ * {@code ar.scraper.aggregator.normalize.BrandExtractorTest}/{@code GenderResolverTest}
+ * (Work Unit 6) of the aggregator SOLID modularization.</p>
  */
 class NormalizerServiceTest {
 
     private final NormalizerService service = new NormalizerService();
-
-    // ── extraerMarca: no capitalized-word fallback, falls back to sitio ────
-
-    @Test
-    void extraerMarcaSinMatchCuradoUsaSitio() {
-        assertThat(service.extraerMarca("Remera Oversize Crop", "VCP")).isEqualTo("VCP");
-    }
-
-    @Test
-    void extraerMarcaSinMatchYSinSitioRetornaVacio() {
-        assertThat(service.extraerMarca("Remera Oversize Crop", null)).isEqualTo("");
-    }
-
-    @Test
-    void extraerMarcaCuradaTieneSiemprePrioridad() {
-        assertThat(service.extraerMarca("Nike Air Max", "VCP")).isEqualTo("Nike");
-    }
-
-    // ── extraerMarca: word-boundary matching, no substring false positives ──
-    // Bug real visto en producción: "DC" (2 letras) matcheaba como substring
-    // dentro de "Hardcore" y "HDCP", asignando marca "DC" a jeans/camperas/
-    // cables que no tienen nada que ver con la marca de skate.
-
-    @Test
-    void extraerMarcaNoMatcheaDcDentroDeHardcore() {
-        assertThat(service.extraerMarca("Jean [ Hardcore Desire ] Stone", "Bullbenny")).isEqualTo("Bullbenny");
-        assertThat(service.extraerMarca("Campera [ Hardcore Desire ] Stone", "Bullbenny")).isEqualTo("Bullbenny");
-    }
-
-    @Test
-    void extraerMarcaNoMatcheaDcDentroDeHdcp() {
-        assertThat(service.extraerMarca("Cable Display Port 8k 60hz Hdr G-sync Hdcp 3 M Vention", "Compragamer"))
-                .isEqualTo("Compragamer");
-    }
-
-    @Test
-    void extraerMarcaSigueMatcheandoDcComoTokenReal() {
-        assertThat(service.extraerMarca("Zapatillas Dc Court Graffik Ss", "City")).isEqualTo("DC");
-        assertThat(service.extraerMarca("Botas de Invierno Dc Shoes Crisis 2 Hi", "Dcshoes")).isEqualTo("DC");
-    }
-
-    // ══════════════════════════════════════════════════════════════════
-    // outfits-v2 — Gender inference: feminine-coded categories
-    //
-    // Covers the FEMININE_CODED_CATEGORIES override that must fire BEFORE
-    // the combined-check (raw+nombre), preventing VTEX catalog-level raw
-    // tags like "Hombre" from leaking into women's apparel.
-    // ══════════════════════════════════════════════════════════════════
-
-    @Test
-    void calzaConRawVtexHombreDevuelveMujer() {
-        // VTEX sets raw="Hombre" at category level even for women's calzas.
-        // The feminine-coded override must fire before combined.contains("hombre").
-        assertThat(service.normalizarGenero("Hombre", "Calza Nike Training", "Calza"))
-                .isEqualTo("mujer");
-    }
-
-    @Test
-    void calzaSinSenalDevuelveMujer() {
-        // No raw, no nombre signal — FEMININE_CODED_CATEGORIES fallback produces "mujer".
-        assertThat(service.normalizarGenero("", "Calza Sport Corta", "Calza"))
-                .isEqualTo("mujer");
-    }
-
-    @Test
-    void calzaConDeHombreEnNombreDevuelveHombre() {
-        // Explicit masculine signal "de Hombre" in nombre overrides category inference.
-        assertThat(service.normalizarGenero("", "Calza adidas Techfit De Hombre", "Calza"))
-                .isEqualTo("hombre");
-    }
-
-    @Test
-    void calzaConHombreComoTokenEnNombreDevuelveHombre() {
-        // Standalone "hombre" in nombre (e.g. "Calza Hombre Training") is a valid
-        // masculine signal — must NOT be overridden to mujer.
-        assertThat(service.normalizarGenero("", "Calza Hombre Training", "Calza"))
-                .isEqualTo("hombre");
-    }
-
-    @Test
-    void leggingConRawHombreDevuelveMujer() {
-        // "Legging" normalizes to category Calza — same FEMININE_CODED override applies.
-        assertThat(service.normalizarGenero("Hombre", "Legging Gym Pro", "Calza"))
-                .isEqualTo("mujer");
-    }
-
-    @Test
-    void polleraConRawHombreDevuelveMujer() {
-        // Pollera is feminine-coded; raw="Hombre" from any site must be overridden.
-        assertThat(service.normalizarGenero("Hombre", "Pollera Mini Tiro Alto", "Pollera"))
-                .isEqualTo("mujer");
-    }
-
-    @Test
-    void vestidoConRawHombreDevuelveMujer() {
-        assertThat(service.normalizarGenero("Hombre", "Vestido Playero", "Vestido"))
-                .isEqualTo("mujer");
-    }
-
-    @Test
-    void categoriaNoFemeninaConRawHombreDevuelveHombre() {
-        // Categories outside FEMININE_CODED_CATEGORIES must NOT be overridden.
-        assertThat(service.normalizarGenero("Hombre", "Remera Deportiva", "Remera"))
-                .isEqualTo("hombre");
-    }
-
-    @Test
-    void categoriaNoFemeninaConRawMujerDevuelveMujer() {
-        // Verify non-feminine categories still respect raw="mujer" normally.
-        assertThat(service.normalizarGenero("mujer", "Remera Básica", "Remera"))
-                .isEqualTo("mujer");
-    }
 
     // ══════════════════════════════════════════════════════════════════
     // subcategoria-field — resolverSubCategoria 3-tier classification
