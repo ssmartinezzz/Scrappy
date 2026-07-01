@@ -1525,6 +1525,9 @@ public class ApiController {
         n.put("genero",     safe(p.genero()));
         n.put("marca",      safe(p.marca()));
         n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
+        n.put("cantidadUnidades", p.cantidadUnidades());
+        n.put("esPack",     p.esPack());
+        n.put("precioUnitario", precioUnitario(p));
         ArrayNode tallesArr = n.putArray("talles");
         if (p.talles() != null) p.talles().forEach(tallesArr::add);
         if (p.ml() != null) {
