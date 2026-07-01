@@ -7,6 +7,8 @@ import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
 import Sidebar       from './Sidebar';
 import SearchHero    from './SearchHero';
+import CatalogoFilterBar from './CatalogoFilterBar';
+import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
 import DetailPanel   from './DetailPanel';
 import RouteFallback from './RouteFallback';
@@ -33,7 +35,7 @@ const init = {
   busq:         '',
   sitioFiltro:  '',
   rubroFiltro:  '',
-  marca:        '',
+  marca:        [],        // multi-select brand filter (OR-match, server-side)
   badge:        '',
   segment:      '',
   genero:       '',
@@ -76,7 +78,7 @@ function reducer(state, action) {
     case 'SET_FILTER':   return { ...state, ...action.payload, pag: 1, prods: [], hasMore: true };
     case 'RESET_FILTERS': return {
       ...state,
-      busq:'', sitioFiltro:'', rubroFiltro:'', marca:'', badge:'',
+      busq:'', sitioFiltro:'', rubroFiltro:'', marca:[], badge:'',
       segment:'', genero:'', categorias:[], talles:[], gymrat:false,
       gymSubcats:{}, gymSubcatFiltro:null, pack:false, subCategoria:[],
       precioMin:undefined, precioMax:undefined,
@@ -89,6 +91,10 @@ function reducer(state, action) {
     case 'TOGGLE_CAT': {
       const c = state.categorias;
       return { ...state, categorias: c.includes(action.v)?c.filter(x=>x!==action.v):[...c,action.v], pag:1, prods:[], hasMore:true };
+    }
+    case 'TOGGLE_MARCA': {
+      const m = state.marca;
+      return { ...state, marca: m.includes(action.v)?m.filter(x=>x!==action.v):[...m,action.v], pag:1, prods:[], hasMore:true };
     }
     case 'TOGGLE_SUBCAT': {
       const sc = state.subCategoria;
@@ -173,6 +179,7 @@ function reducer(state, action) {
 // ─── CatalogoRoute (eager) ─────────────────────────────────────────────────────
 function CatalogoRoute() {
   const { S, set, setFilter, dispatch, loadNextPage, gpuTraining, triggerGpuTraining } = useOutletContext();
+  const { hidden: filterBarHidden, heroRef } = useStickyFilterBar();
 
   // Client-side gym subcat filter (ADR-3): filter after fetch when subcat is active
   const visibleProds = S.gymSubcatFiltro
@@ -213,6 +220,7 @@ function CatalogoRoute() {
       </div>{/* .gpu-fab */}
 
       <SearchHero
+        ref={heroRef}
         busq={S.busq} view={S.view} orden={S.orden} total={S.totalProds}
         topMarcas={sortByCountDesc(S.facets?.marcas||{})}
         marca={S.marca}
@@ -221,6 +229,7 @@ function CatalogoRoute() {
         onOrden={v => setFilter({ orden:v })}
         onMarca={v => setFilter({ marca:v })}
       />
+      <CatalogoFilterBar hidden={filterBarHidden} />
       <ProductGrid
         prods={visibleProds}
         view={S.view}
@@ -511,7 +520,7 @@ export default function AppLayout() {
     ...(S.busq        && { q:          S.busq }),
     ...(S.sitioFiltro && { sitio:      S.sitioFiltro }),
     ...(S.rubroFiltro && { rubro:      S.rubroFiltro }),
-    ...(S.marca       && { marca:      S.marca }),
+    ...(S.marca.length && { marca:     S.marca }),
     ...(S.badge       && { badge:      S.badge }),
     ...(S.segment     && { segment:    S.segment }),
     ...(S.genero      && { genero:     S.genero }),

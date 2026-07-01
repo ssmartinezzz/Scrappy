@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 
 const ORDEN_OPTS = [
   { v:'precio_asc',  l:'↑ Precio' },
@@ -8,10 +8,15 @@ const ORDEN_OPTS = [
   { v:'composite',   l:'ML Score' },
 ];
 
-export default function SearchHero({
+// forwardRef: AppLayout's useStickyFilterBar hook observes this root node's
+// height via ResizeObserver (--catalogo-hero-h) so the Catálogo filter bar
+// can stick right below it. The `.search-hero` class (styles.css) makes this
+// itself a sticky chrome layer (top: var(--sticky-offset)), stacked with
+// topbar/tab-bar — Catálogo-only, since SearchHero only renders there.
+const SearchHero = forwardRef(function SearchHero({
   busq, view, orden, total, topMarcas,
   marca: marcaFiltro, onBusq, onView, onOrden, onMarca,
-}) {
+}, ref) {
   const [val, setVal] = useState(busq || '');
   const timerRef = useRef(null);
 
@@ -24,8 +29,7 @@ export default function SearchHero({
   }
 
   return (
-    <div style={{ padding:'.65rem 1.25rem .4rem', background:'var(--s1)',
-                  borderBottom:'1px solid var(--s3)' }}>
+    <div ref={ref} className="search-hero">
       {/* Row 1: search + sort + view */}
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
         <div style={{ position:'relative', flex:1 }}>
@@ -96,4 +100,6 @@ export default function SearchHero({
       )}
     </div>
   );
-}
+});
+
+export default SearchHero;
