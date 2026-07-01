@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 
 const ORDEN_OPTS = [
   { v:'precio_asc',  l:'↑ Precio' },
@@ -8,10 +8,14 @@ const ORDEN_OPTS = [
   { v:'composite',   l:'ML Score' },
 ];
 
-export default function SearchHero({
-  busq, view, orden, total, topMarcas,
-  marca: marcaFiltro, onBusq, onView, onOrden, onMarca,
-}) {
+// forwardRef: AppLayout's useStickyFilterBar hook observes this root node's
+// height via ResizeObserver (--catalogo-hero-h) so the Catálogo filter bar
+// can stick right below it. The `.search-hero` class (styles.css) makes this
+// itself a sticky chrome layer (top: var(--sticky-offset)), stacked with
+// topbar/tab-bar — Catálogo-only, since SearchHero only renders there.
+const SearchHero = forwardRef(function SearchHero({
+  busq, view, orden, total, onBusq, onView, onOrden,
+}, ref) {
   const [val, setVal] = useState(busq || '');
   const timerRef = useRef(null);
 
@@ -24,8 +28,7 @@ export default function SearchHero({
   }
 
   return (
-    <div style={{ padding:'.65rem 1.25rem .4rem', background:'var(--s1)',
-                  borderBottom:'1px solid var(--s3)' }}>
+    <div ref={ref} className="search-hero">
       {/* Row 1: search + sort + view */}
       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
         <div style={{ position:'relative', flex:1 }}>
@@ -59,41 +62,8 @@ export default function SearchHero({
           {view === 'grid' ? '≡' : '⊞'}
         </button>
       </div>
-
-      {/* Row 2: Marcas como breadcrumb chips */}
-      {topMarcas && topMarcas.length > 0 && (
-        <div style={{
-          display:'flex', gap:4, marginTop:6, overflowX:'auto',
-          scrollbarWidth:'none', flexWrap:'nowrap', paddingBottom:2,
-        }}>
-          {marcaFiltro && (
-            <button onClick={() => onMarca('')}
-              style={{
-                padding:'2px 8px', borderRadius:12, flexShrink:0, fontSize:'.65rem',
-                border:'1px solid var(--r)', background:'rgba(232,67,147,.12)',
-                color:'var(--r)', cursor:'pointer', fontWeight:700,
-              }}>
-              ✕ {marcaFiltro}
-            </button>
-          )}
-          {topMarcas.slice(0, 22).map(([marca, n]) => {
-            const active = marcaFiltro === marca;
-            if (active) return null; // already shown as X chip
-            return (
-              <button key={marca} onClick={() => onMarca(marca)}
-                style={{
-                  padding:'2px 9px', borderRadius:12, flexShrink:0, fontSize:'.66rem',
-                  border:`1px solid ${active?'var(--p)':'var(--bd)'}`,
-                  background: active ? 'rgba(163,113,247,.15)' : 'transparent',
-                  color: active ? 'var(--p2)' : 'var(--t4)',
-                  cursor:'pointer', whiteSpace:'nowrap', transition:'all .1s',
-                }}>
-                {marca} <span style={{opacity:.55}}>{n}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
-}
+});
+
+export default SearchHero;
