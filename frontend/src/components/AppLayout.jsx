@@ -2,7 +2,8 @@ import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, 
 import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
 import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
-         fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit } from '../api';
+         fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
+         fetchTendencias } from '../api';
 import Topbar        from './Topbar';
 import SearchHero    from './SearchHero';
 import CatalogoFilterBar from './CatalogoFilterBar';
@@ -330,7 +331,8 @@ function FinanRoute() {
 }
 
 function RecomendadosRoute() {
-  return <RecomendadosPanel/>;
+  const { S } = useOutletContext();
+  return <RecomendadosPanel catStats={S.catStats}/>;
 }
 
 function SuplementosRoute() {
@@ -508,6 +510,21 @@ export default function AppLayout() {
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
       S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
       S.precioMin, S.precioMax, S.orden, S.subCategoria]);
+
+  // Category unit-price stats (medianas por categoría, keyed normalized) that
+  // power the price bar and the pack savings % badge. Sourced from
+  // /api/tendencias.distribucionCategorias (ML pipeline, computed on unit price).
+  // Refetched when a scrape finishes so the medians track the latest catalog.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { state, data } = await fetchTendencias();
+      if (!cancelled && state === 'ok' && data?.distribucionCategorias) {
+        dispatch({ type: 'SET', payload: { catStats: data.distribucionCategorias } });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [S.scrapeStatus]);
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,

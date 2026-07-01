@@ -4,6 +4,7 @@ import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } fro
 import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
+import { normCat } from '../lib/cat';
 
 // MercadoLibre's official brand yellow — third-party partner color, not one
 // of the 7 canonical semantic roles in lib/colors.js. Kept as a local named
@@ -333,7 +334,7 @@ function PriceContext({ product: p, st }) {
 export default function DetailPanel({ product: p, catStats, onClose }) {
   const [hist, setHist] = useState(null);
   const ml  = p.ml || {};
-  const st  = catStats?.[p.categoria];
+  const st  = catStats?.[normCat(p.categoria)];
 
   useEffect(() => {
     if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));

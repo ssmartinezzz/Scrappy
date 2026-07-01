@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
 import { SEÑAL_CONFIG, gaugeColor } from '../lib/colors';
+import { normCat } from '../lib/cat';
 import FinanBadge from './FinanBadge';
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
@@ -29,7 +30,7 @@ function SenalBadge({ senal, compact }) {
 // Ahorro del precio unitario del pack vs la mediana de la categoría
 function PackBadge({ product: p, catStats, compact }) {
   if (!p.esPack) return null;
-  const st = catStats?.[p.categoria];
+  const st = catStats?.[normCat(p.categoria)];
   let ahorro = null;
   if (st?.median > 0 && p.precioUnitario > 0) {
     const pct = Math.round((st.median - p.precioUnitario) / st.median * 100);
@@ -48,8 +49,8 @@ function PackBadge({ product: p, catStats, compact }) {
 
 // Barra de posición en la distribución (si tenemos stats de categoría)
 function PriceBar({ precio, catStats, categoria }) {
-  if (!catStats || !catStats[categoria]) return null;
-  const st = catStats[categoria];
+  const st = catStats?.[normCat(categoria)];
+  if (!st) return null;
   if (!st.fence_high || st.fence_high <= 0) return null;
   const pct = Math.min(100, Math.max(0, (precio / st.fence_high) * 100));
   const color = gaugeColor(pct);
