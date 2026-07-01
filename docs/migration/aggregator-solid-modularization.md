@@ -11,7 +11,7 @@ ONE PR to `master`, `size:exception` accepted by the user. Strict TDD active —
 every work unit below leaves `mvn test` green.
 
 - [x] Slice 1: GroupingService characterization tests + scaffold
-- [ ] Slice 2: Grouping package split (ProductGroup, ProductIdentity, JaccardSimilarity, AccentStripper)
+- [x] Slice 2: Grouping package split (ProductGroup, ProductIdentity, JaccardSimilarity, AccentStripper)
 - [ ] Slice 3: Data/predicate holders (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
 - [ ] Slice 4: PackQuantityDetector (literal cut-paste)
 - [ ] Slice 5: CategoryClassifier
@@ -32,7 +32,7 @@ every work unit below leaves `mvn test` green.
 - Confirmed green against the CURRENT (pre-split) `GroupingService`.
 - This file created.
 
-### Slice 2 — Grouping Package Split (pending)
+### Slice 2 — Grouping Package Split (DONE)
 - `ar.scraper.aggregator.text.AccentStripper` — shared byte-identical
   6-replacement accent chain (ADR-4).
 - `ar.scraper.aggregator.grouping.ProductGroup` — promoted top-level, getters

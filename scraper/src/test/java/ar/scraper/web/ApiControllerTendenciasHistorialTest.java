@@ -1,6 +1,6 @@
 package ar.scraper.web;
 
-import ar.scraper.aggregator.GroupingService;
+import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.ResultAggregator.Facets;

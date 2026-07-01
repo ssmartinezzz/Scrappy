@@ -1,6 +1,9 @@
 package ar.scraper.aggregator;
 
-import ar.scraper.aggregator.GroupingService.ProductGroup;
+import ar.scraper.aggregator.grouping.GroupingService;
+import ar.scraper.aggregator.grouping.JaccardSimilarity;
+import ar.scraper.aggregator.grouping.ProductGroup;
+import ar.scraper.aggregator.grouping.ProductIdentity;
 import ar.scraper.model.Product;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class GroupingServiceCharacterizationTest {
 
-    private final GroupingService grouping = new GroupingService();
+    private final GroupingService grouping = new GroupingService(new ProductIdentity(), new JaccardSimilarity());
 
     /** Fixture builder: fills non-essential {@link Product} args with neutral defaults. */
     private static Product product(String sitio, String nombre, String marca, String categoria,
