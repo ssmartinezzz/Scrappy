@@ -173,13 +173,30 @@ const GYM_DEFAULT_CATS = new Set([
   'Zapatilla Urbana', 'Sneaker',                                                // calzado
 ]);
 
+// Default casual categories pre-selected on mount. Broad on purpose — the user
+// wants "casi todo" available as casual. The backend gate (estilo=casual) keeps
+// only non-gymrat apparel for torso/piernas; calzado is category-driven.
+const CASUAL_DEFAULT_CATS = new Set([
+  'Remera', 'Buzo', 'Campera', 'Sweater', 'Camisa', 'Chomba', 'Musculosa',     // torso
+  'Jean', 'Pantalón', 'Bermuda', 'Short', 'Jogging', 'Baggy',                  // piernas
+  'Zapatilla', 'Zapatilla Urbana', 'Zapatilla Skate', 'Sneaker',               // calzado
+]);
+
+// Per-style configuration: default category selection + the estilo sent to the
+// builder endpoint. Keeps the gym panel byte-for-byte behavior under 'gym'.
+const STYLE_CONFIG = {
+  gym:    { defaultCats: GYM_DEFAULT_CATS,    estilo: 'gym' },
+  casual: { defaultCats: CASUAL_DEFAULT_CATS, estilo: 'casual' },
+};
+
 // ─── OutfitPanel ──────────────────────────────────────────────────────────────
 // Unified outfit component that replaces GymTab + BuilderTab.
 // Renders gender tabs, an editable category picker, budget inputs, and a
 // live outfit result card with re-roll variety logic (MCKP → greedy after 10).
-function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
+function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
+  const styleConfig = STYLE_CONFIG[style] || STYLE_CONFIG.gym;
   const [genero, setGenero]                     = useState('hombre');
-  const [selectedCats, setSelectedCats]         = useState(new Set(GYM_DEFAULT_CATS));
+  const [selectedCats, setSelectedCats]         = useState(new Set(styleConfig.defaultCats));
   const [presupuesto, setPresupuesto]           = useState('');
   const [presupuestoSuplementos, setPresupuestoSuplementos] = useState('');
   const [attemptCount, setAttemptCount]         = useState(0);
@@ -208,6 +225,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
         excluir,
         greedy: isGreedy,
         pin: pinUrls,
+        estilo: styleConfig.estilo,
       });
       if (data === null) {
         setError('No hay catálogo cargado. Ejecutá un scraping primero.');
@@ -228,7 +246,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     } finally {
       setLoading(false);
     }
-  }, [selectedCats, presupuesto, genero]);
+  }, [selectedCats, presupuesto, genero, styleConfig.estilo]);
 
   // Auto-generate on mount with gym defaults (UOB-05)
   useEffect(() => { load([], false); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -253,7 +271,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   async function handleResetFeedback() {
     if (resetting) return;
     setResetting(true);
-    await resetOutfitFeedback();
+    await resetOutfitFeedback(styleConfig.estilo);
     setResetting(false);
     setAttemptCount(0);
     setCurrentOutfitUrls([]);
@@ -297,6 +315,7 @@ function OutfitPanel({ favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
     if (!result) return;
     const body = {
       genero: result.genero || genero,
+      estilo: styleConfig.estilo,
       items: [{ slot, url, liked }],
     };
     const ok = await sendOutfitFeedback(body);
@@ -579,13 +598,22 @@ export default function OutfitsPanel({ favoritos = [], onAddFavorito, savedOutfi
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
         {tab === 'outfit'  && (
           <OutfitPanel
+            style="gym"
             favoritos={favoritos}
             onAddFavorito={onAddFavorito}
             savedOutfits={savedOutfits}
             onSaveOutfit={onSaveOutfit}
           />
         )}
-        {tab === 'casual'  && <PlaceholderTab label="Casual"/>}
+        {tab === 'casual'  && (
+          <OutfitPanel
+            style="casual"
+            favoritos={favoritos}
+            onAddFavorito={onAddFavorito}
+            savedOutfits={savedOutfits}
+            onSaveOutfit={onSaveOutfit}
+          />
+        )}
         {tab === 'formal'  && <PlaceholderTab label="Formal"/>}
       </div>
     </div>

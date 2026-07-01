@@ -716,6 +716,27 @@ public class OutfitService {
         return new Outfit(ordenados, generoResultado, partial, totalEstimado, presupuestoExcedido);
     }
 
+    /**
+     * Style eligibility gate for the budget builder's torso/piernas sub-slots.
+     * Calzado and accesorio always pass (their eligibility is category-driven,
+     * style-independent — see armarPorCategorias / CATEGORIA_SUBSLOT).
+     *
+     * <ul>
+     *   <li>{@code estilo="gym"} (default): torso/piernas require {@code gymrat==true}
+     *       — training-oriented apparel only, mirroring the pre-existing hardcoded gate.</li>
+     *   <li>{@code estilo="casual"}: torso/piernas require {@code gymrat==false} — everyday
+     *       apparel. Since "not gymrat" is the whole casual universe (confirmed with the
+     *       user: non-gymrat isn't formal, so it's casual), new casual sites become eligible
+     *       automatically without a site whitelist.</li>
+     * </ul>
+     */
+    private boolean pasaEstiloGate(Product p, String slot, String estilo) {
+        boolean esRopaGateada = slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot);
+        if (!esRopaGateada) return true;
+        if ("casual".equalsIgnoreCase(estilo)) return !p.gymrat();
+        return p.gymrat(); // default / "gym"
+    }
+
     private List<Product> filtrar(List<Product> base, String generoSolicitado, double min, double max) {
         return base.stream()
                 .filter(p -> generoElegible(p, generoSolicitado))
@@ -851,6 +872,21 @@ public class OutfitService {
             List<Product> productos, List<String> categorias,
             double presupuesto, String genero, FeedbackModel feedback,
             Set<String> excluirUrls, boolean greedy, List<Product> pinned) {
+        return armarPorCategorias(productos, categorias, presupuesto, genero,
+                feedback, excluirUrls, greedy, pinned, "gym");
+    }
+
+    /**
+     * Style-aware outfit assembler. Like the 8-arg overload but accepts the active
+     * {@code estilo} ("gym" | "casual"), which selects the torso/piernas eligibility
+     * gate via {@link #pasaEstiloGate}. Calzado and accesorio are unaffected by estilo
+     * (category-driven eligibility). All other behavior (MCKP/greedy, budget invariant,
+     * pinning, feedback vetoes) is identical to the 8-arg path.
+     */
+    public OutfitBuilderResult armarPorCategorias(
+            List<Product> productos, List<String> categorias,
+            double presupuesto, String genero, FeedbackModel feedback,
+            Set<String> excluirUrls, boolean greedy, List<Product> pinned, String estilo) {
         if (productos == null) productos = List.of();
         if (feedback == null) feedback = FeedbackModel.empty();
         if (excluirUrls == null) excluirUrls = Set.of();
@@ -910,7 +946,7 @@ public class OutfitService {
 
         if (greedy) {
             OutfitBuilderResult open = armarGreedy(productos, openSlotOrder, openCatsBySlot,
-                    reducedBudget, genero, feedback, excluirFinal);
+                    reducedBudget, genero, feedback, excluirFinal, estilo);
             return mergePinned(open, pinnedBySlot, slotOrder, presupuesto);
         }
 
@@ -929,12 +965,7 @@ public class OutfitService {
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirFinal.contains(p.url()))
-                    .filter(p -> {
-                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
-                            return p.gymrat();
-                        }
-                        return true;
-                    })
+                    .filter(p -> pasaEstiloGate(p, slot, estilo))
                     .collect(Collectors.toList());
 
             if (rawPool.isEmpty()) {
@@ -992,7 +1023,7 @@ public class OutfitService {
         Double minimoBudgetNecesario = null;
         if (slots.isEmpty()) {
             minimoBudgetNecesario = calcularMinimoBudget(
-                    productos, openSlotOrder, openCatsBySlot, genero, feedback, excluirFinal);
+                    productos, openSlotOrder, openCatsBySlot, genero, feedback, excluirFinal, estilo);
         }
 
         OutfitBuilderResult open = new OutfitBuilderResult(slots, generoResultado, reducedBudget,
@@ -1050,7 +1081,7 @@ public class OutfitService {
     private OutfitBuilderResult armarGreedy(
             List<Product> productos, List<String> slotOrder,
             Map<String, Set<String>> catsBySlot, double presupuesto,
-            String genero, FeedbackModel feedback, Set<String> excluirUrls) {
+            String genero, FeedbackModel feedback, Set<String> excluirUrls, String estilo) {
         if (productos == null) productos = List.of();
 
         Set<String> exclude          = feedback.exclude();
@@ -1067,12 +1098,7 @@ public class OutfitService {
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirUrls.contains(p.url()))
-                    .filter(p -> {
-                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
-                            return p.gymrat();
-                        }
-                        return true;
-                    })
+                    .filter(p -> pasaEstiloGate(p, slot, estilo))
                     .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
                     .collect(Collectors.toList());
 
@@ -1111,7 +1137,7 @@ public class OutfitService {
     private Double calcularMinimoBudget(
             List<Product> productos, List<String> slotOrder,
             Map<String, Set<String>> catsBySlot, String genero,
-            FeedbackModel feedback, Set<String> excluirUrls) {
+            FeedbackModel feedback, Set<String> excluirUrls, String estilo) {
         if (productos == null) return null;
 
         Set<String> exclude          = feedback.exclude();
@@ -1126,12 +1152,7 @@ public class OutfitService {
                     .filter(p -> !exclude.contains(FeedbackModel.keyOf(p)))
                     .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                     .filter(p -> !excluirUrls.contains(p.url()))
-                    .filter(p -> {
-                        if (slot.startsWith(SLOT_TORSO) || SLOT_PIERNAS.equals(slot)) {
-                            return p.gymrat();
-                        }
-                        return true;
-                    })
+                    .filter(p -> pasaEstiloGate(p, slot, estilo))
                     .mapToDouble(Product::precio)
                     .min();
 

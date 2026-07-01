@@ -230,9 +230,19 @@ st.executeUpdate("""
                     slot       TEXT NOT NULL,
                     url        TEXT NOT NULL,
                     liked      INTEGER NOT NULL DEFAULT 0,
+                    estilo     TEXT NOT NULL DEFAULT 'gym',
                     created_at TEXT NOT NULL
                 )""");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_liked ON outfit_feedback_item(liked)");
+
+            // Migración: separar la señal de gusto por estilo (gym vs casual).
+            // Filas viejas del builder → 'gym'; filas del feed (slot='catalog') → 'catalog'.
+            // El backfill es idempotente: solo re-etiqueta filas 'catalog' aún marcadas
+            // 'gym' por el default de la columna recién agregada.
+            migrarColumna(st, "outfit_feedback_item", "estilo TEXT NOT NULL DEFAULT 'gym'");
+            st.executeUpdate(
+                "UPDATE outfit_feedback_item SET estilo='catalog' WHERE slot='catalog' AND estilo='gym'");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_estilo ON outfit_feedback_item(estilo)");
 
             // categoria_dismiss — "no me interesa esta categoría" en el feed de
             // recomendados (Decision 1 de design.md, personalized-recommendations-feed).
@@ -1152,26 +1162,37 @@ st.executeUpdate("""
     // ─── Outfit feedback ─────────────────────────────────────────────────────
 
     /** Fila cruda de feedback per-item — el join con el catálogo vivo lo hace el caller. */
-    public record OutfitItemRow(String slot, String url, boolean liked) {}
+    public record OutfitItemRow(String slot, String url, boolean liked, String estilo) {}
 
     /**
-     * Persiste un único veredicto (slot, url, liked) en outfit_feedback_item — una fila
-     * por item calificado (ADR-1 de outfit-per-item-feedback). Reemplaza el viejo
-     * guardarOutfitFeedback(...) de fila ancha; la tabla outfit_feedback queda
-     * intacta pero sin nuevas escrituras.
+     * Backward-compat overload: persiste con estilo="gym" (comportamiento previo a
+     * la separación de señal por estilo). Se mantiene para callers/tests que no
+     * distinguen estilo.
      */
     public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked) {
+        guardarOutfitFeedbackItem(genero, slot, url, liked, "gym");
+    }
+
+    /**
+     * Persiste un único veredicto (slot, url, liked, estilo) en outfit_feedback_item —
+     * una fila por item calificado (ADR-1 de outfit-per-item-feedback). El estilo
+     * ("gym" | "casual" | "catalog") separa la señal de gusto por superficie: el
+     * builder gym y casual leen buckets distintos, el feed usa "catalog" (ver
+     * ApiController.buildFeedbackModel).
+     */
+    public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked, String estilo) {
         if (conn == null) return;
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO outfit_feedback_item
-                    (genero, slot, url, liked, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                    (genero, slot, url, liked, estilo, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """)) {
             ps.setString(1, genero);
             ps.setString(2, slot);
             ps.setString(3, url);
             ps.setInt(4, liked ? 1 : 0);
-            ps.setString(5, LocalDateTime.now().format(DT));
+            ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
+            ps.setString(6, LocalDateTime.now().format(DT));
             ps.executeUpdate();
             conn.commit();
         } catch (Exception e) {
@@ -1181,22 +1202,25 @@ st.executeUpdate("""
     }
 
     /**
-     * Lee todas las filas de outfit_feedback_item. Sin filtro por genero (scope global,
-     * ver spec "Feedback-Driven Sampling" — el genero se ignora al construir las keys).
-     * El caller (ApiController.buildFeedbackModel) hace el join url→Product contra el
-     * catálogo vivo, ya que esta clase no conoce el AggregatedResult en memoria.
+     * Lee todas las filas de outfit_feedback_item (con su estilo). Sin filtro por
+     * genero ni estilo — el filtrado por estilo lo hace el caller
+     * (ApiController.buildFeedbackModel) según la superficie. El caller también hace
+     * el join url→Product contra el catálogo vivo, ya que esta clase no conoce el
+     * AggregatedResult en memoria.
      */
     public List<OutfitItemRow> obtenerOutfitFeedback() {
         List<OutfitItemRow> result = new ArrayList<>();
         if (conn == null) return result;
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery(
-                "SELECT slot, url, liked FROM outfit_feedback_item")) {
+                "SELECT slot, url, liked, estilo FROM outfit_feedback_item")) {
             while (rs.next()) {
+                String estilo = rs.getString("estilo");
                 result.add(new OutfitItemRow(
                         rs.getString("slot"),
                         rs.getString("url"),
-                        rs.getInt("liked") == 1));
+                        rs.getInt("liked") == 1,
+                        (estilo == null || estilo.isBlank()) ? "gym" : estilo));
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
@@ -1236,7 +1260,10 @@ st.executeUpdate("""
         }
     }
 
-    /** Borra todo el historial de feedback del outfit builder (me gusta / no me gusta). */
+    /**
+     * Borra TODO el historial de feedback (todos los estilos + tabla legacy).
+     * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
+     */
     public void limpiarOutfitFeedback() {
         if (conn == null) return;
         try (Statement st = conn.createStatement()) {
@@ -1245,6 +1272,25 @@ st.executeUpdate("""
             conn.commit();
         } catch (Exception e) {
             LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
+            try { conn.rollback(); } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Borra el historial de feedback de UN estilo ("gym" | "casual"). No toca las
+     * filas de otros estilos ni las del feed ("catalog") — el reset de gustos de
+     * cada superficie del builder es independiente. estilo null/blank → no-op
+     * (evita borrar todo por accidente; para eso está el overload sin argumentos).
+     */
+    public void limpiarOutfitFeedback(String estilo) {
+        if (conn == null || estilo == null || estilo.isBlank()) return;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM outfit_feedback_item WHERE estilo=?")) {
+            ps.setString(1, estilo);
+            ps.executeUpdate();
+            conn.commit();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
         }
     }

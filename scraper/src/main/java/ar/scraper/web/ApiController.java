@@ -907,7 +907,8 @@ public class ApiController {
 
         var feedbackRows = db.obtenerOutfitFeedback();
         var dismissCats  = db.obtenerCategoriaDismiss();
-        var feedback = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
+        // Gym surface: gym feedback + shared feed signal ("catalog"), never casual.
+        var feedback = buildFeedbackModel(feedbackRows, r.productos(), dismissCats, Set.of("gym", "catalog"));
 
         OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedback,
                 presupuesto, excluirUrls);
@@ -973,9 +974,16 @@ public class ApiController {
             @RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "") String excluir,
             @RequestParam(required = false, defaultValue = "") String pin,
-            @RequestParam(defaultValue = "false") boolean greedy) {
+            @RequestParam(defaultValue = "false") boolean greedy,
+            @RequestParam(required = false, defaultValue = "gym") String estilo) {
 
         ObjectNode err = JsonNodeFactory.instance.objectNode();
+
+        // Normalize estilo to the only builder surfaces {gym, casual}. Anything else
+        // (blank, "null", or the reserved feed bucket "catalog") falls back to "gym".
+        // Guards buildFeedbackModel's Set.of(estilo, "catalog") from an
+        // IllegalArgumentException on duplicate elements when estilo == "catalog".
+        estilo = "casual".equalsIgnoreCase(estilo) ? "casual" : "gym";
 
         // Validate categorias
         if (categorias == null || categorias.isBlank()) {
@@ -1028,7 +1036,10 @@ public class ApiController {
 
         var feedbackRows = db.obtenerOutfitFeedback();
         var dismissCats  = db.obtenerCategoriaDismiss();
-        var feedback     = buildFeedbackModel(feedbackRows, r.productos(), dismissCats);
+        // Style-scoped signal: this surface's own estilo + the shared feed ("catalog").
+        // gym and casual read disjoint buckets (separated), both see catalog.
+        var feedback     = buildFeedbackModel(feedbackRows, r.productos(), dismissCats,
+                Set.of(estilo, "catalog"));
 
         // Resolve pin URLs → Product objects; unresolved URLs are silently dropped
         List<Product> pinned = pinUrls.stream()
@@ -1040,7 +1051,7 @@ public class ApiController {
                 .collect(Collectors.toList());
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned);
+                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned, estilo);
 
         // Determine status per spec API contract
         String status;
@@ -1175,6 +1186,20 @@ public class ApiController {
     private OutfitService.FeedbackModel buildFeedbackModel(
             List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos,
             Set<String> dismissCategorias) {
+        return buildFeedbackModel(rows, productos, dismissCategorias, null);
+    }
+
+    /**
+     * Overload con filtro de estilo (separación de señal de gusto por superficie).
+     * allowedEstilos = null → usa TODAS las filas (feed "Para ti", señal global).
+     * allowedEstilos = {..} → solo filas cuyo estilo esté en el set. El builder gym
+     * pasa {"gym","catalog"} y el casual {"casual","catalog"}: quedan separados entre
+     * sí pero ambos siguen consumiendo la señal del feed ("catalog"), preservando el
+     * sharing bidireccional del PR #21 sin filtrar gym↔casual.
+     */
+    private OutfitService.FeedbackModel buildFeedbackModel(
+            List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos,
+            Set<String> dismissCategorias, Set<String> allowedEstilos) {
         Map<String, Product> porUrl = new HashMap<>();
         for (Product p : productos) {
             if (p.url() != null && !p.url().isBlank()) porUrl.put(p.url(), p);
@@ -1185,6 +1210,7 @@ public class ApiController {
 
         // (a) acumular likes por par, sobre filas liked=1 (un item por fila)
         for (var row : rows) {
+            if (allowedEstilos != null && !allowedEstilos.contains(row.estilo())) continue;
             if (!row.liked()) continue;
             String url = row.url();
             if (url == null || url.isBlank()) continue;
@@ -1196,6 +1222,7 @@ public class ApiController {
 
         // (b) acumular exclude por par, sobre filas liked=0 — dislike gana siempre
         for (var row : rows) {
+            if (allowedEstilos != null && !allowedEstilos.contains(row.estilo())) continue;
             if (row.liked()) continue;
             String url = row.url();
             if (url == null || url.isBlank()) continue;
@@ -1214,6 +1241,10 @@ public class ApiController {
     public ResponseEntity<ObjectNode> outfitFeedback(@RequestBody Map<String, Object> body) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         String genero = String.valueOf(body.getOrDefault("genero", ""));
+        // estilo separa la señal por superficie (gym | casual). Default "gym" para
+        // back-compat con clientes que no lo mandan.
+        String estilo = String.valueOf(body.getOrDefault("estilo", "gym"));
+        if (estilo.isBlank() || "null".equals(estilo)) estilo = "gym";
 
         Object itemsObj = body.get("items");
         if (itemsObj instanceof List<?> items) {
@@ -1224,7 +1255,7 @@ public class ApiController {
                     Object liked = m.get("liked");
                     if (slot == null || url == null || liked == null) continue; // skip silencioso, mirrors existing null-guard style
                     boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
-                    db.guardarOutfitFeedbackItem(genero, String.valueOf(slot), String.valueOf(url), likedBool);
+                    db.guardarOutfitFeedbackItem(genero, String.valueOf(slot), String.valueOf(url), likedBool, estilo);
                 }
             }
         }
@@ -1297,9 +1328,11 @@ public class ApiController {
     }
 
     @DeleteMapping("/outfits/feedback")
-    public ResponseEntity<ObjectNode> resetOutfitFeedback() {
+    public ResponseEntity<ObjectNode> resetOutfitFeedback(
+            @RequestParam(required = false, defaultValue = "gym") String estilo) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.limpiarOutfitFeedback();
+        // Reset scoped por estilo: gym no borra casual ni la señal del feed ("catalog").
+        db.limpiarOutfitFeedback((estilo == null || estilo.isBlank()) ? "gym" : estilo);
         resp.put("ok", true);
         resp.put("mensaje", "Historial de feedback reseteado");
         return ResponseEntity.ok(resp);
@@ -1424,7 +1457,7 @@ public class ApiController {
                     Object liked = m.get("liked");
                     if (url == null || liked == null) continue; // skip silencioso, mirrors outfits/feedback guard style
                     boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
-                    db.guardarOutfitFeedbackItem(genero, "catalog", String.valueOf(url), likedBool);
+                    db.guardarOutfitFeedbackItem(genero, "catalog", String.valueOf(url), likedBool, "catalog");
                 }
             }
         }
