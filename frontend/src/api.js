@@ -277,9 +277,11 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
  * @param {string[]} params.categorias  canonical category names (1–10)
  * @param {number}   params.presupuesto hard budget ceiling (must be > 0)
  * @param {string}   [params.genero]    optional gender filter
+ * @param {string}   [params.estilo]    'gym' (default) or 'casual' — selects the
+ *                                       torso/piernas eligibility gate on the backend
  * @returns {Promise<Object|null>} builder result or null on error
  */
-export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false, pin = [] }) {
+export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false, pin = [], estilo = 'gym' }) {
   const p = new URLSearchParams();
   if (categorias && categorias.length) p.set('categorias', categorias.join(','));
   // presupuesto=0 or empty means no limit → send a large ceiling so the API accepts it
@@ -289,6 +291,7 @@ export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excl
   if (excluir && excluir.length) p.set('excluir', excluir.join(','));
   if (pin && pin.length) p.set('pin', pin.join(','));
   if (greedy) p.set('greedy', 'true');
+  if (estilo && estilo !== 'gym') p.set('estilo', estilo);
   const r = await fetch(`${BASE}/api/outfits/builder?${p}`);
   if (r.status === 204) return null;
   if (!r.ok) return null;
@@ -325,8 +328,12 @@ export async function renameOutfit(id, nombre) {
   return r.ok;
 }
 
-export async function resetOutfitFeedback() {
-  const r = await fetch(`${BASE}/api/outfits/feedback`, { method: 'DELETE' });
+// Resets only the given style's like/dislike history (gym | casual). The feed's
+// shared "catalog" signal is never cleared here.
+export async function resetOutfitFeedback(estilo = 'gym') {
+  const p = new URLSearchParams();
+  if (estilo) p.set('estilo', estilo);
+  const r = await fetch(`${BASE}/api/outfits/feedback?${p}`, { method: 'DELETE' });
   return r.ok;
 }
 

@@ -91,28 +91,28 @@ class ApiControllerBuilderTest {
 
     @Test
     void missingCategorias_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder(null, 50_000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder(null, 50_000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void blankCategorias_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("   ", 50_000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("   ", 50_000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void presupuestoZero_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 0, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 0, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void presupuestoNegative_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", -1000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", -1000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -123,14 +123,14 @@ class ApiControllerBuilderTest {
         String cats = "Buzo,Remera,Camisa,Short,Jean,Zapatilla,Zapatilla Running," +
                       "Gorra,Medias,Mochila,Puffer,Campera,Sweater,Calza,Baggy," +
                       "Jogging,Bermuda,Pollera,Sneaker,Botines,Borcego";
-        ResponseEntity<?> resp = controller.outfitsBuilder(cats, 500_000, null, "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder(cats, 500_000, null, "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void allUnknownCategories_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Zapato,Vestido,Medias Largas", 50_000, null, "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Zapato,Vestido,Medias Largas", 50_000, null, "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -152,10 +152,10 @@ class ApiControllerBuilderTest {
                 "hombre", 50_000, 35_000,
                 false, List.of(), List.of(), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList(), anyString()))
                 .thenReturn(stubbedResult);
 
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 50_000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 50_000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
@@ -179,10 +179,10 @@ class ApiControllerBuilderTest {
                 List.of(), "hombre", 5_000, 0.0,
                 true, List.of(), List.of("Buzo"), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList(), anyString()))
                 .thenReturn(noFitResult);
 
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
@@ -202,17 +202,17 @@ class ApiControllerBuilderTest {
 
         OutfitService.OutfitBuilderResult stub = new OutfitService.OutfitBuilderResult(
                 List.of(), "hombre", 50_000, 0.0, false, List.of(), List.of(), null);
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList(), anyString()))
                 .thenReturn(stub);
 
         controller.outfitsBuilder("Buzo,Short", 50_000, "hombre",
-                "https://site/p1,https://site/p2", "", false);
+                "https://site/p1,https://site/p2", "", false, "gym");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Set<String>> excluirCaptor = ArgumentCaptor.forClass(Set.class);
         verify(outfitService).armarPorCategorias(
                 anyList(), anyList(), anyDouble(), anyString(), any(),
-                excluirCaptor.capture(), anyBoolean(), anyList());
+                excluirCaptor.capture(), anyBoolean(), anyList(), anyString());
 
         Set<String> captured = excluirCaptor.getValue();
         assertThat(captured).containsExactlyInAnyOrder("https://site/p1", "https://site/p2");
@@ -224,15 +224,15 @@ class ApiControllerBuilderTest {
 
         OutfitService.OutfitBuilderResult stub = new OutfitService.OutfitBuilderResult(
                 List.of(), "hombre", 50_000, 0.0, false, List.of(), List.of(), null);
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList(), anyString()))
                 .thenReturn(stub);
 
-        controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", true);
+        controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", true, "gym");
 
         ArgumentCaptor<Boolean> greedyCaptor = ArgumentCaptor.forClass(Boolean.class);
         verify(outfitService).armarPorCategorias(
                 anyList(), anyList(), anyDouble(), anyString(), any(),
-                anySet(), greedyCaptor.capture(), anyList());
+                anySet(), greedyCaptor.capture(), anyList(), anyString());
 
         assertThat(greedyCaptor.getValue()).isTrue();
     }
@@ -245,10 +245,10 @@ class ApiControllerBuilderTest {
                 List.of(), "hombre", 5_000, 0.0,
                 true, List.of(), List.of("Buzo"), 20_000.0);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList(), anyString()))
                 .thenReturn(noFitWithMinimo);
 
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false, "gym");
 
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body).isNotNull();
@@ -268,10 +268,10 @@ class ApiControllerBuilderTest {
                 List.of(slot), "hombre", 50_000, 20_000,
                 false, List.of(), List.of(), null);
 
-        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList()))
+        when(outfitService.armarPorCategorias(anyList(), anyList(), anyDouble(), anyString(), any(), anySet(), anyBoolean(), anyList(), anyString()))
                 .thenReturn(success);
 
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", false);
+        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", false, "gym");
 
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body).isNotNull();
