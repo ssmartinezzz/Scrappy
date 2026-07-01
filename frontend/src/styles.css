@@ -723,10 +723,14 @@ body { overflow-x: hidden; }
 .picks-catdetail-tagline { font-size: .78rem; color: var(--p2); margin-bottom: 1.2rem; font-style: italic; }
 
 /* CatDetail pick list */
-.picks-pick-list { display: flex; flex-direction: column; gap: 16px;
-  max-width: 780px; margin: 0 auto; width: 100%; }
+/* Mobile-first responsive grid: 1 columna en pantallas angostas, y auto-fill
+   agrega columnas a medida que crece el ancho (más resolución → más items por
+   fila). El min(100%, 340px) evita overflow horizontal en mobile. */
+.picks-pick-list { display: grid; gap: 16px; width: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
 .picks-pick-item { display: flex; gap: 18px; align-items: center; background: var(--s2);
-  border-radius: 16px; padding: 1.15rem 1.35rem; border: 1.5px solid; cursor: pointer; transition: all .15s; }
+  border-radius: 16px; padding: 1.25rem 1.4rem; border: 1.5px solid; cursor: pointer;
+  transition: all .15s; height: 100%; }
 .picks-pick-rank { font-size: 2rem; flex-shrink: 0; }
 .picks-pick-img { width: 92px; height: 92px; object-fit: cover; border-radius: 12px; flex-shrink: 0; }
 .picks-pick-info { flex: 1; min-width: 0; }
