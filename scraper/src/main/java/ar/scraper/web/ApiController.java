@@ -979,6 +979,12 @@ public class ApiController {
 
         ObjectNode err = JsonNodeFactory.instance.objectNode();
 
+        // Normalize estilo to the only builder surfaces {gym, casual}. Anything else
+        // (blank, "null", or the reserved feed bucket "catalog") falls back to "gym".
+        // Guards buildFeedbackModel's Set.of(estilo, "catalog") from an
+        // IllegalArgumentException on duplicate elements when estilo == "catalog".
+        estilo = "casual".equalsIgnoreCase(estilo) ? "casual" : "gym";
+
         // Validate categorias
         if (categorias == null || categorias.isBlank()) {
             err.put("error", "Missing required parameter: categorias");
