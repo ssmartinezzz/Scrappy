@@ -328,8 +328,12 @@ export async function renameOutfit(id, nombre) {
   return r.ok;
 }
 
-export async function resetOutfitFeedback() {
-  const r = await fetch(`${BASE}/api/outfits/feedback`, { method: 'DELETE' });
+// Resets only the given style's like/dislike history (gym | casual). The feed's
+// shared "catalog" signal is never cleared here.
+export async function resetOutfitFeedback(estilo = 'gym') {
+  const p = new URLSearchParams();
+  if (estilo) p.set('estilo', estilo);
+  const r = await fetch(`${BASE}/api/outfits/feedback?${p}`, { method: 'DELETE' });
   return r.ok;
 }
 

@@ -271,7 +271,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
   async function handleResetFeedback() {
     if (resetting) return;
     setResetting(true);
-    await resetOutfitFeedback();
+    await resetOutfitFeedback(styleConfig.estilo);
     setResetting(false);
     setAttemptCount(0);
     setCurrentOutfitUrls([]);
@@ -315,6 +315,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
     if (!result) return;
     const body = {
       genero: result.genero || genero,
+      estilo: styleConfig.estilo,
       items: [{ slot, url, liked }],
     };
     const ok = await sendOutfitFeedback(body);
