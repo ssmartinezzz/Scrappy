@@ -638,6 +638,15 @@ public class NormalizerService {
         "bulks", "fuark"
     );
 
+    // Marcas deportivas cuyo torso/piernas cuenta como gymrat aunque el nombre
+    // no traiga keyword de training (user-confirmed). Canonical brand strings
+    // (ver MARCAS), comparados case-insensitive contra la marca ya resuelta.
+    // Nota: gym y casual son excluyentes por gymrat en OutfitService — estos
+    // productos dejan de ser elegibles para el builder Casual.
+    private static final java.util.Set<String> GYM_MARCAS = java.util.Set.of(
+        "nike", "adidas", "puma", "champion", "under armour", "reebok"
+    );
+
     private Product normalizarProducto(Product p) {
         String nombre = p.nombre() != null ? p.nombre() : "";
         String cat    = normalizarCategoria(p.categoria(), nombre);
@@ -675,7 +684,7 @@ public class NormalizerService {
             rubro = "indumentaria";
         }
 
-        boolean gymrat       = esGymrat(nombre, sitioKey, cat, rubro);
+        boolean gymrat       = esGymrat(nombre, sitioKey, cat, rubro, marca);
         boolean marcaPremium = SITIOS_PREMIUM.contains(sitioKey);
         int cantidadUnidades = detectarCantidadUnidades(nombre, cat);
         String subCategoria  = resolverSubCategoria(nombre, cat);
@@ -692,11 +701,12 @@ public class NormalizerService {
      *
      * Reglas (OR), con guard de calzado:
      *   1) keyword de KW_TRAINING_ROPA en el nombre, O
-     *   2) sitio en GYM_SITIOS (bulks, fuark), O
-     *   3) sitio == entreno Y el producto es indumentaria (no Suplemento/Alimentos)
+     *   2) marca en GYM_MARCAS (nike, adidas, puma, champion, under armour, reebok), O
+     *   3) sitio en GYM_SITIOS (bulks, fuark), O
+     *   4) sitio == entreno Y el producto es indumentaria (no Suplemento/Alimentos)
      * Guard duro: si la categoria es calzado → false (gymrat es ROPA, no calzado).
      */
-    private boolean esGymrat(String nombre, String sitioKey, String cat, String rubro) {
+    private boolean esGymrat(String nombre, String sitioKey, String cat, String rubro, String marca) {
         if (esCalzado(cat)) return false;
         if ("suplementos".equals(rubro) || "Suplemento".equals(cat) || "Alimentos".equals(cat))
             return false;
@@ -707,6 +717,7 @@ public class NormalizerService {
             .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
 
         if (anyMatch(n, KW_TRAINING_ROPA)) return true;
+        if (marca != null && GYM_MARCAS.contains(marca.trim().toLowerCase())) return true;
         if (GYM_SITIOS.stream().anyMatch(sitioKey::contains)) return true;
         if (sitioKey.contains("entreno")) return true;
         return false;
