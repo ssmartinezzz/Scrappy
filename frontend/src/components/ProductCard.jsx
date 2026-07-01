@@ -212,7 +212,7 @@ const ProductCard = memo(function ProductCard({
               ARS ${fmt(p.precioUnitario)} c/u · x{p.cantidadUnidades}
             </div>
           )}
-          <PriceBar precio={p.precio} catStats={catStats} categoria={p.categoria} />
+          <PriceBar precio={p.precioUnitario ?? p.precio} catStats={catStats} categoria={p.categoria} />
         </div>
 
         {p.url && (
