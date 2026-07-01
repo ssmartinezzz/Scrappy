@@ -5,7 +5,6 @@ import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, remov
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit } from '../api';
 import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
-import Sidebar       from './Sidebar';
 import SearchHero    from './SearchHero';
 import CatalogoFilterBar from './CatalogoFilterBar';
 import useStickyFilterBar from '../hooks/useStickyFilterBar';
@@ -357,7 +356,6 @@ export default function AppLayout() {
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
   const pollingRef = useRef(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const loadingRef = useRef(false);
   const navigate = useNavigate();
   const topbarRef = useRef(null);
@@ -602,30 +600,8 @@ export default function AppLayout() {
       />
       </div>{/* topbarRef wrapper */}
       <div className="layout">
-        <Sidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          onOpen={() => setSidebarOpen(true)}
-          facets={S.facets}
-          meta={S.meta}
-          filters={{ busq:S.busq, marca:S.marca, badge:S.badge, segment:S.segment,
-                     genero:S.genero, categorias:S.categorias, talles:S.talles,
-                     gymrat:S.gymrat, gymSubcats:S.gymSubcats, gymSubcatFiltro:S.gymSubcatFiltro,
-                     pack:S.pack, precioMin:S.precioMin, precioMax:S.precioMax,
-                     subCategoria:S.subCategoria }}
-          onFilter={payload => {
-            // gymSubcatFiltro is client-side only — do not reset pagination
-            if ('gymSubcatFiltro' in payload) { set(payload); }
-            else { setFilter(payload); }
-          }}
-          onToggleCat={v => dispatch({ type:'TOGGLE_CAT', v })}
-          onToggleSubcat={v => dispatch({ type:'TOGGLE_SUBCAT', v })}
-          onToggleTalle={v => dispatch({ type:'TOGGLE_TALLE', v })}
-          onReset={() => dispatch({ type:'RESET_FILTERS' })}
-        />
         <div className="content">
           <div className="tab-bar" ref={tabbarRef}>
-            <button className="sidebar-toggle" onClick={() => setSidebarOpen(o=>!o)}>☰</button>
             <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Catálogo" aria-label="Catálogo">🛍 <span className="tab-label">Catálogo</span></NavLink>
             <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`} title="Picks" aria-label="Picks">🏆 <span className="tab-label">Picks</span></NavLink>
             <NavLink to="/marcas"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Marcas" aria-label="Marcas">🏷 <span className="tab-label">Marcas</span></NavLink>
@@ -641,7 +617,7 @@ export default function AppLayout() {
           <Suspense fallback={<RouteFallback/>}>
             <Outlet context={{
               S, set, setFilter, dispatch, loadNextPage, startPolling,
-              loadFavoritos, sidebarOpen, setSidebarOpen, onClusterClick,
+              loadFavoritos, onClusterClick,
               gpuTraining, triggerGpuTraining,
             }}/>
           </Suspense>
