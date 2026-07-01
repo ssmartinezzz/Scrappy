@@ -585,4 +585,39 @@ class NormalizerServiceTest {
         assertThat(service.resolverSubCategoria("Botas Snowboarding Nike", "Botas"))
                 .isEqualTo("snowboarding");
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // gymrat-por-marca — sportswear brands are gym-eligible apparel even
+    // without a training keyword in the name (user-confirmed: brand alone
+    // qualifies torso/piernas for the Gym outfit builder). Tradeoff: these
+    // items leave the Casual builder, since gym/casual are mutually
+    // exclusive on the gymrat flag (OutfitService).
+    // ══════════════════════════════════════════════════════════════════
+
+    private Product normalizarUno(String nombre, String marca, String categoria) {
+        Product in = new Product("Freres", nombre, 1000.0, null,
+                "http://url", "http://img", categoria, "hombre",
+                List.of(), Product.MlScore.EMPTY, marca);
+        return service.normalizar(List.of(in)).get(0);
+    }
+
+    @Test
+    void gymratMarcaDeportivaSinKeywordEsGymrat() {
+        // "Remera Sportswear" has no training keyword; brand Nike alone qualifies it.
+        assertThat(normalizarUno("Remera Sportswear", "Nike", "Remera").gymrat()).isTrue();
+        assertThat(normalizarUno("Buzo Reverse Weave", "Champion", "Buzo").gymrat()).isTrue();
+        assertThat(normalizarUno("Campera Rival Fleece", "Under Armour", "Campera").gymrat()).isTrue();
+    }
+
+    @Test
+    void gymratMarcaNoDeportivaSinKeywordNoEsGymrat() {
+        // Non-sportswear brand + no training keyword → not gymrat (stays casual-eligible).
+        assertThat(normalizarUno("Remera Oversize Básica", "Lacoste", "Remera").gymrat()).isFalse();
+    }
+
+    @Test
+    void gymratGuardCalzadoGanaSobreMarca() {
+        // Calzado hard guard wins even for a sportswear brand — gymrat is ROPA only.
+        assertThat(normalizarUno("Zapatillas Air Max", "Nike", "Zapatilla Running").gymrat()).isFalse();
+    }
 }
