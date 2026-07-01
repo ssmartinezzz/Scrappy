@@ -8,86 +8,18 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link NormalizerService}'s classification, brand, gender,
- * subcategory, and orchestration behavior.
+ * Unit tests for {@link NormalizerService}'s brand, gender, subcategory,
+ * gymrat, and orchestration behavior.
  *
  * <p>Pack/combo unit-count detection tests migrated to
- * {@code ar.scraper.aggregator.normalize.PackQuantityDetectorTest} (Work Unit 4
- * of the aggregator SOLID modularization).</p>
+ * {@code ar.scraper.aggregator.normalize.PackQuantityDetectorTest} (Work Unit 4)
+ * and category classification tests to
+ * {@code ar.scraper.aggregator.normalize.CategoryClassifierTest} (Work Unit 5)
+ * of the aggregator SOLID modularization.</p>
  */
 class NormalizerServiceTest {
 
     private final NormalizerService service = new NormalizerService();
-
-    // ══════════════════════════════════════════════════════════════════
-    // KW_*_MODELO/GENERICO split (mejores-picks-fixes Issue 3): a bare
-    // generic term (e.g. "running", "training") must NOT, by itself,
-    // classify a product as a shoe. It must co-occur with a shoe-noun
-    // (esZapatilla) OR the name must match an unambiguous MODELO entry.
-    // ══════════════════════════════════════════════════════════════════
-
-    @Test
-    void bareRunningKeywordWithoutShoeNounIsNotClassifiedAsShoe() {
-        assertThat(service.normalizarCategoria(null, "Running Sleeves")).isNotEqualTo("Zapatilla Running");
-    }
-
-    @Test
-    void bareTrainingKeywordWithoutShoeNounIsNotClassifiedAsShoe() {
-        assertThat(service.normalizarCategoria(null, "Training Gloves")).isNotEqualTo("Zapatilla Entrenamiento");
-    }
-
-    @Test
-    void genericRunningKeywordWithShoeNounStillClassifiesAsShoe() {
-        assertThat(service.normalizarCategoria(null, "Zapatillas Running Hombre")).isEqualTo("Zapatilla Running");
-    }
-
-    @Test
-    void unambiguousModeloNameClassifiesAsShoeWithoutShoeNoun() {
-        assertThat(service.normalizarCategoria(null, "Adidas Ultraboost 22")).isEqualTo("Zapatilla Running");
-    }
-
-    @Test
-    void otherUnambiguousRunningModeloNamesStillClassifyAsShoe() {
-        assertThat(service.normalizarCategoria(null, "Nike Pegasus 40")).as("Pegasus").isEqualTo("Zapatilla Running");
-        assertThat(service.normalizarCategoria(null, "Asics Gel-Kayano 30")).as("Gel-Kayano").isEqualTo("Zapatilla Running");
-        assertThat(service.normalizarCategoria(null, "Brooks Ghost 15")).as("Ghost").isEqualTo("Zapatilla Running");
-        assertThat(service.normalizarCategoria(null, "Hoka Clifton 9")).as("Clifton").isEqualTo("Zapatilla Running");
-        assertThat(service.normalizarCategoria(null, "New Balance 1080")).as("NB1080").isEqualTo("Zapatilla Running");
-    }
-
-    // ══════════════════════════════════════════════════════════════════
-    // category-brand-quality-fixes — Phase 1 (RED): NormalizerService
-    // ══════════════════════════════════════════════════════════════════
-
-    // ── KW_OJOTA: bare "diapositiva"/"slide" tokens (Bug: slide sandals) ────
-
-    @Test
-    void clasificarOjotaSlideYDiapositiva() {
-        assertThat(service.normalizarCategoria(null, "DC Diapositiva Slide Sandal")).isEqualTo("Ojotas");
-        assertThat(service.normalizarCategoria(null, "Slide")).isEqualTo("Ojotas");
-    }
-
-    // ── KW_BOTIN Tier A: unambiguous tokens still match unconditionally ─────
-
-    @Test
-    void clasificarBotinTierAUnambiguousStillMatches() {
-        assertThat(service.normalizarCategoria(null, "Botines Predator")).isEqualTo("Botines");
-        assertThat(service.normalizarCategoria(null, "Botines Ace 17 FG")).isEqualTo("Botines");
-    }
-
-    // ── KW_BOTIN Tier B: ambiguous tokens require footwear context ─────────
-
-    @Test
-    void clasificarBotinGenericoSinContextoNoMatchea() {
-        assertThat(service.normalizarCategoria(null, "Embrace tee")).isNotEqualTo("Botines");
-        assertThat(service.normalizarCategoria(null, "Gorra Saucony Pro Future")).isNotEqualTo("Botines");
-        assertThat(service.normalizarCategoria(null, "Pantalón Tiempo Libre")).isNotEqualTo("Botines");
-    }
-
-    @Test
-    void clasificarBotinGenericoConContextoMatchea() {
-        assertThat(service.normalizarCategoria(null, "Botín de Fútbol Copa")).isEqualTo("Botines");
-    }
 
     // ── extraerMarca: no capitalized-word fallback, falls back to sitio ────
 
@@ -199,141 +131,6 @@ class NormalizerServiceTest {
         // Verify non-feminine categories still respect raw="mujer" normally.
         assertThat(service.normalizarGenero("mujer", "Remera Básica", "Remera"))
                 .isEqualTo("mujer");
-    }
-
-    // ══════════════════════════════════════════════════════════════════
-    // classifier-quality-fixes — category precision bugs
-    // ══════════════════════════════════════════════════════════════════
-
-    // ── Timberland: brand name must NOT classify clothing as Borcego ──
-
-    @Test
-    void timberlandRemeraNoEsBorcego() {
-        assertThat(service.normalizarCategoria(null, "Remera Timberland Hombre")).isNotEqualTo("Borcego");
-    }
-
-    @Test
-    void timberlandCamperaNoEsBorcego() {
-        assertThat(service.normalizarCategoria(null, "Campera Timberland Manga Larga")).isNotEqualTo("Borcego");
-    }
-
-    @Test
-    void timberlandBootSigueEsBorcego() {
-        assertThat(service.normalizarCategoria(null, "Timberland Boot Hiking Hombre")).isEqualTo("Borcego");
-    }
-
-    // ── Puffer: broad keywords must not fire on non-jacket items ─────
-
-    @Test
-    void infladorNoEsPuffer() {
-        assertThat(service.normalizarCategoria(null, "Inflador de pelotas Adidas")).isNotEqualTo("Puffer");
-    }
-
-    @Test
-    void botellaTermicaNoEsPuffer() {
-        assertThat(service.normalizarCategoria(null, "Botella Termica 500ml Acero")).isNotEqualTo("Puffer");
-    }
-
-    @Test
-    void remeraTermicaNoEsPuffer() {
-        assertThat(service.normalizarCategoria(null, "Remera Termica Hombre Under Armour")).isNotEqualTo("Puffer");
-    }
-
-    @Test
-    void remeraTermicaEsRemera() {
-        assertThat(service.normalizarCategoria(null, "Remera Termica Hombre Under Armour")).isEqualTo("Remera");
-    }
-
-    @Test
-    void camperaInflableEsPuffer() {
-        assertThat(service.normalizarCategoria(null, "Campera Inflable The North Face")).isEqualTo("Puffer");
-    }
-
-    @Test
-    void camperaAcolchadaEsPuffer() {
-        assertThat(service.normalizarCategoria(null, "Campera Acolchada Mujer Nike")).isEqualTo("Puffer");
-    }
-
-    // ── Accesorios deportivos: muñequera, shaker ─────────────────────
-
-    @Test
-    void munecueraDezapatillasNoEsZapatilla() {
-        assertThat(service.normalizarCategoria(null, "Muñequera adidas de Zapatillas Grande Unisex"))
-                .isNotIn("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento", "Zapatilla Urbana", "Sneaker");
-    }
-
-    @Test
-    void munecueraEsAccesorioDeportivo() {
-        assertThat(service.normalizarCategoria(null, "Muñequera adidas de Zapatillas Grande Unisex"))
-                .isEqualTo("Accesorio Deportivo");
-    }
-
-    @Test
-    void shakerEsAccesorioDeportivo() {
-        assertThat(service.normalizarCategoria(null, "Raw Shaker Elite 700ml Transparente"))
-                .isEqualTo("Accesorio Deportivo");
-    }
-
-    // ── Alimentos: comidas sin keywords previos caen bien ─────────────
-
-    @Test
-    void chiaPuddingEsAlimentos() {
-        assertThat(service.normalizarCategoria(null, "GRANGER Chia Pudding 300g")).isEqualTo("Alimentos");
-    }
-
-    @Test
-    void salsaMrsTasteEsAlimentos() {
-        assertThat(service.normalizarCategoria(null, "MRS TASTE BBQ Salsa Top Chef")).isEqualTo("Alimentos");
-    }
-
-    @Test
-    void salsaNoEsMusculosa() {
-        assertThat(service.normalizarCategoria(null, "MRS TASTE BBQ Salsa Top Chef")).isNotEqualTo("Musculosa");
-    }
-
-    // ── Suplemento subcategorías ──────────────────────────────────────
-
-    @Test
-    void creatinaMononhidratoEsCreatina() {
-        assertThat(service.normalizarCategoria(null, "Creatina Monohidrato 300g Myprotein")).isEqualTo("Creatina");
-    }
-
-    @Test
-    void wheyProteinEsProteina() {
-        assertThat(service.normalizarCategoria(null, "Whey Protein Isolate 2kg Vanilla")).isEqualTo("Proteína");
-    }
-
-    @Test
-    void magnesioEsMagnesio() {
-        assertThat(service.normalizarCategoria(null, "Magnesio Citrato 500mg 60 capsulas")).isEqualTo("Magnesio");
-    }
-
-    @Test
-    void preWorkoutEsPreWorkout() {
-        assertThat(service.normalizarCategoria(null, "Pre Workout Explosivo 300g")).isEqualTo("Pre-Workout");
-    }
-
-    @Test
-    void bcaaEsBcaa() {
-        assertThat(service.normalizarCategoria(null, "BCAA 2:1:1 200g Limón")).isEqualTo("BCAA");
-    }
-
-    @Test
-    void vitaminaEsVitaminas() {
-        assertThat(service.normalizarCategoria(null, "Vitamina C 1000mg 60 capsulas")).isEqualTo("Vitaminas");
-    }
-
-    @Test
-    void omega3EsVitaminas() {
-        assertThat(service.normalizarCategoria(null, "Omega 3 Fish Oil 1000mg 90 softgels")).isEqualTo("Vitaminas");
-    }
-
-    // ── Fallback peso/volumen: no-textil con indicador de peso ────────
-
-    @Test
-    void productoConPesoSinKeywordNoEsIndumentaria() {
-        // productos sin keyword conocido pero con indicador de peso → Alimentos, no Indumentaria
-        assertThat(service.normalizarCategoria(null, "GRANGER Chia Pudding 300g")).isNotEqualTo("Indumentaria");
     }
 
     // ══════════════════════════════════════════════════════════════════

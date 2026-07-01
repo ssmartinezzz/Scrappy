@@ -14,7 +14,7 @@ every work unit below leaves `mvn test` green.
 - [x] Slice 2: Grouping package split (ProductGroup, ProductIdentity, JaccardSimilarity, AccentStripper)
 - [x] Slice 3: Data/predicate holders (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
 - [x] Slice 4: PackQuantityDetector (literal cut-paste)
-- [ ] Slice 5: CategoryClassifier
+- [x] Slice 5: CategoryClassifier
 - [ ] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
 - [ ] Slice 7: SubcategoryResolver
 - [ ] Slice 8: RubroResolver + GymratTagger + orchestrator cleanup + NormalizerServiceTestFactory
@@ -88,10 +88,27 @@ every work unit below leaves `mvn test` green.
 - Pack/combo tests migrated to `PackQuantityDetectorTest`; originals removed
   from `NormalizerServiceTest` in the same commit.
 
+### Slice 5 — CategoryClassifier (DONE)
+- `ar.scraper.aggregator.normalize.CategoryClassifier` — moved `clasificar`,
+  `normalizarCategoria`, `anyMatch`, `tieneIndicadorPeso`/`PESO_VOLUMEN`,
+  context guards (`esContextoBotin/Borcego/Ojota/Chomba`),
+  `matchesTorsoBlock`/`matchesPiernasBlock`, and `capitalize` (private
+  utility used only by the raw-category cleanup fallback). If-chain and
+  keyword arrays relocated, not rewritten. Reads keywords from
+  `GarmentTaxonomy` — confirmed same instance/source consumed by
+  `PackQuantityDetector` (task 5.2 risk mitigation), no per-class copies.
+- `NormalizerService` field-initializes a `CategoryClassifier` instance and
+  delegates `categoria` resolution to it. `esGymrat` keeps a small local
+  `anyMatch` copy (trivial 3-line loop, not part of the ADR-1 taxonomy-drift
+  surface) until it's extracted into `GymratTagger` in Work Unit 8.
+- Classifier tests (`clasificar*`, context guards, timberland/borcego,
+  puffer/inflador/termica, munecuera/shaker, alimentos/salsa,
+  creatina/whey/magnesio/preWorkout/bcaa/vitaminas,
+  `productoConPesoSinKeyword…`) migrated to `CategoryClassifierTest`;
+  originals removed from `NormalizerServiceTest` in the same commit.
+
 ## Remaining slices (Batch 2+)
 
-- Slice 5: `CategoryClassifier` (clasificar + context guards + torso/piernas
-  block matchers).
 - Slice 6: `BrandExtractor` + `GenderResolver` + `SizeNormalizer`.
 - Slice 7: `SubcategoryResolver`.
 - Slice 8: `RubroResolver` + `GymratTagger` + orchestrator cleanup +
