@@ -4,6 +4,7 @@ import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } fro
 import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
+import { normCat } from '../lib/cat';
 
 // MercadoLibre's official brand yellow — third-party partner color, not one
 // of the 7 canonical semantic roles in lib/colors.js. Kept as a local named
@@ -243,6 +244,10 @@ function PreciosExternos({ product }) {
 function PriceContext({ product: p, st }) {
   const ml  = p.ml || {};
   const items = [];
+  // Category stats (st) are unit-price-based (ml_pipeline `stats_cats` uses
+  // precio_unitario); for packs compare their unit price, not the shelf price,
+  // so the mean/median text agrees with the pack savings badge.
+  const precioComp = p.precioUnitario ?? p.precio;
 
   // 1. Percentil
   if (ml.pctil !== undefined) {
@@ -260,10 +265,10 @@ function PriceContext({ product: p, st }) {
   }
 
   // 2. Vs media de la categoría
-  if (st?.mean && p.precio > 0) {
-    const diffPct = ((p.precio - st.mean) / st.mean * 100).toFixed(1);
+  if (st?.mean && precioComp > 0) {
+    const diffPct = ((precioComp - st.mean) / st.mean * 100).toFixed(1);
     if (diffPct < -15)
-      items.push({ icon:'💰', color: SEMANTIC.positive, text: `${Math.abs(diffPct)}% más barato que la media de ${p.categoria||'su categoría'} ($${p.precio > 0 ? Math.round(st.mean).toLocaleString('es-AR') : '—'})` });
+      items.push({ icon:'💰', color: SEMANTIC.positive, text: `${Math.abs(diffPct)}% más barato que la media de ${p.categoria||'su categoría'} ($${Math.round(st.mean).toLocaleString('es-AR')})` });
     else if (diffPct < 0)
       items.push({ icon:'◎', color:'var(--t3)', text: `Ligeramente por debajo de la media ($${Math.round(st.mean).toLocaleString('es-AR')}) de ${p.categoria||'su categoría'}` });
     else if (diffPct > 15)
@@ -271,8 +276,8 @@ function PriceContext({ product: p, st }) {
   }
 
   // 3. Vs mediana
-  if (st?.median && p.precio > 0) {
-    const diffMed = ((p.precio - st.median) / st.median * 100).toFixed(1);
+  if (st?.median && precioComp > 0) {
+    const diffMed = ((precioComp - st.median) / st.median * 100).toFixed(1);
     if (Math.abs(diffMed) > 5) {
       const dir = diffMed < 0 ? 'por debajo' : 'por encima';
       const col = diffMed < 0 ? SEMANTIC.positive : SEMANTIC.warn;
@@ -333,7 +338,7 @@ function PriceContext({ product: p, st }) {
 export default function DetailPanel({ product: p, catStats, onClose }) {
   const [hist, setHist] = useState(null);
   const ml  = p.ml || {};
-  const st  = catStats?.[p.categoria];
+  const st  = catStats?.[normCat(p.categoria)];
 
   useEffect(() => {
     if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));

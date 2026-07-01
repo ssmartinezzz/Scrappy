@@ -305,7 +305,7 @@ public class ApiController {
             n.put("marcaPremium", p.marcaPremium());
             n.put("cantidadUnidades", p.cantidadUnidades());
             n.put("esPack",     p.esPack());
-            n.put("precioUnitario", p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio());
+            n.put("precioUnitario", precioUnitario(p));
             n.put("sub_categoria", safe(p.subCategoria()));
             ArrayNode tallesArr = n.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesArr::add);
@@ -1525,6 +1525,9 @@ public class ApiController {
         n.put("genero",     safe(p.genero()));
         n.put("marca",      safe(p.marca()));
         n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
+        n.put("cantidadUnidades", p.cantidadUnidades());
+        n.put("esPack",     p.esPack());
+        n.put("precioUnitario", precioUnitario(p));
         ArrayNode tallesArr = n.putArray("talles");
         if (p.talles() != null) p.talles().forEach(tallesArr::add);
         if (p.ml() != null) {
@@ -1802,8 +1805,9 @@ public class ApiController {
                         && "oferta_real".equals(p.ml().badge()))
                     .findFirst().orElse(null);
 
-                // Stats de la categoría
-                double mediana = prods.stream().mapToDouble(Product::precio)
+                // Stats de la categoría — computado sobre precio unitario (pack-aware),
+                // no sobre precio de estantería, para no penalizar packs genuinos.
+                double mediana = prods.stream().mapToDouble(ApiController::precioUnitario)
                     .sorted().skip(prods.size()/2).findFirst().orElse(0);
                 String imgCat = mejor.imagenUrl() != null ? mejor.imagenUrl() : "";
                 if (imgCat.startsWith("//")) imgCat = "https:" + imgCat;
@@ -1826,6 +1830,17 @@ public class ApiController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Precio por unidad de un producto (precio de estantería dividido por
+     * {@code cantidadUnidades} cuando es un pack). Espeja la fórmula usada en
+     * {@code /api/data} (fila del catálogo) para que catálogo, ML y mejores
+     * picks compartan una única fuente de verdad. Guard contra división por
+     * cero: {@code cantidadUnidades <= 0} cae al precio de estantería.
+     */
+    static double precioUnitario(Product p) {
+        return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
+    }
+
     private void addMejorPick(com.fasterxml.jackson.databind.node.ArrayNode arr,
                               Product p, String tipo, String label) {
         var n = arr.addObject();
@@ -1833,6 +1848,9 @@ public class ApiController {
         n.put("label",  label);
         n.put("nombre", safe(p.nombre()));
         n.put("precio", p.precio());
+        n.put("cantidadUnidades", p.cantidadUnidades());
+        n.put("esPack",     p.esPack());
+        n.put("precioUnitario", precioUnitario(p));
         n.put("url",    safe(p.url()));
         String img = safe(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;

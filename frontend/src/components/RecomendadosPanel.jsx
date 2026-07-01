@@ -32,7 +32,7 @@ function FeedbackRow({ product: p, sent, onFeedback, onDismissCategoria }) {
   );
 }
 
-export default function RecomendadosPanel() {
+export default function RecomendadosPanel({ catStats = {} }) {
   const [genero, setGenero] = useState('');
   const [prods, setProds] = useState([]);
   const [page, setPage] = useState(1);
@@ -149,7 +149,7 @@ export default function RecomendadosPanel() {
                 <div key={p.url} className="recomendados-card-wrap">
                   <ProductCard
                     product={p}
-                    catStats={{}}
+                    catStats={catStats}
                     isInComparar={false}
                     isFavorito={false}
                     onOpenDetail={() => {}}
