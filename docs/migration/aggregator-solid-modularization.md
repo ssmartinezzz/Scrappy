@@ -12,7 +12,7 @@ every work unit below leaves `mvn test` green.
 
 - [x] Slice 1: GroupingService characterization tests + scaffold
 - [x] Slice 2: Grouping package split (ProductGroup, ProductIdentity, JaccardSimilarity, AccentStripper)
-- [ ] Slice 3: Data/predicate holders (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
+- [x] Slice 3: Data/predicate holders (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
 - [ ] Slice 4: PackQuantityDetector (literal cut-paste)
 - [ ] Slice 5: CategoryClassifier
 - [ ] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
@@ -49,7 +49,7 @@ every work unit below leaves `mvn test` green.
 - Characterization suite from Slice 1 updated to import from the new
   package and stays green; add `ProductIdentityTest`, `JaccardSimilarityTest`.
 
-### Slice 3 — Shared Data/Predicate Holders (pending)
+### Slice 3 — Shared Data/Predicate Holders (DONE)
 - `ar.scraper.aggregator.normalize.GarmentTaxonomy` — all `KW_*` keyword
   arrays + `concatKeywords` + `TORSO_KEYWORDS_FLAT`/`PIERNAS_KEYWORDS_FLAT`
   derivations, moved verbatim.

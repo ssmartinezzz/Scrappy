@@ -7,6 +7,13 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static ar.scraper.aggregator.normalize.CategoryGroups.esCalzado;
+import static ar.scraper.aggregator.normalize.CategoryGroups.esCategoriaSuplemento;
+import static ar.scraper.aggregator.normalize.CategoryGroups.esIndumentariaOCalzado;
+import static ar.scraper.aggregator.normalize.GarmentTaxonomy.*;
+import static ar.scraper.aggregator.normalize.NonTextileGuard.esClaramenteNoTextil;
+import static ar.scraper.aggregator.normalize.SiteClassification.*;
+
 /**
  * Normalización profunda post-scraping.
  *
@@ -15,469 +22,17 @@ import java.util.stream.Collectors;
  *   "Zapatilla Running" antes que "Zapatilla".
  *   "Buzo" y "Sweater" son categorías DISTINTAS.
  *   El nombre del producto tiene prioridad sobre la categoría cruda del sitio.
+ *
+ * <p>Keyword taxonomies ({@code KW_*}), category/site predicate holders, and
+ * the non-textile guard now live in {@code ar.scraper.aggregator.normalize}
+ * (Work Unit 3 of the aggregator SOLID modularization) and are consumed here
+ * via static import — pure relocation, no behavior change. This class still
+ * owns the classifier logic, pack-quantity detection, gender/brand/size
+ * resolution, and orchestration; those collaborators are extracted in later
+ * work units.</p>
  */
 @Component
 public class NormalizerService {
-
-    // ══════════════════════════════════════════════════════════════════
-    // CALZADO — keywords ordenados de más específico a más genérico
-    // ══════════════════════════════════════════════════════════════════
-
-    // KW_*_MODELO: standalone, unambiguous shoe-model/proper names — match
-    // WITHOUT requiring esZapatilla co-occurrence (the name itself is the
-    // shoe signal, e.g. "ultraboost", "pegasus", "old skool").
-    // KW_*_GENERICO: bare/generic words reused across apparel/accessories by
-    // the same brands — require esZapatilla co-occurrence in clasificar()
-    // (e.g. "running"/"training" alone must NOT classify "Running Sleeves"
-    // or "Training Gloves" as a shoe). See clasificar() L~775 for the gate.
-    private static final String[] KW_RUNNING_MODELO = {
-        "ultraboost","adizero","solarboost","duramo",
-        "pegasus","vomero","air zoom","free run","air max",
-        "gel-kayano","gel-nimbus","gel-cumulus","gel-pulse",
-        "glycerin","beast","ghost","adrenaline","levitate",
-        "triumph","endorphin","kinvara","ride",
-        "clifton","bondi","speedgoat","mach",
-        "fresh foam","1080","990","880","860",
-        "wave rider","wave inspire","wave horizon",
-        "speedcross","sense","x-ultra"
-    };
-
-    private static final String[] KW_RUNNING_GENERICO = {
-        "running","correr","corrida","maraton","marathon","trail",
-        "atletismo","atletica","ligera","velocidad"
-    };
-
-    private static final String[] KW_TRAINING_MODELO = {
-        "metcon","free metcon","superrep",
-        "adipower","powerlift","nano","legacy lifter"
-    };
-
-    private static final String[] KW_TRAINING_GENERICO = {
-        "cross training","crossfit","training","cross","gym",
-        "hiit","funcional","multideporte","indoor",
-        "weightlift","levantamiento"
-    };
-
-    private static final String[] KW_SKATE_MODELO = {
-        "old skool","sk8-hi","era vans","authentic vans",
-        "pure dc","dc court","etnies","emerica",
-        "half cab","full cab"
-    };
-
-    private static final String[] KW_SKATE_GENERICO = {
-        "skate","skateboarding"
-    };
-
-    private static final String[] KW_URBANA_MODELO = {
-        "air force 1","af1","air force one",
-        "stan smith","superstar","campus","gazelle","samba",
-        "forum","nmd","continental","ozweego",
-        "chuck taylor","all star","converse",
-        "suede puma","basket puma","cali puma","rs-x",
-        "classic leather","aztrek",
-        "cortez","waffle"
-    };
-
-    private static final String[] KW_URBANA_GENERICO = {
-        "urbana","casual","lifestyle","street","everyday",
-        "clasica","clasico","moda","fashion"
-    };
-
-    private static final String[] KW_SNEAKER_MODELO = {
-        "jordan 1","jordan 4","jordan 11","jordan 3","jordan 6","jordan 5",
-        "air jordan","travis scott","off-white","fragment","union","chicago",
-        "bred","shadow","university blue","royal",
-        "yeezy","boost 350","boost 700","foam runner",
-        "dunk low","dunk high","sb dunk","panda dunk",
-        "air max 1 ","air max 90","air max 95","air max 97",
-        "new balance 550","new balance 990","new balance 2002",
-        "new balance 574","new balance 327"
-    };
-
-    private static final String[] KW_SNEAKER_GENERICO = {
-        "hype","retro","og ","collab","limited","drop","release","sneaker"
-    };
-
-    // Tier A — unambiguous, distinctive football-boot tokens. Plain contains()
-    // is safe: these strings appear nowhere else in the file and are not
-    // common word fragments.
-    private static final String[] KW_BOTIN = {
-        "botin","cleats","tachon","tachos","chimpun",
-        "bota futbol","bota de futbol","predator","mercurial",
-        "phantom","nemeziz"
-    };
-
-    // Tier B — ambiguous dictionary-like tokens reused inside unrelated words
-    // ("ace"⊂Embrace, "copa"⊂Copacabana, "tiempo"⊂entretiempo, "future" is a
-    // common English word). Only classify as Botines when esContextoBotin()
-    // also matches — mirrors the KW_*_GENERICO + esZapatilla guard pattern.
-    private static final String[] KW_BOTIN_GENERICO = {
-        "ace","copa","tiempo","future"
-    };
-
-    private static final String[] KW_BOTA = {
-        "bota ","botas ","boot ","boots ","bucanera",
-        "botita","ankle","chelsea boot","desert boot","ugg"
-    };
-
-    private static final String[] KW_BORCEGO = {
-        "borcego","borcegos","hiker","hiking","work boot",
-        "dr martens","martens","dr. martens","1460","chunky boot",
-        "plataforma alta","lug sole","bota alta","boot alta"
-    };
-
-    // Tier B — marcas que venden TAMBIÉN ropa/camperas (timberland). Solo
-    // clasificar como Borcego si hay contexto de calzado en el mismo nombre.
-    private static final String[] KW_BORCEGO_MARCA = {
-        "timberland"
-    };
-
-    private static final String[] KW_SANDALIA = {
-        "sandalia de tiras","sandalia con tiras","sandalia plana","sandalia taco",
-        "sandalia cuero","sandalia verano","sandalia mujer","sandalia hombre",
-        "sandalia goma","tiras cuero","tiras cruzadas"
-    };
-
-    private static final String[] KW_OJOTA = {
-        "ojota","ojotas","flip flop","chancleta",
-        "birkenstock","crocs","havaianas","ipanema","kenner",
-        "zueco","clogs","clog","slide sandal","pool slide",
-        "rasteira","chinelo","badeleta","babuchas","suela plana",
-        "sandalia","sandal","diapositiva","slide"
-    };
-
-    // Tier B — "Reef" es marca de indumentaria/accesorios de playa que también
-    // vende mochilas, gorras, buzos y billeteras, no solo ojotas/sandalias.
-    // Solo clasificar como Ojotas vía este keyword si hay contexto de calzado
-    // en el mismo título — mirrors el patrón KW_BORCEGO_MARCA/esContextoBorcego.
-    private static final String[] KW_OJOTA_MARCA = {
-        "reef "
-    };
-
-    private static final String[] KW_MOCASIN = {
-        "mocasin","moccasin","loafer","boat shoe","driving shoe",
-        "slip on cuero","mocasin cuero","penny loafer"
-    };
-
-    private static final String[] KW_ZAPATO = {
-        "zapato de vestir","zapato formal","oxford shoe","derby shoe",
-        "brogue","monk strap","zapato cuero","zapato de cuero",
-        "balerina","flat shoe","kitten heel","taco alto","stiletto",
-        "zapato taco","zapato plataforma","chanel shoe"
-    };
-
-    private static final String[] KW_PANTUFLA = {
-        "pantufla","pantuflas","slipper","slippers","babuchas casa",
-        "zapatilla de casa","zapatilla casa"
-    };
-
-    // ══════════════════════════════════════════════════════════════════
-    // INDUMENTARIA SUPERIOR
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final String[] KW_SWEATER = {
-        "sweater","pulover","pullover","jersey","knit","tejido",
-        "tricot","cardigan","lana","merino","crochet"
-    };
-
-    private static final String[] KW_BUZO = {
-        "buzo","hoodie","hoody","sweatshirt","sudadera",
-        "fleece","polar","zip hoodie","full zip","half zip","canguro"
-    };
-
-    // Combo/multi-pieza — ver ADR-4. Variantes con espacio/"de" en set/kit/pack
-    // evitan falsos positivos por substring ("settler", "kitsch", "package").
-    private static final String[] KW_CONJUNTO = {
-        "conjunto","combo","set ","set de","kit ","pack ","dos piezas","2 piezas"
-    };
-
-    private static final String[] KW_PUFFER = {
-        "puffer","plumon","pluma","down jacket","down coat",
-        "campera inflable","chaleco inflable","abrigo inflable","parka inflable",
-        "acolchada","acolchado",
-        "anorak termico"
-    };
-
-    private static final String[] KW_PILOTO = {
-        "piloto","impermeable","lluvia","rain jacket","waterproof jacket",
-        "chubasquero","k-way","kway","raincoat"
-    };
-
-    private static final String[] KW_CAMPERA = {
-        "campera","jacket","chaqueta","cortaviento","rompeviento",
-        "windbreaker","anorak","softshell","shell",
-        "bomber","track jacket","tricota"
-    };
-
-    private static final String[] KW_CHALECO = {
-        "chaleco","gilet","vest ","waistcoat","chaleco de abrigo",
-        "chaleco inflable","chaleco pluma","chaleco polar",
-        "chaleco tejido","chaleco cuero"
-    };
-
-    private static final String[] KW_SACO = {
-        "saco ","sacos ","blazer","americana","sport coat",
-        "tuxedo","saco de vestir","saco formal","saco lino",
-        "saco tweed","saco sastre"
-    };
-
-    // Intencionalmente excluido de la detección de combos — los trajes siempre
-    // resuelven a "Traje", ver ADR-4 / tasks.md 0.1 (confirmado por el product owner).
-    private static final String[] KW_TRAJE = {
-        "traje","suit ","terno","smoking","smocking"
-    };
-
-    private static final String[] KW_CHOMBA = {
-        "chomba","polo shirt","polera","rugby shirt",
-        "pique polo","lacoste polo","fred perry polo"
-    };
-
-    // Tier B — "polo" suelto también es nombre de marca/línea en accesorios que
-    // no son indumentaria superior ("Medias Polo Green", "Gorra US Polo Assn",
-    // "Mochila Polo Club"). Solo clasificar como Chomba vía este keyword si no
-    // hay un sustantivo de accesorio explícito en el mismo título — mirrors el
-    // patrón KW_BORCEGO_MARCA/esContextoBorcego.
-    private static final String[] KW_CHOMBA_MARCA = {
-        "polo "
-    };
-
-    private static final String[] KW_CASACA = {
-        "casaca","camiseta de futbol","camiseta futbol","jersey futbol",
-        "camiseta seleccion","camiseta club","replica","kit futbol",
-        "camiseta oficial","camiseta de juego","camiseta deportiva",
-        "casaca deportiva","camiseta nba","jersey nba"
-    };
-
-    private static final String[] KW_MUSCULOSA = {
-        "musculosa","tank top","camiseta de tirantes","sin mangas",
-        "top deportivo","sports bra","corpino deportivo",
-        " top " // "Top" suelto (sin "deportivo"/"interior"/"cuello") — palabra completa
-    };
-
-    // Palabras 100% culinarias — corren al inicio de clasificar() para que
-    // keywords genéricos de ropa (" top ", "knit", "fleece") no clasifiquen
-    // salsas, condimentos o alimentos como indumentaria. Se agregan aquí y no
-    // a KW_COMIDA porque KW_COMIDA se evalúa DESPUÉS del bloque de indumentaria.
-    private static final String[] KW_ALIMENTO_TEMPRANO = {
-        "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia "
-    };
-
-    private static final String[] KW_REMERA = {
-        "remera","t-shirt","tee","camiseta","top cuello","manga corta","basic tee"
-    };
-
-    private static final String[] KW_CAMISA = {
-        "camisa","shirt","oxford","flannel","chambray","denim shirt"
-    };
-
-    private static final String[] KW_CORPINO = {
-        "corpino","corpino","bralette","bra ","sosten",
-        "top interior","ropa interior femenina","sujetador","bikini top"
-    };
-
-    private static final String[] KW_CALZONCILLO = {
-        "calzoncillo","calzoncillos","boxer","short interior",
-        "slip ","tanga","ropa interior masculina","brief","trunk ",
-        "underwear","jockstrap","cueca"
-    };
-
-    private static final String[] KW_MALLA = {
-        "malla","bikini","traje de bano","bano ","bano ",
-        "one piece","swimsuit","swimwear","beachwear","tankini",
-        "ropa de playa","pileta"
-    };
-
-    // ══════════════════════════════════════════════════════════════════
-    // INDUMENTARIA INFERIOR
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final String[] KW_BAGGY = {
-        "baggy","wide leg","pierna ancha","balloon","paperbag",
-        "oversize jean","oversized jean","barrel","loose fit",
-        "baggy pant","wide pant","cargo pant","carpintero",
-        "parachute pant","jogger baggy"
-    };
-
-    private static final String[] KW_JEAN = {
-        "jean","denim","jeans","vaquero","skinny jean",
-        "slim jean","bootcut","straight jean"
-    };
-
-    private static final String[] KW_JOGGING = {
-        "jogging","pantalon deportivo","sweatpant",
-        "jogger","pantalon de buzo","pantalon de entrenamiento",
-        "bottoms","track pant","training pant"
-    };
-
-    private static final String[] KW_CALZA = {
-        "calza","legging","leggin","tight","malla deportiva",
-        "capri","culote"
-    };
-
-    private static final String[] KW_BERMUDA = {
-        "bermuda","bermudas","short largo","short 3/4","walk short"
-    };
-
-    private static final String[] KW_SHORT = {
-        "short","cargo short","swim short","boxer deportivo"
-    };
-
-    private static final String[] KW_POLLERA = {
-        "pollera","falda","skirt","minifalda","midi skirt",
-        "maxi falda","falda plisada","mini pollera"
-    };
-
-    private static final String[] KW_VESTIDO = {
-        "vestido","dress ","playero","maxidress","midi dress",
-        "vestido largo","vestido corto","vestido de noche"
-    };
-
-    private static final String[] KW_ENTERITO = {
-        "enterito","mono ","jumpsuit","overol","romper","mameluco",
-        "enterito largo","catsuit"
-    };
-
-    private static final String[] KW_PANTALON = {
-        "pantalon","pant ","trouser","cargo ","chino ","formal pant"
-    };
-
-    // ══════════════════════════════════════════════════════════════════
-    // ACCESORIOS — separados en categorías específicas
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final String[] KW_BOLSO = {
-        "bolso","cartera","handbag","tote bag","clutch","minibag",
-        "bolsa de mano","bandolera","shoulder bag","crossbody"
-    };
-
-    private static final String[] KW_MOCHILA = {
-        "mochila","backpack","daypack","hiking pack","school bag","laptop bag"
-    };
-
-    private static final String[] KW_RINONERA = {
-        "rinonera","rinonera","waist bag","waist pack","fanny pack",
-        "hip bag","belt bag","sling bag"
-    };
-
-    private static final String[] KW_BILLETERA = {
-        "billetera","wallet","cartera hombre","portamonedas",
-        "billetera cuero","card holder","tarjetero","porta tarjeta",
-        "monedero"
-    };
-
-    private static final String[] KW_CINTURON = {
-        "cinturon","cinturon","belt ","belts","cinto ","faja ",
-        "correa pantalon","leather belt"
-    };
-
-    private static final String[] KW_GORRO = {
-        "gorro","beanie","gorro de lana","gorro tejido","knit hat",
-        "winter hat","gorro invierno","pompom hat","toque"
-    };
-
-    private static final String[] KW_GORRA = {
-        "gorra","cap ","hat ","sombrero","boina","snapback",
-        "bucket hat","buff","balaclava","vincha","visera","dad hat"
-    };
-
-    private static final String[] KW_BUFANDA = {
-        "bufanda","scarf","panuelo cuello","echarpe","cuello polar",
-        "snood","gola","pashmina"
-    };
-
-    private static final String[] KW_GUANTES = {
-        "guantes","guante","gloves","mittens","guantes de cuero",
-        "guantes invierno","guantes ski","guantes moto"
-    };
-
-    private static final String[] KW_LENTES = {
-        "lentes","anteojos","gafas","sunglasses","sunglass",
-        "lentes de sol","anteojos de sol","goggles","polarizados",
-        "antiparras","antiparra"
-    };
-
-    private static final String[] KW_MEDIAS = {
-        "media","medias","sock","socks","calcetin","calcetines","tobillera sock"
-    };
-
-    private static final String[] KW_ACCESORIO_DEPORTIVO = {
-        "munequera","muñequera","rodillera","codillera","tobillera deportiva",
-        "vendaje deportivo","cinta deportiva","soporte rodilla","soporte muneca",
-        "shaker","bidon","bidón","botella deportiva","botella termica","termo deportivo"
-    };
-
-    // ══════════════════════════════════════════════════════════════════
-    // TECH
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final String[] KW_NOTEBOOK = {
-        "notebook","laptop","netbook","macbook","chromebook",
-        "portatil","computadora portatil"
-    };
-
-    private static final String[] KW_MONITOR = {
-        "monitor ","pantalla pc","display pc","led gaming","monitor gaming",
-        "monitor 4k","monitor curvo","monitor 144hz","monitor 27","monitor 24"
-    };
-
-    private static final String[] KW_TECLADO = {
-        "teclado mecanico","teclado gamer","keyboard","mechanical keyboard",
-        "teclado rgb","teclado inalambrico","teclado bluetooth"
-    };
-
-    private static final String[] KW_MOUSE = {
-        "mouse gamer","mouse gaming","raton gamer","gaming mouse",
-        "mouse inalambrico","mouse bluetooth","mouse rgb"
-    };
-
-    private static final String[] KW_AURICULAR = {
-        "auricular","auriculares","headset","headphone","earphone",
-        "earbud","earbuds","inalambrico bt","over-ear","in-ear","on-ear"
-    };
-
-    private static final String[] KW_WEBCAM = {
-        "webcam","camara web","web cam"
-    };
-
-    private static final String[] KW_GPU = {
-        "gpu","tarjeta de video","video card","graphics card",
-        "rtx ","gtx ","rx ","radeon","geforce","arc "
-    };
-
-    private static final String[] KW_RAM = {
-        "ram ","memoria ram","dimm","ddr4","ddr5","sodimm",
-        "memoria ddr","modulo ram"
-    };
-
-    private static final String[] KW_CPU = {
-        "procesador","cpu ","core i","ryzen ","intel ","amd ",
-        "i3 ","i5 ","i7 ","i9 ","threadripper"
-    };
-
-    private static final String[] KW_GABINETE = {
-        "gabinete","case pc","tower pc","chasis pc","computer case",
-        "gabinete gamer","gabinete atx","gabinete micro atx"
-    };
-
-    private static final String[] KW_PC = {
-        "pc gamer","computadora de escritorio","desktop pc",
-        "pc completa","equipo de escritorio","all in one pc"
-    };
-
-    // Training / Gym — ropa de gym y pesas (distinto de running)
-    private static final String[] KW_TRAINING_ROPA = {
-        "training","gym","workout","crossfit","weightlifting",
-        "powerlifting","fuerza","pesas","calistenia",
-        "tight de gym","musculosa gym","remera gym","top gym",
-        "sports bra","corpino deportivo","bralette deportivo",
-        "short gym","tight training","legging gym",
-        "gimnasio","functional","dri-fit","dry-fit","compression","compresion",
-        "performance","athletic","activewear","active wear",
-        "para entrenar","de entrenamiento","para el gym","uso deportivo",
-        "halterofilia","spinning","cardio gym",
-        "musculosa de gym","remera de gym","short deportivo","short de gym",
-        "calza de gym","buzo de entrenamiento","top de gym"
-    };
 
     // ══════════════════════════════════════════════════════════════════
     // MARCAS conocidas en Argentina
@@ -500,103 +55,6 @@ public class NormalizerService {
     private static final List<Pattern> MARCA_PATTERNS = MARCAS.stream()
             .map(m -> Pattern.compile("\\b" + Pattern.quote(m.toLowerCase()) + "\\b"))
             .collect(Collectors.toList());
-
-    // ══════════════════════════════════════════════════════════════════
-    // SITIOS PREMIUM — tag transversal aditivo "marcaPremium"
-    // Por sitio (tienda), no por marca extraída del nombre del producto:
-    // la mayoría de los productos de una tienda premium no llevan el
-    // nombre de la tienda en el título (ej. Harvey Willys vende "Soquete
-    // Ozzy Black", no "Harvey Willys Ozzy Black").
-    // NO altera ni reordena la cadena de prioridad de `badge` en ml_pipeline.py.
-    // ══════════════════════════════════════════════════════════════════
-
-    private static final Set<String> SITIOS_PREMIUM = Set.of(
-        "harvey"
-    );
-
-    // ══════════════════════════════════════════════════════════════════
-    // Subcategorías de suplemento — corren ANTES de KW_SUPLEMENTO en clasificar()
-    private static final String[] KW_CREATINA = {
-        "creatina","creatine","monohidrato de creatina"
-    };
-
-    private static final String[] KW_PROTEINA_BARRA = {
-        "barra proteica","protein bar","barra de proteina","barita proteica",
-        "bar proteico"
-    };
-
-    private static final String[] KW_PROTEINA_PANCAKE = {
-        "pancake","panqueque proteico","waffle mix","mezcla para pancake",
-        "mezcla para panqueque","mix de pancake"
-    };
-
-    private static final String[] KW_PROTEINA_SNACK = {
-        "snack proteico","cookie proteica","galleta proteica","brownie proteico",
-        "muffin proteico","torta de arroz proteica","snack fit"
-    };
-
-    private static final String[] KW_PROTEINA = {
-        "proteina ","protein ","whey","isolate","concentrate","caseina","casein",
-        "proteina isolada","proteina hidrolizada"
-    };
-
-    private static final String[] KW_COLAGENO = {
-        "colageno","collagen","hidrolizado de colageno","colageno marino"
-    };
-
-    private static final String[] KW_MAGNESIO = {
-        "magnesio","magnesium","citrato de magnesio","bisglicinato de magnesio"
-    };
-
-    private static final String[] KW_PRE_WORKOUT_SUP = {
-        "pre workout","preworkout","pre-workout","pre entreno","cafeina en polvo"
-    };
-
-    private static final String[] KW_BCAA_SUP = {
-        "bcaa","aminoacido","amino acid","glutamina","glutamine"
-    };
-
-    private static final String[] KW_VITAMINAS = {
-        "vitamina ","vitamin ","multivitaminico","omega 3","omega3","omega-3"
-    };
-
-    private static final String[] KW_QUEMADORES = {
-        "quemador de grasa","fat burner","termogenico","l-carnitina","l carnitina",
-        "carnitina","cla "
-    };
-
-    private static final String[] KW_GAINERS = {
-        "mass gainer","hipercalorico"
-    };
-
-    private static final String[] KW_SUPLEMENTO = {
-        "proteina","protein","whey","isolate","concentrate",
-        "creatina","creatine","monohidrato",
-        "bcaa","aminoacido","amino acid","glutamina","glutamine",
-        "pre workout","preworkout","pre-workout","pre entreno",
-        "mass gainer","gainer","hipercalorico",
-        "vitamina","vitamin","multivitaminico","omega 3","omega3",
-        "colageno","collagen","hidrolizado",
-        "barra proteica","barra energetica","snack proteico",
-        "magnesio","magnesium","citrato de magnesio",
-        "quemador","fat burner","termogenico","l-carnitina","carnitina","cla ",
-        "suplemento","supplement","nutri","proteico","proteica"
-    };
-
-    private static final String[] KW_COMIDA = {
-        "yerba","mate","cafe","te verde","infusion","cereal","granola",
-        "frutos secos","almendra","mani","cacao","chocolate proteico",
-        "avena","harina de avena","pasta","arroz",
-        "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
-        "maple","jarabe de arce","sirope","topping proteico","topping fit",
-        "pudding","chia ","semillas","fruta","miel","mermelada","dulce de",
-        "snack saludable","galletita","galleta","tostada","pan proteico"
-    };
-
-    private static final String[] KW_PERFUME = {
-        "perfume","colonia","eau de toilette","eau de parfum","fragancia",
-        "desodorante ","antitranspirante","splash","body mist"
-    };
 
     // Talles
     // ══════════════════════════════════════════════════════════════════
@@ -624,29 +82,6 @@ public class NormalizerService {
                 .collect(Collectors.toList());
     }
 
-    // Sitios cuyo rubro se fuerza independientemente de lo que traiga el scraper
-    private static final java.util.Set<String> TECH_SITIOS = java.util.Set.of(
-        "compragamer","fullh4rd","maximus","foreverbstrd",
-        "compragamer.com","fullh4rd.com.ar","maximus.com.ar"
-    );
-    private static final java.util.Set<String> SUPPL_SITIOS = java.util.Set.of(
-        "entreno","entreno.com.ar"
-    );
-
-    // Sitios 100% orientados a ropa/indumentaria de gimnasio
-    private static final java.util.Set<String> GYM_SITIOS = java.util.Set.of(
-        "bulks", "fuark"
-    );
-
-    // Marcas deportivas cuyo torso/piernas cuenta como gymrat aunque el nombre
-    // no traiga keyword de training (user-confirmed). Canonical brand strings
-    // (ver MARCAS), comparados case-insensitive contra la marca ya resuelta.
-    // Nota: gym y casual son excluyentes por gymrat en OutfitService — estos
-    // productos dejan de ser elegibles para el builder Casual.
-    private static final java.util.Set<String> GYM_MARCAS = java.util.Set.of(
-        "nike", "adidas", "puma", "champion", "under armour", "reebok"
-    );
-
     private Product normalizarProducto(Product p) {
         String nombre = p.nombre() != null ? p.nombre() : "";
         String cat    = normalizarCategoria(p.categoria(), nombre);
@@ -657,15 +92,9 @@ public class NormalizerService {
                         : p.marca();
 
         // Determinar rubro: forzar por sitio, luego por categoría, luego usar existente
-        String sitioKey = (p.sitio() != null ? p.sitio() : "").toLowerCase()
-                          .replaceAll("[^a-z0-9]","");
+        String sitioKey = sitioKey(p.sitio());
         boolean catEsTextil = esIndumentariaOCalzado(cat);
-        boolean catEsSuppl  = "Suplemento".equals(cat) || "Alimentos".equals(cat)
-            || "Creatina".equals(cat) || "Proteína".equals(cat) || "Colágeno".equals(cat)
-            || "Magnesio".equals(cat) || "Pre-Workout".equals(cat) || "BCAA".equals(cat)
-            || "Vitaminas".equals(cat) || "Quemadores".equals(cat) || "Gainer".equals(cat)
-            || "Barra Proteica".equals(cat) || "Pancake Proteico".equals(cat)
-            || "Snack Proteico".equals(cat);
+        boolean catEsSuppl  = esCategoriaSuplemento(cat);
 
         String rubro;
         if (TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
@@ -723,81 +152,9 @@ public class NormalizerService {
         return false;
     }
 
-    /** Categorías de calzado — excluidas de gymrat (el tag es para ROPA). */
-    private boolean esCalzado(String cat) {
-        if (cat == null) return false;
-        return cat.startsWith("Zapatilla") || cat.equals("Botines") || cat.equals("Borcego")
-            || cat.equals("Botas") || cat.equals("Ojotas") || cat.equals("Sneaker")
-            || cat.equals("Sandalia") || cat.equals("Mocasin") || cat.equals("Zapato")
-            || cat.equals("Pantufla");
-    }
-
-    /** Categorías reconocidas como indumentaria o calzado (no suplemento/alimentos). */
-    private boolean esIndumentariaOCalzado(String cat) {
-        if (cat == null || cat.isBlank()) return false;
-        return esCalzado(cat)
-            || java.util.Set.of(
-                   "Puffer","Campera","Sweater","Buzo","Musculosa","Camisa","Remera",
-                   "Chomba","Casaca","Chaleco","Saco","Traje","Piloto",
-                   "Calza","Baggy","Jean","Jogging","Short","Bermuda","Pollera",
-                   "Vestido","Enterito","Pantalón",
-                   "Calzoncillos","Corpino","Malla",
-                   "Mochila","Bolso","Riñonera","Billetera","Cinturón",
-                   "Bufanda","Guantes","Gorro","Gorra","Lentes","Medias",
-                   "Accesorio Deportivo"
-               ).contains(cat);
-    }
-
     // ──────────────────────────────────────────────────────────────────
     // Categoría profunda
     // ──────────────────────────────────────────────────────────────────
-
-
-    /**
-     * Primera palabra(s) que indican que el producto NO es indumentaria/calzado.
-     * Si el nombre empieza con estas palabras → no clasificar como ropa.
-     */
-    private static final String[] NO_TEXTIL_INICIO = {
-        // Deportes / equipamiento
-        "pelota","balon","ball ","palo ","stick ","raqueta","bate ","arco ",
-        "red ","valla ","cono ","bolsa deportiva","costurero",
-        "guantes boxing","guantes portero","casco bici","casco skate",
-        // Joyería / bijouterie
-        "cadena ","collar ","pulsera ","anillo ","aros ","aro ","colgante ",
-        "brazalete ","tobillera joya","piercing","broche ",
-        // Accesorios no-ropa
-        "maletin","valija","paraguas","bastón","baston ","cinturon portaherramientas",
-        // Cosméticos / higiene (perfume/colonia/desodorante ahora tienen categoría propia)
-        "crema ","locion ","loción ","gel ","shampoo","jabon ","jabón ","protector solar",
-        // Equipos / electrónica
-        "router ","teclado mecanico","mouse gamer","monitor led","fuente atx",
-    };
-
-    /**
-     * Verifica si el nombre indica claramente un producto NO textil.
-     * Solo revisa las primeras 3 palabras para no sobrebloquear.
-     */
-    private boolean esClaramenteNoTextil(String texto) {
-        if (texto == null || texto.isBlank()) return false;
-        String lower = texto.toLowerCase()
-            .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
-            .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
-            .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
-        // Solo mirar inicio (primeras 3 palabras = ~25 chars)
-        String inicio = lower.length() > 35 ? lower.substring(0, 35) : lower;
-        for (String kw : NO_TEXTIL_INICIO) {
-            String trimmed = kw.trim();
-            // Word-boundary match on BOTH sides: avoids false positives like
-            // "Asics Gel-Kayano" matching the cosmetic "gel " filter via a bare
-            // " gel" substring (no closing boundary) — a real false-positive
-            // surfaced by the KW_RUNNING_MODELO regression test (Issue 3).
-            if (inicio.startsWith(trimmed + " ") || inicio.equals(trimmed)
-                    || inicio.contains(" " + trimmed + " ")) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     String normalizarCategoria(String raw, String nombre) {
         // Buscar primero en el NOMBRE del producto (más confiable)
@@ -1296,40 +653,23 @@ public class NormalizerService {
     }
 
     /**
-     * Keywords de torso/piernas en una sola lista cada uno, derivados de los
-     * mismos arrays que usa {@link #matchesTorsoBlock}/{@link #matchesPiernasBlock}
-     * (sin lista paralela). Usados SOLO por la detección de cantidad — la
-     * clasificación de categoría "Conjunto" (línea ~689) sigue usando el check
-     * booleano laxo a propósito; ahí un falso positivo es cosmético (categoría
-     * mal etiquetada), pero en cantidad un falso positivo corrompe el precio
-     * unitario, así que acá exigimos además un conector explícito (ver
-     * {@link #COMBO_CONNECTOR}).
-     */
-    private static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(
-        KW_PUFFER, KW_PILOTO, KW_SACO, KW_CHALECO, KW_CAMPERA, KW_SWEATER,
-        KW_BUZO, KW_CASACA, KW_CHOMBA, KW_MUSCULOSA, KW_CAMISA, KW_REMERA);
-    private static final String[] PIERNAS_KEYWORDS_FLAT = concatKeywords(
-        KW_CALZA, KW_BAGGY, KW_JEAN, KW_JOGGING, KW_BERMUDA, KW_SHORT,
-        KW_VESTIDO, KW_ENTERITO, KW_POLLERA, KW_PANTALON);
-
-    /**
-     * Conector explícito entre dos prendas distintas: "+", "/", "y", "e".
-     * Deliberadamente NO incluye "con" ni "," — "Campera CON capucha jogger"
-     * describe UNA prenda con un detalle, no dos prendas combinadas; incluir
-     * "con" reintroduciría el mismo tipo de falso positivo que este check
-     * busca evitar.
+     * Keywords de torso/piernas en una sola lista cada uno. Usados SOLO por la
+     * detección de cantidad — la clasificación de categoría "Conjunto" (línea
+     * ~689) sigue usando el check booleano laxo a propósito; ahí un falso
+     * positivo es cosmético (categoría mal etiquetada), pero en cantidad un
+     * falso positivo corrompe el precio unitario, así que acá exigimos además
+     * un conector explícito (ver {@link #COMBO_CONNECTOR}).
+     *
+     * <p>{@code TORSO_KEYWORDS_FLAT}/{@code PIERNAS_KEYWORDS_FLAT} now live in
+     * {@link ar.scraper.aggregator.normalize.GarmentTaxonomy} (Work Unit 3),
+     * shared with {@code matchesTorsoBlock}/{@code matchesPiernasBlock} below
+     * via static import — single source of truth (ADR-1).</p>
      */
     private static final java.util.regex.Pattern COMBO_CONNECTOR = java.util.regex.Pattern.compile(
         "\\+|/|\\by\\b|\\be\\b");
 
     /** Ventana máxima entre el final de una prenda y el inicio de la otra para considerar el conector relacionado. */
     private static final int MAX_COMBO_CONNECTOR_GAP = 30;
-
-    private static String[] concatKeywords(String[]... groups) {
-        List<String> flat = new ArrayList<>();
-        for (String[] group : groups) flat.addAll(Arrays.asList(group));
-        return flat.toArray(new String[0]);
-    }
 
     /** Posición [inicio, fin) de la primera (más temprana) keyword que matchea, o null si ninguna matchea. */
     private int[] firstMatchSpan(String t, String[] keywords) {
