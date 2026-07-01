@@ -715,7 +715,7 @@ body { overflow-x: hidden; }
 .picks-rubro-btn.active { background: var(--p); color: #fff; }
 
 /* CatDetail header */
-.picks-catdetail { padding: 1rem 1.25rem; max-width: 680px; }
+.picks-catdetail { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 .picks-back-btn { background: none; border: none; cursor: pointer; color: var(--p2);
   font-size: .8rem; margin-bottom: 12px; padding: 0; display: flex; align-items: center; gap: 5px; }
 .picks-catdetail-title { font-size: 1.1rem; font-weight: 900; color: var(--t1); margin-bottom: 2px; }
@@ -727,7 +727,7 @@ body { overflow-x: hidden; }
    agrega columnas a medida que crece el ancho (más resolución → más items por
    fila). El min(100%, 340px) evita overflow horizontal en mobile. */
 .picks-pick-list { display: grid; gap: 16px; width: 100%;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
 .picks-pick-item { display: flex; gap: 18px; align-items: center; background: var(--s2);
   border-radius: 16px; padding: 1.25rem 1.4rem; border: 1.5px solid; cursor: pointer;
   transition: all .15s; height: 100%; }
