@@ -17,7 +17,8 @@ function tagline(cat, pick, mediana) {
   if (!pick) return '';
   const badge = pick.badge;
   const pctil = pick.pctil;
-  const pct = mediana > 0 ? ((mediana - pick.precio) / mediana * 100).toFixed(0) : null;
+  const unitVal = pick.precioUnitario ?? pick.precio;
+  const pct = mediana > 0 ? ((mediana - unitVal) / mediana * 100).toFixed(0) : null;
 
   if (badge === 'precio_historico_bajo') return 'Nunca estuvo tan barato — mínimo histórico';
   if (badge === 'oferta_real')           return 'Descuento verificado estadísticamente';
@@ -232,8 +233,9 @@ function CatDetail({ cat, onBack, onProductClick }) {
       <div className="picks-pick-list">
         {(cat.picks||[]).map((pick, i) => {
           const m = TIPO_META[pick.tipo] || TIPO_META.valor;
-          const pctBajoMedia = cat.mediana > 0 && pick.precio > 0
-            ? ((cat.mediana - pick.precio) / cat.mediana * 100).toFixed(0)
+          const unitVal = pick.precioUnitario ?? pick.precio;
+          const pctBajoMedia = cat.mediana > 0 && unitVal > 0
+            ? ((cat.mediana - unitVal) / cat.mediana * 100).toFixed(0)
             : null;
           return (
             <div key={i}
@@ -267,7 +269,12 @@ function CatDetail({ cat, onBack, onProductClick }) {
                     </span>
                   )}
                 </div>
-                {pctBajoMedia && pctBajoMedia > 5 && (
+                {pick.esPack && (
+                  <span className="badge-pack" title={`Pack x${pick.cantidadUnidades}`}>
+                    📦 Pack x{pick.cantidadUnidades}{pctBajoMedia && pctBajoMedia > 5 ? ` · -${pctBajoMedia}%` : ''}
+                  </span>
+                )}
+                {!pick.esPack && pctBajoMedia && pctBajoMedia > 5 && (
                   <div className="picks-pick-pct" style={{ color: SEMANTIC.positive }}>
                     {pctBajoMedia}% por debajo de la mediana
                   </div>
@@ -279,6 +286,11 @@ function CatDetail({ cat, onBack, onProductClick }) {
                 <div className="picks-pick-price-val">
                   ${fmt(pick.precio)}
                 </div>
+                {pick.esPack && (
+                  <div className="card-price-unit">
+                    ${fmt(pick.precioUnitario)} c/u · x{pick.cantidadUnidades}
+                  </div>
+                )}
                 {pick.scoreP > 0 && (
                   <div className="picks-pick-score">
                     score {pick.scoreP}
