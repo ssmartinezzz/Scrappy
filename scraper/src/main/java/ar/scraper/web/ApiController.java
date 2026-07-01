@@ -973,7 +973,8 @@ public class ApiController {
             @RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "") String excluir,
             @RequestParam(required = false, defaultValue = "") String pin,
-            @RequestParam(defaultValue = "false") boolean greedy) {
+            @RequestParam(defaultValue = "false") boolean greedy,
+            @RequestParam(required = false, defaultValue = "gym") String estilo) {
 
         ObjectNode err = JsonNodeFactory.instance.objectNode();
 
@@ -1040,7 +1041,7 @@ public class ApiController {
                 .collect(Collectors.toList());
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned);
+                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned, estilo);
 
         // Determine status per spec API contract
         String status;
