@@ -14,8 +14,7 @@ const ORDEN_OPTS = [
 // itself a sticky chrome layer (top: var(--sticky-offset)), stacked with
 // topbar/tab-bar — Catálogo-only, since SearchHero only renders there.
 const SearchHero = forwardRef(function SearchHero({
-  busq, view, orden, total, topMarcas,
-  marca: marcaFiltro, onBusq, onView, onOrden, onMarca,
+  busq, view, orden, total, onBusq, onView, onOrden,
 }, ref) {
   const [val, setVal] = useState(busq || '');
   const timerRef = useRef(null);
@@ -63,41 +62,6 @@ const SearchHero = forwardRef(function SearchHero({
           {view === 'grid' ? '≡' : '⊞'}
         </button>
       </div>
-
-      {/* Row 2: Marcas como breadcrumb chips */}
-      {topMarcas && topMarcas.length > 0 && (
-        <div style={{
-          display:'flex', gap:4, marginTop:6, overflowX:'auto',
-          scrollbarWidth:'none', flexWrap:'nowrap', paddingBottom:2,
-        }}>
-          {marcaFiltro && (
-            <button onClick={() => onMarca('')}
-              style={{
-                padding:'2px 8px', borderRadius:12, flexShrink:0, fontSize:'.65rem',
-                border:'1px solid var(--r)', background:'rgba(232,67,147,.12)',
-                color:'var(--r)', cursor:'pointer', fontWeight:700,
-              }}>
-              ✕ {marcaFiltro}
-            </button>
-          )}
-          {topMarcas.slice(0, 22).map(([marca, n]) => {
-            const active = marcaFiltro === marca;
-            if (active) return null; // already shown as X chip
-            return (
-              <button key={marca} onClick={() => onMarca(marca)}
-                style={{
-                  padding:'2px 9px', borderRadius:12, flexShrink:0, fontSize:'.66rem',
-                  border:`1px solid ${active?'var(--p)':'var(--bd)'}`,
-                  background: active ? 'rgba(163,113,247,.15)' : 'transparent',
-                  color: active ? 'var(--p2)' : 'var(--t4)',
-                  cursor:'pointer', whiteSpace:'nowrap', transition:'all .1s',
-                }}>
-                {marca} <span style={{opacity:.55}}>{n}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 });

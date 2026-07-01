@@ -3,7 +3,6 @@ import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom
 import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit } from '../api';
-import { sortByCountDesc } from '../lib/utils';
 import Topbar        from './Topbar';
 import SearchHero    from './SearchHero';
 import CatalogoFilterBar from './CatalogoFilterBar';
@@ -221,12 +220,9 @@ function CatalogoRoute() {
       <SearchHero
         ref={heroRef}
         busq={S.busq} view={S.view} orden={S.orden} total={S.totalProds}
-        topMarcas={sortByCountDesc(S.facets?.marcas||{})}
-        marca={S.marca}
         onBusq={v => setFilter({ busq:v })}
         onView={v => set({ view:v })}
         onOrden={v => setFilter({ orden:v })}
-        onMarca={v => setFilter({ marca:v })}
       />
       <CatalogoFilterBar hidden={filterBarHidden} />
       <ProductGrid
