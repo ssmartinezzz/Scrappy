@@ -715,30 +715,37 @@ body { overflow-x: hidden; }
 .picks-rubro-btn.active { background: var(--p); color: #fff; }
 
 /* CatDetail header */
-.picks-catdetail { padding: 1rem 1.25rem; max-width: 680px; }
+.picks-catdetail { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 .picks-back-btn { background: none; border: none; cursor: pointer; color: var(--p2);
   font-size: .8rem; margin-bottom: 12px; padding: 0; display: flex; align-items: center; gap: 5px; }
 .picks-catdetail-title { font-size: 1.1rem; font-weight: 900; color: var(--t1); margin-bottom: 2px; }
 .picks-catdetail-meta { font-size: .72rem; color: var(--t4); margin-bottom: 4px; }
 .picks-catdetail-tagline { font-size: .78rem; color: var(--p2); margin-bottom: 1.2rem; font-style: italic; }
 
-/* CatDetail pick list */
-.picks-pick-list { display: flex; flex-direction: column; gap: 16px;
-  max-width: 780px; margin: 0 auto; width: 100%; }
-.picks-pick-item { display: flex; gap: 18px; align-items: center; background: var(--s2);
-  border-radius: 16px; padding: 1.15rem 1.35rem; border: 1.5px solid; cursor: pointer; transition: all .15s; }
-.picks-pick-rank { font-size: 2rem; flex-shrink: 0; }
-.picks-pick-img { width: 92px; height: 92px; object-fit: cover; border-radius: 12px; flex-shrink: 0; }
-.picks-pick-info { flex: 1; min-width: 0; }
-.picks-pick-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
-.picks-pick-name { font-size: .98rem; font-weight: 600; color: var(--t1); margin-top: 3px;
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.picks-pick-meta { font-size: .74rem; color: var(--t4); margin-top: 3px; }
+/* CatDetail pick list — grilla responsive de cards VERTICALES (foto arriba,
+   texto abajo). Mobile-first: 1 columna angosta, auto-fill agrega columnas a
+   medida que crece el ancho. min(100%, 220px) evita overflow en mobile. */
+.picks-pick-list { display: grid; gap: 16px; width: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+.picks-pick-item { display: flex; flex-direction: column; background: var(--s2);
+  border-radius: 16px; overflow: hidden; border: 1.5px solid; cursor: pointer;
+  transition: all .15s; height: 100%; }
+.picks-pick-imgwrap { position: relative; width: 100%; aspect-ratio: 1 / 1; background: var(--s3); }
+.picks-pick-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.picks-pick-imgph { width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center; font-size: 2.2rem; color: var(--t4); }
+.picks-pick-rank { position: absolute; top: 8px; left: 8px; font-size: 1.15rem; line-height: 1;
+  background: rgba(0,0,0,.55); border-radius: 9px; padding: 4px 7px; backdrop-filter: blur(2px); }
+.picks-pick-body { display: flex; flex-direction: column; gap: 4px; padding: .8rem .9rem 1rem; flex: 1; }
+.picks-pick-label { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.picks-pick-name { font-size: .9rem; font-weight: 600; color: var(--t1); line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.picks-pick-meta { font-size: .7rem; color: var(--t4); }
 .picks-pick-badge { color: var(--p2); margin-left: 5px; }
-.picks-pick-pct { font-size: .74rem; margin-top: 3px; }
-.picks-pick-price { text-align: right; flex-shrink: 0; }
-.picks-pick-price-val { font-size: 1.15rem; font-weight: 800; color: var(--t1); }
-.picks-pick-score { font-size: .66rem; color: var(--t4); }
+.picks-pick-pct { font-size: .7rem; }
+.picks-pick-pricerow { margin-top: auto; padding-top: .5rem; display: flex; flex-direction: column; gap: 1px; }
+.picks-pick-price-val { font-size: 1.12rem; font-weight: 800; color: var(--t1); }
+.picks-pick-score { font-size: .62rem; color: var(--t4); }
 
 .picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
 
