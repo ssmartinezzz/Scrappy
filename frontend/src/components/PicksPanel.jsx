@@ -248,18 +248,18 @@ function CatDetail({ cat, onBack, onProductClick }) {
               onMouseOver={e => e.currentTarget.style.borderColor = m.color}
               onMouseOut={e => e.currentTarget.style.borderColor = `${m.color}33`}>
 
-              {/* Rank icon */}
-              <div className="picks-pick-rank">{m.icon}</div>
+              {/* Imagen grande arriba + rank en overlay */}
+              <div className="picks-pick-imgwrap">
+                {pick.img
+                  ? <img src={pick.img} alt={pick.nombre} loading="lazy"
+                      className="picks-pick-img"
+                      onError={e => e.target.style.display='none'}/>
+                  : <div className="picks-pick-imgph">🛍</div>}
+                <span className="picks-pick-rank" title={m.label}>{m.icon}</span>
+              </div>
 
-              {/* Image */}
-              {pick.img && (
-                <img src={pick.img} alt={pick.nombre} width="60" height="60"
-                  className="picks-pick-img"
-                  onError={e => e.target.style.display='none'}/>
-              )}
-
-              {/* Info */}
-              <div className="picks-pick-info">
+              {/* Cuerpo: etiqueta, nombre, meta, precio al fondo */}
+              <div className="picks-pick-body">
                 <div className="picks-pick-label" style={{ color: m.color }}>
                   {m.label}
                 </div>
@@ -282,23 +282,18 @@ function CatDetail({ cat, onBack, onProductClick }) {
                     {pctBajoMedia}% por debajo de la mediana
                   </div>
                 )}
-              </div>
 
-              {/* Price */}
-              <div className="picks-pick-price">
-                <div className="picks-pick-price-val">
-                  ${fmt(pick.precio)}
+                <div className="picks-pick-pricerow">
+                  <div className="picks-pick-price-val">${fmt(pick.precio)}</div>
+                  {pick.esPack && (
+                    <div className="card-price-unit">
+                      ${fmt(pick.precioUnitario)} c/u · x{pick.cantidadUnidades}
+                    </div>
+                  )}
+                  {pick.scoreP > 0 && (
+                    <div className="picks-pick-score">score {pick.scoreP}</div>
+                  )}
                 </div>
-                {pick.esPack && (
-                  <div className="card-price-unit">
-                    ${fmt(pick.precioUnitario)} c/u · x{pick.cantidadUnidades}
-                  </div>
-                )}
-                {pick.scoreP > 0 && (
-                  <div className="picks-pick-score">
-                    score {pick.scoreP}
-                  </div>
-                )}
               </div>
             </div>
           );
