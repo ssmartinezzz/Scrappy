@@ -17,7 +17,7 @@ every work unit below leaves `mvn test` green.
 - [x] Slice 5: CategoryClassifier
 - [x] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
 - [x] Slice 7: SubcategoryResolver
-- [ ] Slice 8: RubroResolver + GymratTagger + orchestrator cleanup + NormalizerServiceTestFactory
+- [x] Slice 8: RubroResolver + GymratTagger + orchestrator cleanup + NormalizerServiceTestFactory
 - [ ] Slice 9 (final): ResultAggregator decomposition + FacetCalculator extraction
 
 ## Slice detail
@@ -144,10 +144,41 @@ every work unit below leaves `mvn test` green.
   stays in `NormalizerServiceTest` — it tests `Product`'s legacy constructor
   directly, not `resolverSubCategoria`.
 
+### Slice 8 — RubroResolver + GymratTagger + orchestrator cleanup (DONE)
+- `ar.scraper.aggregator.normalize.RubroResolver` — moved the
+  `rubro`/`catEsTextil`/`catEsSuppl` selection block from `normalizarProducto`
+  into `resolver(sitioKey, cat, rubroExistente)`. Uses `SiteClassification`
+  + `CategoryGroups`.
+- `ar.scraper.aggregator.normalize.GymratTagger` — moved `esGymrat` +
+  `KW_TRAINING_ROPA` usage into `esGymrat(nombre, sitioKey, cat, rubro, marca)`,
+  with its own small `anyMatch` copy (same pragmatic per-class-copy pattern
+  as `CategoryClassifier`'s, not a taxonomy-drift risk).
+- `NormalizerService` now takes a real 8-arg constructor (`PackQuantityDetector`,
+  `CategoryClassifier`, `BrandExtractor`, `GenderResolver`, `SizeNormalizer`,
+  `SubcategoryResolver`, `RubroResolver`, `GymratTagger`) and
+  `normalizarProducto` is pure orchestration — sequences the 8 collaborators
+  and rebuilds `Product` in the one place it always has. Deviation from the
+  design's "12 collaborators" figure: the 4 static-only data/predicate
+  holders (`GarmentTaxonomy`, `CategoryGroups`, `SiteClassification`,
+  `NonTextileGuard`) are consumed via static import/reference inside their
+  respective collaborators — exactly the Work Unit 3 precedent — not
+  instance-injected into `NormalizerService`, which only calls
+  `SiteClassification.sitioKey`/`SITIOS_PREMIUM` directly via static import.
+  Injecting them as unused instance fields would have broken that
+  established convention for no behavioral gain.
+- RISK MITIGATION (task 8.4): added test-only
+  `ar.scraper.aggregator.NormalizerServiceTestFactory.create()` (src/test/java)
+  that news up all 8 collaborators and returns a wired `NormalizerService` —
+  not a production facade. `NormalizerServiceTest` now calls
+  `NormalizerServiceTestFactory.create()` instead of `new NormalizerService()`.
+- Confirmed `ResultAggregator` (3 `normalizar(List<Product>)` call sites) and
+  `ApiController` (no direct `NormalizerService` reference — Spring wires it
+  only into `ResultAggregator`) need zero changes; `ResultAggregatorMetricsTest`
+  mocks the type (`mock(NormalizerService.class)`), unaffected by the
+  constructor change.
+
 ## Remaining slices (Batch 2+)
 
-- Slice 8: `RubroResolver` + `GymratTagger` + orchestrator cleanup +
-  `NormalizerServiceTestFactory` (test-only wiring, not a production facade).
 - Slice 9 (final): `ResultAggregator.agregar()` named-method decomposition +
   `FacetCalculator` extraction; final checkoff; open the single PR to
   `master`.

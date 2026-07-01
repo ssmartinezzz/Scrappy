@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class NormalizerServiceTest {
 
-    private final NormalizerService service = new NormalizerService();
+    private final NormalizerService service = NormalizerServiceTestFactory.create();
 
     // ══════════════════════════════════════════════════════════════════
     // subcategoria-field — Product legacy constructor default
