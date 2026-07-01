@@ -1821,10 +1821,25 @@ public class ApiController {
                 node.put("mediana",   Math.round(mediana));
 
                 var picks = node.putArray("picks");
-                addMejorPick(picks, mejor,   "valor",    "Mejor precio/calidad");
-                if (premium  != null) addMejorPick(picks, premium,  "premium",  "Premium accesible");
-                if (histLow  != null) addMejorPick(picks, histLow,  "histLow",  "Mínimo histórico");
-                if (oferta   != null) addMejorPick(picks, oferta,   "oferta",   "Oferta real");
+                java.util.Set<String> incluidos = new java.util.HashSet<>();
+                // Highlights curados primero (preservan su etiqueta semántica).
+                addMejorPickDedup(picks, mejor,   "valor",    "Mejor precio/calidad", incluidos);
+                addMejorPickDedup(picks, premium, "premium",  "Premium accesible",    incluidos);
+                addMejorPickDedup(picks, histLow, "histLow",  "Mínimo histórico",     incluidos);
+                addMejorPickDedup(picks, oferta,  "oferta",   "Oferta real",          incluidos);
+                // Rellenar hasta MAX_PICKS_POR_CATEGORIA con los siguientes mejores por
+                // scoreP (con imagen). Así los packs con buen precio unitario entran
+                // integrados en la categoría en vez de quedar afuera por el único cupo
+                // de "valor" (scoreP ya es unit-price-aware en ml_pipeline).
+                java.util.List<Product> ordenados = prods.stream()
+                    .filter(p -> p.ml() != null && p.imagenUrl() != null && !p.imagenUrl().isBlank())
+                    .sorted(java.util.Comparator.comparingInt(
+                        p -> p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
+                    .collect(java.util.stream.Collectors.toList());
+                for (Product p : ordenados) {
+                    if (picks.size() >= MAX_PICKS_POR_CATEGORIA) break;
+                    addMejorPickDedup(picks, p, "top", "Buena compra", incluidos);
+                }
             });
 
         return ResponseEntity.ok(result);
@@ -1839,6 +1854,23 @@ public class ApiController {
      */
     static double precioUnitario(Product p) {
         return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
+    }
+
+    /** Máximo de productos mostrados por categoría en Mejores Picks. */
+    private static final int MAX_PICKS_POR_CATEGORIA = 10;
+
+    /**
+     * Agrega un pick evitando duplicados por URL (un producto puede calificar para
+     * varios highlights, p.ej. ser el "valor" y además "oferta_real"; se muestra
+     * una sola vez con la primera etiqueta que le tocó). Ignora {@code null}.
+     */
+    private void addMejorPickDedup(com.fasterxml.jackson.databind.node.ArrayNode arr,
+                                   Product p, String tipo, String label,
+                                   java.util.Set<String> incluidos) {
+        if (p == null) return;
+        String url = p.url() != null ? p.url() : "";
+        if (!url.isBlank() && !incluidos.add(url)) return; // ya incluido
+        addMejorPick(arr, p, tipo, label);
     }
 
     private void addMejorPick(com.fasterxml.jackson.databind.node.ArrayNode arr,

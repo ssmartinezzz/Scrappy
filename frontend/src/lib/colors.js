@@ -41,6 +41,7 @@ export const TIPO_META = {
   premium: { icon: '💎', color: SEMANTIC.warn,     label: 'Premium accesible'    },
   histLow: { icon: '🏆', color: SEMANTIC.oferta,   label: 'Mínimo histórico'    },
   oferta:  { icon: '🔥', color: SEMANTIC.trend,    label: 'Oferta real'         },
+  top:     { icon: '✨', color: SEMANTIC.positive, label: 'Buena compra'        },
 };
 
 // Buy-signal (señal de compra) visual config — icon/color/label per

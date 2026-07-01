@@ -242,6 +242,37 @@ class ApiControllerMejoresPackUnitPriceTest {
                 .isEqualTo(valorPick.path("precio").asDouble(), offset(0.001));
     }
 
+    @Test
+    void categoryReturnsUpToTenPicksAndIncludesMidRankedPack() {
+        // 12 non-pack singles with ascending scoreP (1..12) + a pack scored 6 by its
+        // unit price. The pack is NOT the single best value, but sits comfortably
+        // within the 10 best by scoreP → it must surface among the picks (the whole
+        // point: packs integrate into Mejores Picks, not a separate view).
+        java.util.List<Product> productos = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            productos.add(withImage(producto(
+                    "https://site.com/single-" + i, 10000, 1,
+                    new MlScore(i + 1, "", false, "estable", i + 1))));
+        }
+        Product pack = withImage(producto("https://site.com/pack", 15000, 3,
+                new MlScore(6, "", false, "estable", 6))); // unit 5000, scoreP 6
+        productos.add(pack);
+        when(service.getLastResult()).thenReturn(resultFor(productos.toArray(new Product[0])));
+
+        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+
+        JsonNode node = zapatillasNode(resp);
+        assertThat(node).isNotNull();
+        JsonNode picks = node.path("picks");
+        // Capped at 10 per category even though 13 products qualify.
+        assertThat(picks.size()).isEqualTo(10);
+        boolean packPresent = false;
+        for (JsonNode pk : picks) {
+            if ("https://site.com/pack".equals(pk.path("url").asText())) packPresent = true;
+        }
+        assertThat(packPresent).isTrue();
+    }
+
     /** Attaches a non-blank imagenUrl, required for the "valor" pick's min-scoreP filter. */
     private Product withImage(Product p) {
         return new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(),
