@@ -20,7 +20,7 @@ function elapsed(startedAt) {
 }
 
 // Full-screen blocking overlay for GPU fine-tuning. Mounted as a sibling of
-// the main layout (in AppLayout) so it covers Topbar/Sidebar/tab-bar — same
+// the main layout (in AppLayout) so it covers Topbar/Sidebar/primary-nav — same
 // pattern as DetailPanel/CompareModal but with a much higher z-index since
 // it must block ALL navigation while training runs.
 export default function GpuTrainingOverlay({ training, onClose }) {
