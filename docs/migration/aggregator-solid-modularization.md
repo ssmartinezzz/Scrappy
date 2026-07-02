@@ -18,7 +18,7 @@ every work unit below leaves `mvn test` green.
 - [x] Slice 6: BrandExtractor + GenderResolver + SizeNormalizer
 - [x] Slice 7: SubcategoryResolver
 - [x] Slice 8: RubroResolver + GymratTagger + orchestrator cleanup + NormalizerServiceTestFactory
-- [ ] Slice 9 (final): ResultAggregator decomposition + FacetCalculator extraction
+- [x] Slice 9 (final): ResultAggregator decomposition + FacetCalculator extraction
 
 ## Slice detail
 
@@ -177,8 +177,85 @@ every work unit below leaves `mvn test` green.
   mocks the type (`mock(NormalizerService.class)`), unaffected by the
   constructor change.
 
-## Remaining slices (Batch 2+)
+### Slice 9 (final) — ResultAggregator Decomposition + FacetCalculator Extraction (DONE)
+- `ar.scraper.aggregator.FacetCalculator` — literal move of `calcularFacets` +
+  `sortTalles` as a pure, stateless, non-`@Component` static utility (design
+  explicitly calls it a "pure static utility", not a bean, matching the
+  original method's own static modifier). Returns `ResultAggregator.Facets`.
+- `ResultAggregator.calcularFacets(List<Product>)` kept as a thin **public
+  static delegate** to `FacetCalculator.calcular(...)` — design-vs-actual-code
+  deviation: the design/tasks text says "move" without explicitly discussing
+  external callers, but `ResultAggregator.calcularFacets` is called directly
+  (not via `ApiController`/`ScraperService` production code, which never
+  reference it) by ~10 test files outside the `aggregator` package
+  (`ApiControllerFinanciacionTest`, `ApiControllerMejoresInfantilVetoTest`,
+  `ApiControllerMarcaMultiSelectTest`, `ApiControllerPrecioRangeTest`,
+  `ApiControllerMejoresPackUnitPriceTest`, `ScraperServiceFinanciacionTest`)
+  as a convenience fixture-builder for `AggregatedResult`. Deleting the method
+  would have forced updating all of those call sites for zero behavioral
+  gain — the same "consumer blast radius near zero" rationale ADR-2 applies
+  to `NormalizerService`/`GroupingService` orchestrators surviving as thin
+  entry points. This is a genuine external contract, not a permanent
+  test-only-forwarding facade (ADR-2's "no permanent facades" targets
+  package-private methods that existed ONLY for internal direct test calls,
+  e.g. `extraerMarca`/`clasificar` — not a public static method with real
+  external callers). `FacetCalculatorTest` (new, 6 focused unit tests, zero
+  mocks) covers the pure function directly.
+- `ResultAggregator.agregar()` decomposed into 5 named private methods in the
+  EXACT original linear order, matching the tasks' mandated Spanish method
+  names: `validarYContar` (per-site valid/invalid filtering + stats/errores),
+  `deduplicarYOrdenar` (dedup by sitio+nombre, sort by precio asc),
+  `ejecutarPipelineMl` (Java normalization + Python ML pipeline execution +
+  ML enrichment), `persistirCategoriasRefinadas` (pre-ML vs post-ML categoria
+  diff + DB persistence of refined categories, ADR-3's ordering-sensitive
+  step), `enriquecerSenalYFinanciacion` (buy-signal then financing-signal
+  enrichment). Two private records (`ValidationResult`, `MlPipelineResult`)
+  carry each step's multi-value output between the named methods since Java
+  lacks tuples — kept package-invisible (private, nested in
+  `ResultAggregator`), not new injected collaborators, per ADR-3 ("do NOT
+  introduce new injected collaborators" — the constructor stays 6-arg).
+  `agregar()` itself is now pure sequencing/assembly: calls the 5 named steps
+  in order, then does the DB persistence side-effects
+  (`upsertProductos`/`guardarMlOutput`/`guardarCategoriaStats`), facets/min/
+  max-price computation, logging, and background-training kickoff inline —
+  mirroring the `NormalizerService.normalizarProducto` precedent of keeping
+  final assembly in the one orchestrating method rather than hiding it behind
+  another collaborator boundary.
+- RISK MITIGATION (task 9.3, category-diff ordering): confirmed
+  `persistirCategoriasRefinadas(normalizados, enriquecidos)` takes exactly
+  the two params the design/ADR-3 specifies (no `mlOut` param), snapshots
+  `catOriginal` from `normalizados` (pre-ML), and diffs against `enriquecidos`
+  (post-ML) — `Product`'s record immutability guarantees `normalizados` still
+  holds pre-ML categorias after ML enrichment returns a new list. Added two
+  new approval tests to `ResultAggregatorMetricsTest`
+  (`categoriaChangedByMl_persistedAndCountedInLastCatRefinadas`,
+  `categoriaUnchangedByMl_notPersistedAndNotCounted`) exercising this exact
+  snapshot-diff path end-to-end through `agregar()`, plus two more approval
+  tests for the previously-untested dedup/sort step
+  (`duplicateSiteAndNormalizedNombre_keepsOnlyFirstOccurrence`,
+  `multipleValidProducts_sortedByPriceAscending`) — all four were written
+  and confirmed green against the CURRENT (pre-decomposition) linear
+  `agregar()` BEFORE the method split, per Strict TDD's Approval Testing
+  discipline, then re-confirmed green after the split.
+- Task 9.4: `ResultAggregatorMetricsTest` (original 3 tests + 4 new approval
+  tests = 7 total) passes unmodified in constructor shape — 6-arg
+  `ResultAggregator` constructor unchanged (ADR-3), `mock(NormalizerService.class)`
+  still valid.
+- Task 9.5: swept `ar.scraper.aggregator` (20 files: `FacetCalculator` +
+  `ResultAggregator` at root, `NormalizerService` + 12 `normalize`
+  collaborators, `GroupingService` + 3 `grouping` collaborators + `text.AccentStripper`)
+  — matches the design's full package inventory exactly, no dead code or
+  unused imports found (`mvn compile` with no `-Xlint` warnings).
+- Full `mvn test` suite green: 460/460 tests, 0 failures, 0 errors (includes
+  the new `FacetCalculatorTest` 6/6 and `ResultAggregatorMetricsTest` 7/7).
 
-- Slice 9 (final): `ResultAggregator.agregar()` named-method decomposition +
-  `FacetCalculator` extraction; final checkoff; open the single PR to
-  `master`.
+## Migration COMPLETE
+
+All 9 slices done. `ar.scraper.aggregator` is now fully modularized per the
+SDD design: `normalize` (12 collaborators + orchestrator), `grouping` (3
+collaborators + orchestrator + promoted `ProductGroup`), `text`
+(`AccentStripper`), root (`ResultAggregator` + `FacetCalculator`). Zero
+observable behavior change end-to-end; `Product` record shape,
+`ml_pipeline.py` JSON contract, and SQLite schema untouched throughout.
+Ready for final branch review (`git diff --stat master...refactor/aggregator-solid-modularization`)
+and PR to `master` under the accepted `size:exception`.
