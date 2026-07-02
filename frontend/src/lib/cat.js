@@ -13,3 +13,25 @@ export function normCat(raw) {
     .replace(/ñ/g, 'n')
     .trim();
 }
+
+// Deterministic URL slug for a category name, built on top of normCat's
+// lowercase+accent-strip so it stays consistent with the catStats lookup key.
+// Non-alphanumeric runs become a single "-", trimmed at both ends.
+export function slugify(raw) {
+  return normCat(raw)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Reverse-resolves a URL slug back to its canonical category entry from the
+// live /api/mejores category list (there is no server-side slug enum).
+// First-match-wins on collision (unlikely with current Title-Case names);
+// logs a warning so a real collision doesn't fail silently.
+export function canonicalFromSlug(slug, cats) {
+  if (!slug || !Array.isArray(cats)) return null;
+  const matches = cats.filter(cat => slugify(cat.categoria) === slug);
+  if (matches.length > 1) {
+    console.warn(`canonicalFromSlug: slug "${slug}" matches multiple categories — using first match ("${matches[0].categoria}")`);
+  }
+  return matches[0] || null;
+}
