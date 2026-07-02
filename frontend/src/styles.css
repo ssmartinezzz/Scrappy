@@ -722,11 +722,10 @@ body { overflow-x: hidden; }
 .picks-catdetail-meta { font-size: .72rem; color: var(--t4); margin-bottom: 4px; }
 .picks-catdetail-tagline { font-size: .78rem; color: var(--p2); margin-bottom: 1.2rem; font-style: italic; }
 
-/* CatDetail pick list — grilla responsive de cards VERTICALES (foto arriba,
-   texto abajo). Mobile-first: 1 columna angosta, auto-fill agrega columnas a
-   medida que crece el ancho. min(100%, 220px) evita overflow en mobile. */
-.picks-pick-list { display: grid; gap: 16px; width: 100%;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+/* CatDetail pick item — card VERTICAL (foto arriba, texto abajo). Rendered
+   inside CategoryPicksCarousel's track (see .picks-carousel-* below); the
+   grid wrapper that used to hold these (.picks-pick-list) is gone — the
+   carousel track owns layout now. */
 .picks-pick-item { display: flex; flex-direction: column; background: var(--s2);
   border-radius: 16px; overflow: hidden; border: 1.5px solid; cursor: pointer;
   transition: all .15s; height: 100%; }
@@ -746,6 +745,51 @@ body { overflow-x: hidden; }
 .picks-pick-pricerow { margin-top: auto; padding-top: .5rem; display: flex; flex-direction: column; gap: 1px; }
 .picks-pick-price-val { font-size: 1.12rem; font-weight: 800; color: var(--t1); }
 .picks-pick-score { font-size: .62rem; color: var(--t4); }
+
+/* ===== CategoryPicksCarousel — generic responsive card carousel =====
+   Hybrid strategy (design ADR-4): translateX paging on tablet/desktop
+   (JS-computed --per-view via matchMedia), native CSS scroll-snap on mobile
+   (<640px, .picks-carousel-viewport-snap). Item sizing via --per-view/--gap
+   custom properties (ADR-5) so the flex track is transparent to the inner
+   .picks-pick-item's aspect-ratio. */
+.picks-carousel { position: relative; margin-top: .4rem; }
+.picks-carousel-header { margin-bottom: .5rem; }
+.picks-carousel-subtitle { font-size: .78rem; color: var(--t3); }
+
+.picks-carousel-shell { position: relative; }
+.picks-carousel-viewport { overflow: hidden; }
+.picks-carousel-track { display: flex; gap: var(--gap, 16px);
+  transition: transform .35s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .picks-carousel-track { transition: none; }
+}
+.picks-carousel-item { flex: 0 0 calc((100% - (var(--per-view, 3) - 1) * var(--gap, 16px)) / var(--per-view, 3));
+  min-width: 0; }
+
+/* Mobile: native swipe/scroll-snap instead of JS transform paging — strictly
+   better touch semantics than the fixed-column grid it replaces (no PR #51
+   regression). Items peek the next card (~85% width). */
+.picks-carousel-viewport-snap { overflow-x: auto; scroll-snap-type: x mandatory;
+  scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+@media (prefers-reduced-motion: reduce) {
+  .picks-carousel-viewport-snap { scroll-behavior: auto; }
+}
+.picks-carousel-viewport-snap .picks-carousel-track { transform: none !important; transition: none; }
+.picks-carousel-viewport-snap .picks-carousel-item { flex: 0 0 85%; scroll-snap-align: start; }
+
+.picks-carousel-chevron { position: absolute; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--bd);
+  background: var(--s1); color: var(--t1); display: flex; align-items: center;
+  justify-content: center; cursor: pointer; z-index: 2;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18); transition: opacity .15s; }
+.picks-carousel-chevron:disabled { opacity: .35; cursor: not-allowed; }
+.picks-carousel-chevron:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
+.picks-carousel-chevron-prev { left: -14px; }
+.picks-carousel-chevron-next { right: -14px; }
+@media (max-width: 900px) {
+  .picks-carousel-chevron-prev { left: -6px; }
+  .picks-carousel-chevron-next { right: -6px; }
+}
 
 .picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
 

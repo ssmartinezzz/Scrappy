@@ -72,12 +72,17 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
         transform: `translateX(calc(-1 * ${page} * 100%))`,
       };
 
+  // NOTE: `title` powers the accessible name (aria-label) only — it is not
+  // rendered as a second visible heading, since every current caller
+  // (CategoryPicksView) already renders the category name as its own <h2>
+  // right above the carousel. `subtitle`, if given, IS rendered as a small
+  // visible caption — reserved for a future standalone-carousel consumer
+  // (e.g. a home-page category rail) that has no heading of its own.
   return (
     <div className={`picks-carousel${className ? ` ${className}` : ''}`}>
-      {(title || subtitle) && (
+      {subtitle && (
         <div className="picks-carousel-header">
-          {title && <div className="picks-carousel-title">{title}</div>}
-          {subtitle && <div className="picks-carousel-subtitle">{subtitle}</div>}
+          <div className="picks-carousel-subtitle">{subtitle}</div>
         </div>
       )}
 

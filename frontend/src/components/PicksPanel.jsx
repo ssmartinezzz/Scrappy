@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { fetchMejores, fmt, BADGE_LABELS } from '../api';
-import { TIPO_META, SEMANTIC } from '../lib/colors';
+import { fetchMejores, fmt } from '../api';
+import { SEMANTIC } from '../lib/colors';
+import CategoryPicksView, { tagline } from './CategoryPicksView';
 
 const RUBROS = [
   { k:'',             icon:'🛍', l:'Todos'        },
@@ -11,23 +12,6 @@ const RUBROS = [
 
 const INITIAL_BATCH = 9;
 const BATCH_STEP     = 9;
-
-// Genera tagline a partir de datos estadísticos
-function tagline(cat, pick, mediana) {
-  if (!pick) return '';
-  const badge = pick.badge;
-  const pctil = pick.pctil;
-  const unitVal = pick.precioUnitario ?? pick.precio;
-  const pct = mediana > 0 ? ((mediana - unitVal) / mediana * 100).toFixed(0) : null;
-
-  if (badge === 'precio_historico_bajo') return 'Nunca estuvo tan barato — mínimo histórico';
-  if (badge === 'oferta_real')           return 'Descuento verificado estadísticamente';
-  if (pct && pct >= 25)  return `Un ${pct}% más barato que la media de ${cat}`;
-  if (pct && pct >= 10)  return `Por debajo de la media — buena relación precio/calidad`;
-  if (pctil && pctil <= 15) return `Percentil ${pctil}° — entre los más accesibles`;
-  if (pick.segment === 'premium') return 'La opción premium más accesible ahora mismo';
-  return `El mejor precio/calidad en ${cat} en este momento`;
-}
 
 // ─── Imagen con fallback editorial (mirrors ProductCard.jsx onError pattern) ─
 function CardImage({ img, alt }) {
@@ -215,94 +199,6 @@ function PicksGallery({ cats, busq, onSelectCat }) {
   );
 }
 
-// ─── Vista de picks de una categoría ─────────────────────────────────────────
-function CatDetail({ cat, onBack, onProductClick }) {
-  return (
-    <div className="picks-catdetail">
-      <button onClick={onBack} className="picks-back-btn">
-        ← Volver
-      </button>
-
-      <h2 className="picks-catdetail-title">
-        {cat.categoria}
-      </h2>
-      <p className="picks-catdetail-meta">
-        {(cat.count||0).toLocaleString('es-AR')} productos · mediana ${fmt(cat.mediana)}
-      </p>
-      <p className="picks-catdetail-tagline">
-        "{tagline(cat.categoria, cat.picks?.[0], cat.mediana)}"
-      </p>
-
-      <div className="picks-pick-list">
-        {(cat.picks||[]).map((pick, i) => {
-          const m = TIPO_META[pick.tipo] || TIPO_META.valor;
-          const unitVal = pick.precioUnitario ?? pick.precio;
-          const pctBajoMedia = cat.mediana > 0 && unitVal > 0
-            ? ((cat.mediana - unitVal) / cat.mediana * 100).toFixed(0)
-            : null;
-          return (
-            <div key={i}
-              onClick={() => onProductClick(pick)}
-              className="picks-pick-item"
-              style={{ borderColor: `${m.color}33` }}
-              onMouseOver={e => e.currentTarget.style.borderColor = m.color}
-              onMouseOut={e => e.currentTarget.style.borderColor = `${m.color}33`}>
-
-              {/* Imagen grande arriba + rank en overlay */}
-              <div className="picks-pick-imgwrap">
-                {pick.img
-                  ? <img src={pick.img} alt={pick.nombre} loading="lazy"
-                      className="picks-pick-img"
-                      onError={e => e.target.style.display='none'}/>
-                  : <div className="picks-pick-imgph">🛍</div>}
-                <span className="picks-pick-rank" title={m.label}>{m.icon}</span>
-              </div>
-
-              {/* Cuerpo: etiqueta, nombre, meta, precio al fondo */}
-              <div className="picks-pick-body">
-                <div className="picks-pick-label" style={{ color: m.color }}>
-                  {m.label}
-                </div>
-                <div className="picks-pick-name">{pick.nombre}</div>
-                <div className="picks-pick-meta">
-                  {pick.sitio} · {pick.marca || ''}
-                  {pick.badge && BADGE_LABELS[pick.badge] && (
-                    <span className="picks-pick-badge">
-                      · {BADGE_LABELS[pick.badge]}
-                    </span>
-                  )}
-                </div>
-                {pick.esPack && (
-                  <span className="badge-pack" title={`Pack x${pick.cantidadUnidades}`}>
-                    📦 Pack x{pick.cantidadUnidades}{pctBajoMedia && pctBajoMedia > 5 ? ` · -${pctBajoMedia}%` : ''}
-                  </span>
-                )}
-                {!pick.esPack && pctBajoMedia && pctBajoMedia > 5 && (
-                  <div className="picks-pick-pct" style={{ color: SEMANTIC.positive }}>
-                    {pctBajoMedia}% por debajo de la mediana
-                  </div>
-                )}
-
-                <div className="picks-pick-pricerow">
-                  <div className="picks-pick-price-val">${fmt(pick.precio)}</div>
-                  {pick.esPack && (
-                    <div className="card-price-unit">
-                      ${fmt(pick.precioUnitario)} c/u · x{pick.cantidadUnidades}
-                    </div>
-                  )}
-                  {pick.scoreP > 0 && (
-                    <div className="picks-pick-score">score {pick.scoreP}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── PicksPanel ───────────────────────────────────────────────────────────────
 export default function PicksPanel({ onProductClick }) {
   const [cats,    setCats]    = useState([]);
@@ -322,8 +218,8 @@ export default function PicksPanel({ onProductClick }) {
 
   if (selCat) return (
     <div className="picks-scroll">
-      <CatDetail cat={selCat} onBack={() => setSelCat(null)}
-                 onProductClick={onProductClick}/>
+      <CategoryPicksView cat={selCat} onBack={() => setSelCat(null)}
+                          onProductClick={onProductClick}/>
     </div>
   );
 
