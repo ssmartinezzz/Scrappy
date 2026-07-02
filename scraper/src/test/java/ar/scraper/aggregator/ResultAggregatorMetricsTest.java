@@ -125,4 +125,82 @@ class ResultAggregatorMetricsTest {
         assertThat(stats.misses()).isEqualTo(1);
         assertThat(result.productos()).isEmpty();
     }
+
+    // ── Approval tests for Work Unit 9 decomposition (written BEFORE the
+    //    agregar() named-method split — capture current behavior so the
+    //    refactor can be verified as behavior-preserving) ─────────────────────
+
+    // ── deduplicarYOrdenar: dedup by sitio + normalized nombre, keep first ───
+
+    @Test
+    void duplicateSiteAndNormalizedNombre_keepsOnlyFirstOccurrence() {
+        Product first     = product("Remera Basica", 1500, "http://test.com/1");
+        Product duplicate = product("  REMERA BASICA  ", 2000, "http://test.com/2");
+
+        ScrapeResult scrapeResult = new ScrapeResult("TestSite",
+                List.of(first, duplicate), null, 100);
+
+        ResultAggregator.AggregatedResult result =
+                aggregator.agregar(List.of(scrapeResult));
+
+        assertThat(result.productos()).hasSize(1);
+        assertThat(result.productos().get(0).url()).isEqualTo("http://test.com/1");
+    }
+
+    @Test
+    void multipleValidProducts_sortedByPriceAscending() {
+        Product expensive = product("Zapatilla Cara", 5000, "http://test.com/expensive");
+        Product cheap     = product("Buzo Barato",    800,  "http://test.com/cheap");
+
+        ScrapeResult scrapeResult = new ScrapeResult("TestSite",
+                List.of(expensive, cheap), null, 100);
+
+        ResultAggregator.AggregatedResult result =
+                aggregator.agregar(List.of(scrapeResult));
+
+        assertThat(result.productos()).hasSize(2);
+        assertThat(result.productos().get(0).url()).isEqualTo("http://test.com/cheap");
+        assertThat(result.productos().get(1).url()).isEqualTo("http://test.com/expensive");
+    }
+
+    // ── persistirCategoriasRefinadas: snapshot pre-ML categoria (from
+    //    `normalizados`), diff against post-ML categoria (from `enriquecidos`) ─
+
+    @Test
+    void categoriaChangedByMl_persistedAndCountedInLastCatRefinadas() {
+        Product raw = product("Zapatilla Running", 3000, "http://test.com/cat");
+        ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
+
+        Product normalizado = new Product("TestSite", "Zapatilla Running", 3000, null,
+                "http://test.com/cat", "", "Zapatillas", "", List.of());
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(normalizado));
+
+        Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
+                "http://test.com/cat", "", "Calzado Deportivo", "", List.of());
+        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(enriquecido));
+
+        aggregator.agregar(List.of(scrapeResult));
+
+        verify(db).actualizarCategoria("http://test.com/cat", "Calzado Deportivo");
+        assertThat(aggregator.getLastCatRefinadas()).isEqualTo(1);
+    }
+
+    @Test
+    void categoriaUnchangedByMl_notPersistedAndNotCounted() {
+        Product raw = product("Zapatilla Running", 3000, "http://test.com/cat2");
+        ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
+
+        Product normalizado = new Product("TestSite", "Zapatilla Running", 3000, null,
+                "http://test.com/cat2", "", "Zapatillas", "", List.of());
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(normalizado));
+
+        Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
+                "http://test.com/cat2", "", "Zapatillas", "", List.of());
+        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(enriquecido));
+
+        aggregator.agregar(List.of(scrapeResult));
+
+        verify(db, never()).actualizarCategoria(anyString(), anyString());
+        assertThat(aggregator.getLastCatRefinadas()).isEqualTo(0);
+    }
 }
