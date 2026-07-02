@@ -3,8 +3,7 @@ package ar.scraper.aggregator.grouping;
 import ar.scraper.model.Product;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
+import static ar.scraper.aggregator.grouping.GroupingTestFixtures.product;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -15,11 +14,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ProductIdentityTest {
 
     private final ProductIdentity identity = new ProductIdentity();
-
-    private static Product product(String sitio, String nombre, String marca, String categoria, double precio) {
-        return new Product(sitio, nombre, precio, null, "https://example.com/" + nombre, "",
-                categoria, "", List.of(), Product.MlScore.EMPTY, marca);
-    }
 
     @Test
     void samePrefixSameCategoryYieldsSameIdentityKey() {

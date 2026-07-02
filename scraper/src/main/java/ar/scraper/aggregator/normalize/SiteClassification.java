@@ -1,7 +1,5 @@
 package ar.scraper.aggregator.normalize;
 
-import org.springframework.stereotype.Component;
-
 import java.util.Set;
 
 /**
@@ -14,8 +12,9 @@ import java.util.Set;
  * the aggregator SOLID modularization) — pure relocation, no behavior
  * change.</p>
  */
-@Component
-public class SiteClassification {
+public final class SiteClassification {
+
+    private SiteClassification() {}
 
     // Sitios cuyo rubro se fuerza independientemente de lo que traiga el scraper
     public static final Set<String> TECH_SITIOS = Set.of(

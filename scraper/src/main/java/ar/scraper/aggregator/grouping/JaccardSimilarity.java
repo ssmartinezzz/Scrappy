@@ -33,18 +33,6 @@ import java.util.stream.Collectors;
 @Component
 public class JaccardSimilarity {
 
-    // Palabras a ignorar en el cálculo de identidad
-    private static final Set<String> STOP = Set.of(
-        "negro","negra","blanco","blanca","azul","rojo","roja","verde","gris",
-        "beige","naranja","amarillo","violeta","marron","celeste","rosa",
-        "plateado","dorado","tostado","crudo","navy","khaki","oliva","militar",
-        "ivory","offwhite","off","white","black","grey","gray","red","blue",
-        "hombre","mujer","masculino","femenino","unisex","dama","caballero",
-        "xs","xxs","s","m","l","xl","xxl","xxxl","unico","talle","talla","size",
-        "nuevo","nueva","original","importado","coleccion","edicion","temporada",
-        "de","la","el","los","las","con","para","en","y","a","e"
-    );
-
     // Umbral mínimo de similitud Jaccard para considerar 2 productos como "el mismo artículo"
     private static final double JACCARD_THRESHOLD = 0.55;
 
@@ -88,7 +76,7 @@ public class JaccardSimilarity {
         texto = AccentStripper.strip(texto);
         return Arrays.stream(texto.split("[\\s\\-_/.,()]+"))
                 .map(t -> t.replaceAll("[^a-z0-9]",""))
-                .filter(t -> t.length() >= 3 && !STOP.contains(t))
+                .filter(t -> t.length() >= 3 && !StopWords.STOP.contains(t))
                 .filter(t -> !t.matches("^\\d{1,2}$"))
                 .collect(Collectors.toSet());
     }

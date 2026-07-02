@@ -259,3 +259,35 @@ observable behavior change end-to-end; `Product` record shape,
 `ml_pipeline.py` JSON contract, and SQLite schema untouched throughout.
 Ready for final branch review (`git diff --stat master...refactor/aggregator-solid-modularization`)
 and PR to `master` under the accepted `size:exception`.
+
+## Post-review cleanup
+
+After the fresh PR #52 review, five small cleanups landed on top of the
+9 slices above (same branch, no behavior change):
+
+1. `GymratTagger.esGymrat` now calls `AccentStripper.strip(...)` instead of
+   inlining its own 6-replacement accent chain, making `AccentStripper`'s
+   javadoc claim (that `GymratTagger`'s chain was consolidated) true. This
+   supersedes the Slice 8 note above about `GymratTagger` keeping its own
+   inline accent chain.
+2. The byte-identical `STOP` word set duplicated in `JaccardSimilarity` and
+   `ProductIdentity` was hoisted to a shared package-private
+   `ar.scraper.aggregator.grouping.StopWords` holder; both classes now
+   reference it.
+3. The dead `@Component` annotation was removed from the four static-only
+   holders — `GarmentTaxonomy`, `CategoryGroups`, `SiteClassification`,
+   `NonTextileGuard` — since nothing injects them (consumed statically only).
+   This supersedes the Slice 3 note above that all four were "registered as
+   `@Component` beans"; they are now plain `final` static-utility classes
+   with a private constructor, matching the `AccentStripper`/`FacetCalculator`
+   shape.
+4. The byte-identical `anyMatch` helper duplicated in `GymratTagger` and
+   `CategoryClassifier` was hoisted to a single static `GarmentTaxonomy.anyMatch`,
+   and both private per-class copies were deleted. This supersedes the
+   Slice 5 and Slice 8 notes above describing `anyMatch` as a "pragmatic
+   per-class-copy pattern" — it is now a single shared copy.
+5. The byte-identical `product(sitio, nombre, marca, categoria, precio)` test
+   fixture duplicated in `ProductIdentityTest` and `JaccardSimilarityTest` was
+   extracted into a shared package-private `GroupingTestFixtures.product`
+   helper (statically imported by both). `GroupingServiceCharacterizationTest`'s
+   distinct 6-arg fixture was left untouched.

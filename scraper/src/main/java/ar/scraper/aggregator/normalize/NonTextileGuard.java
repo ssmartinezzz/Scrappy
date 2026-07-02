@@ -1,7 +1,5 @@
 package ar.scraper.aggregator.normalize;
 
-import org.springframework.stereotype.Component;
-
 /**
  * Early-exit "clearly not textile" predicate.
  *
@@ -9,8 +7,9 @@ import org.springframework.stereotype.Component;
  * {@code NO_TEXTIL_INICIO} (Work Unit 3 of the aggregator SOLID
  * modularization) — pure relocation, no behavior change.</p>
  */
-@Component
-public class NonTextileGuard {
+public final class NonTextileGuard {
+
+    private NonTextileGuard() {}
 
     /**
      * Primera palabra(s) que indican que el producto NO es indumentaria/calzado.

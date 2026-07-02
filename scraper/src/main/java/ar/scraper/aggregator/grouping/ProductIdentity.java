@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -21,18 +20,6 @@ import java.util.stream.Collectors;
 @Component
 public class ProductIdentity {
 
-    // Palabras a ignorar en el cálculo de identidad
-    private static final Set<String> STOP = Set.of(
-        "negro","negra","blanco","blanca","azul","rojo","roja","verde","gris",
-        "beige","naranja","amarillo","violeta","marron","celeste","rosa",
-        "plateado","dorado","tostado","crudo","navy","khaki","oliva","militar",
-        "ivory","offwhite","off","white","black","grey","gray","red","blue",
-        "hombre","mujer","masculino","femenino","unisex","dama","caballero",
-        "xs","xxs","s","m","l","xl","xxl","xxxl","unico","talle","talla","size",
-        "nuevo","nueva","original","importado","coleccion","edicion","temporada",
-        "de","la","el","los","las","con","para","en","y","a","e"
-    );
-
     String calcularIdentidad(Product p) {
         String marca = normalizar(p.marca() != null ? p.marca() : "");
         String nombre = normalizar(p.nombre() != null ? p.nombre() : "");
@@ -46,7 +33,7 @@ public class ProductIdentity {
                 .map(String::toLowerCase)
                 .map(t -> t.replaceAll("[^a-z0-9]", ""))
                 .filter(t -> t.length() >= 3)
-                .filter(t -> !STOP.contains(t))
+                .filter(t -> !StopWords.STOP.contains(t))
                 // Filtrar números puros que pueden ser talle (1-3 dígitos)
                 .filter(t -> !t.matches("^\\d{1,2}$"))
                 .limit(5)

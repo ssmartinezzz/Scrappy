@@ -1,5 +1,6 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.aggregator.text.AccentStripper;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,20 +28,12 @@ public class GymratTagger {
         if ("suplementos".equals(rubro) || "Suplemento".equals(cat) || "Alimentos".equals(cat))
             return false;
 
-        String n = (nombre != null ? nombre : "").toLowerCase()
-            .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
-            .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
-            .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
+        String n = AccentStripper.strip((nombre != null ? nombre : "").toLowerCase());
 
-        if (anyMatch(n, GarmentTaxonomy.KW_TRAINING_ROPA)) return true;
+        if (GarmentTaxonomy.anyMatch(n, GarmentTaxonomy.KW_TRAINING_ROPA)) return true;
         if (marca != null && SiteClassification.GYM_MARCAS.contains(marca.trim().toLowerCase())) return true;
         if (SiteClassification.GYM_SITIOS.stream().anyMatch(sitioKey::contains)) return true;
         if (sitioKey.contains("entreno")) return true;
-        return false;
-    }
-
-    private boolean anyMatch(String text, String[] keywords) {
-        for (String kw : keywords) if (text.contains(kw)) return true;
         return false;
     }
 }

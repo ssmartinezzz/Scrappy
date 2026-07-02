@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Set;
 
+import static ar.scraper.aggregator.grouping.GroupingTestFixtures.product;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -17,11 +18,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JaccardSimilarityTest {
 
     private final JaccardSimilarity jaccard = new JaccardSimilarity();
-
-    private static Product product(String sitio, String nombre, String marca, String categoria, double precio) {
-        return new Product(sitio, nombre, precio, null, "https://example.com/" + nombre, "",
-                categoria, "", List.of(), Product.MlScore.EMPTY, marca);
-    }
 
     // ── jaccardSimilarity() threshold boundary ──────────────────────────────
 

@@ -1,7 +1,5 @@
 package ar.scraper.aggregator.normalize;
 
-import org.springframework.stereotype.Component;
-
 import java.util.Set;
 
 /**
@@ -12,8 +10,9 @@ import java.util.Set;
  * from {@code normalizarProducto} (Work Unit 3 of the aggregator SOLID
  * modularization) — pure relocation, no behavior change.</p>
  */
-@Component
-public class CategoryGroups {
+public final class CategoryGroups {
+
+    private CategoryGroups() {}
 
     private static final Set<String> INDUMENTARIA_O_CALZADO_EXTRA = Set.of(
         "Puffer","Campera","Sweater","Buzo","Musculosa","Camisa","Remera",

@@ -1,7 +1,5 @@
 package ar.scraper.aggregator.normalize;
 
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -25,8 +23,9 @@ import java.util.List;
  * (Work Unit 4) will read the SAME {@code TORSO_KEYWORDS_FLAT}/
  * {@code PIERNAS_KEYWORDS_FLAT} arrays exposed here.</p>
  */
-@Component
-public class GarmentTaxonomy {
+public final class GarmentTaxonomy {
+
+    private GarmentTaxonomy() {}
 
     // ══════════════════════════════════════════════════════════════════
     // CALZADO — keywords ordenados de más específico a más genérico
@@ -595,4 +594,16 @@ public class GarmentTaxonomy {
 
     public static String[] torsoFlat() { return TORSO_KEYWORDS_FLAT; }
     public static String[] piernasFlat() { return PIERNAS_KEYWORDS_FLAT; }
+
+    /**
+     * Shared keyword-containment check, hoisted from the byte-identical
+     * per-class {@code anyMatch} copies previously in
+     * {@code CategoryClassifier} and {@code GymratTagger} — both already
+     * depend on this class for their keyword arrays, so this is the natural
+     * shared home (post-review cleanup, no logic change).
+     */
+    public static boolean anyMatch(String text, String[] keywords) {
+        for (String kw : keywords) if (text.contains(kw)) return true;
+        return false;
+    }
 }
