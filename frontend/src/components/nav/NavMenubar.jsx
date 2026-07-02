@@ -19,7 +19,7 @@ import { NAV_CONFIG, isMenuActive } from './nav-config';
 const directLinkClass = ({ isActive }) =>
   cn(
     'flex cursor-pointer select-none items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium outline-none transition-colors',
-    'hover:bg-s2 hover:text-primary2',
+    'hover:bg-s2 hover:text-primary2 focus-visible:bg-s2 focus-visible:text-primary2',
     isActive && 'text-primary2'
   );
 
