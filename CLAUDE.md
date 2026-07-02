@@ -54,9 +54,17 @@ fashion-scraper-new/
         │   │   ├── BaseScraper.java   ← Lanza Playwright, bloquea recursos pesados
         │   │   ├── ScraperFactory.java← Detecta plataforma por nombre/URL
         │   │   └── *Scraper.java      ← Shopify / TiendaNube / Vtex / Vaypol
-        │   ├── aggregator/
-        │   │   ├── ResultAggregator.java ← Merge, dedup, normalizar, ML, upsert DB
-        │   │   └── NormalizerService.java← Categorías canónicas, talles, géneros, marcas
+        │   ├── aggregator/             ← Orquestadores + collaborators SOLID (ver docs/migration/)
+        │   │   ├── ResultAggregator.java ← Orquesta: validar, dedup, pipeline ML, persistir, facets
+        │   │   ├── FacetCalculator.java   ← Cálculo puro/estático de facets (talles/género/marca/badge)
+        │   │   ├── NormalizerService.java ← Orquesta 8 collaborators de normalize/ (pure)
+        │   │   ├── normalize/             ← PackQuantityDetector, CategoryClassifier, BrandExtractor,
+        │   │   │                            GenderResolver, SizeNormalizer, SubcategoryResolver,
+        │   │   │                            RubroResolver, GymratTagger + holders estáticos
+        │   │   │                            (GarmentTaxonomy, CategoryGroups, SiteClassification, NonTextileGuard)
+        │   │   ├── grouping/              ← GroupingService (orquesta) + ProductIdentity,
+        │   │   │                            JaccardSimilarity, ProductGroup
+        │   │   └── text/                  ← AccentStripper (accent-stripping compartido)
         │   ├── ml/
         │   │   ├── PythonRunner.java  ← Subprocess Python, extrae script del JAR
         │   │   └── MlEnricher.java    ← Aplica scores Python → Product.MlScore

@@ -67,6 +67,29 @@
 
 ---
 
+### ¿Por qué el aggregator está modularizado en collaborators de responsabilidad única?
+
+**Decisión**: `ar.scraper.aggregator` se organiza como orquestadores delgados (`NormalizerService`, `GroupingService`, `ResultAggregator`) que secuencian collaborators de responsabilidad única, agrupados en subpaquetes por tema (`normalize/`, `grouping/`, `text/`), más `FacetCalculator` como utility estática en la raíz del paquete.
+
+**Razón**: antes de esta modularización, `NormalizerService` (categoría, talles, género, marca, pack/combo, subcategoría, rubro, gymrat) y `ResultAggregator` (validación, dedup, pipeline ML, persistencia, facets) eran clases monolíticas: cada regla de negocio nueva crecía el mismo archivo y era imposible testear una regla sin arrastrar todas las demás. La modularización es **behavior-preserving** — cero cambios observables end-to-end; el historial slice por slice, con los riesgos mitigados y las decisiones "diseño vs. código real", vive en [`docs/migration/aggregator-solid-modularization.md`](./migration/aggregator-solid-modularization.md).
+
+**Estructura resultante**:
+
+| Paquete | Responsabilidad | Clases |
+|---------|------------------|--------|
+| `aggregator` (raíz) | Orquestación de la agregación completa + utility de facets | `ResultAggregator` (orquestador: validar → dedup → pipeline ML → persistir → facets), `FacetCalculator` (cálculo puro y estático de facets) |
+| `aggregator.normalize` | Normalización de un `Product`, orquestada por `NormalizerService` | `PackQuantityDetector`, `CategoryClassifier`, `BrandExtractor`, `GenderResolver`, `SizeNormalizer`, `SubcategoryResolver`, `RubroResolver`, `GymratTagger` + holders estáticos de datos/predicados: `GarmentTaxonomy`, `CategoryGroups`, `SiteClassification`, `NonTextileGuard` |
+| `aggregator.grouping` | Agrupación de productos equivalentes entre sitios, orquestada por `GroupingService` | `ProductIdentity`, `JaccardSimilarity`, `ProductGroup` |
+| `aggregator.text` | Utilidades de texto compartidas entre `normalize` y `grouping` | `AccentStripper` |
+
+**Patrones aplicados**:
+- **Orquestadores puros**: `NormalizerService.normalizarProducto` y `ResultAggregator.agregar` son el único lugar donde se reconstruye el record `Product` o se arma el `AggregatedResult` — secuencian sus collaborators (inyectados por constructor) y no contienen lógica de negocio propia. Ningún collaborator conoce a los demás.
+- **Holders estáticos de datos/predicados**: `GarmentTaxonomy`, `CategoryGroups`, `SiteClassification` y `NonTextileGuard` no tienen estado ni dependencias — se consumen vía static import dentro de los collaborators que los necesitan, en vez de inyectarse como beans adicionales en `NormalizerService`.
+- **`FacetCalculator` como utility estática, no bean**: a diferencia de los collaborators de `normalize`/`grouping` (todos `@Component`), `FacetCalculator` es `final` con constructor privado y un único método estático — refleja que el cálculo de facets no tiene estado ni dependencias. `ResultAggregator.calcularFacets` se mantiene como delegate público porque ~10 tests fuera del paquete (`ar.scraper.web`) construyen fixtures de `AggregatedResult` contra esa firma exacta.
+- **Test factory para tests de orquestación**: `NormalizerService` requiere 8 collaborators por constructor, así que los tests que ejercitan la normalización end-to-end usan `NormalizerServiceTestFactory.create()` (solo en `src/test/java`) en lugar de instanciar los 8 collaborators a mano en cada test.
+
+---
+
 ### ¿Por qué el frontend es HTML/JS vanilla?
 
 **Decisión**: SPA vanilla sin React/Vue/Angular.
@@ -89,8 +112,9 @@
 ├─────────────────────────────────────────┤
 │         ScraperService.java             │  Orquestación async
 ├──────────────┬──────────────────────────┤
-│  Scrapers    │  ResultAggregator        │  Scraping + merge
-│  *Page.java  │  NormalizerService       │
+│  Scrapers    │  ResultAggregator        │  Scraping + merge +
+│  *Page.java  │  (aggregator.normalize/  │  normalizar + agrupar
+│              │   .grouping/.text)       │
 ├──────────────┴──────────────────────────┤
 │         DatabaseService.java            │  SQLite persistence
 ├─────────────────────────────────────────┤
