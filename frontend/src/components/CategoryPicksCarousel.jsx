@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Card, CardHeader, CardDescription, CardContent } from './ui/card';
 
 // Generic, category-agnostic carousel (ADR-4/5/6/7 in the design doc).
 // Hybrid responsive strategy: JS items-per-view + translateX paging on
@@ -6,6 +7,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // track on mobile (<640px, native touch semantics, no transform, no chevrons).
 // renderItem keeps this reusable beyond PickCard for the planned per-category
 // series (design doc "Reusability contract").
+//
+// Shell is the shadcn-token Card from ./ui/card (ADR-6): Card is the outer
+// frame, CardHeader holds the subtitle + chevron controls, CardContent holds
+// the viewport/track. CardTitle is intentionally NOT wired here — `title`
+// stays an accessible name only (aria-label on the region below), because
+// every current caller (CategoryPicksView) already renders the category name
+// as its own <h2> right above the carousel; rendering CardTitle too would
+// duplicate that heading. CardTitle stays exported from ui/card for a future
+// consumer that has no heading of its own.
 const DESKTOP_QUERY = '(min-width: 1024px)';
 const TABLET_MIN_QUERY = '(min-width: 640px)';
 
@@ -72,21 +82,37 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
         transform: `translateX(calc(-1 * ${page} * 100%))`,
       };
 
-  // NOTE: `title` powers the accessible name (aria-label) only — it is not
-  // rendered as a second visible heading, since every current caller
-  // (CategoryPicksView) already renders the category name as its own <h2>
-  // right above the carousel. `subtitle`, if given, IS rendered as a small
-  // visible caption — reserved for a future standalone-carousel consumer
-  // (e.g. a home-page category rail) that has no heading of its own.
+  const showHeader = Boolean(subtitle) || showChevrons;
+
   return (
-    <div className={`picks-carousel${className ? ` ${className}` : ''}`}>
-      {subtitle && (
-        <div className="picks-carousel-header">
-          <div className="picks-carousel-subtitle">{subtitle}</div>
-        </div>
+    <Card className={`picks-carousel${className ? ` ${className}` : ''}`}>
+      {showHeader && (
+        <CardHeader className="picks-carousel-header">
+          <div className="picks-carousel-headrow">
+            {subtitle && (
+              <CardDescription className="picks-carousel-subtitle">{subtitle}</CardDescription>
+            )}
+            {showChevrons && (
+              <div className="picks-carousel-chevrons">
+                <button type="button" className="picks-carousel-chevron picks-carousel-chevron-prev"
+                  aria-label="Previous" disabled={!canPrev} onClick={goPrev}>
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                    <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                <button type="button" className="picks-carousel-chevron picks-carousel-chevron-next"
+                  aria-label="Next" disabled={!canNext} onClick={goNext}>
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                    <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
       )}
 
-      <div className="picks-carousel-shell">
+      <CardContent className="picks-carousel-content">
         <div
           className={`picks-carousel-viewport${mobile ? ' picks-carousel-viewport-snap' : ''}`}
           role="region"
@@ -103,24 +129,7 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
             ))}
           </div>
         </div>
-
-        {showChevrons && (
-          <>
-            <button type="button" className="picks-carousel-chevron picks-carousel-chevron-prev"
-              aria-label="Previous" disabled={!canPrev} onClick={goPrev}>
-              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-                <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <button type="button" className="picks-carousel-chevron picks-carousel-chevron-next"
-              aria-label="Next" disabled={!canNext} onClick={goNext}>
-              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-                <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

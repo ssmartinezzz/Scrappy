@@ -751,12 +751,14 @@ body { overflow-x: hidden; }
    (JS-computed --per-view via matchMedia), native CSS scroll-snap on mobile
    (<640px, .picks-carousel-viewport-snap). Item sizing via --per-view/--gap
    custom properties (ADR-5) so the flex track is transparent to the inner
-   .picks-pick-item's aspect-ratio. */
-.picks-carousel { position: relative; margin-top: .4rem; }
-.picks-carousel-header { margin-bottom: .5rem; }
-.picks-carousel-subtitle { font-size: .78rem; color: var(--t3); }
+   .picks-pick-item's aspect-ratio. Shell chrome (bg/border/radius/padding)
+   comes from ui/card.jsx's Card/CardHeader/CardContent (ADR-6) — the rules
+   below are layout-only additions on top of that shell. */
+.picks-carousel { margin-top: .4rem; }
+.picks-carousel-headrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.picks-carousel-subtitle { flex: 1; min-width: 0; font-size: .78rem; color: var(--t3); }
+.picks-carousel-chevrons { display: flex; gap: 6px; flex-shrink: 0; }
 
-.picks-carousel-shell { position: relative; }
 .picks-carousel-viewport { overflow: hidden; }
 .picks-carousel-track { display: flex; gap: var(--gap, 16px);
   transition: transform .35s ease; }
@@ -777,19 +779,15 @@ body { overflow-x: hidden; }
 .picks-carousel-viewport-snap .picks-carousel-track { transform: none !important; transition: none; }
 .picks-carousel-viewport-snap .picks-carousel-item { flex: 0 0 85%; scroll-snap-align: start; }
 
-.picks-carousel-chevron { position: absolute; top: 50%; transform: translateY(-50%);
-  width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--bd);
-  background: var(--s1); color: var(--t1); display: flex; align-items: center;
-  justify-content: center; cursor: pointer; z-index: 2;
-  box-shadow: 0 2px 10px rgba(0,0,0,.18); transition: opacity .15s; }
+/* Chevrons now sit in the CardHeader row (not absolutely positioned over the
+   track) — simple circular buttons using the same tokens as before. */
+.picks-carousel-chevron { width: 32px; height: 32px; border-radius: 999px;
+  border: 1px solid var(--bd); background: var(--s1); color: var(--t1);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12); transition: opacity .15s, background .15s; }
+.picks-carousel-chevron:hover:not(:disabled) { background: var(--s3); }
 .picks-carousel-chevron:disabled { opacity: .35; cursor: not-allowed; }
 .picks-carousel-chevron:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
-.picks-carousel-chevron-prev { left: -14px; }
-.picks-carousel-chevron-next { right: -14px; }
-@media (max-width: 900px) {
-  .picks-carousel-chevron-prev { left: -6px; }
-  .picks-carousel-chevron-next { right: -6px; }
-}
 
 .picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
 
