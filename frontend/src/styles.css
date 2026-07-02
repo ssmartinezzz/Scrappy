@@ -30,10 +30,11 @@
      single documented reference; the literal px in @media must match them. */
   --bp-sm: 560px; --bp-md: 768px; --bp-lg: 900px; --bp-xl: 1200px;
   /* ===== Z-INDEX SCALE =====
-     content:1  chrome-sub:140  chrome-tabs:160  chrome-top:200
+     content:1  chrome-sub:140  chrome-tabs:160  chrome-top:200  menu:240
      fab:305  compare-bar:300  sidebar:320  detail-backdrop:399  detail:400
      modal:500  splash:1000  toast:9999 */
   --z-content: 1; --z-chrome-sub: 140; --z-chrome-tabs: 160; --z-chrome-top: 200;
+  --z-menu: 240;
   --z-fab: 305; --z-compare-bar: 300; --z-sidebar: 320;
   --z-detail-backdrop: 399; --z-detail: 400; --z-modal: 500;
   --z-splash: 1000; --z-toast: 9999;
@@ -141,16 +142,8 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 
 /* ===== CONTENT ===== */
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.tab-bar { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--bd);
+.primary-nav { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 2px solid var(--bd);
   position: sticky; top: var(--topbar-h); z-index: var(--z-chrome-tabs); background: var(--s1); }
-.tab { padding: .4rem .55rem; font: 600 .7rem/1 var(--font); color: var(--t3); cursor: pointer;
-  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none;
-  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap; flex-shrink: 0; }
-.tab:hover { color: var(--t1); }
-.tab.active { color: var(--p2); border-bottom-color: var(--p2); }
-.tab-label { display: none; }
-@media (min-width: 560px) { .tab { padding: .45rem .65rem; font-size: .72rem; } .tab-label { display: inline; } }
-@media (min-width: 900px) { .tab { padding: 8px 20px; font-size: .8rem; } }
 .search-hero { background: var(--s1); border-bottom: 1px solid var(--bd);
   padding: .65rem 1.25rem; position: sticky; top: var(--sticky-offset); z-index: var(--z-chrome-sub); }
 .search-hero-inner { display: flex; gap: 8px; align-items: center; }

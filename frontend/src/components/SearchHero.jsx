@@ -12,7 +12,7 @@ const ORDEN_OPTS = [
 // height via ResizeObserver (--catalogo-hero-h) so the Catálogo filter bar
 // can stick right below it. The `.search-hero` class (styles.css) makes this
 // itself a sticky chrome layer (top: var(--sticky-offset)), stacked with
-// topbar/tab-bar — Catálogo-only, since SearchHero only renders there.
+// topbar/primary-nav — Catálogo-only, since SearchHero only renders there.
 const SearchHero = forwardRef(function SearchHero({
   busq, view, orden, total, onBusq, onView, onOrden,
 }, ref) {

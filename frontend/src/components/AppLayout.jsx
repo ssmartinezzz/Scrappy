@@ -1,10 +1,11 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
-import { useNavigate, NavLink, Outlet, useOutletContext } from 'react-router-dom';
+import { useNavigate, Outlet, useOutletContext } from 'react-router-dom';
 import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
          fetchTendencias } from '../api';
 import Topbar        from './Topbar';
+import PrimaryNav    from './nav/PrimaryNav';
 import SearchHero    from './SearchHero';
 import CatalogoFilterBar from './CatalogoFilterBar';
 import useStickyFilterBar from '../hooks/useStickyFilterBar';
@@ -621,18 +622,7 @@ export default function AppLayout() {
       </div>{/* topbarRef wrapper */}
       <div className="layout">
         <div className="content">
-          <div className="tab-bar" ref={tabbarRef}>
-            <NavLink to="/catalogo"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Catálogo" aria-label="Catálogo">🛍 <span className="tab-label">Catálogo</span></NavLink>
-            <NavLink to="/picks"     className={({isActive}) => `tab ${isActive?'active':''}`} title="Picks" aria-label="Picks">🏆 <span className="tab-label">Picks</span></NavLink>
-            <NavLink to="/marcas"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Marcas" aria-label="Marcas">🏷 <span className="tab-label">Marcas</span></NavLink>
-            <NavLink to="/grupos"    className={({isActive}) => `tab ${isActive?'active':''}`} title="Comparar" aria-label="Comparar">⚖ <span className="tab-label">Comparar</span></NavLink>
-            <NavLink to="/tendencias" className={({isActive}) => `tab ${isActive?'active':''}`} title="Tendencias" aria-label="Tendencias">📈 <span className="tab-label">Tendencias</span></NavLink>
-            <NavLink to="/favoritos" className={({isActive}) => `tab ${isActive?'active':''}`} title="Favoritos" aria-label="Favoritos">⭐ <span className="tab-label">Favoritos</span></NavLink>
-            <NavLink to="/outfits"      className={({isActive}) => `tab ${isActive?'active':''}`} title="Outfits" aria-label="Outfits">👕 <span className="tab-label">Outfits</span></NavLink>
-            <NavLink to="/suplementos"  className={({isActive}) => `tab ${isActive?'active':''}`} title="Suplementos" aria-label="Suplementos">💊 <span className="tab-label">Suplementos</span></NavLink>
-            <NavLink to="/recomendados" className={({isActive}) => `tab ${isActive?'active':''}`} title="Para ti" aria-label="Para ti">✨ <span className="tab-label">Para ti</span></NavLink>
-            <NavLink to="/financiacion" className={({isActive}) => `tab ${isActive?'active':''}`} title="Cuotas" aria-label="Cuotas">💳 <span className="tab-label">Cuotas</span></NavLink>
-          </div>
+          <PrimaryNav ref={tabbarRef} />
 
           <Suspense fallback={<RouteFallback/>}>
             <Outlet context={{
