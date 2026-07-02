@@ -40,6 +40,8 @@ export default function NavDrawer({ className }) {
           variant="ghost"
           size="icon"
           aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+          aria-haspopup="dialog"
+          aria-expanded={open}
           onClick={() => setOpen(v => !v)}
         >
           {open ? <X size={20} /> : <Menu size={20} />}
