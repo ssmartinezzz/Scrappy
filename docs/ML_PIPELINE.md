@@ -159,7 +159,8 @@ python -m pip install scikit-learn
 ## Precio por unidad (pack/combo pricing detection)
 
 Desde `pack-pricing-detection`, cada producto trae un campo `cantidadUnidades`
-(detectado por `NormalizerService.detectarCantidadUnidades()` sobre `nombre`;
+(detectado por `ar.scraper.aggregator.normalize.PackQuantityDetector.detectar(nombre, categoria)`,
+invocado por `NormalizerService` como parte de su orquestación de normalización;
 default `1` si no es un pack/combo). `ml_pipeline.py` calcula:
 
 ```python

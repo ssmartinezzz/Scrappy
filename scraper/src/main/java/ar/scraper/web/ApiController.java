@@ -47,7 +47,7 @@ public class ApiController {
 
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final ar.scraper.db.DatabaseService db;
-    private final ar.scraper.aggregator.GroupingService grouping;
+    private final ar.scraper.aggregator.grouping.GroupingService grouping;
     private final ar.scraper.ml.PythonRunner pythonRunner;
     private final OutfitService outfitService;
     private final RecommendationService recommendationService;
@@ -56,7 +56,7 @@ public class ApiController {
                          InflacionService inflacionService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
                          ar.scraper.db.DatabaseService db,
-                         ar.scraper.aggregator.GroupingService grouping,
+                         ar.scraper.aggregator.grouping.GroupingService grouping,
                          ar.scraper.ml.PythonRunner pythonRunner,
                          OutfitService outfitService,
                          RecommendationService recommendationService) {

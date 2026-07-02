@@ -13,6 +13,7 @@ Este índice referencia todos los documentos técnicos del proyecto. Cada doc es
 | [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md) | Paso a paso para agregar un sitio nuevo | Al agregar soporte para una tienda nueva |
 | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Cómo funciona el pipeline ML y cómo extenderlo | Al modificar scoring, badges o clustering |
 | [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) | Todos los endpoints REST con params y responses | Al modificar la API o integrar con externos |
+| [`docs/migration/aggregator-solid-modularization.md`](./docs/migration/aggregator-solid-modularization.md) | Historial slice por slice de la modularización SOLID de `ar.scraper.aggregator` (NormalizerService/GroupingService/ResultAggregator → orquestadores + collaborators) | Al tocar código en `aggregator/` y necesitar entender por qué una clase quedó donde quedó |
 
 ---
 
