@@ -18,6 +18,7 @@ import { CompareModal } from './CompareComponents';
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
 const GruposPanel    = lazy(() => import('./GruposPanel'));
 const PicksPanel     = lazy(() => import('./PicksPanel'));
+const CategoryPicksPage = lazy(() => import('./CategoryPicksPage'));
 const MarcasPanel    = lazy(() => import('./MarcasPanel'));
 const FavoritosPanel = lazy(() => import('./FavoritosPanel'));
 const OutfitsPanel   = lazy(() => import('./OutfitsPanel'));
@@ -251,6 +252,11 @@ function PicksRoute() {
   return <PicksPanel onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
+function CategoryPicksPageRoute() {
+  const { dispatch } = useOutletContext();
+  return <CategoryPicksPage onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
+}
+
 function MarcasRoute() {
   const { dispatch } = useOutletContext();
   return <MarcasPanel onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
@@ -341,6 +347,7 @@ function SuplementosRoute() {
 
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
+  CategoryPicksPageRoute,
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
   RecomendadosRoute as RecomendadosPanelRoute,
   TrendsRoute as TrendsPanelRoute, FavoritosRoute as FavoritosPanelRoute,
