@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { fetchMejores, fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
+import { ProductCard } from './ui/product-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
 
 const RUBROS = [
@@ -13,48 +14,30 @@ const RUBROS = [
 const INITIAL_BATCH = 9;
 const BATCH_STEP     = 9;
 
-// ─── Imagen con fallback editorial (mirrors ProductCard.jsx onError pattern) ─
-function CardImage({ img, alt }) {
-  return (
-    <>
-      {img
-        ? <img className="picks-card-img" src={img} alt={alt} loading="lazy"
-               onError={e => { e.target.style.display = 'none'; e.target.nextSibling?.classList.remove('hidden'); }} />
-        : null
-      }
-      <div className={`picks-card-placeholder ${img ? 'hidden' : ''}`}>
-        <span>🛍</span>
-      </div>
-    </>
-  );
-}
-
-// ─── Banner de categoría (única variante — full-width, mismo tamaño) ────────
+// ─── Banner de categoría (shadcn-style ProductCard — image top, content below) ─
 function CategoryBanner({ cat, onClick, cardRef }) {
   const pick1 = cat.picks?.[0];
   const img   = cat.imgCat || pick1?.img || '';
 
   return (
-    <div ref={cardRef} data-cat={cat.categoria}
-      className="picks-card" onClick={() => onClick(cat)}>
-      <CardImage img={img} alt={cat.categoria} />
-      <div className="picks-card-overlay"/>
-      <div className="picks-card-count">{(cat.count||0).toLocaleString('es-AR')}</div>
-      <div className="picks-card-info">
-        <div className="picks-card-name">{cat.categoria}</div>
-        {pick1 && (
-          <div className="picks-card-tagline">{tagline(cat.categoria, pick1, cat.mediana)}</div>
-        )}
-        {pick1 && (
-          <div className="picks-card-price" style={{ color: SEMANTIC.positive }}>
-            desde ${fmt(pick1.precio)}
-            {pick1.esPack && (
-              <span className="card-price-unit"> · ${fmt(pick1.precioUnitario)} c/u · x{pick1.cantidadUnidades}</span>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    <ProductCard
+      ref={cardRef}
+      data-cat={cat.categoria}
+      imageUrl={img}
+      title={cat.categoria}
+      subtitle={tagline(cat.categoria, pick1, cat.mediana)}
+      count={cat.count || 0}
+      onClick={() => onClick(cat)}
+    >
+      {pick1 && (
+        <p className="mt-2 font-mono text-sm font-extrabold" style={{ color: SEMANTIC.positive }}>
+          desde ${fmt(pick1.precio)}
+          {pick1.esPack && (
+            <span className="card-price-unit"> · ${fmt(pick1.precioUnitario)} c/u · x{pick1.cantidadUnidades}</span>
+          )}
+        </p>
+      )}
+    </ProductCard>
   );
 }
 
