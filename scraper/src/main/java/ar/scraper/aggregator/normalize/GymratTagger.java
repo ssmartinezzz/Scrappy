@@ -19,7 +19,7 @@ public class GymratTagger {
      * Reglas (OR), con guard de calzado:
      *   1) keyword de KW_TRAINING_ROPA en el nombre, O
      *   2) marca en GYM_MARCAS (nike, adidas, puma, champion, under armour, reebok), O
-     *   3) sitio en GYM_SITIOS (bulks, fuark), O
+     *   3) sitio en GYM_SITIOS (bulks, fuark, monkyforce, fursten), O
      *   4) sitio == entreno Y el producto es indumentaria (no Suplemento/Alimentos)
      * Guard duro: si la categoria es calzado → false (gymrat es ROPA, no calzado).
      */

@@ -27,8 +27,10 @@ public final class SiteClassification {
     );
 
     // Sitios 100% orientados a ropa/indumentaria de gimnasio
+    // Nota: la marca es "Monky" sin e — el key debe matchear el nombre
+    // configurado del sitio (sitioKey::contains en GymratTagger)
     public static final Set<String> GYM_SITIOS = Set.of(
-        "bulks", "fuark"
+        "bulks", "fuark", "monkyforce", "fursten"
     );
 
     // Marcas deportivas cuyo torso/piernas cuenta como gymrat aunque el nombre
