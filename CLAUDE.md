@@ -100,6 +100,8 @@ fashion-scraper-new/
 | Vaypol | Custom Rails SSR | vaypol.com.ar | ✅ ~600-1000 (fotos incompletas) |
 | City | Custom Rails SSR | somoscity.com.ar | ✅ ~655 productos (fotos incompletas) |
 | Harvey Willys | TN (catch-all default) | harveywillys.com | ✅ onboardeado (precio $15k-$175k, dentro del cap global) |
+| Monkyforce | TN (catch-all default) | monkyforce.com | 🆕 gym-only (GYM_SITIOS), ~140 productos, pagina con links /page/N/ |
+| Fursten | TN (catch-all default) | fursten.com.ar | 🆕 gym-only (GYM_SITIOS), tema sin links de página — usa fallback ?page=N |
 
 ---
 
