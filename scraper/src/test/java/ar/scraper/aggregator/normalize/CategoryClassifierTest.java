@@ -174,6 +174,64 @@ class CategoryClassifierTest {
         assertThat(classifier.normalizarCategoria(null, "MRS TASTE BBQ Salsa Top Chef")).isNotEqualTo("Musculosa");
     }
 
+    // ══════════════════════════════════════════════════════════════════
+    // food-brand-tagging — marcas de alimento/suplemento y sustantivos
+    // culinarios inequívocos NO deben caer en el fallback "Indumentaria".
+    // Casos reales reportados por el product owner (gym sites que mezclan
+    // ropa + comida: Monkyforce, Fursten, Bulks, Fuark).
+    // ══════════════════════════════════════════════════════════════════
+
+    // ── Marca de alimento sin sustantivo de comida conocido ──────────
+
+    @Test
+    void smartDietPureDePalmitosEsAlimentos() {
+        assertThat(classifier.normalizarCategoria(null, "SmartDIET Puré de Palmitos 300g")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void laGanexaEsAlimentos() {
+        assertThat(classifier.normalizarCategoria(null, "LA GANEXA Barrita")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void nutremaxHydromaxEsAlimentos() {
+        assertThat(classifier.normalizarCategoria(null, "NUTREMAX HYDROMAX")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void marcaDeAlimentoNoEsIndumentaria() {
+        assertThat(classifier.normalizarCategoria(null, "NUTREMAX HYDROMAX")).isNotEqualTo("Indumentaria");
+        assertThat(classifier.normalizarCategoria(null, "LA GANEXA")).isNotEqualTo("Indumentaria");
+    }
+
+    // ── Sustantivo culinario inequívoco robado por keyword de ropa ────
+
+    @Test
+    void diablaCookieEsAlimentos() {
+        assertThat(classifier.normalizarCategoria(null, "Diabla Super Cookie")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void pancakeConTopNoEsMusculosa() {
+        // " top " matcheaba Musculosa antes de llegar al bloque de nutrición;
+        // el portón temprano ahora resuelve la subcategoría específica.
+        assertThat(classifier.normalizarCategoria(null, "Pancake Protein Top")).isEqualTo("Pancake Proteico");
+    }
+
+    @Test
+    void mrTasteMapleSyrupEsAlimentos() {
+        assertThat(classifier.normalizarCategoria(null, "MR TASTE Maple Syrup Zero")).isEqualTo("Alimentos");
+    }
+
+    // ── El portón NO debe robar indumentaria legítima (no-regresión) ──
+
+    @Test
+    void remeraConMaterialSigueSiendoRemera() {
+        // "mate" ⊂ "material": si el portón gateara con KW_COMIDA, esto caería
+        // en Alimentos. Debe seguir siendo Remera.
+        assertThat(classifier.normalizarCategoria(null, "Remera Material Premium Nike")).isEqualTo("Remera");
+    }
+
     // ── Suplemento subcategorías ──────────────────────────────────────
 
     @Test
