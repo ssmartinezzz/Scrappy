@@ -11,6 +11,7 @@ public class ScraperFactory {
     private static final Set<String> VTEX_NOMBRES    = Set.of("sporting");
     private static final Set<String> VAYPOL_NOMBRES  = Set.of("vaypol", "city");
     private static final Set<String> WC_NOMBRES       = Set.of("dcshoes", "woocommerce");
+    private static final Set<String> MONKYFORCE_NOMBRES = Set.of("monkyforce");
     private static final Set<String> MAXIMUS_NOMBRES  = Set.of("maximus");
     private static final Set<String> FULLH4RD_NOMBRES = Set.of("fullh4rd");
     private static final Set<String> CG_NOMBRES       = Set.of("compragamer");
@@ -43,6 +44,9 @@ public class ScraperFactory {
         if (SHOPIFY_NOMBRES.contains(n)
                 || site.url().contains("myshopify.com"))
             return new ShopifyScraper(config, display, site.url());
+
+        if (MONKYFORCE_NOMBRES.contains(n))
+            return new MonkyforceScraper(config, display, site.url(), site.extraUrls());
 
         return new TiendanubeScraper(config, display, site.url(), site.extraUrls());
     }
