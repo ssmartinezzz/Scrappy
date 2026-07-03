@@ -27,7 +27,7 @@
   "outputStyle": "Gentleman",
   "statusLine": {
     "type": "command",
-    "command": "C:\\Users\\Santiago\\AppData\\Roaming\\npm\\ccline.cmd",
+    "command": "~/.claude/ccline/ccline.exe",
     "padding": 0
   }
 }
