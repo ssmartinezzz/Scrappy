@@ -44,7 +44,7 @@ public class ScraperFactory {
                 || site.url().contains("myshopify.com"))
             return new ShopifyScraper(config, display, site.url());
 
-        return new TiendanubeScraper(config, display, site.url());
+        return new TiendanubeScraper(config, display, site.url(), site.extraUrls());
     }
 
     // ─── Favoritos (Fase 1: Shopify + VTEX Legacy) ────────────────────────────
