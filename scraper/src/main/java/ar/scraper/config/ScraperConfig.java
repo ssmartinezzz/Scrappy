@@ -51,12 +51,35 @@ public class ScraperConfig {
                 String nombre = key.replace("sitio.", "").replace(".url", "");
                 if (Boolean.parseBoolean(props.getProperty("sitio." + nombre + ".activo", "true"))) {
                     String rubro = props.getProperty("sitio." + nombre + ".rubro", "indumentaria");
-                    list.add(new SiteConfig(nombre, props.getProperty(key), rubro));
+                    list.add(new SiteConfig(nombre, props.getProperty(key), rubro,
+                            parseExtraUrls(nombre)));
                 }
             }
         }
         return list;
     }
 
-    public record SiteConfig(String nombre, String url, String rubro) {}
+    /**
+     * URLs adicionales a crawlear bajo el mismo sitio, desde
+     * {@code sitio.<nombre>.urls_extra} (separadas por coma). Sirve para sumar
+     * colecciones que el catálogo principal no cubre (ej. Harvey Willys
+     * {@code /otras-temporadas1}). Vacío si la propiedad no existe.
+     */
+    private List<String> parseExtraUrls(String nombre) {
+        String raw = props.getProperty("sitio." + nombre + ".urls_extra", "");
+        if (raw == null || raw.isBlank()) return List.of();
+        List<String> urls = new ArrayList<>();
+        for (String u : raw.split(",")) {
+            String t = u.trim();
+            if (!t.isEmpty()) urls.add(t);
+        }
+        return urls;
+    }
+
+    public record SiteConfig(String nombre, String url, String rubro, List<String> extraUrls) {
+        /** Constructor compacto sin colecciones extra (retrocompatibilidad). */
+        public SiteConfig(String nombre, String url, String rubro) {
+            this(nombre, url, rubro, List.of());
+        }
+    }
 }

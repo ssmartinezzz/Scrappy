@@ -54,4 +54,54 @@ class TiendanubePagePaginationTest {
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 2);
         assertThat(result).hasValue(4);
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // harvey-otras-temporadas — paginación con param `mpage` (colecciones
+    // TN que paginan con ?mpage=N en vez de ?page=N, ej. Harvey Willys
+    // /otras-temporadas1?mpage=3).
+    // ══════════════════════════════════════════════════════════════════
+
+    // (f) hrefs mpage → el helper reconoce mpage= igual que page=
+    @Test
+    void mpageHrefs_returnsNextPage() {
+        List<String> hrefs = List.of("/otras-temporadas1?mpage=1", "/otras-temporadas1?mpage=2",
+                "/otras-temporadas1?mpage=3");
+        OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 1);
+        assertThat(result).hasValue(4);
+    }
+
+    // (g) mpage= no debe confundirse: "mpage=2" contiene "page=2" pero el
+    // número extraído debe ser el de la paginación real (2), no romperse.
+    @Test
+    void mpageSinChocarConPage() {
+        List<String> hrefs = List.of("/coleccion?mpage=5");
+        OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 2);
+        assertThat(result).hasValue(6);
+    }
+
+    // ── urlPagina: preserva el param de paginación de la base ──────────
+
+    @Test
+    void urlPaginaUsaPagePorDefecto() {
+        assertThat(TiendanubePage.urlPagina("https://x.com/productos/", 2))
+                .isEqualTo("https://x.com/productos/?page=2");
+    }
+
+    @Test
+    void urlPaginaIncrementaPageExistente() {
+        assertThat(TiendanubePage.urlPagina("https://x.com/productos/?page=2", 3))
+                .isEqualTo("https://x.com/productos/?page=3");
+    }
+
+    @Test
+    void urlPaginaPreservaMpage() {
+        assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1?mpage=1", 2))
+                .isEqualTo("https://x.com/otras-temporadas1?mpage=2");
+    }
+
+    @Test
+    void urlPaginaPaginaUnoDevuelveBase() {
+        assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1?mpage=1", 1))
+                .isEqualTo("https://x.com/otras-temporadas1?mpage=1");
+    }
 }

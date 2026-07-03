@@ -22,25 +22,48 @@ public class TiendanubePage extends BasePage {
     private final String baseUrl;
     private final double precioMin;
     private final double precioMax;
+    /** Colecciones adicionales a crawlear bajo el mismo sitio (ver config `urls_extra`). */
+    private final List<String> extraUrls;
 
     public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
                           double precioMin, double precioMax) {
+        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, List.of());
+    }
+
+    public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
+                          double precioMin, double precioMax, List<String> extraUrls) {
         super(page, timeoutMs);
         this.sitio     = sitio;
         this.baseUrl   = baseUrl;
         this.precioMin = precioMin;
         this.precioMax = precioMax;
+        this.extraUrls = extraUrls != null ? extraUrls : List.of();
     }
 
     public List<Product> scrapeAll() {
+        List<Product> result = new ArrayList<>();
+
+        // Catálogo principal: API TN si está disponible, si no JS heurístico.
         String homeUrl = domain(baseUrl);
         List<Product> api = scrapeApi(homeUrl);
         if (!api.isEmpty()) {
             log.debug("[{}] API REST: {} productos", sitio, api.size());
-            return api;
+            result.addAll(api);
+        } else {
+            log.debug("[{}] API vacia, usando JS heuristico", sitio);
+            result.addAll(scrapeJs(baseUrl));
         }
-        log.debug("[{}] API vacia, usando JS heuristico", sitio);
-        return scrapeJs();
+
+        // Colecciones extra que el catálogo principal no cubre (ej. Harvey
+        // /otras-temporadas1). Siempre por JS heurístico; el dedup por
+        // sitio+nombre en ResultAggregator colapsa lo que también aparezca en
+        // el catálogo principal, así que no genera duplicados.
+        for (String extra : extraUrls) {
+            if (extra == null || extra.isBlank()) continue;
+            log.debug("[{}] coleccion extra -> {}", sitio, extra);
+            result.addAll(scrapeJs(extra));
+        }
+        return result;
     }
 
     // ------------------------------------------------------------------
@@ -279,9 +302,9 @@ public class TiendanubePage extends BasePage {
     // ------------------------------------------------------------------
     // Estrategia 2: JS heurístico
     // ------------------------------------------------------------------
-    private List<Product> scrapeJs() {
+    private List<Product> scrapeJs(String startUrl) {
         List<Product> result = new ArrayList<>();
-        String url = baseUrl;
+        String url = startUrl;
         int pagina = 1;
         int paginasSinProductos = 0;
 
@@ -313,12 +336,13 @@ public class TiendanubePage extends BasePage {
                 break;
             }
 
-            // Intentar encontrar la siguiente página
-            String nextUrl = nextPageUrl(pagina);
+            // Intentar encontrar la siguiente página (paginando sobre startUrl,
+            // no sobre baseUrl — así una colección extra pagina sobre su propia URL)
+            String nextUrl = nextPageUrl(startUrl, pagina);
 
-            // Fallback: construir URL ?page=N si el DOM no tiene el link
+            // Fallback: construir URL ?page=N / ?mpage=N si el DOM no tiene el link
             if (nextUrl == null && pagina < 25) {
-                String candidata = urlPagina(baseUrl, pagina + 1);
+                String candidata = urlPagina(startUrl, pagina + 1);
                 // Solo usar si es diferente a la actual (evitar loops)
                 if (!candidata.equals(url)) {
                     nextUrl = candidata;
@@ -360,6 +384,19 @@ public class TiendanubePage extends BasePage {
         } catch (Exception e) { return Optional.empty(); }
     }
 
+    /**
+     * JS expression that resolves the product-name element from a card element
+     * {@code el}, consumed by {@link #buildExtractorJs()}. Extension seam
+     * (Template Method / Open-Closed): the base returns the generic,
+     * theme-agnostic selector; a per-theme subclass overrides ONLY this to fix
+     * name extraction without touching the shared extractor. Must evaluate to a
+     * DOM Element or {@code null}.
+     */
+    protected String nombreSelectorJs() {
+        return "el.querySelector('h1,h2,h3,h4')"
+             + "||el.querySelector('[class*=name],[class*=title],[class*=nombre],[class*=tit]')";
+    }
+
     private String buildExtractorJs() {
         return "(function() {" +
             "var results=[];" +
@@ -399,8 +436,7 @@ public class TiendanubePage extends BasePage {
 
             "items.forEach(function(el){" +
             "  try{" +
-            "    var nameEl=el.querySelector('h1,h2,h3,h4')||" +
-            "               el.querySelector('[class*=name],[class*=title],[class*=nombre],[class*=tit]');" +
+            "    var nameEl=" + nombreSelectorJs() + ";" +
             "    var nombre=nameEl?nameEl.textContent.trim():'';" +
             "    if(!nombre){" +
             "      var a0=el.querySelector('a[title]')||el.querySelector('a');" +
@@ -502,7 +538,11 @@ public class TiendanubePage extends BasePage {
      * No browser dependency; fully unit-testable.
      */
     public static OptionalInt resolveNextPageFromHrefs(List<String> hrefs, int currentPage) {
-        var pat = java.util.regex.Pattern.compile("[?&]page=(\\d+)");
+        // Reconoce tanto ?page=N como ?mpage=N (colecciones TN que paginan con
+        // mpage, ej. Harvey Willys /otras-temporadas1?mpage=3). El `m?` opcional
+        // va DESPUÉS del separador [?&] para no matchear "page" embebido en otra
+        // palabra: "?mpage=3" → separador '?', 'm' opcional, "page=3".
+        var pat = java.util.regex.Pattern.compile("[?&]m?page=(\\d+)");
         int maxN = -1;
         for (String h : hrefs) {
             if (h == null) continue;
@@ -512,7 +552,7 @@ public class TiendanubePage extends BasePage {
         return (maxN > currentPage && maxN < 1000) ? OptionalInt.of(maxN + 1) : OptionalInt.empty();
     }
 
-    private String nextPageUrl(int currentPage) {
+    private String nextPageUrl(String paginBase, int currentPage) {
         // Prioridad 1: <link rel="next"> en el head — TN lo incluye para SEO
         try {
             String headNext = (String) page.evaluate(
@@ -547,7 +587,7 @@ public class TiendanubePage extends BasePage {
             if (raw instanceof List<?> list) {
                 List<String> hrefs = list.stream().map(String::valueOf).toList();
                 var next = resolveNextPageFromHrefs(hrefs, currentPage);
-                if (next.isPresent()) return urlPagina(baseUrl, next.getAsInt());
+                if (next.isPresent()) return urlPagina(paginBase, next.getAsInt());
             }
         } catch (Exception ignored) {}
 
@@ -560,7 +600,7 @@ public class TiendanubePage extends BasePage {
                 for (JsonNode node : arr) {
                     JsonNode pg = node.has("page") ? node.get("page") : node.get("currentPage");
                     if (pg != null && pg.isInt() && pg.asInt() > currentPage)
-                        return urlPagina(baseUrl, currentPage + 1);
+                        return urlPagina(paginBase, currentPage + 1);
                 }
             }
         } catch (Exception ignored) {}
@@ -569,16 +609,23 @@ public class TiendanubePage extends BasePage {
     }
 
     /**
-     * Construye la URL de la pagina N a partir de la URL base.
-     * Soporta ?page=N y /p/N y /page/N
+     * Construye la URL de la pagina N a partir de la URL base. Soporta ?page=N,
+     * ?mpage=N, /p/N y /page/N. Preserva el param de paginación ya presente en la
+     * base: si la base usa {@code mpage=} (colecciones TN tipo Harvey
+     * /otras-temporadas1), incrementa {@code mpage}; si no, usa {@code page}.
+     *
+     * <p>Static + package-private: sin dependencia del browser, unit-testeable
+     * ({@code TiendanubePagePaginationTest}).</p>
      */
-    private String urlPagina(String base, int n) {
+    static String urlPagina(String base, int n) {
         if (n <= 1) return base;
-        String b = base.replaceAll("[?&]page=[0-9]+", "")
+        boolean usaMpage = base.matches(".*[?&]mpage=[0-9]+.*");
+        String param = usaMpage ? "mpage" : "page";
+        String b = base.replaceAll("[?&]m?page=[0-9]+", "")
                        .replaceAll("/page/[0-9]+", "")
-                       .replaceAll("/p/[0-9]+$", "");
-        // Preferir ?page= para TN
+                       .replaceAll("/p/[0-9]+$", "")
+                       .replaceAll("[?&]$", "");   // separador colgante tras strip
         String sep = b.contains("?") ? "&" : "?";
-        return b + sep + "page=" + n;
+        return b + sep + param + "=" + n;
     }
 }

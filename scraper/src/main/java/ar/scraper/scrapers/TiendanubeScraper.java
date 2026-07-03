@@ -7,14 +7,32 @@ import com.microsoft.playwright.Page;
 import java.util.List;
 
 public class TiendanubeScraper extends BaseScraper {
+    protected final List<String> extraUrls;
+
     public TiendanubeScraper(ScraperConfig config, String sitio, String url) {
-        super(config, sitio, url);
+        this(config, sitio, url, List.of());
     }
+
+    public TiendanubeScraper(ScraperConfig config, String sitio, String url, List<String> extraUrls) {
+        super(config, sitio, url);
+        this.extraUrls = extraUrls != null ? extraUrls : List.of();
+    }
+
     @Override
     protected List<Product> scrape(Page page) {
+        return crearPage(page).scrapeAll();
+    }
+
+    /**
+     * Factory Method (Open/Closed): construye la {@link TiendanubePage} a usar.
+     * Las subclases por-tema (ej. {@code MonkyforceScraper}) la overridean para
+     * devolver una page especializada sin tocar {@link #scrape(Page)}.
+     */
+    protected TiendanubePage crearPage(Page page) {
         return new TiendanubePage(page, config.getTimeoutMs(),
                 sitio, baseUrl,
                 config.getPrecioMinimo(),
-                config.getPrecioMaximo()).scrapeAll();
+                config.getPrecioMaximo(),
+                extraUrls);
     }
 }
