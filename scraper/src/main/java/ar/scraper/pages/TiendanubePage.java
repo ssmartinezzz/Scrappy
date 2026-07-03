@@ -360,6 +360,19 @@ public class TiendanubePage extends BasePage {
         } catch (Exception e) { return Optional.empty(); }
     }
 
+    /**
+     * JS expression that resolves the product-name element from a card element
+     * {@code el}, consumed by {@link #buildExtractorJs()}. Extension seam
+     * (Template Method / Open-Closed): the base returns the generic,
+     * theme-agnostic selector; a per-theme subclass overrides ONLY this to fix
+     * name extraction without touching the shared extractor. Must evaluate to a
+     * DOM Element or {@code null}.
+     */
+    protected String nombreSelectorJs() {
+        return "el.querySelector('h1,h2,h3,h4')"
+             + "||el.querySelector('[class*=name],[class*=title],[class*=nombre],[class*=tit]')";
+    }
+
     private String buildExtractorJs() {
         return "(function() {" +
             "var results=[];" +
@@ -399,8 +412,7 @@ public class TiendanubePage extends BasePage {
 
             "items.forEach(function(el){" +
             "  try{" +
-            "    var nameEl=el.querySelector('h1,h2,h3,h4')||" +
-            "               el.querySelector('[class*=name],[class*=title],[class*=nombre],[class*=tit]');" +
+            "    var nameEl=" + nombreSelectorJs() + ";" +
             "    var nombre=nameEl?nameEl.textContent.trim():'';" +
             "    if(!nombre){" +
             "      var a0=el.querySelector('a[title]')||el.querySelector('a');" +

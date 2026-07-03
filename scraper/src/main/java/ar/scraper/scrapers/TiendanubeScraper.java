@@ -12,9 +12,18 @@ public class TiendanubeScraper extends BaseScraper {
     }
     @Override
     protected List<Product> scrape(Page page) {
+        return crearPage(page).scrapeAll();
+    }
+
+    /**
+     * Factory Method (Open/Closed): construye la {@link TiendanubePage} a usar.
+     * Las subclases por-tema (ej. {@code MonkyforceScraper}) la overridean para
+     * devolver una page especializada sin tocar {@link #scrape(Page)}.
+     */
+    protected TiendanubePage crearPage(Page page) {
         return new TiendanubePage(page, config.getTimeoutMs(),
                 sitio, baseUrl,
                 config.getPrecioMinimo(),
-                config.getPrecioMaximo()).scrapeAll();
+                config.getPrecioMaximo());
     }
 }
