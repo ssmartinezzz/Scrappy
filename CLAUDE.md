@@ -99,7 +99,7 @@ fashion-scraper-new/
 | Sporting | VTEX Legacy | sporting.com.ar | ✅ ~2400 productos |
 | Vaypol | Custom Rails SSR | vaypol.com.ar | ✅ ~600-1000 (fotos incompletas) |
 | City | Custom Rails SSR | somoscity.com.ar | ✅ ~655 productos (fotos incompletas) |
-| Harvey Willys | TN (catch-all default) | harveywillys.com | ✅ onboardeado (precio $15k-$175k, dentro del cap global) |
+| Harvey Willys | TN (catch-all default) | harveywillys.com | ✅ onboardeado (precio $15k-$175k). API TN resetea → path JS. Suma colección `otras-temporadas1` via `sitio.harvey.urls_extra` (pagina con `?mpage=N`) |
 | Monkyforce | TN (catch-all default) | monkyforce.com | 🆕 gym-only (GYM_SITIOS), ~140 productos, pagina con links /page/N/ |
 | Fursten | TN (catch-all default) | fursten.com.ar | 🆕 gym-only (GYM_SITIOS), tema sin links de página — usa fallback ?page=N |
 

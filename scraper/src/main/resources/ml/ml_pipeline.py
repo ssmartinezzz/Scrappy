@@ -18,13 +18,21 @@ Modelos estadísticos:
   7. Análisis histórico: media móvil, tendencia, velocidad de cambio
   8. TF-IDF clustering con bigrams para tendencias
 """
-import json, sys, os, math, re
+import json, sys, os, math, re, threading
 # UTF-8 forzado via PYTHONIOENCODING en el ProcessBuilder
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 _IMG_SIZE: int = 224
 _TEXT_LABEL_SET: frozenset = frozenset()
+
+# Serializa el uso de GPU entre threads. La etapa ensemble corre inferencia de
+# imagen con ThreadPoolExecutor (varios workers); torch CUDA NO es thread-safe
+# para forwards concurrentes desde múltiples threads Python, y el acceso
+# simultáneo producía crashes nativos (exit 0xC0000409 / STATUS_STACK_BUFFER_
+# OVERRUN, sin traceback). Solo el transfer+forward se serializan; la descarga
+# y decodificación de imagen siguen en paralelo.
+_CUDA_LOCK = threading.Lock()
 
 
 # ─── Clase estadística por grupo ────────────────────────────────────────────
@@ -136,11 +144,15 @@ def predict_category_image(img_model, img_le, img_url, confianza_min=0.75):
         ])
         tensor = tf(img).unsqueeze(0)
         device = next(img_model.parameters()).device
-        tensor = tensor.to(device)
 
-        with torch.no_grad():
-            out   = img_model(tensor)
-            probs = torch.softmax(out, dim=1)[0].cpu().numpy()
+        # Serializar el uso de GPU (ver _CUDA_LOCK): evita el crash nativo por
+        # forwards CUDA concurrentes desde el ThreadPoolExecutor de la etapa
+        # ensemble. La descarga/decodificación de arriba queda en paralelo.
+        with _CUDA_LOCK:
+            tensor = tensor.to(device)
+            with torch.no_grad():
+                out   = img_model(tensor)
+                probs = torch.softmax(out, dim=1)[0].cpu().numpy()
 
         best_idx  = int(probs.argmax())
         best_prob = float(probs[best_idx])

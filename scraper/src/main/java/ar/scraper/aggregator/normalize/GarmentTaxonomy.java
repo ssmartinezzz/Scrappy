@@ -266,8 +266,35 @@ public final class GarmentTaxonomy {
     // keywords genéricos de ropa (" top ", "knit", "fleece") no clasifiquen
     // salsas, condimentos o alimentos como indumentaria. Se agregan aquí y no
     // a KW_COMIDA porque KW_COMIDA se evalúa DESPUÉS del bloque de indumentaria.
+    //
+    // IMPORTANTE: solo tokens INEQUÍVOCOS (no colisionan con vocabulario de
+    // ropa vía substring). No mover acá tokens amplios de KW_COMIDA como
+    // "mate" (⊂ "material") o "fruta" (⊂ "frutal") — esos deben seguir
+    // corriendo DESPUÉS del bloque de indumentaria.
     public static final String[] KW_ALIMENTO_TEMPRANO = {
-        "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia "
+        "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia ",
+        // Sustantivos culinarios inequívocos — para que comidas sin marca
+        // conocida tampoco las robe el bloque de indumentaria (ej. "Pancake
+        // Protein Top" → Pancake Proteico, no Musculosa).
+        "pancake","panqueque","waffle","cookie","brownie","galleta","muffin",
+        "cereal","granola","avena","palmito","palmitos","pure de ",
+        "syrup","sirope","maple","barrita"," mani ","peanut","topping"
+    };
+
+    // Marcas de alimento/suplemento — el nombre de la marca ES señal de
+    // nutrición aunque el título no traiga sustantivo de comida (ej.
+    // "SmartDIET Puré de Palmitos", "NUTREMAX Hydromax", "LA GANEXA",
+    // "Diabla Cookie"). Gatean el portón de nutrición en CategoryClassifier.
+    // Lista curada y conservadora (confirmada por el product owner): solo
+    // marcas cuyo nombre no colisiona con vocabulario de indumentaria.
+    // Comparadas sobre el texto normalizado (lowercase, sin acentos).
+    public static final String[] KW_MARCA_ALIMENTO = {
+        "mr taste","mrs taste","smartdiet","smart diet",
+        // CANDIDATA A REVISAR: "diabla" es la marca más ambigua del set —
+        // podría aparecer en lencería/merch de ropa. Si algún scrape muestra
+        // indumentaria mal taggeada como Alimentos por esta palabra, quitarla.
+        "diabla",
+        "ganexa","nutremax"
     };
 
     public static final String[] KW_REMERA = {
