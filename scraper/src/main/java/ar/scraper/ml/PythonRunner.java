@@ -58,6 +58,13 @@ public class PythonRunner {
                     prodPath.toString(), outPath.toString(), histPath.toString());
             pb.redirectErrorStream(false);
             pb.directory(workDir.toFile());
+            // Paridad con el path de entrenamiento: UTF-8 evita el mojibake en
+            // los logs (estad�sticas → estadísticas) y PYTHONUNBUFFERED hace que
+            // stderr se vacíe línea a línea, así un crash nativo (ej. exit
+            // 0xC0000409) no se traga las últimas líneas y podemos ver dónde murió.
+            pb.environment().put("PYTHONIOENCODING", "utf-8");
+            pb.environment().put("PYTHONUTF8", "1");
+            pb.environment().put("PYTHONUNBUFFERED", "1");
             Process proc = pb.start();
 
             Thread.ofVirtual().start(() -> {
