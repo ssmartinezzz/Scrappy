@@ -629,7 +629,7 @@ body { overflow-x: hidden; }
    Editorial surface that reuses the SAME light/warm palette as the rest of
    the dashboard (var(--bg)/--s1../--t1../--bd/--bd2 from :root) — no scoped
    color override. Category cards (CategoryBanner in PicksPanel.jsx) render
-   via the shadcn-style ui/product-card.jsx primitive (Tailwind utility
+   via the shadcn-style ui/category-card.jsx primitive (Tailwind utility
    classes, not .picks-card* — see below), sitting in a dynamic multi-column
    grid (see .picks-grid) whose column count recomputes from viewport width
    instead of one fixed card per row. */

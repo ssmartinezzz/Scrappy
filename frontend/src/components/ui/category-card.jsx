@@ -1,6 +1,9 @@
-// shadcn-style ProductCard primitive — adapted from a reference React/TSX
-// design (image on top, content block below) to this project's JSX +
-// design-token conventions (same rewrite pattern as ui/button.jsx, ui/card.jsx).
+// shadcn-style CategoryCard primitive — a category banner card (image on
+// top, content block below), adapted from a reference React/TSX design to
+// this project's JSX + design-token conventions (same rewrite pattern as
+// ui/button.jsx, ui/card.jsx). Renders a category banner (image, title,
+// count badge, tagline) for PicksPanel's CategoryBanner — NOT a per-product
+// card; see the domain ProductCard in components/ProductCard.jsx for that.
 //
 // Deviates from the reference on purpose:
 // - No <a href>: consumers select via onClick (categories don't have a route,
@@ -12,11 +15,20 @@
 // - `children` slot renders below the title/subtitle so callers can compose
 //   extra content (e.g. a price line) without this primitive knowing about
 //   domain fields like price/pack pricing.
+//
+// Composes ui/card.jsx's Card as the root element instead of re-declaring
+// the surface classes (bg-s2/border/rounded-card/text-t1) — one source of
+// truth for the card surface; this primitive only layers the interactive
+// (hover/focus/cursor) classes on top. Card forwards ref, spreads props
+// (so data-* attrs used by scroll-spy land on the DOM root), and imposes no
+// padding/child structure, so it doesn't fight the edge-to-edge image.
 import * as React from 'react';
 import { ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Card } from './card';
+import { ImageWithFallback } from './image-with-fallback';
 
-const ProductCard = React.forwardRef(({
+const CategoryCard = React.forwardRef(({
   className,
   imageUrl,
   title,
@@ -34,7 +46,7 @@ const ProductCard = React.forwardRef(({
   }
 
   return (
-    <div
+    <Card
       ref={ref}
       role="button"
       tabIndex={0}
@@ -42,28 +54,21 @@ const ProductCard = React.forwardRef(({
       onClick={onClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        'group relative cursor-pointer overflow-hidden rounded-card border border-border bg-s2 text-t1 transition-shadow duration-300 ease-in-out hover:shadow-lg',
+        'group relative cursor-pointer overflow-hidden transition-shadow duration-300 ease-in-out hover:shadow-lg',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
         className
       )}
       {...props}
     >
       <div className="relative aspect-square overflow-hidden bg-s3">
-        {imageUrl && (
-          <img
-            src={imageUrl}
-            alt={title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
-            onError={e => {
-              e.target.style.display = 'none';
-              e.target.nextSibling?.classList.remove('hidden');
-            }}
-          />
-        )}
-        <div className={cn('flex h-full w-full items-center justify-center text-t4', imageUrl && 'hidden')}>
-          <ShoppingBag aria-hidden="true" className="h-10 w-10" strokeWidth={1.5} />
-        </div>
+        <ImageWithFallback
+          src={imageUrl}
+          alt={title}
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
+          fallbackClassName="flex h-full w-full items-center justify-center text-t4"
+          fallback={<ShoppingBag aria-hidden="true" className="h-10 w-10" strokeWidth={1.5} />}
+        />
         {/* Opacity modifiers (bg-s1/80) emit no CSS with this config's plain
             var() color tokens, so the badge uses explicit rgba values. */}
         {count != null && (
@@ -77,9 +82,9 @@ const ProductCard = React.forwardRef(({
         {subtitle && <p className="mt-1 line-clamp-2 text-sm text-t3">{subtitle}</p>}
         {children}
       </div>
-    </div>
+    </Card>
   );
 });
-ProductCard.displayName = 'ProductCard';
+CategoryCard.displayName = 'CategoryCard';
 
-export { ProductCard };
+export { CategoryCard };

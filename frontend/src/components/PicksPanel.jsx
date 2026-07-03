@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { fetchMejores, fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
-import { ProductCard } from './ui/product-card';
+import { CategoryCard } from './ui/category-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
 
 const RUBROS = [
@@ -14,13 +14,13 @@ const RUBROS = [
 const INITIAL_BATCH = 9;
 const BATCH_STEP     = 9;
 
-// ─── Banner de categoría (shadcn-style ProductCard — image top, content below) ─
+// ─── Banner de categoría (shadcn-style CategoryCard — image top, content below) ─
 function CategoryBanner({ cat, onClick, cardRef }) {
   const pick1 = cat.picks?.[0];
   const img   = cat.imgCat || pick1?.img || '';
 
   return (
-    <ProductCard
+    <CategoryCard
       ref={cardRef}
       data-cat={cat.categoria}
       imageUrl={img}
@@ -37,7 +37,7 @@ function CategoryBanner({ cat, onClick, cardRef }) {
           )}
         </p>
       )}
-    </ProductCard>
+    </CategoryCard>
   );
 }
 
