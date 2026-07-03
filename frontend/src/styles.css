@@ -628,10 +628,11 @@ body { overflow-x: hidden; }
 /* ===== PICKS IMMERSIVE GALLERY (/picks view only) =====
    Editorial surface that reuses the SAME light/warm palette as the rest of
    the dashboard (var(--bg)/--s1../--t1../--bd/--bd2 from :root) — no scoped
-   color override. The "photo-forward" effect comes from banner SIZE relative
-   to its photo's native resolution, not from a dark background. Banners sit
-   in a dynamic multi-column grid (see .picks-grid) — column count recomputes
-   from viewport width instead of one fixed banner per row. */
+   color override. Category cards (CategoryBanner in PicksPanel.jsx) render
+   via the shadcn-style ui/category-card.jsx primitive (Tailwind utility
+   classes, not .picks-card* — see below), sitting in a dynamic multi-column
+   grid (see .picks-grid) whose column count recomputes from viewport width
+   instead of one fixed card per row. */
 .picks-immersive {
   background: var(--bg);
   color: var(--t1);
@@ -665,33 +666,6 @@ body { overflow-x: hidden; }
 @media (min-width: 900px) {
   .picks-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 }
-
-.picks-card { position: relative; border-radius: 14px; overflow: hidden;
-  width: 100%; aspect-ratio: 4/5; cursor: pointer; background: var(--s2);
-  border: 1px solid var(--bd); transition: transform .18s, box-shadow .18s; }
-.picks-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(31,27,22,.18); }
-
-.picks-card-img { position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; display: block; }
-.picks-card-placeholder { position: absolute; inset: 0; display: flex;
-  flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; font-size: 2.4rem; color: var(--t4); background: var(--s2); }
-.picks-card-placeholder.hidden { display: none; }
-
-.picks-card-overlay { position: absolute; inset: 0;
-  background: linear-gradient(to top, rgba(31,27,22,.78) 30%, transparent 75%); }
-
-.picks-card-count { position: absolute; top: 10px; right: 10px; z-index: 2;
-  background: rgba(31,27,22,.55); color: #F5F0E6; font: 700 .6rem/1 var(--font);
-  padding: 3px 8px; border-radius: 12px; }
-
-.picks-card-info { position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
-  padding: 12px 14px 10px; }
-.picks-card-name { font: 600 .85rem/1.35 var(--font); color: #fff; }
-.picks-card-tagline { font: .62rem/1.4 var(--font); color: rgba(255,255,255,.78);
-  margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden; }
-.picks-card-price { font: 800 .8rem/1 var(--mono); margin-top: 6px; }
 
 .picks-sentinel { height: 1px; margin-top: 4px; }
 

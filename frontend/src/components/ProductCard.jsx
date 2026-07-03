@@ -3,6 +3,7 @@ import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
 import { SEÑAL_CONFIG, gaugeColor } from '../lib/colors';
 import { normCat } from '../lib/cat';
 import FinanBadge from './FinanBadge';
+import { ImageWithFallback } from './ui/image-with-fallback';
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
 function gymSubcat(product) {
@@ -153,15 +154,14 @@ const ProductCard = memo(function ProductCard({
           third-party photos); onError fallback keeps a neutral placeholder
           + site-name so the card stays usable even with a broken image. */}
       <div className="card-img-wrap aspect-[3/4]">
-        {p.img
-          ? <img className="card-img" src={p.img} alt={p.nombre} loading="lazy"
-                 onError={e => { e.target.style.display = 'none'; e.target.nextSibling?.classList.remove('hidden'); }} />
-          : null
-        }
-        <div className={`card-img-placeholder ${p.img ? 'hidden' : ''}`}>
-          <span>👕</span>
-          <span className="text-[.6rem] text-t4">{p.sitio}</span>
-        </div>
+        <ImageWithFallback
+          src={p.img}
+          alt={p.nombre}
+          loading="lazy"
+          className="card-img"
+          fallbackClassName="card-img-placeholder"
+          fallback={<><span>👕</span><span className="text-[.6rem] text-t4">{p.sitio}</span></>}
+        />
 
         {/* Cluster favorito + comparar — unificado bottom-right de la foto */}
         <div className="absolute bottom-2 right-2 z-[3] flex gap-1.5">
