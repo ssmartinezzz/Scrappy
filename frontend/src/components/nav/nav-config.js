@@ -4,7 +4,7 @@
 import {
   ShoppingBag, Trophy, Sparkles,
   Compass, LineChart, Bookmark,
-  Tag, Pill, TrendingUp, Scale, CreditCard, Star, Shirt,
+  Tag, Pill, TrendingUp, Scale, CreditCard, Star, Shirt, Clock,
 } from 'lucide-react';
 
 // kind: 'link'  → direct NavLink, no submenu
@@ -35,6 +35,10 @@ export const NAV_CONFIG = [
       { label: 'Outfits', to: '/outfits', icon: Shirt },
     ],
   },
+  // No hay grupo "Admin" todavía — un solo destino de administración no
+  // amerita un menú agrupado propio, así que va como link directo (mismo
+  // tratamiento que Catálogo/Picks/Para ti) al final de la fila/drawer.
+  { kind: 'link', label: 'Cronjobs', to: '/cronjobs', icon: Clock },
 ];
 
 // Prefix match so nested routes (e.g. /picks/zapatillas) still activate

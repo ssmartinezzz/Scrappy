@@ -8,7 +8,8 @@ const Input = React.forwardRef(({ className, type = 'text', ...props }, ref) => 
     ref={ref}
     type={type}
     className={cn(
-      'flex h-9 w-full rounded-btn border border-bd2 bg-s2 px-3 py-1 text-sm text-t1 outline-none transition-colors placeholder:text-t4 focus:border-primary disabled:opacity-40',
+      // text-base (16px) on mobile prevents iOS Safari's auto-zoom on focus; text-sm from sm: up.
+      'flex h-9 w-full rounded-btn border border-bd2 bg-s2 px-3 py-1 text-base text-t1 outline-none transition-colors placeholder:text-t4 focus:border-primary disabled:opacity-40 sm:text-sm',
       className
     )}
     {...props}

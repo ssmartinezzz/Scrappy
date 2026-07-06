@@ -396,3 +396,54 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0 }) {
   if (!r.ok) return null;
   return r.json();
 }
+
+// ─── Cron Jobs (panel de administración /cronjobs) ───────────────────────────
+// No hay endpoint de detalle de ejecución individual — /executions ya trae
+// logOutput embebido por fila (ver ar.scraper.web.CronApiController).
+
+export async function listCronJobs() {
+  const r = await fetch(`${BASE}/api/cron`);
+  return r.ok ? r.json() : null;
+}
+
+export async function getCronJob(id) {
+  const r = await fetch(`${BASE}/api/cron/${id}`);
+  return r.ok ? r.json() : null;
+}
+
+export async function createCronJob(job) {
+  const r = await fetch(`${BASE}/api/cron`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(job),
+  });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+export async function updateCronJob(id, job) {
+  const r = await fetch(`${BASE}/api/cron/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(job),
+  });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+export async function deleteCronJob(id) {
+  const r = await fetch(`${BASE}/api/cron/${id}`, { method: 'DELETE' });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+// Fire-and-forget trigger — backend dispatches on a virtual thread and
+// responds immediately: 202 {ok:true,...} started, 409 {ok:false,...} scraper
+// busy or job already in-flight, 404 {ok:false,...} job no longer exists.
+export async function runCronNow(id) {
+  const r = await fetch(`${BASE}/api/cron/${id}/run-now`, { method: 'POST' });
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}
+
+export async function fetchCronExecutions(id, limit = 50) {
+  const p = new URLSearchParams({ limit });
+  const r = await fetch(`${BASE}/api/cron/${id}/executions?${p}`);
+  return r.ok ? r.json() : null;
+}
