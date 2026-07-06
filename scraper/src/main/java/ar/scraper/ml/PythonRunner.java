@@ -28,6 +28,24 @@ public class PythonRunner {
         new java.util.concurrent.atomic.AtomicReference<>(TrainingStatus.idle());
 
     /**
+     * Flag GPU/CPU por-job para los cron runs (scraper-cronjobs PR1, ver ADR-2
+     * en sdd/scraper-cronjobs/design). {@code true} (default) = comportamiento
+     * actual sin cambios (probe CUDA si está disponible). {@code false} = fuerza
+     * CPU en TODOS los subprocesos Python (scoring, entrenamiento y los probes
+     * {@code tieneCuda}/{@code tienePytorch}) seteando {@code CUDA_VISIBLE_DEVICES=-1},
+     * sin tocar ml_pipeline.py/ml_train.py (ambos ya bifurcan por
+     * {@code torch.cuda.is_available()}). {@code volatile} porque el scheduler/
+     * runner setea el flag desde otro hilo antes de disparar el scrape; los
+     * métodos públicos capturan el valor en una variable local ANTES de lanzar
+     * su hilo virtual (snapshot-at-entry) para evitar una carrera con el reset
+     * en el {@code finally} de {@code CronJobRunner}.
+     */
+    private volatile boolean useGpu = true;
+
+    public void setUseGpu(boolean v) { this.useGpu = v; }
+    public boolean isUseGpu() { return useGpu; }
+
+    /**
      * Ejecuta el pipeline ML con contrato de 3 estados:
      * - NOT_RUN (Python no encontrado, timeout, exit!=0, sin output, excepción) → retorna {@code null}
      * - EMPTY/VALID (proceso OK, output parseado tal cual) → retorna el {@link JsonNode} leído
@@ -36,6 +54,7 @@ public class PythonRunner {
      * método — vive en {@code DatabaseService} y {@code ApiController}.
      */
     public JsonNode ejecutar(String productosJson) {
+        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         var stderrTail = new java.util.concurrent.ConcurrentLinkedDeque<String>();
         try {
             Path workDir   = Paths.get("").toAbsolutePath();
@@ -53,18 +72,8 @@ public class PythonRunner {
             }
 
             LOG.info("[ML] Ejecutando pipeline Python...");
-            ProcessBuilder pb = new ProcessBuilder(
-                    python, scriptPath.toString(),
-                    prodPath.toString(), outPath.toString(), histPath.toString());
-            pb.redirectErrorStream(false);
-            pb.directory(workDir.toFile());
-            // Paridad con el path de entrenamiento: UTF-8 evita el mojibake en
-            // los logs (estad�sticas → estadísticas) y PYTHONUNBUFFERED hace que
-            // stderr se vacíe línea a línea, así un crash nativo (ej. exit
-            // 0xC0000409) no se traga las últimas líneas y podemos ver dónde murió.
-            pb.environment().put("PYTHONIOENCODING", "utf-8");
-            pb.environment().put("PYTHONUTF8", "1");
-            pb.environment().put("PYTHONUNBUFFERED", "1");
+            ProcessBuilder pb = construirProcessBuilderScoring(
+                    python, scriptPath, prodPath, outPath, histPath, workDir, useGpuSnapshot);
             Process proc = pb.start();
 
             Thread.ofVirtual().start(() -> {
@@ -138,6 +147,7 @@ public class PythonRunner {
      */
     public void entrenarEnBackground(String dbPath, boolean forceRetrain,
                                       boolean withImages, int epochs) {
+        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         String python = detectarPython();
         if (python == null) { LOG.info("[ML-TRAIN] Python no disponible, saltando entrenamiento"); return; }
 
@@ -177,8 +187,8 @@ public class PythonRunner {
                 cmd.add(trainScript.toString());
                 cmd.add(dbPath);
 
-                boolean hasCuda  = tieneCuda(python);
-                boolean hasTorch = hasCuda || tienePytorch(python);
+                boolean hasCuda  = useGpuSnapshot && tieneCuda(python, useGpuSnapshot);
+                boolean hasTorch = hasCuda || tienePytorch(python, useGpuSnapshot);
                 if (withImages && hasTorch) {
                     cmd.add("--images");
                     cmd.add("--epochs");
@@ -190,11 +200,7 @@ public class PythonRunner {
                     LOG.info("[ML-TRAIN] Solo entrenamiento de texto");
                 }
 
-                ProcessBuilder pb = new ProcessBuilder(cmd)
-                    .directory(workDir.toFile())
-                    .redirectErrorStream(false);
-                pb.environment().put("PYTHONIOENCODING", "utf-8");
-                pb.environment().put("PYTHONUTF8", "1");
+                ProcessBuilder pb = construirProcessBuilderEntrenamiento(cmd, workDir, useGpuSnapshot);
                 Process proc = pb.start();
 
                 // Stderr: logs [TRAIN]
@@ -286,10 +292,9 @@ public class PythonRunner {
         }
     }
 
-    private boolean tienePytorch(String python) {
+    private boolean tienePytorch(String python, boolean forceCpu) {
         try {
-            var pb = new ProcessBuilder(python, "-c", "import torch; print('ok')")
-                    .redirectErrorStream(true);
+            ProcessBuilder pb = construirProcessBuilderProbe(python, "import torch; print('ok')", forceCpu);
             Process proc = pb.start();
             if (!proc.waitFor(10, TimeUnit.SECONDS)) {
                 proc.destroyForcibly();
@@ -300,11 +305,10 @@ public class PythonRunner {
         } catch (Exception e) { return false; }
     }
 
-    private boolean tieneCuda(String python) {
+    private boolean tieneCuda(String python, boolean forceCpu) {
         try {
-            var pb = new ProcessBuilder(python, "-c",
-                    "import torch; print('ok' if torch.cuda.is_available() else 'no')")
-                    .redirectErrorStream(true);
+            ProcessBuilder pb = construirProcessBuilderProbe(python,
+                    "import torch; print('ok' if torch.cuda.is_available() else 'no')", forceCpu);
             Process proc = pb.start();
             if (!proc.waitFor(10, TimeUnit.SECONDS)) {
                 proc.destroyForcibly();
@@ -313,6 +317,55 @@ public class PythonRunner {
             String out = new String(proc.getInputStream().readAllBytes()).trim();
             return out.contains("ok");
         } catch (Exception e) { return false; }
+    }
+
+    // ── Test seams (package-private): construyen los ProcessBuilder de cada
+    // subproceso Python SIN iniciarlos, para poder verificar en tests el env
+    // var CUDA_VISIBLE_DEVICES sin depender de un intérprete Python real. ──
+
+    /** ProcessBuilder del pipeline de scoring/inferencia ({@link #ejecutar}). */
+    ProcessBuilder construirProcessBuilderScoring(String python, Path scriptPath, Path prodPath,
+            Path outPath, Path histPath, Path workDir, boolean useGpuSnapshot) {
+        ProcessBuilder pb = new ProcessBuilder(
+                python, scriptPath.toString(),
+                prodPath.toString(), outPath.toString(), histPath.toString());
+        pb.redirectErrorStream(false);
+        pb.directory(workDir.toFile());
+        // Paridad con el path de entrenamiento: UTF-8 evita el mojibake en
+        // los logs (estad�sticas → estadísticas) y PYTHONUNBUFFERED hace que
+        // stderr se vacíe línea a línea, así un crash nativo (ej. exit
+        // 0xC0000409) no se traga las últimas líneas y podemos ver dónde murió.
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        pb.environment().put("PYTHONUTF8", "1");
+        pb.environment().put("PYTHONUNBUFFERED", "1");
+        if (!useGpuSnapshot) {
+            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
+        }
+        return pb;
+    }
+
+    /** ProcessBuilder del entrenamiento ({@link #entrenarEnBackground}). */
+    ProcessBuilder construirProcessBuilderEntrenamiento(java.util.List<String> cmd, Path workDir,
+            boolean useGpuSnapshot) {
+        ProcessBuilder pb = new ProcessBuilder(cmd)
+                .directory(workDir.toFile())
+                .redirectErrorStream(false);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        pb.environment().put("PYTHONUTF8", "1");
+        if (!useGpuSnapshot) {
+            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
+        }
+        return pb;
+    }
+
+    /** ProcessBuilder de los probes {@code tieneCuda}/{@code tienePytorch}. */
+    ProcessBuilder construirProcessBuilderProbe(String python, String codigoPython, boolean forceCpu) {
+        ProcessBuilder pb = new ProcessBuilder(python, "-c", codigoPython)
+                .redirectErrorStream(true);
+        if (forceCpu) {
+            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
+        }
+        return pb;
     }
 
     private String detectarPython() {
