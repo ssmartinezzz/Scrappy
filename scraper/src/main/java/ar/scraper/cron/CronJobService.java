@@ -14,6 +14,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -68,6 +69,22 @@ public class CronJobService {
         return next != null ? next.toLocalDateTime().format(ISO_SECONDS) : null;
     }
 
+    /**
+     * Versión no-throwing de {@link CronExpression#parse} — usada por
+     * {@code CronApiController} para validar {@code cronExpr} en create/update
+     * y devolver 400 en vez de dejar propagar un {@link IllegalArgumentException}
+     * como 500. Válido independientemente de {@code enabled} (un job deshabilitado
+     * puede habilitarse más adelante con la misma expresión).
+     */
+    public boolean isValidCronExpr(String cronExpr) {
+        try {
+            CronExpression.parse(cronExpr);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     // ── CRUD facade ──────────────────────────────────────────────────────────
 
     public long createJob(String name, double precioMin, double precioMax, List<String> sitios,
@@ -101,6 +118,45 @@ public class CronJobService {
                 inFlight.remove(job.id());
             }
         }
+    }
+
+    // ── run-now (manual trigger vía REST) ───────────────────────────────────
+
+    /** Resultado de {@link #triggerNow(long)} — mapeado 1:1 a un status HTTP en {@code CronApiController}. */
+    public enum RunNowResult { NOT_FOUND, BUSY, STARTED }
+
+    /**
+     * Dispara un job MANUALMENTE (fuera del poll de 30s), para el endpoint
+     * {@code POST /api/cron/{id}/run-now}. Debe ser NO BLOQUEANTE — un hilo
+     * HTTP no puede esperar hasta 2h a que {@link CronJobRunner#runJob}
+     * termine — así que el trabajo real se despacha en un hilo virtual y este
+     * método retorna de inmediato.
+     *
+     * <p>A diferencia del guard RUNNING dentro de {@code runJob} (que registra
+     * una ejecución "skipped" silenciosa), acá preferimos un 409 explícito
+     * ANTES de despachar — por eso se chequea {@link CronJobRunner#isScraperBusy()}
+     * acá, no dentro del hilo virtual.</p>
+     *
+     * <p>Reutiliza el MISMO {@code inFlight} que usa {@link #tick()}, así un
+     * run-now manual y el poller nunca pueden despachar el mismo job dos
+     * veces en simultáneo.</p>
+     */
+    public RunNowResult triggerNow(long id) {
+        Optional<CronJob> maybeJob = db.getCronJob(id);
+        if (maybeJob.isEmpty()) return RunNowResult.NOT_FOUND;
+        if (runner.isScraperBusy()) return RunNowResult.BUSY;
+        if (!inFlight.add(id)) return RunNowResult.BUSY;
+
+        CronJob job = maybeJob.get();
+        Thread.ofVirtual().start(() -> {
+            try {
+                runner.runJob(job);
+            } finally {
+                db.updateNextRunAt(id, computeNextRun(job.cronExpr(), ZonedDateTime.now(clock)));
+                inFlight.remove(id);
+            }
+        });
+        return RunNowResult.STARTED;
     }
 
     /**

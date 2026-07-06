@@ -9,6 +9,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,6 +63,18 @@ class CronJobServiceTest {
     void computeNextRunThrowsForInvalidCronExpr() {
         assertThatThrownBy(() -> service.computeNextRun("not a cron expr", ZonedDateTime.now(clock)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ── isValidCronExpr (pure, non-throwing — used by CronApiController) ─────
+
+    @Test
+    void isValidCronExprReturnsTrueForValidExpr() {
+        assertThat(service.isValidCronExpr("0 0 3 * * *")).isTrue();
+    }
+
+    @Test
+    void isValidCronExprReturnsFalseForInvalidExpr() {
+        assertThat(service.isValidCronExpr("not a cron expr")).isFalse();
     }
 
     // ── createJob / updateJob ────────────────────────────────────────────────
@@ -166,5 +181,76 @@ class CronJobServiceTest {
         // both get rescheduled even though the first one blew up
         verify(db).updateNextRunAt(eq(20L), any());
         verify(db).updateNextRunAt(eq(21L), any());
+    }
+
+    // ── triggerNow (manual run-now, async dispatch) ─────────────────────────
+
+    @Test
+    void triggerNowReturnsNotFoundWhenJobAbsent() {
+        when(db.getCronJob(999L)).thenReturn(Optional.empty());
+
+        CronJobService.RunNowResult result = service.triggerNow(999);
+
+        assertThat(result).isEqualTo(CronJobService.RunNowResult.NOT_FOUND);
+        verify(runner, never()).runJob(any());
+    }
+
+    @Test
+    void triggerNowReturnsBusyWhenScraperIsRunning() {
+        CronJob due = job(1, true, "2026-07-05T09:00:00");
+        when(db.getCronJob(1L)).thenReturn(Optional.of(due));
+        when(runner.isScraperBusy()).thenReturn(true);
+
+        CronJobService.RunNowResult result = service.triggerNow(1);
+
+        assertThat(result).isEqualTo(CronJobService.RunNowResult.BUSY);
+        verify(runner, never()).runJob(any());
+    }
+
+    @Test
+    void triggerNowReturnsBusyWhenJobAlreadyInFlight() throws InterruptedException {
+        CronJob due = job(31, true, "2026-07-05T09:00:00");
+        when(db.getCronJob(31L)).thenReturn(Optional.of(due));
+        when(runner.isScraperBusy()).thenReturn(false);
+
+        CountDownLatch runJobStarted = new CountDownLatch(1);
+        CountDownLatch releaseRunJob = new CountDownLatch(1);
+        doAnswer(inv -> {
+            runJobStarted.countDown();
+            releaseRunJob.await(2, TimeUnit.SECONDS);
+            return null;
+        }).when(runner).runJob(due);
+
+        CronJobService.RunNowResult first = service.triggerNow(31);
+        assertThat(first).isEqualTo(CronJobService.RunNowResult.STARTED);
+        // Wait until the dispatched virtual thread is actually inside runJob()
+        // before firing the second call, so the inFlight guard is deterministic.
+        assertThat(runJobStarted.await(2, TimeUnit.SECONDS)).isTrue();
+
+        CronJobService.RunNowResult second = service.triggerNow(31);
+        assertThat(second).isEqualTo(CronJobService.RunNowResult.BUSY);
+
+        releaseRunJob.countDown(); // let the first dispatch finish, avoid a hung thread
+    }
+
+    @Test
+    void triggerNowStartedDispatchesRunnerAsynchronouslyAndReschedules() throws InterruptedException {
+        CronJob due = job(30, true, "2026-07-05T09:00:00");
+        when(db.getCronJob(30L)).thenReturn(Optional.of(due));
+        when(runner.isScraperBusy()).thenReturn(false);
+
+        CountDownLatch runJobCalled = new CountDownLatch(1);
+        CountDownLatch rescheduled = new CountDownLatch(1);
+        doAnswer(inv -> { runJobCalled.countDown(); return null; }).when(runner).runJob(due);
+        doAnswer(inv -> { rescheduled.countDown(); return null; })
+                .when(db).updateNextRunAt(eq(30L), any());
+
+        CronJobService.RunNowResult result = service.triggerNow(30);
+
+        assertThat(result).isEqualTo(CronJobService.RunNowResult.STARTED);
+        assertThat(runJobCalled.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(rescheduled.await(2, TimeUnit.SECONDS)).isTrue();
+        verify(runner).runJob(due);
+        verify(db).updateNextRunAt(eq(30L), eq("2026-07-06T03:00:00"));
     }
 }

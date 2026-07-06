@@ -52,6 +52,17 @@ public class CronJobRunner {
         this.clock = clock;
     }
 
+    /**
+     * Expone el guard RUNNING para que {@code CronJobService.triggerNow}
+     * (run-now manual vía REST) pueda devolver un 409 limpio ANTES de
+     * despachar, en vez de dejar que {@link #runJob} registre una ejecución
+     * "skipped" silenciosa. Mantiene la dependencia de {@link ScraperService}
+     * donde ya vive (este runner), en vez de duplicarla en el service.
+     */
+    public boolean isScraperBusy() {
+        return scraperService.getStatus() == ScraperStatus.RUNNING;
+    }
+
     public void runJob(CronJob job) {
         String now = LocalDateTime.now(clock).format(ISO_SECONDS);
 

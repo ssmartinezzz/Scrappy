@@ -101,4 +101,20 @@ class CronJobRunnerTest {
         verify(db).updateCronExecution(eq(5L), anyString(), eq("success"), any(), any(), anyInt());
         verify(db).pruneCronExecutions(eq(1L), eq(50));
     }
+
+    // ── isScraperBusy (used by CronJobService.triggerNow for run-now) ────────
+
+    @Test
+    void isScraperBusyReturnsTrueWhenRunning() {
+        when(scraperService.getStatus()).thenReturn(ScraperStatus.RUNNING);
+
+        assertThat(runner.isScraperBusy()).isTrue();
+    }
+
+    @Test
+    void isScraperBusyReturnsFalseWhenNotRunning() {
+        when(scraperService.getStatus()).thenReturn(ScraperStatus.IDLE);
+
+        assertThat(runner.isScraperBusy()).isFalse();
+    }
 }
