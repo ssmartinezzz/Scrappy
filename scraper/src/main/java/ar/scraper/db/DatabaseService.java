@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.cron.CronExecution;
+import ar.scraper.cron.CronJob;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -275,6 +277,42 @@ st.executeUpdate("""
                     total_estimado   REAL NOT NULL DEFAULT 0,
                     created_at       TEXT NOT NULL
                 )""");
+
+            // cron_jobs / cron_executions — scraper-cronjobs (PR1 backend).
+            // sitios_json usa el mismo formato que talles en `productos` (array
+            // Jackson); [] = todos los sitios (mismo criterio que /api/scrape sin
+            // seleccion). next_run_at/last_run_at son ISO (LocalDateTime.toString())
+            // en la zona del server (decision 7 — single-tz v1).
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS cron_jobs (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name          TEXT    NOT NULL,
+                    precio_min    REAL    NOT NULL DEFAULT 0,
+                    precio_max    REAL    NOT NULL DEFAULT 0,
+                    sitios_json   TEXT    NOT NULL DEFAULT '[]',
+                    force_retrain INTEGER NOT NULL DEFAULT 0,
+                    use_gpu       INTEGER NOT NULL DEFAULT 1,
+                    cron_expr     TEXT    NOT NULL,
+                    enabled       INTEGER NOT NULL DEFAULT 1,
+                    created_at    TEXT    NOT NULL,
+                    updated_at    TEXT    NOT NULL,
+                    last_run_at   TEXT,
+                    next_run_at   TEXT
+                )""");
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS cron_executions (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id         INTEGER NOT NULL,
+                    started_at     TEXT    NOT NULL,
+                    finished_at    TEXT,
+                    status         TEXT    NOT NULL,
+                    skipped_reason TEXT,
+                    duration_ms    INTEGER,
+                    log_output     TEXT,
+                    FOREIGN KEY(job_id) REFERENCES cron_jobs(id)
+                )""");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_cron_exec_job ON cron_executions(job_id, id DESC)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled, next_run_at)");
         }
         seedPresetIlustrativoSiVacio();
     }
@@ -1538,6 +1576,303 @@ st.executeUpdate("""
             LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
             try { conn.rollback(); } catch (Exception ignored) {}
             return false;
+        }
+    }
+
+    // ─── Cron Jobs ───────────────────────────────────────────────────────────
+    // Escrituras nuevas del scheduler/runner sincronizadas con un lock dedicado
+    // (decision 6): el resto de DatabaseService NO se refactoriza a sync global.
+
+    private final Object cronWriteLock = new Object();
+
+    public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
+            boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
+        if (conn == null) return -1;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO cron_jobs
+                        (name, precio_min, precio_max, sitios_json, force_retrain, use_gpu,
+                         cron_expr, enabled, created_at, updated_at, next_run_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """, Statement.RETURN_GENERATED_KEYS)) {
+                String now = LocalDateTime.now().format(DT);
+                ps.setString(1, name);
+                ps.setDouble(2, precioMin);
+                ps.setDouble(3, precioMax);
+                ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
+                ps.setInt(5, forceRetrain ? 1 : 0);
+                ps.setInt(6, useGpu ? 1 : 0);
+                ps.setString(7, cronExpr);
+                ps.setInt(8, enabled ? 1 : 0);
+                ps.setString(9, now);
+                ps.setString(10, now);
+                ps.setString(11, nextRunAt);
+                ps.executeUpdate();
+                conn.commit();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    return keys.next() ? keys.getLong(1) : -1;
+                }
+            } catch (Exception e) {
+                LOG.warn("[DB] Error creando cron job: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return -1;
+            }
+        }
+    }
+
+    /** Retorna {@code false} sin persistir si {@code id} no existe. */
+    public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
+            boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
+        if (conn == null) return false;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    UPDATE cron_jobs SET name=?, precio_min=?, precio_max=?, sitios_json=?,
+                        force_retrain=?, use_gpu=?, cron_expr=?, enabled=?, updated_at=?, next_run_at=?
+                    WHERE id=?
+                    """)) {
+                ps.setString(1, name);
+                ps.setDouble(2, precioMin);
+                ps.setDouble(3, precioMax);
+                ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
+                ps.setInt(5, forceRetrain ? 1 : 0);
+                ps.setInt(6, useGpu ? 1 : 0);
+                ps.setString(7, cronExpr);
+                ps.setInt(8, enabled ? 1 : 0);
+                ps.setString(9, LocalDateTime.now().format(DT));
+                ps.setString(10, nextRunAt);
+                ps.setLong(11, id);
+                int rows = ps.executeUpdate();
+                if (rows == 0) { conn.rollback(); return false; }
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando cron job {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
+        }
+    }
+
+    /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
+    public boolean deleteCronJob(long id) {
+        if (conn == null) return false;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement delExec = conn.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
+                 PreparedStatement delJob  = conn.prepareStatement("DELETE FROM cron_jobs WHERE id=?")) {
+                delExec.setLong(1, id);
+                delExec.executeUpdate();
+                delJob.setLong(1, id);
+                int rows = delJob.executeUpdate();
+                if (rows == 0) { conn.rollback(); return false; }
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error eliminando cron job {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
+        }
+    }
+
+    public List<CronJob> listCronJobs() {
+        List<CronJob> result = new ArrayList<>();
+        if (conn == null) return result;
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
+                "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs ORDER BY id")) {
+            while (rs.next()) result.add(cronJobDesdeFila(rs));
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando cron jobs: {}", e.getMessage());
+        }
+        return result;
+    }
+
+    public Optional<CronJob> getCronJob(long id) {
+        if (conn == null) return Optional.empty();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
+                "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs WHERE id=?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(cronJobDesdeFila(rs)) : Optional.empty();
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error obteniendo cron job {}: {}", id, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private CronJob cronJobDesdeFila(ResultSet rs) throws SQLException {
+        List<String> sitios = List.of();
+        try {
+            JsonNode arr = MAPPER.readTree(rs.getString("sitios_json"));
+            if (arr.isArray()) {
+                List<String> s = new ArrayList<>();
+                arr.forEach(n -> s.add(n.asText()));
+                sitios = s;
+            }
+        } catch (Exception ignored) {}
+        return new CronJob(
+                rs.getLong("id"), rs.getString("name"),
+                rs.getDouble("precio_min"), rs.getDouble("precio_max"), sitios,
+                rs.getInt("force_retrain") == 1, rs.getInt("use_gpu") == 1,
+                rs.getString("cron_expr"), rs.getInt("enabled") == 1,
+                rs.getString("created_at"), rs.getString("updated_at"),
+                rs.getString("last_run_at"), rs.getString("next_run_at"));
+    }
+
+    /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
+    public boolean touchLastRunAt(long jobId, String lastRunAt) {
+        if (conn == null) return false;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE cron_jobs SET last_run_at=? WHERE id=?")) {
+                ps.setString(1, lastRunAt);
+                ps.setLong(2, jobId);
+                int rows = ps.executeUpdate();
+                conn.commit();
+                return rows > 0;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando last_run_at job {}: {}", jobId, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
+        }
+    }
+
+    /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
+    public boolean updateNextRunAt(long jobId, String nextRunAt) {
+        if (conn == null) return false;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE cron_jobs SET next_run_at=? WHERE id=?")) {
+                ps.setString(1, nextRunAt);
+                ps.setLong(2, jobId);
+                int rows = ps.executeUpdate();
+                conn.commit();
+                return rows > 0;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando next_run_at job {}: {}", jobId, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
+        }
+    }
+
+    // ─── Cron Executions ────────────────────────────────────────────────────
+
+    public long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {
+        if (conn == null) return -1;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO cron_executions (job_id, started_at, status, skipped_reason)
+                    VALUES (?,?,?,?)
+                    """, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setLong(1, jobId);
+                ps.setString(2, startedAt);
+                ps.setString(3, status);
+                ps.setString(4, skippedReason);
+                ps.executeUpdate();
+                conn.commit();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    return keys.next() ? keys.getLong(1) : -1;
+                }
+            } catch (Exception e) {
+                LOG.warn("[DB] Error creando cron execution (job {}): {}", jobId, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return -1;
+            }
+        }
+    }
+
+    public boolean updateCronExecution(long execId, String finishedAt, String status,
+            String skippedReason, String logOutput, Integer durationMs) {
+        if (conn == null) return false;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    UPDATE cron_executions
+                    SET finished_at=?, status=?, skipped_reason=?, log_output=?, duration_ms=?
+                    WHERE id=?
+                    """)) {
+                ps.setString(1, finishedAt);
+                ps.setString(2, status);
+                ps.setString(3, skippedReason);
+                ps.setString(4, logOutput);
+                if (durationMs != null) ps.setInt(5, durationMs); else ps.setNull(5, Types.INTEGER);
+                ps.setLong(6, execId);
+                int rows = ps.executeUpdate();
+                if (rows == 0) { conn.rollback(); return false; }
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando cron execution {}: {}", execId, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
+        }
+    }
+
+    public List<CronExecution> listExecutions(long jobId, int limit) {
+        List<CronExecution> result = new ArrayList<>();
+        if (conn == null) return result;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
+                "FROM cron_executions WHERE job_id=? ORDER BY id DESC LIMIT ?")) {
+            ps.setLong(1, jobId);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(cronExecutionDesdeFila(rs));
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando cron executions (job {}): {}", jobId, e.getMessage());
+        }
+        return result;
+    }
+
+    public Optional<CronExecution> getExecution(long execId) {
+        if (conn == null) return Optional.empty();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
+                "FROM cron_executions WHERE id=?")) {
+            ps.setLong(1, execId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(cronExecutionDesdeFila(rs)) : Optional.empty();
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error obteniendo cron execution {}: {}", execId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private CronExecution cronExecutionDesdeFila(ResultSet rs) throws SQLException {
+        int durMs = rs.getInt("duration_ms");
+        Integer duration = rs.wasNull() ? null : durMs;
+        return new CronExecution(
+                rs.getLong("id"), rs.getLong("job_id"),
+                rs.getString("started_at"), rs.getString("finished_at"),
+                rs.getString("status"), rs.getString("skipped_reason"),
+                rs.getString("log_output"), duration);
+    }
+
+    /** Retiene solo las últimas {@code keep} ejecuciones por job (decision 7: 50). */
+    public void pruneCronExecutions(long jobId, int keep) {
+        if (conn == null) return;
+        synchronized (cronWriteLock) {
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    DELETE FROM cron_executions WHERE job_id=? AND id NOT IN (
+                        SELECT id FROM cron_executions WHERE job_id=? ORDER BY id DESC LIMIT ?
+                    )
+                    """)) {
+                ps.setLong(1, jobId);
+                ps.setLong(2, jobId);
+                ps.setInt(3, keep);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error pruning cron executions (job {}): {}", jobId, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
