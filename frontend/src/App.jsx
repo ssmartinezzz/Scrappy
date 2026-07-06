@@ -14,6 +14,7 @@ import AppLayout, {
   FinanPanelRoute,
   RecomendadosPanelRoute,
   SuplementosPanelRoute,
+  CronjobsPanelRoute,
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
@@ -102,6 +103,7 @@ export default function App() {
         <Route path="suplementos" element={<SuplementosPanelRoute/>}/>
         <Route path="recomendados" element={<RecomendadosPanelRoute/>}/>
         <Route path="financiacion" element={<FinanPanelRoute/>}/>
+        <Route path="cronjobs"   element={<CronjobsPanelRoute/>}/>
         <Route path="*" element={<NotFound/>}/>
       </Route>
     </Routes>
