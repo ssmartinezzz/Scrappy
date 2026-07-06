@@ -133,15 +133,23 @@ class CronJobServiceTest {
         assertThat(due2).extracting(CronJob::id).containsExactlyInAnyOrder(1L, 2L, 5L);
     }
 
-    // ── tick() ───────────────────────────────────────────────────────────────
+    // ── tick() — async dispatch (same pattern as triggerNow) ────────────────
 
     @Test
-    void tickRunsDueJobAndReschedulesNextRun() {
+    void tickDispatchesDueJobAsynchronouslyAndReschedulesNextRun() throws InterruptedException {
         CronJob due = job(10, true, "2026-07-05T09:00:00");
         when(db.listCronJobs()).thenReturn(List.of(due));
 
-        service.tick();
+        CountDownLatch runJobCalled = new CountDownLatch(1);
+        CountDownLatch rescheduled = new CountDownLatch(1);
+        doAnswer(inv -> { runJobCalled.countDown(); return null; }).when(runner).runJob(due);
+        doAnswer(inv -> { rescheduled.countDown(); return null; })
+                .when(db).updateNextRunAt(eq(10L), any());
 
+        service.tick(); // must return immediately — does NOT block on runJob
+
+        assertThat(runJobCalled.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(rescheduled.await(2, TimeUnit.SECONDS)).isTrue();
         verify(runner).runJob(due);
         verify(db).updateNextRunAt(10L, "2026-07-06T03:00:00");
     }
@@ -168,19 +176,67 @@ class CronJobServiceTest {
     }
 
     @Test
-    void tickContinuesAfterOneJobThrows() {
+    void tickDispatchesEveryDueJobEvenWhenOneThrows() throws InterruptedException {
         CronJob failing = job(20, true, "2026-07-05T09:00:00");
         CronJob ok = job(21, true, "2026-07-05T09:00:00");
         when(db.listCronJobs()).thenReturn(List.of(failing, ok));
-        doThrow(new RuntimeException("boom")).when(runner).runJob(failing);
+
+        // tick() no longer runs jobs inline, so a runJob exception is swallowed
+        // inside dispatchAsync's own catch — it can never stop tick() from
+        // dispatching the REST of the due jobs (there's no shared call stack
+        // to interrupt in the first place, each dispatch is its own thread).
+        CountDownLatch failingCalled = new CountDownLatch(1);
+        CountDownLatch okCalled = new CountDownLatch(1);
+        CountDownLatch failingRescheduled = new CountDownLatch(1);
+        CountDownLatch okRescheduled = new CountDownLatch(1);
+        doAnswer(inv -> { failingCalled.countDown(); throw new RuntimeException("boom"); })
+                .when(runner).runJob(failing);
+        doAnswer(inv -> { okCalled.countDown(); return null; }).when(runner).runJob(ok);
+        doAnswer(inv -> { failingRescheduled.countDown(); return null; })
+                .when(db).updateNextRunAt(eq(20L), any());
+        doAnswer(inv -> { okRescheduled.countDown(); return null; })
+                .when(db).updateNextRunAt(eq(21L), any());
 
         service.tick();
 
+        assertThat(failingCalled.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(okCalled.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(failingRescheduled.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(okRescheduled.await(2, TimeUnit.SECONDS)).isTrue();
         verify(runner).runJob(failing);
         verify(runner).runJob(ok);
         // both get rescheduled even though the first one blew up
         verify(db).updateNextRunAt(eq(20L), any());
         verify(db).updateNextRunAt(eq(21L), any());
+    }
+
+    @Test
+    void tickDoesNotReDispatchAJobStillInFlightFromAPreviousTick() throws InterruptedException {
+        CronJob due = job(40, true, "2026-07-05T09:00:00");
+        when(db.listCronJobs()).thenReturn(List.of(due));
+        when(db.getCronJob(40L)).thenReturn(Optional.of(due)); // triggerNow looks it up by id
+
+        CountDownLatch runJobStarted = new CountDownLatch(1);
+        CountDownLatch releaseRunJob = new CountDownLatch(1);
+        doAnswer(inv -> {
+            runJobStarted.countDown();
+            releaseRunJob.await(2, TimeUnit.SECONDS);
+            return null;
+        }).when(runner).runJob(due);
+
+        service.tick(); // first tick dispatches job 40, its virtual thread blocks inside runJob
+        assertThat(runJobStarted.await(2, TimeUnit.SECONDS)).isTrue();
+
+        service.tick(); // second tick: job 40 is still in-flight -> must NOT re-dispatch
+        verify(runner, times(1)).runJob(due);
+
+        // triggerNow for the same still-in-flight job must also refuse (BUSY),
+        // proving tick() and triggerNow() share the exact same inFlight guard.
+        CronJobService.RunNowResult manual = service.triggerNow(40);
+        assertThat(manual).isEqualTo(CronJobService.RunNowResult.BUSY);
+        verify(runner, times(1)).runJob(due); // still only the original dispatch
+
+        releaseRunJob.countDown(); // let the first dispatch finish, avoid a hung thread
     }
 
     // ── triggerNow (manual run-now, async dispatch) ─────────────────────────

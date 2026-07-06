@@ -24,9 +24,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code ScheduledFuture}s, así que un reinicio del proceso es transparente
  * (ver ADR-1, {@code sdd/scraper-cronjobs/design}).
  *
- * <p>{@link #tick()} corre cada 30s ({@code @Scheduled(fixedDelay = 30000)}),
- * dispara los jobs vencidos vía {@link CronJobRunner#runJob(CronJob)} y
- * recalcula/persiste {@code next_run_at} al terminar cada uno (éxito o no).</p>
+ * <p>{@link #tick()} corre cada 30s ({@code @Scheduled(fixedDelay = 30000)}).
+ * NO bloquea: cada job vencido se despacha en un hilo virtual vía
+ * {@link #dispatchAsync(CronJob)}, así que {@code tick()} retorna de
+ * inmediato y el único hilo scheduler de Spring queda libre para las demás
+ * tareas {@code @Scheduled} (p.ej. el fetch diario de las 8am de
+ * {@code InflacionService}) sin que un scraping largo las retrase.
+ * {@code next_run_at} se recalcula/persiste dentro de ese mismo hilo virtual,
+ * al terminar cada job (éxito, error o excepción).</p>
  */
 @Service
 public class CronJobService {
@@ -108,16 +113,30 @@ public class CronJobService {
         ZonedDateTime now = ZonedDateTime.now(clock);
         for (CronJob job : dueJobs(db.listCronJobs(), now)) {
             if (!inFlight.add(job.id())) continue; // ya en curso, no disparar dos veces
+            dispatchAsync(job);
+        }
+    }
+
+    /**
+     * Despacha UN job en un hilo virtual — usado tanto por {@link #tick()}
+     * como por {@link #triggerNow(long)}, así ambos caminos comparten
+     * exactamente el mismo comportamiento asíncrono (nada bloquea al llamador)
+     * y el mismo manejo de errores/rescheduling. El caller es responsable de
+     * haber agregado {@code job.id()} a {@link #inFlight} ANTES de llamar a
+     * este método (el guard vive en el caller porque {@code triggerNow}
+     * necesita distinguir ese caso como {@code BUSY} antes de despachar).
+     */
+    private void dispatchAsync(CronJob job) {
+        Thread.ofVirtual().start(() -> {
             try {
                 runner.runJob(job);
             } catch (Exception e) {
-                LOG.warn("[CRON] Job {} ({}) falló en tick(): {}", job.id(), job.name(), e.getMessage());
+                LOG.warn("[CRON] Job {} ({}) falló: {}", job.id(), job.name(), e.getMessage());
             } finally {
-                String next = computeNextRun(job.cronExpr(), ZonedDateTime.now(clock));
-                db.updateNextRunAt(job.id(), next);
+                db.updateNextRunAt(job.id(), computeNextRun(job.cronExpr(), ZonedDateTime.now(clock)));
                 inFlight.remove(job.id());
             }
-        }
+        });
     }
 
     // ── run-now (manual trigger vía REST) ───────────────────────────────────
@@ -147,15 +166,7 @@ public class CronJobService {
         if (runner.isScraperBusy()) return RunNowResult.BUSY;
         if (!inFlight.add(id)) return RunNowResult.BUSY;
 
-        CronJob job = maybeJob.get();
-        Thread.ofVirtual().start(() -> {
-            try {
-                runner.runJob(job);
-            } finally {
-                db.updateNextRunAt(id, computeNextRun(job.cronExpr(), ZonedDateTime.now(clock)));
-                inFlight.remove(id);
-            }
-        });
+        dispatchAsync(maybeJob.get());
         return RunNowResult.STARTED;
     }
 
