@@ -26,6 +26,7 @@ const OutfitsPanel   = lazy(() => import('./OutfitsPanel'));
 const FinanPanel     = lazy(() => import('./FinanPanel'));
 const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
 const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
+const CronjobsPage      = lazy(() => import('./CronjobsPage'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 48;
@@ -346,6 +347,12 @@ function SuplementosRoute() {
   return <SuplementosPanel/>;
 }
 
+// No outlet context needed — CronjobsPage owns its own fetch/local state,
+// same reasoning as CategoryPicksPage/FinanRoute (ADR-1, sdd/scraper-cronjobs/design).
+function CronjobsRoute() {
+  return <CronjobsPage/>;
+}
+
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
   CategoryPicksPageRoute,
@@ -354,6 +361,7 @@ export {
   TrendsRoute as TrendsPanelRoute, FavoritosRoute as FavoritosPanelRoute,
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
   SuplementosRoute as SuplementosPanelRoute,
+  CronjobsRoute as CronjobsPanelRoute,
 };
 
 // ─── AppLayout ───────────────────────────────────────────────────────────────
