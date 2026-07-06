@@ -181,13 +181,30 @@ export default function FavoritosPanel({
   // View-mode toggle (design ADR-4): view-local state, NOT lifted to the
   // AppLayout reducer — no other component consumes it. Lazy-initialised
   // from localStorage; default 'carousel' (spec: "First-ever visit").
+  // Reads/writes are guarded: storage can throw (SecurityError when blocked,
+  // QuotaExceededError when full) and this runs inside a useState
+  // initializer during render — an uncaught throw here would take down the
+  // whole /favoritos route, not just the toggle. Any unrecognized stored
+  // value (corrupted, hand-edited, a retired/future mode) is whitelisted
+  // back to 'carousel' rather than rendered as-is, which would match
+  // neither the 'carousel' nor 'list' branch below and leave the body blank.
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window === 'undefined') return 'carousel';
-    return localStorage.getItem(VIEW_MODE_KEY) || 'carousel';
+    try {
+      return localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'carousel';
+    } catch {
+      return 'carousel';
+    }
   });
   function handleSetViewMode(mode) {
     setViewMode(mode);
-    if (typeof window !== 'undefined') localStorage.setItem(VIEW_MODE_KEY, mode);
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      // Storage blocked/full — the toggle still works for this session,
+      // it just won't persist across reloads.
+    }
   }
 
   // Inline outfit expand (design ADR-3 — NOT a nested modal): activating an

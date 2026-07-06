@@ -25,7 +25,7 @@
 //     `expanded`/`controlsId` are consumer-owned (e.g. FavoritosPanel's
 //     inline member-strip state) and only wired to aria-expanded/
 //     aria-controls on the slide trigger when `kind === 'outfit'`.
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -105,18 +105,23 @@ function Slide({ slide, index, current, onSlideActivate }) {
     : {};
 
   return (
-    <div className="[perspective:1200px] [transform-style:preserve-3d]">
-      <li
-        className="relative z-10 mx-[2vmin] flex flex-1 flex-col items-center justify-center rounded-[4px]"
-        style={{
-          width: `var(--tc-slide-size, ${SLIDE_SIZE_CSS})`,
-          height: `var(--tc-slide-size, ${SLIDE_SIZE_CSS})`,
-        }}
-      >
-        {/* Real <button>, not `role="button"` on the <li> — keeps native
-            keyboard/AT semantics (default Enter/Space activation, correct
-            focusability) instead of reimplementing them. */}
-        <button
+    // Perspective/transform-style live directly on the <li> (not a wrapping
+    // <div>) so the <ul>'s direct children stay <li> elements — a wrapping
+    // <div> here would break list semantics (AT can't announce a proper
+    // list/item count when the list's children aren't list items). A <li>
+    // is a valid perspective-establishing ancestor for its own rotateX'd
+    // button child, so the 3D effect is unaffected.
+    <li
+      className="relative z-10 mx-[2vmin] flex flex-1 flex-col items-center justify-center rounded-[4px] [perspective:1200px] [transform-style:preserve-3d]"
+      style={{
+        width: `var(--tc-slide-size, ${SLIDE_SIZE_CSS})`,
+        height: `var(--tc-slide-size, ${SLIDE_SIZE_CSS})`,
+      }}
+    >
+      {/* Real <button>, not `role="button"` on the <li> — keeps native
+          keyboard/AT semantics (default Enter/Space activation, correct
+          focusability) instead of reimplementing them. */}
+      <button
           ref={slideRef}
           type="button"
           tabIndex={isActive ? 0 : -1}
@@ -192,9 +197,8 @@ function Slide({ slide, index, current, onSlideActivate }) {
               </span>
             </div>
           </article>
-        </button>
-      </li>
-    </div>
+      </button>
+    </li>
   );
 }
 
@@ -225,6 +229,17 @@ export function TiltCarousel({ slides, className }) {
 
   const safeSlides = slides || [];
   const hasMultiple = safeSlides.length > 1;
+
+  // `current` is local state never reconciled with `safeSlides.length` on
+  // its own — if the slide count shrinks while this stays mounted (e.g. a
+  // refresh drops a favorited product) and `current` points past the new
+  // end, the track scrolls past the last slide and nothing is marked
+  // active (blank, stuck until the user manually cycles prev/next). Snap
+  // back to the first slide whenever the count shrinks under the current
+  // index.
+  useEffect(() => {
+    if (current > safeSlides.length - 1) setCurrent(0);
+  }, [safeSlides.length, current]);
 
   function goPrevious() {
     setCurrent(c => (c - 1 < 0 ? safeSlides.length - 1 : c - 1));
