@@ -1,9 +1,17 @@
 import { useMemo, useState } from 'react';
-import { LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List, ShoppingBag } from 'lucide-react';
 import BuySignal from './BuySignal';
 import { TiltCarousel } from './ui/tilt-carousel';
+import { ImageWithFallback } from './ui/image-with-fallback';
 import { rescrapeFavoritos, fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
+
+// Shared fallback icon for every legacy-img spot below (spec: missing image
+// -> placeholder, never a hidden/broken <img>) — same ShoppingBag treatment
+// as ui/category-card.jsx / ui/outfit-collage.jsx.
+function ImgFallbackIcon({ size = 20 }) {
+  return <ShoppingBag aria-hidden="true" size={size} className="text-t4" strokeWidth={1.5} />;
+}
 
 const VIEW_MODE_KEY = 'favoritos:viewMode';
 
@@ -87,21 +95,22 @@ function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDetail }) {
           }}>✕</button>
       </div>
 
-      {/* Collapsed: small thumbnails */}
+      {/* Collapsed: small thumbnails (ImageWithFallback: missing/broken image
+          -> placeholder icon, never a silently-skipped or hidden <img>) */}
       {!expanded && slots.length > 0 && (
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {slots.map((s, i) => s.img ? (
-            <img
+          {slots.map((s, i) => (
+            <ImageWithFallback
               key={i}
               src={s.img}
               alt={s.nombre}
               loading="lazy"
               title={s.nombre}
-              style={{ width:48, height:48, objectFit:'cover', borderRadius:6,
-                       border:'1px solid var(--bd)' }}
-              onError={e => { e.target.style.display = 'none'; }}
+              className="h-12 w-12 rounded-md border border-border object-cover"
+              fallbackClassName="flex h-12 w-12 items-center justify-center rounded-md border border-border bg-s3"
+              fallback={<ImgFallbackIcon size={18} />}
             />
-          ) : null)}
+          ))}
         </div>
       )}
 
@@ -114,16 +123,14 @@ function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDetail }) {
               background:'var(--s1)', borderRadius:8, padding:'.5rem .65rem',
               border:'1px solid var(--bd)',
             }}>
-              {s.img && (
-                <img
-                  src={s.img}
-                  alt={s.nombre}
-                  loading="lazy"
-                  style={{ width:64, height:64, objectFit:'cover', borderRadius:6,
-                           flexShrink:0, border:'1px solid var(--bd)' }}
-                  onError={e => { e.target.style.display = 'none'; }}
-                />
-              )}
+              <ImageWithFallback
+                src={s.img}
+                alt={s.nombre}
+                loading="lazy"
+                className="h-16 w-16 flex-shrink-0 rounded-md border border-border object-cover"
+                fallbackClassName="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-md border border-border bg-s3"
+                fallback={<ImgFallbackIcon size={22} />}
+              />
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{
                   fontSize:'.78rem', fontWeight:600, color:'var(--t1)',
@@ -188,10 +195,14 @@ export default function FavoritosPanel({
   // carousel; activating a member opens its DetailPanel.
   const [expandedOutfitId, setExpandedOutfitId] = useState(null);
   const expandedOutfit = outfits.find(o => o.id === expandedOutfitId) || null;
+  const outfitMembersId = id => `favoritos-outfit-members-${id}`;
 
   // Discriminated slide model (design ADR-2): one slide per favorited
   // product and per saved outfit. Product activation opens DetailPanel
-  // directly; outfit activation toggles the inline member strip.
+  // directly; outfit activation toggles the inline member strip. `expanded`/
+  // `controlsId` feed the carousel's aria-expanded/aria-controls on the
+  // outfit slide trigger (a11y fix: screen readers must announce the
+  // expand/collapse relationship to the revealed member strip).
   const slides = useMemo(() => {
     const productSlides = items.map(f => ({
       kind: 'product',
@@ -208,10 +219,12 @@ export default function FavoritosPanel({
       title: o.nombre || 'Outfit',
       cta: 'Ver outfit',
       members: o.slots || [],
+      expanded: expandedOutfitId === o.id,
+      controlsId: outfitMembersId(o.id),
       onActivate: () => setExpandedOutfitId(prev => (prev === o.id ? null : o.id)),
     }));
     return [...productSlides, ...outfitSlides];
-  }, [items, outfits, onOpenDetail]);
+  }, [items, outfits, onOpenDetail, expandedOutfitId]);
 
   async function handleRefresh() {
     const ok = await rescrapeFavoritos();
@@ -304,10 +317,14 @@ export default function FavoritosPanel({
             <TiltCarousel slides={slides} />
 
             {expandedOutfit && (
-              <div style={{
-                marginTop:20, display:'flex', flexDirection:'column', gap:8,
-                maxWidth:480, marginLeft:'auto', marginRight:'auto',
-              }}>
+              <div
+                id={outfitMembersId(expandedOutfit.id)}
+                role="region"
+                aria-label={`Prendas de ${expandedOutfit.nombre || 'Outfit'}`}
+                style={{
+                  marginTop:20, display:'flex', flexDirection:'column', gap:8,
+                  maxWidth:480, marginLeft:'auto', marginRight:'auto',
+                }}>
                 <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--t3)' }}>
                   Prendas de "{expandedOutfit.nombre || 'Outfit'}"
                 </div>
@@ -322,16 +339,14 @@ export default function FavoritosPanel({
                       background:'var(--s2)', border:'1px solid var(--bd)', borderRadius:8,
                       padding:'.5rem .65rem', cursor:'pointer', textAlign:'left',
                     }}>
-                    {m.img && (
-                      <img
-                        src={m.img}
-                        alt={m.nombre}
-                        loading="lazy"
-                        style={{ width:44, height:44, objectFit:'cover', borderRadius:6,
-                                 flexShrink:0, border:'1px solid var(--bd)' }}
-                        onError={e => { e.target.style.display = 'none'; }}
-                      />
-                    )}
+                    <ImageWithFallback
+                      src={m.img}
+                      alt={m.nombre}
+                      loading="lazy"
+                      className="h-11 w-11 flex-shrink-0 rounded-md border border-border object-cover"
+                      fallbackClassName="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md border border-border bg-s3"
+                      fallback={<ImgFallbackIcon size={18} />}
+                    />
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{
                         fontSize:'.78rem', fontWeight:600, color:'var(--t1)',
@@ -388,16 +403,14 @@ export default function FavoritosPanel({
                 onMouseOver={e => e.currentTarget.style.borderColor = 'var(--p2)'}
                 onMouseOut={e => e.currentTarget.style.borderColor = 'var(--bd)'}>
 
-                {f.img && (
-                  <img
-                    src={f.img}
-                    alt={f.nombre}
-                    loading="lazy"
-                    style={{ width:64, height:64, objectFit:'cover', borderRadius:8,
-                             flexShrink:0, border:'1px solid var(--bd)' }}
-                    onError={e => { e.target.style.display = 'none'; }}
-                  />
-                )}
+                <ImageWithFallback
+                  src={f.img}
+                  alt={f.nombre}
+                  loading="lazy"
+                  className="h-16 w-16 flex-shrink-0 rounded-lg border border-border object-cover"
+                  fallbackClassName="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-s3"
+                  fallback={<ImgFallbackIcon size={24} />}
+                />
 
                 <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>

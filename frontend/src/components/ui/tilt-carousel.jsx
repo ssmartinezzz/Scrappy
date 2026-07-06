@@ -20,7 +20,11 @@
 // active slide is activated again (click / Enter / Space). Consumers pick
 // the discriminated shape (design ADR-2):
 //   Product slide: { kind:'product', id, title, cta, image, descontinuado, onActivate }
-//   Outfit slide:  { kind:'outfit',  id, title, cta, members:[{nombre,img,...}], onActivate }
+//   Outfit slide:  { kind:'outfit',  id, title, cta, members:[{nombre,img,...}],
+//                    expanded, controlsId, onActivate }
+//     `expanded`/`controlsId` are consumer-owned (e.g. FavoritosPanel's
+//     inline member-strip state) and only wired to aria-expanded/
+//     aria-controls on the slide trigger when `kind === 'outfit'`.
 import { useId, useRef, useState } from 'react';
 import { motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
@@ -43,7 +47,7 @@ const CONTROLS_ALLOWANCE_PX = 96;
 // still register as activation clicks; only a real horizontal drag pages.
 const SWIPE_THRESHOLD_PX = 50;
 
-function Slide({ slide, index, current, onSlideClick }) {
+function Slide({ slide, index, current, onSlideActivate }) {
   const slideRef = useRef(null);
   const reduceMotion = useReducedMotion();
   const isActive = current === index;
@@ -71,95 +75,124 @@ function Slide({ slide, index, current, onSlideClick }) {
     y.set(0);
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSlideClick(index);
-    }
+  // e.detail === 0 identifies a click synthesized from a keyboard activation
+  // (Enter/Space) on a real <button> — real mouse/touch clicks report
+  // detail >= 1. This lets a single keyboard activation both center AND open
+  // the slide in one press, while mouse/touch clicks keep the two-step
+  // "click to bring forward, click again (now centered) to open" coverflow
+  // affordance (spec fix: "single Enter/Space on a focused slide activates it").
+  function handleClick(e) {
+    onSlideActivate(index, { viaKeyboard: e.detail === 0 });
   }
 
-  const { kind, title, image, descontinuado, members, cta } = slide;
+  const { kind, title, image, descontinuado, members, cta, expanded, controlsId } = slide;
+
+  // Reduced-motion (spec fix): the settle scale/rotateX tilt is now gated
+  // too — previously only pointer-parallax and the track transition were
+  // gated, leaving this transform/transition active under reduced motion.
+  // With reduced motion, inactive slides skip the 3D rotateX tilt entirely
+  // and the transform change is instant (no transition).
+  const settleTransform = isActive
+    ? 'scale(1) rotateX(0deg)'
+    : reduceMotion ? 'scale(1)' : 'scale(0.98) rotateX(8deg)';
+  const settleTransition = reduceMotion ? 'none' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
+
+  // aria-expanded/aria-controls (spec fix): only meaningful for an outfit
+  // slide, whose activation reveals an inline member strip owned by the
+  // consumer (FavoritosPanel) — `expanded`/`controlsId` are adapter-supplied.
+  const expandableProps = kind === 'outfit'
+    ? { 'aria-expanded': Boolean(expanded), 'aria-controls': controlsId }
+    : {};
 
   return (
     <div className="[perspective:1200px] [transform-style:preserve-3d]">
       <li
-        ref={slideRef}
-        role="button"
-        tabIndex={0}
-        aria-label={`${title}${isActive ? '' : ' (activar para enfocar)'}`}
-        className={cn(
-          'relative z-10 mx-[2vmin] flex flex-1 flex-col items-center justify-center rounded-[4px]',
-          'text-center text-white transition-transform duration-300 ease-in-out',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
-        )}
+        className="relative z-10 mx-[2vmin] flex flex-1 flex-col items-center justify-center rounded-[4px]"
         style={{
           width: `var(--tc-slide-size, ${SLIDE_SIZE_CSS})`,
           height: `var(--tc-slide-size, ${SLIDE_SIZE_CSS})`,
-          transform: isActive ? 'scale(1) rotateX(0deg)' : 'scale(0.98) rotateX(8deg)',
-          transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-          transformOrigin: 'bottom',
         }}
-        onClick={() => onSlideClick(index)}
-        onKeyDown={handleKeyDown}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
       >
-        <motion.div
-          className="absolute inset-0 overflow-hidden rounded-[4px] bg-s3"
-          style={isActive && !reduceMotion ? { x: springX, y: springY } : undefined}
-        >
-          {kind === 'outfit' ? (
-            <OutfitCollage members={members} dimmed={!isActive} />
-          ) : (
-            <ImageWithFallback
-              src={image}
-              alt={title}
-              loading="eager"
-              className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-in-out"
-              style={{ opacity: isActive ? 1 : 0.5 }}
-              fallbackClassName="flex h-full w-full items-center justify-center text-t4"
-              fallback={<span className="text-xs">Sin imagen</span>}
-            />
-          )}
-
-          {/* Scrim (design ADR-8): the source's `bg-black/30` emits ZERO CSS
-              against this project's var()-token Tailwind config (confirmed
-              gotcha, ui/category-card.jsx). Inline rgba() instead, never a
-              `/opacity` modifier on these tokens. 40% meets the 40-60%
-              scrim-legibility guidance so the white title/CTA stay readable. */}
-          {isActive && (
-            <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} aria-hidden="true" />
-          )}
-
-          {descontinuado && (
-            <span
-              className="absolute left-3 top-3 rounded-full px-2 py-0.5 text-xs font-bold text-white"
-              style={{ background: 'rgba(192,57,43,0.9)' }}
-            >
-              Descontinuado
-            </span>
-          )}
-        </motion.div>
-
-        <article
+        {/* Real <button>, not `role="button"` on the <li> — keeps native
+            keyboard/AT semantics (default Enter/Space activation, correct
+            focusability) instead of reimplementing them. */}
+        <button
+          ref={slideRef}
+          type="button"
+          tabIndex={isActive ? 0 : -1}
+          aria-label={title}
+          {...expandableProps}
           className={cn(
-            'relative p-[4vmin] transition-opacity duration-300 ease-in-out',
-            isActive ? 'visible opacity-100' : 'invisible opacity-0'
+            'relative flex h-full w-full flex-col items-center justify-center rounded-[4px] border-0 bg-transparent p-0',
+            'text-center text-white',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
           )}
+          style={{
+            transform: settleTransform,
+            transition: settleTransition,
+            transformOrigin: 'bottom',
+          }}
+          onClick={handleClick}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={handlePointerLeave}
         >
-          <h2
-            className="relative text-lg font-semibold md:text-2xl lg:text-3xl"
-            style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
+          <motion.div
+            className="absolute inset-0 overflow-hidden rounded-[4px] bg-s3"
+            style={isActive && !reduceMotion ? { x: springX, y: springY } : undefined}
           >
-            {title}
-          </h2>
-          <div className="mt-4 flex justify-center">
-            <span className="inline-flex h-11 items-center gap-1.5 rounded-2xl bg-white px-4 text-xs font-semibold text-[#1D1F2F] shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.15)] sm:text-sm">
-              {cta}
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </span>
-          </div>
-        </article>
+            {kind === 'outfit' ? (
+              <OutfitCollage members={members} dimmed={!isActive} />
+            ) : (
+              <ImageWithFallback
+                src={image}
+                alt={title}
+                loading="eager"
+                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-in-out"
+                style={{ opacity: isActive ? 1 : 0.5 }}
+                fallbackClassName="flex h-full w-full items-center justify-center text-t4"
+                fallback={<span className="text-xs">Sin imagen</span>}
+              />
+            )}
+
+            {/* Scrim (design ADR-8): the source's `bg-black/30` emits ZERO CSS
+                against this project's var()-token Tailwind config (confirmed
+                gotcha, ui/category-card.jsx). Inline rgba() instead, never a
+                `/opacity` modifier on these tokens. 40% meets the 40-60%
+                scrim-legibility guidance so the white title/CTA stay readable. */}
+            {isActive && (
+              <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} aria-hidden="true" />
+            )}
+
+            {descontinuado && (
+              <span
+                className="absolute left-3 top-3 rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                style={{ background: 'rgba(192,57,43,0.9)' }}
+              >
+                Descontinuado
+              </span>
+            )}
+          </motion.div>
+
+          <article
+            className={cn(
+              'relative p-[4vmin] transition-opacity duration-300 ease-in-out',
+              isActive ? 'visible opacity-100' : 'invisible opacity-0'
+            )}
+          >
+            <h2
+              className="relative text-lg font-semibold md:text-2xl lg:text-3xl"
+              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
+            >
+              {title}
+            </h2>
+            <div className="mt-4 flex justify-center">
+              <span className="inline-flex h-11 items-center gap-1.5 rounded-2xl bg-white px-4 text-xs font-semibold text-[#1D1F2F] shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.15)] sm:text-sm">
+                {cta}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </div>
+          </article>
+        </button>
       </li>
     </div>
   );
@@ -199,11 +232,18 @@ export function TiltCarousel({ slides, className }) {
   function goNext() {
     setCurrent(c => (c + 1 === safeSlides.length ? 0 : c + 1));
   }
-  function handleSlideClick(index) {
-    if (index === current) {
+  // Mouse/touch clicks keep the coverflow two-step (bring an off-center
+  // slide forward first, click again once it's centered to open it) — that
+  // preview step is a deliberate, discoverable mouse affordance. A KEYBOARD
+  // activation (Enter/Space, detected via `viaKeyboard`) always both centers
+  // AND opens in a single press: a keyboard user reaching a slide via Tab/
+  // arrow navigation should never need two presses to activate it (spec
+  // fix: no "double-Enter to activate").
+  function handleSlideActivate(index, { viaKeyboard = false } = {}) {
+    const wasCurrent = index === current;
+    if (!wasCurrent) setCurrent(index);
+    if (wasCurrent || viaKeyboard) {
       safeSlides[index]?.onActivate?.(safeSlides[index]);
-    } else {
-      setCurrent(index);
     }
   }
 
@@ -260,7 +300,7 @@ export function TiltCarousel({ slides, className }) {
           onPointerUp={handlePointerUp}
         >
           {safeSlides.map((slide, index) => (
-            <Slide key={slide.id ?? index} slide={slide} index={index} current={current} onSlideClick={handleSlideClick} />
+            <Slide key={slide.id ?? index} slide={slide} index={index} current={current} onSlideActivate={handleSlideActivate} />
           ))}
         </ul>
 
