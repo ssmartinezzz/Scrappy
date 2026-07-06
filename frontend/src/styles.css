@@ -771,4 +771,10 @@ body { overflow-x: hidden; }
 .picks-index-item.active { background: var(--s3); color: var(--p); font-weight: 800; }
 .picks-index-item:focus-visible { outline: 2px solid var(--p); outline-offset: 1px; }
 
+/* ===== FAVORITOS CAROUSEL (favoritos-carousel-view) =====
+   FavoritosPanel.jsx keeps its 100%-inline-style convention; these two
+   classes exist only because inline styles can't express :focus-visible. */
+.favoritos-toggle-btn:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
+.favoritos-outfit-member:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
+
 * { box-sizing: border-box; }
