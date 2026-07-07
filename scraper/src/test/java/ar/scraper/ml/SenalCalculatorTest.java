@@ -2,6 +2,11 @@ package ar.scraper.ml;
 
 import ar.scraper.db.DatabaseService.HistorialEntry;
 import ar.scraper.model.Product.SenalCompra;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -13,8 +18,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * logic that previously lived inline in ApiController.recomendacion (lines
  * 588-652), now extracted as a dependency-free, testable function.
  */
+@Epic("ML Pipeline")
+@Feature("Señales de Compra")
+@Story("Calculator")
+@DisplayName("SenalCalculator — purchase-signal classification thresholds")
 class SenalCalculatorTest {
 
+    @Step("Build historial entry: {fecha} @ {precio}")
     private HistorialEntry h(String fecha, double precio) {
         return new HistorialEntry(fecha, precio);
     }
