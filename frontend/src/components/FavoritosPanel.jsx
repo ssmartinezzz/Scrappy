@@ -1,10 +1,22 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { LayoutGrid, List, ShoppingBag } from 'lucide-react';
 import BuySignal from './BuySignal';
+import { TiltCarousel } from './ui/tilt-carousel';
+import { ImageWithFallback } from './ui/image-with-fallback';
 import { rescrapeFavoritos, fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
 
+// Shared fallback icon for every legacy-img spot below (spec: missing image
+// -> placeholder, never a hidden/broken <img>) — same ShoppingBag treatment
+// as ui/category-card.jsx / ui/outfit-collage.jsx.
+function ImgFallbackIcon({ size = 20 }) {
+  return <ShoppingBag aria-hidden="true" size={size} className="text-t4" strokeWidth={1.5} />;
+}
+
+const VIEW_MODE_KEY = 'favoritos:viewMode';
+
 // ─── SavedOutfitCard ──────────────────────────────────────────────────────────
-function SavedOutfitCard({ outfit, onDelete, onRename }) {
+function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDetail }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(outfit.nombre || 'Outfit');
   const [expanded, setExpanded] = useState(false);
@@ -83,21 +95,22 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
           }}>✕</button>
       </div>
 
-      {/* Collapsed: small thumbnails */}
+      {/* Collapsed: small thumbnails (ImageWithFallback: missing/broken image
+          -> placeholder icon, never a silently-skipped or hidden <img>) */}
       {!expanded && slots.length > 0 && (
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {slots.map((s, i) => s.img ? (
-            <img
+          {slots.map((s, i) => (
+            <ImageWithFallback
               key={i}
               src={s.img}
               alt={s.nombre}
               loading="lazy"
               title={s.nombre}
-              style={{ width:48, height:48, objectFit:'cover', borderRadius:6,
-                       border:'1px solid var(--bd)' }}
-              onError={e => { e.target.style.display = 'none'; }}
+              className="h-12 w-12 rounded-md border border-border object-cover"
+              fallbackClassName="flex h-12 w-12 items-center justify-center rounded-md border border-border bg-s3"
+              fallback={<ImgFallbackIcon size={18} />}
             />
-          ) : null)}
+          ))}
         </div>
       )}
 
@@ -110,16 +123,14 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
               background:'var(--s1)', borderRadius:8, padding:'.5rem .65rem',
               border:'1px solid var(--bd)',
             }}>
-              {s.img && (
-                <img
-                  src={s.img}
-                  alt={s.nombre}
-                  loading="lazy"
-                  style={{ width:64, height:64, objectFit:'cover', borderRadius:6,
-                           flexShrink:0, border:'1px solid var(--bd)' }}
-                  onError={e => { e.target.style.display = 'none'; }}
-                />
-              )}
+              <ImageWithFallback
+                src={s.img}
+                alt={s.nombre}
+                loading="lazy"
+                className="h-16 w-16 flex-shrink-0 rounded-md border border-border object-cover"
+                fallbackClassName="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-md border border-border bg-s3"
+                fallback={<ImgFallbackIcon size={22} />}
+              />
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{
                   fontSize:'.78rem', fontWeight:600, color:'var(--t1)',
@@ -133,17 +144,17 @@ function SavedOutfitCard({ outfit, onDelete, onRename }) {
                 )}
               </div>
               {s.url && (
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onOpenDetail?.(s); }}
                   style={{
                     fontSize:'.65rem', color:'var(--p)', fontWeight:600,
-                    textDecoration:'none', whiteSpace:'nowrap', flexShrink:0,
+                    background:'none', border:'none', cursor:'pointer',
+                    whiteSpace:'nowrap', flexShrink:0, padding:'12px 10px',
+                    minHeight:44, minWidth:44,
                   }}>
-                  Ver →
-                </a>
+                  Ver detalle →
+                </button>
               )}
             </div>
           ))}
@@ -165,6 +176,72 @@ export default function FavoritosPanel({
 }) {
   const items = favoritos || [];
   const outfits = savedOutfits || [];
+  const isEmpty = items.length === 0 && outfits.length === 0;
+
+  // View-mode toggle (design ADR-4): view-local state, NOT lifted to the
+  // AppLayout reducer — no other component consumes it. Lazy-initialised
+  // from localStorage; default 'carousel' (spec: "First-ever visit").
+  // Reads/writes are guarded: storage can throw (SecurityError when blocked,
+  // QuotaExceededError when full) and this runs inside a useState
+  // initializer during render — an uncaught throw here would take down the
+  // whole /favoritos route, not just the toggle. Any unrecognized stored
+  // value (corrupted, hand-edited, a retired/future mode) is whitelisted
+  // back to 'carousel' rather than rendered as-is, which would match
+  // neither the 'carousel' nor 'list' branch below and leave the body blank.
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window === 'undefined') return 'carousel';
+    try {
+      return localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'carousel';
+    } catch {
+      return 'carousel';
+    }
+  });
+  function handleSetViewMode(mode) {
+    setViewMode(mode);
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      // Storage blocked/full — the toggle still works for this session,
+      // it just won't persist across reloads.
+    }
+  }
+
+  // Inline outfit expand (design ADR-3 — NOT a nested modal): activating an
+  // outfit slide toggles which saved outfit's member strip renders below the
+  // carousel; activating a member opens its DetailPanel.
+  const [expandedOutfitId, setExpandedOutfitId] = useState(null);
+  const expandedOutfit = outfits.find(o => o.id === expandedOutfitId) || null;
+  const outfitMembersId = id => `favoritos-outfit-members-${id}`;
+
+  // Discriminated slide model (design ADR-2): one slide per favorited
+  // product and per saved outfit. Product activation opens DetailPanel
+  // directly; outfit activation toggles the inline member strip. `expanded`/
+  // `controlsId` feed the carousel's aria-expanded/aria-controls on the
+  // outfit slide trigger (a11y fix: screen readers must announce the
+  // expand/collapse relationship to the revealed member strip).
+  const slides = useMemo(() => {
+    const productSlides = items.map(f => ({
+      kind: 'product',
+      id: f.url,
+      title: f.nombre || f.url,
+      cta: 'Ver detalle',
+      image: f.img,
+      descontinuado: f.descontinuado,
+      onActivate: () => onOpenDetail?.(f),
+    }));
+    const outfitSlides = outfits.map(o => ({
+      kind: 'outfit',
+      id: `outfit-${o.id}`,
+      title: o.nombre || 'Outfit',
+      cta: 'Ver outfit',
+      members: o.slots || [],
+      expanded: expandedOutfitId === o.id,
+      controlsId: outfitMembersId(o.id),
+      onActivate: () => setExpandedOutfitId(prev => (prev === o.id ? null : o.id)),
+    }));
+    return [...productSlides, ...outfitSlides];
+  }, [items, outfits, onOpenDetail, expandedOutfitId]);
 
   async function handleRefresh() {
     const ok = await rescrapeFavoritos();
@@ -192,11 +269,46 @@ export default function FavoritosPanel({
           </div>
         </div>
 
+        {!isEmpty && (
+          <div role="group" aria-label="Modo de vista de favoritos" style={{ display:'flex', gap:8, marginLeft:'auto' }}>
+            <button
+              type="button"
+              className="favoritos-toggle-btn"
+              aria-pressed={viewMode === 'carousel'}
+              aria-label="Vista carrusel"
+              title="Vista carrusel"
+              onClick={() => handleSetViewMode('carousel')}
+              style={{
+                width:44, height:44, display:'flex', alignItems:'center', justifyContent:'center',
+                borderRadius:8, border:'1.5px solid var(--bd2)', cursor:'pointer',
+                background: viewMode === 'carousel' ? 'var(--p)' : 'var(--s2)',
+                color: viewMode === 'carousel' ? '#fff' : 'var(--t3)',
+              }}>
+              <LayoutGrid size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="favoritos-toggle-btn"
+              aria-pressed={viewMode === 'list'}
+              aria-label="Vista lista"
+              title="Vista lista"
+              onClick={() => handleSetViewMode('list')}
+              style={{
+                width:44, height:44, display:'flex', alignItems:'center', justifyContent:'center',
+                borderRadius:8, border:'1.5px solid var(--bd2)', cursor:'pointer',
+                background: viewMode === 'list' ? 'var(--p)' : 'var(--s2)',
+                color: viewMode === 'list' ? '#fff' : 'var(--t3)',
+              }}>
+              <List size={18} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         <button
           onClick={handleRefresh}
           disabled={scrapeStatus === 'RUNNING'}
           style={{
-            marginLeft:'auto', padding:'5px 12px', borderRadius:16, border:'none',
+            marginLeft: isEmpty ? 'auto' : 0, padding:'5px 12px', borderRadius:16, border:'none',
             cursor: scrapeStatus === 'RUNNING' ? 'default' : 'pointer',
             fontSize:'.72rem', fontWeight:700,
             background: scrapeStatus === 'RUNNING' ? 'var(--s2)' : 'var(--p)',
@@ -207,9 +319,72 @@ export default function FavoritosPanel({
         </button>
       </div>
 
-      {/* List */}
+      {/* Body */}
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
 
+        {isEmpty && (
+          <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
+            Todavía no marcaste productos como favoritos.
+            Usá el botón ☆ en cada producto del catálogo.
+          </div>
+        )}
+
+        {!isEmpty && viewMode === 'carousel' && (
+          <>
+            <TiltCarousel slides={slides} />
+
+            {expandedOutfit && (
+              <div
+                id={outfitMembersId(expandedOutfit.id)}
+                role="region"
+                aria-label={`Prendas de ${expandedOutfit.nombre || 'Outfit'}`}
+                style={{
+                  marginTop:20, display:'flex', flexDirection:'column', gap:8,
+                  maxWidth:480, marginLeft:'auto', marginRight:'auto',
+                }}>
+                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--t3)' }}>
+                  Prendas de "{expandedOutfit.nombre || 'Outfit'}"
+                </div>
+                {(expandedOutfit.slots || []).map((m, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="favoritos-outfit-member"
+                    onClick={() => onOpenDetail?.(m)}
+                    style={{
+                      display:'flex', alignItems:'center', gap:10, minHeight:44,
+                      background:'var(--s2)', border:'1px solid var(--bd)', borderRadius:8,
+                      padding:'.5rem .65rem', cursor:'pointer', textAlign:'left',
+                    }}>
+                    <ImageWithFallback
+                      src={m.img}
+                      alt={m.nombre}
+                      loading="lazy"
+                      className="h-11 w-11 flex-shrink-0 rounded-md border border-border object-cover"
+                      fallbackClassName="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md border border-border bg-s3"
+                      fallback={<ImgFallbackIcon size={18} />}
+                    />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{
+                        fontSize:'.78rem', fontWeight:600, color:'var(--t1)',
+                        overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+                      }}>{m.nombre || '—'}</div>
+                      <div style={{ fontSize:'.7rem', color:'var(--t3)' }}>{m.sitio}</div>
+                    </div>
+                    {m.precio > 0 && (
+                      <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--p2)', flexShrink:0 }}>
+                        ${fmt(m.precio)}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {!isEmpty && viewMode === 'list' && (
+        <>
         {/* Saved outfits section — shown only when at least one exists */}
         {outfits.length > 0 && (
           <div style={{ marginBottom:'1.5rem' }}>
@@ -223,6 +398,7 @@ export default function FavoritosPanel({
                   outfit={o}
                   onDelete={onDeleteSavedOutfit}
                   onRename={onRenameSavedOutfit}
+                  onOpenDetail={onOpenDetail}
                 />
               ))}
             </div>
@@ -230,13 +406,6 @@ export default function FavoritosPanel({
         )}
 
         {/* Individual favorited products */}
-        {items.length === 0 && outfits.length === 0 && (
-          <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
-            Todavía no marcaste productos como favoritos.
-            Usá el botón ☆ en cada producto del catálogo.
-          </div>
-        )}
-
         {items.length > 0 && (
           <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
             {items.map(f => (
@@ -251,16 +420,14 @@ export default function FavoritosPanel({
                 onMouseOver={e => e.currentTarget.style.borderColor = 'var(--p2)'}
                 onMouseOut={e => e.currentTarget.style.borderColor = 'var(--bd)'}>
 
-                {f.img && (
-                  <img
-                    src={f.img}
-                    alt={f.nombre}
-                    loading="lazy"
-                    style={{ width:64, height:64, objectFit:'cover', borderRadius:8,
-                             flexShrink:0, border:'1px solid var(--bd)' }}
-                    onError={e => { e.target.style.display = 'none'; }}
-                  />
-                )}
+                <ImageWithFallback
+                  src={f.img}
+                  alt={f.nombre}
+                  loading="lazy"
+                  className="h-16 w-16 flex-shrink-0 rounded-lg border border-border object-cover"
+                  fallbackClassName="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-s3"
+                  fallback={<ImgFallbackIcon size={24} />}
+                />
 
                 <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:4 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -301,6 +468,8 @@ export default function FavoritosPanel({
               </div>
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
