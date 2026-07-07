@@ -276,4 +276,38 @@ class CategoryClassifierTest {
         // productos sin keyword conocido pero con indicador de peso → Alimentos, no Indumentaria
         assertThat(classifier.normalizarCategoria(null, "GRANGER Chia Pudding 300g")).isNotEqualTo("Indumentaria");
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // suplementos-classification-fixes — waffle-knit garments must not be
+    // stolen by the nutrition gate (Bug A); GRANGER food brand must reach
+    // the nutrition path instead of falling back to Indumentaria (Bug B).
+    // ══════════════════════════════════════════════════════════════════
+
+    @Test
+    void poloWaffleKnitNoEsAlimentos() {
+        // "waffle" is a knit-fabric term on garments (waffle-knit polo/tee); it
+        // must NOT fire the nutrition gate and land the garment in a food category.
+        assertThat(classifier.normalizarCategoria(null, "Royal Polo Waffle Heavyweight Black"))
+                .isNotIn("Alimentos", "Pancake Proteico", "Snack Proteico", "Barra Proteica", "Proteína");
+    }
+
+    @Test
+    void waffleProteicoSigueSiendoComida() {
+        // Real protein waffles disambiguate via "proteico"/"protein" and must
+        // still classify as nutrition (regression guard for removing bare waffle).
+        assertThat(classifier.normalizarCategoria(null, "Waffle Proteico Vainilla 500g"))
+                .isEqualTo("Pancake Proteico");
+    }
+
+    @Test
+    void grangerBrandCupcakeEsAlimentos() {
+        // GRANGER is a curated food/supplement brand; any product carrying the
+        // brand must reach the nutrition path, not fall back to Indumentaria.
+        assertThat(classifier.normalizarCategoria(null, "GRANGER Cupcake Vainilla")).isEqualTo("Alimentos");
+    }
+
+    @Test
+    void grangerOmeletteNoEsIndumentaria() {
+        assertThat(classifier.normalizarCategoria(null, "GRANGER Omelette Natural")).isNotEqualTo("Indumentaria");
+    }
 }

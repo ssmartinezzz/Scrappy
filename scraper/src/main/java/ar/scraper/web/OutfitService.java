@@ -259,7 +259,11 @@ public class OutfitService {
                     "cookie proteica", "cookie protein",
                     "budín proteico", "budin proteico",
                     "muffin proteico", "brownie proteico", "alfajor proteico",
-                    "tortita proteica", "galleta proteica"
+                    "tortita proteica", "galleta proteica",
+                    // GRANGER-style protein snacks (product-owner request): match the
+                    // bare noun so branded food (categoria "Alimentos") surfaces here.
+                    // Accented + unaccented forms — matchesSubtipo does not strip accents.
+                    "cupcake", "pudding", "budin", "budín", "omelette", "omelet"
             }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
@@ -318,7 +322,10 @@ public class OutfitService {
     /** All canonical supplement categories assigned by NormalizerService. */
     private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(
             "Suplemento", "Proteína", "Creatina", "Colágeno", "Magnesio",
-            "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos"
+            "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos",
+            // Nutrition subcategories the classifier can assign directly — must be
+            // whitelisted here or the product is filtered out before subtype matching.
+            "Snack Proteico", "Pancake Proteico", "Barra Proteica"
     );
 
     /**
