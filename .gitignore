@@ -1,6 +1,7 @@
 # Logs
 *.log
 scraper/*.log
+logs/
 
 # Databases
 scraper.db
