@@ -393,6 +393,19 @@ echo   Detener  : Ctrl+C
 echo  ============================================================
 echo.
 
+:: -- Limpieza de logs sueltos (idempotente, NO toca la carpeta logs\) --
+:: Raiz del proyecto (%ROOT%, sin backslash final; normalizado en linea 19)
+del /f /q "%ROOT%\app.log"           2>nul
+del /f /q "%ROOT%\server_run.log"    2>nul
+del /f /q "%ROOT%\scraper.log"       2>nul
+del /f /q "%ROOT%\scraper.*.log"     2>nul
+:: Directorio del jar / CWD en runtime (%PROJECT% = %ROOT%\scraper)
+del /f /q "%PROJECT%\app.log"        2>nul
+del /f /q "%PROJECT%\server_run.log" 2>nul
+del /f /q "%PROJECT%\scraper.log"    2>nul
+del /f /q "%PROJECT%\scraper.*.log"  2>nul
+mkdir "%PROJECT%\logs" 2>nul
+
 pushd "%PROJECT%"
 "%JAVA_EXE%" ^
   -Xmx768m ^
