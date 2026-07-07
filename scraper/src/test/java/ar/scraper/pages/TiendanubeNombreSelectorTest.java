@@ -1,5 +1,9 @@
 package ar.scraper.pages;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,6 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * so every product came out named "Sin stock" and dedup by site+name collapsed
  * the whole store to a single product.</p>
  */
+@Epic("Scraping Engine")
+@Feature("TiendaNube Parsing")
+@Story("Nombre selector")
+@DisplayName("TiendanubePage — product name selector resolution")
 class TiendanubeNombreSelectorTest {
 
     @Test

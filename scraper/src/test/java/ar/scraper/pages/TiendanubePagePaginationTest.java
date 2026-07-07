@@ -1,5 +1,10 @@
 package ar.scraper.pages;
 
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,12 +19,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The helper has no browser dependency — it only inspects href strings,
  * so every scenario can run without Playwright.
  */
+@Epic("Scraping Engine")
+@Feature("TiendaNube Parsing")
+@Story("Pagination")
+@DisplayName("TiendanubePage — next-page resolution from hrefs")
 class TiendanubePagePaginationTest {
 
     // (a) hrefs=[/?page=1,/?page=2,/?page=3] @cur=1 → maxN=3, 3>1 → OptionalInt.of(4)
     @Test
     void multiplePagesAhead_returnsNextPage() {
         List<String> hrefs = List.of("/?page=1", "/?page=2", "/?page=3");
+        Allure.parameter("hrefs", hrefs);
+        Allure.parameter("currentPage", 1);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 1);
         assertThat(result).hasValue(4);
     }
@@ -28,6 +39,8 @@ class TiendanubePagePaginationTest {
     @Test
     void onlyCurrentPageInHrefs_returnsEmpty() {
         List<String> hrefs = List.of("/?page=1");
+        Allure.parameter("hrefs", hrefs);
+        Allure.parameter("currentPage", 1);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 1);
         assertThat(result).isEmpty();
     }
@@ -35,6 +48,8 @@ class TiendanubePagePaginationTest {
     // (c) empty hrefs → maxN stays -1, -1>1 false → empty
     @Test
     void emptyHrefs_returnsEmpty() {
+        Allure.parameter("hrefs", List.of());
+        Allure.parameter("currentPage", 1);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(List.of(), 1);
         assertThat(result).isEmpty();
     }
@@ -43,6 +58,8 @@ class TiendanubePagePaginationTest {
     @Test
     void noPagePattern_returnsEmpty() {
         List<String> hrefs = List.of("/?q=shirt", "/?category=shoes");
+        Allure.parameter("hrefs", hrefs);
+        Allure.parameter("currentPage", 1);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 1);
         assertThat(result).isEmpty();
     }
@@ -51,6 +68,8 @@ class TiendanubePagePaginationTest {
     @Test
     void hrefsStartAboveCurrentPage_returnsNextPage() {
         List<String> hrefs = List.of("/?page=2", "/?page=3");
+        Allure.parameter("hrefs", hrefs);
+        Allure.parameter("currentPage", 2);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 2);
         assertThat(result).hasValue(4);
     }
@@ -66,6 +85,8 @@ class TiendanubePagePaginationTest {
     void mpageHrefs_returnsNextPage() {
         List<String> hrefs = List.of("/otras-temporadas1?mpage=1", "/otras-temporadas1?mpage=2",
                 "/otras-temporadas1?mpage=3");
+        Allure.parameter("hrefs", hrefs);
+        Allure.parameter("currentPage", 1);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 1);
         assertThat(result).hasValue(4);
     }
@@ -75,6 +96,8 @@ class TiendanubePagePaginationTest {
     @Test
     void mpageSinChocarConPage() {
         List<String> hrefs = List.of("/coleccion?mpage=5");
+        Allure.parameter("hrefs", hrefs);
+        Allure.parameter("currentPage", 2);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 2);
         assertThat(result).hasValue(6);
     }
@@ -83,24 +106,32 @@ class TiendanubePagePaginationTest {
 
     @Test
     void urlPaginaUsaPagePorDefecto() {
+        Allure.parameter("baseUrl", "https://x.com/productos/");
+        Allure.parameter("targetPage", 2);
         assertThat(TiendanubePage.urlPagina("https://x.com/productos/", 2))
                 .isEqualTo("https://x.com/productos/?page=2");
     }
 
     @Test
     void urlPaginaIncrementaPageExistente() {
+        Allure.parameter("baseUrl", "https://x.com/productos/?page=2");
+        Allure.parameter("targetPage", 3);
         assertThat(TiendanubePage.urlPagina("https://x.com/productos/?page=2", 3))
                 .isEqualTo("https://x.com/productos/?page=3");
     }
 
     @Test
     void urlPaginaPreservaMpage() {
+        Allure.parameter("baseUrl", "https://x.com/otras-temporadas1?mpage=1");
+        Allure.parameter("targetPage", 2);
         assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1?mpage=1", 2))
                 .isEqualTo("https://x.com/otras-temporadas1?mpage=2");
     }
 
     @Test
     void urlPaginaPaginaUnoDevuelveBase() {
+        Allure.parameter("baseUrl", "https://x.com/otras-temporadas1?mpage=1");
+        Allure.parameter("targetPage", 1);
         assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1?mpage=1", 1))
                 .isEqualTo("https://x.com/otras-temporadas1?mpage=1");
     }
