@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
+  <!-- Directorio de logs, configurable via -DLOG_DIR o variable de entorno LOG_DIR -->
+  <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+
   <!-- ╔══════════════════════════════════════════════════════════╗ -->
   <!-- ║  CONSOLA: colores tipo Allure, compacto y legible        ║ -->
   <!-- ╚══════════════════════════════════════════════════════════╝ -->
@@ -18,9 +21,9 @@
   <!-- ║  ARCHIVO: scraper.log rolling por fecha, sin colores     ║ -->
   <!-- ╚══════════════════════════════════════════════════════════╝ -->
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>scraper.log</file>
+    <file>${LOG_DIR}/scraper.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-      <fileNamePattern>scraper.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <fileNamePattern>${LOG_DIR}/scraper.%d{yyyy-MM-dd}.log</fileNamePattern>
       <maxHistory>30</maxHistory>
       <totalSizeCap>50MB</totalSizeCap>
     </rollingPolicy>
@@ -30,10 +33,30 @@
     </encoder>
   </appender>
 
-  <!-- ══ Nuestro código: INFO en consola Y archivo ══ -->
+  <!-- ╔══════════════════════════════════════════════════════════╗ -->
+  <!-- ║  ARCHIVO: error.log, solo WARN y superior, rolling       ║ -->
+  <!-- ╚══════════════════════════════════════════════════════════╝ -->
+  <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/error.log</file>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/error.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>50MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{25} - %msg%n</pattern>
+      <charset>UTF-8</charset>
+    </encoder>
+  </appender>
+
+  <!-- ══ Nuestro código: INFO en consola Y archivo, WARN+ tambien en error.log ══ -->
   <logger name="ar.scraper" level="INFO" additivity="false">
     <appender-ref ref="CONSOLE"/>
     <appender-ref ref="FILE"/>
+    <appender-ref ref="ERROR_FILE"/>
   </logger>
 
   <!-- ══ Spring/Tomcat: solo WARN en consola ══ -->
@@ -45,6 +68,7 @@
 
   <root level="WARN">
     <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="ERROR_FILE"/>
   </root>
 
 </configuration>
