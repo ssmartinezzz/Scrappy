@@ -4,6 +4,11 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.db.DatabaseService.Preset;
 import ar.scraper.model.Product;
 import ar.scraper.web.InflacionService;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -21,8 +26,13 @@ import static org.mockito.Mockito.when;
  * wiring — calculator branch logic is already covered by
  * {@link FinanciacionCalculatorTest}.
  */
+@Epic("ML Pipeline")
+@Feature("Financiación")
+@Story("Enricher")
+@DisplayName("FinanciacionEnricher — preset + inflation wiring into per-product signals")
 class FinanciacionEnricherTest {
 
+    @Step("Build product fixture: {nombre} @ {precio}")
     private Product producto(String nombre, double precio) {
         return new Product("Sitio", nombre, precio, null, "https://site.com/" + nombre,
                 "", "Remeras", "unisex", List.of());
