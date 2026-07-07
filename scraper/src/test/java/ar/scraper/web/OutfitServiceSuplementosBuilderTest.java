@@ -96,11 +96,64 @@ class OutfitServiceSuplementosBuilderTest {
         assertThat(result.get(0).tipo()).isEqualTo("Proteína en Polvo");
     }
 
+    // ── suplementos-classification-fixes: GRANGER snacks + whitelist (Bug B/C) ──
+
+    @Test
+    void armarComboSuplementos_grangerCupcakeShowsAsSnackProteico() {
+        var cupcake = producto("GRANGER Cupcake Vainilla", 3000, "Alimentos");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(cupcake), 0, Set.of("Snack Proteico"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Snack Proteico");
+    }
+
+    @Test
+    void armarComboSuplementos_grangerPuddingShowsAsSnackProteico() {
+        var pudding = producto("GRANGER Chia Pudding 300g", 3500, "Alimentos");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(pudding), 0, Set.of("Snack Proteico"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Snack Proteico");
+    }
+
+    @Test
+    void armarComboSuplementos_omeletteShowsAsSnackProteico() {
+        var omelette = producto("GRANGER Omelette Natural", 2800, "Alimentos");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(omelette), 0, Set.of("Snack Proteico"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Snack Proteico");
+    }
+
+    @Test
+    void armarComboSuplementos_snackProteicoCategoryReachesBuilder() {
+        // Bug C: the classifier can canonically tag a product "Snack Proteico";
+        // that category must be in the supplement whitelist or the product is
+        // silently filtered out of the builder before subtype matching runs.
+        var cookie = producto("Cookie Proteica ENA", 2500, "Snack Proteico");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(cookie), 0, Set.of("Snack Proteico"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Snack Proteico");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private Product suplemento(String nombre, double precio) {
+        return producto(nombre, precio, "Suplemento");
+    }
+
+    private Product producto(String nombre, double precio, String categoria) {
         return new Product("Sitio", nombre, precio, null,
                 "https://test.com/" + nombre.replace(" ", "-"),
-                "img.jpg", "Suplemento", "", List.of(), null, "Marca");
+                "img.jpg", categoria, "", List.of(), null, "Marca");
     }
 }

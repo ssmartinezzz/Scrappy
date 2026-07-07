@@ -276,7 +276,11 @@ public final class GarmentTaxonomy {
         // Sustantivos culinarios inequívocos — para que comidas sin marca
         // conocida tampoco las robe el bloque de indumentaria (ej. "Pancake
         // Protein Top" → Pancake Proteico, no Musculosa).
-        "pancake","panqueque","waffle","cookie","brownie","galleta","muffin",
+        // NOTE: bare "waffle" is deliberately NOT here — it is a knit-fabric term
+        // on garments (waffle-knit polo/tee) and would steal them into food. Real
+        // protein waffles disambiguate via "waffle proteico"/"waffle protein" in
+        // KW_PROTEINA_PANCAKE, or via a known food brand (KW_MARCA_ALIMENTO).
+        "pancake","panqueque","cookie","brownie","galleta","muffin",
         "cereal","granola","avena","palmito","palmitos","pure de ",
         "syrup","sirope","maple","barrita"," mani ","peanut","topping"
     };
@@ -294,7 +298,7 @@ public final class GarmentTaxonomy {
         // podría aparecer en lencería/merch de ropa. Si algún scrape muestra
         // indumentaria mal taggeada como Alimentos por esta palabra, quitarla.
         "diabla",
-        "ganexa","nutremax"
+        "ganexa","nutremax","granger"
     };
 
     public static final String[] KW_REMERA = {
@@ -529,8 +533,8 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_PROTEINA_PANCAKE = {
-        "pancake","panqueque proteico","waffle mix","mezcla para pancake",
-        "mezcla para panqueque","mix de pancake"
+        "pancake","panqueque proteico","waffle mix","waffle proteico","waffle protein",
+        "mezcla para pancake","mezcla para panqueque","mix de pancake"
     };
 
     public static final String[] KW_PROTEINA_SNACK = {
