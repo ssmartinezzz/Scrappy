@@ -1,5 +1,9 @@
 package ar.scraper.ml;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -19,6 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code construirProcessBuilderProbe}) that build (but never {@code .start()})
  * the process — these tests assert directly on the resulting environment map.</p>
  */
+@Epic("ML Pipeline")
+@Feature("Python Runner")
+@Story("GPU flag")
+@DisplayName("PythonRunner — force-CPU wiring via CUDA_VISIBLE_DEVICES")
 class PythonRunnerGpuFlagTest {
 
     private final PythonRunner runner = new PythonRunner();

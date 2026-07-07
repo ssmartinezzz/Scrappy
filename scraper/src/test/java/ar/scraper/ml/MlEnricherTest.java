@@ -3,6 +3,9 @@ package ar.scraper.ml;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ar.scraper.model.Product;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,6 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * per-product ML scores (and an optional refined category) into a rebuilt
  * {@link Product}.
  */
+@Epic("ML Pipeline")
+@Feature("Score Enrichment")
+@DisplayName("MlEnricher — wiring ML scores into Product")
 class MlEnricherTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
