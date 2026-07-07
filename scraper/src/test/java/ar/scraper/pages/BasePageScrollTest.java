@@ -1,6 +1,10 @@
 package ar.scraper.pages;
 
 import com.microsoft.playwright.Page;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -16,6 +20,10 @@ import static org.mockito.Mockito.when;
  * Verifies that {@link BasePage#scrollToBottom()} uses an img-count JS poll
  * (not a fixed Java-side waitForTimeout loop).
  */
+@Epic("Scraping Engine")
+@Feature("Base Page")
+@Story("Scroll")
+@DisplayName("BasePage — scroll-to-bottom via img-count poll")
 class BasePageScrollTest {
 
     /** Minimal concrete subclass — BasePage has no abstract methods to implement. */

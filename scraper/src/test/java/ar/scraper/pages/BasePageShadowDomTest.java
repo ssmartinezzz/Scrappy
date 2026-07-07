@@ -1,6 +1,10 @@
 package ar.scraper.pages;
 
 import com.microsoft.playwright.Page;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -12,6 +16,10 @@ import static org.mockito.Mockito.when;
  * Verifies that {@link BasePage#flattenedShadowHtml()} delegates to
  * {@code page.evaluate()} and returns the result verbatim.
  */
+@Epic("Scraping Engine")
+@Feature("Base Page")
+@Story("Shadow DOM")
+@DisplayName("BasePage — flattened shadow DOM HTML")
 class BasePageShadowDomTest {
 
     /** Minimal concrete subclass — BasePage has no abstract methods to implement. */
