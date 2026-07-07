@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { fetchSuplementosBuilder, fmt } from '../api';
+import { MultiSelectTags } from './ui/multi-select-tags';
+import { MoneyInput } from './ui/money-input';
 
 const TIPOS_DISPONIBLES = [
   { tipo: 'Proteína en Polvo', grupo: 'Proteína' },
@@ -21,6 +23,13 @@ const TIPOS_DISPONIBLES = [
   { tipo: 'Quemador',         grupo: null },
 ];
 const DEFAULT_TIPOS = new Set(['Proteína en Polvo', 'Creatina', 'Magnesio']);
+
+// Grouped tag data for MultiSelectTags, derived from TIPOS_DISPONIBLES —
+// preserves order and maps the `grupo: null` bucket to "Otros".
+const GROUPS = ['Proteína', 'Vitaminas', 'Aderezos', null].map(grupo => ({
+  label: grupo ?? 'Otros',
+  tags: TIPOS_DISPONIBLES.filter(t => t.grupo === grupo).map(t => t.tipo),
+}));
 
 export default function SuplementosPanel() {
   const [tipos, setTipos] = useState(DEFAULT_TIPOS);
@@ -83,50 +92,20 @@ export default function SuplementosPanel() {
         <p style={{ color: 'var(--t2)', fontWeight: 600, fontSize: '.85rem', margin: '0 0 14px' }}>
           ¿Qué suplementos necesitás?
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {['Proteína', 'Vitaminas', 'Aderezos', null].map(grupo => (
-            <div key={grupo ?? 'otros'}>
-              <p style={{ color: 'var(--t4)', fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 8px' }}>
-                {grupo ?? 'Otros'}
-              </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                {TIPOS_DISPONIBLES.filter(t => t.grupo === grupo).map(({ tipo }) => {
-                  const checked = tipos.has(tipo);
-                  return (
-                    <label key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleTipo(tipo)}
-                        style={{ accentColor: 'var(--p)', width: 16, height: 16, cursor: 'pointer' }} />
-                      <span style={{ color: checked ? 'var(--p)' : 'var(--t2)', fontWeight: checked ? 700 : 400, fontSize: '.9rem', transition: 'color .15s' }}>
-                        {tipo}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <MultiSelectTags groups={GROUPS} selected={tipos} onToggle={toggleTipo} />
       </div>
 
       {/* Budget + generate */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 24 }}>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <label style={{ display: 'block', color: 'var(--t3)', fontSize: '.8rem', fontWeight: 600, marginBottom: 6 }}>
+          <label htmlFor="presupuesto" style={{ display: 'block', color: 'var(--t3)', fontSize: '.8rem', fontWeight: 600, marginBottom: 6 }}>
             Presupuesto total (opcional)
           </label>
-          <input
-            type="number"
-            min="0"
-            placeholder="Presupuesto total opcional"
+          <MoneyInput
+            id="presupuesto"
             value={presupuesto}
-            onChange={e => setPresupuesto(e.target.value)}
-            style={{
-              width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: '.9rem',
-              border: '1.5px solid var(--s3)', background: 'var(--s1)', color: 'var(--t1)',
-              outline: 'none', boxSizing: 'border-box',
-            }}
-            onFocus={e => { e.target.style.borderColor = 'var(--p)'; }}
-            onBlur={e => { e.target.style.borderColor = 'var(--s3)'; }}
+            onChange={setPresupuesto}
+            placeholder="Ej: 50.000"
           />
         </div>
         <button
