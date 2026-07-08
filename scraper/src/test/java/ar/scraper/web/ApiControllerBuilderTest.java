@@ -7,7 +7,13 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +53,10 @@ import static org.mockito.Mockito.when;
  *   - minimoBudgetNecesario in no-fit JSON response
  *   - minimoBudgetNecesario absent/null on success
  */
+@Epic("REST API")
+@Feature("Sitios / Config / Wiring")
+@Story("Controller wiring")
+@DisplayName("ApiController — Outfit builder endpoint")
 class ApiControllerBuilderTest {
 
     private ScraperService            service;
@@ -62,6 +72,15 @@ class ApiControllerBuilderTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+
+        // Stubs used by the feedback-model builder inside outfitsBuilder()
+        when(db.obtenerOutfitFeedback()).thenReturn(List.of());
+        when(db.obtenerCategoriaDismiss()).thenReturn(Set.of());
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -74,10 +93,6 @@ class ApiControllerBuilderTest {
 
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
-
-        // Stubs used by the feedback-model builder inside outfitsBuilder()
-        when(db.obtenerOutfitFeedback()).thenReturn(List.of());
-        when(db.obtenerCategoriaDismiss()).thenReturn(Set.of());
     }
 
     // ── Helper to create a minimal AggregatedResult with the given products ──
@@ -105,6 +120,7 @@ class ApiControllerBuilderTest {
 
     @Test
     void presupuestoZero_returns400() {
+        Allure.parameter("presupuesto", 0);
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 0, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
@@ -112,6 +128,7 @@ class ApiControllerBuilderTest {
 
     @Test
     void presupuestoNegative_returns400() {
+        Allure.parameter("presupuesto", -1000);
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", -1000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
