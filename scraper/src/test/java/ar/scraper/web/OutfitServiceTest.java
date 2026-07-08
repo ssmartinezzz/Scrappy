@@ -1,6 +1,11 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,6 +21,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * explicit non-regression requirement (spec.md "No Regression to Existing
  * Outfit-Builder Behavior") for the pre-existing pair-exclude axis.
  */
+@Epic("Outfit Orchestration")
+@Feature("Outfit Building")
+@Story("Core building")
+@DisplayName("OutfitService — Core building")
 class OutfitServiceTest {
 
     private final OutfitService service = new OutfitService(new RecommendationService());
@@ -111,6 +120,7 @@ class OutfitServiceTest {
     void paso2FallbackNoIncluyeProductosMujerEnOutfitHombre() {
         // Only a women's calza is available for piernas — paso 2 must NOT
         // pick it; the slot must be left empty (partial=true).
+        Allure.parameter("generoSolicitado", "hombre");
         Product remera    = producto("Remera Nike",      20000, "Remera",    "hombre", "Nike",   true);
         Product zapatilla = producto("Zapatilla Adidas", 80000, "Zapatilla", "hombre", "Adidas", false);
         Product calzaMujer = producto("Calza Mujer Pro", 25000, "Calza",     "mujer",  "Nike",   true);
@@ -127,6 +137,7 @@ class OutfitServiceTest {
     void paso2FallbackIncluyeProductoUnisexEnOutfitHombre() {
         // When only a mujer calza and a unisex calza are available, paso 2
         // must pick the unisex one for a hombre outfit.
+        Allure.parameter("generoSolicitado", "hombre");
         Product remera       = producto("Remera Nike",      20000, "Remera",    "hombre",  "Nike",   true);
         Product zapatilla    = producto("Zapatilla Adidas", 80000, "Zapatilla", "hombre",  "Adidas", false);
         Product calzaMujer   = producto("Calza Mujer Pro",  25000, "Calza",     "mujer",   "Nike",   true);
@@ -161,6 +172,7 @@ class OutfitServiceTest {
     @Test
     void paso2FallbackNoIncluyeProductosMujerEnOutfitMujer_regresion() {
         // Mirror test: hombre products must not leak into a mujer outfit via paso 2.
+        Allure.parameter("generoSolicitado", "mujer");
         Product remera       = producto("Remera Mujer",     20000, "Remera",    "mujer",  "Nike",   true);
         Product zapatilla    = producto("Zapatilla Mujer",  80000, "Zapatilla", "mujer",  "Adidas", false);
         Product shortHombre  = producto("Short Hombre Pro", 22000, "Short",     "hombre", "Nike",   true);
