@@ -7,6 +7,10 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -29,6 +33,10 @@ import static org.mockito.Mockito.when;
  * {@code FinanciacionEnricherTest} and the {@code ResultAggregator} wiring
  * tests already covered elsewhere).</p>
  */
+@Epic("Outfit Orchestration")
+@Feature("Scraper Orchestration")
+@Story("Financiación wiring")
+@DisplayName("ScraperService — Financiación wiring")
 class ScraperServiceFinanciacionTest {
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {
