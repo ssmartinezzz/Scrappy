@@ -12,7 +12,12 @@ import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +42,9 @@ import static org.mockito.Mockito.*;
  * {@code /api/data} must remain byte-for-byte unchanged — verified by
  * {@link #dataSerializesExistingSenalAndMlFieldsUnchanged()}.</p>
  */
+@Epic("REST API")
+@Feature("Financiación")
+@DisplayName("ApiController — Financiación presets & /api/data signal")
 class ApiControllerFinanciacionTest {
 
     private ScraperService service;
@@ -52,14 +60,19 @@ class ApiControllerFinanciacionTest {
 
     @BeforeEach
     void setUp() {
-        service          = mock(ScraperService.class);
-        inflacionService = mock(InflacionService.class);
-        config            = mock(ScraperConfig.class);
-        aggregator        = mock(ResultAggregator.class);
-        db                = mock(DatabaseService.class);
-        grouping          = mock(GroupingService.class);
-        pythonRunner      = mock(PythonRunner.class);
-        outfitService     = mock(OutfitService.class);
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
+        service               = mock(ScraperService.class);
+        inflacionService      = mock(InflacionService.class);
+        config                = mock(ScraperConfig.class);
+        aggregator            = mock(ResultAggregator.class);
+        db                    = mock(DatabaseService.class);
+        grouping              = mock(GroupingService.class);
+        pythonRunner          = mock(PythonRunner.class);
+        outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
@@ -122,6 +135,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void postPresetBlankLabelReturns400WithoutPersisting() {
+        Allure.parameter("label", "  ");
         ResponseEntity<?> resp = controller.crearPreset(
                 Map.of("label", "  ", "recargoPct", 25.0, "cuotas", 6));
 
@@ -135,6 +149,7 @@ class ApiControllerFinanciacionTest {
     void postPresetNegativeRecargoPctReturns400WithoutPersisting() {
         // Spec: recargoPct >= 0 strictly enforced at controller boundary —
         // stricter than DatabaseService.crearPreset's internal >-100 floor.
+        Allure.parameter("recargoPct", -1.0);
         ResponseEntity<?> resp = controller.crearPreset(
                 Map.of("label", "x", "recargoPct", -1.0, "cuotas", 6));
 
@@ -144,6 +159,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void postPresetZeroCuotasReturns400WithoutPersisting() {
+        Allure.parameter("cuotas", 0);
         ResponseEntity<?> resp = controller.crearPreset(
                 Map.of("label", "x", "recargoPct", 10.0, "cuotas", 0));
 
