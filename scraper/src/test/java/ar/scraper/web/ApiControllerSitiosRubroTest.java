@@ -6,7 +6,12 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -25,6 +30,10 @@ import static org.mockito.Mockito.when;
  * is instantiated as a plain POJO with Mockito-mocked collaborators.
  * No {@code @WebMvcTest} or full Spring context is required.</p>
  */
+@Epic("REST API")
+@Feature("Filtros / Facets")
+@Story("Sitios rubro")
+@DisplayName("ApiController — Sitios rubro field")
 class ApiControllerSitiosRubroTest {
 
     private ScraperService service;
@@ -40,6 +49,21 @@ class ApiControllerSitiosRubroTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+
+        when(config.getSitiosActivos()).thenReturn(List.of(
+                new ScraperConfig.SiteConfig("maximus", "https://www.maximus.com.ar", "tecnologia"),
+                new ScraperConfig.SiteConfig("barnes",  "https://barnesindustries.com.ar/productos/", "indumentaria")
+        ));
+        when(config.getPrecioMinimo()).thenReturn(0.0);
+        when(config.getPrecioMaximo()).thenReturn(300000.0);
+        when(config.getMoneda()).thenReturn("ARS");
+        when(service.getSitiosExtras()).thenReturn(List.of());
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -52,16 +76,6 @@ class ApiControllerSitiosRubroTest {
 
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
-
-        when(config.getSitiosActivos()).thenReturn(List.of(
-                new ScraperConfig.SiteConfig("maximus", "https://www.maximus.com.ar", "tecnologia"),
-                new ScraperConfig.SiteConfig("barnes",  "https://barnesindustries.com.ar/productos/", "indumentaria")
-        ));
-        when(config.getPrecioMinimo()).thenReturn(0.0);
-        when(config.getPrecioMaximo()).thenReturn(300000.0);
-        when(config.getMoneda()).thenReturn("ARS");
-        when(service.getSitiosExtras()).thenReturn(List.of());
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     @Test
