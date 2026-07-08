@@ -1,7 +1,13 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,6 +16,10 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+@Epic("Outfit Orchestration")
+@Feature("Supplements / Style")
+@Story("Suplementos builder")
+@DisplayName("OutfitService — Suplementos builder")
 class OutfitServiceSuplementosBuilderTest {
 
     private RecommendationService recommendationService;
@@ -17,6 +27,11 @@ class OutfitServiceSuplementosBuilderTest {
 
     @BeforeEach
     void setUp() {
+        wireOutfitService();
+    }
+
+    @Step("Wire OutfitService with mocked RecommendationService")
+    private void wireOutfitService() {
         recommendationService = mock(RecommendationService.class);
         outfitService = new OutfitService(recommendationService);
     }
@@ -25,6 +40,7 @@ class OutfitServiceSuplementosBuilderTest {
     void armarComboSuplementos_filtersToRequestedTypes() {
         var proteina = suplemento("Whey Protein 1kg", 5000);
         var creatina = suplemento("Creatina Monohidrato 300g", 3000);
+        Allure.parameter("tipos", Set.of("Proteína en Polvo"));
 
         List<OutfitService.SupplementPick> result =
                 outfitService.armarComboSuplementos(List.of(proteina, creatina), 0, Set.of("Proteína en Polvo"));
@@ -36,6 +52,7 @@ class OutfitServiceSuplementosBuilderTest {
     @Test
     void armarComboSuplementos_returnsEmptyWhenNoProductsMatchType() {
         var creatina = suplemento("Creatina Monohidrato 300g", 3000);
+        Allure.parameter("tipos", Set.of("Vitamina C"));
 
         // "Vitamina C" is now a subtype; creatina has no vitamin keywords → empty
         List<OutfitService.SupplementPick> result =
@@ -47,6 +64,7 @@ class OutfitServiceSuplementosBuilderTest {
     @Test
     void armarComboSuplementos_vitaminasKeywordMatching() {
         var vitamina = suplemento("Vitamina C 1000mg", 2000);
+        Allure.parameter("tipos", Set.of("Vitamina C"));
 
         // "Vitaminas" is split — "Vitamina C 1000mg" matches the "Vitamina C" subtype
         List<OutfitService.SupplementPick> result =
@@ -73,6 +91,7 @@ class OutfitServiceSuplementosBuilderTest {
     @Test
     void armarComboSuplementos_budgetConstraint_picksChampestWhenNoneAffordable() {
         var expensive = suplemento("Whey Protein 2kg", 2000);
+        Allure.parameter("presupuesto", 1000);
 
         // presupuesto 1000 < precio 2000 → no candidate is affordable → fallback picks cheapest
         List<OutfitService.SupplementPick> result =
