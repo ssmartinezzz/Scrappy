@@ -6,7 +6,13 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -16,6 +22,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Outfits")
+@Story("Saved outfits")
+@DisplayName("ApiController — Saved outfits endpoints")
 class ApiControllerSavedOutfitsTest {
 
     private ScraperService service;
@@ -31,6 +41,11 @@ class ApiControllerSavedOutfitsTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -119,6 +134,7 @@ class ApiControllerSavedOutfitsTest {
     void deleteSavedOutfitNotFoundReturns404WithOkFalse() {
         when(db.eliminarOutfitGuardado(999)).thenReturn(false);
 
+        Allure.parameter("id", 999);
         ResponseEntity<?> resp = controller.deleteSavedOutfit(999);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
@@ -154,6 +170,7 @@ class ApiControllerSavedOutfitsTest {
     void renameSavedOutfitNotFoundReturns404() {
         when(db.renombrarOutfit(99, "x")).thenReturn(false);
 
+        Allure.parameter("id", 99);
         ResponseEntity<?> resp = controller.renameSavedOutfit(99, Map.of("nombre", "x"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
