@@ -1,6 +1,10 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,6 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code ar.scraper.aggregator.normalize.SubcategoryResolverTest} (Work Unit 7)
  * of the aggregator SOLID modularization.</p>
  */
+@Epic("Aggregation & Grouping")
+@Feature("Normalizer Orchestration")
+@DisplayName("NormalizerService — gymrat tagging orchestration + legacy-ctor defaults")
 class NormalizerServiceTest {
 
     private final NormalizerService service = NormalizerServiceTestFactory.create();
@@ -50,6 +57,7 @@ class NormalizerServiceTest {
     // exclusive on the gymrat flag (OutfitService).
     // ══════════════════════════════════════════════════════════════════
 
+    @Step("Normalize product: {nombre} / {marca} / {categoria}")
     private Product normalizarUno(String nombre, String marca, String categoria) {
         Product in = new Product("Freres", nombre, 1000.0, null,
                 "http://url", "http://img", categoria, "hombre",
