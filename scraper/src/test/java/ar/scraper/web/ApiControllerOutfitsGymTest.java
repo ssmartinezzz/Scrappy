@@ -8,9 +8,15 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -20,6 +26,10 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Outfits")
+@Story("Gym outfits")
+@DisplayName("ApiController — Gym outfits endpoint")
 class ApiControllerOutfitsGymTest {
 
     private ScraperService service;
@@ -35,6 +45,11 @@ class ApiControllerOutfitsGymTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -72,7 +87,7 @@ class ApiControllerOutfitsGymTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble())).thenReturn(List.of());
 
         var resp = controller.outfits("hombre", 0, "", 0);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("genero").asText()).isEqualTo("hombre");
@@ -95,7 +110,7 @@ class ApiControllerOutfitsGymTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble())).thenReturn(List.of());
 
         var resp = controller.outfits("hombre", 10000, "", 0);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("totalEstimado").asDouble()).isEqualTo(8000.0);
         assertThat(body.get("slots").size()).isEqualTo(1);
@@ -113,6 +128,7 @@ class ApiControllerOutfitsGymTest {
                 .thenReturn(emptyOutfit);
         when(outfitService.armarComboSuplementos(any(), anyDouble())).thenReturn(List.of());
 
+        Allure.parameter("excluir", "https://a.com/1,https://b.com/2");
         controller.outfits("hombre", 0, "https://a.com/1,https://b.com/2", 0);
 
         verify(outfitService).armar(any(), any(), eq("gym"), any(), anyDouble(),
