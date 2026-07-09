@@ -22,9 +22,9 @@ failure, or any DB hiccup for a single URL must never raise out of
 skip (``None`` in the result dict), leaving text-only classification
 untouched upstream.
 
-Heavy imports (``torch``, ``open_clip``, ``PIL``) are performed lazily
-inside functions so this module stays importable on machines where the
-installer's optional image-classification step did not run.
+Heavy imports (``torch``, ``open_clip``, ``PIL``, ``numpy``) are performed
+lazily inside functions so this module stays importable on machines where
+the installer's optional image-classification step did not run.
 """
 import os
 import sys
@@ -139,7 +139,7 @@ def get_cached(conn, url, model_version):
         return None
     import numpy as np
 
-    return np.frombuffer(blob, dtype=np.float32, count=dim).copy()
+    return np.frombuffer(blob, dtype="<f4", count=dim).copy()
 
 
 def insert_cache(conn, url, embedding, dim, model_version):
@@ -152,7 +152,7 @@ def insert_cache(conn, url, embedding, dim, model_version):
     """
     import numpy as np
 
-    blob = np.asarray(embedding, dtype=np.float32).tobytes()
+    blob = np.asarray(embedding, dtype="<f4").tobytes()
     conn.execute(
         """
         INSERT OR REPLACE INTO image_embeddings
@@ -212,7 +212,12 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
     never as an error to propagate.
     """
     results = {}
-    conn = sqlite3.connect(db_path)
+    try:
+        conn = sqlite3.connect(db_path)
+    except Exception as e:
+        print(f"[ml_embeddings] DB connect failed for {db_path}: {e}", file=sys.stderr)
+        return {url: None for url in urls}
+
     try:
         model = preprocess = None
         model_load_tried = False
@@ -221,7 +226,13 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
                 results[url] = None
                 continue
 
-            cached = get_cached(conn, url, model_version)
+            try:
+                cached = get_cached(conn, url, model_version)
+            except Exception as e:
+                print(f"[ml_embeddings] Cache lookup failed for {url}: {e}", file=sys.stderr)
+                results[url] = None
+                continue
+
             if cached is not None:
                 results[url] = cached
                 continue
