@@ -230,6 +230,47 @@ if errorlevel 1 (
     echo        PyTorch ya instalado.
 )
 
+:: 3f - open_clip_torch + huggingface_hub (clasificacion de imagenes por IA)
+"%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
+if errorlevel 1 (
+    echo        Instalando open_clip_torch + huggingface_hub aprox 10MB...
+    "%PIP_EXE%" install --quiet --no-warn-script-location --timeout 300 --retries 5 open_clip_torch huggingface_hub
+) else (
+    echo        open_clip_torch ya instalado.
+)
+
+:: 3g - Pesos del modelo Marqo-FashionSigLIP aprox 300MB
+set "MODELS_DIR=%ROOT%\_models"
+set "MARQO_DIR=%MODELS_DIR%\marqo"
+set "HF_HOME=%MARQO_DIR%"
+if not exist "%MARQO_DIR%" mkdir "%MARQO_DIR%" 2>nul
+"%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
+if errorlevel 1 (
+    echo        AVISO: open_clip_torch no disponible. Clasificacion por imagen desactivada.
+    goto :marqo_ok
+)
+if exist "%MARQO_DIR%\.ready" (
+    echo        Modelo Marqo-FashionSigLIP ya descargado.
+    goto :marqo_ok
+)
+echo        Descargando modelo Marqo-FashionSigLIP aprox 300MB...
+echo        (Si se corta la conexion, reintenta automaticamente hasta 5 veces)
+set "HF_HUB_DOWNLOAD_TIMEOUT=300"
+set "MARQO_OK=0"
+for /l %%R in (1,1,5) do (
+    if "!MARQO_OK!"=="0" (
+        "%PYTHON_DIR%\Scripts\huggingface-cli.exe" download Marqo/marqo-fashionSigLIP >nul 2>&1
+        if not errorlevel 1 set "MARQO_OK=1"
+    )
+)
+if "!MARQO_OK!"=="1" (
+    echo. > "%MARQO_DIR%\.ready"
+    echo        Modelo Marqo-FashionSigLIP listo.
+) else (
+    echo        AVISO: No se pudo descargar el modelo tras 5 intentos. Clasificacion por imagen desactivada esta corrida.
+)
+:marqo_ok
+
 :python_ok
 echo.
 
