@@ -231,21 +231,39 @@ if errorlevel 1 (
 )
 
 :: 3f - open_clip_torch + huggingface_hub (clasificacion de imagenes por IA)
+:: Pines defensivos: evitan que la resolucion de dependencias de pip toque
+:: el torch/torchvision ya instalado en 3e (CPU o CUDA). Verificamos ademas
+:: que la version de torch no haya cambiado tras instalar estos paquetes.
+set "IMGCLS_DEPS_OK=0"
 "%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
 if errorlevel 1 (
     echo        Instalando open_clip_torch + huggingface_hub aprox 10MB...
-    "%PIP_EXE%" install --quiet --no-warn-script-location --timeout 300 --retries 5 open_clip_torch huggingface_hub
+    set "TORCH_VER_BEFORE="
+    "%PYTHON_EXE%" -c "import torch; print(torch.__version__)" > "%TOOLS%\torchver_before.tmp" 2>nul
+    for /f "usebackq tokens=*" %%V in ("%TOOLS%\torchver_before.tmp") do set "TORCH_VER_BEFORE=%%V"
+    del /f /q "%TOOLS%\torchver_before.tmp" 2>nul
+    "%PIP_EXE%" install --quiet --no-warn-script-location --timeout 300 --retries 5 open_clip_torch==2.24.0 huggingface_hub==0.24.6
+    set "TORCH_VER_AFTER="
+    "%PYTHON_EXE%" -c "import torch; print(torch.__version__)" > "%TOOLS%\torchver_after.tmp" 2>nul
+    for /f "usebackq tokens=*" %%V in ("%TOOLS%\torchver_after.tmp") do set "TORCH_VER_AFTER=%%V"
+    del /f /q "%TOOLS%\torchver_after.tmp" 2>nul
+    if not "!TORCH_VER_BEFORE!"=="!TORCH_VER_AFTER!" (
+        echo        AVISO: PyTorch cambio de version tras instalar open_clip_torch ^(!TORCH_VER_BEFORE! -^> !TORCH_VER_AFTER!^). Verificar compatibilidad CUDA/CPU.
+    ) else (
+        echo        open_clip_torch + huggingface_hub instalados. PyTorch sin cambios ^(!TORCH_VER_AFTER!^).
+    )
 ) else (
     echo        open_clip_torch ya instalado.
 )
+"%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
+if not errorlevel 1 set "IMGCLS_DEPS_OK=1"
 
 :: 3g - Pesos del modelo Marqo-FashionSigLIP aprox 300MB
 set "MODELS_DIR=%ROOT%\_models"
 set "MARQO_DIR=%MODELS_DIR%\marqo"
 set "HF_HOME=%MARQO_DIR%"
 if not exist "%MARQO_DIR%" mkdir "%MARQO_DIR%" 2>nul
-"%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
-if errorlevel 1 (
+if "!IMGCLS_DEPS_OK!"=="0" (
     echo        AVISO: open_clip_torch no disponible. Clasificacion por imagen desactivada.
     goto :marqo_ok
 )
@@ -259,7 +277,7 @@ set "HF_HUB_DOWNLOAD_TIMEOUT=300"
 set "MARQO_OK=0"
 for /l %%R in (1,1,5) do (
     if "!MARQO_OK!"=="0" (
-        "%PYTHON_DIR%\Scripts\huggingface-cli.exe" download Marqo/marqo-fashionSigLIP >nul 2>&1
+        "%PYTHON_EXE%" -c "from huggingface_hub import snapshot_download; snapshot_download('Marqo/marqo-fashionSigLIP')" >nul 2>&1
         if not errorlevel 1 set "MARQO_OK=1"
     )
 )
