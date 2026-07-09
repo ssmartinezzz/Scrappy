@@ -1,7 +1,13 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -13,6 +19,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@Epic("Outfit Orchestration")
+@Feature("Outfit Building")
+@Story("Subslots")
+@DisplayName("OutfitService — Category Subslot Mapping")
 class OutfitServiceSubslotTest {
 
     private RecommendationService recommendationService;
@@ -22,6 +32,12 @@ class OutfitServiceSubslotTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() throws Exception {
+        wireOutfitService();
+    }
+
+    @Step("Wire OutfitService with mocked collaborators")
+    @SuppressWarnings("unchecked")
+    private void wireOutfitService() throws Exception {
         recommendationService = mock(RecommendationService.class);
         when(recommendationService.baseMlScore(any())).thenReturn(1.0);
         outfitService = new OutfitService(recommendationService);
@@ -111,6 +127,7 @@ class OutfitServiceSubslotTest {
 
     @Test
     void armarPorCategorias_budgetTooLow_returnsEmptySlots() {
+        Allure.parameter("presupuesto", 1);
         var remera = gymProd("Remera", "Remera deportiva", 5000);
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
