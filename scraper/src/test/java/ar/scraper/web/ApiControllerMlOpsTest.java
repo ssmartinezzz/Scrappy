@@ -9,9 +9,14 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.PythonRunner.TrainingStatus;
 import ar.scraper.model.Product;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -20,6 +25,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Tendencias / ML Ops")
+@Story("ML ops")
+@DisplayName("ApiController — ML ops endpoints")
 class ApiControllerMlOpsTest {
 
     private ScraperService service;
@@ -35,6 +44,11 @@ class ApiControllerMlOpsTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -56,7 +70,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(new TrainingStatus(false, "idle", 0, "", null));
 
         var resp = controller.mlEstado();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.has("hasTextModel")).isTrue();
@@ -71,7 +85,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(new TrainingStatus(true, "training", 45, "Epoch 4/8", "2026-01-01T10:00"));
 
         var resp = controller.mlEstado();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.path("training").get("running").asBoolean()).isTrue();
         assertThat(body.path("training").get("pct").asInt()).isEqualTo(45);
@@ -86,7 +100,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(new TrainingStatus(false, "done", 100, "Completado", "2026-01-01T10:00"));
 
         var resp = controller.mlResultado();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("done").asBoolean()).isTrue();
         assertThat(body.get("running").asBoolean()).isFalse();
@@ -98,7 +112,7 @@ class ApiControllerMlOpsTest {
         when(pythonRunner.getTrainingStatus()).thenReturn(TrainingStatus.idle());
 
         var resp = controller.mlResultado();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("done").asBoolean()).isFalse();
         assertThat(body.get("phase").asText()).isEqualTo("idle");
@@ -111,7 +125,7 @@ class ApiControllerMlOpsTest {
         when(pythonRunner.isTrainingRunning()).thenReturn(true);
 
         var resp = controller.mlEntrenar(false, 8);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("error").asText()).contains("curso");
@@ -123,7 +137,7 @@ class ApiControllerMlOpsTest {
         when(pythonRunner.isTrainingRunning()).thenReturn(false);
 
         var resp = controller.mlEntrenar(false, 8);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
@@ -137,7 +151,7 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(null);
 
         var resp = controller.mlAplicar();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("error").asText()).contains("scraping");
@@ -150,7 +164,7 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(result);
 
         var resp = controller.mlAplicar();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
