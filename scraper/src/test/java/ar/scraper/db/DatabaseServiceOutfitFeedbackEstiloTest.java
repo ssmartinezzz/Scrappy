@@ -1,7 +1,13 @@
 package ar.scraper.db;
 
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,6 +21,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * dimension, and that {@link DatabaseService#limpiarOutfitFeedback(String)}
  * clears only the requested estilo's rows (per-surface reset).
  */
+@Epic("Persistence")
+@Feature("Outfit Feedback / Saved Outfits")
+@Story("Feedback estilo")
+@DisplayName("DatabaseService — outfit feedback estilo dimension")
 class DatabaseServiceOutfitFeedbackEstiloTest {
 
     @TempDir
@@ -24,6 +34,11 @@ class DatabaseServiceOutfitFeedbackEstiloTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-estilo.db").toString());
     }
@@ -72,6 +87,7 @@ class DatabaseServiceOutfitFeedbackEstiloTest {
         db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/casual",  true, "casual");
         db.guardarOutfitFeedbackItem("",       "catalog", "https://t/feed",  false, "catalog");
 
+        Allure.parameter("estilo", "gym");
         db.limpiarOutfitFeedback("gym");
 
         List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback();
@@ -85,7 +101,9 @@ class DatabaseServiceOutfitFeedbackEstiloTest {
     void scopedResetWithBlankEstiloIsNoOp() {
         db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/gym", true, "gym");
 
+        Allure.parameter("estilo", "");
         db.limpiarOutfitFeedback("");
+        Allure.parameter("estilo", null);
         db.limpiarOutfitFeedback(null);
 
         assertThat(db.obtenerOutfitFeedback()).hasSize(1);
