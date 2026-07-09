@@ -12,8 +12,14 @@ import ar.scraper.web.OutfitService;
 import ar.scraper.web.RecommendationService;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +40,10 @@ import static org.mockito.Mockito.when;
  * from the other endpoint — mirrors {@code DatabaseServicePresetTest}'s real
  * SQLite seam, applied at the {@code ApiController} level.
  */
+@Epic("REST API")
+@Feature("Mejores Picks / Recomendados")
+@Story("Recomendados bidirectional")
+@DisplayName("ApiController — Recomendados bidirectional taste signal")
 class ApiControllerRecomendadosBidirectionalTest {
 
     @TempDir
@@ -55,6 +65,11 @@ class ApiControllerRecomendadosBidirectionalTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with a real temp-file DatabaseService and mocked collaborators")
+    private void wireController() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-bidirectional.db").toString());
 
@@ -131,6 +146,7 @@ class ApiControllerRecomendadosBidirectionalTest {
         when(result.productos()).thenReturn(List.of(unisexRemera));
         when(service.getLastResult()).thenReturn(result);
 
+        Allure.parameter("genero", "mujer");
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
                 controller.recomendados(1, 24, "mujer", "Remeras");
 
@@ -212,6 +228,7 @@ class ApiControllerRecomendadosBidirectionalTest {
         when(result.productos()).thenReturn(productos);
         when(service.getLastResult()).thenReturn(result);
 
+        Allure.parameter("genero", "hombre");
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
                 controller.recomendados(1, 24, "hombre", "Zapatillas");
 
