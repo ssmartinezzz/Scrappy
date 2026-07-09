@@ -22,6 +22,8 @@ set "JAVA_DIR=%TOOLS%\jdk21"
 set "JAVA_EXE=%JAVA_DIR%\bin\java.exe"
 set "MVN_DIR=%TOOLS%\maven"
 set "MVN_EXE=%MVN_DIR%\bin\mvn.cmd"
+set "ALLURE_DIR=%TOOLS%\allure"
+set "ALLURE_EXE=%ALLURE_DIR%\bin\allure.bat"
 set "PYTHON_DIR=%TOOLS%\python"
 set "PYTHON_EXE=%PYTHON_DIR%\python.exe"
 set "PIP_EXE=%PYTHON_DIR%\Scripts\pip.exe"
@@ -35,9 +37,9 @@ echo  Proyecto: %PROJECT%
 echo.
 
 :: ============================================================
-:: [1/6] Internet
+:: [1/7] Internet
 :: ============================================================
-echo [1/6] Verificando internet...
+echo [1/7] Verificando internet...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "try{(New-Object Net.WebClient).DownloadString('https://www.google.com')|Out-Null;exit 0}catch{exit 1}"
 if errorlevel 1 (
@@ -48,9 +50,9 @@ echo        OK
 echo.
 
 :: ============================================================
-:: [2/6] Java 21
+:: [2/7] Java 21
 :: ============================================================
-echo [2/6] Java 21...
+echo [2/7] Java 21...
 if exist "%JAVA_EXE%" (
     echo        Ya instalado.
     goto :java_ok
@@ -83,9 +85,9 @@ set "PATH=%JAVA_DIR%\bin;%PATH%"
 echo.
 
 :: ============================================================
-:: [3/6] Python 3.11 + pip + paquetes ML
+:: [3/7] Python 3.11 + pip + paquetes ML
 :: ============================================================
-echo [3/6] Python + scikit-learn + PyTorch...
+echo [3/7] Python + scikit-learn + PyTorch...
 echo.
 
 :: 3a - Python embeddable
@@ -232,9 +234,9 @@ if errorlevel 1 (
 echo.
 
 :: ============================================================
-:: [4/6] Node.js + Frontend
+:: [4/7] Node.js + Frontend
 :: ============================================================
-echo [4/6] Node.js + Frontend React/Vite...
+echo [4/7] Node.js + Frontend React/Vite...
 if exist "%NODE_DIR%\node.exe" (
     echo        Node.js ya instalado.
     goto :node_ok
@@ -308,9 +310,9 @@ cd /d "%ROOT%"
 echo.
 
 :: ============================================================
-:: [5/6] Maven
+:: [5/7] Maven
 :: ============================================================
-echo [5/6] Maven...
+echo [5/7] Maven...
 if exist "%MVN_EXE%" (
     echo        Ya instalado.
     goto :mvn_ok
@@ -345,9 +347,46 @@ set "PATH=%MVN_DIR%\bin;%PATH%"
 echo.
 
 :: ============================================================
-:: [6/6] Compilar JAR
+:: [6/7] Allure CLI (reportes de test)
 :: ============================================================
-echo [6/6] Compilando backend Java...
+echo [6/7] Allure CLI...
+if exist "%ALLURE_EXE%" (
+    echo        Ya instalado.
+    goto :allure_ok
+)
+echo        Descargando Allure 2.29.0 aprox 25MB...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "[Net.ServicePointManager]::SecurityProtocol='Tls12';" ^
+  "$ProgressPreference='SilentlyContinue';" ^
+  "try { (New-Object Net.WebClient).DownloadFile(" ^
+  "'https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.29.0/allure-commandline-2.29.0.zip'," ^
+  "'%TOOLS%\allure.zip') } catch {" ^
+  "(New-Object Net.WebClient).DownloadFile(" ^
+  "'https://github.com/allure-framework/allure2/releases/download/2.29.0/allure-2.29.0.zip'," ^
+  "'%TOOLS%\allure.zip') }"
+if not exist "%TOOLS%\allure.zip" (
+    echo        AVISO: No se pudo descargar Allure. Reportes HTML de test desactivados.
+    goto :allure_ok
+)
+echo        Descomprimiendo Allure...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Expand-Archive -LiteralPath '%TOOLS%\allure.zip' -DestinationPath '%TOOLS%\allure_tmp' -Force"
+for /d %%D in ("%TOOLS%\allure_tmp\*") do move "%%D" "%ALLURE_DIR%" >nul 2>&1
+rmdir /s /q "%TOOLS%\allure_tmp" 2>nul
+del /f /q "%TOOLS%\allure.zip" 2>nul
+if not exist "%ALLURE_EXE%" (
+    echo        AVISO: Extraccion Allure fallo. Reportes HTML de test desactivados.
+    goto :allure_ok
+)
+echo        Allure CLI listo.
+:allure_ok
+if exist "%ALLURE_EXE%" set "PATH=%ALLURE_DIR%\bin;%PATH%"
+echo.
+
+:: ============================================================
+:: [7/7] Compilar JAR
+:: ============================================================
+echo [7/7] Compilando backend Java...
 if exist "%JAR%" (
     echo        JAR ya existe, saltando compilacion.
     goto :jar_ok
@@ -388,6 +427,10 @@ if "!HAS_GPU!"=="1" (
     echo   Training : EfficientNet-B3 habilitado
 ) else (
     echo   GPU      : Sin GPU NVIDIA - entrenamiento en CPU
+)
+if exist "%ALLURE_EXE%" (
+    echo   Tests    : para correr las suites -^> cd scraper ^&^& mvn test
+    echo   Allure   : ver reporte HTML -^> allure serve scraper\target\allure-results  ^(despues de 'mvn test'^)
 )
 echo   Detener  : Ctrl+C
 echo  ============================================================
