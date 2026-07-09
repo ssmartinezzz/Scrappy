@@ -1,8 +1,14 @@
 package ar.scraper.db;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -23,6 +29,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Uses a real (temp-file) SQLite connection via the package-private
  * {@code initEn(path)} test seam, mirroring {@link DatabaseServicePresetTest}.</p>
  */
+@Epic("Persistence")
+@Feature("Presets / Pack Pricing / Category Dismiss")
+@Story("Pack pricing")
+@DisplayName("DatabaseService — cantidadUnidades persistence round-trip")
 class DatabaseServiceCantidadUnidadesTest {
 
     @TempDir
@@ -32,6 +42,11 @@ class DatabaseServiceCantidadUnidadesTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-cantidad-unidades.db").toString());
     }
@@ -51,6 +66,7 @@ class DatabaseServiceCantidadUnidadesTest {
 
     @Test
     void upsertAndCargarProductosPreservesCantidadUnidadesForPack() {
+        Allure.parameter("cantidadUnidades", 3);
         Product pack = producto("https://site.com/pack", "Pack x3 Remeras", 3);
 
         db.upsertProductos(List.of(pack));
@@ -63,6 +79,7 @@ class DatabaseServiceCantidadUnidadesTest {
 
     @Test
     void upsertAndCargarProductosPreservesCantidadUnidadesForSingleUnit() {
+        Allure.parameter("cantidadUnidades", 1);
         Product single = producto("https://site.com/single", "Remera básica", 1);
 
         db.upsertProductos(List.of(single));
@@ -75,6 +92,7 @@ class DatabaseServiceCantidadUnidadesTest {
 
     @Test
     void obtenerProductoPreservesCantidadUnidades() {
+        Allure.parameter("cantidadUnidades", 2);
         Product pack = producto("https://site.com/combo", "Combo x2", 2);
 
         db.upsertProductos(List.of(pack));
@@ -88,9 +106,11 @@ class DatabaseServiceCantidadUnidadesTest {
     @Test
     void upsertUpdatesCantidadUnidadesOnReRunWithSameUrl() {
         // Simulates the name being re-detected as a non-pack on a later run.
+        Allure.parameter("cantidadUnidades", 4);
         Product packInicial = producto("https://site.com/p1", "Pack x4 Medias", 4);
         db.upsertProductos(List.of(packInicial));
 
+        Allure.parameter("cantidadUnidades", 1);
         Product yaNoPack = producto("https://site.com/p1", "Medias (un par)", 1);
         db.upsertProductos(List.of(yaNoPack));
 
@@ -101,6 +121,7 @@ class DatabaseServiceCantidadUnidadesTest {
 
     @Test
     void upsertParcialPreservesCantidadUnidades() {
+        Allure.parameter("cantidadUnidades", 5);
         Product pack = producto("https://site.com/parcial", "Set x5 Accesorios", 5);
 
         db.upsertParcial(List.of(pack));

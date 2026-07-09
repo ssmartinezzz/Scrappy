@@ -5,7 +5,13 @@ import ar.scraper.cron.CronJob;
 import ar.scraper.cron.CronJobService;
 import ar.scraper.db.DatabaseService;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -25,6 +31,10 @@ import static org.mockito.Mockito.*;
  * Spring MVC test slice (no {@code @WebMvcTest} convention exists in this
  * project — see {@code ApiControllerFinanciacionTest}).
  */
+@Epic("Cron Scheduling")
+@Feature("REST API")
+@Story("Cron REST")
+@DisplayName("CronApiController — /api/cron endpoints")
 class CronApiControllerTest {
 
     private CronJobService cronJobService;
@@ -33,6 +43,11 @@ class CronApiControllerTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire CronApiController with mocked collaborators")
+    private void wireController() {
         cronJobService = mock(CronJobService.class);
         db = mock(DatabaseService.class);
         controller = new CronApiController(cronJobService, db);
@@ -91,6 +106,7 @@ class CronApiControllerTest {
 
     @Test
     void getReturns404WhenAbsent() {
+        Allure.parameter("id", 999);
         when(db.getCronJob(999)).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.obtener(999);
@@ -119,6 +135,7 @@ class CronApiControllerTest {
 
     @Test
     void createWithInvalidCronExprReturns400WithoutPersisting() {
+        Allure.parameter("cronExpr", "bogus");
         when(cronJobService.isValidCronExpr("bogus")).thenReturn(false);
         Map<String, Object> payload = new java.util.HashMap<>(jobPayload());
         payload.put("cronExpr", "bogus");
@@ -134,6 +151,7 @@ class CronApiControllerTest {
 
     @Test
     void createWithBlankNameReturns400WithoutPersisting() {
+        Allure.parameter("name", "  ");
         Map<String, Object> payload = new java.util.HashMap<>(jobPayload());
         payload.put("name", "  ");
 
@@ -162,6 +180,7 @@ class CronApiControllerTest {
 
     @Test
     void updateReturns404WhenAbsent() {
+        Allure.parameter("id", 999);
         when(db.getCronJob(999L)).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.actualizar(999, jobPayload());
@@ -173,6 +192,7 @@ class CronApiControllerTest {
 
     @Test
     void updateWithInvalidCronExprReturns400WithoutPersisting() {
+        Allure.parameter("cronExpr", "bogus");
         when(db.getCronJob(1L)).thenReturn(Optional.of(job(1)));
         when(cronJobService.isValidCronExpr("bogus")).thenReturn(false);
         Map<String, Object> payload = new java.util.HashMap<>(jobPayload());
@@ -200,6 +220,7 @@ class CronApiControllerTest {
 
     @Test
     void deleteReturns404WhenAbsent() {
+        Allure.parameter("id", 999);
         when(db.deleteCronJob(999)).thenReturn(false);
 
         ResponseEntity<?> resp = controller.eliminar(999);
@@ -232,6 +253,7 @@ class CronApiControllerTest {
 
     @Test
     void runNowReturns404WhenJobAbsent() {
+        Allure.parameter("id", 999);
         when(cronJobService.triggerNow(999)).thenReturn(CronJobService.RunNowResult.NOT_FOUND);
 
         ResponseEntity<?> resp = controller.runNow(999);

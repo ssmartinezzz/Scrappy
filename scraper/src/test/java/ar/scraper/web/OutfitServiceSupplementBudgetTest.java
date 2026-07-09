@@ -1,12 +1,21 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Epic("Outfit Orchestration")
+@Feature("Supplements / Style")
+@Story("Supplement budget")
+@DisplayName("OutfitService — Supplement budget")
 class OutfitServiceSupplementBudgetTest {
 
     private final OutfitService service = new OutfitService(new RecommendationService());
@@ -22,6 +31,7 @@ class OutfitServiceSupplementBudgetTest {
     void noBudgetOverloadDelegatesToZeroBudget() {
         // ENA brand → deterministic selection; price=99999 must not be filtered when budget=0
         Product whey = suplemento("Whey Protein 1kg", 99999, "ENA");
+        Allure.parameter("presupuesto", 0);
 
         List<OutfitService.SupplementPick> noLimit = service.armarComboSuplementos(List.of(whey));
         List<OutfitService.SupplementPick> zeroBudget = service.armarComboSuplementos(List.of(whey), 0);
@@ -37,6 +47,7 @@ class OutfitServiceSupplementBudgetTest {
         // ENA has brand priority; budget=0 must not filter expensive product
         Product cheap = suplemento("Whey Protein Basica 1kg", 500, "");
         Product expensive = suplemento("Whey Isolate Premium 2kg", 50000, "ENA");
+        Allure.parameter("presupuesto", 0);
 
         List<OutfitService.SupplementPick> combo = service.armarComboSuplementos(List.of(cheap, expensive), 0);
 
@@ -49,6 +60,7 @@ class OutfitServiceSupplementBudgetTest {
         // budget=2000; only the 1000-price product is affordable
         Product cheap = suplemento("Whey Protein Basica 1kg", 1000, "");
         Product expensive = suplemento("Whey Isolate Pro 2kg", 50000, "");
+        Allure.parameter("presupuesto", 2000);
 
         List<OutfitService.SupplementPick> combo = service.armarComboSuplementos(List.of(cheap, expensive), 2000);
 
@@ -62,6 +74,7 @@ class OutfitServiceSupplementBudgetTest {
         // Creatina=1000 (no affordable since remaining=0 → picks cheapest=1000 anyway).
         Product whey = suplemento("Whey Protein 1kg", 3000, "");
         Product creatina = suplemento("Creatina Monohidratada 300g", 1000, "");
+        Allure.parameter("presupuesto", 2000);
 
         List<OutfitService.SupplementPick> combo = service.armarComboSuplementos(List.of(whey, creatina), 2000);
 
@@ -77,6 +90,7 @@ class OutfitServiceSupplementBudgetTest {
         Product whey = suplemento("Whey Protein 1kg", 2000, "");
         Product creatina500 = suplemento("Creatina Monohidratada 300g", 500, "");
         Product creatina1500 = suplemento("Creatine Monohydrate 500g", 1500, "");
+        Allure.parameter("presupuesto", 3000);
 
         List<OutfitService.SupplementPick> combo = service.armarComboSuplementos(
                 List.of(whey, creatina500, creatina1500), 3000);

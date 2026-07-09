@@ -15,8 +15,13 @@ import ar.scraper.web.RecommendationService;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +47,10 @@ import static org.mockito.Mockito.when;
  * {@link DatabaseService}, because {@code recomendados} reads feedback/dismiss
  * state from the DB.</p>
  */
+@Epic("REST API")
+@Feature("Mejores Picks / Recomendados")
+@Story("Recomendados pack fields")
+@DisplayName("ApiController — Recomendados pack unit-price fields")
 class ApiControllerRecomendadosPackFieldsTest {
 
     @TempDir
@@ -70,6 +79,11 @@ class ApiControllerRecomendadosPackFieldsTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with a real temp-file DatabaseService and mocked collaborators")
+    private void wireController() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-reco-pack.db").toString());
 

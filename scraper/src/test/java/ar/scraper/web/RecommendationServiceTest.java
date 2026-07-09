@@ -1,6 +1,9 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,6 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * "Para ti" feed (design.md Decision 3 — veto -> base ML score + badge
  * bonuses -> taste-boost multiplier capped at 1.75x -> deterministic sort).
  */
+@Epic("Outfit Orchestration")
+@Feature("Recommendations")
+@DisplayName("RecommendationService — Para ti ranking")
 class RecommendationServiceTest {
 
     private final RecommendationService service = new RecommendationService();

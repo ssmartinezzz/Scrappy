@@ -1,6 +1,11 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -41,6 +46,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   3.11 minimoBudgetNecesario null on catalog gap (UOB-11)
  *   3.12 minimoBudgetNecesario null on success (UOB-11)
  */
+@Epic("Outfit Orchestration")
+@Feature("Outfit Building")
+@Story("Builder")
+@DisplayName("OutfitService — Budget-Aware Builder (MCKP)")
 class OutfitServiceBuilderTest {
 
     private final RecommendationService recService = new RecommendationService();
@@ -116,6 +125,7 @@ class OutfitServiceBuilderTest {
         // Short + BuzoExpensive (20 000, score=95) = 50 000 > 45 000 → pruned
         // BuzoExpensive alone = 20 000 → score 95
         // Best: Short + BuzoCheap
+        Allure.parameter("presupuesto", 45_000);
         Product short_        = product("Short Nike",     30_000, "Short", "hombre", "Nike",  0); // score=100
         Product buzoExpensive = product("Buzo Expensive", 20_000, "Buzo",  "hombre", "Nike",  5); // score=95
         Product buzoCheap     = product("Buzo Cheap",     10_000, "Buzo",  "hombre", "Puma", 30); // score=70
@@ -139,6 +149,7 @@ class OutfitServiceBuilderTest {
     @Test
     void noFitWhenBudgetInsufficient() {
         // All items cost 10 000 but budget is 5 000
+        Allure.parameter("presupuesto", 5_000);
         Product buzo = product("Buzo Nike", 10_000, "Buzo", "hombre", "Nike", 10);
 
         OutfitService.OutfitBuilderResult result = service.armarPorCategorias(
@@ -194,6 +205,7 @@ class OutfitServiceBuilderTest {
 
     @Test
     void hombreRequestIncludesUnisexProducts() {
+        Allure.parameter("genero", "hombre");
         Product buzoUnisex = product("Buzo Unisex", 15_000, "Buzo", "unisex", "Nike", 10);
 
         OutfitService.OutfitBuilderResult result = service.armarPorCategorias(
@@ -354,6 +366,7 @@ class OutfitServiceBuilderTest {
         Product short2  = product("Short Exp",    12_000, "Short",  "hombre", "Puma", 10);
 
         // Call with budget=1 so no products fit → no-fit triggers minimoBudgetNecesario
+        Allure.parameter("presupuesto", 1);
         OutfitService.OutfitBuilderResult result = service.armarPorCategorias(
                 List.of(remera1, remera2, short1, short2),
                 List.of("Remera", "Short"),
@@ -390,6 +403,8 @@ class OutfitServiceBuilderTest {
         // Budget = 20000. One Remera at 12000 (deterministic pick → remaining = 8000).
         // Short candidates: S1 (9000, exceeds remaining 8000), S2 (7000, fits).
         // Greedy should skip S1 and pick S2.
+        Allure.parameter("presupuesto", 20_000);
+        Allure.parameter("greedy", true);
         Product r1 = product("Remera Best", 12_000, "Remera", "hombre", "Nike", 5);
         Product s1 = product("Short Exp",    9_000, "Short",  "hombre", "Nike", 10); // doesn't fit remaining
         Product s2 = product("Short Cheap",  7_000, "Short",  "hombre", "Puma", 25); // fits remaining
@@ -411,6 +426,8 @@ class OutfitServiceBuilderTest {
 
     @Test
     void greedyMode_respectsHardBudget() {
+        Allure.parameter("presupuesto", 12_000);
+        Allure.parameter("greedy", true);
         Product r1 = product("Remera A", 15_000, "Remera", "hombre", "Nike", 5);
         Product r2 = product("Remera B", 20_000, "Remera", "hombre", "Puma", 3);
 
@@ -428,6 +445,7 @@ class OutfitServiceBuilderTest {
 
     @Test
     void greedyMode_excluirUrlsHonored() {
+        Allure.parameter("greedy", true);
         Product r1 = product("Remera Best", 10_000, "Remera", "hombre", "Nike", 5);  // highest score
         Product r2 = product("Remera Alt",  10_000, "Remera", "hombre", "Puma", 30); // lower score
 
@@ -447,6 +465,7 @@ class OutfitServiceBuilderTest {
     @Test
     void minimoBudgetNecesario_populatedOnNoFit() {
         // cheapest valid Remera = 10000, cheapest valid Short = 8000 → minimum = 18000
+        Allure.parameter("presupuesto", 1);
         Product remera = product("Remera A", 10_000, "Remera", "hombre", "Nike", 20);
         Product short_ = product("Short A",  8_000,  "Short",  "hombre", "Nike", 20);
 

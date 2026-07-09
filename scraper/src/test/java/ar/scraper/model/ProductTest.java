@@ -3,6 +3,9 @@ package ar.scraper.model;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalCompra;
 import ar.scraper.model.Product.SenalFinanciacion;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,6 +19,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Covers: the canonical 17-arg constructor sets the field correctly,
  * every legacy overload defaults it to 1, and {@code esPack()} reflects it.
  */
+@Epic("Domain Model")
+@Feature("Product")
+@DisplayName("Product — cantidadUnidades / pack detection")
 class ProductTest {
 
     private static final List<String> TALLES = List.of("M");

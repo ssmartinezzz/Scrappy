@@ -5,9 +5,14 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 
@@ -16,6 +21,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Sitios / Config / Wiring")
+@Story("Sitios config")
+@DisplayName("ApiController — Sitios & config CRUD")
 class ApiControllerSitiosConfigTest {
 
     private ScraperService service;
@@ -31,6 +40,11 @@ class ApiControllerSitiosConfigTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -49,7 +63,7 @@ class ApiControllerSitiosConfigTest {
     @Test
     void agregarSitioReturns400WhenNombreBlank() {
         var resp = controller.agregarSitio(Map.of("nombre", "", "url", "http://x.com"));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
@@ -59,7 +73,7 @@ class ApiControllerSitiosConfigTest {
     @Test
     void agregarSitioReturns400WhenUrlBlank() {
         var resp = controller.agregarSitio(Map.of("nombre", "MiSitio", "url", ""));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
@@ -69,7 +83,7 @@ class ApiControllerSitiosConfigTest {
     void agregarSitioReturns200AndDelegatesToServiceWhenValid() {
         var resp = controller.agregarSitio(
                 Map.of("nombre", "MiSitio", "url", "https://misitiio.com", "plataforma", "shopify"));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -95,7 +109,7 @@ class ApiControllerSitiosConfigTest {
         when(service.eliminarSitio("eldon")).thenReturn(true);
 
         var resp = controller.eliminarSitio("eldon");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("ok").asBoolean()).isTrue();
         assertThat(body.get("mensaje").asText()).contains("eliminado");
@@ -106,7 +120,7 @@ class ApiControllerSitiosConfigTest {
         when(service.eliminarSitio("inexistente")).thenReturn(false);
 
         var resp = controller.eliminarSitio("inexistente");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("ok").asBoolean()).isFalse();
         assertThat(body.get("mensaje").asText()).contains("no encontrado");
@@ -117,7 +131,7 @@ class ApiControllerSitiosConfigTest {
     @Test
     void updateConfigSetsPrecioMinimo() {
         var resp = controller.updateConfig(Map.of("precioMinimo", 1500));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         verify(config).setPrecioMinimo(1500.0);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -127,7 +141,7 @@ class ApiControllerSitiosConfigTest {
     @Test
     void updateConfigSetsPrecioMaximo() {
         var resp = controller.updateConfig(Map.of("precioMaximo", 99999));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         verify(config).setPrecioMaximo(99999.0);
         assertThat(body.get("ok").asBoolean()).isTrue();

@@ -4,6 +4,11 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.db.DatabaseService.HistorialEntry;
 import ar.scraper.model.Product;
 import ar.scraper.web.InflacionService;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -23,8 +28,13 @@ import static org.mockito.Mockito.when;
  * calculator — the calculator's branch logic is already covered by
  * {@link SenalCalculatorTest}.
  */
+@Epic("ML Pipeline")
+@Feature("Señales de Compra")
+@Story("Enricher")
+@DisplayName("SenalEnricher — batch historial loading and per-product classification")
 class SenalEnricherTest {
 
+    @Step("Build product fixture for url {url}")
     private Product producto(String url) {
         return new Product("Sitio", "Producto " + url, 1000.0, null, url,
                 "", "Remeras", "unisex", List.of());

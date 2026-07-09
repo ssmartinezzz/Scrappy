@@ -1,6 +1,11 @@
 package ar.scraper.web;
 
 import ar.scraper.model.ScrapeResult;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,6 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * Uses {@code baseDelayMs=0} so no real sleeping occurs during test execution.
  */
+@Epic("Outfit Orchestration")
+@Feature("Scraper Orchestration")
+@Story("Retry")
+@DisplayName("ScraperService — Retry")
 class ScraperServiceRetryTest {
 
     // Helper to build a minimal success result
@@ -30,6 +39,7 @@ class ScraperServiceRetryTest {
             if (n < 3) throw new RuntimeException("transient error attempt " + n);
             return success();
         };
+        Allure.parameter("maxAttempts", 3);
 
         ScrapeResult result = ScraperService.withRetry(callable, 3, 0);
 
@@ -46,6 +56,7 @@ class ScraperServiceRetryTest {
             calls.incrementAndGet();
             throw new RuntimeException("network error");
         };
+        Allure.parameter("maxAttempts", 3);
 
         ScrapeResult result = ScraperService.withRetry(callable, 3, 0);
 
@@ -62,6 +73,7 @@ class ScraperServiceRetryTest {
             calls.incrementAndGet();
             return success();
         };
+        Allure.parameter("maxAttempts", 3);
 
         ScrapeResult result = ScraperService.withRetry(callable, 3, 0);
 

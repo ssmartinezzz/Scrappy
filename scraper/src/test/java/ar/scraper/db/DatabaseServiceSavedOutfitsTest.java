@@ -1,7 +1,13 @@
 package ar.scraper.db;
 
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,6 +17,10 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Epic("Persistence")
+@Feature("Outfit Feedback / Saved Outfits")
+@Story("Saved outfits")
+@DisplayName("DatabaseService — saved outfits CRUD")
 class DatabaseServiceSavedOutfitsTest {
 
     @TempDir
@@ -20,6 +30,11 @@ class DatabaseServiceSavedOutfitsTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-saved-outfits.db").toString());
     }
@@ -71,6 +86,7 @@ class DatabaseServiceSavedOutfitsTest {
 
     @Test
     void eliminarOutfitGuardadoReturnsFalseForNonExistentId() {
+        Allure.parameter("id", 9999);
         boolean result = db.eliminarOutfitGuardado(9999);
 
         assertThat(result).isFalse();
@@ -88,6 +104,7 @@ class DatabaseServiceSavedOutfitsTest {
 
     @Test
     void renombrarOutfitReturnsFalseForNonExistentId() {
+        Allure.parameter("id", 9999);
         boolean result = db.renombrarOutfit(9999, "x");
 
         assertThat(result).isFalse();

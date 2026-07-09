@@ -1,5 +1,9 @@
 package ar.scraper.aggregator.normalize;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -23,6 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code PackQuantityDetector} (Work Unit 4) will come to depend on
  * (previously duplicated and prone to silent drift, per the design's ADR-1).</p>
  */
+@Epic("Normalization")
+@Feature("Category")
+@Story("Taxonomy derivation guard")
+@DisplayName("GarmentTaxonomy — flat keyword derivation guard")
 class GarmentTaxonomyFlatDerivationGuardTest {
 
     // Frozen snapshot — mirrors NormalizerService's pre-extraction
