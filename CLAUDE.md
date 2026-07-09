@@ -29,14 +29,14 @@ Scraper headless de ropa/indumentaria argentina con dashboard web inteligente. U
 fashion-scraper-new/
 ├── CLAUDE.md                          ← Este archivo
 ├── SKILL.md                           ← Índice de documentación técnica
-├── INSTALAR_Y_CORRER.bat              ← Instala Java + Maven + Python + compila + ejecuta
+├── INSTALAR_Y_CORRER.bat              ← Instala Java + Maven + Python + Node + Allure CLI + compila + ejecuta
 ├── docs/
 │   ├── ARCHITECTURE.md                ← Decisiones de arquitectura
 │   ├── ADD_SCRAPER.md                 ← Cómo agregar un sitio nuevo
 │   ├── ML_PIPELINE.md                 ← Cómo extender el pipeline ML
 │   └── API_REFERENCE.md               ← Endpoints REST completos
 └── scraper/
-    ├── pom.xml                        ← sqlite-jdbc, playwright, opencsv, jackson
+    ├── pom.xml                        ← sqlite-jdbc, playwright, opencsv, jackson; allure-bom + aspectjweaver (test, reporte declarativo — ver docs/ARCHITECTURE.md)
     └── src/main/
         ├── java/ar/scraper/
         │   ├── App.java               ← Entry point Spring Boot
