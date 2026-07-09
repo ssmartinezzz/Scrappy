@@ -1,7 +1,13 @@
 package ar.scraper.db;
 
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,6 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * per-card like/dislike (design.md Decision 2). No schema change is needed:
  * {@code slot} is already a free-text column.
  */
+@Epic("Persistence")
+@Feature("Outfit Feedback / Saved Outfits")
+@Story("Feedback slot-agnostic")
+@DisplayName("DatabaseService — outfit feedback slot-agnostic")
 class DatabaseServiceOutfitFeedbackSlotAgnosticTest {
 
     @TempDir
@@ -27,6 +37,11 @@ class DatabaseServiceOutfitFeedbackSlotAgnosticTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-slot-agnostic.db").toString());
     }
@@ -38,7 +53,9 @@ class DatabaseServiceOutfitFeedbackSlotAgnosticTest {
 
     @Test
     void catalogSlotRowsAreAcceptedAndReadBackAlongsideOutfitBuilderSlots() {
+        Allure.parameter("slot", "torso");
         db.guardarOutfitFeedbackItem("hombre", "torso", "https://site/torso-item", true);
+        Allure.parameter("slot", "catalog");
         db.guardarOutfitFeedbackItem("", "catalog", "https://site/catalog-item", false);
 
         List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback();
