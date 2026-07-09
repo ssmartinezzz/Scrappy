@@ -1,7 +1,13 @@
 package ar.scraper.cron;
 
 import ar.scraper.db.DatabaseService;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -25,6 +31,10 @@ import static org.mockito.Mockito.*;
  * No Spring context — plain Mockito, matching the rest of the codebase's test
  * style (see {@code ApiControllerFinanciacionTest}).
  */
+@Epic("Cron Scheduling")
+@Feature("Job Service")
+@Story("Service")
+@DisplayName("CronJobService — nextRunAt, CRUD facade, tick poller, run-now")
 class CronJobServiceTest {
 
     private static final ZoneId ZONE = ZoneId.of("America/Argentina/Buenos_Aires");
@@ -38,6 +48,11 @@ class CronJobServiceTest {
 
     @BeforeEach
     void setUp() {
+        wireService();
+    }
+
+    @Step("Wire CronJobService with mocked collaborators")
+    private void wireService() {
         db = mock(DatabaseService.class);
         runner = mock(CronJobRunner.class);
         service = new CronJobService(db, runner, clock);
@@ -61,6 +76,7 @@ class CronJobServiceTest {
 
     @Test
     void computeNextRunThrowsForInvalidCronExpr() {
+        Allure.parameter("cronExpr", "not a cron expr");
         assertThatThrownBy(() -> service.computeNextRun("not a cron expr", ZonedDateTime.now(clock)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
@@ -69,11 +85,13 @@ class CronJobServiceTest {
 
     @Test
     void isValidCronExprReturnsTrueForValidExpr() {
+        Allure.parameter("cronExpr", "0 0 3 * * *");
         assertThat(service.isValidCronExpr("0 0 3 * * *")).isTrue();
     }
 
     @Test
     void isValidCronExprReturnsFalseForInvalidExpr() {
+        Allure.parameter("cronExpr", "not a cron expr");
         assertThat(service.isValidCronExpr("not a cron expr")).isFalse();
     }
 
@@ -94,6 +112,7 @@ class CronJobServiceTest {
 
     @Test
     void createJobWithDisabledLeavesNextRunAtNull() {
+        Allure.parameter("enabled", false);
         when(db.insertCronJob(any(), anyDouble(), anyDouble(), any(), anyBoolean(), anyBoolean(),
                 any(), anyBoolean(), any())).thenReturn(1L);
 
@@ -243,6 +262,7 @@ class CronJobServiceTest {
 
     @Test
     void triggerNowReturnsNotFoundWhenJobAbsent() {
+        Allure.parameter("id", 999);
         when(db.getCronJob(999L)).thenReturn(Optional.empty());
 
         CronJobService.RunNowResult result = service.triggerNow(999);
