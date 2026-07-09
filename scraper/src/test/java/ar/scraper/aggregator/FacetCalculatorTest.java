@@ -1,6 +1,9 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -13,6 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code ResultAggregator.calcularFacets}/{@code sortTalles} (Work Unit 9 of
  * the aggregator SOLID modularization) — pure relocation, no behavior change.
  */
+@Epic("Aggregation & Grouping")
+@Feature("Facets")
+@DisplayName("FacetCalculator — facet computation from product list")
 class FacetCalculatorTest {
 
     private Product product(String nombre, double precio, String categoria, String genero,

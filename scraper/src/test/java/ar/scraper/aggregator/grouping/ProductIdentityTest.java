@@ -1,6 +1,10 @@
 package ar.scraper.aggregator.grouping;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static ar.scraper.aggregator.grouping.GroupingTestFixtures.product;
@@ -11,6 +15,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * extracted from {@code GroupingService.calcularIdentidad} (Work Unit 2 of
  * the aggregator SOLID modularization).
  */
+@Epic("Aggregation & Grouping")
+@Feature("Grouping")
+@Story("Product identity")
+@DisplayName("ProductIdentity — identity-key computation")
 class ProductIdentityTest {
 
     private final ProductIdentity identity = new ProductIdentity();
