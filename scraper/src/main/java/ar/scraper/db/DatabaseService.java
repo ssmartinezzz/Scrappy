@@ -121,6 +121,10 @@ st.executeUpdate("""
                     marca_premium INTEGER DEFAULT 0,
                     cantidad_unidades INTEGER DEFAULT 1,
                     sub_categoria TEXT DEFAULT '',
+                    fit             TEXT DEFAULT '',
+                    estampado       TEXT DEFAULT '',
+                    escote          TEXT DEFAULT '',
+                    color_dominante TEXT DEFAULT '',
                     activo       INTEGER DEFAULT 1,
                     touched_at   TEXT,
                     created_at   TEXT
@@ -130,6 +134,25 @@ st.executeUpdate("""
             migrarColumna(st, "productos", "marca_premium INTEGER DEFAULT 0");
             migrarColumna(st, "productos", "cantidad_unidades INTEGER DEFAULT 1");
             migrarColumna(st, "productos", "sub_categoria TEXT DEFAULT ''");
+            // Image classification visual attributes (fashion-image-classification PR1) —
+            // additive/fill-only, populated by MlEnricher from ml_embeddings.py scores in PR5.
+            migrarColumna(st, "productos", "fit TEXT DEFAULT ''");
+            migrarColumna(st, "productos", "estampado TEXT DEFAULT ''");
+            migrarColumna(st, "productos", "escote TEXT DEFAULT ''");
+            migrarColumna(st, "productos", "color_dominante TEXT DEFAULT ''");
+
+            // image_embeddings — Marqo-FashionSigLIP embedding cache keyed by
+            // image URL (fashion-image-classification PR1). Reused by both the
+            // full-catalog backfill and the incremental scrape path (PR3a/PR5).
+            // model_version bump invalidates the cache (treated as a miss).
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS image_embeddings (
+                    url           TEXT PRIMARY KEY,
+                    embedding     BLOB NOT NULL,
+                    dim           INTEGER NOT NULL,
+                    model_version TEXT NOT NULL,
+                    computed_at   TEXT NOT NULL
+                )""");
 
 st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precios_externos (
@@ -546,8 +569,9 @@ st.executeUpdate("""
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,
+                     fit,estampado,escote,color_dominante,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -569,6 +593,10 @@ st.executeUpdate("""
                     marca_premium = excluded.marca_premium,
                     cantidad_unidades = excluded.cantidad_unidades,
                     sub_categoria = excluded.sub_categoria,
+                    fit             = excluded.fit,
+                    estampado       = excluded.estampado,
+                    escote          = excluded.escote,
+                    color_dominante = excluded.color_dominante,
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -615,8 +643,14 @@ st.executeUpdate("""
                     psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
                     psUpsert.setInt   (20, p.cantidadUnidades());
                     psUpsert.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
-                    psUpsert.setString(22, now);   // touched_at
-                    psUpsert.setString(23, now);   // created_at
+
+                    Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+                    psUpsert.setString(22, visual.fit()            != null ? visual.fit()            : "");
+                    psUpsert.setString(23, visual.estampado()      != null ? visual.estampado()      : "");
+                    psUpsert.setString(24, visual.escote()          != null ? visual.escote()          : "");
+                    psUpsert.setString(25, visual.colorDominante()  != null ? visual.colorDominante()  : "");
+                    psUpsert.setString(26, now);   // touched_at
+                    psUpsert.setString(27, now);   // created_at
                     psUpsert.executeUpdate();
 
                     Double prevPrecio = preciosActuales.get(p.url());
@@ -794,7 +828,8 @@ st.executeUpdate("""
              ResultSet rs = st.executeQuery(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria " +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+                "fit,estampado,escote,color_dominante " +
                 "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
             while (rs.next()) {
                 result.add(productoDesdeFila(rs));
@@ -812,7 +847,8 @@ st.executeUpdate("""
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria FROM productos WHERE url=?")) {
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+                "fit,estampado,escote,color_dominante FROM productos WHERE url=?")) {
             ps.setString(1, url);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return java.util.Optional.empty();
@@ -852,6 +888,17 @@ st.executeUpdate("""
         int cantidadUnidades = rs.getInt("cantidad_unidades");
         if (cantidadUnidades < 1) cantidadUnidades = 1;
         String subCategoria = rs.getString("sub_categoria");
+
+        String fit             = rs.getString("fit");
+        String estampado       = rs.getString("estampado");
+        String escote          = rs.getString("escote");
+        String colorDominante  = rs.getString("color_dominante");
+        Product.VisualAttrs visual = new Product.VisualAttrs(
+                fit            != null ? fit            : "",
+                estampado      != null ? estampado      : "",
+                escote         != null ? escote          : "",
+                colorDominante != null ? colorDominante  : "");
+
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
                 rs.getDouble("precio"), rs.getString("precio_orig"),
@@ -861,7 +908,7 @@ st.executeUpdate("""
                 rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
                 gymrat, marcaPremium, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, cantidadUnidades,
-                subCategoria != null ? subCategoria : "");
+                subCategoria != null ? subCategoria : "", visual);
     }
 
     // ─── ML Output ──────────────────────────────────────────────────────────
