@@ -1,7 +1,13 @@
 package ar.scraper.db;
 
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -16,6 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * (Decision 1 of design.md — dedicated table, no blank-marca sentinel row).
  * Mirrors {@code DatabaseServicePresetTest}'s real temp-file SQLite seam.
  */
+@Epic("Persistence")
+@Feature("Presets / Pack Pricing / Category Dismiss")
+@Story("Category dismiss")
+@DisplayName("DatabaseService — categoria dismiss CRUD")
 class DatabaseServiceCategoriaDismissTest {
 
     @TempDir
@@ -25,6 +35,11 @@ class DatabaseServiceCategoriaDismissTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-categoria-dismiss.db").toString());
     }
@@ -52,6 +67,7 @@ class DatabaseServiceCategoriaDismissTest {
 
     @Test
     void guardarCategoriaDismissIsIdempotentForTheSameCategoria() {
+        Allure.parameter("categoria", "Lentes");
         db.guardarCategoriaDismiss("Lentes");
         db.guardarCategoriaDismiss("Lentes");
 
@@ -73,6 +89,7 @@ class DatabaseServiceCategoriaDismissTest {
     void borrarCategoriaDismissOnNonExistentCategoriaIsSafeNoOp() {
         db.guardarCategoriaDismiss("Lentes");
 
+        Allure.parameter("categoria", "NoExiste");
         db.borrarCategoriaDismiss("NoExiste");
 
         assertThat(db.obtenerCategoriaDismiss()).containsExactly("Lentes");
