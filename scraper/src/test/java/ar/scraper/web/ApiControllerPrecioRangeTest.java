@@ -9,7 +9,13 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -32,6 +38,10 @@ import static org.mockito.Mockito.when;
  * behavior exactly as it was before this change — verified by
  * {@link #omittingBothParamsPreservesPriorBehaviorExactly()}.</p>
  */
+@Epic("REST API")
+@Feature("Filtros / Facets")
+@Story("Precio range")
+@DisplayName("ApiController — Precio range filter")
 class ApiControllerPrecioRangeTest {
 
     private ScraperService service;
@@ -47,6 +57,14 @@ class ApiControllerPrecioRangeTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service          = mock(ScraperService.class);
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);
@@ -58,9 +76,6 @@ class ApiControllerPrecioRangeTest {
         recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
-
-        when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     private Product producto(String url, double precio) {
@@ -109,6 +124,7 @@ class ApiControllerPrecioRangeTest {
         Product caro   = producto("https://site.com/caro2", 90000);
         when(service.getLastResult()).thenReturn(resultFor(barato, caro));
 
+        Allure.parameter("precioMin", 5000.0);
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 5000.0, null, null);
 
@@ -123,6 +139,7 @@ class ApiControllerPrecioRangeTest {
         Product caro   = producto("https://site.com/caro3", 90000);
         when(service.getLastResult()).thenReturn(resultFor(barato, caro));
 
+        Allure.parameter("precioMax", 5000.0);
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, 5000.0, null);
 
@@ -138,6 +155,8 @@ class ApiControllerPrecioRangeTest {
         Product outside = producto("https://site.com/outside", 25000);
         when(service.getLastResult()).thenReturn(resultFor(atMin, atMax, outside));
 
+        Allure.parameter("precioMin", 10000.0);
+        Allure.parameter("precioMax", 20000.0);
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null);
 

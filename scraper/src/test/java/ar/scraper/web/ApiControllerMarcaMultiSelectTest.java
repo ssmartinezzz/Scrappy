@@ -9,7 +9,13 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -28,6 +34,10 @@ import static org.mockito.Mockito.when;
  * Mirrors {@code ApiControllerPrecioRangeTest}'s convention: {@code ApiController} is a plain
  * {@code @RestController} POJO instantiated directly with Mockito-mocked collaborators.
  */
+@Epic("REST API")
+@Feature("Filtros / Facets")
+@Story("Marca multi-select")
+@DisplayName("ApiController — Marca multi-select filter")
 class ApiControllerMarcaMultiSelectTest {
 
     private ScraperService service;
@@ -43,6 +53,14 @@ class ApiControllerMarcaMultiSelectTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+
+        when(config.getMoneda()).thenReturn("ARS");
+        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service          = mock(ScraperService.class);
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);
@@ -54,9 +72,6 @@ class ApiControllerMarcaMultiSelectTest {
         recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
-
-        when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     private Product producto(String url, String marca) {
@@ -82,6 +97,7 @@ class ApiControllerMarcaMultiSelectTest {
         Product puma   = producto("https://site.com/puma", "Puma");
         when(service.getLastResult()).thenReturn(resultFor(nike, adidas, puma));
 
+        Allure.parameter("marca", List.of("Nike", "Adidas"));
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 List.of("Nike", "Adidas"), null, null, null, null, "precio_asc", null, null, null, null);
 
@@ -127,6 +143,7 @@ class ApiControllerMarcaMultiSelectTest {
         Product adidas = producto("https://site.com/adidas4", "Adidas");
         when(service.getLastResult()).thenReturn(resultFor(nike, adidas));
 
+        Allure.parameter("marca", List.of("Nike"));
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null);
 
@@ -142,6 +159,7 @@ class ApiControllerMarcaMultiSelectTest {
         Product nike = producto("https://site.com/nike5", "Nike");
         when(service.getLastResult()).thenReturn(resultFor(nike));
 
+        Allure.parameter("marca", List.of("nike"));
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 List.of("nike"), null, null, null, null, "precio_asc", null, null, null, null);
 
