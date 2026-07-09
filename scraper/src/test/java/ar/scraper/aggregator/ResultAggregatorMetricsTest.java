@@ -7,7 +7,11 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.SenalEnricher;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -23,6 +27,9 @@ import static org.mockito.Mockito.*;
  * All infrastructure (normalizer, ML pipeline, DB, signal enrichers) is mocked
  * so the test focuses exclusively on the validation / stats logic.
  */
+@Epic("Aggregation & Grouping")
+@Feature("Metrics")
+@DisplayName("ResultAggregator — extraction-metrics validation pass")
 class ResultAggregatorMetricsTest {
 
     private NormalizerService    normalizer;
@@ -35,6 +42,11 @@ class ResultAggregatorMetricsTest {
 
     @BeforeEach
     void setUp() {
+        wireAggregator();
+    }
+
+    @Step("Wire ResultAggregator with mocked collaborators")
+    private void wireAggregator() {
         normalizer           = mock(NormalizerService.class);
         pythonRunner         = mock(PythonRunner.class);
         mlEnricher           = mock(MlEnricher.class);
