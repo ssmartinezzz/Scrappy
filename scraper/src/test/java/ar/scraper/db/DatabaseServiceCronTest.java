@@ -2,8 +2,14 @@ package ar.scraper.db;
 
 import ar.scraper.cron.CronExecution;
 import ar.scraper.cron.CronJob;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,6 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * real temp-file SQLite connection via the package-private {@code initEn(path)}
  * test seam, mirroring {@link DatabaseServicePresetTest}.
  */
+@Epic("Cron Scheduling")
+@Feature("Persistence")
+@Story("Cron persistence")
+@DisplayName("DatabaseService — cron_jobs / cron_executions CRUD")
 class DatabaseServiceCronTest {
 
     @TempDir
@@ -28,6 +38,11 @@ class DatabaseServiceCronTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-cron.db").toString());
     }
@@ -66,6 +81,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void insertCronJobWithEmptySitiosMeansAllSites() {
+        Allure.parameter("sitios", List.of());
         long id = db.insertCronJob("Todos los sitios", 0, 100000, List.of(),
                 false, true, "0 0 * * * *", true, null);
 
@@ -87,6 +103,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void getCronJobReturnsEmptyForNonExistentId() {
+        Allure.parameter("id", 999);
         assertThat(db.getCronJob(999)).isEmpty();
     }
 
@@ -112,6 +129,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void updateCronJobWithNonExistentIdReturnsFalse() {
+        Allure.parameter("id", 999);
         boolean ok = db.updateCronJob(999, "x", 0, 1, List.of(), false, true, "0 0 * * * *", true, null);
 
         assertThat(ok).isFalse();
@@ -131,6 +149,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void deleteCronJobWithNonExistentIdReturnsFalse() {
+        Allure.parameter("id", 999);
         assertThat(db.deleteCronJob(999)).isFalse();
     }
 
@@ -193,11 +212,13 @@ class DatabaseServiceCronTest {
 
     @Test
     void updateCronExecutionWithNonExistentIdReturnsFalse() {
+        Allure.parameter("execId", 999);
         assertThat(db.updateCronExecution(999, "x", "error", "boom", null, null)).isFalse();
     }
 
     @Test
     void insertCronExecutionRecordsSkippedReason() {
+        Allure.parameter("status", "skipped");
         long jobId = crearJob("Job", "0 0 3 * * *");
 
         long execId = db.insertCronExecution(jobId, "2026-07-05T03:00:00", "skipped", "scrape en curso");
@@ -233,6 +254,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void pruneCronExecutionsKeepsOnlyMostRecentN() {
+        Allure.parameter("keep", 3);
         long jobId = crearJob("Job", "0 0 3 * * *");
         for (int i = 0; i < 5; i++) {
             db.insertCronExecution(jobId, "2026-07-0" + (i + 1) + "T03:00:00", "success", null);
@@ -249,6 +271,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void pruneCronExecutionsIsNoOpWhenUnderLimit() {
+        Allure.parameter("keep", 50);
         long jobId = crearJob("Job", "0 0 3 * * *");
         db.insertCronExecution(jobId, "2026-07-05T03:00:00", "success", null);
 
@@ -259,6 +282,7 @@ class DatabaseServiceCronTest {
 
     @Test
     void getExecutionReturnsEmptyForNonExistentId() {
+        Allure.parameter("execId", 999);
         assertThat(db.getExecution(999)).isEmpty();
     }
 }

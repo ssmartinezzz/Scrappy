@@ -1,6 +1,12 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,6 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   - estilo="gym"   : torso/piernas require gymrat==true (pre-existing behavior)
  *   - calzado: category-driven, unaffected by estilo under either style
  */
+@Epic("Outfit Orchestration")
+@Feature("Supplements / Style")
+@Story("Casual style")
+@DisplayName("OutfitService — Casual style")
 class OutfitServiceCasualStyleTest {
 
     private final RecommendationService recService = new RecommendationService();
@@ -30,6 +40,7 @@ class OutfitServiceCasualStyleTest {
                 categoria, genero, List.of(), ml, marca, "indumentaria", gymrat);
     }
 
+    @Step("Assemble outfit for categorias={categorias} with estilo={estilo}")
     private OutfitService.OutfitBuilderResult armar(List<Product> productos,
             List<String> categorias, String estilo) {
         return service.armarPorCategorias(productos, categorias, 500_000, "hombre",
@@ -104,6 +115,8 @@ class OutfitServiceCasualStyleTest {
     void casual_greedyExcludesGymratTorso() {
         Product gym    = product("Buzo GymRat", 10_000, "Buzo", "hombre", "Nike", 5,  true);
         Product casual = product("Buzo Casual", 10_000, "Buzo", "hombre", "Puma", 40, false);
+        Allure.parameter("estilo", "casual");
+        Allure.parameter("greedy", true);
 
         var result = service.armarPorCategorias(List.of(gym, casual), List.of("Buzo"),
                 500_000, "hombre", OutfitService.FeedbackModel.empty(),

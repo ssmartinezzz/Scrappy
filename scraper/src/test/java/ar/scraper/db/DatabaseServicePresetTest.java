@@ -1,8 +1,14 @@
 package ar.scraper.db;
 
 import ar.scraper.db.DatabaseService.Preset;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,6 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * has no DB abstraction to mock against — mirrors how {@code crearTablas()} is
  * exercised indirectly elsewhere in this codebase (no pure in-memory fakes).
  */
+@Epic("Persistence")
+@Feature("Presets / Pack Pricing / Category Dismiss")
+@Story("Presets")
+@DisplayName("DatabaseService — financing preset CRUD")
 class DatabaseServicePresetTest {
 
     @TempDir
@@ -28,6 +38,11 @@ class DatabaseServicePresetTest {
 
     @BeforeEach
     void setUp() {
+        abrirBaseDeDatosTemporal();
+    }
+
+    @Step("Open temp-file SQLite DB and initialize schema")
+    private void abrirBaseDeDatosTemporal() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-financiacion.db").toString());
     }
@@ -135,6 +150,7 @@ class DatabaseServicePresetTest {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int nonExistentId = original.id() + 999;
 
+        Allure.parameter("id", nonExistentId);
         db.eliminarPreset(nonExistentId);
 
         List<Preset> presets = db.listarPresets();
@@ -175,6 +191,7 @@ class DatabaseServicePresetTest {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int nonExistentId = original.id() + 999;
 
+        Allure.parameter("id", nonExistentId);
         boolean borrado = db.eliminarPreset(nonExistentId);
 
         assertThat(borrado).isFalse();
@@ -185,6 +202,7 @@ class DatabaseServicePresetTest {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int nonExistentId = original.id() + 999;
 
+        Allure.parameter("id", nonExistentId);
         boolean result = db.activarPreset(nonExistentId);
 
         assertThat(result).isFalse();
@@ -200,8 +218,11 @@ class DatabaseServicePresetTest {
     void crearPresetRejectsInvalidCuotasOrRecargoPctWithoutPersisting() {
         int before = db.listarPresets().size();
 
+        Allure.parameter("cuotas", 0);
         assertThat(db.crearPreset("Cuotas cero", 25.0, 0)).isEqualTo(-1);
+        Allure.parameter("cuotas", -1);
         assertThat(db.crearPreset("Cuotas negativas", 25.0, -1)).isEqualTo(-1);
+        Allure.parameter("recargoPct", -100.0);
         assertThat(db.crearPreset("Recargo invalido", -100.0, 12)).isEqualTo(-1);
 
         assertThat(db.listarPresets()).hasSize(before);
@@ -211,8 +232,11 @@ class DatabaseServicePresetTest {
     void editarPresetRejectsInvalidCuotasOrRecargoPctWithoutPersisting() {
         int id = db.crearPreset("Original", 10.0, 6);
 
+        Allure.parameter("cuotas", 0);
         assertThat(db.editarPreset(id, "Editado", 10.0, 0)).isFalse();
+        Allure.parameter("cuotas", -1);
         assertThat(db.editarPreset(id, "Editado", 10.0, -1)).isFalse();
+        Allure.parameter("recargoPct", -100.0);
         assertThat(db.editarPreset(id, "Editado", -100.0, 6)).isFalse();
 
         Preset unchanged = db.listarPresets().stream()
@@ -227,6 +251,7 @@ class DatabaseServicePresetTest {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int nonExistentId = original.id() + 999;
 
+        Allure.parameter("id", nonExistentId);
         boolean result = db.editarPreset(nonExistentId, "x", 10.0, 5);
 
         assertThat(result).isFalse();

@@ -10,7 +10,12 @@ import ar.scraper.model.Product;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -33,6 +38,10 @@ import static org.mockito.Mockito.when;
  * payload MUST expose {@code esPack}, {@code cantidadUnidades} and
  * {@code precioUnitario} alongside the existing shelf {@code precio}.</p>
  */
+@Epic("REST API")
+@Feature("Mejores Picks / Recomendados")
+@Story("Pack unit price")
+@DisplayName("ApiController — Mejores Picks pack unit price")
 class ApiControllerMejoresPackUnitPriceTest {
 
     private ScraperService service;
@@ -48,6 +57,11 @@ class ApiControllerMejoresPackUnitPriceTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service          = mock(ScraperService.class);
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);

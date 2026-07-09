@@ -8,9 +8,14 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -19,6 +24,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Filtros / Facets")
+@Story("Dismiss marcas")
+@DisplayName("ApiController — Dismiss categoria & marcas browser")
 class ApiControllerDismissMarcasTest {
 
     private ScraperService service;
@@ -34,6 +43,11 @@ class ApiControllerDismissMarcasTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -52,7 +66,7 @@ class ApiControllerDismissMarcasTest {
     @Test
     void dismissCategoriaReturns400WhenCategoriaBlank() {
         var resp = controller.dismissCategoria(Map.of("categoria", ""));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
@@ -62,7 +76,7 @@ class ApiControllerDismissMarcasTest {
     @Test
     void dismissCategoriaReturns200AndPersistsWhenValid() {
         var resp = controller.dismissCategoria(Map.of("categoria", "Zapatillas"));
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -74,7 +88,7 @@ class ApiControllerDismissMarcasTest {
     @Test
     void undismissCategoriaAlwaysReturnsOkAndCallsDb() {
         var resp = controller.undismissCategoria("Remeras");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -103,7 +117,7 @@ class ApiControllerDismissMarcasTest {
         when(service.getLastResult()).thenReturn(mockResult(products));
 
         var resp = controller.marcasBrowser(null, null, "count");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.isArray()).isTrue();
@@ -119,7 +133,7 @@ class ApiControllerDismissMarcasTest {
         when(service.getLastResult()).thenReturn(mockResult(products));
 
         var resp = controller.marcasBrowser("indumentaria", null, "count");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         // Only products with rubro=indumentaria are included; the suplementos product is filtered
         assertThat(resp.getStatusCode().value()).isEqualTo(200);

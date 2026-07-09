@@ -8,9 +8,14 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -20,6 +25,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Suplementos")
+@DisplayName("ApiController — Suplementos builder endpoint")
 class ApiControllerSuplementosBuilderTest {
 
     private ScraperService service;
@@ -35,6 +43,11 @@ class ApiControllerSuplementosBuilderTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -60,6 +73,7 @@ class ApiControllerSuplementosBuilderTest {
 
     @Test
     void suplementosBuilder_returns400WhenTiposIsBlank() {
+        Allure.parameter("tipos", "");
         var resp = controller.suplementosBuilder("", 0);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
@@ -80,7 +94,7 @@ class ApiControllerSuplementosBuilderTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any())).thenReturn(List.of());
 
         var resp = controller.suplementosBuilder("Proteína", 0);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").isArray()).isTrue();
@@ -99,7 +113,7 @@ class ApiControllerSuplementosBuilderTest {
                 .thenReturn(List.of(pick1, pick2));
 
         var resp = controller.suplementosBuilder("Proteína en Polvo,Creatina", 0);
-        JsonNode picks = new ObjectMapper().valueToTree(resp.getBody()).get("picks");
+        JsonNode picks = AllureSteps.toJson(resp.getBody()).get("picks");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(picks.size()).isEqualTo(2);
@@ -115,6 +129,7 @@ class ApiControllerSuplementosBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any())).thenReturn(List.of());
 
+        Allure.parameter("presupuesto", 50000);
         controller.suplementosBuilder("Proteína", 50000);
 
         verify(outfitService).armarComboSuplementos(any(), eq(50000.0), any());

@@ -10,7 +10,12 @@ import ar.scraper.model.Product;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -32,6 +37,10 @@ import static org.mockito.Mockito.when;
  * already applied by {@code RecommendationService.GENERO_VETADO} and
  * {@code OutfitService.generoElegible()}.</p>
  */
+@Epic("REST API")
+@Feature("Mejores Picks / Recomendados")
+@Story("Infantil veto")
+@DisplayName("ApiController — Mejores Picks infantil veto")
 class ApiControllerMejoresInfantilVetoTest {
 
     private ScraperService service;
@@ -47,6 +56,11 @@ class ApiControllerMejoresInfantilVetoTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service          = mock(ScraperService.class);
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);

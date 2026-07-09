@@ -1,5 +1,9 @@
 package ar.scraper.config;
 
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -13,12 +17,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  * seam to inject minimal in-memory properties without loading config.properties
  * from the classpath. No Spring context required.
  */
+@Epic("Configuration")
+@Feature("Rubro Config")
+@DisplayName("ScraperConfig — rubro resolution per site")
 class ScraperConfigRubroTest {
 
+    @Step("Load ScraperConfig from in-memory properties")
     private ScraperConfig configWith(Properties p) {
         return new ScraperConfig(p);
     }
 
+    @Step("Build site properties: sitio={nombre}, rubro={rubro}")
     private Properties siteProps(String nombre, String rubro) {
         Properties p = new Properties();
         p.setProperty("sitio." + nombre + ".url", "https://example.com/productos/");

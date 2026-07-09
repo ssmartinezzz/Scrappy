@@ -5,6 +5,11 @@ import ar.scraper.aggregator.grouping.JaccardSimilarity;
 import ar.scraper.aggregator.grouping.ProductGroup;
 import ar.scraper.aggregator.grouping.ProductIdentity;
 import ar.scraper.model.Product;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -23,6 +28,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * move from {@code ar.scraper.aggregator} to
  * {@code ar.scraper.aggregator.grouping}.</p>
  */
+@Epic("Aggregation & Grouping")
+@Feature("Grouping")
+@Story("Grouping orchestration")
+@DisplayName("GroupingService — characterization safety net")
 class GroupingServiceCharacterizationTest {
 
     private final GroupingService grouping = new GroupingService(new ProductIdentity(), new JaccardSimilarity());
@@ -89,6 +98,7 @@ class GroupingServiceCharacterizationTest {
         Product single = product("Sporting", "Puma Suede Clasica", "Puma", "Zapatilla Urbana", 80000, "img3.jpg");
 
         List<ProductGroup> todos = grouping.agrupar(List.of(multi1, multi2, single), false);
+        Allure.parameter("soloMultiSitio", true);
         List<ProductGroup> soloMulti = grouping.agrupar(List.of(multi1, multi2, single), true);
 
         assertThat(todos).hasSize(2);

@@ -8,9 +8,15 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
@@ -20,6 +26,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Sitios / Config / Wiring")
+@Story("Status / scrape")
+@DisplayName("ApiController — Status & scrape endpoints")
 class ApiControllerStatusScrapeTest {
 
     private ScraperService service;
@@ -35,6 +45,11 @@ class ApiControllerStatusScrapeTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -58,7 +73,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getProgressData()).thenReturn(null);
 
         var resp = controller.status();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("status").asText()).isEqualTo("IDLE");
         assertThat(body.get("tieneData").asBoolean()).isFalse();
@@ -76,7 +91,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getUltimasCategoriasRefinadas()).thenReturn(3);
 
         var resp = controller.status();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("tieneData").asBoolean()).isTrue();
         assertThat(body.get("total").asInt()).isEqualTo(1);
@@ -94,7 +109,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getProgressData()).thenReturn(pd);
 
         var resp = controller.status();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.has("progreso")).isTrue();
         assertThat(body.path("progreso").get("total").asInt()).isEqualTo(3);
@@ -109,7 +124,7 @@ class ApiControllerStatusScrapeTest {
         when(service.iniciarScraping(isNull(), eq(false))).thenReturn(true);
 
         var resp = controller.scrape(null, null, null, null, false);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("iniciado").asBoolean()).isTrue();
         assertThat(body.get("mensaje").asText()).contains("iniciado");
@@ -120,7 +135,7 @@ class ApiControllerStatusScrapeTest {
         when(service.iniciarScraping(isNull(), eq(false))).thenReturn(false);
 
         var resp = controller.scrape(null, null, null, null, false);
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("iniciado").asBoolean()).isFalse();
         assertThat(body.get("mensaje").asText()).contains("curso");
@@ -130,6 +145,8 @@ class ApiControllerStatusScrapeTest {
     void scrapeSetsPrecioConfigBeforeLaunching() {
         when(service.iniciarScraping(any(), eq(false))).thenReturn(true);
 
+        Allure.parameter("precioMin", 500.0);
+        Allure.parameter("precioMax", 80000.0);
         controller.scrape(500.0, 80000.0, null, null, false);
 
         verify(config).setPrecioMinimo(500.0);
@@ -140,6 +157,7 @@ class ApiControllerStatusScrapeTest {
     void scrapeLegadoPrecioParamSetsPrecioMaximo() {
         when(service.iniciarScraping(any(), eq(false))).thenReturn(true);
 
+        Allure.parameter("precio", 999.0);
         controller.scrape(null, null, 999.0, null, false);
 
         verify(config).setPrecioMaximo(999.0);

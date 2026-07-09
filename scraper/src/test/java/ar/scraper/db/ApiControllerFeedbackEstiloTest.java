@@ -13,8 +13,14 @@ import ar.scraper.web.RecommendationService;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +43,10 @@ import static org.mockito.Mockito.when;
  * Uses a REAL temp-file DatabaseService so writes via one endpoint are visible
  * to reads from another.
  */
+@Epic("REST API")
+@Feature("Outfits")
+@Story("Style feedback")
+@DisplayName("ApiController — Style feedback isolation (gym vs casual)")
 class ApiControllerFeedbackEstiloTest {
 
     @TempDir
@@ -53,6 +63,11 @@ class ApiControllerFeedbackEstiloTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with a real temp-file DatabaseService and mocked collaborators")
+    private void wireController() {
         db = new DatabaseService();
         db.initEn(tempDir.resolve("test-feedback-estilo.db").toString());
 
@@ -102,11 +117,13 @@ class ApiControllerFeedbackEstiloTest {
         ));
 
         // Gym builder: pair vetoed → the gym Buzo is excluded (only candidate) → absent.
+        Allure.parameter("estilo", "gym");
         ResponseEntity<ObjectNode> gymResp = controller.outfitsBuilder(
                 "Buzo", 500_000, "hombre", "", "", false, "gym");
         assertThat(hasBuzoPumaSlot(gymResp)).isFalse();
 
         // Casual builder: gym dislike must NOT leak → the casual Buzo is present.
+        Allure.parameter("estilo", "casual");
         ResponseEntity<ObjectNode> casualResp = controller.outfitsBuilder(
                 "Buzo", 500_000, "hombre", "", "", false, "casual");
         assertThat(hasBuzoPumaSlot(casualResp)).isTrue();
@@ -127,6 +144,7 @@ class ApiControllerFeedbackEstiloTest {
         ));
 
         // Reset only the GYM history — casual veto must survive.
+        Allure.parameter("estilo", "gym");
         controller.resetOutfitFeedback("gym");
 
         ResponseEntity<ObjectNode> casualResp = controller.outfitsBuilder(
