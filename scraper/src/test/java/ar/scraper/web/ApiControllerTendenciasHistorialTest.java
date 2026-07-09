@@ -12,7 +12,12 @@ import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -23,6 +28,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Tendencias / ML Ops")
+@Story("Tendencias / historial")
+@DisplayName("ApiController — Tendencias & historial endpoints")
 class ApiControllerTendenciasHistorialTest {
 
     private ScraperService service;
@@ -38,6 +47,11 @@ class ApiControllerTendenciasHistorialTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
