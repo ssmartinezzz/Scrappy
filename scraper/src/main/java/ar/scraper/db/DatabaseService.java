@@ -647,8 +647,8 @@ st.executeUpdate("""
                     Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
                     psUpsert.setString(22, visual.fit()            != null ? visual.fit()            : "");
                     psUpsert.setString(23, visual.estampado()      != null ? visual.estampado()      : "");
-                    psUpsert.setString(24, visual.escote()          != null ? visual.escote()          : "");
-                    psUpsert.setString(25, visual.colorDominante()  != null ? visual.colorDominante()  : "");
+                    psUpsert.setString(24, visual.escote()         != null ? visual.escote()         : "");
+                    psUpsert.setString(25, visual.colorDominante() != null ? visual.colorDominante() : "");
                     psUpsert.setString(26, now);   // touched_at
                     psUpsert.setString(27, now);   // created_at
                     psUpsert.executeUpdate();
@@ -747,6 +747,9 @@ st.executeUpdate("""
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
         try {
+            // Columnas visuales (fit/estampado/escote/color_dominante) excluidas a propósito:
+            // en esta etapa del pipeline (upsert parcial durante scraping) VisualAttrs todavía
+            // no está poblado (se calcula recién en MlEnricher), así que se dejan sin tocar acá.
             String upsertSql = """
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
@@ -896,8 +899,8 @@ st.executeUpdate("""
         Product.VisualAttrs visual = new Product.VisualAttrs(
                 fit            != null ? fit            : "",
                 estampado      != null ? estampado      : "",
-                escote         != null ? escote          : "",
-                colorDominante != null ? colorDominante  : "");
+                escote         != null ? escote         : "",
+                colorDominante != null ? colorDominante : "");
 
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
