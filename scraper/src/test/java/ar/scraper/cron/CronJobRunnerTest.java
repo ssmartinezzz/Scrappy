@@ -5,7 +5,12 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.web.ScraperService;
 import ar.scraper.web.ScraperService.ScraperStatus;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -25,6 +30,10 @@ import static org.mockito.Mockito.*;
  * only, no Spring context (matches {@code ApiControllerFinanciacionTest}
  * style).
  */
+@Epic("Cron Scheduling")
+@Feature("Job Execution")
+@Story("Runner")
+@DisplayName("CronJobRunner — RUNNING guard, price/GPU restore, execution recording")
 class CronJobRunnerTest {
 
     private final Clock clock = Clock.fixed(
@@ -38,6 +47,11 @@ class CronJobRunnerTest {
 
     @BeforeEach
     void setUp() {
+        wireRunner();
+    }
+
+    @Step("Wire CronJobRunner with mocked collaborators")
+    private void wireRunner() {
         scraperService = mock(ScraperService.class);
         config = mock(ScraperConfig.class);
         pythonRunner = mock(PythonRunner.class);
