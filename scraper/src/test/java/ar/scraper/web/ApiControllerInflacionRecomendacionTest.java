@@ -6,9 +6,14 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.DatabaseService.HistorialEntry;
 import ar.scraper.ml.PythonRunner;
+import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -17,6 +22,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@Epic("REST API")
+@Feature("Financiación")
+@Story("Inflation recommendation")
+@DisplayName("ApiController — Inflation & price recommendation endpoints")
 class ApiControllerInflacionRecomendacionTest {
 
     private ScraperService service;
@@ -32,6 +41,11 @@ class ApiControllerInflacionRecomendacionTest {
 
     @BeforeEach
     void setUp() {
+        wireController();
+    }
+
+    @Step("Wire ApiController with mocked collaborators")
+    private void wireController() {
         service               = mock(ScraperService.class);
         inflacionService      = mock(InflacionService.class);
         config                = mock(ScraperConfig.class);
@@ -58,7 +72,7 @@ class ApiControllerInflacionRecomendacionTest {
                 new InflacionService.DatoIPC("2025-01-01", 156.3, 4.2)));
 
         var resp = controller.inflacion();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("mensual").asDouble()).isEqualTo(4.2);
@@ -78,7 +92,7 @@ class ApiControllerInflacionRecomendacionTest {
         when(inflacionService.getHistorial()).thenReturn(manyPoints);
 
         var resp = controller.inflacion();
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("historial").size()).isEqualTo(13);
     }
@@ -90,7 +104,7 @@ class ApiControllerInflacionRecomendacionTest {
         when(db.getHistorialPrecios("https://a.com/1")).thenReturn(List.of());
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("senal").asText()).isEqualTo("sin_datos");
@@ -110,7 +124,7 @@ class ApiControllerInflacionRecomendacionTest {
         when(inflacionService.getInflacionInteranual()).thenReturn(50.0);
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("senal").asText()).isEqualTo("comprar_ahora");
         assertThat(body.get("scoreCompra").asInt()).isEqualTo(95);
@@ -129,7 +143,7 @@ class ApiControllerInflacionRecomendacionTest {
         when(inflacionService.getInflacionInteranual()).thenReturn(50.0);
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("senal").asText()).isEqualTo("precio_normal");
         assertThat(body.get("scoreCompra").asInt()).isEqualTo(50);
@@ -144,7 +158,7 @@ class ApiControllerInflacionRecomendacionTest {
         when(inflacionService.getInflacionInteranual()).thenReturn(100.0);
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = new ObjectMapper().valueToTree(resp.getBody());
+        JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("inflacionMensual").asDouble()).isEqualTo(4.2);
         assertThat(body.get("inflacionInteranual").asDouble()).isEqualTo(100.0);
