@@ -240,4 +240,30 @@ class MlEnricherTest {
         assertThat(result.get(0).categoria()).isEqualTo("Zapatillas");
         assertThat(result.get(0).genero()).isEqualTo("mujer");
     }
+
+    @Test
+    void productPreservesVisualAttrsAfterEnrichment() throws Exception {
+        // Regression for fashion-image-classification PR1: enriquecer() previously
+        // rebuilt Product via the 18-arg legacy constructor, silently resetting
+        // visual to VisualAttrs.EMPTY.
+        Product.VisualAttrs visual = new Product.VisualAttrs("regular", "estampado", "capucha", "gris");
+        Product conVisual = new Product(
+                "Sitio", "Buzo con visual", 20000.0, null, "https://site.com/visual-ml",
+                "", "Buzos", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/visual-ml": { "composite": 55, "badge": "", "pctil": 55 }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(conVisual), mlOutput);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).visual()).isEqualTo(visual);
+    }
 }

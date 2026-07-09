@@ -76,7 +76,7 @@ public class MlEnricher {
                 p.url(), p.imagenUrl(), catFinal, generoFinal, p.talles(),
                 ml, p.marca(), p.rubro() != null ? p.rubro() : "indumentaria",
                 p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
-                p.subCategoria() != null ? p.subCategoria() : ""
+                p.subCategoria() != null ? p.subCategoria() : "", p.visual()
             );
             result.add(enriched);
             enriquecidos++;
