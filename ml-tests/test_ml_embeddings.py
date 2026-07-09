@@ -300,3 +300,62 @@ def test_ensure_hf_home_respects_existing_env_var(monkeypatch, db_path):
     ml_embeddings._ensure_hf_home(db_path)
 
     assert ml_embeddings.os.environ["HF_HOME"] == "/already/set/path"
+
+
+# ─── DB-failure degradation paths ────────────────────────────────────────────
+
+
+def test_missing_table_degrades_to_none_without_raising(tmp_path):
+    """A DB file that exists but never had `image_embeddings` created
+    (e.g. schema migration didn't run yet) must degrade, not raise."""
+    path = tmp_path / "no_table.db"
+    conn = sqlite3.connect(str(path))
+    conn.close()
+
+    results = ml_embeddings.embed_images(
+        ["http://x/1.jpg", "http://x/2.jpg"], db_path=str(path)
+    )
+
+    assert results["http://x/1.jpg"] is None
+    assert results["http://x/2.jpg"] is None
+
+
+def test_corrupted_cache_row_degrades_to_none_without_raising(monkeypatch, db_path):
+    """A cached row whose blob length doesn't match `dim` makes
+    `np.frombuffer` raise a ValueError inside `get_cached`; `embed_images`
+    must still degrade that single URL to `None` instead of propagating."""
+    url = "http://x/corrupted.jpg"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO image_embeddings (url, embedding, dim, model_version, computed_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (url, b"\x00\x01\x02", 999, ml_embeddings.MODEL_VERSION, "2026-01-01T00:00:00+00:00"),
+    )
+    conn.commit()
+    conn.close()
+
+    def _boom_load(*_a, **_kw):
+        raise AssertionError("model should never be loaded for a corrupted-cache degrade")
+
+    monkeypatch.setattr(ml_embeddings, "_load_model", _boom_load)
+
+    results = ml_embeddings.embed_images([url], db_path=db_path)
+
+    assert results[url] is None
+
+
+def test_unusable_db_path_degrades_all_urls_to_none(monkeypatch, tmp_path):
+    """`sqlite3.connect()` itself failing (e.g. an unwritable/unreachable
+    path, or a locked-DB scenario surfacing at connect time) must degrade
+    every requested URL to `None` instead of raising out of `embed_images`."""
+
+    def _boom_connect(*_a, **_kw):
+        raise sqlite3.OperationalError("simulated: database is locked")
+
+    monkeypatch.setattr(ml_embeddings.sqlite3, "connect", _boom_connect)
+
+    results = ml_embeddings.embed_images(
+        ["http://x/1.jpg", "http://x/2.jpg"], db_path=str(tmp_path / "unreachable.db")
+    )
+
+    assert results == {"http://x/1.jpg": None, "http://x/2.jpg": None}
