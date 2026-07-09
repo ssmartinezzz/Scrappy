@@ -138,4 +138,28 @@ class SenalEnricherTest {
         assertThat(result.get(0).cantidadUnidades()).isEqualTo(3);
         assertThat(result.get(0).esPack()).isTrue();
     }
+
+    @Test
+    void productPreservesVisualAttrsAfterEnrichment() {
+        // Regression for fashion-image-classification PR1: withSenal() previously
+        // rebuilt Product via the 18-arg legacy constructor, silently resetting
+        // visual to VisualAttrs.EMPTY.
+        DatabaseService db = Mockito.mock(DatabaseService.class);
+        InflacionService inflacion = Mockito.mock(InflacionService.class);
+
+        when(db.getHistorialPrecios(anyList())).thenReturn(Map.of());
+        when(inflacion.factorInflacion(anyInt())).thenReturn(1.0);
+
+        Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "estampado", "cuello redondo", "azul");
+        Product conVisual = new Product(
+                "Sitio", "Remera con visual", 15000.0, null, "https://site.com/visual",
+                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+
+        SenalEnricher enricher = new SenalEnricher(db, inflacion);
+        List<Product> result = enricher.enriquecer(List.of(conVisual));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).visual()).isEqualTo(visual);
+    }
 }
