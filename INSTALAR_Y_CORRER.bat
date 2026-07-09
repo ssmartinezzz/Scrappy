@@ -428,7 +428,10 @@ if "!HAS_GPU!"=="1" (
 ) else (
     echo   GPU      : Sin GPU NVIDIA - entrenamiento en CPU
 )
-if exist "%ALLURE_EXE%" echo   Allure   : allure serve scraper\target\allure-results  -- corre 'mvn test' antes
+if exist "%ALLURE_EXE%" (
+    echo   Tests    : para correr las suites -^> cd scraper ^&^& mvn test
+    echo   Allure   : ver reporte HTML -^> allure serve scraper\target\allure-results  ^(despues de 'mvn test'^)
+)
 echo   Detener  : Ctrl+C
 echo  ============================================================
 echo.
