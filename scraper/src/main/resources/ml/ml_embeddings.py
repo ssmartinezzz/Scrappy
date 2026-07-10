@@ -601,12 +601,22 @@ def _persist_visual_attrs(conn, url, attrs, color):
     This CLI only ever adds signal, never risks silently overriding a
     confident text classification.
 
+    `color` may be ``None`` when no new color signal could be computed
+    this run (the image failed to download, or `dominant_color()` raised
+    unexpectedly) — `color_dominante` is then left UNCHANGED via
+    `COALESCE` instead of being wiped to `""` (deferred from PR3b2
+    judgment-day round 3 CONFIRMED finding: "color_dominante wipe on
+    transient image failure" — a forced rebuild whose image download
+    fails this run, but whose embedding is still cache-hit-retrievable,
+    must not blank a previously-computed color).
+
     Does NOT commit — the caller commits once per chunk instead of once
     per row (deferred from PR3b2 judgment-day round 2: "_persist_
     visual_attrs commits per product row").
     """
     conn.execute(
-        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, color_dominante = ? WHERE url = ?",
+        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, "
+        "color_dominante = COALESCE(?, color_dominante) WHERE url = ?",
         (attrs.get("fit", ""), attrs.get("estampado", ""), attrs.get("escote", ""), color, url),
     )
 
@@ -763,7 +773,14 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
                         file=sys.stderr,
                     )
                 else:
-                    color = ""
+                    # `None` (not "") means "no new color signal this run" —
+                    # `_persist_visual_attrs` preserves the existing
+                    # color_dominante instead of wiping it (deferred from
+                    # PR3b2 judgment-day round 3: "color_dominante wipe on
+                    # transient image failure" — a cache-hit embedding can
+                    # still classify successfully even when THIS run's
+                    # image download failed).
+                    color = None
                     image = images.get(imagen_url)
                     if image is not None:
                         try:

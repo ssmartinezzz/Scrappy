@@ -264,6 +264,136 @@ def test_backfill_force_with_model_down_does_not_wipe_existing_attrs(monkeypatch
     assert row == ("oversize", "estampado", "cuello redondo", "azul")
 
 
+def test_backfill_force_preserves_color_when_image_download_fails_but_embedding_is_cached(monkeypatch, db_path):
+    """CONFIRMED regression: in force mode, a product whose embedding is
+    already cached (so `embed_images` can still return it via its
+    cache-first short-circuit) but whose image download fails THIS run
+    must still get fit/estampado/escote updated from a successful
+    classify() (genero != "", so the round-2 degraded-classify skip does
+    NOT trigger) — but color_dominante, which depends entirely on THIS
+    run's (failed) download, must be PRESERVED rather than wiped to ""
+    (deferred from PR3b2 judgment-day round 3 CONFIRMED finding:
+    "color_dominante wipe on transient image failure")."""
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, color_dominante = ? WHERE url = ?",
+        ("regular", "liso", "con cuello", "rojo", "http://x/p1"),
+    )
+    conn.commit()
+    conn.close()
+
+    # Embedding is still retrievable (cache-first short-circuit)...
+    monkeypatch.setattr(
+        ml_embeddings,
+        "embed_images",
+        lambda urls, db_path=None, model_version=None, preloaded_images=None: {
+            u: np.array([1.0, 0.0], dtype="float32") for u in urls
+        },
+    )
+    # ...but THIS run's own image download fails for every product.
+    monkeypatch.setattr(
+        ml_embeddings,
+        "_download_image",
+        lambda _url: (_ for _ in ()).throw(IOError("simulated: transient network failure")),
+    )
+    fake_attrs = {
+        "categoria": "Remera",
+        "fit": "oversize",
+        "estampado": "estampado",
+        "escote": "cuello redondo",
+        "genero": "hombre",
+        "genImgConf": 0.9,
+        "catMLConf": 0.9,
+    }
+    monkeypatch.setattr(ml_embeddings, "classify", lambda embedding, db_path="scraper.db": fake_attrs)
+
+    ml_embeddings.backfill(db_path=db_path, force=True, use_gpu=True)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT fit, estampado, escote, color_dominante FROM productos WHERE url = ?", ("http://x/p1",)
+    ).fetchone()
+    conn.close()
+
+    # fit/estampado/escote updated from the new (successful) classification...
+    assert row[:3] == ("oversize", "estampado", "cuello redondo")
+    # ...but color_dominante preserved — the download failed this run.
+    assert row[3] == "rojo"
+
+
+def test_backfill_dedups_shared_imagen_url_across_products(tmp_path, monkeypatch):
+    """Regression: two products sharing the same imagen_url (e.g. color
+    variants of one listing) must trigger exactly ONE download and ONE
+    URL entry passed to embed_images per chunk — not one per product —
+    while still persisting BOTH rows independently (deferred from PR3b2
+    judgment-day round 3 suggestion: "dedup behavior unpinned")."""
+    path = tmp_path / "shared.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS image_embeddings (
+            url TEXT PRIMARY KEY, embedding BLOB NOT NULL, dim INTEGER NOT NULL,
+            model_version TEXT NOT NULL, computed_at TEXT NOT NULL)
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS productos (
+            url TEXT PRIMARY KEY, imagen_url TEXT, activo INTEGER DEFAULT 1,
+            fit TEXT DEFAULT '', estampado TEXT DEFAULT '', escote TEXT DEFAULT '',
+            color_dominante TEXT DEFAULT '')
+        """
+    )
+    shared_url = "http://x/shared.jpg"
+    conn.executemany(
+        "INSERT INTO productos (url, imagen_url, activo) VALUES (?, ?, 1)",
+        [("http://x/p1", shared_url), ("http://x/p2", shared_url)],
+    )
+    conn.commit()
+    conn.close()
+
+    download_calls = []
+    embed_images_calls = []
+
+    def _tracking_download(url):
+        download_calls.append(url)
+        return "fake-pil-image"
+
+    def _fake_embed_images(urls, db_path=None, model_version=None, preloaded_images=None):
+        embed_images_calls.append(list(urls))
+        return {u: np.array([1.0, 0.0], dtype="float32") for u in urls}
+
+    monkeypatch.setattr(ml_embeddings, "_download_image", _tracking_download)
+    monkeypatch.setattr(ml_embeddings, "embed_images", _fake_embed_images)
+    fake_attrs = {
+        "categoria": "Remera",
+        "fit": "oversize",
+        "estampado": "estampado",
+        "escote": "cuello redondo",
+        "genero": "hombre",
+        "genImgConf": 0.9,
+        "catMLConf": 0.9,
+    }
+    monkeypatch.setattr(ml_embeddings, "classify", lambda embedding, db_path="scraper.db": fake_attrs)
+    monkeypatch.setattr(ml_embeddings, "dominant_color", lambda _image: "azul")
+
+    ml_embeddings.backfill(db_path=str(path), force=False, use_gpu=True)
+
+    # Exactly one download and one URL entry passed to embed_images.
+    assert download_calls == [shared_url]
+    assert embed_images_calls == [[shared_url]]
+
+    conn = sqlite3.connect(str(path))
+    rows = conn.execute(
+        "SELECT url, fit, estampado, escote, color_dominante FROM productos ORDER BY url"
+    ).fetchall()
+    conn.close()
+    assert rows == [
+        ("http://x/p1", "oversize", "estampado", "cuello redondo", "azul"),
+        ("http://x/p2", "oversize", "estampado", "cuello redondo", "azul"),
+    ]
+
+
 def test_backfill_no_pending_products_emits_single_completion_progress(tmp_path, capsys):
     path = tmp_path / "empty.db"
     conn = sqlite3.connect(str(path))
