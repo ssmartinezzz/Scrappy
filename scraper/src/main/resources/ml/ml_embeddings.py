@@ -233,13 +233,20 @@ def _compute_embedding(model, preprocess, image):
 # ─── Public entrypoint ───────────────────────────────────────────────────────
 
 
-def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
+def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloaded_images=None):
     """Cache-first embedding computation for a list of image URLs.
 
     Returns ``{url: numpy.ndarray | None}``. ``None`` marks a degraded/
     skipped URL (blank URL, download failure, or model unavailable) —
     callers MUST treat ``None`` as "no visual signal for this URL",
     never as an error to propagate.
+
+    ``preloaded_images`` is an optional ``{url: PIL.Image | None}`` map. When
+    a URL is a cache miss and already has a non-``None`` entry there, that
+    image is reused instead of downloading it again — lets a caller that
+    also needs the raw image for something else (e.g. `backfill()`'s color
+    extraction) download it exactly once (deferred from PR3b1 judgment-day
+    review: "backfill loop double-downloads each image").
     """
     results = {}
     try:
@@ -286,7 +293,8 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
                 continue
 
             try:
-                image = _download_image(url)
+                preloaded = preloaded_images.get(url) if preloaded_images else None
+                image = preloaded if preloaded is not None else _download_image(url)
                 embedding = _compute_embedding(model, preprocess, image)
                 insert_cache(conn, url, embedding, embedding.shape[0], model_version)
                 results[url] = embedding
@@ -589,10 +597,28 @@ def _persist_visual_attrs(conn, url, attrs, color):
 def _emit_progress(pct, msg):
     """Write one JSON progress line to stdout for `PythonRunner` (Java) to
     parse, matching `ml_pipeline.py`'s existing `{phase, pct, msg}` shape
-    under the new `"embedding"` phase name."""
+    under the new `"embedding"` phase name.
+
+    Never raises: if the reading side of the pipe already closed (e.g. the
+    Java process exited or its reader stopped), `print` can raise
+    `BrokenPipeError`/`OSError` — that degrades silently here instead of
+    propagating out of `backfill()` (deferred from PR3b1 judgment-day
+    review; same never-raises contract as the rest of this module)."""
     import json
 
-    print(json.dumps({"phase": "embedding", "pct": pct, "msg": msg}), flush=True)
+    try:
+        print(json.dumps({"phase": "embedding", "pct": pct, "msg": msg}), flush=True)
+    except (BrokenPipeError, OSError):
+        pass
+
+
+# Batches `embed_images()` calls in the backfill loop below so its internal
+# SQLite connection is opened/closed once per chunk instead of once per
+# product (deferred from PR3b1 judgment-day review: "thousands of SQLite
+# connection open/close cycles"). Not tuned; a reasonable middle ground
+# between fewer connection cycles and not holding too many downloaded
+# images in memory at once.
+_BACKFILL_CHUNK_SIZE = 20
 
 
 def backfill(db_path="scraper.db", force=False, use_gpu=True):
@@ -604,6 +630,11 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
     `classify()`, extracts `dominant_color()`, and persists the additive
     attribute columns. Streams `{"phase":"embedding","pct":N,"msg":...}`
     progress lines to stdout.
+
+    Pending products are processed in chunks of `_BACKFILL_CHUNK_SIZE`:
+    each image is downloaded exactly once per chunk (reused for both the
+    embedding, on a cache miss, and `dominant_color()`), and `embed_images`
+    is called once per chunk rather than once per product.
 
     Never raises: a DB-connect failure, a query failure, or any single
     row's processing failure degrades that unit (or the whole run, for a
@@ -651,27 +682,51 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
 
     _emit_progress(0, f"iniciando backfill de {total} productos")
     processed = 0
-    for url, imagen_url in pending:
-        try:
-            embeddings = embed_images([imagen_url], db_path=db_path, model_version=MODEL_VERSION)
-            embedding = embeddings.get(imagen_url)
-            attrs = classify(embedding, db_path=db_path)
+    for chunk_start in range(0, total, _BACKFILL_CHUNK_SIZE):
+        chunk = pending[chunk_start:chunk_start + _BACKFILL_CHUNK_SIZE]
+        chunk_imagen_urls = [imagen_url for _url, imagen_url in chunk]
 
-            color = ""
+        # Download each image ONCE per chunk — reused below for both the
+        # embedding (on a cache miss, via `preloaded_images`) and
+        # `dominant_color()`, instead of downloading it a second time later
+        # in this loop (deferred from PR3b1 judgment-day review: "backfill
+        # loop double-downloads each image").
+        images = {}
+        for imagen_url in chunk_imagen_urls:
             try:
-                image = _download_image(imagen_url)
-                color = dominant_color(image)
+                images[imagen_url] = _download_image(imagen_url)
             except Exception as e:
-                print(f"[ml_embeddings] backfill: color extraction failed for {imagen_url}: {e}", file=sys.stderr)
+                print(f"[ml_embeddings] backfill: image download failed for {imagen_url}: {e}", file=sys.stderr)
+                images[imagen_url] = None
 
-            _persist_visual_attrs(conn, url, attrs, color)
-        except Exception as e:
-            # Never abort the whole run for one bad row — that product
-            # simply keeps its text-only classification, same as today.
-            print(f"[ml_embeddings] backfill: failed processing {url}: {e}", file=sys.stderr)
+        embeddings = embed_images(
+            chunk_imagen_urls,
+            db_path=db_path,
+            model_version=MODEL_VERSION,
+            preloaded_images=images,
+        )
 
-        processed += 1
-        _emit_progress(int(processed * 100 / total), f"{processed}/{total} — {url}")
+        for url, imagen_url in chunk:
+            try:
+                embedding = embeddings.get(imagen_url)
+                attrs = classify(embedding, db_path=db_path)
+
+                color = ""
+                image = images.get(imagen_url)
+                if image is not None:
+                    try:
+                        color = dominant_color(image)
+                    except Exception as e:
+                        print(f"[ml_embeddings] backfill: color extraction failed for {imagen_url}: {e}", file=sys.stderr)
+
+                _persist_visual_attrs(conn, url, attrs, color)
+            except Exception as e:
+                # Never abort the whole run for one bad row — that product
+                # simply keeps its text-only classification, same as today.
+                print(f"[ml_embeddings] backfill: failed processing {url}: {e}", file=sys.stderr)
+
+            processed += 1
+            _emit_progress(int(processed * 100 / total), f"{processed}/{total} — {url}")
 
     try:
         conn.close()

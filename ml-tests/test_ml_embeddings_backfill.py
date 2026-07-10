@@ -101,7 +101,7 @@ def test_backfill_skips_urls_with_a_valid_cached_embedding_unless_forced(monkeyp
 
     seen_urls = []
 
-    def _fake_embed_images(urls, db_path=None, model_version=None):
+    def _fake_embed_images(urls, db_path=None, model_version=None, preloaded_images=None):
         seen_urls.extend(urls)
         return {u: None for u in urls}
 
@@ -132,7 +132,7 @@ def test_backfill_force_reprocesses_every_url_even_if_cached(monkeypatch, db_pat
 
     seen_urls = []
 
-    def _fake_embed_images(urls, db_path=None, model_version=None):
+    def _fake_embed_images(urls, db_path=None, model_version=None, preloaded_images=None):
         seen_urls.extend(urls)
         return {u: None for u in urls}
 
@@ -157,7 +157,7 @@ def test_backfill_degrades_to_text_only_when_model_unavailable_no_crash(monkeypa
     monkeypatch.setattr(
         ml_embeddings,
         "embed_images",
-        lambda urls, db_path=None, model_version=None: {u: None for u in urls},
+        lambda urls, db_path=None, model_version=None, preloaded_images=None: {u: None for u in urls},
     )
     monkeypatch.setattr(
         ml_embeddings, "_download_image", lambda _url: (_ for _ in ()).throw(IOError("no model, no image"))
@@ -184,7 +184,9 @@ def test_backfill_persists_additive_columns_only_never_genero_or_categoria(monke
     monkeypatch.setattr(
         ml_embeddings,
         "embed_images",
-        lambda urls, db_path=None, model_version=None: {u: np.array([1.0, 0.0], dtype="float32") for u in urls},
+        lambda urls, db_path=None, model_version=None, preloaded_images=None: {
+            u: np.array([1.0, 0.0], dtype="float32") for u in urls
+        },
     )
     fake_attrs = {
         "categoria": "Remera",
@@ -263,7 +265,7 @@ def test_backfill_use_gpu_false_forces_cpu_only_via_env_var(monkeypatch, db_path
     monkeypatch.setattr(
         ml_embeddings,
         "embed_images",
-        lambda urls, db_path=None, model_version=None: {u: None for u in urls},
+        lambda urls, db_path=None, model_version=None, preloaded_images=None: {u: None for u in urls},
     )
     monkeypatch.setattr(
         ml_embeddings, "_download_image", lambda _url: (_ for _ in ()).throw(IOError("skip"))
@@ -279,7 +281,7 @@ def test_backfill_use_gpu_true_does_not_touch_cuda_env_var(monkeypatch, db_path)
     monkeypatch.setattr(
         ml_embeddings,
         "embed_images",
-        lambda urls, db_path=None, model_version=None: {u: None for u in urls},
+        lambda urls, db_path=None, model_version=None, preloaded_images=None: {u: None for u in urls},
     )
     monkeypatch.setattr(
         ml_embeddings, "_download_image", lambda _url: (_ for _ in ()).throw(IOError("skip"))
@@ -288,3 +290,87 @@ def test_backfill_use_gpu_true_does_not_touch_cuda_env_var(monkeypatch, db_path)
     ml_embeddings.backfill(db_path=db_path, force=True, use_gpu=True)
 
     assert "CUDA_VISIBLE_DEVICES" not in ml_embeddings.os.environ
+
+
+# ─── backfill(): batching + single-download-per-image (PR3b2 judgment-day) ──
+
+
+def test_backfill_batches_embed_images_calls_and_downloads_each_image_once(tmp_path, monkeypatch):
+    """Regression: `embed_images` must be called once per chunk of
+    `_BACKFILL_CHUNK_SIZE` products, never once per product, and every
+    image must be downloaded exactly once — reused for both the embedding
+    and `dominant_color()` — instead of downloaded a second time later in
+    the loop (deferred from PR3b1 judgment-day review: "backfill loop
+    double-downloads each image AND calls embed_images once per URL,
+    causing thousands of SQLite connection open/close cycles")."""
+    path = tmp_path / "many.db"
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS image_embeddings (
+            url TEXT PRIMARY KEY, embedding BLOB NOT NULL, dim INTEGER NOT NULL,
+            model_version TEXT NOT NULL, computed_at TEXT NOT NULL)
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS productos (
+            url TEXT PRIMARY KEY, imagen_url TEXT, activo INTEGER DEFAULT 1,
+            fit TEXT DEFAULT '', estampado TEXT DEFAULT '', escote TEXT DEFAULT '',
+            color_dominante TEXT DEFAULT '')
+        """
+    )
+    chunk_size = ml_embeddings._BACKFILL_CHUNK_SIZE
+    n = chunk_size * 2 + 5  # spans three chunks: full, full, partial
+    conn.executemany(
+        "INSERT INTO productos (url, imagen_url, activo) VALUES (?, ?, 1)",
+        [(f"http://x/p{i}", f"http://x/p{i}.jpg") for i in range(n)],
+    )
+    conn.commit()
+    conn.close()
+
+    embed_images_call_sizes = []
+    download_counts = {}
+
+    def _fake_embed_images(urls, db_path=None, model_version=None, preloaded_images=None):
+        embed_images_call_sizes.append(len(urls))
+        return {u: np.array([1.0, 0.0], dtype="float32") for u in urls}
+
+    def _fake_download(url):
+        download_counts[url] = download_counts.get(url, 0) + 1
+        return "fake-pil-image"
+
+    monkeypatch.setattr(ml_embeddings, "embed_images", _fake_embed_images)
+    monkeypatch.setattr(ml_embeddings, "_download_image", _fake_download)
+    monkeypatch.setattr(
+        ml_embeddings,
+        "classify",
+        lambda embedding, db_path="scraper.db": {
+            "categoria": "", "fit": "", "estampado": "", "escote": "", "genero": "unisex",
+            "genImgConf": 0.0, "catMLConf": 0.0,
+        },
+    )
+    monkeypatch.setattr(ml_embeddings, "dominant_color", lambda _image: "azul")
+
+    ml_embeddings.backfill(db_path=str(path), force=False, use_gpu=True)
+
+    # embed_images called once per chunk (3 calls), not once per product (n calls)
+    assert embed_images_call_sizes == [chunk_size, chunk_size, 5]
+    # every product's image downloaded exactly once, never twice
+    assert len(download_counts) == n
+    assert all(count == 1 for count in download_counts.values())
+
+
+def test_emit_progress_degrades_silently_on_broken_pipe(monkeypatch):
+    """Regression: `_emit_progress`'s `print` must never raise
+    `BrokenPipeError`/`OSError` out of `backfill()` when the reading side
+    of the pipe (Java's `PythonRunner`) already closed — deferred from
+    PR3b2 judgment-day review: unguarded print violated the module's
+    never-raises contract."""
+
+    def _boom_print(*_a, **_kw):
+        raise BrokenPipeError("reader closed")
+
+    monkeypatch.setattr("builtins.print", _boom_print)
+
+    ml_embeddings._emit_progress(50, "should not raise")  # must not raise
