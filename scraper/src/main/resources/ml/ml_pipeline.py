@@ -102,6 +102,27 @@ def needs_image_fallback(txt_conf, categoria, genero, genericas=GENERICAS):
     return (txt_conf < 0.75) or (cat_norm in genericas) or not (genero or '').strip()
 
 
+def category_override_allowed(txt_conf, cat_actual, genericas=GENERICAS):
+    """Judgment-day round-1 BLOCKER fix (A-001/B-001): ``needs_image_fallback``
+    also fires when gender is blank, even for a confident + specific text
+    ``categoria`` (text-wins invariant deliberately allows image to fill the
+    GENDER gap in that case). But the gate firing does NOT by itself mean
+    ``categoria`` was ever in question — only a questionable text category
+    may be overridden by image:
+
+      - text confidence < 0.75, OR
+      - the text category is generic/placeholder (`genericas`).
+
+    This is an ADDITIONAL restriction layered on top of the existing
+    confianza/TIPOS/CAT_PADRES/`_TEXT_LABEL_SET` guards in `main()`'s stage
+    1b — it must gate ONLY the `categoria`/`categoria_original`/
+    `ml_cat_conf` mutation, never the additive generoML/genImgConf fill-in
+    (which has no gate of its own, per design).
+    """
+    cat_norm = (cat_actual or '').strip().lower()
+    return (txt_conf < 0.75) or (cat_norm in genericas)
+
+
 class PriceStats:
     """
     Estadísticas completas de una distribución de precios.
@@ -970,7 +991,12 @@ def main():
                     continue  # nunca Ojotas→Zapatilla ni Running→Zapatilla
 
                 # Solo aplicar si la categoría actual es genérica O confianza muy alta
-                if cat_actual.lower() in genericas or confianza >= 0.92:
+                # Y (BLOCKER fix A-001/B-001) la categoría de texto era en sí
+                # cuestionable — nunca cuando needs_image_fallback() disparó
+                # únicamente por género en blanco sobre un texto confiado y
+                # específico (ver category_override_allowed()).
+                if ((cat_actual.lower() in genericas or confianza >= 0.92)
+                        and category_override_allowed(txt_conf, cat_actual, genericas)):
                     p['categoria_original'] = cat_actual
                     p['categoria']   = pred_cat
                     p['ml_cat_conf'] = round(confianza, 3)
