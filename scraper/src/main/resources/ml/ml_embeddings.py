@@ -4,10 +4,9 @@
 ml_embeddings.py — Zero-shot fashion image embeddings (Marqo-FashionSigLIP)
 ============================================================================
 
-Owns model load, the SQLite embedding cache, and prompt-based zero-shot
-classification for the fashion-image-classification feature. The
-full-catalog backfill CLI that consumes these (``backfill()``) is a
-separate slice, PR3b2, built on top of this branch.
+Owns model load, the SQLite embedding cache, prompt-based zero-shot
+classification, and the full-catalog backfill CLI for the
+fashion-image-classification feature.
 
 PR3a implemented (plus hardening deferred from its own judgment-day
 review):
@@ -17,9 +16,10 @@ review):
     serialization, same as ``ml_pipeline.py``);
   - the ``image_embeddings`` SQLite cache (schema shipped in PR1);
   - ``embed_images()``, a cache-first embedding pipeline used by both the
-    full-catalog backfill (PR3b2) and the incremental scrape path (PR4).
+    full-catalog backfill (this slice) and the incremental scrape path
+    (PR4).
 
-This slice (PR3b1) adds:
+PR3b1 added:
   - ``PROMPTS``/``THRESHOLDS`` — the zero-shot label tables (English
     prompts internally, Spanish labels only ever emitted);
   - ``classify()`` — per-signal cosine similarity + margin-gated
@@ -28,11 +28,18 @@ This slice (PR3b1) adds:
   - ``dominant_color()`` — a Pillow pixel-histogram color signal that is
     deliberately independent of the SigLIP model.
 
+This slice (PR3b2) adds:
+  - ``backfill()`` — the CLI entrypoint the repurposed "Construir índice
+    visual" button (PR5/PR6) launches on a background thread: embeds +
+    classifies every active product missing a cached embedding (or all,
+    if ``force``), persists the additive visual-attribute columns, and
+    streams JSON progress lines to stdout for ``PythonRunner`` to parse.
+
 Degradation is a hard requirement: model load failure, image download
-failure, or any DB hiccup for a single URL must never raise out of
-``embed_images`` or ``classify()`` — every failure is logged to stderr
-and treated as a skip, leaving text-only classification untouched
-upstream.
+failure, or any DB hiccup for a single URL/row must never raise out of
+``embed_images``, ``classify()``, or ``backfill()`` — every failure is
+logged to stderr and treated as a skip, leaving text-only classification
+untouched upstream.
 
 Heavy imports (``torch``, ``open_clip``, ``PIL``, ``numpy``) are performed
 lazily inside functions so this module stays importable on machines where
@@ -538,11 +545,146 @@ def dominant_color(image):
     return _closest_palette_color(dominant_rgb)
 
 
+# ─── Full-catalog backfill CLI ───────────────────────────────────────────────
+
+
+def _pending_urls(conn, force, model_version):
+    """Return `(url, imagen_url)` pairs for active products that still need
+    an embedding computed under `model_version` (or every active product
+    with an image, when `force`)."""
+    rows = conn.execute(
+        "SELECT url, imagen_url FROM productos "
+        "WHERE activo = 1 AND imagen_url IS NOT NULL AND imagen_url != ''"
+    ).fetchall()
+    if force:
+        return rows
+    pending = []
+    for url, imagen_url in rows:
+        try:
+            cached = get_cached(conn, imagen_url, model_version)
+        except Exception as e:
+            print(f"[ml_embeddings] backfill: cache lookup failed for {imagen_url}: {e}", file=sys.stderr)
+            cached = None
+        if cached is None:
+            pending.append((url, imagen_url))
+    return pending
+
+
+def _persist_visual_attrs(conn, url, attrs, color):
+    """Persist the four ADDITIVE visual-attribute columns (fit, estampado,
+    escote, color_dominante) shipped in PR1. Deliberately does NOT touch
+    `genero`/`categoria` on `productos` — those require the "text always
+    wins" gate (spec: "visual-classification-rules"), which lives in the
+    Java pipeline (`ml_pipeline.py` stage 1b + `MlEnricher`, PR4/PR5).
+    This CLI only ever adds signal, never risks silently overriding a
+    confident text classification.
+    """
+    conn.execute(
+        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, color_dominante = ? WHERE url = ?",
+        (attrs.get("fit", ""), attrs.get("estampado", ""), attrs.get("escote", ""), color, url),
+    )
+    conn.commit()
+
+
+def _emit_progress(pct, msg):
+    """Write one JSON progress line to stdout for `PythonRunner` (Java) to
+    parse, matching `ml_pipeline.py`'s existing `{phase, pct, msg}` shape
+    under the new `"embedding"` phase name."""
+    import json
+
+    print(json.dumps({"phase": "embedding", "pct": pct, "msg": msg}), flush=True)
+
+
+def backfill(db_path="scraper.db", force=False, use_gpu=True):
+    """Full-catalog visual-attribute backfill entrypoint (CLI + PR5's
+    `PythonRunner.backfillEmbeddingsEnBackground`).
+
+    For every active product missing a cached embedding (or all, when
+    `force`): computes/reuses the embedding via `embed_images`, runs
+    `classify()`, extracts `dominant_color()`, and persists the additive
+    attribute columns. Streams `{"phase":"embedding","pct":N,"msg":...}`
+    progress lines to stdout.
+
+    Never raises: a DB-connect failure, a query failure, or any single
+    row's processing failure degrades that unit (or the whole run, for a
+    connect/query failure) to a no-op, logging to stderr instead —
+    mirrors `embed_images`'s degradation contract (spec:
+    "degradation-behavior").
+    """
+    if not use_gpu:
+        # Force CPU-only for this process. Must be set before `_load_model`
+        # ever imports torch — mirrors the Java side's existing
+        # CUDA_VISIBLE_DEVICES convention for the subprocess env (PR5).
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+    try:
+        conn = sqlite3.connect(db_path, timeout=30)
+    except Exception as e:
+        print(f"[ml_embeddings] backfill: DB connect failed for {db_path}: {e}", file=sys.stderr)
+        _emit_progress(0, "error: no se pudo conectar a la base de datos")
+        return
+
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass
+
+    try:
+        pending = _pending_urls(conn, force, MODEL_VERSION)
+    except Exception as e:
+        print(f"[ml_embeddings] backfill: query failed: {e}", file=sys.stderr)
+        _emit_progress(0, "error: no se pudieron leer productos")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+
+    total = len(pending)
+    if total == 0:
+        _emit_progress(100, "sin productos pendientes")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+
+    _emit_progress(0, f"iniciando backfill de {total} productos")
+    processed = 0
+    for url, imagen_url in pending:
+        try:
+            embeddings = embed_images([imagen_url], db_path=db_path, model_version=MODEL_VERSION)
+            embedding = embeddings.get(imagen_url)
+            attrs = classify(embedding, db_path=db_path)
+
+            color = ""
+            try:
+                image = _download_image(imagen_url)
+                color = dominant_color(image)
+            except Exception as e:
+                print(f"[ml_embeddings] backfill: color extraction failed for {imagen_url}: {e}", file=sys.stderr)
+
+            _persist_visual_attrs(conn, url, attrs, color)
+        except Exception as e:
+            # Never abort the whole run for one bad row — that product
+            # simply keeps its text-only classification, same as today.
+            print(f"[ml_embeddings] backfill: failed processing {url}: {e}", file=sys.stderr)
+
+        processed += 1
+        _emit_progress(int(processed * 100 / total), f"{processed}/{total} — {url}")
+
+    try:
+        conn.close()
+    except Exception:
+        pass
+    _emit_progress(100, "backfill completo")
+
+
 if __name__ == "__main__":
-    # Manual smoke check: attempts the REAL model load (network + weights
-    # required) and prints OK/FAIL. Never run automatically by pytest.
-    # Usage: python ml_embeddings.py smoke [db_path]
     if len(sys.argv) >= 2 and sys.argv[1] == "smoke":
+        # Manual smoke check: attempts the REAL model load (network +
+        # weights required) and prints OK/FAIL. Never run automatically
+        # by pytest. Usage: python ml_embeddings.py smoke [db_path]
         db_path_arg = sys.argv[2] if len(sys.argv) >= 3 else "scraper.db"
         m, p = _load_model(db_path_arg)
         if m is not None:
@@ -550,5 +692,17 @@ if __name__ == "__main__":
             sys.exit(0)
         print("FAIL: model could not be loaded (see stderr above)")
         sys.exit(1)
-    print("Usage: python ml_embeddings.py smoke [db_path]", file=sys.stderr)
+
+    if len(sys.argv) >= 2 and sys.argv[1] == "backfill":
+        # Usage: python ml_embeddings.py backfill [db_path] [--force] [--no-gpu]
+        db_path_arg = sys.argv[2] if len(sys.argv) >= 3 else "scraper.db"
+        extra_args = sys.argv[3:]
+        backfill(
+            db_path_arg,
+            force="--force" in extra_args,
+            use_gpu="--no-gpu" not in extra_args,
+        )
+        sys.exit(0)
+
+    print("Usage: python ml_embeddings.py smoke|backfill [db_path] [--force] [--no-gpu]", file=sys.stderr)
     sys.exit(2)
