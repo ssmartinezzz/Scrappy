@@ -74,16 +74,19 @@ def _one_hot_prompt_embeddings():
 
 
 def test_prompts_visual_attr_labels_match_pr1_visualattrs_vocabulary():
-    """Regression: `Product.VisualAttrs`'s javadoc (PR1, `Product.java`) is
-    the single source of truth for the closed label sets `fit`, `estampado`,
-    and `escote` may ever emit (`colorDominante`'s closed set is pinned
-    separately via `COLOR_PALETTE`/`dominant_color()` tests). This pins
-    EVERY PROMPTS label for those three signals against that vocabulary —
-    in particular, this is the regression test for the escote v-neck label:
-    no other existing test asserts its literal value, so reverting
-    "en v" back to "cuello en v" would otherwise stay green (the other
-    classify() tests only ever exercise the FIRST candidate, "cuello
-    redondo")."""
+    """Regression: pins EVERY `PROMPTS` label for `fit`, `estampado`, and
+    `escote` against the closed label sets documented in `Product.
+    VisualAttrs`'s javadoc (PR1, `Product.java`; `colorDominante`'s closed
+    set is pinned separately via `COLOR_PALETTE`/`dominant_color()`
+    tests). `Product.java` is the single source of truth for that
+    vocabulary, but `visual_attrs_vocabulary` below is a MANUAL PIN of it
+    (this Python module has no access to the Java source at test time) —
+    it must be kept in sync BY HAND if PR1's javadoc vocabulary ever
+    changes. In particular, this is the regression test for the escote
+    v-neck label: no other existing test asserts its literal value, so
+    reverting "en v" back to "cuello en v" would otherwise stay green
+    (the other classify() tests only ever exercise the FIRST candidate,
+    "cuello redondo")."""
     visual_attrs_vocabulary = {
         "fit": {"oversize", "entallado", "regular"},
         "estampado": {"estampado", "liso"},
