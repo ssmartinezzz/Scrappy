@@ -327,6 +327,41 @@ def test_stage1b_blank_gender_only_trigger_never_overwrites_confident_specific_c
     assert score["genImgConf"] == pytest.approx(0.91)
 
 
+def test_stage1b_embed_images_call_site_failure_degrades_to_text_only(
+    tmp_path, monkeypatch, sample_productos
+):
+    """WARNING fix (judgment-day PR4 round 1, A-003/B-004): an unexpected
+    failure of the `embed_images()` call itself (as opposed to a per-URL
+    failure it already catches internally) must degrade this batch to
+    text-only, never crash `main()`. Color extraction is independent of
+    the embedding model (uses the already-downloaded image directly), so
+    it is unaffected."""
+    fake_ml_embeddings = _install_fake_ml_embeddings(monkeypatch)
+
+    def _raising_embed_images(*args, **kwargs):
+        raise RuntimeError("simulated embed_images() failure")
+
+    fake_ml_embeddings.embed_images = _raising_embed_images
+
+    fake_predict = _fake_predict_category({
+        "gorra": ("Indumentaria", 0.95),
+    })
+    monkeypatch.setattr(ml_pipeline, "predict_category", fake_predict)
+
+    prod_path = tmp_path / "ml_productos.json"
+    out_path = tmp_path / "ml_output.json"
+    prod_path.write_text(json.dumps([sample_productos[2]]), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
+
+    ml_pipeline.main()  # must not raise
+
+    output = json.loads(out_path.read_text(encoding="utf-8"))
+    score = output["scores"]["https://site.test/gorra-puma"]
+    assert score["fit"] == ""
+    assert score["generoML"] == ""
+    assert score["color"] == "azul"  # download + dominant_color unaffected
+
+
 def test_stage1b_import_guard_catches_non_import_error(
     tmp_path, monkeypatch, sample_productos
 ):
