@@ -245,3 +245,83 @@ def test_stage1b_survives_broken_image_download_without_crashing(
     assert buzo_score["fit"] == ""
     assert buzo_score["color"] == ""
     assert buzo_score["generoML"] == ""
+
+
+def test_stage1b_blank_gender_only_trigger_never_overwrites_confident_specific_categoria(
+    tmp_path, monkeypatch
+):
+    """Judgment-day round-1 BLOCKER (A-001/B-001): when the gate fires
+    SOLELY because gender is blank — text confidence is high AND the
+    category is specific/non-generic — the image classifier must still be
+    allowed to fill `generoML`/`genImgConf`, but it must NEVER overwrite
+    `categoria`/`categoria_original`/`ml_cat_conf`, even when the image
+    category disagrees and clears the 0.82/0.92 confidence gates. Only a
+    questionable text category (txt_conf < 0.75 OR generic) may be
+    overridden by image."""
+    fake_ml_embeddings = _install_fake_ml_embeddings(monkeypatch)
+
+    # Override classify() to return a DIFFERENT categoria than the text
+    # prediction, at a confidence that would otherwise clear both the
+    # `confianza >= 0.82` and `>= 0.92` override gates.
+    def _classify_different_category(embedding, db_path="scraper.db"):
+        fake_ml_embeddings.calls["classify"].append(embedding is not None)
+        if embedding is None:
+            return {
+                "categoria": "", "fit": "", "estampado": "", "escote": "",
+                "genero": "", "genImgConf": 0.0, "catMLConf": 0.0,
+            }
+        return {
+            "categoria": "Campera",
+            "fit": "oversize",
+            "estampado": "liso",
+            "escote": "cuello redondo",
+            "genero": "hombre",
+            "genImgConf": 0.91,
+            "catMLConf": 0.95,
+        }
+
+    fake_ml_embeddings.classify = _classify_different_category
+
+    productos = [
+        {
+            "url": "https://site.test/remera-confident",
+            "nombre": "Remera Nike Negra",
+            "precio": 20000,
+            "categoria": "Remera",
+            "genero": "",
+            "img": "https://cdn.test/remera.jpg",
+        },
+    ]
+
+    fake_predict = _fake_predict_category({
+        "remera": ("Remera", 0.90),
+    })
+    monkeypatch.setattr(ml_pipeline, "predict_category", fake_predict)
+
+    prod_path = tmp_path / "ml_productos.json"
+    out_path = tmp_path / "ml_output.json"
+    prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
+
+    ml_pipeline.main()
+
+    output = json.loads(out_path.read_text(encoding="utf-8"))
+    score = output["scores"]["https://site.test/remera-confident"]
+
+    # categoria must NOT be overwritten — the gate fired solely for blank
+    # gender, not because the text category itself was questionable.
+    # `main()` mutates its own internal `productos` copy (parsed from
+    # `prod_path`), never written back to disk — the only externally
+    # observable view of that mutation is `tendencias.topProductos`
+    # (`make_prod_dict()` reads `p.get('categoria', '')` post-mutation).
+    # With a single product it is deterministically selected as a
+    # `budget_picks` entry.
+    top_prods = output["tendencias"]["topProductos"]
+    remera_top = next(
+        t for t in top_prods if t["url"] == "https://site.test/remera-confident"
+    )
+    assert remera_top["categoria"] == "Remera"
+
+    # generoML/genImgConf fill-in must still happen (additive, no gate).
+    assert score["generoML"] == "hombre"
+    assert score["genImgConf"] == pytest.approx(0.91)
