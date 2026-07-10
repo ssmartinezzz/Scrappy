@@ -818,9 +818,9 @@ def main():
         # blanco (nuevo en PR4). Nunca se re-cuestiona una categoría de texto
         # específica y confiada con género presente (invariante texto-gana).
         img_candidates = [
-            i for i, (p, (tc, tf)) in enumerate(zip(productos, txt_preds))
+            i for i, (p, (_txt_cat, txt_conf)) in enumerate(zip(productos, txt_preds))
             if ml_embeddings is not None
-            and needs_image_fallback(tf, p.get('categoria'), p.get('genero'), genericas)
+            and needs_image_fallback(txt_conf, p.get('categoria'), p.get('genero'), genericas)
             and (p.get('img') or p.get('imagenUrl') or '')
         ]
         if len(img_candidates) > MAX_IMG_INFERENCES:
