@@ -334,7 +334,7 @@ PROMPTS = {
     ],
     "escote": [
         ("a photo of a garment with a round crew neckline", "cuello redondo"),
-        ("a photo of a garment with a v-shaped neckline", "cuello en v"),
+        ("a photo of a garment with a v-shaped neckline", "en v"),
         ("a photo of a hooded garment", "capucha"),
         ("a photo of a garment with a collar", "con cuello"),
     ],
@@ -465,10 +465,10 @@ def classify(embedding, db_path="scraper.db"):
         for signal in ("categoria", "fit", "estampado", "escote"):
             label, score, margin = _cosine_top_and_margin(embedding, prompt_embeddings[signal])
             th = THRESHOLDS[signal]
+            if signal == "categoria":
+                result["catMLConf"] = score
             if score >= th["min_prob"] and margin >= th["min_margin"]:
                 result[signal] = label
-                if signal == "categoria":
-                    result["catMLConf"] = score
 
         label, score, margin = _cosine_top_and_margin(embedding, prompt_embeddings["genero"])
         th = THRESHOLDS["genero"]

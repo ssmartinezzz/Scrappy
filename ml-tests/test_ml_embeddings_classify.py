@@ -111,6 +111,26 @@ def test_classify_below_threshold_abstains_to_empty_and_genero_to_unisex(monkeyp
         assert result[signal] in allowed[signal]
 
 
+def test_classify_catMLConf_reflects_score_even_when_categoria_abstains(monkeypatch):
+    """Regression test: catMLConf must carry the real cosine score for
+    `categoria` even when the label itself abstains to "" below threshold.
+    Uses a NON-orthogonal, below-threshold embedding (unlike the
+    all-zero `flat` vector in the abstain test above) so a bug that only
+    sets `catMLConf` inside the `if score >= threshold` branch can't hide
+    behind a coincidental score of exactly 0.0."""
+    fake_prompts, dim = _one_hot_prompt_embeddings()
+    monkeypatch.setattr(ml_embeddings, "_get_prompt_embeddings", lambda db_path="scraper.db": fake_prompts)
+
+    weak = np.zeros(dim, dtype="float32")
+    weak[0] = 0.1  # below categoria's min_prob (0.22), but not orthogonal/zero
+
+    result = ml_embeddings.classify(weak)
+
+    assert result["categoria"] == ""  # abstained: below threshold
+    assert result["catMLConf"] == pytest.approx(0.1)  # but score must still be reported
+    assert result["catMLConf"] != 0.0
+
+
 # ─── classify(): degradation paths ───────────────────────────────────────────
 
 
