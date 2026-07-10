@@ -242,11 +242,16 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloa
     never as an error to propagate.
 
     ``preloaded_images`` is an optional ``{url: PIL.Image | None}`` map. When
-    a URL is a cache miss and already has a non-``None`` entry there, that
-    image is reused instead of downloading it again — lets a caller that
-    also needs the raw image for something else (e.g. `backfill()`'s color
-    extraction) download it exactly once (deferred from PR3b1 judgment-day
-    review: "backfill loop double-downloads each image").
+    a URL is a cache miss and is present as a key there, its preloaded
+    entry is used INSTEAD of downloading — a non-``None`` entry is reused
+    directly (lets a caller that also needs the raw image for something
+    else, e.g. `backfill()`'s color extraction, download it exactly once:
+    deferred from PR3b1 judgment-day review, "backfill loop double-
+    downloads each image"), while an explicit ``None`` entry means the
+    caller already tried and failed to download that URL — it is NOT
+    re-attempted here (a URL simply absent from the map, e.g. for callers
+    that don't preload at all, is downloaded normally; deferred from
+    PR3b2 judgment-day round 2, "failed-download re-download").
     """
     results = {}
     try:
@@ -293,8 +298,17 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloa
                 continue
 
             try:
-                preloaded = preloaded_images.get(url) if preloaded_images else None
-                image = preloaded if preloaded is not None else _download_image(url)
+                if preloaded_images is not None and url in preloaded_images:
+                    preloaded = preloaded_images[url]
+                    if preloaded is None:
+                        # Caller already attempted (and failed) to download
+                        # this URL — an explicit `None` entry is a skip, NOT
+                        # "not preloaded", so it must not be re-downloaded.
+                        results[url] = None
+                        continue
+                    image = preloaded
+                else:
+                    image = _download_image(url)
                 embedding = _compute_embedding(model, preprocess, image)
                 insert_cache(conn, url, embedding, embedding.shape[0], model_version)
                 results[url] = embedding
@@ -586,12 +600,15 @@ def _persist_visual_attrs(conn, url, attrs, color):
     Java pipeline (`ml_pipeline.py` stage 1b + `MlEnricher`, PR4/PR5).
     This CLI only ever adds signal, never risks silently overriding a
     confident text classification.
+
+    Does NOT commit — the caller commits once per chunk instead of once
+    per row (deferred from PR3b2 judgment-day round 2: "_persist_
+    visual_attrs commits per product row").
     """
     conn.execute(
         "UPDATE productos SET fit = ?, estampado = ?, escote = ?, color_dominante = ? WHERE url = ?",
         (attrs.get("fit", ""), attrs.get("estampado", ""), attrs.get("escote", ""), color, url),
     )
-    conn.commit()
 
 
 def _emit_progress(pct, msg):
@@ -632,9 +649,19 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
     progress lines to stdout.
 
     Pending products are processed in chunks of `_BACKFILL_CHUNK_SIZE`:
-    each image is downloaded exactly once per chunk (reused for both the
-    embedding, on a cache miss, and `dominant_color()`), and `embed_images`
-    is called once per chunk rather than once per product.
+    each DISTINCT image is downloaded exactly once per chunk (reused for
+    both the embedding, on a cache miss, and `dominant_color()`), and
+    `embed_images` is called once per chunk rather than once per product.
+    One `conn.commit()` happens per chunk rather than once per row.
+
+    If `classify()` degrades for a row (no embedding available, prompt
+    embeddings unavailable, or an internal failure — detectable because a
+    real classification run always sets `genero` to a real label or
+    "unisex", never leaves it ""), that row's attributes are NOT
+    persisted at all: existing fit/estampado/escote/color_dominante
+    values are left untouched rather than wiped to "". This is what keeps
+    a forced rebuild (`force=True`) safe when the model is unavailable —
+    this CLI must only ever ADD signal, never remove it.
 
     Never raises: a DB-connect failure, a query failure, or any single
     row's processing failure degrades that unit (or the whole run, for a
@@ -684,7 +711,13 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
     processed = 0
     for chunk_start in range(0, total, _BACKFILL_CHUNK_SIZE):
         chunk = pending[chunk_start:chunk_start + _BACKFILL_CHUNK_SIZE]
-        chunk_imagen_urls = [imagen_url for _url, imagen_url in chunk]
+
+        # Dedup: several products (pack/combo or color variants, etc.) can
+        # share the same imagen_url — download and embed each DISTINCT URL
+        # only once per chunk instead of once per product (deferred from
+        # PR3b2 judgment-day round 2: "chunk_imagen_urls can contain
+        # duplicate URLs"). `dict.fromkeys` preserves order.
+        chunk_imagen_urls = list(dict.fromkeys(imagen_url for _url, imagen_url in chunk))
 
         # Download each image ONCE per chunk — reused below for both the
         # embedding (on a cache miss, via `preloaded_images`) and
@@ -711,15 +744,34 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
                 embedding = embeddings.get(imagen_url)
                 attrs = classify(embedding, db_path=db_path)
 
-                color = ""
-                image = images.get(imagen_url)
-                if image is not None:
-                    try:
-                        color = dominant_color(image)
-                    except Exception as e:
-                        print(f"[ml_embeddings] backfill: color extraction failed for {imagen_url}: {e}", file=sys.stderr)
+                if attrs.get("genero", "") == "":
+                    # `classify()` returned its degraded/no-signal sentinel
+                    # (embedding unavailable, prompt embeddings unavailable,
+                    # or an internal failure) — `genero` is the one field a
+                    # REAL classification run always overwrites (to a real
+                    # label or "unisex"; see `classify()`'s own contract),
+                    # so "" here means "no attempt could be made", never
+                    # "every signal legitimately abstained". Skip
+                    # persisting so a forced rebuild with the model down
+                    # can't wipe existing fit/estampado/escote/
+                    # color_dominante values back to "" (deferred from
+                    # PR3b2 judgment-day round 2: "degraded-classify wipe"
+                    # — this CLI must only ever ADD signal, never remove
+                    # it, per its own docstring).
+                    print(
+                        f"[ml_embeddings] backfill: no visual signal for {url}, leaving existing attrs untouched",
+                        file=sys.stderr,
+                    )
+                else:
+                    color = ""
+                    image = images.get(imagen_url)
+                    if image is not None:
+                        try:
+                            color = dominant_color(image)
+                        except Exception as e:
+                            print(f"[ml_embeddings] backfill: color extraction failed for {imagen_url}: {e}", file=sys.stderr)
 
-                _persist_visual_attrs(conn, url, attrs, color)
+                    _persist_visual_attrs(conn, url, attrs, color)
             except Exception as e:
                 # Never abort the whole run for one bad row — that product
                 # simply keeps its text-only classification, same as today.
@@ -727,6 +779,14 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
 
             processed += 1
             _emit_progress(int(processed * 100 / total), f"{processed}/{total} — {url}")
+
+        # One commit per chunk instead of one per product row (deferred
+        # from PR3b2 judgment-day round 2: "_persist_visual_attrs commits
+        # per product row").
+        try:
+            conn.commit()
+        except Exception as e:
+            print(f"[ml_embeddings] backfill: commit failed for chunk: {e}", file=sys.stderr)
 
     try:
         conn.close()
@@ -750,12 +810,19 @@ if __name__ == "__main__":
 
     if len(sys.argv) >= 2 and sys.argv[1] == "backfill":
         # Usage: python ml_embeddings.py backfill [db_path] [--force] [--no-gpu]
-        db_path_arg = sys.argv[2] if len(sys.argv) >= 3 else "scraper.db"
-        extra_args = sys.argv[3:]
+        # Flags are recognized by their "--" prefix regardless of position,
+        # so e.g. `backfill --force` (no explicit db_path) doesn't silently
+        # bind "--force" to db_path_arg — SQLite would otherwise create a
+        # literal file named "--force" and drop the flag (deferred from
+        # PR3b2 judgment-day round 2: "CLI arg parsing").
+        rest = sys.argv[2:]
+        flags = [arg for arg in rest if arg.startswith("--")]
+        positional = [arg for arg in rest if not arg.startswith("--")]
+        db_path_arg = positional[0] if positional else "scraper.db"
         backfill(
             db_path_arg,
-            force="--force" in extra_args,
-            use_gpu="--no-gpu" not in extra_args,
+            force="--force" in flags,
+            use_gpu="--no-gpu" not in flags,
         )
         sys.exit(0)
 
