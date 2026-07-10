@@ -865,19 +865,47 @@ def main():
                 for i in img_candidates
             }
             distinct_urls = list(dict.fromkeys(candidate_urls_by_idx.values()))
-            images = {}
-            for url in distinct_urls:
-                try:
-                    images[url] = ml_embeddings._download_image(url)
-                except Exception as e:
-                    print(f"[ML] Descarga de imagen fallida para {url}: {e}", file=sys.stderr)
-                    images[url] = None
 
-            embeddings = ml_embeddings.embed_images(
-                distinct_urls, db_path=db_path_hint,
-                model_version=ml_embeddings.MODEL_VERSION,
-                preloaded_images=images,
-            )
+            # CRITICAL fix (judgment-day PR4 round 1, A-002): downloads are
+            # pure I/O (network fetch, no CUDA/model involved) — restore the
+            # pre-PR4 ThreadPoolExecutor parallelism the old bespoke-image
+            # stage 1b used, so a cold-cache run of up to MAX_IMG_INFERENCES
+            # candidates doesn't serialize ~8s-timeout downloads one at a
+            # time (~53min sequential vs ~7min parallel at 8 workers).
+            # `ex.map` preserves input order, so `images` still ends up
+            # keyed deterministically by url exactly as before.
+            IMG_DOWNLOAD_WORKERS = 8
+            images = {}
+            if distinct_urls:
+                from concurrent.futures import ThreadPoolExecutor
+
+                def _dl(url):
+                    try:
+                        return url, ml_embeddings._download_image(url)
+                    except Exception as e:
+                        print(f"[ML] Descarga de imagen fallida para {url}: {e}", file=sys.stderr)
+                        return url, None
+
+                with ThreadPoolExecutor(max_workers=min(IMG_DOWNLOAD_WORKERS, len(distinct_urls))) as ex:
+                    for url, image in ex.map(_dl, distinct_urls):
+                        images[url] = image
+
+            # WARNING fix (judgment-day PR4 round 1, A-003/B-004): guard the
+            # call site itself — `embed_images()` degrades its own per-URL
+            # failures internally, but an unexpected failure of the call as
+            # a whole (e.g. a DB-connect error it doesn't already catch)
+            # must still degrade this stage to text-only instead of
+            # crashing main(), matching every other per-item guard already
+            # present around download/classify in this block.
+            try:
+                embeddings = ml_embeddings.embed_images(
+                    distinct_urls, db_path=db_path_hint,
+                    model_version=ml_embeddings.MODEL_VERSION,
+                    preloaded_images=images,
+                )
+            except Exception as e:
+                print(f"[ML] embed_images() fallido, degradando a solo-texto: {e}", file=sys.stderr)
+                embeddings = {}
 
             for i in img_candidates:
                 url = candidate_urls_by_idx[i]
