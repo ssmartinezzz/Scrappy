@@ -70,6 +70,37 @@ def _one_hot_prompt_embeddings():
     return fake, dim
 
 
+# ─── PROMPTS: pinned against PR1's Product.VisualAttrs vocabulary ───────────
+
+
+def test_prompts_visual_attr_labels_match_pr1_visualattrs_vocabulary():
+    """Regression: `Product.VisualAttrs`'s javadoc (PR1, `Product.java`) is
+    the single source of truth for the closed label sets `fit`, `estampado`,
+    and `escote` may ever emit (`colorDominante`'s closed set is pinned
+    separately via `COLOR_PALETTE`/`dominant_color()` tests). This pins
+    EVERY PROMPTS label for those three signals against that vocabulary —
+    in particular, this is the regression test for the escote v-neck label:
+    no other existing test asserts its literal value, so reverting
+    "en v" back to "cuello en v" would otherwise stay green (the other
+    classify() tests only ever exercise the FIRST candidate, "cuello
+    redondo")."""
+    visual_attrs_vocabulary = {
+        "fit": {"oversize", "entallado", "regular"},
+        "estampado": {"estampado", "liso"},
+        "escote": {"cuello redondo", "en v", "capucha", "con cuello"},
+    }
+    for signal, allowed_labels in visual_attrs_vocabulary.items():
+        actual_labels = {label for _english, label in ml_embeddings.PROMPTS[signal]}
+        assert actual_labels == allowed_labels, (
+            f"PROMPTS[{signal!r}] labels {actual_labels} must exactly match "
+            f"Product.VisualAttrs' javadoc vocabulary {allowed_labels}"
+        )
+    # Explicit pin, spelled out, for the exact bug just fixed:
+    escote_labels = dict(ml_embeddings.PROMPTS["escote"])
+    v_neck_english = "a photo of a garment with a v-shaped neckline"
+    assert escote_labels[v_neck_english] == "en v"
+
+
 # ─── classify(): closed Spanish label set / no English leakage ──────────────
 
 
