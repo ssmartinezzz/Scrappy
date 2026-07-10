@@ -4,13 +4,13 @@
 ml_embeddings.py — Zero-shot fashion image embeddings (Marqo-FashionSigLIP)
 ============================================================================
 
-Owns model load and the SQLite embedding cache for the
-fashion-image-classification feature. Prompt-based zero-shot
-classification (PR3b1) and the full-catalog backfill CLI (PR3b2) build
-on top of this module in later slices.
+Owns model load, the SQLite embedding cache, and prompt-based zero-shot
+classification for the fashion-image-classification feature. The
+full-catalog backfill CLI that consumes these (``backfill()``) is a
+separate slice, PR3b2, built on top of this branch.
 
-This slice (PR3a, plus hardening deferred from its own judgment-day
-review) implements only:
+PR3a implemented (plus hardening deferred from its own judgment-day
+review):
   - lazy singleton load of ``hf-hub:Marqo/marqo-fashionSigLIP`` via
     ``open_clip``, honoring the project's existing GPU pattern
     (``torch.cuda.is_available()`` device selection + ``_CUDA_LOCK``
@@ -19,11 +19,20 @@ review) implements only:
   - ``embed_images()``, a cache-first embedding pipeline used by both the
     full-catalog backfill (PR3b2) and the incremental scrape path (PR4).
 
+This slice (PR3b1) adds:
+  - ``PROMPTS``/``THRESHOLDS`` — the zero-shot label tables (English
+    prompts internally, Spanish labels only ever emitted);
+  - ``classify()`` — per-signal cosine similarity + margin-gated
+    abstention against a lazily-computed, cached set of prompt text
+    embeddings (reuses ``_load_model``'s singleton model);
+  - ``dominant_color()`` — a Pillow pixel-histogram color signal that is
+    deliberately independent of the SigLIP model.
+
 Degradation is a hard requirement: model load failure, image download
 failure, or any DB hiccup for a single URL must never raise out of
-``embed_images`` — every failure is logged to stderr and treated as a
-skip (``None`` in the result dict), leaving text-only classification
-untouched upstream.
+``embed_images`` or ``classify()`` — every failure is logged to stderr
+and treated as a skip, leaving text-only classification untouched
+upstream.
 
 Heavy imports (``torch``, ``open_clip``, ``PIL``, ``numpy``) are performed
 lazily inside functions so this module stays importable on machines where
@@ -286,6 +295,247 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
         except Exception:
             pass
     return results
+
+
+# ─── Zero-shot prompts (English internal / Spanish output only) ─────────────
+#
+# PROMPTS is the single source of truth mapping each English zero-shot
+# prompt to the Spanish label that is ever allowed to leave this module
+# (spec: "visual-classification-rules" — Spanish-only output guarantee).
+# THRESHOLDS is a per-signal (min cosine-similarity "prob", min top-vs-
+# second margin) pair; below EITHER, the signal abstains. Exact wording
+# and thresholds are an explicit open question in the design (empirical
+# tuning deferred to spec/verify against a real sample) — these are a
+# reasonable starting point, not a tuned final answer.
+PROMPTS = {
+    "categoria": [
+        ("a photo of a t-shirt", "Remera"),
+        ("a photo of a hoodie or sweatshirt", "Buzo"),
+        ("a photo of a jacket or coat", "Campera"),
+        ("a photo of dress pants or trousers", "Pantalón"),
+        ("a photo of blue jeans", "Jean"),
+        ("a photo of shorts", "Short"),
+        ("a photo of a dress", "Vestido"),
+        ("a photo of a skirt", "Pollera"),
+        ("a photo of sneakers or athletic shoes", "Zapatillas"),
+        ("a photo of boots", "Botines"),
+        ("a photo of sandals or flip flops", "Sandalias"),
+        ("a photo of a tank top or sleeveless top", "Musculosa"),
+        ("a photo of a button-up collared shirt", "Camisa"),
+    ],
+    "fit": [
+        ("a photo of an oversized, loose-fitting garment", "oversize"),
+        ("a photo of a tight, slim-fit garment", "entallado"),
+        ("a photo of a regular, standard-fit garment", "regular"),
+    ],
+    "estampado": [
+        ("a photo of a garment with a printed graphic or pattern", "estampado"),
+        ("a photo of a plain solid-color garment with no print", "liso"),
+    ],
+    "escote": [
+        ("a photo of a garment with a round crew neckline", "cuello redondo"),
+        ("a photo of a garment with a v-shaped neckline", "cuello en v"),
+        ("a photo of a hooded garment", "capucha"),
+        ("a photo of a garment with a collar", "con cuello"),
+    ],
+    "genero": [
+        ("a photo of menswear fashion", "hombre"),
+        ("a photo of womenswear fashion", "mujer"),
+    ],
+}
+
+# `genero` is the one signal that never abstains to "" — a below-threshold
+# result there means "no strong gender cue", which is exactly what
+# "unisex" already communicates (design decision #8: "genero
+# (hombre/mujer→else unisex)"). Every other signal abstains to "".
+THRESHOLDS = {
+    "categoria": {"min_prob": 0.22, "min_margin": 0.02},
+    "fit": {"min_prob": 0.20, "min_margin": 0.02},
+    "estampado": {"min_prob": 0.20, "min_margin": 0.02},
+    "escote": {"min_prob": 0.20, "min_margin": 0.02},
+    "genero": {"min_prob": 0.20, "min_margin": 0.02},
+}
+
+# Lazy singleton cache of prompt TEXT embeddings, keyed by signal:
+# {signal: [(spanish_label, text_embedding), ...]}. Computed at most once
+# per process (same "attempted" sentinel pattern as `_load_model`) — a
+# failure to compute is cached too, so we never retry mid-run.
+_prompt_embeddings = None
+_prompt_embeddings_attempted = False
+_prompt_embeddings_lock = threading.Lock()
+
+
+def _get_prompt_embeddings(db_path="scraper.db"):
+    """Lazily compute + cache one text embedding per PROMPTS entry, using
+    the SAME loaded model's text tower (`_load_model` singleton).
+
+    Returns ``None`` when the model is unavailable or text encoding fails
+    for any reason — callers MUST treat that as "no visual signal at
+    all" (same degradation contract as `embed_images`), never an error.
+    """
+    global _prompt_embeddings, _prompt_embeddings_attempted
+    if _prompt_embeddings_attempted:
+        return _prompt_embeddings
+    with _prompt_embeddings_lock:
+        if _prompt_embeddings_attempted:
+            return _prompt_embeddings
+        _prompt_embeddings_attempted = True
+
+        model, _preprocess = _load_model(db_path)
+        if model is None:
+            return None
+
+        try:
+            import torch
+            import open_clip
+
+            tokenizer = open_clip.get_tokenizer(MODEL_ID)
+            device = next(model.parameters()).device
+            computed = {}
+            for signal, entries in PROMPTS.items():
+                texts = [english for english, _label in entries]
+                tokens = tokenizer(texts)
+                with _CUDA_LOCK:
+                    tokens = tokens.to(device)
+                    with torch.no_grad():
+                        features = model.encode_text(tokens)
+                        features = features / features.norm(dim=-1, keepdim=True)
+                    features = features.cpu().numpy().astype("float32")
+                computed[signal] = [
+                    (label, features[i]) for i, (_english, label) in enumerate(entries)
+                ]
+            _prompt_embeddings = computed
+        except Exception as e:
+            print(f"[ml_embeddings] Prompt embeddings unavailable: {e}", file=sys.stderr)
+            _prompt_embeddings = None
+    return _prompt_embeddings
+
+
+def _cosine_top_and_margin(embedding, candidates):
+    """Return ``(best_label, best_score, margin)`` for one signal.
+
+    Both `embedding` and every candidate text embedding are already
+    L2-normalized, so cosine similarity is a plain dot product. `margin`
+    is best-minus-second-best (top-vs-second gate from design decision
+    #5); a single-candidate signal gets an unbounded margin (-1.0 floor
+    for the "second" score).
+    """
+    import numpy as np
+
+    scores = [(label, float(np.dot(embedding, vec))) for label, vec in candidates]
+    scores.sort(key=lambda pair: pair[1], reverse=True)
+    best_label, best_score = scores[0]
+    second_score = scores[1][1] if len(scores) > 1 else -1.0
+    return best_label, best_score, best_score - second_score
+
+
+def classify(embedding, db_path="scraper.db"):
+    """Zero-shot classify one image embedding into Spanish visual-attribute
+    signals, abstaining per-signal below threshold.
+
+    Returns ``{categoria, fit, estampado, escote, genero, genImgConf,
+    catMLConf}`` — every value is one of the Spanish labels in `PROMPTS`
+    (or "" / "unisex" for an abstained signal), NEVER raw English prompt
+    text (spec: "visual-classification-rules" Spanish-only guarantee).
+
+    ``embedding`` is ``None`` when the image model was unavailable for
+    this product (see `embed_images`'s degradation contract) — in that
+    case every field stays empty and no classification is attempted at
+    all, identical to today's no-image-model behavior (degradation-
+    behavior spec: "Model unavailable").
+    """
+    empty = {
+        "categoria": "",
+        "fit": "",
+        "estampado": "",
+        "escote": "",
+        "genero": "",
+        "genImgConf": 0.0,
+        "catMLConf": 0.0,
+    }
+    if embedding is None:
+        return empty
+
+    prompt_embeddings = _get_prompt_embeddings(db_path)
+    if prompt_embeddings is None:
+        return empty
+
+    result = dict(empty)
+    try:
+        for signal in ("categoria", "fit", "estampado", "escote"):
+            label, score, margin = _cosine_top_and_margin(embedding, prompt_embeddings[signal])
+            th = THRESHOLDS[signal]
+            if score >= th["min_prob"] and margin >= th["min_margin"]:
+                result[signal] = label
+                if signal == "categoria":
+                    result["catMLConf"] = score
+
+        label, score, margin = _cosine_top_and_margin(embedding, prompt_embeddings["genero"])
+        th = THRESHOLDS["genero"]
+        result["genImgConf"] = score
+        result["genero"] = label if (score >= th["min_prob"] and margin >= th["min_margin"]) else "unisex"
+    except Exception as e:
+        print(f"[ml_embeddings] classify() failed, degrading to text-only: {e}", file=sys.stderr)
+        return empty
+
+    return result
+
+
+# ─── Dominant color (Pillow histogram, independent of SigLIP) ───────────────
+
+# Fixed Spanish color palette (spec: "visual-classification-rules" — the
+# color signal is a pixel property, not a zero-shot model prediction; see
+# design decision #5). Reference RGBs are representative swatches, not
+# gamut-exact — nearest-neighbor matching only needs relative distance.
+COLOR_PALETTE = {
+    "negro": (20, 20, 20),
+    "blanco": (240, 240, 240),
+    "gris": (128, 128, 128),
+    "rojo": (200, 30, 30),
+    "rosa": (230, 150, 180),
+    "naranja": (230, 120, 30),
+    "amarillo": (220, 200, 40),
+    "verde": (40, 130, 60),
+    "azul": (30, 80, 180),
+    "celeste": (120, 180, 220),
+    "violeta": (120, 60, 160),
+    "marron": (110, 70, 40),
+    "beige": (210, 190, 150),
+}
+
+
+def _closest_palette_color(rgb):
+    best_name, best_dist = "", None
+    for name, ref in COLOR_PALETTE.items():
+        dist = sum((a - b) ** 2 for a, b in zip(rgb, ref))
+        if best_dist is None or dist < best_dist:
+            best_name, best_dist = name, dist
+    return best_name
+
+
+def dominant_color(image):
+    """Return the closest named Spanish color for `image`'s dominant pixel
+    color, via a plain Pillow histogram — deliberately NOT the SigLIP
+    model (color is a pixel property, not a semantic one).
+
+    `image` only needs to support the PIL Image API used here
+    (`.convert`, `.resize`, `.getcolors`) — this function never imports
+    PIL itself, so it stays testable without Pillow installed, same as
+    the rest of this module's lazy-import discipline.
+
+    Degrades to `""` (never raises) if the image can't be read or has no
+    extractable pixel data.
+    """
+    try:
+        small = image.convert("RGB").resize((32, 32))
+        colors = small.getcolors(32 * 32) or []
+    except Exception as e:
+        print(f"[ml_embeddings] dominant_color failed: {e}", file=sys.stderr)
+        return ""
+    if not colors:
+        return ""
+    _, dominant_rgb = max(colors, key=lambda c: c[0])
+    return _closest_palette_color(dominant_rgb)
 
 
 if __name__ == "__main__":
