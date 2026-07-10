@@ -325,3 +325,40 @@ def test_stage1b_blank_gender_only_trigger_never_overwrites_confident_specific_c
     # generoML/genImgConf fill-in must still happen (additive, no gate).
     assert score["generoML"] == "hombre"
     assert score["genImgConf"] == pytest.approx(0.91)
+
+
+def test_stage1b_import_guard_catches_non_import_error(
+    tmp_path, monkeypatch, sample_productos
+):
+    """WARNING fix (judgment-day PR4 round 1, A-006/B-005): a corrupt or
+    truncated extracted `ml_embeddings.py` can fail with e.g. a
+    `SyntaxError` at import time, not just `ImportError` — the lazy-import
+    guard in `main()` must catch that too and degrade to text-only instead
+    of crashing the whole pipeline run."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _fake_import(name, *args, **kwargs):
+        if name == "ml_embeddings":
+            raise SyntaxError("simulated corrupt ml_embeddings.py")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+
+    fake_predict = _fake_predict_category({
+        "gorra": ("Indumentaria", 0.95),
+    })
+    monkeypatch.setattr(ml_pipeline, "predict_category", fake_predict)
+
+    prod_path = tmp_path / "ml_productos.json"
+    out_path = tmp_path / "ml_output.json"
+    prod_path.write_text(json.dumps([sample_productos[2]]), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
+
+    ml_pipeline.main()  # must not raise (pre-fix: uncaught SyntaxError)
+
+    output = json.loads(out_path.read_text(encoding="utf-8"))
+    score = output["scores"]["https://site.test/gorra-puma"]
+    assert score["fit"] == ""
+    assert score["color"] == ""
