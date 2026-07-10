@@ -4,17 +4,20 @@
 ml_embeddings.py — Zero-shot fashion image embeddings (Marqo-FashionSigLIP)
 ============================================================================
 
-Owns model load, the SQLite embedding cache, and (PR3b) prompt-based
-zero-shot classification for the fashion-image-classification feature.
+Owns model load and the SQLite embedding cache for the
+fashion-image-classification feature. Prompt-based zero-shot
+classification (PR3b1) and the full-catalog backfill CLI (PR3b2) build
+on top of this module in later slices.
 
-This slice (PR3a) implements only:
+This slice (PR3a, plus hardening deferred from its own judgment-day
+review) implements only:
   - lazy singleton load of ``hf-hub:Marqo/marqo-fashionSigLIP`` via
     ``open_clip``, honoring the project's existing GPU pattern
     (``torch.cuda.is_available()`` device selection + ``_CUDA_LOCK``
     serialization, same as ``ml_pipeline.py``);
   - the ``image_embeddings`` SQLite cache (schema shipped in PR1);
   - ``embed_images()``, a cache-first embedding pipeline used by both the
-    full-catalog backfill (PR3b) and the incremental scrape path (PR4).
+    full-catalog backfill (PR3b2) and the incremental scrape path (PR4).
 
 Degradation is a hard requirement: model load failure, image download
 failure, or any DB hiccup for a single URL must never raise out of
@@ -137,6 +140,17 @@ def get_cached(conn, url, model_version):
     blob, dim, cached_version = row
     if cached_version != model_version:
         return None
+    if len(blob) != dim * 4:
+        # Defensive explicit check (deferred from PR3a judgment-day review):
+        # a truncated/corrupted BLOB would otherwise only surface as a
+        # ValueError from np.frombuffer below — validating the length up
+        # front makes the degrade-to-miss path explicit and self-documenting.
+        print(
+            f"[ml_embeddings] Corrupted cache row for {url}: "
+            f"blob length {len(blob)} != dim*4 ({dim * 4})",
+            file=sys.stderr,
+        )
+        return None
     import numpy as np
 
     return np.frombuffer(blob, dtype="<f4", count=dim).copy()
@@ -213,10 +227,20 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
     """
     results = {}
     try:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=30)
     except Exception as e:
         print(f"[ml_embeddings] DB connect failed for {db_path}: {e}", file=sys.stderr)
         return {url: None for url in urls}
+
+    try:
+        # Best-effort concurrency setting (deferred from PR3a judgment-day
+        # review): WAL lets the backfill CLI (PR3b) and an in-progress
+        # scrape share scraper.db without lock contention. Not fatal if
+        # unsupported (e.g. some network filesystems) — the `timeout=30`
+        # above is the real degradation backstop either way.
+        conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass
 
     try:
         model = preprocess = None
@@ -254,7 +278,13 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
                 print(f"[ml_embeddings] Failed processing {url}: {e}", file=sys.stderr)
                 results[url] = None
     finally:
-        conn.close()
+        # Guarded (deferred from PR3a judgment-day review): closing an
+        # already-broken connection must never mask/replace whatever
+        # exception (if any) is propagating, nor crash a degraded run.
+        try:
+            conn.close()
+        except Exception:
+            pass
     return results
 
 
