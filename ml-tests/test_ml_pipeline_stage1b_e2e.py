@@ -397,3 +397,141 @@ def test_stage1b_import_guard_catches_non_import_error(
     score = output["scores"]["https://site.test/gorra-puma"]
     assert score["fit"] == ""
     assert score["color"] == ""
+
+
+def test_stage1b_text_model_still_corrects_a_non_generic_categoria_when_image_did_not_win(
+    tmp_path, monkeypatch
+):
+    """Round-2 CRITICAL regression (A-R2-001): round-1's FIX 1
+    (`category_override_allowed()`) must scope ONLY the image-win branch
+    (`if img_cat and img_conf > txt_conf`). It must NOT touch the
+    pure-text-corrects-text branch (`elif txt_cat: pred_cat, confianza =
+    txt_cat, txt_conf`), where `confianza == txt_conf` by construction —
+    ANDing the predicate onto the shared gate made
+    `(confianza >= 0.92) AND (txt_conf < 0.75)` impossible for ANY
+    non-generic categoria, silently killing the pre-existing (unrelated to
+    the BLOCKER) trained-text-model self-correction mechanism.
+
+    Gender is present + category specific + high confidence, so
+    `needs_image_fallback()` never fires for this product — image is never
+    consulted (`img_cat` stays '' for it), forcing the pure-text branch.
+    """
+    _install_fake_ml_embeddings(monkeypatch)
+
+    productos = [
+        {
+            "url": "https://site.test/remera-text-correct",
+            "nombre": "Musculosa Deportiva Negra",
+            "precio": 15000,
+            "categoria": "Remera",
+            "genero": "hombre",
+            "img": "https://cdn.test/musculosa.jpg",
+        },
+    ]
+
+    # The trained text model disagrees with the (wrong) existing categoria
+    # at high confidence — a non-generic categoria, corrected by TEXT alone,
+    # never by image (image is never even consulted here).
+    fake_predict = _fake_predict_category({
+        "musculosa": ("Musculosa", 0.95),
+    })
+    monkeypatch.setattr(ml_pipeline, "predict_category", fake_predict)
+
+    prod_path = tmp_path / "ml_productos.json"
+    out_path = tmp_path / "ml_output.json"
+    prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
+
+    ml_pipeline.main()
+
+    output = json.loads(out_path.read_text(encoding="utf-8"))
+    # Same observation surface as the round-1 FIX-1 test: `main()` mutates
+    # its own internal `productos` copy, never written back to disk —
+    # `tendencias.topProductos` (`make_prod_dict()`) is the only externally
+    # observable view of the post-mutation `categoria`.
+    top_prods = output["tendencias"]["topProductos"]
+    corrected_top = next(
+        t for t in top_prods if t["url"] == "https://site.test/remera-text-correct"
+    )
+    assert corrected_top["categoria"] == "Musculosa"
+
+
+def test_stage1b_download_executor_survives_one_failed_url_among_several(
+    tmp_path, monkeypatch
+):
+    """Round-2 info regression (A-R2-002): the restored ThreadPoolExecutor
+    download path (`_dl`/`ex.map`, A-002) must not drop or crash on a
+    single failed download among several distinct candidate URLs — every
+    OTHER url's image must still be downloaded/processed, and the run must
+    complete without raising."""
+    fake_ml_embeddings = _install_fake_ml_embeddings(monkeypatch)
+
+    productos = [
+        {
+            "url": "https://site.test/buzo-ok",
+            "nombre": "Buzo Adidas Azul",
+            "precio": 35000,
+            "categoria": "Buzo",
+            "genero": "hombre",
+            "img": "https://cdn.test/buzo.jpg",
+        },
+        {
+            "url": "https://site.test/pantalon-broken",
+            "nombre": "Pantalon Cargo Beige",
+            "precio": 27000,
+            "categoria": "Pantalón",
+            "genero": "",
+            "img": "https://cdn.test/brokenimg.jpg",
+        },
+        {
+            "url": "https://site.test/gorra-ok",
+            "nombre": "Gorra Puma Deportiva",
+            "precio": 8000,
+            "categoria": "Indumentaria",
+            "genero": "mujer",
+            "img": "https://cdn.test/gorra.jpg",
+        },
+    ]
+
+    fake_predict = _fake_predict_category({
+        "buzo":     ("Buzo", 0.30),
+        "pantalon": ("Pantalón", 0.95),
+        "gorra":    ("Indumentaria", 0.95),
+    })
+    monkeypatch.setattr(ml_pipeline, "predict_category", fake_predict)
+
+    prod_path = tmp_path / "ml_productos.json"
+    out_path = tmp_path / "ml_output.json"
+    prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
+
+    ml_pipeline.main()  # must not raise despite one failed download
+
+    output = json.loads(out_path.read_text(encoding="utf-8"))
+    scores = output["scores"]
+
+    # The failed-download product degrades to text-only (no crash, no drop).
+    broken_score = scores["https://site.test/pantalon-broken"]
+    assert broken_score["fit"] == ""
+    assert broken_score["color"] == ""
+    assert broken_score["generoML"] == ""
+
+    # The OTHER two candidates on the same executor batch still get their
+    # full visual attrs — one failed url never poisons the rest.
+    for ok_url in (
+        "https://site.test/buzo-ok",
+        "https://site.test/gorra-ok",
+    ):
+        ok_score = scores[ok_url]
+        assert ok_score["fit"] == "oversize"
+        assert ok_score["color"] == "azul"
+        assert ok_score["generoML"] == "hombre"
+
+    # Downloads actually went through the executor (`_dl`) for all three
+    # distinct candidate URLs, not silently skipped.
+    downloaded_urls = set(fake_ml_embeddings.calls["download"])
+    assert downloaded_urls == {
+        "https://cdn.test/buzo.jpg",
+        "https://cdn.test/brokenimg.jpg",
+        "https://cdn.test/gorra.jpg",
+    }

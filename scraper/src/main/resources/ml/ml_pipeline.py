@@ -872,8 +872,11 @@ def main():
             # stage 1b used, so a cold-cache run of up to MAX_IMG_INFERENCES
             # candidates doesn't serialize ~8s-timeout downloads one at a
             # time (~53min sequential vs ~7min parallel at 8 workers).
-            # `ex.map` preserves input order, so `images` still ends up
-            # keyed deterministically by url exactly as before.
+            # Determinism of `images` does NOT come from `ex.map`'s
+            # order-preservation (round-2 correction, A-R2-003) — it comes
+            # from `_dl` returning its own `url` alongside the result, so
+            # each `(url, image)` pair is written to its own dict key
+            # regardless of the order results are consumed in.
             IMG_DOWNLOAD_WORKERS = 8
             images = {}
             if distinct_urls:
@@ -971,8 +974,10 @@ def main():
             # 3) Elegir la mejor predicción
             if img_cat and img_conf > txt_conf:
                 pred_cat, confianza = img_cat, img_conf
+                pred_from_image = True
             elif txt_cat:
                 pred_cat, confianza = txt_cat, txt_conf
+                pred_from_image = False
             else:
                 continue
 
@@ -1023,12 +1028,24 @@ def main():
                     continue  # nunca Ojotas→Zapatilla ni Running→Zapatilla
 
                 # Solo aplicar si la categoría actual es genérica O confianza muy alta
-                # Y (BLOCKER fix A-001/B-001) la categoría de texto era en sí
-                # cuestionable — nunca cuando needs_image_fallback() disparó
-                # únicamente por género en blanco sobre un texto confiado y
-                # específico (ver category_override_allowed()).
+                # Y (BLOCKER fix A-001/B-001, round-2 CORRECTION A-R2-001)
+                # — SOLO cuando la predicción ganadora es de IMAGEN — la
+                # categoría de texto era en sí cuestionable: nunca cuando
+                # needs_image_fallback() disparó únicamente por género en
+                # blanco sobre un texto confiado y específico (ver
+                # category_override_allowed()). Este predicado NO debe
+                # aplicarse al camino texto-corrige-texto (`pred_from_image
+                # is False`, paso 3 `elif txt_cat:`, donde `confianza ==
+                # txt_conf` por construcción) — ANDearlo sobre el gate
+                # compartido volvía `confianza >= 0.92 AND txt_conf < 0.75`
+                # imposible para CUALQUIER categoría no genérica, matando en
+                # silencio el mecanismo preexistente de auto-corrección del
+                # modelo de texto entrenado, sin relación con el BLOCKER que
+                # motivó el predicado (round-1 over-reach, confirmado en el
+                # re-judgment de ronda 2).
                 if ((cat_actual.lower() in genericas or confianza >= 0.92)
-                        and category_override_allowed(txt_conf, cat_actual, genericas)):
+                        and (not pred_from_image
+                             or category_override_allowed(txt_conf, cat_actual, genericas))):
                     p['categoria_original'] = cat_actual
                     p['categoria']   = pred_cat
                     p['ml_cat_conf'] = round(confianza, 3)
