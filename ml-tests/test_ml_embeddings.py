@@ -320,10 +320,13 @@ def test_missing_table_degrades_to_none_without_raising(tmp_path):
     assert results["http://x/2.jpg"] is None
 
 
-def test_corrupted_cache_row_degrades_to_none_without_raising(monkeypatch, db_path):
-    """A cached row whose blob length doesn't match `dim` makes
-    `np.frombuffer` raise a ValueError inside `get_cached`; `embed_images`
-    must still degrade that single URL to `None` instead of propagating."""
+def test_corrupted_cache_row_is_treated_as_a_miss_and_recomputed(monkeypatch, db_path):
+    """A cached row whose blob length doesn't match `dim*4` is explicitly
+    validated (PR3b fix, deferred from PR3a judgment-day): `get_cached`
+    now detects this up front and returns `None`, the SAME contract as
+    any other cache miss — so `embed_images` self-heals by recomputing
+    and overwriting the corrupted row, exactly like a model_version-bump
+    miss, rather than degrading the whole URL to `None`."""
     url = "http://x/corrupted.jpg"
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -334,14 +337,23 @@ def test_corrupted_cache_row_degrades_to_none_without_raising(monkeypatch, db_pa
     conn.commit()
     conn.close()
 
-    def _boom_load(*_a, **_kw):
-        raise AssertionError("model should never be loaded for a corrupted-cache degrade")
-
-    monkeypatch.setattr(ml_embeddings, "_load_model", _boom_load)
+    recomputed = np.array([1.0, 1.0], dtype=np.float32)
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_download_image", lambda u: "fake-pil-image")
+    monkeypatch.setattr(
+        ml_embeddings, "_compute_embedding", lambda model, preprocess, image: recomputed
+    )
 
     results = ml_embeddings.embed_images([url], db_path=db_path)
 
-    assert results[url] is None
+    np.testing.assert_array_almost_equal(results[url], recomputed)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT dim, model_version FROM image_embeddings WHERE url = ?", (url,)
+    ).fetchone()
+    conn.close()
+    assert row == (2, ml_embeddings.MODEL_VERSION)
 
 
 def test_unusable_db_path_degrades_all_urls_to_none(monkeypatch, tmp_path):
