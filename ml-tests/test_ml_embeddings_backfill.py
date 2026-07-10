@@ -217,6 +217,53 @@ def test_backfill_persists_additive_columns_only_never_genero_or_categoria(monke
     assert "categoria" not in columns
 
 
+def test_backfill_force_with_model_down_does_not_wipe_existing_attrs(monkeypatch, db_path):
+    """CONFIRMED regression: a forced rebuild (`force=True`) with the model
+    unavailable must NOT wipe existing fit/estampado/escote/color_dominante
+    values back to "". Even a product whose embedding is already cached
+    (so `embed_images` can still return it without needing the model)
+    still needs the model's text tower for prompt embeddings inside
+    `classify()`, which degrades to its all-empty sentinel when that's
+    unavailable. Uses the REAL (unmocked) `classify()` — torch/open_clip
+    are absent from this test environment, so `_get_prompt_embeddings`
+    genuinely fails, exactly like a real "model unavailable" run
+    (deferred from PR3b2 judgment-day round 2 SERIOUS finding:
+    "degraded-classify wipe" — this CLI must only ever ADD signal, never
+    remove it)."""
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, color_dominante = ? WHERE url = ?",
+        ("oversize", "estampado", "cuello redondo", "azul", "http://x/p1"),
+    )
+    conn.commit()
+    conn.close()
+
+    # `embed_images` still returns a real embedding (as if it were already
+    # cached from a prior successful run) — but `classify()` is left
+    # REAL/unmocked, so it genuinely degrades via `_get_prompt_embeddings`
+    # (no torch/open_clip in this test env).
+    monkeypatch.setattr(
+        ml_embeddings,
+        "embed_images",
+        lambda urls, db_path=None, model_version=None, preloaded_images=None: {
+            u: np.array([1.0, 0.0], dtype="float32") for u in urls
+        },
+    )
+    monkeypatch.setattr(ml_embeddings, "_download_image", lambda _url: "fake-pil-image")
+    monkeypatch.setattr(ml_embeddings, "dominant_color", lambda _image: "verde")
+
+    ml_embeddings.backfill(db_path=db_path, force=True, use_gpu=True)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT fit, estampado, escote, color_dominante FROM productos WHERE url = ?", ("http://x/p1",)
+    ).fetchone()
+    conn.close()
+
+    # Pre-existing attrs must remain exactly as seeded — NOT wiped to "".
+    assert row == ("oversize", "estampado", "cuello redondo", "azul")
+
+
 def test_backfill_no_pending_products_emits_single_completion_progress(tmp_path, capsys):
     path = tmp_path / "empty.db"
     conn = sqlite3.connect(str(path))
