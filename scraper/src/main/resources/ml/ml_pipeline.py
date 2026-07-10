@@ -18,21 +18,18 @@ Modelos estadísticos:
   7. Análisis histórico: media móvil, tendencia, velocidad de cambio
   8. TF-IDF clustering con bigrams para tendencias
 """
-import json, sys, os, math, re, threading
+import json, sys, os, math, re
 # UTF-8 forzado via PYTHONIOENCODING en el ProcessBuilder
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-_IMG_SIZE: int = 224
 _TEXT_LABEL_SET: frozenset = frozenset()
 
-# Serializa el uso de GPU entre threads. La etapa ensemble corre inferencia de
-# imagen con ThreadPoolExecutor (varios workers); torch CUDA NO es thread-safe
-# para forwards concurrentes desde múltiples threads Python, y el acceso
-# simultáneo producía crashes nativos (exit 0xC0000409 / STATUS_STACK_BUFFER_
-# OVERRUN, sin traceback). Solo el transfer+forward se serializan; la descarga
-# y decodificación de imagen siguen en paralelo.
-_CUDA_LOCK = threading.Lock()
+# Categorías genéricas/placeholder de texto — cuando el texto cae en una de
+# estas, la clasificación de imagen (stage 1b) se intenta igual aunque la
+# confianza de texto sea alta, porque "Indumentaria"/"Ropa"/etc. no aportan
+# señal real. Ver `needs_image_fallback()`.
+GENERICAS = frozenset({'indumentaria', 'general', 'ropa', 'pc & tech', 'tecnologia', ''})
 
 
 # ─── Clase estadística por grupo ────────────────────────────────────────────
@@ -40,10 +37,17 @@ _CUDA_LOCK = threading.Lock()
 
 # ─── Cargar modelo entrenado si existe ───────────────────────────────────────
 def load_trained_models(db_path="scraper.db"):
-    """Carga los modelos entrenados por ml_train.py si existen."""
+    """Carga el modelo de texto entrenado por ml_train.py si existe.
+
+    PR4: la carga del modelo de imagen bespoke (MobileNetV3/EfficientNet,
+    entrenado por ``ml_train.py --images``) fue removida — la clasificación
+    de imagen ahora la hace ``ml_embeddings.py`` (Marqo-FashionSigLIP,
+    zero-shot, sin entrenamiento propio). Ver ``predict_category_image``
+    (removida) y ``ml_train.py``'s ``--images`` no-op.
+    """
     from pathlib import Path
     models_dir = Path(db_path).parent / "_models"
-    text_model = le = img_model = img_le = None
+    text_model = le = None
 
     # ── Modelo de texto (TF-IDF + LogReg) ──────────────────────────────────
     try:
@@ -62,53 +66,7 @@ def load_trained_models(db_path="scraper.db"):
     except Exception as e:
         print(f"[ML] Sin modelo de texto: {e}", file=sys.stderr)
 
-    # ── Modelo de imagen (EfficientNet / MobileNetV3) ───────────────────────
-    try:
-        import torch, pickle
-        ip = models_dir / "image_model.pt"
-        ilp = models_dir / "image_label_encoder.pkl"
-        if ip.exists() and ilp.exists():
-            checkpoint = torch.load(ip, map_location="cpu", weights_only=False)
-            with open(ilp, 'rb') as f: img_le = pickle.load(f)
-            arch = checkpoint.get("arch", "mobilenet_v3_small")
-            num_classes = checkpoint["num_classes"]
-            # Reconstruir el modelo
-            import torch.nn as nn
-            import torchvision.models as tv
-            if "efficientnet_b3" in arch:
-                m = tv.efficientnet_b3(weights=None)
-                in_f = m.classifier[-1].in_features
-                m.classifier[-1] = nn.Sequential(nn.Dropout(0.4), nn.Linear(in_f, num_classes))
-            elif "efficientnet_b1" in arch:
-                m = tv.efficientnet_b1(weights=None)
-                in_f = m.classifier[-1].in_features
-                m.classifier[-1] = nn.Sequential(nn.Dropout(0.3), nn.Linear(in_f, num_classes))
-            else:
-                m = tv.mobilenet_v3_small(weights=None)
-                in_f = m.classifier[-1].in_features
-                m.classifier[-1] = nn.Linear(in_f, num_classes)
-            m.load_state_dict(checkpoint["model_state_dict"])
-            global _IMG_SIZE
-            _IMG_SIZE = checkpoint.get("img_size", 224)
-            if "img_size" not in checkpoint:
-                print(f"[ML] WARN: checkpoint sin img_size, usando fallback 224", file=sys.stderr)
-            else:
-                print(f"[ML] img_size={_IMG_SIZE} (from checkpoint)", file=sys.stderr)
-            m.eval()
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            img_model = m.to(device)
-            val_acc = checkpoint.get("val_acc", 0)
-            print(f"[ML] Modelo imagen cargado ({arch}, val_acc={val_acc*100:.1f}%, "
-                  f"device={device})", file=sys.stderr)
-    except Exception as e:
-        print(f"[ML] Sin modelo de imagen: {e}", file=sys.stderr)
-
-    if le is not None and img_le is not None:
-        img_label_set = frozenset(str(c) for c in img_le.classes_)
-        overlap = len(img_label_set & _TEXT_LABEL_SET)
-        print(f"[ML] text_labels={len(_TEXT_LABEL_SET)}, img_labels={len(img_label_set)}, overlap={overlap}", file=sys.stderr)
-
-    return text_model, le, img_model, img_le
+    return text_model, le
 
 def predict_category(text_model, le, nombre, confianza_min=0.70):
     """Predice categoría con modelo de texto. Retorna (label, confianza) o (None, 0)."""
@@ -123,44 +81,25 @@ def predict_category(text_model, le, nombre, confianza_min=0.70):
         pass
     return None, 0.0
 
-def predict_category_image(img_model, img_le, img_url, confianza_min=0.75):
-    """Predice categoría a partir de la imagen. Solo se usa cuando texto es incierto."""
-    if img_model is None or img_le is None or not img_url: return None, 0.0
-    try:
-        import torch, urllib.request
-        from PIL import Image
-        from io import BytesIO
-        import torchvision.transforms as T
 
-        if img_url.startswith("//"): img_url = "https:" + img_url
-        req = urllib.request.Request(img_url, headers={"User-Agent":"Mozilla/5.0"})
-        data = urllib.request.urlopen(req, timeout=4).read()
-        img  = Image.open(BytesIO(data)).convert("RGB")
+def needs_image_fallback(txt_conf, categoria, genero, genericas=GENERICAS):
+    """Stage 1b gate (spec: "visual-classification-rules", text-wins
+    invariant). Zero-shot image classification (``ml_embeddings``) is only
+    ever attempted when text is genuinely uncertain — never to second-guess
+    a confident, specific text prediction:
 
-        tf = T.Compose([
-            T.Resize((_IMG_SIZE, _IMG_SIZE)),
-            T.ToTensor(),
-            T.Normalize([0.485,0.456,0.406],[0.229,0.224,0.225]),
-        ])
-        tensor = tf(img).unsqueeze(0)
-        device = next(img_model.parameters()).device
+      - text confidence < 0.75, OR
+      - the text category is generic/placeholder (`genericas`), OR
+      - gender is blank (NEW in PR4 — image can fill a gender gap even when
+        the text category itself is confident and specific; this is the one
+        case where image fires without questioning `categoria` at all).
 
-        # Serializar el uso de GPU (ver _CUDA_LOCK): evita el crash nativo por
-        # forwards CUDA concurrentes desde el ThreadPoolExecutor de la etapa
-        # ensemble. La descarga/decodificación de arriba queda en paralelo.
-        with _CUDA_LOCK:
-            tensor = tensor.to(device)
-            with torch.no_grad():
-                out   = img_model(tensor)
-                probs = torch.softmax(out, dim=1)[0].cpu().numpy()
-
-        best_idx  = int(probs.argmax())
-        best_prob = float(probs[best_idx])
-        if best_prob >= confianza_min:
-            return str(img_le.classes_[best_idx]), best_prob
-    except Exception:
-        pass
-    return None, 0.0
+    Pure function, no I/O — kept separate from the img_candidates
+    comprehension in `main()` so the gate itself is unit-testable without a
+    real/mocked model.
+    """
+    cat_norm = (categoria or '').strip().lower()
+    return (txt_conf < 0.75) or (cat_norm in genericas) or not (genero or '').strip()
 
 
 class PriceStats:
@@ -507,7 +446,7 @@ def main():
     # Cargar modelo entrenado para refinar categorías
     json_arg = sys.argv[1] if len(sys.argv) > 1 else "ml_productos.json"
     db_path_hint = os.path.join(os.path.dirname(os.path.abspath(json_arg)), "scraper.db")
-    text_model, label_enc, img_model, img_label_enc = load_trained_models(db_path_hint)
+    text_model, label_enc = load_trained_models(db_path_hint)
     ml_refinements = 0  # contador de categorías refinadas por ML
 
     # ── Normalización de categorías ──────────────────────────────────────
@@ -787,7 +726,17 @@ def main():
             'statQuality':  stat_quality,
             'statN':        st.n,
             # Placeholder para badge (se asigna después)
-            'badge': ''
+            'badge': '',
+            # Atributos visuales (PR4) — poblados en la etapa 1b SOLO cuando
+            # needs_image_fallback() dispara para este producto; el default
+            # '' / 0.0 se mantiene sin cambios para los que nunca pasan por
+            # la clasificación de imagen (invariante texto-gana).
+            'fit':        '',
+            'print':      '',
+            'neckline':   '',
+            'color':      '',
+            'generoML':   '',
+            'genImgConf': 0.0,
         }
 
     # Logging de validación R6.4: uso del fallback global de descuentos
@@ -838,49 +787,88 @@ def main():
           file=sys.stderr)
 
     # ─── 1b. Refinar categorías con modelo texto+imagen (ensemble) ─────────────
-    if text_model is not None or img_model is not None:
+    # PR4: la inferencia de imagen bespoke (MobileNetV3/EfficientNet) fue
+    # reemplazada por ml_embeddings.py (Marqo-FashionSigLIP, zero-shot).
+    # `ml_embeddings` se importa acá (no al tope del módulo) para que
+    # ml_pipeline.py siga siendo importable/testeable sin torch/open_clip
+    # instalados — mismo criterio de import perezoso que el resto del
+    # pipeline (ver load_trained_models). Un import fallido degrada esta
+    # etapa entera a "solo texto", idéntico al comportamiento previo cuando
+    # no había modelo de imagen disponible.
+    try:
+        import ml_embeddings
+    except ImportError as e:
+        ml_embeddings = None
+        print(f"[ML] ml_embeddings no disponible, clasificación de imagen deshabilitada: {e}",
+              file=sys.stderr)
+
+    if text_model is not None or ml_embeddings is not None:
         print("[ML] Refinando categorias con ensemble texto+imagen...", file=sys.stderr)
-        genericas = {'indumentaria','general','ropa','pc & tech','tecnologia',''}
+        genericas = GENERICAS
 
         MAX_IMG_INFERENCES = 400
-        IMG_WORKERS        = 8
 
         # Pre-calcular predicciones de texto para todos los productos
         txt_preds = [predict_category(text_model, label_enc,
                                       (p.get('nombre') or '').lower())
                      for p in productos]
 
-        # Identificar candidatos a inferencia de imagen
+        # Identificar candidatos a inferencia de imagen — gate: needs_image_fallback()
+        # (T4.1/T4.2): confianza de texto baja, categoría genérica, O género en
+        # blanco (nuevo en PR4). Nunca se re-cuestiona una categoría de texto
+        # específica y confiada con género presente (invariante texto-gana).
         img_candidates = [
             i for i, (p, (tc, tf)) in enumerate(zip(productos, txt_preds))
-            if img_model is not None and (
-                tf < 0.75 or (p.get('categoria') or '').strip().lower() in genericas
-            ) and (p.get('img') or p.get('imagenUrl') or '')
+            if ml_embeddings is not None
+            and needs_image_fallback(tf, p.get('categoria'), p.get('genero'), genericas)
+            and (p.get('img') or p.get('imagenUrl') or '')
         ]
         if len(img_candidates) > MAX_IMG_INFERENCES:
             # Priorizar los de menor confianza de texto
             img_candidates.sort(key=lambda i: txt_preds[i][1])
             img_candidates = img_candidates[:MAX_IMG_INFERENCES]
 
-        # Descargar e inferir en paralelo
+        # Embeber + clasificar + extraer color. El color NUNCA se cachea (solo
+        # el embedding, en image_embeddings) — cada URL candidata se descarga
+        # una vez y se reusa para el embedding (en cache miss, vía
+        # preloaded_images) y para dominant_color(), mismo patrón que
+        # ml_embeddings.backfill().
         img_results = {}
         if img_candidates:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            def _infer(i):
-                p = productos[i]
-                url = p.get('img') or p.get('imagenUrl') or ''
-                cat, conf = predict_category_image(img_model, img_label_enc, url)
-                if cat and _TEXT_LABEL_SET and cat not in _TEXT_LABEL_SET:
-                    cat, conf = None, 0.0
-                return i, cat, conf
-            with ThreadPoolExecutor(max_workers=IMG_WORKERS) as ex:
-                futures = {ex.submit(_infer, i): i for i in img_candidates}
-                for fut in as_completed(futures):
-                    try:
-                        i, cat, conf = fut.result()
-                        img_results[i] = (cat, conf)
-                    except Exception:
-                        pass
+            candidate_urls_by_idx = {
+                i: (productos[i].get('img') or productos[i].get('imagenUrl') or '')
+                for i in img_candidates
+            }
+            distinct_urls = list(dict.fromkeys(candidate_urls_by_idx.values()))
+            images = {}
+            for url in distinct_urls:
+                try:
+                    images[url] = ml_embeddings._download_image(url)
+                except Exception as e:
+                    print(f"[ML] Descarga de imagen fallida para {url}: {e}", file=sys.stderr)
+                    images[url] = None
+
+            embeddings = ml_embeddings.embed_images(
+                distinct_urls, db_path=db_path_hint,
+                model_version=ml_embeddings.MODEL_VERSION,
+                preloaded_images=images,
+            )
+
+            for i in img_candidates:
+                url = candidate_urls_by_idx[i]
+                try:
+                    embedding = embeddings.get(url)
+                    attrs = ml_embeddings.classify(embedding, db_path=db_path_hint)
+                    color = ''
+                    image = images.get(url)
+                    if image is not None:
+                        try:
+                            color = ml_embeddings.dominant_color(image)
+                        except Exception as e:
+                            print(f"[ML] dominant_color fallido para {url}: {e}", file=sys.stderr)
+                    img_results[i] = (attrs, color)
+                except Exception as e:
+                    print(f"[ML] Clasificación de imagen fallida para producto {i}: {e}", file=sys.stderr)
             print(f"[ML] Inferencia imagen: {len(img_results)}/{len(img_candidates)} OK "
                   f"({len(img_candidates)} candidatos de {len(productos)} productos)",
                   file=sys.stderr)
@@ -888,6 +876,7 @@ def main():
         for idx, p in enumerate(productos):
             nombre     = (p.get('nombre') or '').lower()
             cat_actual = (p.get('categoria') or '').strip()
+            pid        = p.get('url', '') or p.get('nombre', '')
 
             # Guard dedicado (ADR-5): "Conjunto" (combo/multi-pieza, ver
             # NormalizerService.clasificar()) nunca debe ser re-clasificado por
@@ -905,8 +894,26 @@ def main():
             # 1) Predicción de texto
             txt_cat, txt_conf = txt_preds[idx]
 
-            # 2) Predicción de imagen (resultado pre-calculado)
-            img_cat, img_conf = img_results.get(idx, (None, 0.0))
+            # 2) Predicción de imagen (resultado pre-calculado) — atributos
+            # visuales nuevos (PR4): fit/print/neckline/color/generoML/
+            # genImgConf. Additivos, sin gate de texto (el texto no predice
+            # estos signals, así que no hay nada que "ganarles"). `categoria`
+            # de imagen SÍ sigue el resto del gate de abajo (paso 4) — nunca
+            # sobreescribe una categoría de texto específica y confiada.
+            attrs, color = img_results.get(idx, (None, ''))
+            img_cat, img_conf = ('', 0.0)
+            if attrs is not None:
+                img_cat  = attrs.get('categoria', '') or ''
+                img_conf = attrs.get('catMLConf', 0.0) or 0.0
+                if img_cat and _TEXT_LABEL_SET and img_cat not in _TEXT_LABEL_SET:
+                    img_cat, img_conf = '', 0.0
+
+                scores[pid]['fit']        = attrs.get('fit', '')
+                scores[pid]['print']      = attrs.get('estampado', '')
+                scores[pid]['neckline']   = attrs.get('escote', '')
+                scores[pid]['color']      = color
+                scores[pid]['generoML']   = attrs.get('genero', '')
+                scores[pid]['genImgConf'] = attrs.get('genImgConf', 0.0)
 
             # 3) Elegir la mejor predicción
             if img_cat and img_conf > txt_conf:
