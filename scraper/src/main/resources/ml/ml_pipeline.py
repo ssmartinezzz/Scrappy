@@ -818,7 +818,11 @@ def main():
     # no había modelo de imagen disponible.
     try:
         import ml_embeddings
-    except ImportError as e:
+    except Exception as e:
+        # WARNING fix (judgment-day PR4 round 1, A-006/B-005): broadened
+        # from `ImportError` — a corrupt/truncated extracted ml_embeddings.py
+        # (e.g. a `SyntaxError`) must degrade to text-only exactly like a
+        # missing module, never crash main().
         ml_embeddings = None
         print(f"[ML] ml_embeddings no disponible, clasificación de imagen deshabilitada: {e}",
               file=sys.stderr)
