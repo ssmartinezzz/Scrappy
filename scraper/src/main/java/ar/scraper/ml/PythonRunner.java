@@ -346,6 +346,215 @@ public class PythonRunner {
     }
 
     /**
+     * Test seam (package-private, pure): decides whether text re-training
+     * should be skipped for freshness — mirrors the guard inlined in
+     * {@link #entrenarEnBackground} ({@code modelExists && !forceRetrain &&
+     * age < 24h}). Extracted so the decision itself is directly unit-testable
+     * without touching the filesystem, and reused by the T5.4 sequencing
+     * entrypoint ({@link #construirIndiceVisualEnBackground}).
+     */
+    boolean debeSaltearEntrenamientoPorFrescura(boolean modelExists, boolean forceRetrain,
+            long edadModeloMillis) {
+        if (forceRetrain || !modelExists) return false;
+        return edadModeloMillis < 24L * 3600 * 1000;
+    }
+
+    /**
+     * Test seam (package-private, pure): parses a subprocess stdout progress
+     * JSON line ({@code {"pct":N,"msg":"..."}}, own {@code "phase"} key
+     * ignored — the caller supplies the macro {@code fase} label instead) into
+     * an updated {@link TrainingStatus}, preserving {@code startedAt} from
+     * {@code previo}. Returns {@code previo} unchanged when the line isn't a
+     * recognizable progress line (null, non-JSON, missing {@code "pct"}, or
+     * malformed). Backs the T5.4 sequencing entrypoint
+     * ({@link #construirIndiceVisualEnBackground}), which tags every line
+     * from the text-training subprocess with {@code fase="training"} and
+     * every line from the embeddings-backfill subprocess with
+     * {@code fase="embedding"} — both writing into the SAME
+     * {@link #trainingStatus} object, so a single poll surface can
+     * distinguish the two phases of "Construir índice visual".
+     */
+    TrainingStatus parsearLineaProgreso(String line, String fase, TrainingStatus previo) {
+        if (line == null || !line.startsWith("{") || !line.contains("\"pct\"")) return previo;
+        try {
+            var node = MAPPER.readTree(line);
+            int pct = node.path("pct").asInt();
+            String msg = node.path("msg").asText("");
+            return new TrainingStatus(true, fase, pct, msg, previo.startedAt());
+        } catch (Exception e) {
+            return previo;
+        }
+    }
+
+    /**
+     * Sequencing entrypoint for "Construir índice visual" (PR6's future
+     * {@code POST /api/ml/entrenar} handler, T6.2): runs text re-training
+     * FIRST, then the embeddings backfill, on ONE background thread — both
+     * phases reporting into the SAME {@link #trainingStatus} object, tagged
+     * with a distinct macro {@code phase} ({@code "training"} vs
+     * {@code "embedding"}) via {@link #parsearLineaProgreso}, so a single
+     * poll surface (future {@code GET /api/ml/estado}, T6.3/T6.4) can tell
+     * the two stages apart. Mirrors {@link #entrenarEnBackground} and
+     * {@link #backfillEmbeddingsEnBackground}'s executor/status/progress
+     * pattern (same {@link TrainingStatus} record, same
+     * {@code construirProcessBuilderEntrenamiento}/
+     * {@code construirProcessBuilderBackfill} seams) rather than reusing
+     * their thread bodies directly, so this new sequencing path can never
+     * regress either standalone entrypoint. Never throws — any failure in
+     * either phase degrades to a logged no-op and the sequence still
+     * attempts the next phase (backfill still runs even if text-training
+     * was skipped or failed).
+     */
+    public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+            boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
+        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
+        String python = detectarPython();
+        if (python == null) {
+            LOG.info("[ML-INDEX] Python no disponible, saltando construcción de índice visual");
+            return;
+        }
+
+        Path workDir = Paths.get("").toAbsolutePath();
+
+        Thread.ofVirtual().start(() -> {
+            try {
+                trainingStatus.set(new TrainingStatus(true, "training", 0, "",
+                        java.time.Instant.now().toString()));
+                ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
+                        withImages, epochs, useGpuSnapshot);
+
+                trainingStatus.set(new TrainingStatus(true, "embedding", 0, "",
+                        trainingStatus.get().startedAt()));
+                ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
+                        useGpuSnapshot);
+            } catch (Exception e) {
+                LOG.warn("[ML-INDEX] Error inesperado en la secuencia de construcción de índice: {}",
+                        e.getMessage());
+            } finally {
+                trainingStatus.set(TrainingStatus.idle());
+            }
+        });
+    }
+
+    public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+            boolean forceBackfillEmbeddings) {
+        construirIndiceVisualEnBackground(dbPath, forceRetrainTexto, false, 8, forceBackfillEmbeddings);
+    }
+
+    /** Fase "training" de {@link #construirIndiceVisualEnBackground}. Nunca lanza. */
+    private void ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir, String dbPath,
+            boolean forceRetrain, boolean withImages, int epochs, boolean useGpuSnapshot) {
+        try {
+            Path modelsDir = workDir.resolve("_models");
+            Path textModel = modelsDir.resolve("text_classifier.pkl");
+            boolean modelExists = Files.exists(textModel);
+            long edadMillis = 0L;
+            if (modelExists) {
+                try {
+                    edadMillis = System.currentTimeMillis() - Files.getLastModifiedTime(textModel).toMillis();
+                } catch (Exception ignored) {}
+            }
+
+            if (debeSaltearEntrenamientoPorFrescura(modelExists, forceRetrain, edadMillis)) {
+                LOG.info("[ML-INDEX] [TRAINING] Modelo reciente ({} horas) — saltando re-entrenamiento",
+                        edadMillis / 3600000);
+                return;
+            }
+
+            Path trainScript = extraerTrainScript(workDir);
+            var cmd = new java.util.ArrayList<String>();
+            cmd.add(python);
+            cmd.add(trainScript.toString());
+            cmd.add(dbPath);
+
+            boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
+            boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
+            boolean hasTorch = hasCuda || tienePytorch(python, forceCpuProbe);
+            if (withImages && hasTorch) {
+                cmd.add("--images");
+                cmd.add("--epochs");
+                cmd.add(String.valueOf(epochs));
+            }
+
+            ProcessBuilder pb = construirProcessBuilderEntrenamiento(cmd, workDir, useGpuSnapshot);
+            Process proc = pb.start();
+
+            Thread.ofVirtual().start(() -> {
+                try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) LOG.info("[ML-INDEX] [TRAINING] {}", line);
+                } catch (Exception ignored) {}
+            });
+
+            try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    trainingStatus.set(parsearLineaProgreso(line, "training", trainingStatus.get()));
+                }
+            }
+
+            boolean withImg = cmd.contains("--images");
+            long timeoutMin = withImg ? 180L : 15L;
+            boolean finished = proc.waitFor(timeoutMin, TimeUnit.MINUTES);
+            if (!finished) {
+                proc.destroyForcibly();
+                LOG.error("[ML-INDEX] [TRAINING] TIMEOUT tras {} min — proceso terminado forzosamente",
+                        timeoutMin);
+                return;
+            }
+            if (proc.exitValue() == 0) {
+                LOG.info("[ML-INDEX] [TRAINING] ✓ completado");
+                aplicarModeloActual();
+            } else {
+                LOG.warn("[ML-INDEX] [TRAINING] Proceso terminó con código {}", proc.exitValue());
+            }
+        } catch (Exception e) {
+            LOG.warn("[ML-INDEX] [TRAINING] Error inesperado: {}", e.getMessage());
+        }
+    }
+
+    /** Fase "embedding" de {@link #construirIndiceVisualEnBackground}. Nunca lanza. */
+    private void ejecutarFaseBackfillSecuenciada(String python, Path workDir, String dbPath,
+            boolean force, boolean useGpuSnapshot) {
+        try {
+            Path scriptPath = extraerEmbeddingsScript(workDir);
+            ProcessBuilder pb = construirProcessBuilderBackfill(
+                    python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
+            Process proc = pb.start();
+
+            Thread.ofVirtual().start(() -> {
+                try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) LOG.info("[ML-INDEX] [EMBEDDING] {}", line);
+                } catch (Exception ignored) {}
+            });
+
+            try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    trainingStatus.set(parsearLineaProgreso(line, "embedding", trainingStatus.get()));
+                }
+            }
+
+            long timeoutMin = 180L;
+            boolean finished = proc.waitFor(timeoutMin, TimeUnit.MINUTES);
+            if (!finished) {
+                proc.destroyForcibly();
+                LOG.error("[ML-INDEX] [EMBEDDING] TIMEOUT tras {} min — proceso terminado forzosamente",
+                        timeoutMin);
+                return;
+            }
+            if (proc.exitValue() == 0) {
+                LOG.info("[ML-INDEX] [EMBEDDING] ✓ completado");
+            } else {
+                LOG.warn("[ML-INDEX] [EMBEDDING] Proceso terminó con código {}", proc.exitValue());
+            }
+        } catch (Exception e) {
+            LOG.warn("[ML-INDEX] [EMBEDDING] Error inesperado: {}", e.getMessage());
+        }
+    }
+
+    /**
      * Lanza el backfill de atributos visuales ({@code ml_embeddings.py backfill})
      * en background. Ver el docstring de {@code backfill()} en ml_embeddings.py
      * (~línea 718), que nombra explícitamente este método como su contraparte Java.
@@ -545,10 +754,26 @@ public class PythonRunner {
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
         pb.environment().put("PYTHONUNBUFFERED", "1");
+        pb.environment().put("HF_HOME", hfHomeParaDb(dbPath));
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
         }
         return pb;
+    }
+
+    /**
+     * Directorio de pesos Marqo pre-descargados por el instalador para el
+     * subproceso de backfill (T5.3). MUST mirror the installer's pinning
+     * ({@code INSTALAR_Y_CORRER.bat} step 3g: {@code HF_HOME=%ROOT%\_models\marqo})
+     * and {@code ml_embeddings.py}'s own fallback ({@code _default_hf_home(db_path)}:
+     * {@code Path(db_path).resolve().parent / "_models" / "marqo"}) — same
+     * directory shape, computed the same way (parent of the resolved DB
+     * path), so a real run always hits the pre-warmed cache instead of
+     * re-downloading ~300MB.
+     */
+    static String hfHomeParaDb(String dbPath) {
+        return Paths.get(dbPath).toAbsolutePath().getParent()
+                .resolve("_models").resolve("marqo").toString();
     }
 
     /** ProcessBuilder de los probes {@code tieneCuda}/{@code tienePytorch}. */

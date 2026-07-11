@@ -6,6 +6,9 @@ import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -91,5 +94,32 @@ class PythonRunnerBackfillTest {
                 .containsEntry("PYTHONIOENCODING", "utf-8")
                 .containsEntry("PYTHONUTF8", "1")
                 .containsEntry("PYTHONUNBUFFERED", "1");
+    }
+
+    // ── T5.3: HF_HOME pinning ────────────────────────────────────────────────
+    // Without HF_HOME the backfill subprocess can't find the installer-warmed
+    // Marqo weights cache and would re-download ~300MB (or fail offline).
+    // Must match the installer's pinning (INSTALAR_Y_CORRER.bat step 3g:
+    // HF_HOME=%ROOT%\_models\marqo`) and ml_embeddings.py's
+    // `_default_hf_home(db_path)` (Path(db_path).resolve().parent / "_models" / "marqo").
+
+    @Test
+    void setsHfHomeToModelsMarqoDirectoryNextToDbPath() {
+        ProcessBuilder pb = runner.construirProcessBuilderBackfill(
+                "python", "script.py", "scraper.db", false, true);
+
+        Path expected = Paths.get("scraper.db").toAbsolutePath().getParent()
+                .resolve("_models").resolve("marqo");
+        assertThat(pb.environment()).containsEntry("HF_HOME", expected.toString());
+    }
+
+    @Test
+    void setsHfHomeRelativeToAnAbsoluteDbPathsParentDirectory() {
+        Path absoluteDb = Paths.get("C:", "install-root", "scraper.db");
+        ProcessBuilder pb = runner.construirProcessBuilderBackfill(
+                "python", "script.py", absoluteDb.toString(), false, true);
+
+        Path expected = absoluteDb.getParent().resolve("_models").resolve("marqo");
+        assertThat(pb.environment()).containsEntry("HF_HOME", expected.toString());
     }
 }
