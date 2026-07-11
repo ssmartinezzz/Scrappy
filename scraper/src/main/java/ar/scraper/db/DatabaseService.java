@@ -86,7 +86,7 @@ public class DatabaseService {
 
     private void crearTablas() throws SQLException {
         try (Statement st = conn.createStatement()) {
-st.executeUpdate("""
+            st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precios_externos (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     producto_url TEXT NOT NULL,
@@ -154,18 +154,6 @@ st.executeUpdate("""
                     computed_at   TEXT NOT NULL
                 )""");
 
-st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precio_historico (
                     id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,18 +163,6 @@ st.executeUpdate("""
                     UNIQUE(url, fecha)
                 )""");
 
-st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS ml_output (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,18 +170,6 @@ st.executeUpdate("""
                     created_at TEXT NOT NULL
                 )""");
 
-st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS sitios_dinamicos (
                     nombre     TEXT PRIMARY KEY,
@@ -214,13 +178,14 @@ st.executeUpdate("""
                     created_at TEXT NOT NULL
                 )""");
 
-            // Indices
-st.executeUpdate("""
+            st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS categoria_stats (
                     categoria  TEXT PRIMARY KEY,
                     payload    TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )""");
+
+            // Indices
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_prod_sitio  ON productos(sitio)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_prod_activo ON productos(activo)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_hist_url   ON precio_historico(url)");
@@ -933,19 +898,7 @@ st.executeUpdate("""
             }
             // Mantener solo los últimos 10 outputs
             try (Statement st = conn.createStatement()) {
-    st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
-            st.executeUpdate("""
+                st.executeUpdate("""
                     DELETE FROM ml_output WHERE id NOT IN (
                         SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
                     )""");
