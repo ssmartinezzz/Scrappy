@@ -305,6 +305,22 @@ public class DatabaseService {
         seedPresetIlustrativoSiVacio();
     }
 
+    /**
+     * Cuenta las filas cacheadas en {@code image_embeddings} (fashion-image-
+     * classification PR6, T6.3/T6.4) — respalda {@code embeddingsCount} en
+     * {@code GET /api/ml/estado} para reportar cobertura del índice visual
+     * frente al total de productos activos.
+     */
+    public long contarEmbeddings() {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM image_embeddings")) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        } catch (SQLException e) {
+            LOG.error("[DB] Error al contar image_embeddings", e);
+            return 0L;
+        }
+    }
+
     // ─── Presets de financiación ─────────────────────────────────────────────
 
     private static final String PRESET_ILUSTRATIVO_LABEL =

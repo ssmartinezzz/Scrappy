@@ -1611,6 +1611,20 @@ public class ApiController {
         training.put("pct",       ts.pct());
         training.put("msg",       ts.msg());
         training.put("startedAt", ts.startedAt() != null ? ts.startedAt() : "");
+
+        // T6.3/T6.4 (fashion-image-classification PR6): visual-index coverage —
+        // additive fields, backward-compatible with MlStatusPanel's existing
+        // hasTextModel/hasImageModel/training.* consumption.
+        long embeddingsCount = db.contarEmbeddings();
+        var lastResult = service.getLastResult();
+        int totalProductos = lastResult != null ? lastResult.productos().size() : 0;
+        double coveragePct = totalProductos > 0
+                ? Math.round((double) embeddingsCount / totalProductos * 1000.0) / 10.0
+                : 0.0;
+        root.put("embeddingsCount", embeddingsCount);
+        root.put("totalProductos",  totalProductos);
+        root.put("coveragePct",     coveragePct);
+
         return ResponseEntity.ok(root);
     }
 
