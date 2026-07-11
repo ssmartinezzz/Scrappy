@@ -188,6 +188,23 @@ public class ApiController {
     //   q           string   (búsqueda full-text en nombre)
     //   orden       precio_asc | precio_desc | nombre (default precio_asc)
     // ---------------------------------------------------------------
+    /**
+     * Legacy 17-arg overload (pre-PR6) — retained for backward source
+     * compatibility with existing test call sites built before the 4 additive
+     * visual-attribute filters (T6.7/T6.8) were added. Defaults
+     * fit/estampado/escote/colorDominante to {@code null} (no filter).
+     */
+    public ResponseEntity<ObjectNode> data(
+            int page, int size, List<String> talle, String genero, List<String> categoria,
+            String q, String sitio, List<String> marca, String badge, String segment,
+            String rubro, Boolean gymrat, String orden, Boolean pack,
+            Double precioMin, Double precioMax, List<String> subCategoria
+    ) {
+        return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment,
+                rubro, gymrat, orden, pack, precioMin, precioMax, subCategoria,
+                null, null, null, null);
+    }
+
     @GetMapping("/data")
     public ResponseEntity<ObjectNode> data(
             @RequestParam(defaultValue = "1")   int page,
@@ -206,7 +223,11 @@ public class ApiController {
             @RequestParam(required = false)     Boolean pack,
             @RequestParam(required = false)     Double precioMin,
             @RequestParam(required = false)     Double precioMax,
-            @RequestParam(required = false)     List<String> subCategoria
+            @RequestParam(required = false)     List<String> subCategoria,
+            @RequestParam(required = false)     String fit,
+            @RequestParam(required = false)     String estampado,
+            @RequestParam(required = false)     String escote,
+            @RequestParam(required = false)     String colorDominante
     ) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
@@ -217,7 +238,7 @@ public class ApiController {
                 .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
 
         // 1. Aplicar filtros
-        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax, subCategoria);
+        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante);
 
         // 2. Ordenar
         filtrados = ordenar(filtrados, orden);
@@ -260,6 +281,15 @@ public class ApiController {
         facets.badges().forEach(badgesNode::put);
         ObjectNode subCategoriasNode = facetsNode.putObject("subCategorias");
         facets.subCategorias().forEach(subCategoriasNode::put);
+        // Facets de atributos visuales (fashion-image-classification PR6, T6.6)
+        ObjectNode fitsNode = facetsNode.putObject("fits");
+        facets.fits().forEach(fitsNode::put);
+        ObjectNode estampadosNode = facetsNode.putObject("estampados");
+        facets.estampados().forEach(estampadosNode::put);
+        ObjectNode escotesNode = facetsNode.putObject("escotes");
+        facets.escotes().forEach(escotesNode::put);
+        ObjectNode colorDominantesNode = facetsNode.putObject("colorDominantes");
+        facets.colorDominantes().forEach(colorDominantesNode::put);
         // Rubros con conteo
         ObjectNode rubrosNode = facetsNode.putObject("rubros");
         r.productos().stream()
@@ -364,6 +394,15 @@ public class ApiController {
         facets.badges().forEach(badgesNode2::put);
         ObjectNode subCategoriasNode2 = root.putObject("subCategorias");
         facets.subCategorias().forEach(subCategoriasNode2::put);
+        // Facets de atributos visuales (fashion-image-classification PR6, T6.6)
+        ObjectNode fitsNode2 = root.putObject("fits");
+        facets.fits().forEach(fitsNode2::put);
+        ObjectNode estampadosNode2 = root.putObject("estampados");
+        facets.estampados().forEach(estampadosNode2::put);
+        ObjectNode escotesNode2 = root.putObject("escotes");
+        facets.escotes().forEach(escotesNode2::put);
+        ObjectNode colorDominantesNode2 = root.putObject("colorDominantes");
+        facets.colorDominantes().forEach(colorDominantesNode2::put);
 
         // Conteo de productos gymrat
         long gymratCount = r.productos().stream().filter(Product::gymrat).count();
@@ -2114,7 +2153,11 @@ public class ApiController {
             Boolean packFiltro,
             Double precioMinFiltro,
             Double precioMaxFiltro,
-            List<String> subCategoriaFiltro
+            List<String> subCategoriaFiltro,
+            String fitFiltro,
+            String estampadoFiltro,
+            String escoteFiltro,
+            String colorDominanteFiltro
     ) {
         return productos.stream()
                 .filter(p -> {
@@ -2190,6 +2233,19 @@ public class ApiController {
                         boolean match = subCategoriaFiltro.stream().anyMatch(sel -> sc.equalsIgnoreCase(sel));
                         if (!match) return false;
                     }
+                    // Filtros de atributos visuales (fashion-image-classification PR6,
+                    // T6.7/T6.8) — additive, exact match case-insensitive, mirroring
+                    // the existing genero/sitio filter shape. Product.visual() is
+                    // never null (defaults to VisualAttrs.EMPTY), but guard anyway.
+                    Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+                    if (fitFiltro != null && !fitFiltro.isBlank()
+                            && !fitFiltro.equalsIgnoreCase(visual.fit())) return false;
+                    if (estampadoFiltro != null && !estampadoFiltro.isBlank()
+                            && !estampadoFiltro.equalsIgnoreCase(visual.estampado())) return false;
+                    if (escoteFiltro != null && !escoteFiltro.isBlank()
+                            && !escoteFiltro.equalsIgnoreCase(visual.escote())) return false;
+                    if (colorDominanteFiltro != null && !colorDominanteFiltro.isBlank()
+                            && !colorDominanteFiltro.equalsIgnoreCase(visual.colorDominante())) return false;
                     // Búsqueda full-text
                     if (q != null && !q.isBlank()) {
                         String lower = q.toLowerCase();
