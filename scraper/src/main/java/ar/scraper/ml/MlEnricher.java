@@ -71,12 +71,26 @@ public class MlEnricher {
                 // "unisex" de imagen (sentinel bajo-umbral) deja el género en blanco
             }
 
+            // ── Atributos visuales derivados de imagen (fit/estampado/escote/color) ──
+            // A diferencia de género/categoría, no hay señal de texto compitiendo acá
+            // (VisualAttrs es puramente image-derived) — este pase de ML es la fuente
+            // de verdad, no un fill-in: los 4 valores de ESTE score reemplazan por
+            // completo a p.visual(). ml_pipeline.py ya remapea las claves en Python
+            // (estampado->print, escote->neckline, color_dominante->color), así que
+            // acá se leen verbatim, sin re-mapeo. Ausente/blank -> "".
+            Product.VisualAttrs visual = new Product.VisualAttrs(
+                    s.path("fit").asText(""),
+                    s.path("print").asText(""),
+                    s.path("neckline").asText(""),
+                    s.path("color").asText("")
+            );
+
             Product enriched = new Product(
                 p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
                 p.url(), p.imagenUrl(), catFinal, generoFinal, p.talles(),
                 ml, p.marca(), p.rubro() != null ? p.rubro() : "indumentaria",
                 p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
-                p.subCategoria() != null ? p.subCategoria() : "", p.visual()
+                p.subCategoria() != null ? p.subCategoria() : "", visual
             );
             result.add(enriched);
             enriquecidos++;
