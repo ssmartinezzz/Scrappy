@@ -224,4 +224,108 @@ class PythonRunnerSequencingTest {
         assertThat(estado.phase()).isEqualTo("error");
         assertThat(estado.msg()).contains("embedding");
     }
+
+    // ── FIXV-001: construirIndiceVisualEnBackground terminal-status contract ──
+    // (4R correction round, fix-delta escalation) — end-to-end coverage of the
+    // ENTRYPOINT itself via the new package-private synchronous seam
+    // ejecutarSecuenciaIndiceVisual (same logic the public async entrypoint
+    // delegates to, minus the virtual-thread wrapper + detectarPython() call,
+    // so a test can invoke it directly and assert on the final status without
+    // polling a background thread). A single controllable "python" stand-in —
+    // a tiny .bat that inspects argv[0] (the script path Java passes) and
+    // exits 0/1 depending on whether it's being invoked as ml_train.py
+    // (training) or ml_embeddings.py (backfill) — lets each of the 4
+    // training-x-backfill outcome combinations be forced deterministically,
+    // without a real Python interpreter or model weights.
+
+    /**
+     * Writes a batch-file "python" stand-in to {@code dir} that exits
+     * {@code trainExitCode} when invoked with an {@code ml_train.py} script
+     * path as its first argument (the training phase) and
+     * {@code backfillExitCode} when invoked with an {@code ml_embeddings.py}
+     * script path (the backfill phase) — matching exactly how
+     * {@link PythonRunner#ejecutarFaseEntrenamientoSecuenciada}/
+     * {@link PythonRunner#ejecutarFaseBackfillSecuenciada} build their
+     * subprocess command lines. Any other invocation (e.g. the
+     * {@code tieneCuda}/{@code tienePytorch} probes, argv[0] {@code -c})
+     * exits 0 with no output. Produces zero stdout in every case, so
+     * {@code esperarConDrain}'s read loops hit EOF immediately — fast,
+     * deterministic, no hang risk.
+     */
+    private String escribirPythonFalso(java.nio.file.Path dir, int trainExitCode, int backfillExitCode)
+            throws Exception {
+        java.nio.file.Path script = dir.resolve("fake_python.bat");
+        String contenido = "@echo off\r\n"
+                + "echo %1 | findstr /C:\"ml_train.py\" >nul\r\n"
+                + "if %errorlevel%==0 exit /b " + trainExitCode + "\r\n"
+                + "echo %1 | findstr /C:\"ml_embeddings.py\" >nul\r\n"
+                + "if %errorlevel%==0 exit /b " + backfillExitCode + "\r\n"
+                + "exit /b 0\r\n";
+        java.nio.file.Files.writeString(script, contenido);
+        return script.toAbsolutePath().toString();
+    }
+
+    @Test
+    @DisplayName("both phases succeed -> terminal status resets to idle")
+    void bothPhasesSucceedEndsIdle(@org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
+        String python = escribirPythonFalso(workDir, 0, 0);
+
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+                false, false, 8, false, false);
+
+        TrainingStatus estado = runner.getTrainingStatus();
+        assertThat(estado.running()).isFalse();
+        assertThat(estado.phase()).isEqualTo("idle");
+    }
+
+    @Test
+    @DisplayName("FIXV-001 regression: training fails, backfill succeeds -> durable non-running error status, never stuck running")
+    void trainingFailsBackfillSucceedsEndsInDurableErrorNeverStuckRunning(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
+        String python = escribirPythonFalso(workDir, 1, 0);
+
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+                false, false, 8, false, false);
+
+        TrainingStatus estado = runner.getTrainingStatus();
+        // The core FIXV-001 bug: this status must NEVER be left running=true
+        // (permanently "in progress" for a poller) and must NEVER be plain
+        // idle (which would silently erase the training failure) — it must be
+        // a durable, non-running error/degraded terminal state.
+        assertThat(estado.running()).isFalse();
+        assertThat(estado.phase()).isNotEqualTo("idle");
+        assertThat(estado.phase()).isEqualTo("error");
+        assertThat(estado.msg()).contains("training");
+    }
+
+    @Test
+    @DisplayName("training succeeds, backfill fails -> durable error status (pre-existing, unaffected by the fix)")
+    void trainingSucceedsBackfillFailsEndsInDurableError(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
+        String python = escribirPythonFalso(workDir, 0, 1);
+
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+                false, false, 8, false, false);
+
+        TrainingStatus estado = runner.getTrainingStatus();
+        assertThat(estado.running()).isFalse();
+        assertThat(estado.phase()).isNotEqualTo("idle");
+        assertThat(estado.phase()).isEqualTo("error");
+        assertThat(estado.msg()).contains("embedding");
+    }
+
+    @Test
+    @DisplayName("both phases fail -> durable error status (pre-existing, unaffected by the fix)")
+    void bothPhasesFailEndInDurableError(@org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir)
+            throws Exception {
+        String python = escribirPythonFalso(workDir, 1, 1);
+
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+                false, false, 8, false, false);
+
+        TrainingStatus estado = runner.getTrainingStatus();
+        assertThat(estado.running()).isFalse();
+        assertThat(estado.phase()).isNotEqualTo("idle");
+        assertThat(estado.phase()).isEqualTo("error");
+    }
 }

@@ -426,29 +426,76 @@ public class PythonRunner {
 
         Path workDir = Paths.get("").toAbsolutePath();
 
-        Thread.ofVirtual().start(() -> {
-            boolean trainingOk = false;
-            boolean backfillOk = false;
-            try {
-                trainingStatus.set(new TrainingStatus(true, "training", 0, "",
-                        java.time.Instant.now().toString()));
-                trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
-                        withImages, epochs, useGpuSnapshot);
+        Thread.ofVirtual().start(() -> ejecutarSecuenciaIndiceVisual(python, workDir, dbPath,
+                forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
+    }
 
+    /**
+     * Test seam (package-private): the synchronous core of
+     * {@link #construirIndiceVisualEnBackground} — same sequencing logic the
+     * public async entrypoint delegates to (via {@code Thread.ofVirtual()}),
+     * extracted so a test can invoke it directly with an explicit
+     * {@code python} executable (bypassing {@code detectarPython()}'s
+     * real-environment scan) and assert on the final {@link #trainingStatus}
+     * without polling a background thread. Production callers only ever
+     * reach this through the public entrypoint.
+     *
+     * <p>FIXV-001 fix (4R correction round, fix-delta escalation): the
+     * inter-phase {@code trainingStatus.set(new TrainingStatus(true,
+     * "embedding", ...))} — previously unconditional — now only fires when
+     * {@code trainingOk} is {@code true}, so a training failure's durable
+     * {@code phase="error"} status (already written by
+     * {@link #ejecutarFaseEntrenamientoSecuenciada} via
+     * {@link #marcarFalloIndiceVisual}) isn't immediately overwritten with a
+     * false "starting embedding, running" status before backfill even
+     * begins. That alone isn't sufficient, though: backfill's OWN progress
+     * reporting (via {@link #esperarConDrain}'s {@link #parsearLineaProgreso}
+     * calls) still legitimately flips {@link #trainingStatus} to
+     * running=true/phase="embedding" while it's actually running — accurate,
+     * desired behavior. The bug was specifically about the FINAL state after
+     * backfill completes: if training failed but backfill then SUCCEEDS,
+     * backfill's success path writes no terminal status of its own (only its
+     * failure branches call {@code marcarFalloIndiceVisual}), and
+     * {@link #debeResetearAIdleTrasSecuencia} correctly refuses to reset to
+     * idle for this combo (only true when BOTH succeed) — so without the
+     * explicit re-write below, the status would stay permanently stuck at
+     * running=true/phase="embedding" after this thread dies, silently
+     * erasing the training failure and leaving an {@code /api/ml/estado}
+     * poller seeing "in progress" forever. The
+     * {@code !trainingOk && backfillOk} branch re-asserts a durable,
+     * non-running error state whose message reflects both outcomes.</p>
+     */
+    void ejecutarSecuenciaIndiceVisual(String python, Path workDir, String dbPath,
+            boolean forceRetrainTexto, boolean withImages, int epochs, boolean forceBackfillEmbeddings,
+            boolean useGpuSnapshot) {
+        boolean trainingOk = false;
+        boolean backfillOk = false;
+        try {
+            trainingStatus.set(new TrainingStatus(true, "training", 0, "",
+                    java.time.Instant.now().toString()));
+            trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
+                    withImages, epochs, useGpuSnapshot);
+
+            if (trainingOk) {
                 trainingStatus.set(new TrainingStatus(true, "embedding", 0, "",
                         trainingStatus.get().startedAt()));
-                backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
-                        useGpuSnapshot);
-            } catch (Exception e) {
-                LOG.warn("[ML-INDEX] Error inesperado en la secuencia de construcción de índice: {}",
-                        e.getMessage());
-                marcarFalloIndiceVisual("sequencing", e.getMessage());
-            } finally {
-                if (debeResetearAIdleTrasSecuencia(trainingOk, backfillOk)) {
-                    trainingStatus.set(TrainingStatus.idle());
-                }
             }
-        });
+            backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
+                    useGpuSnapshot);
+
+            if (!trainingOk && backfillOk) {
+                marcarFalloIndiceVisual("training",
+                        "entrenamiento falló, backfill completado igual");
+            }
+        } catch (Exception e) {
+            LOG.warn("[ML-INDEX] Error inesperado en la secuencia de construcción de índice: {}",
+                    e.getMessage());
+            marcarFalloIndiceVisual("sequencing", e.getMessage());
+        } finally {
+            if (debeResetearAIdleTrasSecuencia(trainingOk, backfillOk)) {
+                trainingStatus.set(TrainingStatus.idle());
+            }
+        }
     }
 
     public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
