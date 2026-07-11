@@ -1623,8 +1623,18 @@ public class ApiController {
             return ResponseEntity.badRequest()
                 .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
 
+        // T6.2 (fashion-image-classification PR6): "Construir índice visual"
+        // now drives PythonRunner.construirIndiceVisualEnBackground (T5.4's
+        // sequencing entrypoint) instead of the retired standalone
+        // entrenarEnBackground — runs text re-training FIRST, then the
+        // embeddings backfill, on ONE background thread, without blocking
+        // this HTTP response. forceRetrainTexto stays hardcoded true (unchanged
+        // observable behavior: every manual button click forces a fresh text
+        // re-train, same as before); forceBackfillEmbeddings is also true —
+        // an explicit "Construir índice visual" click is a deliberate
+        // full-rebuild action, not a passive cache-first pass.
         String dbPath = encontrarDbFile().getAbsolutePath();
-        pythonRunner.entrenarEnBackground(dbPath, true, images, epochs);
+        pythonRunner.construirIndiceVisualEnBackground(dbPath, true, images, epochs, true);
         return ResponseEntity.ok(java.util.Map.of("status", "started"));
     }
 

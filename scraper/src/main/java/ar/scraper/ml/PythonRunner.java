@@ -417,10 +417,16 @@ public class PythonRunner {
      */
     public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
             boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
+        if (!intentarReservarSecuenciaIndiceVisual()) {
+            LOG.info("[ML-INDEX] Secuencia de construcción de índice visual ya en curso — solicitud ignorada");
+            return;
+        }
+
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         String python = detectarPython();
         if (python == null) {
             LOG.info("[ML-INDEX] Python no disponible, saltando construcción de índice visual");
+            trainingStatus.set(TrainingStatus.idle()); // libera la reserva — no hay hilo que la haga
             return;
         }
 
@@ -428,6 +434,31 @@ public class PythonRunner {
 
         Thread.ofVirtual().start(() -> ejecutarSecuenciaIndiceVisual(python, workDir, dbPath,
                 forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
+    }
+
+    /**
+     * Test seam / re-entrancy guard (T6.2b, deferred PR5 finding — obs #369):
+     * atomically reserves the "sequence in flight" slot for
+     * {@link #construirIndiceVisualEnBackground}. Returns {@code true} (and
+     * synchronously flips {@link #trainingStatus} to a transient
+     * running=true/{@code "starting"} state) only when no training/embedding
+     * sequence was already running; returns {@code false} without touching the
+     * status otherwise.
+     *
+     * <p>Mirrors {@code ApiController}'s existing {@code isTrainingRunning()}
+     * -then-reject shape, but atomic via CAS so a burst of near-simultaneous
+     * calls can never both win the race — closing the gap where the virtual
+     * thread body used to be the ONLY place that flipped
+     * {@link #trainingStatus} to running=true, leaving a window between
+     * {@code Thread.ofVirtual().start()} returning and the spawned thread's
+     * first statement executing where a second call would still observe
+     * {@code running=false} and launch a second concurrent sequence.</p>
+     */
+    boolean intentarReservarSecuenciaIndiceVisual() {
+        TrainingStatus previo = trainingStatus.get();
+        if (previo.running()) return false;
+        return trainingStatus.compareAndSet(previo,
+                new TrainingStatus(true, "starting", 0, "", java.time.Instant.now().toString()));
     }
 
     /**

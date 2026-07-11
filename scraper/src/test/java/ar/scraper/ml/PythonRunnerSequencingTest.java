@@ -328,4 +328,61 @@ class PythonRunnerSequencingTest {
         assertThat(estado.phase()).isNotEqualTo("idle");
         assertThat(estado.phase()).isEqualTo("error");
     }
+
+    // ── T6.2b: re-entrancy guard for construirIndiceVisualEnBackground ──────
+    // (deferred WARNING from PR5's 4R review, obs #369 — "reentrancy guard for
+    // construirIndiceVisualEnBackground, do in PR6 when wiring /api/ml/entrenar,
+    // mirror ApiController isTrainingRunning() guard"). ApiController already
+    // rejects a second HTTP request when isTrainingRunning() is true, but that
+    // check happens on the HTTP thread BEFORE the virtual thread that actually
+    // flips trainingStatus to running=true ever starts running — a burst of
+    // near-simultaneous calls could both observe running=false and both launch
+    // a sequence. intentarReservarSecuenciaIndiceVisual() closes that window by
+    // making the reservation atomic (CAS) and synchronous, at the top of the
+    // public entrypoint, before any thread is spawned.
+
+    @Test
+    @DisplayName("guard reserves the slot from idle and flips trainingStatus synchronously")
+    void reservaSecuenciaTieneExitoDesdeIdle() {
+        assertThat(runner.isTrainingRunning()).isFalse();
+
+        boolean reservado = runner.intentarReservarSecuenciaIndiceVisual();
+
+        assertThat(reservado).isTrue();
+        assertThat(runner.isTrainingRunning()).isTrue();
+    }
+
+    @Test
+    @DisplayName("guard rejects a second reservation while one is already in flight")
+    void reservaSecuenciaFallaCuandoYaHayUnaEnCurso() {
+        assertThat(runner.intentarReservarSecuenciaIndiceVisual()).isTrue();
+
+        boolean segundaReserva = runner.intentarReservarSecuenciaIndiceVisual();
+
+        assertThat(segundaReserva).isFalse();
+    }
+
+    @Test
+    @DisplayName("guard succeeds again from a durable non-idle error state (running=false but phase!=idle)")
+    void reservaSecuenciaTieneExitoTrasEstadoDeErrorDurable(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) {
+        runner.ejecutarFaseEntrenamientoSecuenciada(PYTHON_INEXISTENTE, workDir,
+                workDir.resolve("scraper.db").toString(), false, false, 8, false);
+        assertThat(runner.getTrainingStatus().phase()).isEqualTo("error");
+        assertThat(runner.isTrainingRunning()).isFalse();
+
+        assertThat(runner.intentarReservarSecuenciaIndiceVisual()).isTrue();
+    }
+
+    @Test
+    @DisplayName("construirIndiceVisualEnBackground no-ops when a sequence is already reserved/running")
+    void construirIndiceVisualNoOpCuandoYaHayUnaSecuenciaEnCurso() throws Exception {
+        assertThat(runner.intentarReservarSecuenciaIndiceVisual()).isTrue();
+        TrainingStatus antes = runner.getTrainingStatus();
+
+        runner.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
+        Thread.sleep(100);
+
+        assertThat(runner.getTrainingStatus()).isEqualTo(antes);
+    }
 }

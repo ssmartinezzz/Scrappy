@@ -129,9 +129,14 @@ class ApiControllerMlOpsTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("error").asText()).contains("curso");
-        verify(pythonRunner, never()).entrenarEnBackground(any(), anyBoolean(), anyBoolean(), anyInt());
+        verify(pythonRunner, never())
+                .construirIndiceVisualEnBackground(any(), anyBoolean(), anyBoolean(), anyInt(), anyBoolean());
     }
 
+    // T6.1/T6.2: /api/ml/entrenar now drives the T5.4 sequencing entrypoint
+    // (construirIndiceVisualEnBackground), which runs text re-training FIRST
+    // then the embeddings backfill on ONE background thread — never the
+    // retired standalone entrenarEnBackground path.
     @Test
     void mlEntrenarReturnsStartedWhenIdle() {
         when(pythonRunner.isTrainingRunning()).thenReturn(false);
@@ -141,7 +146,27 @@ class ApiControllerMlOpsTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
-        verify(pythonRunner).entrenarEnBackground(any(), eq(true), eq(false), eq(8));
+        verify(pythonRunner).construirIndiceVisualEnBackground(any(), eq(true), eq(false), eq(8), eq(true));
+        verify(pythonRunner, never()).entrenarEnBackground(any(), anyBoolean(), anyBoolean(), anyInt());
+    }
+
+    @Test
+    void mlEntrenarDoesNotBlockOnConstruirIndiceVisualEnBackgroundCall() {
+        when(pythonRunner.isTrainingRunning()).thenReturn(false);
+        // Simulates the real contract: construirIndiceVisualEnBackground itself
+        // dispatches to a background thread and returns immediately — the
+        // controller must never await any callback/latch, just delegate and
+        // respond "started" synchronously.
+        doAnswer(inv -> null).when(pythonRunner)
+                .construirIndiceVisualEnBackground(any(), anyBoolean(), anyBoolean(), anyInt(), anyBoolean());
+
+        long start = System.nanoTime();
+        var resp = controller.mlEntrenar(true, 8);
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(elapsedMs).isLessThan(500);
+        verify(pythonRunner).construirIndiceVisualEnBackground(any(), eq(true), eq(true), eq(8), eq(true));
     }
 
     // ── POST /api/ml/aplicar ─────────────────────────────────────────────
