@@ -187,8 +187,9 @@ public class PythonRunner {
                 cmd.add(trainScript.toString());
                 cmd.add(dbPath);
 
-                boolean hasCuda  = useGpuSnapshot && tieneCuda(python, useGpuSnapshot);
-                boolean hasTorch = hasCuda || tienePytorch(python, useGpuSnapshot);
+                boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
+                boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
+                boolean hasTorch = hasCuda || tienePytorch(python, forceCpuProbe);
                 if (withImages && hasTorch) {
                     cmd.add("--images");
                     cmd.add("--epochs");
@@ -290,6 +291,22 @@ public class PythonRunner {
         } catch (Exception e) {
             LOG.debug("[ML-TRAIN] Auto-apply skipped: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Test seam (package-private): computes the {@code forceCpu} argument
+     * that {@link #entrenarEnBackground} passes into the {@code tieneCuda}/
+     * {@code tienePytorch} probes, from the {@code useGpuSnapshot} flag
+     * ({@code true} = GPU allowed). The probes' {@code forceCpu} has the
+     * INVERSE polarity ({@code true} = force CPU on that probe subprocess
+     * via {@code CUDA_VISIBLE_DEVICES=-1}), so this must return
+     * {@code !useGpuSnapshot}. Extracted so the polarity itself is a named,
+     * directly testable unit instead of an inline expression — a previous
+     * version passed {@code useGpuSnapshot} straight through, which forced
+     * CPU on the CUDA probe whenever GPU was enabled and defeated detection.
+     */
+    boolean forceCpuParaProbes(boolean useGpuSnapshot) {
+        return !useGpuSnapshot;
     }
 
     private boolean tienePytorch(String python, boolean forceCpu) {
