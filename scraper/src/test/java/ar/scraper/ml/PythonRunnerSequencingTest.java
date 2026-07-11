@@ -121,4 +121,107 @@ class PythonRunnerSequencingTest {
 
         assertThat(result).isEqualTo(previo);
     }
+
+    // ── extraerProcesadasDeLineaProgreso (RESI-002) ──────────────────────────
+
+    @Test
+    void extraerProcesadasParsesProcessedCountFromPerRowProgressLine() {
+        String line = "{\"phase\":\"embedding\",\"pct\":25,\"msg\":\"5/20 — https://site.com/p\"}";
+        assertThat(runner.extraerProcesadasDeLineaProgreso(line)).isEqualTo(5);
+    }
+
+    @Test
+    void extraerProcesadasReturnsMinusOneForNoPendingProductsMessage() {
+        String line = "{\"phase\":\"embedding\",\"pct\":100,\"msg\":\"sin productos pendientes\"}";
+        assertThat(runner.extraerProcesadasDeLineaProgreso(line)).isEqualTo(-1);
+    }
+
+    @Test
+    void extraerProcesadasReturnsMinusOneForCompletionMessage() {
+        String line = "{\"phase\":\"embedding\",\"pct\":100,\"msg\":\"backfill completo\"}";
+        assertThat(runner.extraerProcesadasDeLineaProgreso(line)).isEqualTo(-1);
+    }
+
+    @Test
+    void extraerProcesadasReturnsMinusOneForNonJsonOrMalformedLine() {
+        assertThat(runner.extraerProcesadasDeLineaProgreso("not json")).isEqualTo(-1);
+        assertThat(runner.extraerProcesadasDeLineaProgreso(null)).isEqualTo(-1);
+        assertThat(runner.extraerProcesadasDeLineaProgreso("{\"pct\": not-a-number")).isEqualTo(-1);
+    }
+
+    // ── esBackfillDegradado (RESI-002) ───────────────────────────────────────
+
+    @Test
+    void backfillIsDegradedWhenEveryProcessedRowHadNoVisualSignal() {
+        assertThat(runner.esBackfillDegradado(20, 20)).isTrue();
+    }
+
+    @Test
+    void backfillIsNotDegradedWhenSomeRowsPersistedSignal() {
+        assertThat(runner.esBackfillDegradado(20, 5)).isFalse();
+    }
+
+    @Test
+    void backfillIsNotDegradedWhenNoRowsWereProcessed() {
+        // filasProcesadas == -1 (never observed a per-row progress line, e.g.
+        // "sin productos pendientes" run) must never be reported as degraded.
+        assertThat(runner.esBackfillDegradado(-1, 0)).isFalse();
+        assertThat(runner.esBackfillDegradado(0, 0)).isFalse();
+    }
+
+    // ── debeResetearAIdleTrasSecuencia (RESI-003) ────────────────────────────
+
+    @Test
+    void resetsToIdleOnlyWhenBothPhasesSucceed() {
+        assertThat(runner.debeResetearAIdleTrasSecuencia(true, true)).isTrue();
+    }
+
+    @Test
+    void doesNotResetToIdleWhenTrainingPhaseFails() {
+        assertThat(runner.debeResetearAIdleTrasSecuencia(false, true)).isFalse();
+    }
+
+    @Test
+    void doesNotResetToIdleWhenBackfillPhaseFails() {
+        assertThat(runner.debeResetearAIdleTrasSecuencia(true, false)).isFalse();
+    }
+
+    @Test
+    void doesNotResetToIdleWhenBothPhasesFail() {
+        assertThat(runner.debeResetearAIdleTrasSecuencia(false, false)).isFalse();
+    }
+
+    // ── Phase methods write a durable error terminal status on failure (RESI-003) ──
+    // Uses a nonexistent "python" executable so ProcessBuilder.start() throws
+    // IOException immediately — deterministic and fast, no real interpreter
+    // needed, and exercises the REAL call sites (not just the pure seams above).
+
+    private static final String PYTHON_INEXISTENTE = "this-python-executable-does-not-exist-xyz";
+
+    @Test
+    void trainingPhaseWritesDurableErrorStatusWhenProcessCannotStart(@org.junit.jupiter.api.io.TempDir
+            java.nio.file.Path workDir) {
+        boolean ok = runner.ejecutarFaseEntrenamientoSecuenciada(
+                PYTHON_INEXISTENTE, workDir, workDir.resolve("scraper.db").toString(),
+                false, false, 8, false);
+
+        assertThat(ok).isFalse();
+        TrainingStatus estado = runner.getTrainingStatus();
+        assertThat(estado.running()).isFalse();
+        assertThat(estado.phase()).isEqualTo("error");
+        assertThat(estado.msg()).contains("training");
+    }
+
+    @Test
+    void backfillPhaseWritesDurableErrorStatusWhenProcessCannotStart(@org.junit.jupiter.api.io.TempDir
+            java.nio.file.Path workDir) {
+        boolean ok = runner.ejecutarFaseBackfillSecuenciada(
+                PYTHON_INEXISTENTE, workDir, workDir.resolve("scraper.db").toString(), false, false);
+
+        assertThat(ok).isFalse();
+        TrainingStatus estado = runner.getTrainingStatus();
+        assertThat(estado.running()).isFalse();
+        assertThat(estado.phase()).isEqualTo("error");
+        assertThat(estado.msg()).contains("embedding");
+    }
 }

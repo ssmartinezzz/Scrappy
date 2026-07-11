@@ -404,6 +404,16 @@ public class PythonRunner {
      * either phase degrades to a logged no-op and the sequence still
      * attempts the next phase (backfill still runs even if text-training
      * was skipped or failed).
+     *
+     * <p>RESI-003: each phase now reports success/failure back to this
+     * entrypoint. The {@code finally} block only resets {@link #trainingStatus}
+     * to {@link TrainingStatus#idle()} when BOTH phases succeeded
+     * ({@link #debeResetearAIdleTrasSecuencia}) — a phase failure already wrote
+     * a durable {@code phase="error"} terminal state (via
+     * {@link #marcarFalloIndiceVisual}, mirroring {@link #entrenarEnBackground}'s
+     * existing error-state pattern at its {@code exit != 0}/exception branches)
+     * that must survive so {@code /api/ml/estado} polling can observe it
+     * instead of seeing a falsely-idle run.</p>
      */
     public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
             boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
@@ -417,21 +427,26 @@ public class PythonRunner {
         Path workDir = Paths.get("").toAbsolutePath();
 
         Thread.ofVirtual().start(() -> {
+            boolean trainingOk = false;
+            boolean backfillOk = false;
             try {
                 trainingStatus.set(new TrainingStatus(true, "training", 0, "",
                         java.time.Instant.now().toString()));
-                ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
+                trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
                         withImages, epochs, useGpuSnapshot);
 
                 trainingStatus.set(new TrainingStatus(true, "embedding", 0, "",
                         trainingStatus.get().startedAt()));
-                ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
+                backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
                         useGpuSnapshot);
             } catch (Exception e) {
                 LOG.warn("[ML-INDEX] Error inesperado en la secuencia de construcción de índice: {}",
                         e.getMessage());
+                marcarFalloIndiceVisual("sequencing", e.getMessage());
             } finally {
-                trainingStatus.set(TrainingStatus.idle());
+                if (debeResetearAIdleTrasSecuencia(trainingOk, backfillOk)) {
+                    trainingStatus.set(TrainingStatus.idle());
+                }
             }
         });
     }
@@ -441,8 +456,173 @@ public class PythonRunner {
         construirIndiceVisualEnBackground(dbPath, forceRetrainTexto, false, 8, forceBackfillEmbeddings);
     }
 
-    /** Fase "training" de {@link #construirIndiceVisualEnBackground}. Nunca lanza. */
-    private void ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir, String dbPath,
+    /** Outcome of {@link #esperarConDrain}: whether the process finished within
+     * the deadline, and its exit code when it did ({@code -1} when it didn't). */
+    record ResultadoEspera(boolean finished, int exitCode) {}
+
+    /**
+     * Test seam (package-private): RESI-001 fix. Drains {@code proc}'s stdout
+     * (tagging every parsed progress line into {@link #trainingStatus} via
+     * {@link #parsearLineaProgreso} under macro-phase {@code fase}, and handing
+     * the raw line to the optional {@code stdoutLineHandler}) and stderr (via
+     * the optional {@code stderrLineHandler}) on separate virtual threads,
+     * while THIS thread blocks ONLY on {@code proc.waitFor(timeout, unit)} —
+     * never on a blocking stdout {@code readLine()} loop.
+     *
+     * <p>Previously (both sequencing phase methods) stdout was read to EOF
+     * with a blocking {@code readLine()} loop BEFORE {@code waitFor} was ever
+     * reached, so a child that stayed alive with stdout open but silent (e.g.
+     * a cold model-weight download inside {@code _load_model} that emits no
+     * progress) blocked the calling thread forever and the timeout was never
+     * evaluated. Draining on separate threads keeps {@code waitFor}'s deadline
+     * reachable regardless of the child's stdout behavior.</p>
+     *
+     * <p>On timeout, force-kills {@code proc} and returns immediately WITHOUT
+     * waiting for the drain threads — a hung child's streams may never close
+     * on their own. On a normal exit, joins both drain threads with a short
+     * bounded wait ({@link #joinDrainThread}) so the last buffered lines are
+     * captured before the caller inspects any counters derived from the line
+     * handlers (e.g. backfill's degraded-row count, RESI-002).</p>
+     *
+     * <p>{@code timeout}/{@code unit} are parameterized (rather than a
+     * hardcoded {@code 180L} MINUTES) purely so a test can inject a short
+     * deadline against a synthetic long-lived, silent child process without
+     * waiting 180 real minutes; production call sites always pass
+     * {@code MINUTES}.</p>
+     */
+    ResultadoEspera esperarConDrain(Process proc, long timeout, TimeUnit unit, String fase,
+            java.util.function.Consumer<String> stdoutLineHandler,
+            java.util.function.Consumer<String> stderrLineHandler) {
+        Thread stdoutThread = Thread.ofVirtual().start(() -> {
+            try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    trainingStatus.set(parsearLineaProgreso(line, fase, trainingStatus.get()));
+                    if (stdoutLineHandler != null) stdoutLineHandler.accept(line);
+                }
+            } catch (Exception ignored) {}
+        });
+        Thread stderrThread = Thread.ofVirtual().start(() -> {
+            try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (stderrLineHandler != null) stderrLineHandler.accept(line);
+                }
+            } catch (Exception ignored) {}
+        });
+
+        boolean finished;
+        try {
+            finished = proc.waitFor(timeout, unit);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            finished = false;
+        }
+        if (!finished) {
+            proc.destroyForcibly();
+            return new ResultadoEspera(false, -1);
+        }
+        joinDrainThread(stdoutThread);
+        joinDrainThread(stderrThread);
+        return new ResultadoEspera(true, proc.exitValue());
+    }
+
+    /** Bounded join for a stdout/stderr drain thread after {@code waitFor()}
+     * returns — the child's streams close once the process exits, so the
+     * reader thread reaches EOF and finishes almost immediately; this join is
+     * just to avoid racing the last couple of buffered lines before the
+     * caller reads final counters. Never blocks indefinitely. */
+    private void joinDrainThread(Thread t) {
+        try {
+            t.join(java.time.Duration.ofSeconds(5).toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Marker text ml_embeddings.py's {@code backfill()} logs to stderr, once
+     * per row, when {@code classify()} degraded to its no-signal sentinel and
+     * that row's visual attrs were skipped-not-persisted (see
+     * ml_embeddings.py's per-row skip branch, ~line 836). Used by
+     * {@link #esBackfillDegradado} detection (RESI-002) — counted, never
+     * parsed further. */
+    static final String BACKFILL_SIN_SENAL_MARKER = "no visual signal for";
+
+    private static final java.util.regex.Pattern PROGRESO_PROCESADAS_PATTERN =
+            java.util.regex.Pattern.compile("^(\\d+)/(\\d+) — ");
+
+    /**
+     * Test seam (package-private, pure): RESI-002. Extracts the running
+     * "processed" count from a backfill per-row progress line shaped
+     * {@code {"phase":"embedding","pct":N,"msg":"{processed}/{total} — {url}"}}
+     * (see ml_embeddings.py's {@code backfill()} per-row {@code _emit_progress}
+     * call). Returns {@code -1} when {@code line} doesn't match that shape
+     * (non-JSON, missing {@code pct}, or a msg like "sin productos
+     * pendientes"/"backfill completo"/an error message), so callers can tell
+     * "no count observed yet" apart from a real {@code 0}.
+     */
+    int extraerProcesadasDeLineaProgreso(String line) {
+        if (line == null || !line.startsWith("{") || !line.contains("\"pct\"")) return -1;
+        try {
+            var node = MAPPER.readTree(line);
+            String msg = node.path("msg").asText("");
+            var m = PROGRESO_PROCESADAS_PATTERN.matcher(msg);
+            return m.find() ? Integer.parseInt(m.group(1)) : -1;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Test seam (package-private, pure): RESI-002 degraded-backfill detector.
+     * A backfill "succeeds" (exit 0) even when the model never loaded and
+     * every processed row hit ml_embeddings.py's classify()-degrades-to-""
+     * skip branch (logged via {@link #BACKFILL_SIN_SENAL_MARKER} instead of
+     * persisted) — {@code ml_embeddings.py} always {@code sys.exit(0)} for the
+     * {@code backfill} subcommand regardless. Returns {@code true} only when
+     * at least one row was actually processed AND every processed row was
+     * skipped — a partially-degraded run (some rows persisted, some skipped)
+     * is NOT reported as degraded, since it still added real signal.
+     */
+    boolean esBackfillDegradado(int filasProcesadas, int filasSinSenal) {
+        return filasProcesadas > 0 && filasSinSenal >= filasProcesadas;
+    }
+
+    /**
+     * Test seam (package-private): RESI-003. Writes a durable
+     * {@code phase="error"} terminal {@link TrainingStatus} — mirrors
+     * {@link #entrenarEnBackground}'s existing error-state pattern
+     * ({@code new TrainingStatus(false, "error", 0, "exit " + exitCode, null)}).
+     * Called by both sequenced phase methods on timeout, non-zero exit,
+     * RESI-002 degraded-backfill detection, and unexpected exceptions, so
+     * {@code /api/ml/estado} polling can observe the failure instead of the
+     * entrypoint's {@code finally} silently resetting to idle over it (see
+     * {@link #debeResetearAIdleTrasSecuencia}).
+     */
+    private void marcarFalloIndiceVisual(String fase, String motivo) {
+        trainingStatus.set(new TrainingStatus(false, "error", 0,
+                "[" + fase + "] " + (motivo != null ? motivo : ""), null));
+    }
+
+    /**
+     * Test seam (package-private, pure): RESI-003 decision — whether
+     * {@link #construirIndiceVisualEnBackground}'s {@code finally} block may
+     * reset {@link #trainingStatus} back to {@link TrainingStatus#idle()}.
+     * Only {@code true} when BOTH phases reported success; if either phase
+     * failed, it already wrote a durable {@code phase="error"} terminal state
+     * (via {@link #marcarFalloIndiceVisual}) that {@code /api/ml/estado}
+     * polling must be able to observe — resetting to idle in that case would
+     * silently erase the failure and make it indistinguishable from success.
+     */
+    boolean debeResetearAIdleTrasSecuencia(boolean trainingOk, boolean backfillOk) {
+        return trainingOk && backfillOk;
+    }
+
+    /** Fase "training" de {@link #construirIndiceVisualEnBackground}. Nunca lanza.
+     * @return {@code true} on success (including a fresh-model skip); {@code false}
+     * on timeout, non-zero exit, or an unexpected exception — in every failure
+     * case a durable error state is written via {@link #marcarFalloIndiceVisual}. */
+    boolean ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir, String dbPath,
             boolean forceRetrain, boolean withImages, int epochs, boolean useGpuSnapshot) {
         try {
             Path modelsDir = workDir.resolve("_models");
@@ -458,7 +638,7 @@ public class PythonRunner {
             if (debeSaltearEntrenamientoPorFrescura(modelExists, forceRetrain, edadMillis)) {
                 LOG.info("[ML-INDEX] [TRAINING] Modelo reciente ({} horas) — saltando re-entrenamiento",
                         edadMillis / 3600000);
-                return;
+                return true;
             }
 
             Path trainScript = extraerTrainScript(workDir);
@@ -479,42 +659,38 @@ public class PythonRunner {
             ProcessBuilder pb = construirProcessBuilderEntrenamiento(cmd, workDir, useGpuSnapshot);
             Process proc = pb.start();
 
-            Thread.ofVirtual().start(() -> {
-                try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                    String line;
-                    while ((line = br.readLine()) != null) LOG.info("[ML-INDEX] [TRAINING] {}", line);
-                } catch (Exception ignored) {}
-            });
-
-            try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    trainingStatus.set(parsearLineaProgreso(line, "training", trainingStatus.get()));
-                }
-            }
-
             boolean withImg = cmd.contains("--images");
             long timeoutMin = withImg ? 180L : 15L;
-            boolean finished = proc.waitFor(timeoutMin, TimeUnit.MINUTES);
-            if (!finished) {
-                proc.destroyForcibly();
+            ResultadoEspera espera = esperarConDrain(proc, timeoutMin, TimeUnit.MINUTES, "training",
+                    null, line -> LOG.info("[ML-INDEX] [TRAINING] {}", line));
+
+            if (!espera.finished()) {
                 LOG.error("[ML-INDEX] [TRAINING] TIMEOUT tras {} min — proceso terminado forzosamente",
                         timeoutMin);
-                return;
+                marcarFalloIndiceVisual("training", "timeout tras " + timeoutMin + " min");
+                return false;
             }
-            if (proc.exitValue() == 0) {
+            if (espera.exitCode() == 0) {
                 LOG.info("[ML-INDEX] [TRAINING] ✓ completado");
                 aplicarModeloActual();
-            } else {
-                LOG.warn("[ML-INDEX] [TRAINING] Proceso terminó con código {}", proc.exitValue());
+                return true;
             }
+            LOG.warn("[ML-INDEX] [TRAINING] Proceso terminó con código {}", espera.exitCode());
+            marcarFalloIndiceVisual("training", "exit " + espera.exitCode());
+            return false;
         } catch (Exception e) {
             LOG.warn("[ML-INDEX] [TRAINING] Error inesperado: {}", e.getMessage());
+            marcarFalloIndiceVisual("training", e.getMessage());
+            return false;
         }
     }
 
-    /** Fase "embedding" de {@link #construirIndiceVisualEnBackground}. Nunca lanza. */
-    private void ejecutarFaseBackfillSecuenciada(String python, Path workDir, String dbPath,
+    /** Fase "embedding" de {@link #construirIndiceVisualEnBackground}. Nunca lanza.
+     * @return {@code true} on a genuinely successful backfill; {@code false} on
+     * timeout, non-zero exit, RESI-002 degraded-run detection, or an unexpected
+     * exception — in every failure case a durable error state is written via
+     * {@link #marcarFalloIndiceVisual}. */
+    boolean ejecutarFaseBackfillSecuenciada(String python, Path workDir, String dbPath,
             boolean force, boolean useGpuSnapshot) {
         try {
             Path scriptPath = extraerEmbeddingsScript(workDir);
@@ -522,35 +698,43 @@ public class PythonRunner {
                     python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
             Process proc = pb.start();
 
-            Thread.ofVirtual().start(() -> {
-                try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                    String line;
-                    while ((line = br.readLine()) != null) LOG.info("[ML-INDEX] [EMBEDDING] {}", line);
-                } catch (Exception ignored) {}
-            });
-
-            try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    trainingStatus.set(parsearLineaProgreso(line, "embedding", trainingStatus.get()));
-                }
-            }
+            var filasProcesadas = new java.util.concurrent.atomic.AtomicInteger(-1);
+            var filasSinSenal = new java.util.concurrent.atomic.AtomicInteger(0);
 
             long timeoutMin = 180L;
-            boolean finished = proc.waitFor(timeoutMin, TimeUnit.MINUTES);
-            if (!finished) {
-                proc.destroyForcibly();
+            ResultadoEspera espera = esperarConDrain(proc, timeoutMin, TimeUnit.MINUTES, "embedding",
+                    line -> {
+                        int procesadas = extraerProcesadasDeLineaProgreso(line);
+                        if (procesadas >= 0) filasProcesadas.set(procesadas);
+                    },
+                    line -> {
+                        LOG.info("[ML-INDEX] [EMBEDDING] {}", line);
+                        if (line.contains(BACKFILL_SIN_SENAL_MARKER)) filasSinSenal.incrementAndGet();
+                    });
+
+            if (!espera.finished()) {
                 LOG.error("[ML-INDEX] [EMBEDDING] TIMEOUT tras {} min — proceso terminado forzosamente",
                         timeoutMin);
-                return;
+                marcarFalloIndiceVisual("embedding", "timeout tras " + timeoutMin + " min");
+                return false;
             }
-            if (proc.exitValue() == 0) {
-                LOG.info("[ML-INDEX] [EMBEDDING] ✓ completado");
-            } else {
-                LOG.warn("[ML-INDEX] [EMBEDDING] Proceso terminó con código {}", proc.exitValue());
+            if (espera.exitCode() != 0) {
+                LOG.warn("[ML-INDEX] [EMBEDDING] Proceso terminó con código {}", espera.exitCode());
+                marcarFalloIndiceVisual("embedding", "exit " + espera.exitCode());
+                return false;
             }
+            if (esBackfillDegradado(filasProcesadas.get(), filasSinSenal.get())) {
+                LOG.warn("[ML-INDEX] [EMBEDDING] backfill degradado — modelo no disponible, {} de {} filas sin señal visual",
+                        filasSinSenal.get(), filasProcesadas.get());
+                marcarFalloIndiceVisual("embedding", "degradado: modelo no disponible");
+                return false;
+            }
+            LOG.info("[ML-INDEX] [EMBEDDING] ✓ completado");
+            return true;
         } catch (Exception e) {
             LOG.warn("[ML-INDEX] [EMBEDDING] Error inesperado: {}", e.getMessage());
+            marcarFalloIndiceVisual("embedding", e.getMessage());
+            return false;
         }
     }
 
@@ -582,11 +766,23 @@ public class PythonRunner {
                             python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
                     Process proc = pb.start();
 
+                    // RESI-002: counters for degraded-backfill detection (model never
+                    // loaded, every processed row skipped-not-persisted — exit code is
+                    // still 0, see esBackfillDegradado's javadoc). Populated by the
+                    // existing stdout/stderr read loops below — no change to their
+                    // blocking read-before-waitFor structure (that latent RESI-001
+                    // pattern is explicitly out of scope for this pre-existing entrypoint).
+                    var filasProcesadas = new java.util.concurrent.atomic.AtomicInteger(-1);
+                    var filasSinSenal = new java.util.concurrent.atomic.AtomicInteger(0);
+
                     // Stderr: logs [ML-BACKFILL]
-                    Thread.ofVirtual().start(() -> {
+                    Thread stderrThread = Thread.ofVirtual().start(() -> {
                         try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
                             String line;
-                            while ((line = br.readLine()) != null) LOG.info("[ML-BACKFILL] {}", line);
+                            while ((line = br.readLine()) != null) {
+                                LOG.info("[ML-BACKFILL] {}", line);
+                                if (line.contains(BACKFILL_SIN_SENAL_MARKER)) filasSinSenal.incrementAndGet();
+                            }
                         } catch (Exception ignored) {}
                     });
 
@@ -603,6 +799,8 @@ public class PythonRunner {
                                     LOG.info("[ML-BACKFILL] [{}] {}% — {}", ph.toUpperCase(), pct, msg);
                                     backfillStatus.set(new BackfillStatus(true, pct, msg,
                                             backfillStatus.get().startedAt()));
+                                    int procesadas = extraerProcesadasDeLineaProgreso(line);
+                                    if (procesadas >= 0) filasProcesadas.set(procesadas);
                                 } catch (Exception ignored) {}
                             }
                         }
@@ -618,10 +816,20 @@ public class PythonRunner {
                         backfillStatus.set(BackfillStatus.idle());
                         return;
                     }
+                    // Brief bounded join so the stderr thread (racing the stdout loop
+                    // above, which already blocked until the child's stdout closed at
+                    // exit) has a moment to flush its last buffered lines before the
+                    // degraded-row count below is read.
+                    joinDrainThread(stderrThread);
 
                     int exitCode = proc.exitValue();
                     if (exitCode == 0) {
-                        LOG.info("[ML-BACKFILL] ✓ BACKFILL COMPLETADO");
+                        if (esBackfillDegradado(filasProcesadas.get(), filasSinSenal.get())) {
+                            LOG.warn("[ML-BACKFILL] backfill degradado — modelo no disponible, {} de {} filas sin señal visual",
+                                    filasSinSenal.get(), filasProcesadas.get());
+                        } else {
+                            LOG.info("[ML-BACKFILL] ✓ BACKFILL COMPLETADO");
+                        }
                     } else {
                         LOG.warn("[ML-BACKFILL] Proceso terminó con código {}", exitCode);
                     }
