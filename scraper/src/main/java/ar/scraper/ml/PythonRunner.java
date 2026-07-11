@@ -27,6 +27,16 @@ public class PythonRunner {
     private final java.util.concurrent.atomic.AtomicReference<TrainingStatus> trainingStatus =
         new java.util.concurrent.atomic.AtomicReference<>(TrainingStatus.idle());
 
+    /** Status of the visual-attribute backfill launched by {@link #backfillEmbeddingsEnBackground}. */
+    public record BackfillStatus(boolean running, int pct, String msg, String startedAt) {
+        public static BackfillStatus idle() {
+            return new BackfillStatus(false, 0, "", null);
+        }
+    }
+
+    private final java.util.concurrent.atomic.AtomicReference<BackfillStatus> backfillStatus =
+        new java.util.concurrent.atomic.AtomicReference<>(BackfillStatus.idle());
+
     /**
      * Flag GPU/CPU por-job para los cron runs (scraper-cronjobs PR1, ver ADR-2
      * en sdd/scraper-cronjobs/design). {@code true} (default) = comportamiento
@@ -62,6 +72,10 @@ public class PythonRunner {
             Path outPath   = workDir.resolve("ml_output.json");
             Path histPath  = workDir.resolve("precio_historico.json");
             Path scriptPath = extraerScript(workDir);
+            // Stage-1b category/gender image refinement (ml_pipeline.py `import
+            // ml_embeddings`) fails silently and degrades to text-only if this
+            // sibling script isn't extracted alongside ml_pipeline.py.
+            extraerEmbeddingsScript(workDir);
 
             Files.writeString(prodPath, productosJson);
 
@@ -118,6 +132,8 @@ public class PythonRunner {
     public TrainingStatus getTrainingStatus() { return trainingStatus.get(); }
     public boolean isTrainingRunning()        { return trainingStatus.get().running(); }
 
+    public BackfillStatus getBackfillStatus()  { return backfillStatus.get(); }
+
     private Path extraerScript(Path workDir) throws Exception {
         Path dest = workDir.resolve("ml_pipeline.py");
         try (InputStream is = getClass().getResourceAsStream("/ml/ml_pipeline.py")) {
@@ -135,6 +151,26 @@ public class PythonRunner {
                 Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
             } else if (!Files.exists(dest)) {
                 throw new java.io.FileNotFoundException("ml_train.py no encontrado en classpath ni en " + dest);
+            }
+        }
+        return dest;
+    }
+
+    /**
+     * Extrae ml_embeddings.py al directorio de trabajo, junto a ml_pipeline.py.
+     * Requerido tanto por el stage-1b de refinamiento de imagen del pipeline
+     * de scoring ({@code import ml_embeddings}) como por el launcher de
+     * backfill ({@link #backfillEmbeddingsEnBackground}) — sin este archivo
+     * ambos degradan silenciosamente a solo-texto. Mirror de
+     * {@link #extraerTrainScript}: tolera que el archivo ya exista.
+     */
+    private Path extraerEmbeddingsScript(Path workDir) throws Exception {
+        Path dest = workDir.resolve("ml_embeddings.py");
+        try (InputStream is = getClass().getResourceAsStream("/ml/ml_embeddings.py")) {
+            if (is != null) {
+                Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
+            } else if (!Files.exists(dest)) {
+                throw new java.io.FileNotFoundException("ml_embeddings.py no encontrado en classpath ni en " + dest);
             }
         }
         return dest;
@@ -278,6 +314,92 @@ public class PythonRunner {
         entrenarEnBackground(dbPath, false, false, 8);
     }
 
+    /**
+     * Lanza el backfill de atributos visuales ({@code ml_embeddings.py backfill})
+     * en background. Ver el docstring de {@code backfill()} en ml_embeddings.py
+     * (~línea 718), que nombra explícitamente este método como su contraparte Java.
+     * Nunca lanza excepciones — cualquier fallo degrada a un no-op logueado.
+     */
+    public void backfillEmbeddingsEnBackground(String dbPath, boolean force) {
+        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
+        try {
+            String python = detectarPython();
+            if (python == null) {
+                LOG.info("[ML-BACKFILL] Python no disponible, saltando backfill de embeddings");
+                return;
+            }
+
+            Path workDir = Paths.get("").toAbsolutePath();
+
+            Thread.ofVirtual().start(() -> {
+                try {
+                    backfillStatus.set(new BackfillStatus(true, 0, "",
+                            java.time.Instant.now().toString()));
+
+                    Path scriptPath = extraerEmbeddingsScript(workDir);
+
+                    ProcessBuilder pb = construirProcessBuilderBackfill(
+                            python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
+                    Process proc = pb.start();
+
+                    // Stderr: logs [ML-BACKFILL]
+                    Thread.ofVirtual().start(() -> {
+                        try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
+                            String line;
+                            while ((line = br.readLine()) != null) LOG.info("[ML-BACKFILL] {}", line);
+                        } catch (Exception ignored) {}
+                    });
+
+                    // Stdout: progress JSON lines — {"phase":"embedding","pct":N,"msg":"..."}
+                    try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                        String line;
+                        while ((line = br.readLine()) != null) {
+                            if (line.startsWith("{") && line.contains("\"pct\"")) {
+                                try {
+                                    var node = MAPPER.readTree(line);
+                                    int pct   = node.path("pct").asInt();
+                                    String ph = node.path("phase").asText("");
+                                    String msg = node.path("msg").asText("");
+                                    LOG.info("[ML-BACKFILL] [{}] {}% — {}", ph.toUpperCase(), pct, msg);
+                                    backfillStatus.set(new BackfillStatus(true, pct, msg,
+                                            backfillStatus.get().startedAt()));
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+
+                    // Full-catalog download + embedding pass, generous timeout — same as
+                    // the `--images` training path (see entrenarEnBackground).
+                    long timeoutMin = 180L;
+                    boolean finished = proc.waitFor(timeoutMin, TimeUnit.MINUTES);
+                    if (!finished) {
+                        proc.destroyForcibly();
+                        LOG.error("[ML-BACKFILL] TIMEOUT tras {} min — proceso terminado forzosamente", timeoutMin);
+                        backfillStatus.set(BackfillStatus.idle());
+                        return;
+                    }
+
+                    int exitCode = proc.exitValue();
+                    if (exitCode == 0) {
+                        LOG.info("[ML-BACKFILL] ✓ BACKFILL COMPLETADO");
+                    } else {
+                        LOG.warn("[ML-BACKFILL] Proceso terminó con código {}", exitCode);
+                    }
+                    backfillStatus.set(BackfillStatus.idle());
+                } catch (Exception e) {
+                    LOG.warn("[ML-BACKFILL] Error inesperado: {}", e.getMessage());
+                    backfillStatus.set(BackfillStatus.idle());
+                }
+            });
+        } catch (Exception e) {
+            LOG.warn("[ML-BACKFILL] Error inesperado al lanzar el backfill: {}", e.getMessage());
+        }
+    }
+
+    public void backfillEmbeddingsEnBackground(String dbPath) {
+        backfillEmbeddingsEnBackground(dbPath, false);
+    }
+
     private void aplicarModeloActual() {
         try {
             var client = java.net.http.HttpClient.newHttpClient();
@@ -369,6 +491,29 @@ public class PythonRunner {
                 .redirectErrorStream(false);
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
+        if (!useGpuSnapshot) {
+            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
+        }
+        return pb;
+    }
+
+    /** ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}). */
+    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath, String dbPath,
+            boolean force, boolean useGpuSnapshot) {
+        var cmd = new java.util.ArrayList<String>();
+        cmd.add(python);
+        cmd.add(scriptPath);
+        cmd.add("backfill");
+        cmd.add(dbPath);
+        if (force) cmd.add("--force");
+        if (!useGpuSnapshot) cmd.add("--no-gpu");
+
+        ProcessBuilder pb = new ProcessBuilder(cmd)
+                .directory(Paths.get("").toAbsolutePath().toFile())
+                .redirectErrorStream(false);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        pb.environment().put("PYTHONUTF8", "1");
+        pb.environment().put("PYTHONUNBUFFERED", "1");
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
         }
