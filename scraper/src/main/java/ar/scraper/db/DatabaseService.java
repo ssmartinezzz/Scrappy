@@ -530,6 +530,14 @@ public class DatabaseService {
             Map<String, Double> preciosActuales = getPreciosActuales();
             Set<String> urlsNuevoRun = new HashSet<>();
 
+            // RELY-001 fix: fit/estampado/escote/color_dominante use COALESCE(NULLIF(excluded.x,''), x)
+            // instead of a blind `= excluded.x` — ml_pipeline.py only populates these 4 keys for the
+            // needs_image_fallback-gated subset of a given run (capped at 400), so every OTHER product
+            // arrives here with blank visual fields even though it may already have non-blank values
+            // persisted from an earlier run or the backfill CLI. A blind overwrite silently wiped those
+            // back to '' on every regular scrape. Mirrors ml_embeddings.py's own additive invariant
+            // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must only ever ADD signal,
+            // never remove it").
             String upsertSql = """
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
@@ -558,10 +566,10 @@ public class DatabaseService {
                     marca_premium = excluded.marca_premium,
                     cantidad_unidades = excluded.cantidad_unidades,
                     sub_categoria = excluded.sub_categoria,
-                    fit             = excluded.fit,
-                    estampado       = excluded.estampado,
-                    escote          = excluded.escote,
-                    color_dominante = excluded.color_dominante,
+                    fit             = COALESCE(NULLIF(excluded.fit,''), fit),
+                    estampado       = COALESCE(NULLIF(excluded.estampado,''), estampado),
+                    escote          = COALESCE(NULLIF(excluded.escote,''), escote),
+                    color_dominante = COALESCE(NULLIF(excluded.color_dominante,''), color_dominante),
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
