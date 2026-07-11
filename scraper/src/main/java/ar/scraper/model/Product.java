@@ -21,7 +21,11 @@ public record Product(
         SenalFinanciacion finan, // precomputed financing signal (independent from senal/scoreCompra)
         int cantidadUnidades,  // unit count detected from nombre (pack/combo); 1 = single unit
         String subCategoria,   // activity/sport-based sub-dimension; "" when none resolved
-        VisualAttrs visual     // image-derived attributes (fit/estampado/escote/color); fill-only, additive
+        VisualAttrs visual     // image-derived attributes (fit/estampado/escote/color); fill-only,
+                               // additive PER FIELD — MlEnricher/DatabaseService only overwrite a
+                               // field when the ML score/upsert value is non-blank, else the prior
+                               // value is preserved (RELY-001; never wipe to "" on a run/backfill
+                               // that didn't gate this product into image classification)
 ) implements Comparable<Product> {
 
     // ── Constructors legacy (retrocompatibles) ──────────────────────────────

@@ -72,17 +72,25 @@ public class MlEnricher {
             }
 
             // ── Atributos visuales derivados de imagen (fit/estampado/escote/color) ──
-            // A diferencia de género/categoría, no hay señal de texto compitiendo acá
-            // (VisualAttrs es puramente image-derived) — este pase de ML es la fuente
-            // de verdad, no un fill-in: los 4 valores de ESTE score reemplazan por
-            // completo a p.visual(). ml_pipeline.py ya remapea las claves en Python
-            // (estampado->print, escote->neckline, color_dominante->color), así que
-            // acá se leen verbatim, sin re-mapeo. Ausente/blank -> "".
+            // RELY-001 fix: aditivo por campo, no un reemplazo incondicional.
+            // ml_pipeline.py solo puebla estas 4 keys para el subconjunto gateado
+            // por needs_image_fallback (capado a 400 por run) — el resto del score
+            // trae blank/missing en estos campos aunque el producto SÍ tenga visual
+            // persistido de un run anterior o del backfill CLI. Si acá se reemplazara
+            // incondicionalmente (como antes), cada scrape regular volvería a ""
+            // los visual attrs de todo lo que no entró en el subconjunto de ESTE run.
+            // Por campo: valor del score si no está blank, si no se preserva
+            // p.visual() — mismo invariante aditivo que ml_embeddings.py
+            // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must
+            // only ever ADD signal, never remove it"). ml_pipeline.py ya remapea
+            // las claves en Python (estampado->print, escote->neckline,
+            // color_dominante->color), así que acá se leen verbatim, sin re-mapeo.
+            Product.VisualAttrs visualPrevio = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
             Product.VisualAttrs visual = new Product.VisualAttrs(
-                    s.path("fit").asText(""),
-                    s.path("print").asText(""),
-                    s.path("neckline").asText(""),
-                    s.path("color").asText("")
+                    valorScoreOPrevio(s.path("fit").asText(""), visualPrevio.fit()),
+                    valorScoreOPrevio(s.path("print").asText(""), visualPrevio.estampado()),
+                    valorScoreOPrevio(s.path("neckline").asText(""), visualPrevio.escote()),
+                    valorScoreOPrevio(s.path("color").asText(""), visualPrevio.colorDominante())
             );
 
             Product enriched = new Product(
@@ -104,6 +112,19 @@ public class MlEnricher {
     /** Backwards-compatible overload sin DB */
     public List<Product> enriquecer(List<Product> productos, JsonNode mlOutput) {
         return enriquecer(productos, mlOutput, null);
+    }
+
+    /**
+     * Per-field additive-preserve seam (RELY-001): a blank score value means
+     * "this run's ML pass produced no signal for this field" (missing key,
+     * explicit {@code ""}, or the product wasn't in this run's gated
+     * needs_image_fallback subset) rather than "the model confidently
+     * observed nothing" — so it must never overwrite a previously persisted
+     * non-blank value.
+     */
+    private static String valorScoreOPrevio(String valorScore, String valorPrevio) {
+        if (valorScore != null && !valorScore.isBlank()) return valorScore;
+        return valorPrevio != null ? valorPrevio : "";
     }
 
     public String serializarProductos(List<Product> productos) {
