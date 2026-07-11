@@ -73,9 +73,16 @@ public class PythonRunner {
             Path histPath  = workDir.resolve("precio_historico.json");
             Path scriptPath = extraerScript(workDir);
             // Stage-1b category/gender image refinement (ml_pipeline.py `import
-            // ml_embeddings`) fails silently and degrades to text-only if this
-            // sibling script isn't extracted alongside ml_pipeline.py.
-            extraerEmbeddingsScript(workDir);
+            // ml_embeddings`) degrades to text-only (via ml_pipeline.py's own
+            // import guard) if this sibling script can't be extracted alongside
+            // ml_pipeline.py. Guarded here so a missing/failed extraction never
+            // aborts the whole scoring pipeline.
+            try {
+                extraerEmbeddingsScript(workDir);
+            } catch (Exception e) {
+                LOG.warn("[ML] No se pudo extraer ml_embeddings.py — stage-1b degrada a solo-texto: {}",
+                        e.getMessage());
+            }
 
             Files.writeString(prodPath, productosJson);
 
@@ -156,6 +163,9 @@ public class PythonRunner {
         return dest;
     }
 
+    /** Serializes concurrent extractions of ml_embeddings.py (see {@link #extraerEmbeddingsScript}). */
+    private static final Object EMBEDDINGS_EXTRACT_LOCK = new Object();
+
     /**
      * Extrae ml_embeddings.py al directorio de trabajo, junto a ml_pipeline.py.
      * Requerido tanto por el stage-1b de refinamiento de imagen del pipeline
@@ -163,14 +173,35 @@ public class PythonRunner {
      * backfill ({@link #backfillEmbeddingsEnBackground}) — sin este archivo
      * ambos degradan silenciosamente a solo-texto. Mirror de
      * {@link #extraerTrainScript}: tolera que el archivo ya exista.
+     *
+     * <p>Called from two independently-schedulable sites ({@link #ejecutar}'s
+     * synchronous path and {@link #backfillEmbeddingsEnBackground}'s virtual
+     * thread), both writing the same {@code dest}. Publishes the destination
+     * ATOMICALLY (write to a unique temp file, then {@code ATOMIC_MOVE} it into
+     * place, falling back to {@code REPLACE_EXISTING} if the filesystem doesn't
+     * support atomic moves) and serializes the write+move with a private static
+     * lock, so a concurrent reader (Python subprocess importing the module)
+     * never observes a torn/partial file.</p>
      */
-    private Path extraerEmbeddingsScript(Path workDir) throws Exception {
+    Path extraerEmbeddingsScript(Path workDir) throws Exception {
         Path dest = workDir.resolve("ml_embeddings.py");
-        try (InputStream is = getClass().getResourceAsStream("/ml/ml_embeddings.py")) {
-            if (is != null) {
-                Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
-            } else if (!Files.exists(dest)) {
-                throw new java.io.FileNotFoundException("ml_embeddings.py no encontrado en classpath ni en " + dest);
+        synchronized (EMBEDDINGS_EXTRACT_LOCK) {
+            try (InputStream is = getClass().getResourceAsStream("/ml/ml_embeddings.py")) {
+                if (is != null) {
+                    Path tmp = Files.createTempFile(workDir, "ml_embeddings", ".py.tmp");
+                    try {
+                        Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
+                        try {
+                            Files.move(tmp, dest, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                        } catch (AtomicMoveNotSupportedException amnse) {
+                            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } finally {
+                        Files.deleteIfExists(tmp);
+                    }
+                } else if (!Files.exists(dest)) {
+                    throw new java.io.FileNotFoundException("ml_embeddings.py no encontrado en classpath ni en " + dest);
+                }
             }
         }
         return dest;
