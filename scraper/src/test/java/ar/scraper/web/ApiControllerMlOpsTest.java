@@ -92,6 +92,66 @@ class ApiControllerMlOpsTest {
         assertThat(body.path("training").get("phase").asText()).isEqualTo("training");
     }
 
+    // T6.3/T6.4: /api/ml/estado additionally reports embeddingsCount + coverage
+    // against the current catalog, and the "training"/"embedding" macro phase
+    // values from T5.4's sequencing entrypoint pass through unchanged — all
+    // additive, existing fields (hasTextModel/hasImageModel/training.*) unaffected.
+    @Test
+    void mlEstadoReturnsEmbeddingsCountAndCoverage() {
+        when(pythonRunner.getTrainingStatus())
+                .thenReturn(new TrainingStatus(false, "idle", 0, "", null));
+        when(db.contarEmbeddings()).thenReturn(75L);
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        List<Product> productos = new java.util.ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            productos.add(new Product("Sitio", "Producto " + i, 1000.0, null,
+                    "https://site.com/" + i, "", "Remeras", "unisex", List.of()));
+        }
+        var result = new AggregatedResult(productos, Map.of(), Map.of(), facets, 0, 0);
+        when(service.getLastResult()).thenReturn(result);
+
+        var resp = controller.mlEstado();
+        JsonNode body = AllureSteps.toJson(resp.getBody());
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        // Existing fields remain intact
+        assertThat(body.has("hasTextModel")).isTrue();
+        assertThat(body.path("training").get("phase").asText()).isEqualTo("idle");
+        // New additive fields
+        assertThat(body.get("embeddingsCount").asLong()).isEqualTo(75L);
+        assertThat(body.get("totalProductos").asInt()).isEqualTo(100);
+        assertThat(body.get("coveragePct").asDouble()).isEqualTo(75.0);
+    }
+
+    @Test
+    void mlEstadoReturnsZeroCoverageWhenNoDataLoaded() {
+        when(pythonRunner.getTrainingStatus())
+                .thenReturn(TrainingStatus.idle());
+        when(db.contarEmbeddings()).thenReturn(0L);
+        when(service.getLastResult()).thenReturn(null);
+
+        var resp = controller.mlEstado();
+        JsonNode body = AllureSteps.toJson(resp.getBody());
+
+        assertThat(body.get("embeddingsCount").asLong()).isEqualTo(0L);
+        assertThat(body.get("totalProductos").asInt()).isEqualTo(0);
+        assertThat(body.get("coveragePct").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void mlEstadoReportsEmbeddingMacroPhaseFromSequencingEntrypoint() {
+        when(pythonRunner.getTrainingStatus())
+                .thenReturn(new TrainingStatus(true, "embedding", 70, "35/50", "2026-01-01T10:00"));
+        when(db.contarEmbeddings()).thenReturn(35L);
+        when(service.getLastResult()).thenReturn(null);
+
+        var resp = controller.mlEstado();
+        JsonNode body = AllureSteps.toJson(resp.getBody());
+
+        assertThat(body.path("training").get("phase").asText()).isEqualTo("embedding");
+        assertThat(body.path("training").get("running").asBoolean()).isTrue();
+    }
+
     // ── GET /api/ml/resultado ────────────────────────────────────────────
 
     @Test
