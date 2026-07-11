@@ -241,11 +241,98 @@ class MlEnricherTest {
         assertThat(result.get(0).genero()).isEqualTo("mujer");
     }
 
+    // ── T5.5/T5.6: image-derived VisualAttrs enrichment ─────────────────────
+    // scores[url]'s fit/print/neckline/color keys are Spanish values already
+    // remapped by ml_embeddings.py's classify()/dominant_color() + PR4's
+    // ml_pipeline.py score-key remapping (estampado->print, escote->neckline,
+    // color_dominante->color) — MlEnricher applies them verbatim, no further
+    // re-mapping in Java.
+
     @Test
-    void productPreservesVisualAttrsAfterEnrichment() throws Exception {
+    void visualAttrsPopulatedVerbatimFromFitPrintNecklineColorScoreKeys() throws Exception {
+        Product p = new Product("Sitio", "Buzo con capucha", 20000.0, null,
+                "https://site.com/visual-h", "", "Buzos", "unisex", List.of());
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/visual-h": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "fit": "oversize", "print": "estampado",
+                            "neckline": "capucha", "color": "gris"
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        Product.VisualAttrs visual = result.get(0).visual();
+        assertThat(visual.fit()).isEqualTo("oversize");
+        assertThat(visual.estampado()).isEqualTo("estampado");
+        assertThat(visual.escote()).isEqualTo("capucha");
+        assertThat(visual.colorDominante()).isEqualTo("gris");
+    }
+
+    @Test
+    void missingVisualAttrScoreKeysDefaultToEmptyStrings() throws Exception {
+        Product p = new Product("Sitio", "Remera lisa", 8000.0, null,
+                "https://site.com/visual-i", "", "Remeras", "unisex", List.of());
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/visual-i": { "composite": 50, "badge": "", "pctil": 50 }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        Product.VisualAttrs visual = result.get(0).visual();
+        assertThat(visual.fit()).isEmpty();
+        assertThat(visual.estampado()).isEmpty();
+        assertThat(visual.escote()).isEmpty();
+        assertThat(visual.colorDominante()).isEmpty();
+    }
+
+    @Test
+    void blankVisualAttrScoreValuesDefaultToEmptyStrings() throws Exception {
+        Product p = new Product("Sitio", "Campera", 25000.0, null,
+                "https://site.com/visual-j", "", "Camperas", "unisex", List.of());
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/visual-j": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "fit": "", "print": "", "neckline": "", "color": ""
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        Product.VisualAttrs visual = result.get(0).visual();
+        assertThat(visual.fit()).isEmpty();
+        assertThat(visual.estampado()).isEmpty();
+        assertThat(visual.escote()).isEmpty();
+        assertThat(visual.colorDominante()).isEmpty();
+    }
+
+    @Test
+    void productWithoutMatchingScorePreservesVisualAttrsUnchanged() throws Exception {
         // Regression for fashion-image-classification PR1: enriquecer() previously
         // rebuilt Product via the 18-arg legacy constructor, silently resetting
-        // visual to VisualAttrs.EMPTY.
+        // visual to VisualAttrs.EMPTY. This scenario (no matching score entry —
+        // s.isMissingNode() early-return path) still returns `p` verbatim, so
+        // visual must survive. When a score entry DOES exist, T5.6 always
+        // recomputes visual from that entry's fit/print/neckline/color keys
+        // (see visualAttrsPopulatedVerbatimFromFitPrintNecklineColorScoreKeys
+        // and missingVisualAttrScoreKeysDefaultToEmptyStrings above) — image
+        // classification is authoritative for visual, not fill-only, since
+        // there's no competing text-derived signal for it.
         Product.VisualAttrs visual = new Product.VisualAttrs("regular", "estampado", "capucha", "gris");
         Product conVisual = new Product(
                 "Sitio", "Buzo con visual", 20000.0, null, "https://site.com/visual-ml",
@@ -253,11 +340,7 @@ class MlEnricherTest {
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
 
         JsonNode mlOutput = MAPPER.readTree("""
-                {
-                    "scores": {
-                        "https://site.com/visual-ml": { "composite": 55, "badge": "", "pctil": 55 }
-                    }
-                }
+                { "scores": {} }
                 """);
 
         MlEnricher enricher = new MlEnricher();
