@@ -24,6 +24,7 @@ public class MlEnricher {
 
         int enriquecidos = 0;
         int catRefinadas  = 0;
+        int generosRellenados = 0;
         List<Product> result = new ArrayList<>();
 
         for (Product p : productos) {
@@ -56,9 +57,23 @@ public class MlEnricher {
                 catRefinadas++;
             }
 
+            // ── Rellenar género vía imagen SOLO cuando el texto no dice nada ──
+            // Invariante text-wins (PR4 judgment-day, A-001/B-001): un género
+            // ya resuelto por texto NUNCA se pisa con la señal de imagen.
+            String generoFinal = p.genero();
+            if (generoFinal == null || generoFinal.isBlank()) {
+                String gML   = s.path("generoML").asText("");
+                double gConf = s.path("genImgConf").asDouble(0.0);
+                if (("hombre".equals(gML) || "mujer".equals(gML)) && gConf >= 0.80) {
+                    generoFinal = gML; // señal de imagen decisiva rellena un hueco de texto
+                    generosRellenados++;
+                }
+                // "unisex" de imagen (sentinel bajo-umbral) deja el género en blanco
+            }
+
             Product enriched = new Product(
                 p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
-                p.url(), p.imagenUrl(), catFinal, p.genero(), p.talles(),
+                p.url(), p.imagenUrl(), catFinal, generoFinal, p.talles(),
                 ml, p.marca(), p.rubro() != null ? p.rubro() : "indumentaria",
                 p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
                 p.subCategoria() != null ? p.subCategoria() : ""
@@ -67,8 +82,8 @@ public class MlEnricher {
             enriquecidos++;
         }
 
-        LOG.info("[ML] {} productos enriquecidos | {} categorías refinadas por modelo",
-                 enriquecidos, catRefinadas);
+        LOG.info("[ML] {} productos enriquecidos | {} categorías refinadas por modelo | {} géneros rellenados por imagen",
+                 enriquecidos, catRefinadas, generosRellenados);
         return result;
     }
 

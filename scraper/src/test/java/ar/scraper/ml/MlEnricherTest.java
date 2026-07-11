@@ -93,4 +93,151 @@ class MlEnricherTest {
         assertThat(result.get(0)).isEqualTo(pack);
         assertThat(result.get(0).cantidadUnidades()).isEqualTo(4);
     }
+
+    // ── PR5: image-gender fill-in (text-wins invariant) ─────────────────────
+    // Product.genero() is the 8th constructor arg; helper builds a minimal
+    // Product with an explicit genero and a given URL for score lookup.
+    private static Product productoConGenero(String genero, String url) {
+        return new Product("Sitio", "Producto", 10000.0, null, url,
+                "", "Remeras", genero, List.of());
+    }
+
+    @Test
+    void nonBlankTextGeneroIsPreservedEvenWhenImageGenderPresent() throws Exception {
+        Product p = productoConGenero("hombre", "https://site.com/a");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/a": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "generoML": "mujer", "genImgConf": 0.99
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).genero()).isEqualTo("hombre");
+    }
+
+    @Test
+    void blankTextGeneroIsFilledWithDecisiveHombreImageGender() throws Exception {
+        Product p = productoConGenero("", "https://site.com/b");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/b": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "generoML": "hombre", "genImgConf": 0.85
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).genero()).isEqualTo("hombre");
+    }
+
+    @Test
+    void blankTextGeneroIsFilledWithDecisiveMujerImageGender() throws Exception {
+        Product p = productoConGenero("", "https://site.com/c");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/c": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "generoML": "mujer", "genImgConf": 0.85
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).genero()).isEqualTo("mujer");
+    }
+
+    @Test
+    void unisexImageGenderNeverFillsBlankTextGenero() throws Exception {
+        Product p = productoConGenero("", "https://site.com/d");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/d": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "generoML": "unisex", "genImgConf": 0.99
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).genero()).isBlank();
+    }
+
+    @Test
+    void belowThresholdImageGenderConfidenceLeavesGeneroBlank() throws Exception {
+        Product p = productoConGenero("", "https://site.com/e");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/e": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "generoML": "hombre", "genImgConf": 0.79
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).genero()).isBlank();
+    }
+
+    @Test
+    void missingImageGeneroLeavesGeneroBlank() throws Exception {
+        Product p = productoConGenero("", "https://site.com/f");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/f": { "composite": 50, "badge": "", "pctil": 50 }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).genero()).isBlank();
+    }
+
+    @Test
+    void categoryRefinementStillAppliesAlongsideGenderFillIn() throws Exception {
+        Product p = productoConGenero("", "https://site.com/g");
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/g": {
+                            "composite": 50, "badge": "", "pctil": 50,
+                            "categoriaML": "Zapatillas", "catMLConf": 0.9,
+                            "generoML": "mujer", "genImgConf": 0.85
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).categoria()).isEqualTo("Zapatillas");
+        assertThat(result.get(0).genero()).isEqualTo("mujer");
+    }
 }
