@@ -414,12 +414,33 @@ public class PythonRunner {
      * existing error-state pattern at its {@code exit != 0}/exception branches)
      * that must survive so {@code /api/ml/estado} polling can observe it
      * instead of seeing a falsely-idle run.</p>
+     *
+     * <p>RESI-002 ≡ RELY-001 (4R PR6 follow-up): returns the CAS reservation
+     * result so callers (ApiController's {@code POST /api/ml/entrenar}) can
+     * tell "sequence accepted" apart from "silently dropped because another
+     * sequence was already in flight". {@code true} = this call won the
+     * reservation (even if the sequence then degrades to a logged no-op, e.g.
+     * Python unavailable); {@code false} = another sequence holds the slot and
+     * THIS request was not started — the caller should surface a conflict
+     * (409) instead of a false "started".</p>
+     *
+     * <p>RESI-001 (4R PR6 follow-up): the reservation is taken BEFORE the
+     * background thread is spawned, so a thread-start failure (resource
+     * exhaustion, executor shutdown) must not leave {@code running=true}
+     * stuck forever with no thread alive to clear it — that would make every
+     * subsequent {@code POST /api/ml/entrenar} fail until a JVM restart. The
+     * {@code catch} below writes a durable {@code phase="error"} state
+     * (running=false, so a retry can re-reserve) and rethrows.</p>
+     *
+     * @return {@code true} when this call reserved and launched (or
+     *         no-op-degraded) the sequence; {@code false} when a sequence was
+     *         already in flight and this request was dropped.
      */
-    public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+    public boolean construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
             boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
         if (!intentarReservarSecuenciaIndiceVisual()) {
             LOG.info("[ML-INDEX] Secuencia de construcción de índice visual ya en curso — solicitud ignorada");
-            return;
+            return false;
         }
 
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
@@ -427,13 +448,35 @@ public class PythonRunner {
         if (python == null) {
             LOG.info("[ML-INDEX] Python no disponible, saltando construcción de índice visual");
             trainingStatus.set(TrainingStatus.idle()); // libera la reserva — no hay hilo que la haga
-            return;
+            return true;
         }
 
         Path workDir = Paths.get("").toAbsolutePath();
 
-        Thread.ofVirtual().start(() -> ejecutarSecuenciaIndiceVisual(python, workDir, dbPath,
-                forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
+        try {
+            lanzarHiloSecuencia(() -> ejecutarSecuenciaIndiceVisual(python, workDir, dbPath,
+                    forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
+        } catch (Throwable t) {
+            // RESI-001: no thread was started, so nothing will ever clear the
+            // reservation — release it as a durable error (running=false) and
+            // let the failure propagate to the caller.
+            LOG.error("[ML-INDEX] No se pudo iniciar el hilo de la secuencia: {}", t.getMessage());
+            marcarFalloIndiceVisual("sequencing", "no se pudo iniciar el hilo: " + t.getMessage());
+            throw t;
+        }
+        return true;
+    }
+
+    /**
+     * Test seam (package-private): spawns the background thread for
+     * {@link #construirIndiceVisualEnBackground}. Extracted so a test can
+     * deterministically simulate a thread-start failure (RESI-001) or swallow
+     * the spawn entirely (RESI-002's return-value contract) without depending
+     * on real resource exhaustion. Production behavior is exactly
+     * {@code Thread.ofVirtual().start(body)}.
+     */
+    Thread lanzarHiloSecuencia(Runnable body) {
+        return Thread.ofVirtual().start(body);
     }
 
     /**
@@ -529,9 +572,9 @@ public class PythonRunner {
         }
     }
 
-    public void construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+    public boolean construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
             boolean forceBackfillEmbeddings) {
-        construirIndiceVisualEnBackground(dbPath, forceRetrainTexto, false, 8, forceBackfillEmbeddings);
+        return construirIndiceVisualEnBackground(dbPath, forceRetrainTexto, false, 8, forceBackfillEmbeddings);
     }
 
     /** Outcome of {@link #esperarConDrain}: whether the process finished within
@@ -1072,7 +1115,10 @@ public class PythonRunner {
         return pb;
     }
 
-    private String detectarPython() {
+    /** Package-private (era private) como test seam: los tests de
+     * {@link #construirIndiceVisualEnBackground} lo overridean para no
+     * depender del scan real del entorno (RESI-001/RESI-002). */
+    String detectarPython() {
         // 1. Prioridad: -DPYTHON_EXE pasado por el bat
         String sysPy = System.getProperty("PYTHON_EXE");
         if (sysPy != null && !sysPy.isBlank() && new java.io.File(sysPy).exists()) return sysPy;

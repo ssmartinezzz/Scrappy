@@ -1677,17 +1677,32 @@ public class ApiController {
                 .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
 
         // T6.2 (fashion-image-classification PR6): "Construir índice visual"
-        // now drives PythonRunner.construirIndiceVisualEnBackground (T5.4's
-        // sequencing entrypoint) instead of the retired standalone
-        // entrenarEnBackground — runs text re-training FIRST, then the
-        // embeddings backfill, on ONE background thread, without blocking
-        // this HTTP response. forceRetrainTexto stays hardcoded true (unchanged
-        // observable behavior: every manual button click forces a fresh text
-        // re-train, same as before); forceBackfillEmbeddings is also true —
-        // an explicit "Construir índice visual" click is a deliberate
-        // full-rebuild action, not a passive cache-first pass.
+        // drives PythonRunner.construirIndiceVisualEnBackground (T5.4's
+        // sequencing entrypoint), NOT the standalone entrenarEnBackground.
+        // READ-005: entrenarEnBackground is NOT retired — it remains live as
+        // the post-scrape auto-training path (ResultAggregator.agregar); it's
+        // just no longer what this manual endpoint invokes. Do not delete it
+        // in a future cleanup. This endpoint runs text re-training FIRST,
+        // then the embeddings backfill, on ONE background thread, without
+        // blocking this HTTP response.
         String dbPath = encontrarDbFile().getAbsolutePath();
-        pythonRunner.construirIndiceVisualEnBackground(dbPath, true, images, epochs, true);
+        // READ-004: named args instead of naked booleans. forceRetrainTexto
+        // stays true (unchanged observable behavior: every manual button
+        // click forces a fresh text re-train, same as before);
+        // forceBackfillEmbeddings is also true — an explicit "Construir
+        // índice visual" click is a deliberate full-rebuild action, not a
+        // passive cache-first pass.
+        boolean forceRetrainTexto = true;
+        boolean forceBackfillEmbeddings = true;
+        boolean iniciado = pythonRunner.construirIndiceVisualEnBackground(
+                dbPath, forceRetrainTexto, images, epochs, forceBackfillEmbeddings);
+        // RESI-002 ≡ RELY-001: two near-simultaneous POSTs can both pass the
+        // isTrainingRunning() pre-check above; the atomic CAS inside the
+        // runner picks exactly one winner. The loser's request was NOT
+        // started — answer 409 Conflict instead of a false "started".
+        if (!iniciado)
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT)
+                .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
         return ResponseEntity.ok(java.util.Map.of("status", "started"));
     }
 
