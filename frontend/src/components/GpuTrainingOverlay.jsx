@@ -6,6 +6,8 @@ const PHASE_LABELS = {
   text:           'Clasificador de texto',
   image_download: 'Descargando imágenes',
   image:          'EfficientNet-B3',
+  training:       'Entrenando clasificador de texto',
+  embedding:      'Construyendo índice visual (embeddings)',
   idle:           '',
   timeout:        'Timeout',
   error:          'Error',
