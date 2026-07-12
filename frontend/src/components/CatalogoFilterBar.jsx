@@ -82,6 +82,10 @@ export default function CatalogoFilterBar({ hidden }) {
   const gymratCount  = facets.gymratCount   || 0;
   const packCount    = facets.packCount     || 0;
   const subCategorias = facets.subCategorias || {};
+  const fits           = facets.fits            || {};
+  const estampados     = facets.estampados      || {};
+  const escotes         = facets.escotes         || {};
+  const colorDominantes = facets.colorDominantes || {};
 
   const topMarcas = useMemo(() => sortByCountDesc(marcas).slice(0, 20), [marcas]);
 
