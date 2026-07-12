@@ -21,6 +21,8 @@ const PHASE_LABELS = {
   text:           'Clasificador de texto',
   image_download: 'Descargando imágenes',
   image:          'EfficientNet-B3',
+  training:       'Entrenando clasificador de texto',
+  embedding:      'Construyendo índice visual (embeddings)',
   idle:           '',
   timeout:        'Timeout',
   error:          'Error',
@@ -155,6 +157,17 @@ export default function MlStatusPanel() {
               {hasImage
                 ? 'Refina categorías por foto · RTX 3080'
                 : 'Requiere PyTorch + GPU'}
+            </span>
+          </Row>
+
+          <Row
+            active={(estado?.embeddingsCount ?? 0) > 0}
+            title="Índice visual (embeddings)"
+            color={(estado?.embeddingsCount ?? 0) > 0 ? SEMANTIC.warn : 'var(--t4)'}
+          >
+            <span style={{ fontSize:'.67rem', color:'var(--t4)' }}>
+              {(estado?.embeddingsCount ?? 0).toLocaleString('es-AR')} / {(estado?.totalProductos ?? 0).toLocaleString('es-AR')} productos
+              &nbsp;({estado?.coveragePct ?? 0}%)
             </span>
           </Row>
         </>
