@@ -380,9 +380,61 @@ class PythonRunnerSequencingTest {
         assertThat(runner.intentarReservarSecuenciaIndiceVisual()).isTrue();
         TrainingStatus antes = runner.getTrainingStatus();
 
-        runner.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
+        boolean iniciado = runner.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
         Thread.sleep(100);
 
+        assertThat(iniciado).isFalse();
         assertThat(runner.getTrainingStatus()).isEqualTo(antes);
+    }
+
+    // ── RESI-002 ≡ RELY-001 (4R PR6 follow-up): the CAS result must be ──────
+    // observable by the caller. Before this fix the guard was void inside the
+    // entrypoint, so ApiController could not distinguish "sequence launched"
+    // from "silently dropped" — a near-simultaneous double POST /api/ml/entrenar
+    // gave the loser a 200 "started" for a request that never ran.
+
+    @Test
+    @DisplayName("RESI-002: entrypoint returns the CAS result — winner true, immediate second caller false")
+    void construirIndiceVisualDevuelveResultadoDelCas() {
+        // Seams overridden so the winner never spawns a real sequence thread
+        // (and never scans the real environment for a Python interpreter).
+        PythonRunner sinHiloReal = new PythonRunner() {
+            @Override String detectarPython() { return "python-fake"; }
+            @Override Thread lanzarHiloSecuencia(Runnable body) { return new Thread(body); } // nunca started
+        };
+
+        boolean ganador  = sinHiloReal.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
+        boolean perdedor = sinHiloReal.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
+
+        assertThat(ganador).isTrue();
+        assertThat(perdedor).isFalse();
+        assertThat(sinHiloReal.isTrainingRunning()).isTrue(); // winner's reservation still held
+    }
+
+    // ── RESI-001 (4R PR6 follow-up, deterministic): the CAS reservation is ──
+    // taken BEFORE Thread.ofVirtual().start(). If starting the thread throws
+    // (e.g. resource exhaustion), the reservation must be released — otherwise
+    // running=true is stuck forever and POST /api/ml/entrenar answers 400/409
+    // until the JVM restarts.
+
+    @Test
+    @DisplayName("RESI-001: thread-start failure writes a durable error, releases the slot, and rethrows")
+    void falloAlLanzarHiloLiberaLaReservaYPropagaElError() {
+        PythonRunner fallaAlLanzar = new PythonRunner() {
+            @Override String detectarPython() { return "python-fake"; }
+            @Override Thread lanzarHiloSecuencia(Runnable body) {
+                throw new IllegalStateException("no se pudo crear el hilo");
+            }
+        };
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                fallaAlLanzar.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false))
+            .isInstanceOf(IllegalStateException.class);
+
+        TrainingStatus estado = fallaAlLanzar.getTrainingStatus();
+        assertThat(estado.running()).isFalse();            // never stuck at running=true
+        assertThat(estado.phase()).isEqualTo("error");     // durable, observable via /api/ml/estado
+        // The slot must be recoverable: a retry can reserve again without a restart.
+        assertThat(fallaAlLanzar.intentarReservarSecuenciaIndiceVisual()).isTrue();
     }
 }
