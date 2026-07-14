@@ -191,6 +191,84 @@ def test_model_version_mismatch_treated_as_miss_and_recomputed(monkeypatch, db_p
     assert row[0] == ml_embeddings.MODEL_VERSION
 
 
+# ─── embed_images: preloaded_images (PR3b2 judgment-day round 2) ───────────
+
+
+def test_preloaded_image_is_embedded_without_downloading(monkeypatch, db_path):
+    """Regression: a non-None `preloaded_images[url]` entry must be used
+    directly on a cache miss — `_download_image` must never be called for
+    that URL — exercised against the REAL `embed_images`, not a test
+    double (deferred from PR3b2 judgment-day round 2 test gap: "the real
+    embed_images preloaded_images branch is unpinned")."""
+    url = "http://x/preloaded.jpg"
+    computed = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    fake_image = "already-downloaded-pil-image"
+
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+
+    def _boom_download(*_a, **_kw):
+        raise AssertionError("_download_image must not be called when a preloaded image is available")
+
+    monkeypatch.setattr(ml_embeddings, "_download_image", _boom_download)
+    monkeypatch.setattr(
+        ml_embeddings,
+        "_compute_embedding",
+        lambda model, preprocess, image: computed if image == fake_image else (_ for _ in ()).throw(
+            AssertionError("_compute_embedding received the wrong image")
+        ),
+    )
+
+    results = ml_embeddings.embed_images(
+        [url], db_path=db_path, preloaded_images={url: fake_image}
+    )
+
+    np.testing.assert_array_almost_equal(results[url], computed)
+
+    conn = sqlite3.connect(db_path)
+    cached = ml_embeddings.get_cached(conn, url, ml_embeddings.MODEL_VERSION)
+    conn.close()
+    np.testing.assert_array_almost_equal(cached, computed)
+
+
+def test_explicit_none_preload_is_treated_as_a_failed_download_not_reattempted(monkeypatch, db_path):
+    """Regression: an explicit `preloaded_images[url] = None` entry means
+    "the caller already tried and failed to download this URL" and must
+    NOT trigger a second `_download_image` call — a URL truly absent from
+    the map is unaffected and still downloads normally (deferred from
+    PR3b2 judgment-day round 2 CONFIRMED issue: "failed-download
+    re-download")."""
+    url = "http://x/failed-download.jpg"
+    other_url = "http://x/not-preloaded.jpg"
+    computed = np.array([4.0, 5.0], dtype=np.float32)
+
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+
+    download_calls = []
+
+    def _tracking_download(u):
+        download_calls.append(u)
+        return "fake-pil-image"
+
+    monkeypatch.setattr(ml_embeddings, "_download_image", _tracking_download)
+    monkeypatch.setattr(
+        ml_embeddings, "_compute_embedding", lambda model, preprocess, image: computed
+    )
+
+    results = ml_embeddings.embed_images(
+        [url, other_url],
+        db_path=db_path,
+        preloaded_images={url: None},  # explicit skip for `url` only
+    )
+
+    # `url` had an explicit failed-preload entry: never re-downloaded, degrades to None.
+    assert results[url] is None
+    assert url not in download_calls
+
+    # `other_url` was absent from the map entirely: downloaded normally.
+    assert download_calls == [other_url]
+    np.testing.assert_array_almost_equal(results[other_url], computed)
+
+
 # ─── Degradation paths ────────────────────────────────────────────────────────
 
 
@@ -320,10 +398,13 @@ def test_missing_table_degrades_to_none_without_raising(tmp_path):
     assert results["http://x/2.jpg"] is None
 
 
-def test_corrupted_cache_row_degrades_to_none_without_raising(monkeypatch, db_path):
-    """A cached row whose blob length doesn't match `dim` makes
-    `np.frombuffer` raise a ValueError inside `get_cached`; `embed_images`
-    must still degrade that single URL to `None` instead of propagating."""
+def test_corrupted_cache_row_is_treated_as_a_miss_and_recomputed(monkeypatch, db_path):
+    """A cached row whose blob length doesn't match `dim*4` is explicitly
+    validated (PR3b fix, deferred from PR3a judgment-day): `get_cached`
+    now detects this up front and returns `None`, the SAME contract as
+    any other cache miss — so `embed_images` self-heals by recomputing
+    and overwriting the corrupted row, exactly like a model_version-bump
+    miss, rather than degrading the whole URL to `None`."""
     url = "http://x/corrupted.jpg"
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -334,14 +415,23 @@ def test_corrupted_cache_row_degrades_to_none_without_raising(monkeypatch, db_pa
     conn.commit()
     conn.close()
 
-    def _boom_load(*_a, **_kw):
-        raise AssertionError("model should never be loaded for a corrupted-cache degrade")
-
-    monkeypatch.setattr(ml_embeddings, "_load_model", _boom_load)
+    recomputed = np.array([1.0, 1.0], dtype=np.float32)
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_download_image", lambda u: "fake-pil-image")
+    monkeypatch.setattr(
+        ml_embeddings, "_compute_embedding", lambda model, preprocess, image: recomputed
+    )
 
     results = ml_embeddings.embed_images([url], db_path=db_path)
 
-    assert results[url] is None
+    np.testing.assert_array_almost_equal(results[url], recomputed)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT dim, model_version FROM image_embeddings WHERE url = ?", (url,)
+    ).fetchone()
+    conn.close()
+    assert row == (2, ml_embeddings.MODEL_VERSION)
 
 
 def test_unusable_db_path_degrades_all_urls_to_none(monkeypatch, tmp_path):

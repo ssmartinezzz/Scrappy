@@ -92,4 +92,21 @@ class PythonRunnerGpuFlagTest {
         runner.setUseGpu(true);
         assertThat(runner.isUseGpu()).isTrue();
     }
+
+    // ── Regression: entrenarEnBackground's tieneCuda/tienePytorch call site ──
+    // previously passed useGpuSnapshot (true = GPU allowed) directly as the
+    // probes' forceCpu argument (true = force CPU on the probe subprocess) —
+    // the INVERSE polarity — which forced CPU on the CUDA probe whenever GPU
+    // was enabled, defeating detection. forceCpuParaProbes() is the extracted,
+    // named decision the call site now uses, so the polarity is asserted here
+    // without spawning a real Python interpreter.
+    @Test
+    void forceCpuParaProbesIsFalseWhenGpuEnabled() {
+        assertThat(runner.forceCpuParaProbes(true)).isFalse();
+    }
+
+    @Test
+    void forceCpuParaProbesIsTrueWhenGpuDisabled() {
+        assertThat(runner.forceCpuParaProbes(false)).isTrue();
+    }
 }
