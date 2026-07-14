@@ -48,6 +48,10 @@ const init = {
   gymSubcatFiltro: null,   // active gymrat sub-category filter (client-side)
   pack:         false,     // Packs/combos filter — mirrors gymrat (boolean toggle)
   subCategoria: [],        // activity/sport sub-dimension multi-select (server-side OR filter)
+  fit:          '',        // visual-attrs single-select filters (server-side, /api/data params)
+  estampado:    '',
+  escote:       '',
+  colorDominante: '',
   precioMin:    undefined, // Sidebar price-range filter (server-side, /api/data param)
   precioMax:    undefined,
   orden:        'precio_asc',
@@ -84,6 +88,7 @@ function reducer(state, action) {
       segment:'', genero:'', categorias:[], talles:[], gymrat:false,
       gymSubcats:{}, gymSubcatFiltro:null, pack:false, subCategoria:[],
       precioMin:undefined, precioMax:undefined,
+      fit:'', estampado:'', escote:'', colorDominante:'',
       pag:1, prods:[], hasMore:true,
     };
     case 'TOGGLE_TALLE': {
@@ -217,7 +222,7 @@ function CatalogoRoute() {
             transition:'opacity .15s',
           }}
         >
-          {gpuRunning ? 'Entrenando...' : '⚡ Re-entrenar IA con GPU'}
+          {gpuRunning ? 'Entrenando...' : 'Construir índice visual'}
         </button>
       </div>{/* .gpu-fab */}
 
@@ -429,7 +434,13 @@ export default function AppLayout() {
       // categoria/marca stale dejadas por reglas viejas de NormalizerService.
       await renormalizarCatalogo();
       setGpuTraining(prev => ({ ...prev, phase:'starting', msg:'' }));
-      await startMlTraining(true, 8);
+      const started = await startMlTraining(true, 8);
+      if (!started) {
+        // POST rejected (400/409/500) — don't enter the polling/"starting" state,
+        // surface the error immediately instead.
+        setGpuTraining(prev => ({ ...prev, running:false, error:'No se pudo iniciar el entrenamiento (el backend rechazó la solicitud).' }));
+        return;
+      }
       startGpuPolling();
     } catch {
       // Network failure on renormalización o en el POST inicial — surface the
@@ -525,7 +536,8 @@ export default function AppLayout() {
     loadFirstPage();
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
       S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
-      S.precioMin, S.precioMax, S.orden, S.subCategoria]);
+      S.precioMin, S.precioMax, S.orden, S.subCategoria,
+      S.fit, S.estampado, S.escote, S.colorDominante]);
 
   // Category unit-price stats (medianas por categoría, keyed normalized) that
   // power the price bar and the pack savings % badge. Sourced from
@@ -558,9 +570,14 @@ export default function AppLayout() {
     ...(S.precioMin !== undefined && { precioMin: S.precioMin }),
     ...(S.precioMax !== undefined && { precioMax: S.precioMax }),
     ...(S.subCategoria.length && { subCategoria: S.subCategoria }),
+    ...(S.fit             && { fit:            S.fit }),
+    ...(S.estampado       && { estampado:      S.estampado }),
+    ...(S.escote          && { escote:         S.escote }),
+    ...(S.colorDominante  && { colorDominante: S.colorDominante }),
   }), [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge, S.segment,
        S.genero, S.categorias, S.talles, S.gymrat, S.pack,
-       S.precioMin, S.precioMax, S.orden, S.subCategoria]);
+       S.precioMin, S.precioMax, S.orden, S.subCategoria,
+       S.fit, S.estampado, S.escote, S.colorDominante]);
 
   const loadFirstPage = useCallback(async () => {
     if (loadingRef.current) return;
