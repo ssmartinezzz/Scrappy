@@ -7,6 +7,8 @@ logs/
 scraper.db
 scraper/scraper.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # Dependencies
 frontend/node_modules/
@@ -35,11 +37,15 @@ scraper/precio_historico.json
 _models/
 scraper/_models/
 
-# Runtime-extracted copies of ml_pipeline.py (PythonRunner.java extracts from the JAR
-# next to scraper.jar at startup) — the only source of truth lives in
-# scraper/src/main/resources/ml/ml_pipeline.py
+# Runtime-extracted copies of the ML scripts (PythonRunner.java extracts them from
+# the JAR next to scraper.jar at startup) — the only source of truth lives in
+# scraper/src/main/resources/ml/
 /ml_pipeline.py
 scraper/ml_pipeline.py
+/ml_train.py
+scraper/ml_train.py
+/ml_embeddings.py
+scraper/ml_embeddings.py
 
 # Vendored toolchain
 _tools/
