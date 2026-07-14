@@ -337,20 +337,85 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloa
 # tuning deferred to spec/verify against a real sample) — these are a
 # reasonable starting point, not a tuned final answer.
 PROMPTS = {
+    # PR4 (T4's PROMPTS-expansion scope): expanded from PR3b1's 13 coarse
+    # top-level labels to the FINE canonical Spanish category strings
+    # `CategoryClassifier.clasificar()` (scraper/src/main/java/ar/scraper/
+    # aggregator/normalize/CategoryClassifier.java) can actually emit — the
+    # text model's `_TEXT_LABEL_SET` (ml_pipeline.py) is built from exactly
+    # those strings, and the stage-1b gate silently drops any image
+    # `categoria` prediction NOT in that set (`ml_pipeline.py`: "if cat and
+    # _TEXT_LABEL_SET and cat not in _TEXT_LABEL_SET: cat, conf = None,
+    # 0.0"). Every label below is pinned 1:1 against a manually-maintained
+    # copy of CategoryClassifier's output vocabulary in
+    # ml-tests/test_ml_embeddings_classify.py — keep both in sync BY HAND.
+    #
+    # Deliberately EXCLUDES tech (Notebook/PC/Monitor/GPU/CPU/RAM/
+    # Gabinete/Teclado/Mouse/Auricular/Webcam) and nutrition/supplement/
+    # food categories (Creatina/Proteína/Colágeno/Magnesio/Pre-Workout/
+    # BCAA/Vitaminas/Quemadores/Gainer/Suplemento/Alimentos and their
+    # Barra/Pancake/Snack Proteico subcategories) — a fashion vision-
+    # language model cannot meaningfully classify a GPU or a protein
+    # shaker from a product photo. Also excludes Perfume (fragrance, not a
+    # wearable garment) and Accesorio Deportivo (too broad/mixed a bucket:
+    # knee braces, protein shakers, and bandages share no single visual
+    # concept).
     "categoria": [
-        ("a photo of a t-shirt", "Remera"),
-        ("a photo of a hoodie or sweatshirt", "Buzo"),
+        # ── Calzado (footwear) ──────────────────────────────────────────
+        ("a photo of running sneakers", "Zapatilla Running"),
+        ("a photo of training or gym sneakers", "Zapatilla Entrenamiento"),
+        ("a photo of skateboarding sneakers", "Zapatilla Skate"),
+        ("a photo of casual urban sneakers", "Zapatilla Urbana"),
+        ("a photo of retro or lifestyle sneakers", "Sneaker"),
+        ("a photo of sneakers or athletic shoes", "Zapatilla"),
+        ("a photo of ankle boots", "Botines"),
+        ("a photo of combat boots or work boots", "Borcego"),
+        ("a photo of house slippers", "Pantufla"),
+        ("a photo of formal dress shoes", "Zapato"),
+        ("a photo of loafers or moccasins", "Mocasin"),
+        ("a photo of strappy sandals", "Sandalia"),
+        ("a photo of flip flops or thong sandals", "Ojotas"),
+        ("a photo of tall boots", "Botas"),
+        # ── Ropa interior / baño ────────────────────────────────────────
+        ("a photo of men's underwear or boxers", "Calzoncillos"),
+        ("a photo of a bra or bralette", "Corpino"),
+        ("a photo of a swimsuit or bikini", "Malla"),
+        # ── Indumentaria superior ───────────────────────────────────────
+        ("a photo of a puffer jacket", "Puffer"),
+        ("a photo of a raincoat", "Piloto"),
+        ("a photo of a formal suit", "Traje"),
+        ("a photo of a blazer", "Saco"),
+        ("a photo of a vest or gilet", "Chaleco"),
         ("a photo of a jacket or coat", "Campera"),
-        ("a photo of dress pants or trousers", "Pantalón"),
-        ("a photo of blue jeans", "Jean"),
-        ("a photo of shorts", "Short"),
-        ("a photo of a dress", "Vestido"),
-        ("a photo of a skirt", "Pollera"),
-        ("a photo of sneakers or athletic shoes", "Zapatillas"),
-        ("a photo of boots", "Botines"),
-        ("a photo of sandals or flip flops", "Sandalias"),
+        ("a photo of a knit sweater", "Sweater"),
+        ("a photo of a hoodie or sweatshirt", "Buzo"),
+        ("a photo of a sports jersey", "Casaca"),
+        ("a photo of a polo shirt", "Chomba"),
         ("a photo of a tank top or sleeveless top", "Musculosa"),
         ("a photo of a button-up collared shirt", "Camisa"),
+        ("a photo of a t-shirt", "Remera"),
+        # ── Indumentaria inferior ───────────────────────────────────────
+        ("a photo of leggings", "Calza"),
+        ("a photo of baggy or wide-leg pants", "Baggy"),
+        ("a photo of blue jeans", "Jean"),
+        ("a photo of jogger sweatpants", "Jogging"),
+        ("a photo of bermuda shorts", "Bermuda"),
+        ("a photo of shorts", "Short"),
+        ("a photo of a dress", "Vestido"),
+        ("a photo of a jumpsuit or romper", "Enterito"),
+        ("a photo of a skirt", "Pollera"),
+        ("a photo of dress pants or trousers", "Pantalón"),
+        # ── Accesorios ───────────────────────────────────────────────────
+        ("a photo of a wallet", "Billetera"),
+        ("a photo of a fanny pack or waist bag", "Riñonera"),
+        ("a photo of a backpack", "Mochila"),
+        ("a photo of a handbag or tote bag", "Bolso"),
+        ("a photo of a belt", "Cinturón"),
+        ("a photo of a scarf", "Bufanda"),
+        ("a photo of gloves", "Guantes"),
+        ("a photo of sunglasses", "Lentes"),
+        ("a photo of a beanie hat", "Gorro"),
+        ("a photo of a baseball cap", "Gorra"),
+        ("a photo of socks", "Medias"),
     ],
     "fit": [
         ("a photo of an oversized, loose-fitting garment", "oversize"),

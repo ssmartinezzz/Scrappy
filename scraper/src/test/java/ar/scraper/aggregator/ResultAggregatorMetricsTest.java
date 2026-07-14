@@ -7,6 +7,7 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.SenalEnricher;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
+import ar.scraper.web.InflacionService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -214,5 +216,40 @@ class ResultAggregatorMetricsTest {
 
         verify(db, never()).actualizarCategoria(anyString(), anyString());
         assertThat(aggregator.getLastCatRefinadas()).isEqualTo(0);
+    }
+
+    // ── T5.5/T5.6 risk (flagged in PR1 judgment-day): end-to-end coverage
+    //    that SenalEnricher/FinanciacionEnricher don't drop p.visual() when
+    //    wired for real (not mocked) through the full agregar() pipeline ──
+
+    @Test
+    void visualAttrsFromMlEnricherSurviveSenalAndFinanciacionEnrichmentEndToEnd() {
+        Product raw = product("Buzo con visual", 20000, "http://test.com/visual-e2e");
+        ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
+
+        Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "estampado", "capucha", "gris");
+        Product mlEnriquecido = new Product(
+                "TestSite", "Buzo con visual", 20000, null, "http://test.com/visual-e2e",
+                "", "Buzos", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(mlEnriquecido));
+
+        // Real (not mocked) SenalEnricher + FinanciacionEnricher — the concrete
+        // regression surface for the PR1-flagged risk: their withSenal()/
+        // withFinan() rebuild Product and previously reset visual to EMPTY.
+        when(db.getHistorialPrecios(anyList())).thenReturn(Map.of());
+        InflacionService inflacion = mock(InflacionService.class);
+        when(inflacion.factorInflacion(anyInt())).thenReturn(1.0);
+        SenalEnricher realSenalEnricher = new SenalEnricher(db, inflacion);
+        FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(db, inflacion);
+
+        ResultAggregator aggregatorConEnrichersReales = new ResultAggregator(
+                normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher, db);
+
+        ResultAggregator.AggregatedResult result =
+                aggregatorConEnrichersReales.agregar(List.of(scrapeResult));
+
+        assertThat(result.productos()).hasSize(1);
+        assertThat(result.productos().get(0).visual()).isEqualTo(visual);
     }
 }
