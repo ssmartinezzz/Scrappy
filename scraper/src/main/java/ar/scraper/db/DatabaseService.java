@@ -39,6 +39,13 @@ public class DatabaseService {
 
     private Connection conn;
 
+    // Monitor único de escritura: TODOS los métodos que commitean sobre la
+    // conexión compartida serializan sobre este lock. Antes solo los métodos
+    // de cron sincronizaban (entre sí), y las escrituras concurrentes
+    // scrape/cron/API sobre la misma transacción producían
+    // SQLITE_BUSY_SNAPSHOT y batches perdidos por rollback.
+    private final Object writeLock = new Object();
+
     @PostConstruct
     public void init() {
         initEn(Paths.get("scraper.db").toAbsolutePath().toString());
@@ -52,6 +59,14 @@ public class DatabaseService {
     void initEn(String path) {
         try {
             conn = DriverManager.getConnection("jdbc:sqlite:" + path);
+            // Pragmas de concurrencia (todavía en autocommit): WAL permite
+            // convivir con el proceso Python (ml_embeddings.py) que escribe al
+            // mismo archivo, y busy_timeout evita fallar de inmediato ante un
+            // lock ajeno (mismo timeout de 30s que usa el lado Python).
+            try (Statement st = conn.createStatement()) {
+                st.execute("PRAGMA busy_timeout=30000");
+                st.execute("PRAGMA journal_mode=WAL");
+            }
             conn.setAutoCommit(false);
             crearTablas();
             conn.commit();
@@ -61,11 +76,30 @@ public class DatabaseService {
         }
     }
 
+    /** Expone la conexión subyacente — usado por tests para verificar pragmas (WAL, busy_timeout). */
+    Connection conexion() {
+        return conn;
+    }
+
     /** Cierra la conexión subyacente — usado por tests para liberar el archivo SQLite temporal. */
     void cerrar() {
         try {
             if (conn != null) conn.close();
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * Cierra cualquier snapshot de lectura diferido (WAL) que haya quedado
+     * abierto por métodos de solo-lectura sobre esta conexión: con
+     * autoCommit=false, cualquier SELECT abre una transacción implícita que
+     * persiste hasta el próximo commit/rollback. Si el proceso Python
+     * (ml_embeddings.py) commitea en el medio, la próxima escritura sobre ese
+     * snapshot viejo falla con SQLITE_BUSY_SNAPSHOT — esperar no alcanza: hay
+     * que refrescar el snapshot con un rollback. Debe llamarse como primera
+     * sentencia dentro de cada bloque {@code synchronized (writeLock)}.
+     */
+    private void refrescarSnapshot() {
+        try { conn.rollback(); } catch (Exception ignored) {}
     }
 
     // ─── Schema ──────────────────────────────────────────────────────────────
@@ -409,14 +443,17 @@ public class DatabaseService {
             LOG.warn("[DB] crearPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return -1;
         }
-        try {
-            int id = crearPresetInterno(label, recargoPct, cuotas, false);
-            conn.commit();
-            return id;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error creando preset: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return -1;
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                int id = crearPresetInterno(label, recargoPct, cuotas, false);
+                conn.commit();
+                return id;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error creando preset: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return -1;
+            }
         }
     }
 
@@ -432,24 +469,27 @@ public class DatabaseService {
             LOG.warn("[DB] editarPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return false;
         }
-        try (PreparedStatement ps = conn.prepareStatement("""
-                UPDATE financiacion_presets SET label=?, recargo_pct=?, cuotas=? WHERE id=?
-                """)) {
-            ps.setString(1, label);
-            ps.setDouble(2, recargoPct);
-            ps.setInt(3, cuotas);
-            ps.setInt(4, id);
-            int filasEditadas = ps.executeUpdate();
-            if (filasEditadas == 0) {
-                LOG.warn("[DB] editarPreset: id {} no existe.", id);
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    UPDATE financiacion_presets SET label=?, recargo_pct=?, cuotas=? WHERE id=?
+                    """)) {
+                ps.setString(1, label);
+                ps.setDouble(2, recargoPct);
+                ps.setInt(3, cuotas);
+                ps.setInt(4, id);
+                int filasEditadas = ps.executeUpdate();
+                if (filasEditadas == 0) {
+                    LOG.warn("[DB] editarPreset: id {} no existe.", id);
+                    return false;
+                }
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error editando preset {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
                 return false;
             }
-            conn.commit();
-            return true;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error editando preset {}: {}", id, e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return false;
         }
     }
 
@@ -460,24 +500,27 @@ public class DatabaseService {
      */
     public boolean activarPreset(int id) {
         if (conn == null) return false;
-        try (PreparedStatement psOff = conn.prepareStatement(
-                "UPDATE financiacion_presets SET activo=0 WHERE activo=1");
-             PreparedStatement psOn = conn.prepareStatement(
-                "UPDATE financiacion_presets SET activo=1 WHERE id=?")) {
-            psOff.executeUpdate();
-            psOn.setInt(1, id);
-            int filasActivadas = psOn.executeUpdate();
-            if (filasActivadas == 0) {
-                LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
-                conn.rollback();
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement psOff = conn.prepareStatement(
+                    "UPDATE financiacion_presets SET activo=0 WHERE activo=1");
+                 PreparedStatement psOn = conn.prepareStatement(
+                    "UPDATE financiacion_presets SET activo=1 WHERE id=?")) {
+                psOff.executeUpdate();
+                psOn.setInt(1, id);
+                int filasActivadas = psOn.executeUpdate();
+                if (filasActivadas == 0) {
+                    LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
+                    conn.rollback();
+                    return false;
+                }
+                conn.commit();
+                return true;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
                 return false;
             }
-            conn.commit();
-            return true;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return false;
         }
     }
 
@@ -498,32 +541,35 @@ public class DatabaseService {
      */
     public boolean eliminarPreset(int id) {
         if (conn == null) return false;
-        try {
-            int total;
-            try (Statement st = conn.createStatement();
-                 ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
-                total = rs.next() ? rs.getInt(1) : 0;
-            }
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                int total;
+                try (Statement st = conn.createStatement();
+                     ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
+                    total = rs.next() ? rs.getInt(1) : 0;
+                }
 
-            int filasBorradas;
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM financiacion_presets WHERE id=?")) {
-                ps.setInt(1, id);
-                filasBorradas = ps.executeUpdate();
-            }
+                int filasBorradas;
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM financiacion_presets WHERE id=?")) {
+                    ps.setInt(1, id);
+                    filasBorradas = ps.executeUpdate();
+                }
 
-            if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
-                crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
-                        PRESET_ILUSTRATIVO_CUOTAS, true);
-                LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
-            }
+                if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
+                    crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                            PRESET_ILUSTRATIVO_CUOTAS, true);
+                    LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
+                }
 
-            conn.commit();
-            return filasBorradas > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return false;
+                conn.commit();
+                return filasBorradas > 0;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
         }
     }
 
@@ -541,144 +587,147 @@ public class DatabaseService {
 
         int nuevos = 0, actualizados = 0, sinCambios = 0;
 
-        try {
-            // 1. Obtener precios actuales de todos los productos activos
-            Map<String, Double> preciosActuales = getPreciosActuales();
-            Set<String> urlsNuevoRun = new HashSet<>();
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                // 1. Obtener precios actuales de todos los productos activos
+                Map<String, Double> preciosActuales = getPreciosActuales();
+                Set<String> urlsNuevoRun = new HashSet<>();
 
-            // RELY-001 fix: fit/estampado/escote/color_dominante use COALESCE(NULLIF(excluded.x,''), x)
-            // instead of a blind `= excluded.x` — ml_pipeline.py only populates these 4 keys for the
-            // needs_image_fallback-gated subset of a given run (capped at 400), so every OTHER product
-            // arrives here with blank visual fields even though it may already have non-blank values
-            // persisted from an earlier run or the backfill CLI. A blind overwrite silently wiped those
-            // back to '' on every regular scrape. Mirrors ml_embeddings.py's own additive invariant
-            // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must only ever ADD signal,
-            // never remove it").
-            String upsertSql = """
-                INSERT INTO productos
-                    (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
-                     talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,
-                     fit,estampado,escote,color_dominante,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
-                ON CONFLICT(url) DO UPDATE SET
-                    sitio        = excluded.sitio,
-                    nombre       = excluded.nombre,
-                    precio       = excluded.precio,
-                    precio_orig  = excluded.precio_orig,
-                    imagen_url   = excluded.imagen_url,
-                    categoria    = excluded.categoria,
-                    genero       = excluded.genero,
-                    talles       = excluded.talles,
-                    ml_badge     = excluded.ml_badge,
-                    ml_score     = excluded.ml_score,
-                    ml_oferta    = excluded.ml_oferta,
-                    ml_tendencia = excluded.ml_tendencia,
-                    ml_segment   = excluded.ml_segment,
-                    ml_zscore    = excluded.ml_zscore,
-                    rubro        = excluded.rubro,
-                    marca        = excluded.marca,
-                    gymrat       = excluded.gymrat,
-                    marca_premium = excluded.marca_premium,
-                    cantidad_unidades = excluded.cantidad_unidades,
-                    sub_categoria = excluded.sub_categoria,
-                    fit             = COALESCE(NULLIF(excluded.fit,''), fit),
-                    estampado       = COALESCE(NULLIF(excluded.estampado,''), estampado),
-                    escote          = COALESCE(NULLIF(excluded.escote,''), escote),
-                    color_dominante = COALESCE(NULLIF(excluded.color_dominante,''), color_dominante),
-                    activo       = 1,
-                    touched_at   = excluded.touched_at
-                """;
+                // RELY-001 fix: fit/estampado/escote/color_dominante use COALESCE(NULLIF(excluded.x,''), x)
+                // instead of a blind `= excluded.x` — ml_pipeline.py only populates these 4 keys for the
+                // needs_image_fallback-gated subset of a given run (capped at 400), so every OTHER product
+                // arrives here with blank visual fields even though it may already have non-blank values
+                // persisted from an earlier run or the backfill CLI. A blind overwrite silently wiped those
+                // back to '' on every regular scrape. Mirrors ml_embeddings.py's own additive invariant
+                // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must only ever ADD signal,
+                // never remove it").
+                String upsertSql = """
+                    INSERT INTO productos
+                        (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
+                         talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
+                         rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,
+                         fit,estampado,escote,color_dominante,activo,touched_at,created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                    ON CONFLICT(url) DO UPDATE SET
+                        sitio        = excluded.sitio,
+                        nombre       = excluded.nombre,
+                        precio       = excluded.precio,
+                        precio_orig  = excluded.precio_orig,
+                        imagen_url   = excluded.imagen_url,
+                        categoria    = excluded.categoria,
+                        genero       = excluded.genero,
+                        talles       = excluded.talles,
+                        ml_badge     = excluded.ml_badge,
+                        ml_score     = excluded.ml_score,
+                        ml_oferta    = excluded.ml_oferta,
+                        ml_tendencia = excluded.ml_tendencia,
+                        ml_segment   = excluded.ml_segment,
+                        ml_zscore    = excluded.ml_zscore,
+                        rubro        = excluded.rubro,
+                        marca        = excluded.marca,
+                        gymrat       = excluded.gymrat,
+                        marca_premium = excluded.marca_premium,
+                        cantidad_unidades = excluded.cantidad_unidades,
+                        sub_categoria = excluded.sub_categoria,
+                        fit             = COALESCE(NULLIF(excluded.fit,''), fit),
+                        estampado       = COALESCE(NULLIF(excluded.estampado,''), estampado),
+                        escote          = COALESCE(NULLIF(excluded.escote,''), escote),
+                        color_dominante = COALESCE(NULLIF(excluded.color_dominante,''), color_dominante),
+                        activo       = 1,
+                        touched_at   = excluded.touched_at
+                    """;
 
-            String histSql = """
-                INSERT OR IGNORE INTO precio_historico (url, precio, fecha)
-                VALUES (?, ?, ?)
-                """;
+                String histSql = """
+                    INSERT OR IGNORE INTO precio_historico (url, precio, fecha)
+                    VALUES (?, ?, ?)
+                    """;
 
-            try (PreparedStatement psUpsert = conn.prepareStatement(upsertSql);
-                 PreparedStatement psHist   = conn.prepareStatement(histSql)) {
+                try (PreparedStatement psUpsert = conn.prepareStatement(upsertSql);
+                     PreparedStatement psHist   = conn.prepareStatement(histSql)) {
 
-                for (Product p : productos) {
-                    if (p.url() == null || p.url().isBlank()) continue;
-                    urlsNuevoRun.add(p.url());
+                    for (Product p : productos) {
+                        if (p.url() == null || p.url().isBlank()) continue;
+                        urlsNuevoRun.add(p.url());
 
-                    String tallesJson = MAPPER.writeValueAsString(
-                            p.talles() != null ? p.talles() : List.of());
+                        String tallesJson = MAPPER.writeValueAsString(
+                                p.talles() != null ? p.talles() : List.of());
 
-                    // ML fields
-                    String badge    = p.ml() != null ? p.ml().badge()         : "";
-                    int    score    = p.ml() != null ? p.ml().scoreP()        : 50;
-                    int    oferta   = (p.ml() != null && p.ml().ofertaReal()) ? 1 : 0;
-                    String tendencia = p.ml() != null ? p.ml().tendencia()    : "";
+                        // ML fields
+                        String badge    = p.ml() != null ? p.ml().badge()         : "";
+                        int    score    = p.ml() != null ? p.ml().scoreP()        : 50;
+                        int    oferta   = (p.ml() != null && p.ml().ofertaReal()) ? 1 : 0;
+                        String tendencia = p.ml() != null ? p.ml().tendencia()    : "";
 
-                    psUpsert.setString(1,  p.url());
-                    psUpsert.setString(2,  p.sitio());
-                    psUpsert.setString(3,  p.nombre());
-                    psUpsert.setDouble(4,  p.precio());
-                    psUpsert.setString(5,  p.precioOriginal());
-                    psUpsert.setString(6,  p.imagenUrl());
-                    psUpsert.setString(7,  p.categoria());
-                    psUpsert.setString(8,  p.genero());
-                    psUpsert.setString(9,  tallesJson);
-                    psUpsert.setString(10, badge);
-                    psUpsert.setInt   (11, score);
-                    psUpsert.setInt   (12, oferta);
-                    psUpsert.setString(13, tendencia);
-                    psUpsert.setString(14, p.ml() != null ? p.ml().segment() : "standard");
-                    psUpsert.setDouble(15, p.ml() != null ? p.ml().zScore() : 0.0);
-                    psUpsert.setString(16, p.rubro() != null ? p.rubro() : "indumentaria");
-                    psUpsert.setString(17, p.marca() != null ? p.marca() : "");
-                    psUpsert.setInt   (18, p.gymrat() ? 1 : 0);
-                    psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
-                    psUpsert.setInt   (20, p.cantidadUnidades());
-                    psUpsert.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
+                        psUpsert.setString(1,  p.url());
+                        psUpsert.setString(2,  p.sitio());
+                        psUpsert.setString(3,  p.nombre());
+                        psUpsert.setDouble(4,  p.precio());
+                        psUpsert.setString(5,  p.precioOriginal());
+                        psUpsert.setString(6,  p.imagenUrl());
+                        psUpsert.setString(7,  p.categoria());
+                        psUpsert.setString(8,  p.genero());
+                        psUpsert.setString(9,  tallesJson);
+                        psUpsert.setString(10, badge);
+                        psUpsert.setInt   (11, score);
+                        psUpsert.setInt   (12, oferta);
+                        psUpsert.setString(13, tendencia);
+                        psUpsert.setString(14, p.ml() != null ? p.ml().segment() : "standard");
+                        psUpsert.setDouble(15, p.ml() != null ? p.ml().zScore() : 0.0);
+                        psUpsert.setString(16, p.rubro() != null ? p.rubro() : "indumentaria");
+                        psUpsert.setString(17, p.marca() != null ? p.marca() : "");
+                        psUpsert.setInt   (18, p.gymrat() ? 1 : 0);
+                        psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
+                        psUpsert.setInt   (20, p.cantidadUnidades());
+                        psUpsert.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
 
-                    Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
-                    psUpsert.setString(22, visual.fit()            != null ? visual.fit()            : "");
-                    psUpsert.setString(23, visual.estampado()      != null ? visual.estampado()      : "");
-                    psUpsert.setString(24, visual.escote()         != null ? visual.escote()         : "");
-                    psUpsert.setString(25, visual.colorDominante() != null ? visual.colorDominante() : "");
-                    psUpsert.setString(26, now);   // touched_at
-                    psUpsert.setString(27, now);   // created_at
-                    psUpsert.executeUpdate();
+                        Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+                        psUpsert.setString(22, visual.fit()            != null ? visual.fit()            : "");
+                        psUpsert.setString(23, visual.estampado()      != null ? visual.estampado()      : "");
+                        psUpsert.setString(24, visual.escote()         != null ? visual.escote()         : "");
+                        psUpsert.setString(25, visual.colorDominante() != null ? visual.colorDominante() : "");
+                        psUpsert.setString(26, now);   // touched_at
+                        psUpsert.setString(27, now);   // created_at
+                        psUpsert.executeUpdate();
 
-                    Double prevPrecio = preciosActuales.get(p.url());
-                    if (prevPrecio == null) {
-                        // Producto nuevo
-                        nuevos++;
-                        psHist.setString(1, p.url());
-                        psHist.setDouble(2, p.precio());
-                        psHist.setString(3, today);
-                        psHist.executeUpdate();
-                    } else if (Math.abs(prevPrecio - p.precio()) > 0.01) {
-                        // Precio cambió
-                        actualizados++;
-                        psHist.setString(1, p.url());
-                        psHist.setDouble(2, p.precio());
-                        psHist.setString(3, today);
-                        psHist.executeUpdate();
-                    } else {
-                        sinCambios++;
+                        Double prevPrecio = preciosActuales.get(p.url());
+                        if (prevPrecio == null) {
+                            // Producto nuevo
+                            nuevos++;
+                            psHist.setString(1, p.url());
+                            psHist.setDouble(2, p.precio());
+                            psHist.setString(3, today);
+                            psHist.executeUpdate();
+                        } else if (Math.abs(prevPrecio - p.precio()) > 0.01) {
+                            // Precio cambió
+                            actualizados++;
+                            psHist.setString(1, p.url());
+                            psHist.setDouble(2, p.precio());
+                            psHist.setString(3, today);
+                            psHist.executeUpdate();
+                        } else {
+                            sinCambios++;
+                        }
                     }
                 }
+
+                // 2. Soft-delete: productos en DB que no aparecieron en este run
+                int desactivados = softDeleteAusentes(urlsNuevoRun, now);
+
+                // 3. Purgar historial > 90 días
+                purgarHistorialViejo();
+
+                conn.commit();
+
+                LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
+                        nuevos, actualizados, sinCambios, desactivados);
+                return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
+
+            } catch (Exception e) {
+                LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return new UpsertStats(0, 0, 0, 0);
             }
-
-            // 2. Soft-delete: productos en DB que no aparecieron en este run
-            int desactivados = softDeleteAusentes(urlsNuevoRun, now);
-
-            // 3. Purgar historial > 90 días
-            purgarHistorialViejo();
-
-            conn.commit();
-
-            LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
-                    nuevos, actualizados, sinCambios, desactivados);
-            return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
-
-        } catch (Exception e) {
-            LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return new UpsertStats(0, 0, 0, 0);
         }
     }
 
@@ -735,79 +784,82 @@ public class DatabaseService {
         if (conn == null || productos.isEmpty()) return;
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
-        try {
-            // Columnas visuales (fit/estampado/escote/color_dominante) excluidas a propósito:
-            // en esta etapa del pipeline (upsert parcial durante scraping) VisualAttrs todavía
-            // no está poblado (se calcula recién en MlEnricher), así que se dejan sin tocar acá.
-            String upsertSql = """
-                INSERT INTO productos
-                    (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
-                     talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
-                ON CONFLICT(url) DO UPDATE SET
-                    sitio        = excluded.sitio,
-                    nombre       = excluded.nombre,
-                    precio       = excluded.precio,
-                    precio_orig  = excluded.precio_orig,
-                    imagen_url   = excluded.imagen_url,
-                    categoria    = excluded.categoria,
-                    genero       = excluded.genero,
-                    talles       = excluded.talles,
-                    rubro        = excluded.rubro,
-                    marca        = excluded.marca,
-                    gymrat       = excluded.gymrat,
-                    marca_premium = excluded.marca_premium,
-                    cantidad_unidades = excluded.cantidad_unidades,
-                    sub_categoria = excluded.sub_categoria,
-                    activo       = 1,
-                    touched_at   = excluded.touched_at
-                """;
-            String histSql = "INSERT OR IGNORE INTO precio_historico (url,precio,fecha) VALUES(?,?,?)";
-            Map<String,Double> prevPrecios = getPreciosActuales();
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                // Columnas visuales (fit/estampado/escote/color_dominante) excluidas a propósito:
+                // en esta etapa del pipeline (upsert parcial durante scraping) VisualAttrs todavía
+                // no está poblado (se calcula recién en MlEnricher), así que se dejan sin tocar acá.
+                String upsertSql = """
+                    INSERT INTO productos
+                        (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
+                         talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
+                         rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                    ON CONFLICT(url) DO UPDATE SET
+                        sitio        = excluded.sitio,
+                        nombre       = excluded.nombre,
+                        precio       = excluded.precio,
+                        precio_orig  = excluded.precio_orig,
+                        imagen_url   = excluded.imagen_url,
+                        categoria    = excluded.categoria,
+                        genero       = excluded.genero,
+                        talles       = excluded.talles,
+                        rubro        = excluded.rubro,
+                        marca        = excluded.marca,
+                        gymrat       = excluded.gymrat,
+                        marca_premium = excluded.marca_premium,
+                        cantidad_unidades = excluded.cantidad_unidades,
+                        sub_categoria = excluded.sub_categoria,
+                        activo       = 1,
+                        touched_at   = excluded.touched_at
+                    """;
+                String histSql = "INSERT OR IGNORE INTO precio_historico (url,precio,fecha) VALUES(?,?,?)";
+                Map<String,Double> prevPrecios = getPreciosActuales();
 
-            try (PreparedStatement psU = conn.prepareStatement(upsertSql);
-                 PreparedStatement psH = conn.prepareStatement(histSql)) {
-                for (Product p : productos) {
-                    if (p.url() == null || p.url().isBlank()) continue;
-                    String tallesJson = MAPPER.writeValueAsString(p.talles() != null ? p.talles() : List.of());
-                    psU.setString(1,  p.url());
-                    psU.setString(2,  p.sitio());
-                    psU.setString(3,  p.nombre());
-                    psU.setDouble(4,  p.precio());
-                    psU.setString(5,  p.precioOriginal() != null ? p.precioOriginal() : "");
-                    psU.setString(6,  p.imagenUrl()      != null ? p.imagenUrl()      : "");
-                    psU.setString(7,  p.categoria()      != null ? p.categoria()      : "");
-                    psU.setString(8,  p.genero()         != null ? p.genero()         : "");
-                    psU.setString(9,  tallesJson);
-                    psU.setString(10, "");                        // ml_badge
-                    psU.setInt   (11, 50);                        // ml_score
-                    psU.setInt   (12, 0);                         // ml_oferta
-                    psU.setString(13, "");                        // ml_tendencia
-                    psU.setString(14, "standard");                // ml_segment
-                    psU.setDouble(15, 0.0);                       // ml_zscore
-                    psU.setString(16, p.rubro() != null ? p.rubro() : "indumentaria"); // rubro
-                    psU.setString(17, p.marca() != null ? p.marca() : "");             // marca
-                    psU.setInt   (18, p.gymrat() ? 1 : 0);                             // gymrat
-                    psU.setInt   (19, p.marcaPremium() ? 1 : 0);                       // marca_premium
-                    psU.setInt   (20, p.cantidadUnidades());                           // cantidad_unidades
-                    psU.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
-                    psU.setString(22, now);                       // touched_at
-                    psU.setString(23, now);                       // created_at
-                    psU.executeUpdate();
-                    Double prev = prevPrecios.get(p.url());
-                    if (prev == null || Math.abs(prev - p.precio()) > 0.01) {
-                        psH.setString(1, p.url());
-                        psH.setDouble(2, p.precio());
-                        psH.setString(3, today);
-                        psH.executeUpdate();
+                try (PreparedStatement psU = conn.prepareStatement(upsertSql);
+                     PreparedStatement psH = conn.prepareStatement(histSql)) {
+                    for (Product p : productos) {
+                        if (p.url() == null || p.url().isBlank()) continue;
+                        String tallesJson = MAPPER.writeValueAsString(p.talles() != null ? p.talles() : List.of());
+                        psU.setString(1,  p.url());
+                        psU.setString(2,  p.sitio());
+                        psU.setString(3,  p.nombre());
+                        psU.setDouble(4,  p.precio());
+                        psU.setString(5,  p.precioOriginal() != null ? p.precioOriginal() : "");
+                        psU.setString(6,  p.imagenUrl()      != null ? p.imagenUrl()      : "");
+                        psU.setString(7,  p.categoria()      != null ? p.categoria()      : "");
+                        psU.setString(8,  p.genero()         != null ? p.genero()         : "");
+                        psU.setString(9,  tallesJson);
+                        psU.setString(10, "");                        // ml_badge
+                        psU.setInt   (11, 50);                        // ml_score
+                        psU.setInt   (12, 0);                         // ml_oferta
+                        psU.setString(13, "");                        // ml_tendencia
+                        psU.setString(14, "standard");                // ml_segment
+                        psU.setDouble(15, 0.0);                       // ml_zscore
+                        psU.setString(16, p.rubro() != null ? p.rubro() : "indumentaria"); // rubro
+                        psU.setString(17, p.marca() != null ? p.marca() : "");             // marca
+                        psU.setInt   (18, p.gymrat() ? 1 : 0);                             // gymrat
+                        psU.setInt   (19, p.marcaPremium() ? 1 : 0);                       // marca_premium
+                        psU.setInt   (20, p.cantidadUnidades());                           // cantidad_unidades
+                        psU.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
+                        psU.setString(22, now);                       // touched_at
+                        psU.setString(23, now);                       // created_at
+                        psU.executeUpdate();
+                        Double prev = prevPrecios.get(p.url());
+                        if (prev == null || Math.abs(prev - p.precio()) > 0.01) {
+                            psH.setString(1, p.url());
+                            psH.setDouble(2, p.precio());
+                            psH.setString(3, today);
+                            psH.executeUpdate();
+                        }
                     }
                 }
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
             }
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
@@ -911,26 +963,29 @@ public class DatabaseService {
             LOG.debug("[DB] ML output inválido (sin scores/tendencias) — no se persiste");
             return;
         }
-        try {
-            String json = MAPPER.writeValueAsString(mlOutput);
-            String now  = LocalDateTime.now().format(DT);
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
-                ps.setString(1, json);
-                ps.setString(2, now);
-                ps.executeUpdate();
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                String json = MAPPER.writeValueAsString(mlOutput);
+                String now  = LocalDateTime.now().format(DT);
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
+                    ps.setString(1, json);
+                    ps.setString(2, now);
+                    ps.executeUpdate();
+                }
+                // Mantener solo los últimos 10 outputs
+                try (Statement st = conn.createStatement()) {
+                    st.executeUpdate("""
+                        DELETE FROM ml_output WHERE id NOT IN (
+                            SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
+                        )""");
+                }
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
             }
-            // Mantener solo los últimos 10 outputs
-            try (Statement st = conn.createStatement()) {
-                st.executeUpdate("""
-                    DELETE FROM ml_output WHERE id NOT IN (
-                        SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
-                    )""");
-            }
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
@@ -986,33 +1041,39 @@ public class DatabaseService {
 
     public void guardarSitio(String nombre, String url, String plataforma) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO sitios_dinamicos (nombre, url, plataforma, created_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(nombre) DO UPDATE SET url=excluded.url, plataforma=excluded.plataforma
-                """)) {
-            ps.setString(1, nombre);
-            ps.setString(2, url);
-            ps.setString(3, plataforma);
-            ps.setString(4, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO sitios_dinamicos (nombre, url, plataforma, created_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(nombre) DO UPDATE SET url=excluded.url, plataforma=excluded.plataforma
+                    """)) {
+                ps.setString(1, nombre);
+                ps.setString(2, url);
+                ps.setString(3, plataforma);
+                ps.setString(4, LocalDateTime.now().format(DT));
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
     public void eliminarSitio(String nombre) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
-            ps.setString(1, nombre);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
+                ps.setString(1, nombre);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1040,23 +1101,26 @@ public class DatabaseService {
     public void guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode statsNode) {
         if (conn == null || statsNode == null) return;
         String now = LocalDateTime.now().format(DT);
-        try {
-            var it = statsNode.fields();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO categoria_stats (categoria, payload, updated_at) VALUES (?,?,?) " +
-                    "ON CONFLICT(categoria) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at")) {
-                while (it.hasNext()) {
-                    var entry = it.next();
-                    ps.setString(1, entry.getKey());
-                    ps.setString(2, entry.getValue().toString());
-                    ps.setString(3, now);
-                    ps.executeUpdate();
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                var it = statsNode.fields();
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO categoria_stats (categoria, payload, updated_at) VALUES (?,?,?) " +
+                        "ON CONFLICT(categoria) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at")) {
+                    while (it.hasNext()) {
+                        var entry = it.next();
+                        ps.setString(1, entry.getKey());
+                        ps.setString(2, entry.getValue().toString());
+                        ps.setString(3, now);
+                        ps.executeUpdate();
+                    }
                 }
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
             }
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
@@ -1079,30 +1143,33 @@ public class DatabaseService {
             java.util.List<java.util.Map<String,Object>> resultados) {
         if (conn == null || resultados == null || resultados.isEmpty()) return;
         String hoy = LocalDate.now().format(DATE);
-        try {
-            // Borrar los del día para no duplicar
-            try (PreparedStatement del = conn.prepareStatement(
-                    "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
-                del.setString(1, productoUrl); del.setString(2, sitio); del.setString(3, hoy);
-                del.executeUpdate();
-            }
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO precios_externos (producto_url,sitio,titulo,precio,externo_url,condicion,fecha) VALUES(?,?,?,?,?,?,?)")) {
-                for (var r : resultados) {
-                    ps.setString(1, productoUrl);
-                    ps.setString(2, sitio);
-                    ps.setString(3, (String) r.getOrDefault("titulo", ""));
-                    ps.setDouble(4, ((Number) r.getOrDefault("precio", 0.0)).doubleValue());
-                    ps.setString(5, (String) r.getOrDefault("url", ""));
-                    ps.setString(6, (String) r.getOrDefault("condicion", "new"));
-                    ps.setString(7, hoy);
-                    ps.executeUpdate();
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                // Borrar los del día para no duplicar
+                try (PreparedStatement del = conn.prepareStatement(
+                        "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
+                    del.setString(1, productoUrl); del.setString(2, sitio); del.setString(3, hoy);
+                    del.executeUpdate();
                 }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO precios_externos (producto_url,sitio,titulo,precio,externo_url,condicion,fecha) VALUES(?,?,?,?,?,?,?)")) {
+                    for (var r : resultados) {
+                        ps.setString(1, productoUrl);
+                        ps.setString(2, sitio);
+                        ps.setString(3, (String) r.getOrDefault("titulo", ""));
+                        ps.setDouble(4, ((Number) r.getOrDefault("precio", 0.0)).doubleValue());
+                        ps.setString(5, (String) r.getOrDefault("url", ""));
+                        ps.setString(6, (String) r.getOrDefault("condicion", "new"));
+                        ps.setString(7, hoy);
+                        ps.executeUpdate();
+                    }
+                }
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
             }
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
@@ -1131,15 +1198,18 @@ public class DatabaseService {
     /** Actualiza la categoría de un producto (corrección por modelo ML) */
     public void actualizarCategoria(String url, String nuevaCategoria) {
         if (conn == null || url == null || nuevaCategoria == null) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE productos SET categoria=? WHERE url=?")) {
-            ps.setString(1, nuevaCategoria);
-            ps.setString(2, url);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error actualizando categoria: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE productos SET categoria=? WHERE url=?")) {
+                ps.setString(1, nuevaCategoria);
+                ps.setString(2, url);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando categoria: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1151,19 +1221,22 @@ public class DatabaseService {
     public void actualizarNormalizacion(String url, String categoria, String marca,
                                          String genero, List<String> talles, String subCategoria) {
         if (conn == null || url == null) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
-            ps.setString(1, categoria != null ? categoria : "");
-            ps.setString(2, marca != null ? marca : "");
-            ps.setString(3, genero != null ? genero : "");
-            ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-            ps.setString(5, subCategoria != null ? subCategoria : "");
-            ps.setString(6, url);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
+                ps.setString(1, categoria != null ? categoria : "");
+                ps.setString(2, marca != null ? marca : "");
+                ps.setString(3, genero != null ? genero : "");
+                ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
+                ps.setString(5, subCategoria != null ? subCategoria : "");
+                ps.setString(6, url);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1172,33 +1245,39 @@ public class DatabaseService {
 
     public void guardarFavorito(String url, String sitio, String nombre) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO favoritos (url, sitio, nombre, added_at, last_checked_at)
-                VALUES (?, ?, ?, ?, NULL)
-                ON CONFLICT(url) DO UPDATE SET sitio=excluded.sitio, nombre=excluded.nombre
-                """)) {
-            ps.setString(1, url);
-            ps.setString(2, sitio);
-            ps.setString(3, nombre);
-            ps.setString(4, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando favorito: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO favoritos (url, sitio, nombre, added_at, last_checked_at)
+                    VALUES (?, ?, ?, ?, NULL)
+                    ON CONFLICT(url) DO UPDATE SET sitio=excluded.sitio, nombre=excluded.nombre
+                    """)) {
+                ps.setString(1, url);
+                ps.setString(2, sitio);
+                ps.setString(3, nombre);
+                ps.setString(4, LocalDateTime.now().format(DT));
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando favorito: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
     public void eliminarFavorito(String url) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM favoritos WHERE url=?")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando favorito: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM favoritos WHERE url=?")) {
+                ps.setString(1, url);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error eliminando favorito: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1247,22 +1326,25 @@ public class DatabaseService {
      */
     public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked, String estilo) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO outfit_feedback_item
-                    (genero, slot, url, liked, estilo, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """)) {
-            ps.setString(1, genero);
-            ps.setString(2, slot);
-            ps.setString(3, url);
-            ps.setInt(4, liked ? 1 : 0);
-            ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
-            ps.setString(6, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO outfit_feedback_item
+                        (genero, slot, url, liked, estilo, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """)) {
+                ps.setString(1, genero);
+                ps.setString(2, slot);
+                ps.setString(3, url);
+                ps.setInt(4, liked ? 1 : 0);
+                ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
+                ps.setString(6, LocalDateTime.now().format(DT));
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1302,26 +1384,29 @@ public class DatabaseService {
      */
     public void guardarCategoriaDismiss(String categoria) {
         if (conn == null || categoria == null || categoria.isBlank()) return;
-        try {
-            try (PreparedStatement check = conn.prepareStatement(
-                    "SELECT 1 FROM categoria_dismiss WHERE categoria=?")) {
-                check.setString(1, categoria);
-                try (ResultSet rs = check.executeQuery()) {
-                    if (rs.next()) return; // ya existe — no-op idempotente
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try {
+                try (PreparedStatement check = conn.prepareStatement(
+                        "SELECT 1 FROM categoria_dismiss WHERE categoria=?")) {
+                    check.setString(1, categoria);
+                    try (ResultSet rs = check.executeQuery()) {
+                        if (rs.next()) return; // ya existe — no-op idempotente
+                    }
                 }
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        INSERT INTO categoria_dismiss (categoria, created_at)
+                        VALUES (?, ?)
+                        """)) {
+                    ps.setString(1, categoria);
+                    ps.setString(2, LocalDateTime.now().format(DT));
+                    ps.executeUpdate();
+                    conn.commit();
+                }
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
             }
-            try (PreparedStatement ps = conn.prepareStatement("""
-                    INSERT INTO categoria_dismiss (categoria, created_at)
-                    VALUES (?, ?)
-                    """)) {
-                ps.setString(1, categoria);
-                ps.setString(2, LocalDateTime.now().format(DT));
-                ps.executeUpdate();
-                conn.commit();
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
         }
     }
 
@@ -1331,13 +1416,16 @@ public class DatabaseService {
      */
     public void limpiarOutfitFeedback() {
         if (conn == null) return;
-        try (Statement st = conn.createStatement()) {
-            st.executeUpdate("DELETE FROM outfit_feedback_item");
-            st.executeUpdate("DELETE FROM outfit_feedback");
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (Statement st = conn.createStatement()) {
+                st.executeUpdate("DELETE FROM outfit_feedback_item");
+                st.executeUpdate("DELETE FROM outfit_feedback");
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1349,28 +1437,34 @@ public class DatabaseService {
      */
     public void limpiarOutfitFeedback(String estilo) {
         if (conn == null || estilo == null || estilo.isBlank()) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM outfit_feedback_item WHERE estilo=?")) {
-            ps.setString(1, estilo);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM outfit_feedback_item WHERE estilo=?")) {
+                ps.setString(1, estilo);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
     public void borrarCategoriaDismiss(String categoria) {
         if (conn == null || categoria == null || categoria.isBlank()) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM categoria_dismiss WHERE categoria=?")) {
-            ps.setString(1, categoria);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM categoria_dismiss WHERE categoria=?")) {
+                ps.setString(1, categoria);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1392,28 +1486,34 @@ public class DatabaseService {
 
     public void marcarDescontinuado(String url) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE productos SET activo=0 WHERE url=?")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error marcando descontinuado: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE productos SET activo=0 WHERE url=?")) {
+                ps.setString(1, url);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error marcando descontinuado: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
     public void tocarFavorito(String url) {
         if (conn == null) return;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE favoritos SET last_checked_at=? WHERE url=?")) {
-            ps.setString(1, LocalDateTime.now().format(DT));
-            ps.setString(2, url);
-            ps.executeUpdate();
-            conn.commit();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error actualizando last_checked_at: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE favoritos SET last_checked_at=? WHERE url=?")) {
+                ps.setString(1, LocalDateTime.now().format(DT));
+                ps.setString(2, url);
+                ps.executeUpdate();
+                conn.commit();
+            } catch (Exception e) {
+                LOG.warn("[DB] Error actualizando last_checked_at: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
         }
     }
 
@@ -1493,26 +1593,32 @@ public class DatabaseService {
     // ─── Clear methods ───────────────────────────────────────────────────────
 
     public void limpiarProductos() throws SQLException {
-        try (var st = conn.createStatement()) {
-            st.execute("DELETE FROM productos");
-            st.execute("DELETE FROM precio_historico");
-            st.execute("DELETE FROM categoria_stats");
-            conn.commit();
-            LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
-        } catch (SQLException e) {
-            conn.rollback();
-            throw e;
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (var st = conn.createStatement()) {
+                st.execute("DELETE FROM productos");
+                st.execute("DELETE FROM precio_historico");
+                st.execute("DELETE FROM categoria_stats");
+                conn.commit();
+                LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
         }
     }
 
     public void limpiarMlOutput() throws SQLException {
-        try (var st = conn.createStatement()) {
-            st.execute("DELETE FROM ml_output");
-            conn.commit();
-            LOG.info("[DB] Datos ML eliminados.");
-        } catch (SQLException e) {
-            conn.rollback();
-            throw e;
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (var st = conn.createStatement()) {
+                st.execute("DELETE FROM ml_output");
+                conn.commit();
+                LOG.info("[DB] Datos ML eliminados.");
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
         }
     }
 
@@ -1524,24 +1630,27 @@ public class DatabaseService {
      */
     public int guardarOutfit(String nombre, String slotsJson, String suplementosJson, double total) {
         if (conn == null) return -1;
-        try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO saved_outfits (nombre, slots_json, suplementos_json, total_estimado, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, nombre != null ? nombre : "Outfit");
-            ps.setString(2, slotsJson != null ? slotsJson : "[]");
-            ps.setString(3, suplementosJson);
-            ps.setDouble(4, total);
-            ps.setString(5, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-            conn.commit();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                return keys.next() ? keys.getInt(1) : -1;
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO saved_outfits (nombre, slots_json, suplementos_json, total_estimado, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, nombre != null ? nombre : "Outfit");
+                ps.setString(2, slotsJson != null ? slotsJson : "[]");
+                ps.setString(3, suplementosJson);
+                ps.setDouble(4, total);
+                ps.setString(5, LocalDateTime.now().format(DT));
+                ps.executeUpdate();
+                conn.commit();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    return keys.next() ? keys.getInt(1) : -1;
+                }
+            } catch (Exception e) {
+                LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return -1;
             }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return -1;
         }
     }
 
@@ -1576,46 +1685,51 @@ public class DatabaseService {
     /** Elimina un outfit guardado por id. Retorna true si existía. */
     public boolean eliminarOutfitGuardado(int id) {
         if (conn == null) return false;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM saved_outfits WHERE id=?")) {
-            ps.setInt(1, id);
-            int rows = ps.executeUpdate();
-            conn.commit();
-            return rows > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return false;
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM saved_outfits WHERE id=?")) {
+                ps.setInt(1, id);
+                int rows = ps.executeUpdate();
+                conn.commit();
+                return rows > 0;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
         }
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
     public boolean renombrarOutfit(int id, String nombre) {
         if (conn == null || nombre == null || nombre.isBlank()) return false;
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
-            ps.setString(1, nombre.trim());
-            ps.setInt(2, id);
-            int rows = ps.executeUpdate();
-            conn.commit();
-            return rows > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
-            try { conn.rollback(); } catch (Exception ignored) {}
-            return false;
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
+                ps.setString(1, nombre.trim());
+                ps.setInt(2, id);
+                int rows = ps.executeUpdate();
+                conn.commit();
+                return rows > 0;
+            } catch (Exception e) {
+                LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
         }
     }
 
     // ─── Cron Jobs ───────────────────────────────────────────────────────────
-    // Escrituras nuevas del scheduler/runner sincronizadas con un lock dedicado
-    // (decision 6): el resto de DatabaseService NO se refactoriza a sync global.
-
-    private final Object cronWriteLock = new Object();
+    // Escrituras sincronizadas sobre el writeLock global de la clase, igual
+    // que el resto de los métodos de escritura.
 
     public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         if (conn == null) return -1;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement("""
                     INSERT INTO cron_jobs
                         (name, precio_min, precio_max, sitios_json, force_retrain, use_gpu,
@@ -1651,7 +1765,8 @@ public class DatabaseService {
     public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         if (conn == null) return false;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement("""
                     UPDATE cron_jobs SET name=?, precio_min=?, precio_max=?, sitios_json=?,
                         force_retrain=?, use_gpu=?, cron_expr=?, enabled=?, updated_at=?, next_run_at=?
@@ -1683,7 +1798,8 @@ public class DatabaseService {
     /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
     public boolean deleteCronJob(long id) {
         if (conn == null) return false;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement delExec = conn.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
                  PreparedStatement delJob  = conn.prepareStatement("DELETE FROM cron_jobs WHERE id=?")) {
                 delExec.setLong(1, id);
@@ -1752,7 +1868,8 @@ public class DatabaseService {
     /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
     public boolean touchLastRunAt(long jobId, String lastRunAt) {
         if (conn == null) return false;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE cron_jobs SET last_run_at=? WHERE id=?")) {
                 ps.setString(1, lastRunAt);
@@ -1771,7 +1888,8 @@ public class DatabaseService {
     /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
     public boolean updateNextRunAt(long jobId, String nextRunAt) {
         if (conn == null) return false;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE cron_jobs SET next_run_at=? WHERE id=?")) {
                 ps.setString(1, nextRunAt);
@@ -1791,7 +1909,8 @@ public class DatabaseService {
 
     public long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {
         if (conn == null) return -1;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement("""
                     INSERT INTO cron_executions (job_id, started_at, status, skipped_reason)
                     VALUES (?,?,?,?)
@@ -1816,7 +1935,8 @@ public class DatabaseService {
     public boolean updateCronExecution(long execId, String finishedAt, String status,
             String skippedReason, String logOutput, Integer durationMs) {
         if (conn == null) return false;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement("""
                     UPDATE cron_executions
                     SET finished_at=?, status=?, skipped_reason=?, log_output=?, duration_ms=?
@@ -1885,7 +2005,8 @@ public class DatabaseService {
     /** Retiene solo las últimas {@code keep} ejecuciones por job (decision 7: 50). */
     public void pruneCronExecutions(long jobId, int keep) {
         if (conn == null) return;
-        synchronized (cronWriteLock) {
+        synchronized (writeLock) {
+            refrescarSnapshot();
             try (PreparedStatement ps = conn.prepareStatement("""
                     DELETE FROM cron_executions WHERE job_id=? AND id NOT IN (
                         SELECT id FROM cron_executions WHERE job_id=? ORDER BY id DESC LIMIT ?
