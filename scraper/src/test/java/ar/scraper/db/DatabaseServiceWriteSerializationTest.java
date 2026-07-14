@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -81,6 +84,54 @@ class DatabaseServiceWriteSerializationTest {
             try (ResultSet rs = st.executeQuery("PRAGMA busy_timeout")) {
                 assertThat(rs.next()).isTrue();
                 assertThat(rs.getInt(1)).isEqualTo(30000);
+            }
+        }
+    }
+
+    // ── Escritor externo (proceso Python) entre lectura y escritura Java ────
+
+    /**
+     * Reproduce el disparador ORIGINAL del bug: un proceso externo
+     * (ml_embeddings.py) commitea sobre scraper.db entre una lectura Java —
+     * que con autoCommit=false deja abierto un snapshot diferido de lectura
+     * (WAL) — y la siguiente escritura Java. Sin el rollback inicial de
+     * refrescarSnapshot() dentro del bloque de escritura, esa secuencia es la
+     * receta exacta de SQLITE_BUSY_SNAPSHOT: la escritura falla, el catch
+     * hace rollback y el batch se pierde silenciosamente. Con el fix, el
+     * snapshot se refresca y la escritura debe persistir.
+     */
+    @Test
+    void externalCommitBetweenJavaReadAndWriteDoesNotLoseTheWrite() throws Exception {
+        String dbPath = tempDir.resolve("test-write-serialization.db").toString();
+
+        // Seed + lectura: cargarProductos() abre un snapshot diferido que queda
+        // abierto (autoCommit=false, los métodos de lectura no commitean).
+        db.upsertParcial(List.of(producto("https://site.com/seed", "Seed", 500.0)));
+        assertThat(db.cargarProductos()).hasSize(1);
+
+        // Commit externo desde una conexión independiente en autocommit,
+        // haciendo las veces del proceso Python.
+        try (Connection externa = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = externa.prepareStatement(
+                     "INSERT OR IGNORE INTO precio_historico (url, precio, fecha) VALUES (?,?,?)")) {
+            ps.setString(1, "https://site.com/externo");
+            ps.setDouble(2, 999.0);
+            ps.setString(3, "2026-01-01");
+            ps.executeUpdate();
+        }
+
+        // Escritura Java sobre la conexión compartida: debe pasar y persistir.
+        db.upsertParcial(List.of(producto("https://site.com/nuevo", "Nuevo", 1234.0)));
+
+        // Verificación desde una tercera conexión fresca (no depende del
+        // snapshot de la conexión del servicio).
+        try (Connection verif = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             PreparedStatement ps = verif.prepareStatement(
+                     "SELECT precio FROM productos WHERE url=? AND activo=1")) {
+            ps.setString(1, "https://site.com/nuevo");
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getDouble(1)).isEqualTo(1234.0);
             }
         }
     }
