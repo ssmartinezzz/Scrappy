@@ -1,17 +1,5 @@
 import { SEMANTIC } from '../lib/colors';
-
-const PHASE_LABELS = {
-  renormalizando: 'Actualizando catálogo...',
-  starting:       'Iniciando...',
-  text:           'Clasificador de texto',
-  image_download: 'Descargando imágenes',
-  image:          'EfficientNet-B3',
-  training:       'Entrenando clasificador de texto',
-  embedding:      'Construyendo índice visual (embeddings)',
-  idle:           '',
-  timeout:        'Timeout',
-  error:          'Error',
-};
+import { PHASE_LABELS } from '../lib/mlPhaseLabels';
 
 function elapsed(startedAt) {
   if (!startedAt) return '';

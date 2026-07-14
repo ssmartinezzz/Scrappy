@@ -434,7 +434,13 @@ export default function AppLayout() {
       // categoria/marca stale dejadas por reglas viejas de NormalizerService.
       await renormalizarCatalogo();
       setGpuTraining(prev => ({ ...prev, phase:'starting', msg:'' }));
-      await startMlTraining(true, 8);
+      const started = await startMlTraining(true, 8);
+      if (!started) {
+        // POST rejected (400/409/500) — don't enter the polling/"starting" state,
+        // surface the error immediately instead.
+        setGpuTraining(prev => ({ ...prev, running:false, error:'No se pudo iniciar el entrenamiento (el backend rechazó la solicitud).' }));
+        return;
+      }
       startGpuPolling();
     } catch {
       // Network failure on renormalización o en el POST inicial — surface the
