@@ -20,7 +20,12 @@ public record Product(
         SenalCompra senal,    // precomputed buy-signal (mirrors MlScore precompute pattern)
         SenalFinanciacion finan, // precomputed financing signal (independent from senal/scoreCompra)
         int cantidadUnidades,  // unit count detected from nombre (pack/combo); 1 = single unit
-        String subCategoria    // activity/sport-based sub-dimension; "" when none resolved
+        String subCategoria,   // activity/sport-based sub-dimension; "" when none resolved
+        VisualAttrs visual     // image-derived attributes (fit/estampado/escote/color); fill-only,
+                               // additive PER FIELD — MlEnricher/DatabaseService only overwrite a
+                               // field when the ML score/upsert value is non-blank, else the prior
+                               // value is preserved (RELY-001; never wipe to "" on a run/backfill
+                               // that didn't gate this product into image classification)
 ) implements Comparable<Product> {
 
     // ── Constructors legacy (retrocompatibles) ──────────────────────────────
@@ -102,6 +107,23 @@ public record Product(
              senal, finan, cantidadUnidades, "");
     }
 
+    /**
+     * Legacy 18-arg shape (the canonical constructor BEFORE {@code visual}
+     * was added as the 19th component). Preserves source compatibility for
+     * call sites built against the {@code subCategoria} tail; defaults
+     * {@code visual} to {@link VisualAttrs#EMPTY} (no image-derived
+     * attributes resolved — text-only classification unaffected).
+     */
+    public Product(String sitio, String nombre, double precio, String precioOriginal,
+                   String url, String imagenUrl, String categoria, String genero,
+                   List<String> talles, MlScore ml, String marca, String rubro,
+                   boolean gymrat, boolean marcaPremium, SenalCompra senal,
+                   SenalFinanciacion finan, int cantidadUnidades, String subCategoria) {
+        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
+             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
+             senal, finan, cantidadUnidades, subCategoria, VisualAttrs.EMPTY);
+    }
+
     @Override
     public int compareTo(Product o) { return Double.compare(this.precio, o.precio); }
     public String precioFormateado() { return String.format("%,.0f", precio); }
@@ -158,5 +180,23 @@ public record Product(
     ) {
         public static final SenalFinanciacion EMPTY =
             new SenalFinanciacion("sin_datos", 0, 0, 0, 0, 0);
+    }
+
+    /**
+     * Image-derived visual attributes (mirrors {@link MlScore}'s
+     * precompute-at-scrape-time pattern). Produced by the Marqo-FashionSigLIP
+     * zero-shot classification pipeline ({@code ml_embeddings.py}) and
+     * applied by {@code ar.scraper.ml.MlEnricher}. All values are Spanish
+     * labels from a closed set, or {@code ""} when the model abstains
+     * (low confidence) or image classification was unavailable/skipped —
+     * text classification is never overridden by these fields.
+     */
+    public record VisualAttrs(
+            String fit,            // "oversize" | "entallado" | "regular" | ""
+            String estampado,      // "estampado" | "liso" | ""
+            String escote,         // "cuello redondo" | "en v" | "capucha" | "con cuello" | ""
+            String colorDominante  // fixed Spanish palette (e.g. "azul", "rojo") | ""
+    ) {
+        public static final VisualAttrs EMPTY = new VisualAttrs("", "", "", "");
     }
 }

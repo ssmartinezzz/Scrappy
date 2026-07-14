@@ -79,7 +79,27 @@ public final class FacetCalculator {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                         (a, b) -> a, LinkedHashMap::new));
 
-        return new ResultAggregator.Facets(talles, generos, categorias, marcas, badges, subCategorias);
+        // T6.5/T6.6 (fashion-image-classification PR6): image-derived visual
+        // attribute facets — additive, mirror the badges/subCategorias pattern
+        // (blank values excluded from the count).
+        Map<String, Long> fits             = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().fit() : "");
+        Map<String, Long> estampados       = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().estampado() : "");
+        Map<String, Long> escotes          = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().escote() : "");
+        Map<String, Long> colorDominantes  = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().colorDominante() : "");
+
+        return new ResultAggregator.Facets(talles, generos, categorias, marcas, badges, subCategorias,
+                fits, estampados, escotes, colorDominantes);
+    }
+
+    /** Counts non-blank values extracted by {@code valor} from each product, preserving first-seen order. */
+    private static Map<String, Long> contarNoBlanco(List<Product> productos,
+            java.util.function.Function<Product, String> valor) {
+        Map<String, Long> conteo = new LinkedHashMap<>();
+        for (Product p : productos) {
+            String v = valor.apply(p);
+            if (v != null && !v.isBlank()) conteo.merge(v, 1L, Long::sum);
+        }
+        return conteo;
     }
 
     private static Map<String, Long> sortTalles(Map<String, Long> talles) {
