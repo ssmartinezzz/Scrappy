@@ -817,6 +817,14 @@ def main():
     # etapa entera a "solo texto", idéntico al comportamiento previo cuando
     # no había modelo de imagen disponible.
     try:
+        # El Python embeddable de Windows (_tools\python) trae un archivo
+        # python311._pth que congela sys.path a sus entradas y NO agrega el
+        # directorio del script (ni respeta PYTHONPATH), así que el import
+        # de un módulo hermano falla aunque ml_embeddings.py esté extraído
+        # junto a este archivo. Se agrega el dir del script explícitamente.
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        if _script_dir not in sys.path:
+            sys.path.insert(0, _script_dir)
         import ml_embeddings
     except Exception as e:
         # WARNING fix (judgment-day PR4 round 1, A-006/B-005): broadened
