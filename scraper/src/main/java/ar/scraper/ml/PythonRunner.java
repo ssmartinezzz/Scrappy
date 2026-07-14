@@ -561,7 +561,7 @@ public class PythonRunner {
                 marcarFalloIndiceVisual("training",
                         "entrenamiento falló, backfill completado igual");
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOG.warn("[ML-INDEX] Error inesperado en la secuencia de construcción de índice: {}",
                     e.getMessage());
             marcarFalloIndiceVisual("sequencing", e.getMessage());
