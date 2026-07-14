@@ -75,8 +75,15 @@ export default function MlStatusPanel() {
   const ts       = estado?.training;
 
   const handleTrain = async (withImages) => {
+    const started = await startMlTraining(withImages, 8);
+    if (!started) {
+      // POST rejected (e.g. 400/409/500) — don't enter/keep the running state
+      // or start polling; surface the failure via the same toast used for
+      // training-done errors below.
+      showToast('No se pudo iniciar el entrenamiento.', 'error');
+      return;
+    }
     setRunning(true);
-    await startMlTraining(withImages, 8);
     reload();
   };
 
