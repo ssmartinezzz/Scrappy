@@ -93,4 +93,60 @@ class FacetCalculatorTest {
 
         assertThat(facets.subCategorias().keySet()).containsExactly("crossfit", "running");
     }
+
+    // ── T6.5/T6.6: fit/estampado/escote/colorDominante facets ────────────────
+    // (fashion-image-classification PR6) — additive counts sourced from
+    // Product.VisualAttrs, mirroring the existing badges/subCategorias pattern
+    // (blank values excluded, non-blank values counted).
+
+    private Product productoConVisual(String nombre, Product.VisualAttrs visual) {
+        return new Product("TestSite", nombre, 100, null, "http://test.com/" + nombre.hashCode(),
+                "", "Remeras", "", List.of(), Product.MlScore.EMPTY, "", "indumentaria", false, false,
+                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+    }
+
+    @Test
+    void fits_countedFromVisualAttrsExcludingBlank() {
+        Product oversize1 = productoConVisual("A", new Product.VisualAttrs("oversize", "", "", ""));
+        Product oversize2 = productoConVisual("B", new Product.VisualAttrs("oversize", "", "", ""));
+        Product sinFit    = productoConVisual("C", Product.VisualAttrs.EMPTY);
+
+        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(oversize1, oversize2, sinFit));
+
+        assertThat(facets.fits()).containsExactly(Map.entry("oversize", 2L));
+    }
+
+    @Test
+    void estampados_countedFromVisualAttrsExcludingBlank() {
+        Product estampado = productoConVisual("A", new Product.VisualAttrs("", "estampado", "", ""));
+        Product liso      = productoConVisual("B", new Product.VisualAttrs("", "liso", "", ""));
+        Product sinDato    = productoConVisual("C", Product.VisualAttrs.EMPTY);
+
+        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(estampado, liso, sinDato));
+
+        assertThat(facets.estampados()).containsOnly(Map.entry("estampado", 1L), Map.entry("liso", 1L));
+    }
+
+    @Test
+    void escotes_countedFromVisualAttrsExcludingBlank() {
+        Product cuelloRedondo = productoConVisual("A", new Product.VisualAttrs("", "", "cuello redondo", ""));
+        Product sinDato       = productoConVisual("B", Product.VisualAttrs.EMPTY);
+
+        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(cuelloRedondo, sinDato));
+
+        assertThat(facets.escotes()).containsExactly(Map.entry("cuello redondo", 1L));
+    }
+
+    @Test
+    void colorDominantes_countedFromVisualAttrsExcludingBlank() {
+        Product azul1  = productoConVisual("A", new Product.VisualAttrs("", "", "", "azul"));
+        Product azul2  = productoConVisual("B", new Product.VisualAttrs("", "", "", "azul"));
+        Product rojo   = productoConVisual("C", new Product.VisualAttrs("", "", "", "rojo"));
+        Product sinDato = productoConVisual("D", Product.VisualAttrs.EMPTY);
+
+        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(azul1, azul2, rojo, sinDato));
+
+        assertThat(facets.colorDominantes())
+                .containsOnly(Map.entry("azul", 2L), Map.entry("rojo", 1L));
+    }
 }
