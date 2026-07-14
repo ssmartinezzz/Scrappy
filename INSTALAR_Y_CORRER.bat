@@ -230,19 +230,23 @@ if errorlevel 1 (
     echo        PyTorch ya instalado.
 )
 
-:: 3f - open_clip_torch + huggingface_hub (clasificacion de imagenes por IA)
+:: 3f - open_clip_torch + huggingface_hub + transformers (clasificacion de imagenes por IA)
 :: Pines defensivos: evitan que la resolucion de dependencias de pip toque
 :: el torch/torchvision ya instalado en 3e (CPU o CUDA). Verificamos ademas
 :: que la version de torch no haya cambiado tras instalar estos paquetes.
+:: transformers es requerido por el tokenizer de Marqo-FashionSigLIP
+:: (open_clip.get_tokenizer para modelos hf-hub); sin el, ml_embeddings
+:: carga el modelo pero no puede computar prompt embeddings y el backfill
+:: degrada a "modelo no disponible" con 0 filas clasificadas.
 set "IMGCLS_DEPS_OK=0"
-"%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
+"%PYTHON_EXE%" -c "import open_clip, huggingface_hub, transformers" 2>nul
 if errorlevel 1 (
-    echo        Instalando open_clip_torch + huggingface_hub aprox 10MB...
+    echo        Instalando open_clip_torch + huggingface_hub + transformers aprox 60MB...
     set "TORCH_VER_BEFORE="
     "%PYTHON_EXE%" -c "import torch; print(torch.__version__)" > "%TOOLS%\torchver_before.tmp" 2>nul
     for /f "usebackq tokens=*" %%V in ("%TOOLS%\torchver_before.tmp") do set "TORCH_VER_BEFORE=%%V"
     del /f /q "%TOOLS%\torchver_before.tmp" 2>nul
-    "%PIP_EXE%" install --quiet --no-warn-script-location --timeout 300 --retries 5 open_clip_torch==2.24.0 huggingface_hub==0.24.6
+    "%PIP_EXE%" install --quiet --no-warn-script-location --timeout 300 --retries 5 open_clip_torch==2.24.0 huggingface_hub==0.24.6 transformers==4.44.2
     set "TORCH_VER_AFTER="
     "%PYTHON_EXE%" -c "import torch; print(torch.__version__)" > "%TOOLS%\torchver_after.tmp" 2>nul
     for /f "usebackq tokens=*" %%V in ("%TOOLS%\torchver_after.tmp") do set "TORCH_VER_AFTER=%%V"
@@ -250,18 +254,30 @@ if errorlevel 1 (
     if not "!TORCH_VER_BEFORE!"=="!TORCH_VER_AFTER!" (
         echo        AVISO: PyTorch cambio de version tras instalar open_clip_torch ^(!TORCH_VER_BEFORE! -^> !TORCH_VER_AFTER!^). Verificar compatibilidad CUDA/CPU.
     ) else (
-        echo        open_clip_torch + huggingface_hub instalados. PyTorch sin cambios ^(!TORCH_VER_AFTER!^).
+        echo        open_clip_torch + huggingface_hub + transformers instalados. PyTorch sin cambios ^(!TORCH_VER_AFTER!^).
     )
 ) else (
     echo        open_clip_torch ya instalado.
 )
-"%PYTHON_EXE%" -c "import open_clip, huggingface_hub" 2>nul
+"%PYTHON_EXE%" -c "import open_clip, huggingface_hub, transformers" 2>nul
 if not errorlevel 1 set "IMGCLS_DEPS_OK=1"
 
 :: 3g - Pesos del modelo Marqo-FashionSigLIP aprox 300MB
-set "MODELS_DIR=%ROOT%\_models"
+:: El runtime calcula HF_HOME al lado de scraper.db (PythonRunner.hfHomeParaDb
+:: y ml_embeddings._default_hf_home), es decir %PROJECT%\_models\marqo. El
+:: warm-up del installer debe apuntar al mismo directorio o el backfill
+:: arranca con cache frio y degrada a "modelo no disponible".
+set "MODELS_DIR=%PROJECT%\_models"
 set "MARQO_DIR=%MODELS_DIR%\marqo"
 set "HF_HOME=%MARQO_DIR%"
+:: Migracion: instalaciones previas descargaron los pesos en %ROOT%\_models\marqo
+if exist "%ROOT%\_models\marqo\.ready" if not exist "%MARQO_DIR%\.ready" (
+    if exist "%MARQO_DIR%" rmdir "%MARQO_DIR%" 2>nul
+    if not exist "%MARQO_DIR%" (
+        echo        Moviendo cache del modelo a %MARQO_DIR%...
+        move "%ROOT%\_models\marqo" "%MARQO_DIR%" >nul
+    )
+)
 if not exist "%MARQO_DIR%" mkdir "%MARQO_DIR%" 2>nul
 if "!IMGCLS_DEPS_OK!"=="0" (
     echo        AVISO: open_clip_torch no disponible. Clasificacion por imagen desactivada.
