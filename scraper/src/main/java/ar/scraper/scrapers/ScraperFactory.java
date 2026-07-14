@@ -7,7 +7,10 @@ import java.util.Set;
 
 public class ScraperFactory {
 
-    private static final Set<String> SHOPIFY_NOMBRES = Set.of("freres", "vcp");
+    // "forever" es Shopify (forever.com.ar/products.json responde 200) pese a no
+    // usar dominio myshopify.com; sin esta entrada cae al default Tiendanube y
+    // scrapea 0 productos. foreverbstrd y barnes son Tiendanube reales — no agregarlos.
+    private static final Set<String> SHOPIFY_NOMBRES = Set.of("freres", "vcp", "forever");
     private static final Set<String> VTEX_NOMBRES    = Set.of("sporting");
     private static final Set<String> VAYPOL_NOMBRES  = Set.of("vaypol", "city");
     private static final Set<String> WC_NOMBRES       = Set.of("dcshoes", "woocommerce");
