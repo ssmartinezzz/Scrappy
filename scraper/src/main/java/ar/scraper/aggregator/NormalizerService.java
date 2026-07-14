@@ -88,6 +88,6 @@ public class NormalizerService {
         return new Product(p.sitio(), nombre, p.precio(), p.precioOriginal(),
                 p.url(), p.imagenUrl(), cat, genero, talles,
                 p.ml(), marca, rubro, gymrat, marcaPremium, p.senal(),
-                p.finan(), cantidadUnidades, subCategoria);
+                p.finan(), cantidadUnidades, subCategoria, p.visual());
     }
 }
