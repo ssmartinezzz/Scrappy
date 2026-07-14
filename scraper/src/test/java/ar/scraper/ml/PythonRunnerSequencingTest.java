@@ -6,6 +6,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -250,7 +252,10 @@ class PythonRunnerSequencingTest {
      * {@code tieneCuda}/{@code tienePytorch} probes, argv[0] {@code -c})
      * exits 0 with no output. Produces zero stdout in every case, so
      * {@code esperarConDrain}'s read loops hit EOF immediately — fast,
-     * deterministic, no hang risk.
+     * deterministic, no hang risk. The stand-in is a batch file, so the four
+     * tests that execute it are Windows-only ({@code @EnabledOnOs(WINDOWS)});
+     * on Linux the .bat cannot exec, which silently forces the both-phases-fail
+     * outcome and makes half the matrix pass for the wrong reason.
      */
     private String escribirPythonFalso(java.nio.file.Path dir, int trainExitCode, int backfillExitCode)
             throws Exception {
@@ -266,6 +271,7 @@ class PythonRunnerSequencingTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("both phases succeed -> terminal status resets to idle")
     void bothPhasesSucceedEndsIdle(@org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
         String python = escribirPythonFalso(workDir, 0, 0);
@@ -279,6 +285,7 @@ class PythonRunnerSequencingTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("FIXV-001 regression: training fails, backfill succeeds -> durable non-running error status, never stuck running")
     void trainingFailsBackfillSucceedsEndsInDurableErrorNeverStuckRunning(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
@@ -299,6 +306,7 @@ class PythonRunnerSequencingTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("training succeeds, backfill fails -> durable error status (pre-existing, unaffected by the fix)")
     void trainingSucceedsBackfillFailsEndsInDurableError(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
@@ -315,6 +323,7 @@ class PythonRunnerSequencingTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("both phases fail -> durable error status (pre-existing, unaffected by the fix)")
     void bothPhasesFailEndInDurableError(@org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir)
             throws Exception {

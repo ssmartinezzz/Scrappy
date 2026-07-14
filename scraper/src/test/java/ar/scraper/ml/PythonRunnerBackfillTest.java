@@ -114,8 +114,11 @@ class PythonRunnerBackfillTest {
     }
 
     @Test
-    void setsHfHomeRelativeToAnAbsoluteDbPathsParentDirectory() {
-        Path absoluteDb = Paths.get("C:", "install-root", "scraper.db");
+    void setsHfHomeRelativeToAnAbsoluteDbPathsParentDirectory(
+            @org.junit.jupiter.api.io.TempDir Path installRoot) {
+        // TempDir yields a genuinely absolute path on every OS; a literal
+        // "C:/..." is relative on Linux and gets resolved against the CWD.
+        Path absoluteDb = installRoot.resolve("scraper.db");
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
                 "python", "script.py", absoluteDb.toString(), false, true);
 

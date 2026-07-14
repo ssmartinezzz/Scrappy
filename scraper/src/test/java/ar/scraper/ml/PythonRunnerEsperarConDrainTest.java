@@ -6,6 +6,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -26,12 +28,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * reached") can only be demonstrated with a live process whose stdout stays
  * open-but-silent, which a never-started {@code ProcessBuilder} assertion
  * cannot exercise. No Python interpreter is required — {@code cmd.exe} is
- * always present on Windows CI/dev machines.</p>
+ * always present on Windows CI/dev machines. The {@code cmd.exe} dependency
+ * makes this class Windows-only; the product itself ships as a Windows
+ * installer, so Linux CI skipping these does not reduce shipped coverage.</p>
  */
 @Epic("ML Pipeline")
 @Feature("Python Runner")
 @Story("Bounded subprocess read + timeout (RESI-001)")
 @DisplayName("PythonRunner — esperarConDrain bounded read/timeout")
+@EnabledOnOs(OS.WINDOWS)
 class PythonRunnerEsperarConDrainTest {
 
     private final PythonRunner runner = new PythonRunner();
