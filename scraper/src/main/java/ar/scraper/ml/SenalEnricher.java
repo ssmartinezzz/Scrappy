@@ -75,7 +75,7 @@ public class SenalEnricher {
                 p.url(), p.imagenUrl(), p.categoria(), p.genero(), p.talles(),
                 p.ml(), p.marca(), p.rubro() != null ? p.rubro() : "indumentaria",
                 p.gymrat(), p.marcaPremium(), senal, p.finan(), p.cantidadUnidades(),
-                p.subCategoria() != null ? p.subCategoria() : ""
+                p.subCategoria() != null ? p.subCategoria() : "", p.visual()
         );
     }
 }
