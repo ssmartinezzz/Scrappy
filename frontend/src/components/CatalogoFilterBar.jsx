@@ -82,6 +82,10 @@ export default function CatalogoFilterBar({ hidden }) {
   const gymratCount  = facets.gymratCount   || 0;
   const packCount    = facets.packCount     || 0;
   const subCategorias = facets.subCategorias || {};
+  const fits           = facets.fits            || {};
+  const estampados     = facets.estampados      || {};
+  const escotes         = facets.escotes         || {};
+  const colorDominantes = facets.colorDominantes || {};
 
   const topMarcas = useMemo(() => sortByCountDesc(marcas).slice(0, 20), [marcas]);
 
@@ -125,7 +129,11 @@ export default function CatalogoFilterBar({ hidden }) {
     + (S.gymrat ? 1 : 0)
     + (S.pack ? 1 : 0)
     + (S.subCategoria?.length || 0)
-    + (S.precioMin != null || S.precioMax != null ? 1 : 0);
+    + (S.precioMin != null || S.precioMax != null ? 1 : 0)
+    + (S.fit ? 1 : 0)
+    + (S.estampado ? 1 : 0)
+    + (S.escote ? 1 : 0)
+    + (S.colorDominante ? 1 : 0);
 
   const activeCount = catCount + marcaCount + secondaryCount + (S.genero ? 1 : 0);
 
@@ -364,6 +372,50 @@ export default function CatalogoFilterBar({ hidden }) {
                       <Pill key={sc} label={sc} count={n}
                         active={S.subCategoria?.includes(sc)}
                         onClick={() => onToggleSubcat(sc)} />
+                    ))}
+                  </Section>
+                )}
+
+                {/* Fit */}
+                {Object.keys(fits).length > 0 && (
+                  <Section title="Fit">
+                    {Object.entries(fits).map(([v, n]) => (
+                      <Pill key={v} label={v} count={n}
+                        active={S.fit === v}
+                        onClick={() => onFilter({ fit: S.fit === v ? '' : v })} />
+                    ))}
+                  </Section>
+                )}
+
+                {/* Estampado */}
+                {Object.keys(estampados).length > 0 && (
+                  <Section title="Estampado">
+                    {Object.entries(estampados).map(([v, n]) => (
+                      <Pill key={v} label={v} count={n}
+                        active={S.estampado === v}
+                        onClick={() => onFilter({ estampado: S.estampado === v ? '' : v })} />
+                    ))}
+                  </Section>
+                )}
+
+                {/* Escote */}
+                {Object.keys(escotes).length > 0 && (
+                  <Section title="Escote">
+                    {Object.entries(escotes).map(([v, n]) => (
+                      <Pill key={v} label={v} count={n}
+                        active={S.escote === v}
+                        onClick={() => onFilter({ escote: S.escote === v ? '' : v })} />
+                    ))}
+                  </Section>
+                )}
+
+                {/* Color */}
+                {Object.keys(colorDominantes).length > 0 && (
+                  <Section title="Color">
+                    {Object.entries(colorDominantes).map(([v, n]) => (
+                      <Pill key={v} label={v} count={n}
+                        active={S.colorDominante === v}
+                        onClick={() => onFilter({ colorDominante: S.colorDominante === v ? '' : v })} />
                     ))}
                   </Section>
                 )}

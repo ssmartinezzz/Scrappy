@@ -148,4 +148,29 @@ class FinanciacionEnricherTest {
         assertThat(result.get(0).cantidadUnidades()).isEqualTo(2);
         assertThat(result.get(0).esPack()).isTrue();
     }
+
+    @Test
+    void productPreservesVisualAttrsAfterEnrichment() {
+        // Regression for fashion-image-classification PR1: withFinan() previously
+        // rebuilt Product via the 18-arg legacy constructor, silently resetting
+        // visual to VisualAttrs.EMPTY.
+        DatabaseService db = Mockito.mock(DatabaseService.class);
+        InflacionService inflacion = Mockito.mock(InflacionService.class);
+
+        Preset preset = new Preset(5, "Preset", 40.0, 12, true);
+        when(db.cargarPresetActivo()).thenReturn(Optional.of(preset));
+        when(inflacion.getInflacionMensual()).thenReturn(3.5);
+
+        Product.VisualAttrs visual = new Product.VisualAttrs("entallado", "liso", "en v", "negro");
+        Product conVisual = new Product(
+                "Sitio", "Remera con visual", 100000.0, null, "https://site.com/visual-finan",
+                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+
+        FinanciacionEnricher enricher = new FinanciacionEnricher(db, inflacion);
+        List<Product> result = enricher.enriquecer(List.of(conVisual));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).visual()).isEqualTo(visual);
+    }
 }

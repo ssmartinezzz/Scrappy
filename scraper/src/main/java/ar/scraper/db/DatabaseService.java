@@ -86,7 +86,7 @@ public class DatabaseService {
 
     private void crearTablas() throws SQLException {
         try (Statement st = conn.createStatement()) {
-st.executeUpdate("""
+            st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precios_externos (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     producto_url TEXT NOT NULL,
@@ -121,6 +121,10 @@ st.executeUpdate("""
                     marca_premium INTEGER DEFAULT 0,
                     cantidad_unidades INTEGER DEFAULT 1,
                     sub_categoria TEXT DEFAULT '',
+                    fit             TEXT DEFAULT '',
+                    estampado       TEXT DEFAULT '',
+                    escote          TEXT DEFAULT '',
+                    color_dominante TEXT DEFAULT '',
                     activo       INTEGER DEFAULT 1,
                     touched_at   TEXT,
                     created_at   TEXT
@@ -130,19 +134,26 @@ st.executeUpdate("""
             migrarColumna(st, "productos", "marca_premium INTEGER DEFAULT 0");
             migrarColumna(st, "productos", "cantidad_unidades INTEGER DEFAULT 1");
             migrarColumna(st, "productos", "sub_categoria TEXT DEFAULT ''");
+            // Image classification visual attributes (fashion-image-classification PR1) —
+            // additive/fill-only, populated by MlEnricher from ml_embeddings.py scores in PR5.
+            migrarColumna(st, "productos", "fit TEXT DEFAULT ''");
+            migrarColumna(st, "productos", "estampado TEXT DEFAULT ''");
+            migrarColumna(st, "productos", "escote TEXT DEFAULT ''");
+            migrarColumna(st, "productos", "color_dominante TEXT DEFAULT ''");
 
-st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
+            // image_embeddings — Marqo-FashionSigLIP embedding cache keyed by
+            // image URL (fashion-image-classification PR1). Reused by both the
+            // full-catalog backfill and the incremental scrape path (PR3a/PR5).
+            // model_version bump invalidates the cache (treated as a miss).
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS image_embeddings (
+                    url           TEXT PRIMARY KEY,
+                    embedding     BLOB NOT NULL,
+                    dim           INTEGER NOT NULL,
+                    model_version TEXT NOT NULL,
+                    computed_at   TEXT NOT NULL
                 )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
+
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS precio_historico (
                     id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,18 +163,6 @@ st.executeUpdate("""
                     UNIQUE(url, fecha)
                 )""");
 
-st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS ml_output (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,18 +170,6 @@ st.executeUpdate("""
                     created_at TEXT NOT NULL
                 )""");
 
-st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS sitios_dinamicos (
                     nombre     TEXT PRIMARY KEY,
@@ -191,13 +178,14 @@ st.executeUpdate("""
                     created_at TEXT NOT NULL
                 )""");
 
-            // Indices
-st.executeUpdate("""
+            st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS categoria_stats (
                     categoria  TEXT PRIMARY KEY,
                     payload    TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )""");
+
+            // Indices
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_prod_sitio  ON productos(sitio)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_prod_activo ON productos(activo)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_hist_url   ON precio_historico(url)");
@@ -315,6 +303,22 @@ st.executeUpdate("""
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled, next_run_at)");
         }
         seedPresetIlustrativoSiVacio();
+    }
+
+    /**
+     * Cuenta las filas cacheadas en {@code image_embeddings} (fashion-image-
+     * classification PR6, T6.3/T6.4) — respalda {@code embeddingsCount} en
+     * {@code GET /api/ml/estado} para reportar cobertura del índice visual
+     * frente al total de productos activos.
+     */
+    public long contarEmbeddings() {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM image_embeddings")) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        } catch (SQLException e) {
+            LOG.error("[DB] Error al contar image_embeddings", e);
+            return 0L;
+        }
     }
 
     // ─── Presets de financiación ─────────────────────────────────────────────
@@ -542,12 +546,21 @@ st.executeUpdate("""
             Map<String, Double> preciosActuales = getPreciosActuales();
             Set<String> urlsNuevoRun = new HashSet<>();
 
+            // RELY-001 fix: fit/estampado/escote/color_dominante use COALESCE(NULLIF(excluded.x,''), x)
+            // instead of a blind `= excluded.x` — ml_pipeline.py only populates these 4 keys for the
+            // needs_image_fallback-gated subset of a given run (capped at 400), so every OTHER product
+            // arrives here with blank visual fields even though it may already have non-blank values
+            // persisted from an earlier run or the backfill CLI. A blind overwrite silently wiped those
+            // back to '' on every regular scrape. Mirrors ml_embeddings.py's own additive invariant
+            // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must only ever ADD signal,
+            // never remove it").
             String upsertSql = """
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
                      talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+                     rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,
+                     fit,estampado,escote,color_dominante,activo,touched_at,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                 ON CONFLICT(url) DO UPDATE SET
                     sitio        = excluded.sitio,
                     nombre       = excluded.nombre,
@@ -569,6 +582,10 @@ st.executeUpdate("""
                     marca_premium = excluded.marca_premium,
                     cantidad_unidades = excluded.cantidad_unidades,
                     sub_categoria = excluded.sub_categoria,
+                    fit             = COALESCE(NULLIF(excluded.fit,''), fit),
+                    estampado       = COALESCE(NULLIF(excluded.estampado,''), estampado),
+                    escote          = COALESCE(NULLIF(excluded.escote,''), escote),
+                    color_dominante = COALESCE(NULLIF(excluded.color_dominante,''), color_dominante),
                     activo       = 1,
                     touched_at   = excluded.touched_at
                 """;
@@ -615,8 +632,14 @@ st.executeUpdate("""
                     psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
                     psUpsert.setInt   (20, p.cantidadUnidades());
                     psUpsert.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
-                    psUpsert.setString(22, now);   // touched_at
-                    psUpsert.setString(23, now);   // created_at
+
+                    Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+                    psUpsert.setString(22, visual.fit()            != null ? visual.fit()            : "");
+                    psUpsert.setString(23, visual.estampado()      != null ? visual.estampado()      : "");
+                    psUpsert.setString(24, visual.escote()         != null ? visual.escote()         : "");
+                    psUpsert.setString(25, visual.colorDominante() != null ? visual.colorDominante() : "");
+                    psUpsert.setString(26, now);   // touched_at
+                    psUpsert.setString(27, now);   // created_at
                     psUpsert.executeUpdate();
 
                     Double prevPrecio = preciosActuales.get(p.url());
@@ -713,6 +736,9 @@ st.executeUpdate("""
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
         try {
+            // Columnas visuales (fit/estampado/escote/color_dominante) excluidas a propósito:
+            // en esta etapa del pipeline (upsert parcial durante scraping) VisualAttrs todavía
+            // no está poblado (se calcula recién en MlEnricher), así que se dejan sin tocar acá.
             String upsertSql = """
                 INSERT INTO productos
                     (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
@@ -794,7 +820,8 @@ st.executeUpdate("""
              ResultSet rs = st.executeQuery(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria " +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+                "fit,estampado,escote,color_dominante " +
                 "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
             while (rs.next()) {
                 result.add(productoDesdeFila(rs));
@@ -812,7 +839,8 @@ st.executeUpdate("""
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria FROM productos WHERE url=?")) {
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+                "fit,estampado,escote,color_dominante FROM productos WHERE url=?")) {
             ps.setString(1, url);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) return java.util.Optional.empty();
@@ -852,6 +880,17 @@ st.executeUpdate("""
         int cantidadUnidades = rs.getInt("cantidad_unidades");
         if (cantidadUnidades < 1) cantidadUnidades = 1;
         String subCategoria = rs.getString("sub_categoria");
+
+        String fit             = rs.getString("fit");
+        String estampado       = rs.getString("estampado");
+        String escote          = rs.getString("escote");
+        String colorDominante  = rs.getString("color_dominante");
+        Product.VisualAttrs visual = new Product.VisualAttrs(
+                fit            != null ? fit            : "",
+                estampado      != null ? estampado      : "",
+                escote         != null ? escote         : "",
+                colorDominante != null ? colorDominante : "");
+
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
                 rs.getDouble("precio"), rs.getString("precio_orig"),
@@ -861,7 +900,7 @@ st.executeUpdate("""
                 rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
                 gymrat, marcaPremium, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, cantidadUnidades,
-                subCategoria != null ? subCategoria : "");
+                subCategoria != null ? subCategoria : "", visual);
     }
 
     // ─── ML Output ──────────────────────────────────────────────────────────
@@ -883,19 +922,7 @@ st.executeUpdate("""
             }
             // Mantener solo los últimos 10 outputs
             try (Statement st = conn.createStatement()) {
-    st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
-            st.executeUpdate("""
+                st.executeUpdate("""
                     DELETE FROM ml_output WHERE id NOT IN (
                         SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
                     )""");
