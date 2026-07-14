@@ -254,4 +254,36 @@ class DatabaseServiceImageEmbeddingsTest {
             dbMigrada.cerrar();
         }
     }
+
+    // ── contarEmbeddings (T6.3/T6.4 — /api/ml/estado embeddingsCount) ────────
+
+    @Test
+    @DisplayName("contarEmbeddings returns 0 on an empty image_embeddings table")
+    void contarEmbeddingsReturnsZeroWhenEmpty() {
+        assertThat(db.contarEmbeddings()).isZero();
+    }
+
+    @Test
+    @DisplayName("contarEmbeddings counts every row inserted into image_embeddings")
+    void contarEmbeddingsCountsInsertedRows() throws Exception {
+        insertarEmbeddingFalso(dbPath, "https://site.com/a.jpg");
+        insertarEmbeddingFalso(dbPath, "https://site.com/b.jpg");
+        insertarEmbeddingFalso(dbPath, "https://site.com/c.jpg");
+
+        assertThat(db.contarEmbeddings()).isEqualTo(3);
+    }
+
+    private void insertarEmbeddingFalso(Path dbFile, String url) throws Exception {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+             java.sql.PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO image_embeddings (url, embedding, dim, model_version, computed_at) " +
+                     "VALUES (?, ?, ?, ?, ?)")) {
+            ps.setString(1, url);
+            ps.setBytes(2, new byte[]{1, 2, 3, 4});
+            ps.setInt(3, 4);
+            ps.setString(4, "marqo-fashionSigLIP-v1");
+            ps.setString(5, "2026-01-01T00:00:00Z");
+            ps.executeUpdate();
+        }
+    }
 }

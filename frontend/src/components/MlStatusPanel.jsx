@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchMlEstado, startMlTraining, aplicarModeloML, fetchMlResultado } from '../api';
 import { SEMANTIC } from '../lib/colors';
+import { PHASE_LABELS } from '../lib/mlPhaseLabels';
 
 // ─── Toast helper ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -15,16 +16,6 @@ function showToast(msg, type = 'success') {
   };
   setTimeout(remove, 4700);
 }
-
-const PHASE_LABELS = {
-  starting:       'Iniciando...',
-  text:           'Clasificador de texto',
-  image_download: 'Descargando imágenes',
-  image:          'EfficientNet-B3',
-  idle:           '',
-  timeout:        'Timeout',
-  error:          'Error',
-};
 
 function elapsed(startedAt) {
   if (!startedAt) return '';
@@ -57,7 +48,10 @@ export default function MlStatusPanel() {
         fetchMlResultado().catch(() => null),
       ]);
       if (e) { setEstado(e); setTick(t => t + 1); }
-      if (!e?.training?.running) {
+      // A transient null (network hiccup) must not kill the polling loop while
+      // training was last known to be running — the next successful poll
+      // self-corrects. Only stop once we get a confirmed non-running state.
+      if (e && !e.training?.running) {
         setRunning(false);
         clearInterval(iv);
         // Toast notification on training done (ADR-6)
@@ -81,8 +75,15 @@ export default function MlStatusPanel() {
   const ts       = estado?.training;
 
   const handleTrain = async (withImages) => {
+    const started = await startMlTraining(withImages, 8);
+    if (!started) {
+      // POST rejected (e.g. 400/409/500) — don't enter/keep the running state
+      // or start polling; surface the failure via the same toast used for
+      // training-done errors below.
+      showToast('No se pudo iniciar el entrenamiento.', 'error');
+      return;
+    }
     setRunning(true);
-    await startMlTraining(withImages, 8);
     reload();
   };
 
@@ -155,6 +156,17 @@ export default function MlStatusPanel() {
               {hasImage
                 ? 'Refina categorías por foto · RTX 3080'
                 : 'Requiere PyTorch + GPU'}
+            </span>
+          </Row>
+
+          <Row
+            active={(estado?.embeddingsCount ?? 0) > 0}
+            title="Índice visual (embeddings)"
+            color={(estado?.embeddingsCount ?? 0) > 0 ? SEMANTIC.warn : 'var(--t4)'}
+          >
+            <span style={{ fontSize:'.67rem', color:'var(--t4)' }}>
+              {(estado?.embeddingsCount ?? 0).toLocaleString('es-AR')} / {(estado?.totalProductos ?? 0).toLocaleString('es-AR')} productos
+              &nbsp;({estado?.coveragePct ?? 0}%)
             </span>
           </Row>
         </>
