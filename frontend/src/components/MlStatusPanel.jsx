@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchMlEstado, startMlTraining, aplicarModeloML, fetchMlResultado } from '../api';
 import { SEMANTIC } from '../lib/colors';
+import { PHASE_LABELS } from '../lib/mlPhaseLabels';
 
 // ─── Toast helper ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -15,18 +16,6 @@ function showToast(msg, type = 'success') {
   };
   setTimeout(remove, 4700);
 }
-
-const PHASE_LABELS = {
-  starting:       'Iniciando...',
-  text:           'Clasificador de texto',
-  image_download: 'Descargando imágenes',
-  image:          'EfficientNet-B3',
-  training:       'Entrenando clasificador de texto',
-  embedding:      'Construyendo índice visual (embeddings)',
-  idle:           '',
-  timeout:        'Timeout',
-  error:          'Error',
-};
 
 function elapsed(startedAt) {
   if (!startedAt) return '';
@@ -59,7 +48,10 @@ export default function MlStatusPanel() {
         fetchMlResultado().catch(() => null),
       ]);
       if (e) { setEstado(e); setTick(t => t + 1); }
-      if (!e?.training?.running) {
+      // A transient null (network hiccup) must not kill the polling loop while
+      // training was last known to be running — the next successful poll
+      // self-corrects. Only stop once we get a confirmed non-running state.
+      if (e && !e.training?.running) {
         setRunning(false);
         clearInterval(iv);
         // Toast notification on training done (ADR-6)
