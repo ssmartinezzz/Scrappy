@@ -188,6 +188,23 @@ public class ApiController {
     //   q           string   (búsqueda full-text en nombre)
     //   orden       precio_asc | precio_desc | nombre (default precio_asc)
     // ---------------------------------------------------------------
+    /**
+     * Legacy 17-arg overload (pre-PR6) — retained for backward source
+     * compatibility with existing test call sites built before the 4 additive
+     * visual-attribute filters (T6.7/T6.8) were added. Defaults
+     * fit/estampado/escote/colorDominante to {@code null} (no filter).
+     */
+    public ResponseEntity<ObjectNode> data(
+            int page, int size, List<String> talle, String genero, List<String> categoria,
+            String q, String sitio, List<String> marca, String badge, String segment,
+            String rubro, Boolean gymrat, String orden, Boolean pack,
+            Double precioMin, Double precioMax, List<String> subCategoria
+    ) {
+        return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment,
+                rubro, gymrat, orden, pack, precioMin, precioMax, subCategoria,
+                null, null, null, null);
+    }
+
     @GetMapping("/data")
     public ResponseEntity<ObjectNode> data(
             @RequestParam(defaultValue = "1")   int page,
@@ -206,7 +223,11 @@ public class ApiController {
             @RequestParam(required = false)     Boolean pack,
             @RequestParam(required = false)     Double precioMin,
             @RequestParam(required = false)     Double precioMax,
-            @RequestParam(required = false)     List<String> subCategoria
+            @RequestParam(required = false)     List<String> subCategoria,
+            @RequestParam(required = false)     String fit,
+            @RequestParam(required = false)     String estampado,
+            @RequestParam(required = false)     String escote,
+            @RequestParam(required = false)     String colorDominante
     ) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
@@ -217,7 +238,7 @@ public class ApiController {
                 .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
 
         // 1. Aplicar filtros
-        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax, subCategoria);
+        List<Product> filtrados = aplicarFiltros(r.productos(), talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, pack, precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante);
 
         // 2. Ordenar
         filtrados = ordenar(filtrados, orden);
@@ -260,6 +281,15 @@ public class ApiController {
         facets.badges().forEach(badgesNode::put);
         ObjectNode subCategoriasNode = facetsNode.putObject("subCategorias");
         facets.subCategorias().forEach(subCategoriasNode::put);
+        // Facets de atributos visuales (fashion-image-classification PR6, T6.6)
+        ObjectNode fitsNode = facetsNode.putObject("fits");
+        facets.fits().forEach(fitsNode::put);
+        ObjectNode estampadosNode = facetsNode.putObject("estampados");
+        facets.estampados().forEach(estampadosNode::put);
+        ObjectNode escotesNode = facetsNode.putObject("escotes");
+        facets.escotes().forEach(escotesNode::put);
+        ObjectNode colorDominantesNode = facetsNode.putObject("colorDominantes");
+        facets.colorDominantes().forEach(colorDominantesNode::put);
         // Rubros con conteo
         ObjectNode rubrosNode = facetsNode.putObject("rubros");
         r.productos().stream()
@@ -364,6 +394,15 @@ public class ApiController {
         facets.badges().forEach(badgesNode2::put);
         ObjectNode subCategoriasNode2 = root.putObject("subCategorias");
         facets.subCategorias().forEach(subCategoriasNode2::put);
+        // Facets de atributos visuales (fashion-image-classification PR6, T6.6)
+        ObjectNode fitsNode2 = root.putObject("fits");
+        facets.fits().forEach(fitsNode2::put);
+        ObjectNode estampadosNode2 = root.putObject("estampados");
+        facets.estampados().forEach(estampadosNode2::put);
+        ObjectNode escotesNode2 = root.putObject("escotes");
+        facets.escotes().forEach(escotesNode2::put);
+        ObjectNode colorDominantesNode2 = root.putObject("colorDominantes");
+        facets.colorDominantes().forEach(colorDominantesNode2::put);
 
         // Conteo de productos gymrat
         long gymratCount = r.productos().stream().filter(Product::gymrat).count();
@@ -1611,6 +1650,20 @@ public class ApiController {
         training.put("pct",       ts.pct());
         training.put("msg",       ts.msg());
         training.put("startedAt", ts.startedAt() != null ? ts.startedAt() : "");
+
+        // T6.3/T6.4 (fashion-image-classification PR6): visual-index coverage —
+        // additive fields, backward-compatible with MlStatusPanel's existing
+        // hasTextModel/hasImageModel/training.* consumption.
+        long embeddingsCount = db.contarEmbeddings();
+        var lastResult = service.getLastResult();
+        int totalProductos = lastResult != null ? lastResult.productos().size() : 0;
+        double coveragePct = totalProductos > 0
+                ? Math.round((double) embeddingsCount / totalProductos * 1000.0) / 10.0
+                : 0.0;
+        root.put("embeddingsCount", embeddingsCount);
+        root.put("totalProductos",  totalProductos);
+        root.put("coveragePct",     coveragePct);
+
         return ResponseEntity.ok(root);
     }
 
@@ -1623,8 +1676,33 @@ public class ApiController {
             return ResponseEntity.badRequest()
                 .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
 
+        // T6.2 (fashion-image-classification PR6): "Construir índice visual"
+        // drives PythonRunner.construirIndiceVisualEnBackground (T5.4's
+        // sequencing entrypoint), NOT the standalone entrenarEnBackground.
+        // READ-005: entrenarEnBackground is NOT retired — it remains live as
+        // the post-scrape auto-training path (ResultAggregator.agregar); it's
+        // just no longer what this manual endpoint invokes. Do not delete it
+        // in a future cleanup. This endpoint runs text re-training FIRST,
+        // then the embeddings backfill, on ONE background thread, without
+        // blocking this HTTP response.
         String dbPath = encontrarDbFile().getAbsolutePath();
-        pythonRunner.entrenarEnBackground(dbPath, true, images, epochs);
+        // READ-004: named args instead of naked booleans. forceRetrainTexto
+        // stays true (unchanged observable behavior: every manual button
+        // click forces a fresh text re-train, same as before);
+        // forceBackfillEmbeddings is also true — an explicit "Construir
+        // índice visual" click is a deliberate full-rebuild action, not a
+        // passive cache-first pass.
+        boolean forceRetrainTexto = true;
+        boolean forceBackfillEmbeddings = true;
+        boolean iniciado = pythonRunner.construirIndiceVisualEnBackground(
+                dbPath, forceRetrainTexto, images, epochs, forceBackfillEmbeddings);
+        // RESI-002 ≡ RELY-001: two near-simultaneous POSTs can both pass the
+        // isTrainingRunning() pre-check above; the atomic CAS inside the
+        // runner picks exactly one winner. The loser's request was NOT
+        // started — answer 409 Conflict instead of a false "started".
+        if (!iniciado)
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT)
+                .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
         return ResponseEntity.ok(java.util.Map.of("status", "started"));
     }
 
@@ -2090,7 +2168,11 @@ public class ApiController {
             Boolean packFiltro,
             Double precioMinFiltro,
             Double precioMaxFiltro,
-            List<String> subCategoriaFiltro
+            List<String> subCategoriaFiltro,
+            String fitFiltro,
+            String estampadoFiltro,
+            String escoteFiltro,
+            String colorDominanteFiltro
     ) {
         return productos.stream()
                 .filter(p -> {
@@ -2166,6 +2248,19 @@ public class ApiController {
                         boolean match = subCategoriaFiltro.stream().anyMatch(sel -> sc.equalsIgnoreCase(sel));
                         if (!match) return false;
                     }
+                    // Filtros de atributos visuales (fashion-image-classification PR6,
+                    // T6.7/T6.8) — additive, exact match case-insensitive, mirroring
+                    // the existing genero/sitio filter shape. Product.visual() is
+                    // never null (defaults to VisualAttrs.EMPTY), but guard anyway.
+                    Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+                    if (fitFiltro != null && !fitFiltro.isBlank()
+                            && !fitFiltro.equalsIgnoreCase(visual.fit())) return false;
+                    if (estampadoFiltro != null && !estampadoFiltro.isBlank()
+                            && !estampadoFiltro.equalsIgnoreCase(visual.estampado())) return false;
+                    if (escoteFiltro != null && !escoteFiltro.isBlank()
+                            && !escoteFiltro.equalsIgnoreCase(visual.escote())) return false;
+                    if (colorDominanteFiltro != null && !colorDominanteFiltro.isBlank()
+                            && !colorDominanteFiltro.equalsIgnoreCase(visual.colorDominante())) return false;
                     // Búsqueda full-text
                     if (q != null && !q.isBlank()) {
                         String lower = q.toLowerCase();
