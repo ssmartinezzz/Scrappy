@@ -85,7 +85,8 @@ Las copias `scraper/ml_pipeline.py`, `scraper/ml_train.py` y `scraper/ml_embeddi
 |-------|-----------|-------|-------|
 | freres | Shopify | moda | |
 | vcp | Shopify | moda | |
-| forever / foreverbstrd | URL estilo Shopify | moda | Caen al scraper TN por no estar en el name-set de ScraperFactory (forever dio 0 productos en el último run) |
+| forever | Shopify | moda | En el name-set SHOPIFY desde 2026-07-14 (antes caía a TN y daba 0 productos) |
+| foreverbstrd | Tiendanube | moda | URL estilo Shopify (`/collections/all`) pero es TN real — NO agregarlo al name-set |
 | harvey | Tiendanube | moda | Única con `urls_extra` (outlet `otras-temporadas1`, pagina con `?mpage=N`) |
 | midway, batuk, tussy, bulks, bullbenny, barnes, eldon | Tiendanube | moda | Batuk+Huoky misma tienda (huoky comentado) |
 | fuark, fursten | Tiendanube | gym | Fursten pagina solo vía fallback `?page=N`. No existe flag `GYM_SITIOS`: son TN comunes |
@@ -106,7 +107,7 @@ WOOCOMMERCE → {dcshoes, woocommerce}
 MAXIMUS     → {maximus}      FULLH4RD → {fullh4rd}     COMPRAGAMER → {compragamer}
 VAYPOL      → {vaypol, city}
 VTEX        → {sporting} o url contiene vtexcommercestable.com.br / vteximg.com.br
-SHOPIFY     → {freres, vcp} o url contiene myshopify.com
+SHOPIFY     → {freres, vcp, forever} o url contiene myshopify.com
 MONKYFORCE  → {monkyforce}
 default     → TiendanubeScraper (JS heurístico)
 ```
@@ -213,7 +214,6 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 
 | Problema | Estado |
 |---------|--------|
-| forever/foreverbstrd/barnes con URL Shopify caen al scraper TN (forever → 0 productos) | Pendiente: agregarlos al name-set SHOPIFY o detectar por `/collections/all` |
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación API |
 | `SQLITE_BUSY_SNAPSHOT` en `upsertParcial`/cron cuando scrape y cron escriben a la vez | WARNs frecuentes en logs, no aborta el run — pendiente serializar escrituras |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges post-deploy, no recalibrar thresholds aún (ver docs/ML_PIPELINE.md) |
