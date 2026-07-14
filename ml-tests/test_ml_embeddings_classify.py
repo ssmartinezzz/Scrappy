@@ -104,6 +104,97 @@ def test_prompts_visual_attr_labels_match_pr1_visualattrs_vocabulary():
     assert escote_labels[v_neck_english] == "en v"
 
 
+# ─── PROMPTS['categoria']: pinned against CategoryClassifier's fine output ──
+
+
+def _categoria_vocabulary_from_java_category_classifier():
+    """Manual pin (PR4) of every VISUALLY-classifiable garment/footwear/
+    accessory string `CategoryClassifier.clasificar()`
+    (scraper/src/main/java/ar/scraper/aggregator/normalize/
+    CategoryClassifier.java) can return — i.e. the FINE canonical Spanish
+    category output space of the Java text classifier, per PR4's task
+    scope decision (expanding `PROMPTS['categoria']` from PR3b1's 13 coarse
+    labels to this fine set, so image-emitted categories have a real
+    chance of surviving the stage-1b `_TEXT_LABEL_SET` filter).
+
+    Deliberately EXCLUDES:
+      - every `tech` category (Notebook, PC, Monitor, GPU, CPU, RAM,
+        Gabinete, Teclado, Mouse, Auricular, Webcam) — not garment/image
+        classifiable by a fashion vision-language model;
+      - every nutrition/supplement/food category (Creatina, Proteína,
+        Colágeno, Magnesio, Pre-Workout, BCAA, Vitaminas, Quemadores,
+        Gainer, Suplemento, Alimentos, and their "Barra/Pancake/Snack
+        Proteico" subcategories) — same reason;
+      - Perfume — a personal-care/fragrance product, not a wearable
+        garment/footwear/accessory;
+      - Accesorio Deportivo — too broad/mixed a bucket (includes
+        non-visual items like protein shakers and bandages alongside
+        knee braces), not a clean single visual concept.
+
+    This is a MANUAL PIN (this Python module has no access to the Java
+    source at test time), same discipline as the fit/estampado/escote
+    vocabulary pin above — must be kept in sync BY HAND if
+    CategoryClassifier.java's canonical output strings ever change.
+    """
+    return {
+        # Calzado (footwear) — más específico primero, igual que el propio
+        # clasificador Java.
+        "Zapatilla Running", "Zapatilla Entrenamiento", "Zapatilla Skate",
+        "Zapatilla Urbana", "Sneaker", "Zapatilla",
+        "Botines", "Borcego", "Pantufla", "Zapato", "Mocasin", "Sandalia",
+        "Ojotas", "Botas",
+        # Ropa interior / baño
+        "Calzoncillos", "Corpino", "Malla",
+        # Indumentaria superior
+        "Puffer", "Piloto", "Traje", "Saco", "Chaleco", "Campera",
+        "Sweater", "Buzo", "Casaca", "Chomba", "Musculosa", "Camisa",
+        "Remera",
+        # Indumentaria inferior
+        "Calza", "Baggy", "Jean", "Jogging", "Bermuda", "Short", "Vestido",
+        "Enterito", "Pollera", "Pantalón",
+        # Accesorios
+        "Billetera", "Riñonera", "Mochila", "Bolso", "Cinturón", "Bufanda",
+        "Guantes", "Lentes", "Gorro", "Gorra", "Medias",
+    }
+
+
+def test_prompts_categoria_labels_match_category_classifier_fine_vocabulary():
+    """Pins `PROMPTS['categoria']`'s Spanish label set against the manual
+    Java-derived vocabulary above — the whole point of PR4's expansion is
+    that every image-emittable categoria label has a real chance of
+    surviving `ml_pipeline.py`'s `_TEXT_LABEL_SET` filter, which only
+    contains strings `CategoryClassifier.java` can actually produce."""
+    expected = _categoria_vocabulary_from_java_category_classifier()
+    actual = {label for _english, label in ml_embeddings.PROMPTS["categoria"]}
+    assert actual == expected, (
+        f"PROMPTS['categoria'] labels drifted from the CategoryClassifier.java "
+        f"pin.\nMissing: {expected - actual}\nUnexpected: {actual - expected}"
+    )
+
+
+def test_prompts_categoria_has_no_duplicate_spanish_labels_or_english_prompts():
+    """Each garment maps to exactly one canonical Spanish string, and every
+    English zero-shot prompt phrase is distinct (a duplicated prompt would
+    make two different labels share one text embedding)."""
+    entries = ml_embeddings.PROMPTS["categoria"]
+    spanish_labels = [label for _english, label in entries]
+    english_prompts = [english for english, _label in entries]
+    assert len(spanish_labels) == len(set(spanish_labels)), "duplicate Spanish categoria label"
+    assert len(english_prompts) == len(set(english_prompts)), "duplicate English categoria prompt"
+
+
+def test_prompts_categoria_english_prompts_never_equal_a_spanish_label():
+    """Sanity guard against a copy-paste bug where an English prompt string
+    accidentally becomes indistinguishable from a Spanish label (defense in
+    depth for the Spanish-only output guarantee, on top of the leakage
+    checks in the classify() tests below)."""
+    entries = ml_embeddings.PROMPTS["categoria"]
+    spanish_labels = {label for _english, label in entries}
+    for english, _label in entries:
+        assert english not in spanish_labels
+        assert english.startswith("a photo of")
+
+
 # ─── classify(): closed Spanish label set / no English leakage ──────────────
 
 

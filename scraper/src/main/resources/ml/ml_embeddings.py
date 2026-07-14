@@ -4,10 +4,9 @@
 ml_embeddings.py — Zero-shot fashion image embeddings (Marqo-FashionSigLIP)
 ============================================================================
 
-Owns model load, the SQLite embedding cache, and prompt-based zero-shot
-classification for the fashion-image-classification feature. The
-full-catalog backfill CLI that consumes these (``backfill()``) is a
-separate slice, PR3b2, built on top of this branch.
+Owns model load, the SQLite embedding cache, prompt-based zero-shot
+classification, and the full-catalog backfill CLI for the
+fashion-image-classification feature.
 
 PR3a implemented (plus hardening deferred from its own judgment-day
 review):
@@ -17,9 +16,10 @@ review):
     serialization, same as ``ml_pipeline.py``);
   - the ``image_embeddings`` SQLite cache (schema shipped in PR1);
   - ``embed_images()``, a cache-first embedding pipeline used by both the
-    full-catalog backfill (PR3b2) and the incremental scrape path (PR4).
+    full-catalog backfill (this slice) and the incremental scrape path
+    (PR4).
 
-This slice (PR3b1) adds:
+PR3b1 added:
   - ``PROMPTS``/``THRESHOLDS`` — the zero-shot label tables (English
     prompts internally, Spanish labels only ever emitted);
   - ``classify()`` — per-signal cosine similarity + margin-gated
@@ -28,11 +28,18 @@ This slice (PR3b1) adds:
   - ``dominant_color()`` — a Pillow pixel-histogram color signal that is
     deliberately independent of the SigLIP model.
 
+This slice (PR3b2) adds:
+  - ``backfill()`` — the CLI entrypoint the repurposed "Construir índice
+    visual" button (PR5/PR6) launches on a background thread: embeds +
+    classifies every active product missing a cached embedding (or all,
+    if ``force``), persists the additive visual-attribute columns, and
+    streams JSON progress lines to stdout for ``PythonRunner`` to parse.
+
 Degradation is a hard requirement: model load failure, image download
-failure, or any DB hiccup for a single URL must never raise out of
-``embed_images`` or ``classify()`` — every failure is logged to stderr
-and treated as a skip, leaving text-only classification untouched
-upstream.
+failure, or any DB hiccup for a single URL/row must never raise out of
+``embed_images``, ``classify()``, or ``backfill()`` — every failure is
+logged to stderr and treated as a skip, leaving text-only classification
+untouched upstream.
 
 Heavy imports (``torch``, ``open_clip``, ``PIL``, ``numpy``) are performed
 lazily inside functions so this module stays importable on machines where
@@ -226,13 +233,25 @@ def _compute_embedding(model, preprocess, image):
 # ─── Public entrypoint ───────────────────────────────────────────────────────
 
 
-def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
+def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloaded_images=None):
     """Cache-first embedding computation for a list of image URLs.
 
     Returns ``{url: numpy.ndarray | None}``. ``None`` marks a degraded/
     skipped URL (blank URL, download failure, or model unavailable) —
     callers MUST treat ``None`` as "no visual signal for this URL",
     never as an error to propagate.
+
+    ``preloaded_images`` is an optional ``{url: PIL.Image | None}`` map. When
+    a URL is a cache miss and is present as a key there, its preloaded
+    entry is used INSTEAD of downloading — a non-``None`` entry is reused
+    directly (lets a caller that also needs the raw image for something
+    else, e.g. `backfill()`'s color extraction, download it exactly once:
+    deferred from PR3b1 judgment-day review, "backfill loop double-
+    downloads each image"), while an explicit ``None`` entry means the
+    caller already tried and failed to download that URL — it is NOT
+    re-attempted here (a URL simply absent from the map, e.g. for callers
+    that don't preload at all, is downloaded normally; deferred from
+    PR3b2 judgment-day round 2, "failed-download re-download").
     """
     results = {}
     try:
@@ -279,7 +298,17 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
                 continue
 
             try:
-                image = _download_image(url)
+                if preloaded_images is not None and url in preloaded_images:
+                    preloaded = preloaded_images[url]
+                    if preloaded is None:
+                        # Caller already attempted (and failed) to download
+                        # this URL — an explicit `None` entry is a skip, NOT
+                        # "not preloaded", so it must not be re-downloaded.
+                        results[url] = None
+                        continue
+                    image = preloaded
+                else:
+                    image = _download_image(url)
                 embedding = _compute_embedding(model, preprocess, image)
                 insert_cache(conn, url, embedding, embedding.shape[0], model_version)
                 results[url] = embedding
@@ -308,20 +337,85 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION):
 # tuning deferred to spec/verify against a real sample) — these are a
 # reasonable starting point, not a tuned final answer.
 PROMPTS = {
+    # PR4 (T4's PROMPTS-expansion scope): expanded from PR3b1's 13 coarse
+    # top-level labels to the FINE canonical Spanish category strings
+    # `CategoryClassifier.clasificar()` (scraper/src/main/java/ar/scraper/
+    # aggregator/normalize/CategoryClassifier.java) can actually emit — the
+    # text model's `_TEXT_LABEL_SET` (ml_pipeline.py) is built from exactly
+    # those strings, and the stage-1b gate silently drops any image
+    # `categoria` prediction NOT in that set (`ml_pipeline.py`: "if cat and
+    # _TEXT_LABEL_SET and cat not in _TEXT_LABEL_SET: cat, conf = None,
+    # 0.0"). Every label below is pinned 1:1 against a manually-maintained
+    # copy of CategoryClassifier's output vocabulary in
+    # ml-tests/test_ml_embeddings_classify.py — keep both in sync BY HAND.
+    #
+    # Deliberately EXCLUDES tech (Notebook/PC/Monitor/GPU/CPU/RAM/
+    # Gabinete/Teclado/Mouse/Auricular/Webcam) and nutrition/supplement/
+    # food categories (Creatina/Proteína/Colágeno/Magnesio/Pre-Workout/
+    # BCAA/Vitaminas/Quemadores/Gainer/Suplemento/Alimentos and their
+    # Barra/Pancake/Snack Proteico subcategories) — a fashion vision-
+    # language model cannot meaningfully classify a GPU or a protein
+    # shaker from a product photo. Also excludes Perfume (fragrance, not a
+    # wearable garment) and Accesorio Deportivo (too broad/mixed a bucket:
+    # knee braces, protein shakers, and bandages share no single visual
+    # concept).
     "categoria": [
-        ("a photo of a t-shirt", "Remera"),
-        ("a photo of a hoodie or sweatshirt", "Buzo"),
+        # ── Calzado (footwear) ──────────────────────────────────────────
+        ("a photo of running sneakers", "Zapatilla Running"),
+        ("a photo of training or gym sneakers", "Zapatilla Entrenamiento"),
+        ("a photo of skateboarding sneakers", "Zapatilla Skate"),
+        ("a photo of casual urban sneakers", "Zapatilla Urbana"),
+        ("a photo of retro or lifestyle sneakers", "Sneaker"),
+        ("a photo of sneakers or athletic shoes", "Zapatilla"),
+        ("a photo of ankle boots", "Botines"),
+        ("a photo of combat boots or work boots", "Borcego"),
+        ("a photo of house slippers", "Pantufla"),
+        ("a photo of formal dress shoes", "Zapato"),
+        ("a photo of loafers or moccasins", "Mocasin"),
+        ("a photo of strappy sandals", "Sandalia"),
+        ("a photo of flip flops or thong sandals", "Ojotas"),
+        ("a photo of tall boots", "Botas"),
+        # ── Ropa interior / baño ────────────────────────────────────────
+        ("a photo of men's underwear or boxers", "Calzoncillos"),
+        ("a photo of a bra or bralette", "Corpino"),
+        ("a photo of a swimsuit or bikini", "Malla"),
+        # ── Indumentaria superior ───────────────────────────────────────
+        ("a photo of a puffer jacket", "Puffer"),
+        ("a photo of a raincoat", "Piloto"),
+        ("a photo of a formal suit", "Traje"),
+        ("a photo of a blazer", "Saco"),
+        ("a photo of a vest or gilet", "Chaleco"),
         ("a photo of a jacket or coat", "Campera"),
-        ("a photo of dress pants or trousers", "Pantalón"),
-        ("a photo of blue jeans", "Jean"),
-        ("a photo of shorts", "Short"),
-        ("a photo of a dress", "Vestido"),
-        ("a photo of a skirt", "Pollera"),
-        ("a photo of sneakers or athletic shoes", "Zapatillas"),
-        ("a photo of boots", "Botines"),
-        ("a photo of sandals or flip flops", "Sandalias"),
+        ("a photo of a knit sweater", "Sweater"),
+        ("a photo of a hoodie or sweatshirt", "Buzo"),
+        ("a photo of a sports jersey", "Casaca"),
+        ("a photo of a polo shirt", "Chomba"),
         ("a photo of a tank top or sleeveless top", "Musculosa"),
         ("a photo of a button-up collared shirt", "Camisa"),
+        ("a photo of a t-shirt", "Remera"),
+        # ── Indumentaria inferior ───────────────────────────────────────
+        ("a photo of leggings", "Calza"),
+        ("a photo of baggy or wide-leg pants", "Baggy"),
+        ("a photo of blue jeans", "Jean"),
+        ("a photo of jogger sweatpants", "Jogging"),
+        ("a photo of bermuda shorts", "Bermuda"),
+        ("a photo of shorts", "Short"),
+        ("a photo of a dress", "Vestido"),
+        ("a photo of a jumpsuit or romper", "Enterito"),
+        ("a photo of a skirt", "Pollera"),
+        ("a photo of dress pants or trousers", "Pantalón"),
+        # ── Accesorios ───────────────────────────────────────────────────
+        ("a photo of a wallet", "Billetera"),
+        ("a photo of a fanny pack or waist bag", "Riñonera"),
+        ("a photo of a backpack", "Mochila"),
+        ("a photo of a handbag or tote bag", "Bolso"),
+        ("a photo of a belt", "Cinturón"),
+        ("a photo of a scarf", "Bufanda"),
+        ("a photo of gloves", "Guantes"),
+        ("a photo of sunglasses", "Lentes"),
+        ("a photo of a beanie hat", "Gorro"),
+        ("a photo of a baseball cap", "Gorra"),
+        ("a photo of socks", "Medias"),
     ],
     "fit": [
         ("a photo of an oversized, loose-fitting garment", "oversize"),
@@ -538,11 +632,256 @@ def dominant_color(image):
     return _closest_palette_color(dominant_rgb)
 
 
+# ─── Full-catalog backfill CLI ───────────────────────────────────────────────
+
+
+def _pending_urls(conn, force, model_version):
+    """Return `(url, imagen_url)` pairs for active products that still need
+    an embedding computed under `model_version` (or every active product
+    with an image, when `force`)."""
+    rows = conn.execute(
+        "SELECT url, imagen_url FROM productos "
+        "WHERE activo = 1 AND imagen_url IS NOT NULL AND imagen_url != ''"
+    ).fetchall()
+    if force:
+        return rows
+    pending = []
+    for url, imagen_url in rows:
+        try:
+            cached = get_cached(conn, imagen_url, model_version)
+        except Exception as e:
+            print(f"[ml_embeddings] backfill: cache lookup failed for {imagen_url}: {e}", file=sys.stderr)
+            cached = None
+        if cached is None:
+            pending.append((url, imagen_url))
+    return pending
+
+
+def _persist_visual_attrs(conn, url, attrs, color):
+    """Persist the four ADDITIVE visual-attribute columns (fit, estampado,
+    escote, color_dominante) shipped in PR1. Deliberately does NOT touch
+    `genero`/`categoria` on `productos` — those require the "text always
+    wins" gate (spec: "visual-classification-rules"), which lives in the
+    Java pipeline (`ml_pipeline.py` stage 1b + `MlEnricher`, PR4/PR5).
+    This CLI only ever adds signal, never risks silently overriding a
+    confident text classification.
+
+    `color` may be ``None`` when no new color signal could be computed
+    this run (the image failed to download, or `dominant_color()` raised
+    unexpectedly) — `color_dominante` is then left UNCHANGED via
+    `COALESCE` instead of being wiped to `""` (deferred from PR3b2
+    judgment-day round 3 CONFIRMED finding: "color_dominante wipe on
+    transient image failure" — a forced rebuild whose image download
+    fails this run, but whose embedding is still cache-hit-retrievable,
+    must not blank a previously-computed color).
+
+    Does NOT commit — the caller commits once per chunk instead of once
+    per row (deferred from PR3b2 judgment-day round 2: "_persist_
+    visual_attrs commits per product row").
+    """
+    conn.execute(
+        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, "
+        "color_dominante = COALESCE(?, color_dominante) WHERE url = ?",
+        (attrs.get("fit", ""), attrs.get("estampado", ""), attrs.get("escote", ""), color, url),
+    )
+
+
+def _emit_progress(pct, msg):
+    """Write one JSON progress line to stdout for `PythonRunner` (Java) to
+    parse, matching `ml_pipeline.py`'s existing `{phase, pct, msg}` shape
+    under the new `"embedding"` phase name.
+
+    Never raises: if the reading side of the pipe already closed (e.g. the
+    Java process exited or its reader stopped), `print` can raise
+    `BrokenPipeError`/`OSError` — that degrades silently here instead of
+    propagating out of `backfill()` (deferred from PR3b1 judgment-day
+    review; same never-raises contract as the rest of this module)."""
+    import json
+
+    try:
+        print(json.dumps({"phase": "embedding", "pct": pct, "msg": msg}), flush=True)
+    except (BrokenPipeError, OSError):
+        pass
+
+
+# Batches `embed_images()` calls in the backfill loop below so its internal
+# SQLite connection is opened/closed once per chunk instead of once per
+# product (deferred from PR3b1 judgment-day review: "thousands of SQLite
+# connection open/close cycles"). Not tuned; a reasonable middle ground
+# between fewer connection cycles and not holding too many downloaded
+# images in memory at once.
+_BACKFILL_CHUNK_SIZE = 20
+
+
+def backfill(db_path="scraper.db", force=False, use_gpu=True):
+    """Full-catalog visual-attribute backfill entrypoint (CLI + PR5's
+    `PythonRunner.backfillEmbeddingsEnBackground`).
+
+    For every active product missing a cached embedding (or all, when
+    `force`): computes/reuses the embedding via `embed_images`, runs
+    `classify()`, extracts `dominant_color()`, and persists the additive
+    attribute columns. Streams `{"phase":"embedding","pct":N,"msg":...}`
+    progress lines to stdout.
+
+    Pending products are processed in chunks of `_BACKFILL_CHUNK_SIZE`:
+    each DISTINCT image is downloaded exactly once per chunk (reused for
+    both the embedding, on a cache miss, and `dominant_color()`), and
+    `embed_images` is called once per chunk rather than once per product.
+    One `conn.commit()` happens per chunk rather than once per row.
+
+    If `classify()` degrades for a row (no embedding available, prompt
+    embeddings unavailable, or an internal failure — detectable because a
+    real classification run always sets `genero` to a real label or
+    "unisex", never leaves it ""), that row's attributes are NOT
+    persisted at all: existing fit/estampado/escote/color_dominante
+    values are left untouched rather than wiped to "". This is what keeps
+    a forced rebuild (`force=True`) safe when the model is unavailable —
+    this CLI must only ever ADD signal, never remove it.
+
+    Never raises: a DB-connect failure, a query failure, or any single
+    row's processing failure degrades that unit (or the whole run, for a
+    connect/query failure) to a no-op, logging to stderr instead —
+    mirrors `embed_images`'s degradation contract (spec:
+    "degradation-behavior").
+    """
+    if not use_gpu:
+        # Force CPU-only for this process. Must be set before `_load_model`
+        # ever imports torch — mirrors the Java side's existing
+        # CUDA_VISIBLE_DEVICES convention for the subprocess env (PR5).
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+    try:
+        conn = sqlite3.connect(db_path, timeout=30)
+    except Exception as e:
+        print(f"[ml_embeddings] backfill: DB connect failed for {db_path}: {e}", file=sys.stderr)
+        _emit_progress(0, "error: no se pudo conectar a la base de datos")
+        return
+
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass
+
+    try:
+        pending = _pending_urls(conn, force, MODEL_VERSION)
+    except Exception as e:
+        print(f"[ml_embeddings] backfill: query failed: {e}", file=sys.stderr)
+        _emit_progress(0, "error: no se pudieron leer productos")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+
+    total = len(pending)
+    if total == 0:
+        _emit_progress(100, "sin productos pendientes")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+
+    _emit_progress(0, f"iniciando backfill de {total} productos")
+    processed = 0
+    for chunk_start in range(0, total, _BACKFILL_CHUNK_SIZE):
+        chunk = pending[chunk_start:chunk_start + _BACKFILL_CHUNK_SIZE]
+
+        # Dedup: several products (pack/combo or color variants, etc.) can
+        # share the same imagen_url — download and embed each DISTINCT URL
+        # only once per chunk instead of once per product (deferred from
+        # PR3b2 judgment-day round 2: "chunk_imagen_urls can contain
+        # duplicate URLs"). `dict.fromkeys` preserves order.
+        chunk_imagen_urls = list(dict.fromkeys(imagen_url for _url, imagen_url in chunk))
+
+        # Download each image ONCE per chunk — reused below for both the
+        # embedding (on a cache miss, via `preloaded_images`) and
+        # `dominant_color()`, instead of downloading it a second time later
+        # in this loop (deferred from PR3b1 judgment-day review: "backfill
+        # loop double-downloads each image").
+        images = {}
+        for imagen_url in chunk_imagen_urls:
+            try:
+                images[imagen_url] = _download_image(imagen_url)
+            except Exception as e:
+                print(f"[ml_embeddings] backfill: image download failed for {imagen_url}: {e}", file=sys.stderr)
+                images[imagen_url] = None
+
+        embeddings = embed_images(
+            chunk_imagen_urls,
+            db_path=db_path,
+            model_version=MODEL_VERSION,
+            preloaded_images=images,
+        )
+
+        for url, imagen_url in chunk:
+            try:
+                embedding = embeddings.get(imagen_url)
+                attrs = classify(embedding, db_path=db_path)
+
+                if attrs.get("genero", "") == "":
+                    # `classify()` returned its degraded/no-signal sentinel
+                    # (embedding unavailable, prompt embeddings unavailable,
+                    # or an internal failure) — `genero` is the one field a
+                    # REAL classification run always overwrites (to a real
+                    # label or "unisex"; see `classify()`'s own contract),
+                    # so "" here means "no attempt could be made", never
+                    # "every signal legitimately abstained". Skip
+                    # persisting so a forced rebuild with the model down
+                    # can't wipe existing fit/estampado/escote/
+                    # color_dominante values back to "" (deferred from
+                    # PR3b2 judgment-day round 2: "degraded-classify wipe"
+                    # — this CLI must only ever ADD signal, never remove
+                    # it, per its own docstring).
+                    print(
+                        f"[ml_embeddings] backfill: no visual signal for {url}, leaving existing attrs untouched",
+                        file=sys.stderr,
+                    )
+                else:
+                    # `None` (not "") means "no new color signal this run" —
+                    # `_persist_visual_attrs` preserves the existing
+                    # color_dominante instead of wiping it (deferred from
+                    # PR3b2 judgment-day round 3: "color_dominante wipe on
+                    # transient image failure" — a cache-hit embedding can
+                    # still classify successfully even when THIS run's
+                    # image download failed).
+                    color = None
+                    image = images.get(imagen_url)
+                    if image is not None:
+                        try:
+                            color = dominant_color(image)
+                        except Exception as e:
+                            print(f"[ml_embeddings] backfill: color extraction failed for {imagen_url}: {e}", file=sys.stderr)
+
+                    _persist_visual_attrs(conn, url, attrs, color)
+            except Exception as e:
+                # Never abort the whole run for one bad row — that product
+                # simply keeps its text-only classification, same as today.
+                print(f"[ml_embeddings] backfill: failed processing {url}: {e}", file=sys.stderr)
+
+            processed += 1
+            _emit_progress(int(processed * 100 / total), f"{processed}/{total} — {url}")
+
+        # One commit per chunk instead of one per product row (deferred
+        # from PR3b2 judgment-day round 2: "_persist_visual_attrs commits
+        # per product row").
+        try:
+            conn.commit()
+        except Exception as e:
+            print(f"[ml_embeddings] backfill: commit failed for chunk: {e}", file=sys.stderr)
+
+    try:
+        conn.close()
+    except Exception:
+        pass
+    _emit_progress(100, "backfill completo")
+
+
 if __name__ == "__main__":
-    # Manual smoke check: attempts the REAL model load (network + weights
-    # required) and prints OK/FAIL. Never run automatically by pytest.
-    # Usage: python ml_embeddings.py smoke [db_path]
     if len(sys.argv) >= 2 and sys.argv[1] == "smoke":
+        # Manual smoke check: attempts the REAL model load (network +
+        # weights required) and prints OK/FAIL. Never run automatically
+        # by pytest. Usage: python ml_embeddings.py smoke [db_path]
         db_path_arg = sys.argv[2] if len(sys.argv) >= 3 else "scraper.db"
         m, p = _load_model(db_path_arg)
         if m is not None:
@@ -550,5 +889,24 @@ if __name__ == "__main__":
             sys.exit(0)
         print("FAIL: model could not be loaded (see stderr above)")
         sys.exit(1)
-    print("Usage: python ml_embeddings.py smoke [db_path]", file=sys.stderr)
+
+    if len(sys.argv) >= 2 and sys.argv[1] == "backfill":
+        # Usage: python ml_embeddings.py backfill [db_path] [--force] [--no-gpu]
+        # Flags are recognized by their "--" prefix regardless of position,
+        # so e.g. `backfill --force` (no explicit db_path) doesn't silently
+        # bind "--force" to db_path_arg — SQLite would otherwise create a
+        # literal file named "--force" and drop the flag (deferred from
+        # PR3b2 judgment-day round 2: "CLI arg parsing").
+        rest = sys.argv[2:]
+        flags = [arg for arg in rest if arg.startswith("--")]
+        positional = [arg for arg in rest if not arg.startswith("--")]
+        db_path_arg = positional[0] if positional else "scraper.db"
+        backfill(
+            db_path_arg,
+            force="--force" in flags,
+            use_gpu="--no-gpu" not in flags,
+        )
+        sys.exit(0)
+
+    print("Usage: python ml_embeddings.py smoke|backfill [db_path] [--force] [--no-gpu]", file=sys.stderr)
     sys.exit(2)

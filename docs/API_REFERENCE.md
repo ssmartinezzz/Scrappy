@@ -53,7 +53,14 @@ Productos con filtros y paginación server-side.
 | `genero` | string | - | `hombre` / `mujer` / `unisex` |
 | `categoria` | string[] | - | Multi-select categoría |
 | `talle` | string[] | - | Multi-select talle |
+| `fit` | string | - | Atributo visual: fit de la prenda (ej. `oversize`, `slim`) |
+| `estampado` | string | - | Atributo visual: estampado (ej. `liso`, `rayado`) |
+| `escote` | string | - | Atributo visual: escote (ej. `redondo`, `en v`) |
+| `colorDominante` | string | - | Atributo visual: color dominante de la foto |
 | `orden` | string | `precio_asc` | `precio_asc` / `precio_desc` / `nombre` |
+
+Los cuatro filtros de atributos visuales son single-select y provienen del índice
+visual (embeddings de imagen); un producto sin backfill de embeddings no matchea.
 
 **Response:**
 ```json
@@ -73,7 +80,11 @@ Productos con filtros y paginación server-side.
       "generos": {"hombre": 120},
       "categorias": {"Zapatillas": 500},
       "marcas": {"Nike": 342, "Adidas": 280},
-      "badges": {"precio_bajo": 89, "oferta_real": 45}
+      "badges": {"precio_bajo": 89, "oferta_real": 45},
+      "fits": {"oversize": 120, "slim": 85},
+      "estampados": {"liso": 900, "rayado": 40},
+      "escotes": {"redondo": 300, "en v": 55},
+      "colorDominantes": {"negro": 800, "blanco": 420}
     },
     "marcas": {"Freres": 136, "Sporting": 2444}
   },
@@ -187,6 +198,63 @@ Elimina sitio dinámico de DB y memoria.
 Actualiza configuración en runtime.
 
 **Body:** `{"precioMinimo": 0, "precioMaximo": 200000}`
+
+---
+
+## GET /ml/estado
+
+Estado de los modelos ML y del índice visual. Pensado para polling desde el panel.
+
+**Response:**
+```json
+{
+  "hasTextModel": true,
+  "hasImageModel": false,
+  "textMeta": {"...": "contenido de _models/text_meta.json si existe"},
+  "training": {
+    "running": true,
+    "phase": "training | embedding | idle | timeout | error",
+    "pct": 40,
+    "msg": "...",
+    "startedAt": "2026-07-12T16:00:00Z"
+  },
+  "embeddingsCount": 2100,
+  "totalProductos": 3034,
+  "coveragePct": 69.2
+}
+```
+
+`embeddingsCount` / `totalProductos` / `coveragePct` reportan la cobertura del
+índice visual (tabla `image_embeddings` vs catálogo en memoria). Son campos
+aditivos: clientes anteriores pueden ignorarlos.
+
+---
+
+## POST /ml/entrenar
+
+Lanza en background (un solo thread, secuencial): re-entrenamiento del
+clasificador de texto y luego backfill del índice visual (embeddings).
+Retorna inmediatamente.
+
+**Query params:**
+| Param | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `images` | boolean | `false` | Incluye entrenamiento del modelo de imagen |
+| `epochs` | int | 8 | Epochs del modelo de imagen |
+
+**Responses:**
+- `200` `{"status": "started"}` — secuencia iniciada
+- `400` `{"error": "Entrenamiento ya en curso"}` — pre-check: ya hay un entrenamiento corriendo
+- `409` `{"error": "Entrenamiento ya en curso"}` — carrera entre dos POST simultáneos: este request perdió el CAS y NO inició nada
+
+Progreso via polling de `GET /ml/estado` (`training.phase` pasa por
+`training` → `embedding` → `idle`/`error`).
+
+---
+
+## GET /ml/resultado
+
+Snapshot corto del estado de entrenamiento: `{running, phase, pct, msg, done}`.
 
 ---
 

@@ -84,4 +84,20 @@ class NormalizerServiceTest {
         // Calzado hard guard wins even for a sportswear brand — gymrat is ROPA only.
         assertThat(normalizarUno("Zapatillas Air Max", "Nike", "Zapatilla Running").gymrat()).isFalse();
     }
+
+    @Test
+    void normalizarProductoPreservesVisualAttrs() {
+        // Regression for fashion-image-classification PR1: normalizarProducto()
+        // previously rebuilt Product via the 18-arg legacy constructor, silently
+        // resetting visual to VisualAttrs.EMPTY.
+        Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "liso", "cuello redondo", "blanco");
+        Product in = new Product(
+                "Freres", "Remera con visual", 1000.0, null, "http://url", "http://img",
+                "Remera", "hombre", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+
+        Product out = service.normalizar(List.of(in)).get(0);
+
+        assertThat(out.visual()).isEqualTo(visual);
+    }
 }
