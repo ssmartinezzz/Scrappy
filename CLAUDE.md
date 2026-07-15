@@ -216,7 +216,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación API |
 | `SQLITE_BUSY_SNAPSHOT` en `upsertParcial`/cron cuando scrape y cron escriben a la vez | RESUELTO 2026-07-14: todas las escrituras serializadas en `writeLock` + `refrescarSnapshot()` + PRAGMA busy_timeout/WAL en `DatabaseService.initEn` |
-| Lecturas sin lock sobre la `Connection` compartida pueden degradar (lista parcial/vacía + WARN) si coinciden con un commit/rollback | Pre-existente, sin corrupción persistida — pendiente evaluar conexiones por hilo o serializar lecturas |
+| Lecturas sin lock sobre la `Connection` compartida pueden degradar (lista parcial/vacía + WARN) si coinciden con un commit/rollback | RESUELTO 2026-07-14: `DatabaseService` ahora abre una `readConn` dedicada (autoCommit=true) guardada bajo un `readLock` propio, separada de `conn`/`writeLock`; los 21 métodos de lectura standalone (cargarProductos, listCronJobs, etc.) corren aislados de las transacciones de escritura vía WAL, sin bloquear ni ser bloqueados por el escritor |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges post-deploy, no recalibrar thresholds aún (ver docs/ML_PIPELINE.md) |
 | `safe_price` puede parsear mal ciertos formatos de `precioOriginal` | Heurística interina aceptada (1611/6692 rechazados a 0.0 en el último run) |
 | Bare `except:` en safe_price/price_velocity/history load | Nit no bloqueante — migrar a `except Exception:` |
