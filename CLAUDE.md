@@ -58,7 +58,7 @@ fashion-scraper-new/
         │   │   ├── PythonRunner.java  ← Subprocess Python; extrae ml_pipeline/ml_train/ml_embeddings del JAR;
         │   │   │                        secuencia índice visual (train texto + backfill embeddings); HF_HOME junto a scraper.db
         │   │   └── MlEnricher.java    ← Aplica scores Python → Product.MlScore
-        │   ├── db/DatabaseService.java← SQLite: 16 tablas (ver "Base de datos")
+        │   ├── db/DatabaseService.java← SQLite: 15 tablas (ver "Base de datos")
         │   └── web/
         │       ├── ScraperService.java    ← Orquesta scraping async, carga DB al arrancar
         │       ├── ApiController.java     ← REST /api/** (ver "API REST")

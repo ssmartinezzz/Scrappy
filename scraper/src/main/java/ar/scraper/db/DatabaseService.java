@@ -523,6 +523,7 @@ public class DatabaseService {
                 int filasEditadas = ps.executeUpdate();
                 if (filasEditadas == 0) {
                     LOG.warn("[DB] editarPreset: id {} no existe.", id);
+                    conn.rollback();
                     return false;
                 }
                 conn.commit();
@@ -1090,6 +1091,7 @@ public class DatabaseService {
     // ─── Sitios dinámicos ────────────────────────────────────────────────────
 
     public void guardarSitio(String nombre, String url, String plataforma) {
+        Objects.requireNonNull(nombre, "nombre must not be null");
         if (conn == null) return;
         synchronized (writeLock) {
             refrescarSnapshot();
@@ -1300,6 +1302,7 @@ public class DatabaseService {
     // ─── Favoritos ───────────────────────────────────────────────────────────
 
     public void guardarFavorito(String url, String sitio, String nombre) {
+        Objects.requireNonNull(url, "url must not be null");
         if (conn == null) return;
         synchronized (writeLock) {
             refrescarSnapshot();
@@ -1451,7 +1454,10 @@ public class DatabaseService {
                         "SELECT 1 FROM categoria_dismiss WHERE categoria=?")) {
                     check.setString(1, categoria);
                     try (ResultSet rs = check.executeQuery()) {
-                        if (rs.next()) return; // ya existe — no-op idempotente
+                        if (rs.next()) {
+                            conn.rollback(); // ya existe — no-op idempotente, resuelve la transacción implícita del SELECT
+                            return;
+                        }
                     }
                 }
                 try (PreparedStatement ps = conn.prepareStatement("""
@@ -1710,10 +1716,12 @@ public class DatabaseService {
                 ps.setDouble(4, total);
                 ps.setString(5, LocalDateTime.now().format(DT));
                 ps.executeUpdate();
-                conn.commit();
+                int generatedId;
                 try (ResultSet keys = ps.getGeneratedKeys()) {
-                    return keys.next() ? keys.getInt(1) : -1;
+                    generatedId = keys.next() ? keys.getInt(1) : -1;
                 }
+                conn.commit();
+                return generatedId;
             } catch (Exception e) {
                 LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
                 try { conn.rollback(); } catch (Exception ignored) {}
@@ -1819,10 +1827,12 @@ public class DatabaseService {
                 ps.setString(10, now);
                 ps.setString(11, nextRunAt);
                 ps.executeUpdate();
-                conn.commit();
+                long generatedId;
                 try (ResultSet keys = ps.getGeneratedKeys()) {
-                    return keys.next() ? keys.getLong(1) : -1;
+                    generatedId = keys.next() ? keys.getLong(1) : -1;
                 }
+                conn.commit();
+                return generatedId;
             } catch (Exception e) {
                 LOG.warn("[DB] Error creando cron job: {}", e.getMessage());
                 try { conn.rollback(); } catch (Exception ignored) {}
@@ -1994,10 +2004,12 @@ public class DatabaseService {
                 ps.setString(3, status);
                 ps.setString(4, skippedReason);
                 ps.executeUpdate();
-                conn.commit();
+                long generatedId;
                 try (ResultSet keys = ps.getGeneratedKeys()) {
-                    return keys.next() ? keys.getLong(1) : -1;
+                    generatedId = keys.next() ? keys.getLong(1) : -1;
                 }
+                conn.commit();
+                return generatedId;
             } catch (Exception e) {
                 LOG.warn("[DB] Error creando cron execution (job {}): {}", jobId, e.getMessage());
                 try { conn.rollback(); } catch (Exception ignored) {}
