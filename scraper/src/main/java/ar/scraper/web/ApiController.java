@@ -246,7 +246,9 @@ public class ApiController {
         // 3. Paginar
         int total        = filtrados.size();
         int totalPaginas = (int) Math.ceil((double) total / size);
-        int desde        = Math.min((page - 1) * size, total);
+        int paginaClamped = Math.max(page, 1);
+        long desdeCandidato = (long) (paginaClamped - 1) * size;
+        int desde        = (int) Math.min(desdeCandidato, total);
         int hasta        = Math.min(desde + size, total);
         List<Product> pagina = filtrados.subList(desde, hasta);
 
@@ -262,7 +264,7 @@ public class ApiController {
         meta.put("rangMax",     r.maxPrecio());
         meta.put("fecha",       fecha);
         meta.put("total",       total);
-        meta.put("pagina",      page);
+        meta.put("pagina",      paginaClamped);
         meta.put("pageSize",    size);
         meta.put("totalPaginas", totalPaginas);
 
