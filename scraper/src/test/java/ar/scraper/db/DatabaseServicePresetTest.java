@@ -247,6 +247,24 @@ class DatabaseServicePresetTest {
     }
 
     @Test
+    void editarPresetWithNonExistentIdLeavesNoDanglingTransactionForSubsequentWrite() {
+        Preset original = db.cargarPresetActivo().orElseThrow();
+        int nonExistentId = original.id() + 999;
+
+        Allure.parameter("id", nonExistentId);
+        boolean result = db.editarPreset(nonExistentId, "x", 10.0, 5);
+        assertThat(result).isFalse();
+
+        // editarPreset must resolve (commit or rollback) its own transaction on the
+        // not-found branch instead of relying on the next write's refrescarSnapshot()
+        // to silently discard a dangling one — a subsequent write on the same shared
+        // conn must succeed and be visible right away.
+        int newId = db.crearPreset("Post edit-miss", 15.0, 6);
+        assertThat(newId).isPositive();
+        assertThat(db.listarPresets()).anyMatch(p -> p.id() == newId);
+    }
+
+    @Test
     void editarPresetWithNonExistentIdSignalsFailureAndLeavesExistingPresetUnchanged() {
         Preset original = db.cargarPresetActivo().orElseThrow();
         int nonExistentId = original.id() + 999;
