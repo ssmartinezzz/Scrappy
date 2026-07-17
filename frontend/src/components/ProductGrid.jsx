@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import ProductCard from './ProductCard';
+import ProductGridSkeleton from './ProductGridSkeleton';
 
 // Clamp the bottom-only IntersectionObserver margin to viewport height so a
 // fast/fling scroll on tablets can't outrun the trigger before the fetch
@@ -162,27 +163,13 @@ export default function ProductGrid({
       {/* Infinite scroll sentinel */}
       <div ref={sentinelRef} style={{ height:1, marginTop:16 }}/>
 
-      {loading && (
-        <div style={{
-          display:'flex', justifyContent:'center', alignItems:'center',
-          gap:10, padding:'1.5rem', color:'var(--t4)', fontSize:'.8rem',
-        }}>
-          <div style={{
-            width:18, height:18, borderRadius:'50%',
-            border:'2px solid var(--bd)', borderTopColor:'var(--p)',
-            animation:'spin 0.7s linear infinite',
-          }}/>
-          Cargando más productos...
-        </div>
-      )}
+      {loading && hasMore && <ProductGridSkeleton />}
 
       {!hasMore && prods.length > 0 && (
         <div style={{ textAlign:'center', padding:'1.5rem 0', fontSize:'.72rem', color:'var(--t4)' }}>
           ✓ {prods.length} productos cargados
         </div>
       )}
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
