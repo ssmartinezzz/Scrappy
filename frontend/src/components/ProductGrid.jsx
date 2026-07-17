@@ -67,7 +67,14 @@ export default function ProductGrid({
     );
     observerRef.current = observer;
     if (sentinelNodeRef.current) observer.observe(sentinelNodeRef.current);
-    return () => observer.disconnect();
+    // Disconnect via the ref (not the closure-local `observer`) so unmount
+    // always tears down the CURRENT instance — the resize handler below may
+    // have replaced observerRef.current with a newer observer since this
+    // effect ran (REL-002).
+    return () => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+    };
   }, [triggerLoadMore]);
 
   // Recompute the margin on resize (throttled via rAF) without recreating
