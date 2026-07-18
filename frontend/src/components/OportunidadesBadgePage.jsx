@@ -46,6 +46,10 @@ export default function OportunidadesBadgePage({ onProductClick }) {
   }, [badge]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    // Reset the in-flight guard too: a fetch for the PREVIOUS badge may still
+    // be pending when the user navigates to a new one, and the stale guard
+    // would silently drop this badge's first load.
+    loadingRef.current = false;
     setProds([]);
     setPage(1);
     setHasMore(true);
