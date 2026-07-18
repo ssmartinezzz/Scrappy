@@ -34,11 +34,15 @@ export default function OportunidadesBadgePage({ onProductClick }) {
     setProds(prev => {
       const base = replace ? [] : prev;
       const seen = new Set(base.map(x => x.url));
-      return [...base, ...nuevos.filter(x => !seen.has(x.url))];
+      const merged = [...base, ...nuevos.filter(x => !seen.has(x.url))];
+      // hasMore derived from the merged length computed HERE (server total,
+      // not the stale closure over `prods` from when loadPage was created) —
+      // avoids the infinite-scroll desync class of bug on large catalogs.
+      setHasMore(merged.length < totalNuevo);
+      return merged;
     });
     setTotal(totalNuevo);
     setPage(p + 1);
-    setHasMore((replace ? nuevos.length : (prods.length + nuevos.length)) < totalNuevo);
   }, [badge]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
