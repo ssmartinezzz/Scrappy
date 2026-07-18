@@ -129,15 +129,10 @@ export function fmt(n) {
   return Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 }
 
-export const BADGE_LABELS = {
-  precio_historico_bajo: '🏆 Mínimo histórico',
-  precio_bajo:          '💚 Precio Bajo',
-  oferta_real:          '✅ Oferta Real',
-  tendencia:            '🔥 Tendencia',
-  precio_bajando:       '📉 Bajando',
-  descuento_cosmetico:  '⚠️ Desc. Cosmético',
-  precio_alto:          '📈 Precio Alto',
-};
+// Re-exported from lib/colors.js's BADGE_META (single source of truth for
+// the 7 badge keys — badges-oportunidades-revamp) so existing `import {
+// BADGE_LABELS } from '../api'` call sites keep working unchanged.
+export { BADGE_LABELS } from './lib/colors';
 
 export async function buscarExterno(nombre, productoUrl) {
   const p = new URLSearchParams({ q: nombre });

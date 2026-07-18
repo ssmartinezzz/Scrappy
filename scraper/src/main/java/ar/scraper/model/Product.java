@@ -134,16 +134,33 @@ public record Product(
     public boolean esPack()          { return cantidadUnidades > 1; }
 
     public record MlScore(
-            int     scoreP,
-            String  badge,
-            boolean ofertaReal,
-            String  tendencia,
-            int     pctilCategoria,
-            double  zScore,
-            String  segment
+            int          scoreP,
+            List<String> badges,        // ordered, principal-first (badges-oportunidades-revamp D3)
+            boolean      ofertaReal,
+            String       tendencia,
+            int          pctilCategoria,
+            double       zScore,
+            String       segment
     ) {
         public static final MlScore EMPTY =
-            new MlScore(50, "", false, "estable", 50, 0.0, "standard");
+            new MlScore(50, List.of(), false, "estable", 50, 0.0, "standard");
+
+        /** Principal badge convenience — the highest-priority badge in {@link #badges}, or "" if none. */
+        public String badge() { return badges.isEmpty() ? "" : badges.get(0); }
+
+        /**
+         * Legacy single-badge shape (pre multi-badge). Preserves source
+         * compatibility for call sites built before {@code badges} replaced
+         * the single {@code badge} string component; a non-blank badge
+         * becomes a one-element list.
+         */
+        public MlScore(int scoreP, String badge, boolean ofertaReal,
+                       String tendencia, int pctilCategoria, double zScore, String segment) {
+            this(scoreP, (badge != null && !badge.isBlank()) ? List.of(badge) : List.of(),
+                 ofertaReal, tendencia, pctilCategoria, zScore, segment);
+        }
+
+        /** Legacy 5-arg shape (pre zScore/segment, pre multi-badge). */
         public MlScore(int scoreP, String badge, boolean ofertaReal,
                        String tendencia, int pctilCategoria) {
             this(scoreP, badge, ofertaReal, tendencia, pctilCategoria, 0.0, "standard");

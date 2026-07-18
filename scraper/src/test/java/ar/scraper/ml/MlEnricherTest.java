@@ -94,6 +94,72 @@ class MlEnricherTest {
         assertThat(result.get(0).cantidadUnidades()).isEqualTo(4);
     }
 
+    // ── badges-oportunidades-revamp T3.1: multi-badge array parsing ────────
+
+    @Test
+    void badgesArrayIsParsedInOrderWithPrincipalFirst() throws Exception {
+        Product p = new Product("Sitio", "Campera oferta", 20000.0, null,
+                "https://site.com/badges-a", "", "Camperas", "unisex", List.of());
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/badges-a": {
+                            "composite": 60, "pctil": 40,
+                            "badge": "verified_deal",
+                            "badges": ["verified_deal", "trending"]
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).ml().badges()).containsExactly("verified_deal", "trending");
+        assertThat(result.get(0).ml().badge()).isEqualTo("verified_deal");
+    }
+
+    @Test
+    void missingBadgesArrayFallsBackToSingleElementListFromLegacyBadgeString() throws Exception {
+        // Old cached ml_output (pre multi-badge) only has 'badge', no 'badges' key.
+        Product p = new Product("Sitio", "Remera oferta", 10000.0, null,
+                "https://site.com/badges-b", "", "Remeras", "unisex", List.of());
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/badges-b": {
+                            "composite": 50, "pctil": 50, "badge": "all_time_low"
+                        }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).ml().badges()).containsExactly("all_time_low");
+        assertThat(result.get(0).ml().badge()).isEqualTo("all_time_low");
+    }
+
+    @Test
+    void blankBadgeAndMissingBadgesArrayYieldsEmptyBadgeSet() throws Exception {
+        Product p = new Product("Sitio", "Remera normal", 10000.0, null,
+                "https://site.com/badges-c", "", "Remeras", "unisex", List.of());
+        JsonNode mlOutput = MAPPER.readTree("""
+                {
+                    "scores": {
+                        "https://site.com/badges-c": { "composite": 50, "pctil": 50, "badge": "" }
+                    }
+                }
+                """);
+
+        MlEnricher enricher = new MlEnricher();
+        List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
+
+        assertThat(result.get(0).ml().badges()).isEmpty();
+        assertThat(result.get(0).ml().badge()).isEmpty();
+    }
+
     // ── PR5: image-gender fill-in (text-wins invariant) ─────────────────────
     // Product.genero() is the 8th constructor arg; helper builds a minimal
     // Product with an explicit genero and a given URL for score lookup.

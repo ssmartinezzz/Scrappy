@@ -12,8 +12,8 @@ export function tagline(cat, pick, mediana) {
   const unitVal = pick.precioUnitario ?? pick.precio;
   const pct = mediana > 0 ? ((mediana - unitVal) / mediana * 100).toFixed(0) : null;
 
-  if (badge === 'precio_historico_bajo') return 'Nunca estuvo tan barato — mínimo histórico';
-  if (badge === 'oferta_real')           return 'Descuento verificado estadísticamente';
+  if (badge === 'all_time_low')  return 'Nunca estuvo tan barato — mínimo histórico';
+  if (badge === 'verified_deal') return 'Descuento verificado estadísticamente';
   if (pct && pct >= 25)  return `Un ${pct}% más barato que la media de ${cat}`;
   if (pct && pct >= 10)  return `Por debajo de la media — buena relación precio/calidad`;
   if (pctil && pctil <= 15) return `Percentil ${pctil}° — entre los más accesibles`;

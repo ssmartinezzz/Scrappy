@@ -161,7 +161,7 @@ cron_jobs / cron_executions -- Scraping programado + historial de corridas
 
 **`ml_pipeline.py` (v2, estadístico):** por categoría+género calcula `PriceStats` (mediana, IQR, MAD, CV, Tukey fences). Score compuesto = 40% percentil + 35% z-score modificado (MAD) + 25% distancia a mediana/IQR → `price_segment` (budget/standard/premium/luxury). **Todo el scoring usa precio unitario** (`precio/cantidadUnidades` en packs); display, descuento e historial usan precio de góndola.
 
-**Badges emitidos (cadena de prioridad):** `precio_historico_bajo`, `precio_bajo`, `oferta_real`, `tendencia`, `precio_bajando`, `precio_alto`, `descuento_cosmetico`. `ofertaReal` es un boolean aparte, independiente del badge mostrado. Guard anti-descuento-cosmético contra historial propio. Clustering TF-IDF greedy → `tendencia` + trendingClusters.
+**Badges emitidos (multi-badge, no exclusivo):** cada producto puede calificar para varios badges a la vez — condiciones independientes, no una cadena `elif`. Orden de prioridad (principal = primero del set): `all_time_low` (Mínimo histórico) > `below_market` (Por debajo del mercado) > `verified_deal` (Descuento verificado) > `trending` (En demanda) > `price_dropping` (Bajando de precio) > `above_market` (Caro vs. mercado) > `fake_discount` (Descuento dudoso). Persistido en `productos.ml_badge` como TEXT comma-delimited, principal primero (p.ej. `verified_deal,trending`); `/api/data?badge=` filtra por pertenencia al set, no por igualdad exacta. `ofertaReal` es un boolean aparte, independiente del badge mostrado. Guard anti-descuento-cosmético contra historial propio. Clustering TF-IDF greedy → `trending` + trendingClusters.
 
 **Stage 1b — ensemble texto+imagen:** importa `ml_embeddings` (con fix de `sys.path` para el Python embeddable). Gate `needs_image_fallback`: confianza de texto <0.75, categoría genérica o género vacío. Máx 400 inferencias por run, cache-first. Override de categoría gateado por incompatibilidad de tipos + no-downgrade + confianza ≥0.82/0.92. Agrega attrs visuales (fit/estampado/escote/color) de forma aditiva — texto gana.
 
@@ -199,7 +199,7 @@ Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`. `MlScore` inc
 
 ## Frontend (rutas principales)
 
-Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` · Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` · Tendencias `/tendencias` · Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` · Outfits `/outfits`. `MlStatusPanel` + `GpuTrainingOverlay` como componentes (no ruta propia).
+Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` · Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` · Análisis `/analisis/mercado` (KPIs + insights, ex-Tendencias curado) · `/analisis/oportunidades` (badges + top deals) · `/analisis/oportunidades/:badge` (drill-down paginado completo) · Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` · Outfits `/outfits`. `/tendencias` redirige a `/analisis/mercado` (ruta retirada). `MlStatusPanel` + `GpuTrainingOverlay` como componentes (no ruta propia).
 
 ---
 

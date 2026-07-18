@@ -345,6 +345,8 @@ public class ApiController {
             if (p.ml() != null) {
                 ObjectNode ml = n.putObject("ml");
                 ml.put("badge",      p.ml().badge() != null ? p.ml().badge() : "");
+                ArrayNode badgesArr = ml.putArray("badges");
+                if (p.ml().badges() != null) p.ml().badges().forEach(badgesArr::add);
                 ml.put("scoreP",     p.ml().scoreP());
                 ml.put("ofertaReal", p.ml().ofertaReal());
                 ml.put("tendencia",  p.ml().tendencia() != null ? p.ml().tendencia() : "estable");
@@ -1574,6 +1576,8 @@ public class ApiController {
         if (p.ml() != null) {
             ObjectNode ml = n.putObject("ml");
             ml.put("badge",      p.ml().badge() != null ? p.ml().badge() : "");
+            ArrayNode badgesArr = ml.putArray("badges");
+            if (p.ml().badges() != null) p.ml().badges().forEach(badgesArr::add);
             ml.put("scoreP",     p.ml().scoreP());
             ml.put("ofertaReal", p.ml().ofertaReal());
             ml.put("tendencia",  p.ml().tendencia() != null ? p.ml().tendencia() : "estable");
@@ -1875,14 +1879,14 @@ public class ApiController {
 
                 // 3. Mínimo histórico
                 Product histLow = prods.stream()
-                    .filter(p -> p.ml() != null
-                        && "precio_historico_bajo".equals(p.ml().badge()))
+                    .filter(p -> p.ml() != null && p.ml().badges() != null
+                        && p.ml().badges().contains("all_time_low"))
                     .findFirst().orElse(null);
 
                 // 4. Oferta real
                 Product oferta = prods.stream()
-                    .filter(p -> p.ml() != null
-                        && "oferta_real".equals(p.ml().badge()))
+                    .filter(p -> p.ml() != null && p.ml().badges() != null
+                        && p.ml().badges().contains("verified_deal"))
                     .findFirst().orElse(null);
 
                 // Stats de la categoría — computado sobre precio unitario (pack-aware),
@@ -2197,10 +2201,15 @@ public class ApiController {
                         boolean match = marcaFiltro.stream().anyMatch(sel -> m.equalsIgnoreCase(sel));
                         if (!match) return false;
                     }
-                    // Filtro badge ML
+                    // Filtro badge ML — set membership, no longer exact-match (spec
+                    // "/api/data?badge= Multi-Badge Filter Semantics"): un producto
+                    // matchea si el badge pedido está en su set completo, no solo
+                    // si es el principal.
                     if (badgeFiltro != null && !badgeFiltro.isBlank()) {
-                        String b = (p.ml() != null && p.ml().badge() != null) ? p.ml().badge() : "";
-                        if (!b.equalsIgnoreCase(badgeFiltro)) return false;
+                        List<String> b = (p.ml() != null && p.ml().badges() != null)
+                                ? p.ml().badges() : List.of();
+                        boolean match = b.stream().anyMatch(bg -> bg.equalsIgnoreCase(badgeFiltro));
+                        if (!match) return false;
                     }
                     // Filtro segment
                     if (segmentFiltro != null && !segmentFiltro.isBlank()) {
