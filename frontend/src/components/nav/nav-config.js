@@ -4,7 +4,7 @@
 import {
   ShoppingBag, Trophy, Sparkles,
   Compass, LineChart, Bookmark,
-  Tag, Pill, TrendingUp, Scale, CreditCard, Star, Shirt, Clock,
+  Tag, Pill, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock,
 } from 'lucide-react';
 
 // kind: 'link'  → direct NavLink, no submenu
@@ -23,7 +23,8 @@ export const NAV_CONFIG = [
   {
     kind: 'menu', label: 'Análisis', icon: LineChart,
     items: [
-      { label: 'Tendencias', to: '/tendencias', icon: TrendingUp },
+      { label: 'Mercado', to: '/analisis/mercado', icon: TrendingUp },
+      { label: 'Oportunidades', to: '/analisis/oportunidades', icon: Sparkle },
       { label: 'Comparar', to: '/grupos', icon: Scale },
       { label: 'Cuotas', to: '/financiacion', icon: CreditCard },
     ],

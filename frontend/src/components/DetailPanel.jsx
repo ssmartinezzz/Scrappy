@@ -425,8 +425,17 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
         )}
 
         <div className="detail-body">
-          {ml.badge && BADGE_LABELS[ml.badge] && (
-            <span className={`badge-ml badge-${ml.badge}`}>{BADGE_LABELS[ml.badge]}</span>
+          {/* Detail view shows ALL badges the product holds (spec "Multi-Badge
+              Display Rules" — card shows principal+1, detail shows the full set).
+              Falls back to [ml.badge] when 'badges' is absent (older cached data). */}
+          {(ml.badges?.length ? ml.badges : ml.badge ? [ml.badge] : []).length > 0 && (
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              {(ml.badges?.length ? ml.badges : [ml.badge]).map(b => (
+                BADGE_LABELS[b] && (
+                  <span key={b} className={`badge-ml badge-${b}`}>{BADGE_LABELS[b]}</span>
+                )
+              ))}
+            </div>
           )}
 
           {ml.scoreP !== undefined && (

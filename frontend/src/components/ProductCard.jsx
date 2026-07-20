@@ -79,7 +79,17 @@ function BadgeCluster({ p, ml, badge, catStats }) {
       ? <SenalBadge key="senal" senal={p.senal} />
       : null;
 
+  // Secondary ML badge (badges-oportunidades-revamp — spec "Multi-Badge
+  // Display Rules": card shows the principal badge + at most 1 secondary).
+  const secondaryBadgeKey = ml.badges?.[1];
+  const secondaryBadgeLabel = secondaryBadgeKey && BADGE_LABELS[secondaryBadgeKey];
+
   const secondary = [
+    secondaryBadgeLabel && (
+      <span key="ml2" className="badge-compact" title={secondaryBadgeLabel}>
+        {secondaryBadgeLabel.split(' ')[0]}
+      </span>
+    ),
     badge && hasSenal && <SenalBadge key="senal" senal={p.senal} compact />,
     gymSubcat(p) && <span key="gym" className="badge-compact" title={gymSubcat(p)}>🏋️</span>,
     p.senalFinanciacion?.senal && <FinanBadge key="finan" finan={p.senalFinanciacion} compact />,

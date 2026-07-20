@@ -8,7 +8,9 @@ import AppLayout, {
   CategoryPicksPageRoute,
   MarcasPanelRoute,
   GruposPanelRoute,
-  TrendsPanelRoute,
+  MercadoPanelRoute,
+  OportunidadesPanelRoute,
+  OportunidadesBadgePanelRoute,
   FavoritosPanelRoute,
   OutfitsPanelRoute,
   FinanPanelRoute,
@@ -97,7 +99,11 @@ export default function App() {
         <Route path="picks/:categoria" element={<CategoryPicksPageRoute/>}/>
         <Route path="marcas"     element={<MarcasPanelRoute/>}/>
         <Route path="grupos"     element={<GruposPanelRoute/>}/>
-        <Route path="tendencias" element={<TrendsPanelRoute/>}/>
+        {/* /tendencias retired (spec "Old route retired") -> redirect to /analisis/mercado */}
+        <Route path="tendencias" element={<Navigate to="/analisis/mercado" replace/>}/>
+        <Route path="analisis/mercado" element={<MercadoPanelRoute/>}/>
+        <Route path="analisis/oportunidades" element={<OportunidadesPanelRoute/>}/>
+        <Route path="analisis/oportunidades/:badge" element={<OportunidadesBadgePanelRoute/>}/>
         <Route path="favoritos"  element={<FavoritosPanelRoute/>}/>
         <Route path="outfits"    element={<OutfitsPanelRoute/>}/>
         <Route path="suplementos" element={<SuplementosPanelRoute/>}/>

@@ -32,9 +32,26 @@ public class MlEnricher {
             JsonNode s  = scores.path(key);
             if (s.isMissingNode()) { result.add(p); continue; }
 
+            // ── Badge set (badges-oportunidades-revamp D3) ──────────────────
+            // ml_pipeline.py emits BOTH 'badge' (principal, back-compat string)
+            // and 'badges' (ordered, principal-first list). A cached/older
+            // ml_output that still lacks 'badges' (pre-multi-badge) falls back
+            // to a one-element list derived from 'badge'.
+            List<String> badges = new ArrayList<>();
+            JsonNode badgesNode = s.path("badges");
+            if (badgesNode.isArray()) {
+                for (JsonNode bn : badgesNode) {
+                    String b = bn.asText("");
+                    if (!b.isBlank()) badges.add(b);
+                }
+            } else {
+                String badgeFallback = s.path("badge").asText("");
+                if (!badgeFallback.isBlank()) badges.add(badgeFallback);
+            }
+
             Product.MlScore ml = new Product.MlScore(
                     s.path("composite").asInt(s.path("pctil").asInt(50)),
-                    s.path("badge").asText(""),
+                    badges,
                     // Fallback de compatibilidad: pipelines previos a tendencias-clusters-fix
                     // NO emitían 'ofertaReal'. Si la key falta (output viejo restaurado desde
                     // la DB), derivamos la regla localmente para no perder el badge.

@@ -17,6 +17,8 @@ import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
+const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
+const OportunidadesBadgePage = lazy(() => import('./OportunidadesBadgePage'));
 const GruposPanel    = lazy(() => import('./GruposPanel'));
 const PicksPanel     = lazy(() => import('./PicksPanel'));
 const CategoryPicksPage = lazy(() => import('./CategoryPicksPage'));
@@ -274,15 +276,18 @@ function GruposRoute() {
   return <GruposPanel onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
-function TrendsRoute() {
-  const { S, dispatch, onClusterClick } = useOutletContext();
-  return (
-    <TrendsPanel
-      catStats={S.catStats}
-      onClusterClick={onClusterClick}
-      onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}
-    />
-  );
+function MercadoRoute() {
+  return <TrendsPanel/>;
+}
+
+function OportunidadesRoute() {
+  const { dispatch } = useOutletContext();
+  return <OportunidadesPanel onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
+}
+
+function OportunidadesBadgeRoute() {
+  const { dispatch } = useOutletContext();
+  return <OportunidadesBadgePage onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
 function FavoritosRoute() {
@@ -363,7 +368,10 @@ export {
   CategoryPicksPageRoute,
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
   RecomendadosRoute as RecomendadosPanelRoute,
-  TrendsRoute as TrendsPanelRoute, FavoritosRoute as FavoritosPanelRoute,
+  MercadoRoute as MercadoPanelRoute,
+  OportunidadesRoute as OportunidadesPanelRoute,
+  OportunidadesBadgeRoute as OportunidadesBadgePanelRoute,
+  FavoritosRoute as FavoritosPanelRoute,
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
   SuplementosRoute as SuplementosPanelRoute,
   CronjobsRoute as CronjobsPanelRoute,
@@ -618,12 +626,6 @@ export default function AppLayout() {
     }, 1800);
   }, [loadFirstPage, loadFacets]);
 
-  // Cross-navigation: TrendsPanel cluster click → filter + switch to catalog (ADR 6)
-  const onClusterClick = useCallback(label => {
-    setFilter({ busq: label });   // reducer: resets page, clears prods
-    navigate('/catalogo');        // router: switch route
-  }, [navigate]);
-
   // Topbar re-scrape → navigate to /splash + reset scrape status
   const onReScrape = useCallback(() => {
     set({ scrapeStatus:'IDLE' });
@@ -652,7 +654,7 @@ export default function AppLayout() {
           <Suspense fallback={<RouteFallback/>}>
             <Outlet context={{
               S, set, setFilter, dispatch, loadNextPage, startPolling,
-              loadFavoritos, onClusterClick,
+              loadFavoritos,
               gpuTraining, triggerGpuTraining,
             }}/>
           </Suspense>
