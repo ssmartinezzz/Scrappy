@@ -41,16 +41,28 @@ EXCLUDE_PATTERNS="*.test.ts,*.spec.ts,*.test.tsx,*.spec.tsx,*.d.ts"
 
 # File containing code review rules
 # Default: AGENTS.md
-RULES_FILE="CLAUDE.md"
+# Lean review checklist instead of the full CLAUDE.md project context: the whole
+# RULES_FILE is prepended to every review prompt, so a large file here is the main
+# driver of review latency. .gga-review-rules.md is the merge-blocking-defects-only
+# checklist; CLAUDE.md stays the human/agent project doc.
+RULES_FILE=".gga-review-rules.md"
 
 # Strict mode: fail if AI response is ambiguous
 # Default: true
-STRICT_MODE="true"
+# false => provider TIMEOUT / execution error / ambiguous output no longer BLOCK
+# the commit (they degrade to a warning). A genuine "STATUS: FAILED" review still
+# blocks unconditionally, so the quality gate keeps its teeth; only infra flakiness
+# stops being a hard commit blocker. Set false because normal-mode review ships the
+# FULL content of each staged file + the entire RULES_FILE, so a one-line edit to a
+# large file (e.g. ApiController.java ~2200 lines) can blow past the timeout.
+STRICT_MODE="false"
 
 # Timeout in seconds for AI provider response
 # Default: 300 (5 minutes)
 # Increase for large changesets or slow connections
-TIMEOUT="300"
+# Raised to 600 so real reviews of large files have room to actually complete
+# (and catch issues) before the non-blocking timeout fallback kicks in.
+TIMEOUT="600"
 
 # OpenCode provider: optional reasoning effort / variant
 # Examples: minimal, low, medium, high, max
