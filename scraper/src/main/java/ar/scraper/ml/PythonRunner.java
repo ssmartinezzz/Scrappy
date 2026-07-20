@@ -212,8 +212,7 @@ public class PythonRunner {
      * Solo entrena si no existe modelo o si el modelo tiene más de 24h de antigüedad.
      * Con forceRetrain=true, saltea la verificación de antigüedad y siempre entrena.
      */
-    public void entrenarEnBackground(String dbPath, boolean forceRetrain,
-                                      boolean withImages, int epochs) {
+    public void entrenarEnBackground(boolean forceRetrain, boolean withImages, int epochs) {
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         String python = detectarPython();
         if (python == null) { LOG.info("[ML-TRAIN] Python no disponible, saltando entrenamiento"); return; }
@@ -252,9 +251,10 @@ public class PythonRunner {
                 var cmd = new java.util.ArrayList<String>();
                 cmd.add(python);
                 cmd.add(trainScript.toString());
-                // dbPath no longer forwarded as argv (design D5) — ml_train.py
-                // reads DATABASE_URL from its env instead (see
-                // construirProcessBuilderEntrenamiento/aplicarEnvBaseDatosYModelos).
+                // dbPath is no longer a parameter at all (design D5 + Batch 3
+                // task 3.6) — ml_train.py reads DATABASE_URL from its env
+                // instead (see construirProcessBuilderEntrenamiento/
+                // aplicarEnvBaseDatosYModelos).
 
                 boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
                 boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -339,12 +339,12 @@ public class PythonRunner {
         });
     }
 
-    public void entrenarEnBackground(String dbPath, boolean forceRetrain) {
-        entrenarEnBackground(dbPath, forceRetrain, false, 8);
+    public void entrenarEnBackground(boolean forceRetrain) {
+        entrenarEnBackground(forceRetrain, false, 8);
     }
 
-    public void entrenarEnBackground(String dbPath) {
-        entrenarEnBackground(dbPath, false, false, 8);
+    public void entrenarEnBackground() {
+        entrenarEnBackground(false, false, 8);
     }
 
     /**
@@ -438,7 +438,7 @@ public class PythonRunner {
      *         no-op-degraded) the sequence; {@code false} when a sequence was
      *         already in flight and this request was dropped.
      */
-    public boolean construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+    public boolean construirIndiceVisualEnBackground(boolean forceRetrainTexto,
             boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
         if (!intentarReservarSecuenciaIndiceVisual()) {
             LOG.info("[ML-INDEX] Secuencia de construcción de índice visual ya en curso — solicitud ignorada");
@@ -456,7 +456,7 @@ public class PythonRunner {
         Path workDir = Paths.get("").toAbsolutePath();
 
         try {
-            lanzarHiloSecuencia(() -> ejecutarSecuenciaIndiceVisual(python, workDir, dbPath,
+            lanzarHiloSecuencia(() -> ejecutarSecuenciaIndiceVisual(python, workDir,
                     forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
         } catch (Throwable t) {
             // RESI-001: no thread was started, so nothing will ever clear the
@@ -541,7 +541,7 @@ public class PythonRunner {
      * {@code !trainingOk && backfillOk} branch re-asserts a durable,
      * non-running error state whose message reflects both outcomes.</p>
      */
-    void ejecutarSecuenciaIndiceVisual(String python, Path workDir, String dbPath,
+    void ejecutarSecuenciaIndiceVisual(String python, Path workDir,
             boolean forceRetrainTexto, boolean withImages, int epochs, boolean forceBackfillEmbeddings,
             boolean useGpuSnapshot) {
         boolean trainingOk = false;
@@ -549,14 +549,14 @@ public class PythonRunner {
         try {
             trainingStatus.set(new TrainingStatus(true, "training", 0, "",
                     java.time.Instant.now().toString()));
-            trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
+            trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, forceRetrainTexto,
                     withImages, epochs, useGpuSnapshot);
 
             if (trainingOk) {
                 trainingStatus.set(new TrainingStatus(true, "embedding", 0, "",
                         trainingStatus.get().startedAt()));
             }
-            backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
+            backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, forceBackfillEmbeddings,
                     useGpuSnapshot);
 
             if (!trainingOk && backfillOk) {
@@ -574,9 +574,9 @@ public class PythonRunner {
         }
     }
 
-    public boolean construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+    public boolean construirIndiceVisualEnBackground(boolean forceRetrainTexto,
             boolean forceBackfillEmbeddings) {
-        return construirIndiceVisualEnBackground(dbPath, forceRetrainTexto, false, 8, forceBackfillEmbeddings);
+        return construirIndiceVisualEnBackground(forceRetrainTexto, false, 8, forceBackfillEmbeddings);
     }
 
     /** Outcome of {@link #esperarConDrain}: whether the process finished within
@@ -745,7 +745,7 @@ public class PythonRunner {
      * @return {@code true} on success (including a fresh-model skip); {@code false}
      * on timeout, non-zero exit, or an unexpected exception — in every failure
      * case a durable error state is written via {@link #marcarFalloIndiceVisual}. */
-    boolean ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir, String dbPath,
+    boolean ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir,
             boolean forceRetrain, boolean withImages, int epochs, boolean useGpuSnapshot) {
         try {
             Path modelsDir = workDir.resolve("_models");
@@ -768,9 +768,10 @@ public class PythonRunner {
             var cmd = new java.util.ArrayList<String>();
             cmd.add(python);
             cmd.add(trainScript.toString());
-            // dbPath no longer forwarded as argv (design D5) — ml_train.py
-            // reads DATABASE_URL from its env instead (see
-            // construirProcessBuilderEntrenamiento/aplicarEnvBaseDatosYModelos).
+            // dbPath is no longer a parameter at all (design D5 + Batch 3
+            // task 3.6) — ml_train.py reads DATABASE_URL from its env
+            // instead (see construirProcessBuilderEntrenamiento/
+            // aplicarEnvBaseDatosYModelos).
 
             boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
             boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -815,12 +816,12 @@ public class PythonRunner {
      * timeout, non-zero exit, RESI-002 degraded-run detection, or an unexpected
      * exception — in every failure case a durable error state is written via
      * {@link #marcarFalloIndiceVisual}. */
-    boolean ejecutarFaseBackfillSecuenciada(String python, Path workDir, String dbPath,
+    boolean ejecutarFaseBackfillSecuenciada(String python, Path workDir,
             boolean force, boolean useGpuSnapshot) {
         try {
             Path scriptPath = extraerEmbeddingsScript(workDir);
             ProcessBuilder pb = construirProcessBuilderBackfill(
-                    python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
+                    python, scriptPath.toString(), force, useGpuSnapshot);
             Process proc = pb.start();
 
             var filasProcesadas = new java.util.concurrent.atomic.AtomicInteger(-1);
@@ -869,7 +870,7 @@ public class PythonRunner {
      * (~línea 718), que nombra explícitamente este método como su contraparte Java.
      * Nunca lanza excepciones — cualquier fallo degrada a un no-op logueado.
      */
-    public void backfillEmbeddingsEnBackground(String dbPath, boolean force) {
+    public void backfillEmbeddingsEnBackground(boolean force) {
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         try {
             String python = detectarPython();
@@ -888,7 +889,7 @@ public class PythonRunner {
                     Path scriptPath = extraerEmbeddingsScript(workDir);
 
                     ProcessBuilder pb = construirProcessBuilderBackfill(
-                            python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
+                            python, scriptPath.toString(), force, useGpuSnapshot);
                     Process proc = pb.start();
 
                     // RESI-002: counters for degraded-backfill detection (model never
@@ -969,8 +970,8 @@ public class PythonRunner {
         }
     }
 
-    public void backfillEmbeddingsEnBackground(String dbPath) {
-        backfillEmbeddingsEnBackground(dbPath, false);
+    public void backfillEmbeddingsEnBackground() {
+        backfillEmbeddingsEnBackground(false);
     }
 
     private void aplicarModeloActual() {
@@ -1075,15 +1076,14 @@ public class PythonRunner {
     /**
      * ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}).
      *
-     * <p>{@code dbPath} is no longer forwarded as a subprocess argv token
-     * (decouple-services-postgres Batch 2, design D5) — the subprocess reads
+     * <p>{@code dbPath} is no longer a parameter at all (decouple-services-postgres
+     * Batch 2 stopped forwarding it as a subprocess argv token per design D5;
+     * Batch 3 task 3.6 removed the parameter itself now that the backend no
+     * longer resolves a SQLite file path) — the subprocess reads
      * {@code DATABASE_URL} from its env instead (see
-     * {@link #aplicarEnvBaseDatosYModelos}). The parameter itself stays only
-     * because {@code ApiController}'s filesystem-based
-     * {@code encontrarDbFile()} still supplies one; removing it entirely is
-     * Batch 3 scope once the backend stops resolving a SQLite file path.</p>
+     * {@link #aplicarEnvBaseDatosYModelos}).</p>
      */
-    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath, String dbPath,
+    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath,
             boolean force, boolean useGpuSnapshot) {
         var cmd = new java.util.ArrayList<String>();
         cmd.add(python);

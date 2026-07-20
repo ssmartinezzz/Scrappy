@@ -39,18 +39,18 @@ class PythonRunnerBackfillTest {
     @Test
     void commandContainsBackfillSubcommandWithoutDbPathArgv() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         assertThat(pb.command()).contains("backfill");
-        // design D5: dbPath is no longer forwarded as a subprocess argv
-        // token — the subprocess reads DATABASE_URL from its env instead.
+        // design D5 + Batch 3 task 3.6: dbPath is no longer a parameter at
+        // all — the subprocess reads DATABASE_URL from its env instead.
         assertThat(pb.command()).doesNotContain("scraper.db");
     }
 
     @Test
     void commandIncludesForceFlagWhenForceTrue() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", true, true);
+                "python", "script.py", true, true);
 
         assertThat(pb.command()).contains("--force");
     }
@@ -58,7 +58,7 @@ class PythonRunnerBackfillTest {
     @Test
     void commandOmitsForceFlagWhenForceFalse() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         assertThat(pb.command()).doesNotContain("--force");
     }
@@ -66,7 +66,7 @@ class PythonRunnerBackfillTest {
     @Test
     void commandIncludesNoGpuFlagWhenGpuDisabled() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, false);
+                "python", "script.py", false, false);
 
         assertThat(pb.command()).contains("--no-gpu");
     }
@@ -74,7 +74,7 @@ class PythonRunnerBackfillTest {
     @Test
     void commandOmitsNoGpuFlagWhenGpuEnabled() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         assertThat(pb.command()).doesNotContain("--no-gpu");
     }
@@ -82,7 +82,7 @@ class PythonRunnerBackfillTest {
     @Test
     void setsCudaVisibleDevicesWhenGpuDisabled() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, false);
+                "python", "script.py", false, false);
 
         assertThat(pb.environment()).containsEntry("CUDA_VISIBLE_DEVICES", "-1");
     }
@@ -90,7 +90,7 @@ class PythonRunnerBackfillTest {
     @Test
     void leavesCudaVisibleDevicesUnsetWhenGpuEnabled() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         assertThat(pb.environment()).doesNotContainKey("CUDA_VISIBLE_DEVICES");
     }
@@ -98,7 +98,7 @@ class PythonRunnerBackfillTest {
     @Test
     void setsUtf8EnvironmentForSubprocess() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         assertThat(pb.environment())
                 .containsEntry("PYTHONIOENCODING", "utf-8")
@@ -117,7 +117,7 @@ class PythonRunnerBackfillTest {
     @Test
     void setsHfHomeToModelsMarqoDirectoryUnderWorkDirFallback() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         // No SCRAPER_MODELS_ROOT env var set in this test JVM — falls back
         // to workDir/_models, matching resolveModelsRoot's own contract.
@@ -128,7 +128,7 @@ class PythonRunnerBackfillTest {
     @Test
     void setsScraperModelsRootEnvVar() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", "scraper.db", false, true);
+                "python", "script.py", false, true);
 
         Path expected = Paths.get("").toAbsolutePath().resolve("_models");
         assertThat(pb.environment()).containsEntry("SCRAPER_MODELS_ROOT", expected.toString());
