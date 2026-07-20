@@ -93,10 +93,10 @@ public class RecommendationService {
         double base = 100 - ml.scoreP();
 
         if (ml.ofertaReal()) base += BONUS_OFERTA_REAL_FLAG;
-        String badge = ml.badge() != null ? ml.badge() : "";
-        if ("oferta_real".equals(badge)) base += BONUS_BADGE_OFERTA_REAL;
-        if ("precio_historico_bajo".equals(badge)) base += BONUS_BADGE_PRECIO_HIST_BAJO;
-        if ("precio_bajo".equals(badge)) base += BONUS_BADGE_PRECIO_BAJO;
+        List<String> badges = ml.badges() != null ? ml.badges() : List.of();
+        if (badges.contains("verified_deal")) base += BONUS_BADGE_OFERTA_REAL;
+        if (badges.contains("all_time_low"))  base += BONUS_BADGE_PRECIO_HIST_BAJO;
+        if (badges.contains("below_market"))  base += BONUS_BADGE_PRECIO_BAJO;
 
         String tendencia = ml.tendencia() != null ? ml.tendencia() : "estable";
         if (!tendencia.isBlank() && !"estable".equals(tendencia)) base += BONUS_TENDENCIA_ACTIVA;

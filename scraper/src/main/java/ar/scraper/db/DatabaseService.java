@@ -83,6 +83,7 @@ public class DatabaseService {
             conn.setAutoCommit(false);
             crearTablas();
             conn.commit();
+            backfillBadgeKeys();
             LOG.info("[DB] Conectado: {}", path);
         } catch (Exception e) {
             LOG.error("[DB] Error al iniciar: {}", e.getMessage(), e);
@@ -372,6 +373,55 @@ public class DatabaseService {
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled, next_run_at)");
         }
         seedPresetIlustrativoSiVacio();
+    }
+
+    // ─── Badge key migration (badges-oportunidades-revamp) ─────────────────
+
+    /**
+     * Old (Spanish snake_case) → new (English) badge key mapping — spec
+     * "Badge Key Taxonomy → Renamed Keys and Labels". Kept as the single
+     * source of truth for the one-time startup backfill below.
+     */
+    private static final Map<String, String> BADGE_KEY_MIGRATION = Map.of(
+            "precio_historico_bajo", "all_time_low",
+            "precio_bajo",           "below_market",
+            "oferta_real",           "verified_deal",
+            "tendencia",             "trending",
+            "precio_bajando",        "price_dropping",
+            "precio_alto",           "above_market",
+            "descuento_cosmetico",   "fake_discount"
+    );
+
+    /**
+     * Idempotent startup backfill (design D1, spec "ml_badge Migration and
+     * Backfill"): rewrites any {@code productos.ml_badge} row still holding
+     * one of the 7 old single-value keys to its new key. Runs once per
+     * {@code initEn} call, right after schema creation/migration. Idempotent
+     * by construction — the WHERE clause only ever matches the 7 old-key
+     * literals, and a new key never re-matches on a subsequent run.
+     */
+    void backfillBadgeKeys() {
+        String caseExpr = BADGE_KEY_MIGRATION.entrySet().stream()
+                .map(e -> "WHEN '" + e.getKey() + "' THEN '" + e.getValue() + "'")
+                .collect(java.util.stream.Collectors.joining(" "));
+        String inClause = BADGE_KEY_MIGRATION.keySet().stream()
+                .map(k -> "'" + k + "'")
+                .collect(java.util.stream.Collectors.joining(","));
+        String sql = "UPDATE productos SET ml_badge = CASE ml_badge " + caseExpr
+                + " ELSE ml_badge END WHERE ml_badge IN (" + inClause + ")";
+        synchronized (writeLock) {
+            refrescarSnapshot();
+            try (Statement st = conn.createStatement()) {
+                int filas = st.executeUpdate(sql);
+                conn.commit();
+                if (filas > 0) {
+                    LOG.info("[DB] Migración de badges: {} filas actualizadas de keys viejas a nuevas.", filas);
+                }
+            } catch (Exception e) {
+                LOG.warn("[DB] Error en backfillBadgeKeys: {}", e.getMessage());
+                try { conn.rollback(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     /**
@@ -697,7 +747,10 @@ public class DatabaseService {
                                 p.talles() != null ? p.talles() : List.of());
 
                         // ML fields
-                        String badge    = p.ml() != null ? p.ml().badge()         : "";
+                        // ml_badge: comma-delimited, principal-first (design D1) — reuses the
+                        // existing TEXT column, no schema change. Empty list -> "".
+                        String badge    = (p.ml() != null && p.ml().badges() != null)
+                                ? String.join(",", p.ml().badges()) : "";
                         int    score    = p.ml() != null ? p.ml().scoreP()        : 50;
                         int    oferta   = (p.ml() != null && p.ml().ofertaReal()) ? 1 : 0;
                         String tendencia = p.ml() != null ? p.ml().tendencia()    : "";
@@ -962,9 +1015,15 @@ public class DatabaseService {
             }
         } catch (Exception ignored) {}
 
+        // ml_badge: comma-delimited, principal-first (design D1) -> split back into an
+        // ordered List<String>; "" (or NULL) means no badges.
+        String mlBadgeRaw = rs.getString("ml_badge");
+        List<String> badges = (mlBadgeRaw != null && !mlBadgeRaw.isBlank())
+                ? Arrays.asList(mlBadgeRaw.split(","))
+                : List.of();
         Product.MlScore ml = new Product.MlScore(
                 rs.getInt("ml_score"),
-                rs.getString("ml_badge")     != null ? rs.getString("ml_badge")     : "",
+                badges,
                 rs.getInt("ml_oferta") == 1,
                 rs.getString("ml_tendencia") != null ? rs.getString("ml_tendencia") : "",
                 rs.getInt("ml_score"),

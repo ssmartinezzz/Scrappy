@@ -63,10 +63,16 @@ public final class FacetCalculator {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                         (a, b) -> a, LinkedHashMap::new));
 
+        // Multi-badge (badges-oportunidades-revamp): a product counts once per
+        // badge it holds, not once total (spec "/api/facets Badge Counts Under
+        // Multi-Badge").
         Map<String, Long> badges = new LinkedHashMap<>();
         for (Product p : productos) {
-            String b = (p.ml() != null && p.ml().badge() != null) ? p.ml().badge().trim() : "";
-            if (!b.isBlank()) badges.merge(b, 1L, Long::sum);
+            if (p.ml() == null || p.ml().badges() == null) continue;
+            for (String b : p.ml().badges()) {
+                String bt = b != null ? b.trim() : "";
+                if (!bt.isBlank()) badges.merge(bt, 1L, Long::sum);
+            }
         }
 
         Map<String, Long> subCategorias = new LinkedHashMap<>();

@@ -109,10 +109,10 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   display: flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--t3); }
 .ml-badge-btn:hover { border-color: var(--p); color: var(--p2); }
 .ml-badge-btn.active { border-color: var(--p); background: color-mix(in srgb, var(--p) 15%, transparent); color: var(--p2); }
-.ml-badge-btn.active.b-precio_bajo { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); border-color: var(--sem-positive); color: var(--sem-positive); }
-.ml-badge-btn.active.b-oferta_real { background: color-mix(in srgb, var(--sem-oferta) 15%, transparent); border-color: var(--sem-oferta); color: var(--sem-oferta); }
-.ml-badge-btn.active.b-tendencia { background: color-mix(in srgb, var(--sem-trend) 15%, transparent); border-color: var(--sem-trend); color: var(--sem-trend); }
-.ml-badge-btn.active.b-precio_historico_bajo { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); border-color: var(--y); color: var(--y); }
+.ml-badge-btn.active.b-below_market { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); border-color: var(--sem-positive); color: var(--sem-positive); }
+.ml-badge-btn.active.b-verified_deal { background: color-mix(in srgb, var(--sem-oferta) 15%, transparent); border-color: var(--sem-oferta); color: var(--sem-oferta); }
+.ml-badge-btn.active.b-trending { background: color-mix(in srgb, var(--sem-trend) 15%, transparent); border-color: var(--sem-trend); color: var(--sem-trend); }
+.ml-badge-btn.active.b-all_time_low { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); border-color: var(--y); color: var(--y); }
 .marca-search { width: calc(100% - 1.7rem); margin: 0 .85rem .35rem;
   padding: 5px 8px; border-radius: 6px; border: 1.5px solid var(--bd2);
   background: var(--s3); color: var(--t1); font: .75rem var(--font); outline: none; }
@@ -294,13 +294,13 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   color: #fff; font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px; }
 .badge-ml { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px; }
-.badge-precio_historico_bajo { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); color: var(--y); border: 1px solid color-mix(in srgb, var(--sem-warn) 30%, transparent); }
-.badge-precio_bajo { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); color: var(--sem-positive); border: 1px solid color-mix(in srgb, var(--sem-positive) 30%, transparent); }
-.badge-oferta_real { background: color-mix(in srgb, var(--sem-oferta) 15%, transparent); color: var(--sem-oferta); border: 1px solid color-mix(in srgb, var(--sem-oferta) 30%, transparent); }
-.badge-tendencia { background: color-mix(in srgb, var(--sem-trend) 15%, transparent); color: var(--sem-trend); border: 1px solid color-mix(in srgb, var(--sem-trend) 30%, transparent); }
-.badge-precio_bajando { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); color: var(--g); border: 1px solid color-mix(in srgb, var(--sem-positive) 30%, transparent); }
-.badge-descuento_cosmetico { background: color-mix(in srgb, var(--t3) 12%, transparent); color: var(--t3); border: 1px solid var(--bd2); }
-.badge-precio_alto { background: color-mix(in srgb, var(--sem-negative) 10%, transparent); color: var(--r); border: 1px solid color-mix(in srgb, var(--sem-negative) 20%, transparent); }
+.badge-all_time_low { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); color: var(--y); border: 1px solid color-mix(in srgb, var(--sem-warn) 30%, transparent); }
+.badge-below_market { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); color: var(--sem-positive); border: 1px solid color-mix(in srgb, var(--sem-positive) 30%, transparent); }
+.badge-verified_deal { background: color-mix(in srgb, var(--sem-oferta) 15%, transparent); color: var(--sem-oferta); border: 1px solid color-mix(in srgb, var(--sem-oferta) 30%, transparent); }
+.badge-trending { background: color-mix(in srgb, var(--sem-trend) 15%, transparent); color: var(--sem-trend); border: 1px solid color-mix(in srgb, var(--sem-trend) 30%, transparent); }
+.badge-price_dropping { background: color-mix(in srgb, var(--sem-positive) 15%, transparent); color: var(--g); border: 1px solid color-mix(in srgb, var(--sem-positive) 30%, transparent); }
+.badge-fake_discount { background: color-mix(in srgb, var(--t3) 12%, transparent); color: var(--t3); border: 1px solid var(--bd2); }
+.badge-above_market { background: color-mix(in srgb, var(--sem-negative) 10%, transparent); color: var(--r); border: 1px solid color-mix(in srgb, var(--sem-negative) 20%, transparent); }
 
 /* ===== GYMRAT BADGE ===== */
 .badge-gymrat { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;

@@ -6,26 +6,37 @@
 //
 // 7 canonical semantic roles (collapses prior divergent per-file hex):
 export const SEMANTIC = {
-  positive: '#2E7D52', // precio_bajo, budget, cheapest, muy/buen_momento, bajando
-  negative: '#C0392B', // precio_alto, luxury, caro, subiendo
-  warn:     '#D08A1E', // premium, esperar, precio_historico_bajo
-  oferta:   '#8E5BD6', // oferta_real, histLow
-  trend:    '#D2622A', // tendencia, comprar_ahora, oferta (pick)
+  positive: '#2E7D52', // below_market, budget, cheapest, muy/buen_momento, bajando
+  negative: '#C0392B', // above_market, luxury, caro, subiendo
+  warn:     '#D08A1E', // premium, esperar, all_time_low
+  oferta:   '#8E5BD6', // verified_deal, histLow
+  trend:    '#D2622A', // trending, comprar_ahora, oferta (pick)
   gym:      '#6E9B2E', // gymrat, subcat chips
   pack:     '#8E5BD6', // pack/combo, unit price (= oferta)
 };
 
-// ML badge colors (Sidebar BADGE_COLORS, ProductCard, GroupCard, TrendsPanel
-// BADGE_COLOR, PicksPanel tagline references).
-export const BADGE_COLORS = {
-  precio_historico_bajo: SEMANTIC.warn,
-  precio_bajo:           SEMANTIC.positive,
-  oferta_real:            SEMANTIC.oferta,
-  tendencia:              SEMANTIC.trend,
-  precio_bajando:         SEMANTIC.positive,
-  precio_alto:            SEMANTIC.negative,
-  descuento_cosmetico:    'var(--t4)',
+// Single source of truth for the 7 badge keys (badges-oportunidades-revamp
+// spec "Badge Key Taxonomy → Renamed Keys and Labels"): key -> {label, color,
+// tier}. tier drives styling (positive/neutral deal callouts vs. warning for
+// above_market/fake_discount — spec "Negative Badges Visible as Warnings").
+// BADGE_LABELS/BADGE_COLORS below are re-exported/derived so existing
+// consumers (CatalogoFilterBar, ProductCard, GroupCard, TrendsPanel, api.js)
+// need no per-key edits.
+export const BADGE_META = {
+  all_time_low:   { label: '🏆 Mínimo histórico',          color: SEMANTIC.warn,     tier: 'positive' },
+  below_market:   { label: '💚 Por debajo del mercado',    color: SEMANTIC.positive, tier: 'positive' },
+  verified_deal:  { label: '✅ Descuento verificado',      color: SEMANTIC.oferta,   tier: 'positive' },
+  trending:       { label: '🔥 En demanda',                color: SEMANTIC.trend,    tier: 'neutral'  },
+  price_dropping: { label: '📉 Bajando de precio',         color: SEMANTIC.positive, tier: 'positive' },
+  above_market:   { label: '📈 Caro vs. mercado',          color: SEMANTIC.negative, tier: 'warning'  },
+  fake_discount:  { label: '⚠️ Descuento dudoso',          color: 'var(--t4)',       tier: 'warning'  },
 };
+
+// Derived exports (back-compat shape for existing consumers).
+export const BADGE_LABELS = Object.fromEntries(
+  Object.entries(BADGE_META).map(([k, v]) => [k, v.label]));
+export const BADGE_COLORS = Object.fromEntries(
+  Object.entries(BADGE_META).map(([k, v]) => [k, v.color]));
 
 // Segmento tiers (Sidebar SEGMENTOS, DetailPanel segColors).
 export const SEG_COLORS = {

@@ -444,6 +444,53 @@ def cluster_productos(nombres, threshold=0.28):
     return cluster_id
 
 
+# ─── Badge assignment (badges-oportunidades-revamp) ─────────────────────────
+# Fixed priority order, principal-first: all_time_low > below_market >
+# verified_deal > trending > price_dropping > above_market > fake_discount
+# (spec "Multi-Badge Assignment" / design D2). Extracted as a pure, testable
+# function — each condition is evaluated INDEPENDENTLY (not an exclusive
+# elif chain), so a product can hold more than one badge at once.
+BADGE_PRIORITY_ORDER = (
+    'all_time_low', 'below_market', 'verified_deal',
+    'trending', 'price_dropping', 'above_market', 'fake_discount',
+)
+
+def assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_oferta_real):
+    """Returns the ordered (principal-first) list of badge keys a product
+    qualifies for, given its precomputed statistical signals."""
+    badges = []
+
+    # ALL_TIME_LOW: precio actual es mínimo histórico (requiere historial)
+    if hist and comp <= 35:
+        badges.append('all_time_low')
+
+    # BELOW_MARKET: outlier inferior de Tukey O z-score < -1.5
+    if cheap or (comp <= 20 and mz <= -1.5):
+        badges.append('below_market')
+
+    # VERIFIED_DEAL: descuento estadísticamente significativo Y precio competitivo
+    if es_oferta_real:
+        badges.append('verified_deal')
+
+    # TRENDING: cluster de alta demanda Y precio razonable
+    if alta and comp <= 65:
+        badges.append('trending')
+
+    # PRICE_DROPPING: tendencia histórica a la baja
+    if trend == 'bajando' and comp <= 40:
+        badges.append('price_dropping')
+
+    # ABOVE_MARKET: outlier superior de Tukey O z-score > +1.5
+    if exp or (comp >= 80 and mz >= 1.5):
+        badges.append('above_market')
+
+    # FAKE_DISCOUNT: hay "oferta" pero el descuento es irrelevante
+    if ratio > 1.0 and desc_pct < 12:
+        badges.append('fake_discount')
+
+    return badges
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -746,8 +793,11 @@ def main():
             'rubro':        rubro,
             'statQuality':  stat_quality,
             'statN':        st.n,
-            # Placeholder para badge (se asigna después)
+            # Placeholder para badge/badges (se asigna después) — 'badge' es el
+            # principal (back-compat string), 'badges' es el set ordenado
+            # completo (badges-oportunidades-revamp).
             'badge': '',
+            'badges': [],
             # Atributos visuales (PR4) — poblados en la etapa 1b SOLO cuando
             # needs_image_fallback() dispara para este producto; el default
             # '' / 0.0 se mantiene sin cambios para los que nunca pasan por
@@ -780,7 +830,7 @@ def main():
     for cid in cluster_ids: cluster_sizes[cid] += 1
 
     # threshold_alta recalibrado: relativo a la distribución real de cluster_sizes de
-    # esta corrida (no a len(productos)), para que el badge 'tendencia' sea alcanzable
+    # esta corrida (no a len(productos)), para que el badge 'trending' sea alcanzable
     # con clustering greedy/incremental (R8).
     sizes = sorted(cluster_sizes.values(), reverse=True)
     if sizes:
@@ -1107,51 +1157,26 @@ def main():
               and no_es_cosmetica_vs_historial # no contradice el historial propio
               and not (isinstance(ratio, float) and (ratio != ratio)))
         scores[pid]['ofertaReal'] = bool(es_oferta_real)
-        # NOTA: ofertaReal es un campo independiente del badge mostrado. Un producto
-        # con ofertaReal=True puede recibir un badge distinto a 'oferta_real' si también
-        # califica para un badge de mayor prioridad en la cadena de abajo (por ej.
-        # 'precio_historico_bajo' o 'precio_bajo'). Esto es comportamiento preexistente
-        # y esperado (prioridad de badges), no una inconsistencia a corregir.
+        # NOTA: ofertaReal es un campo independiente del set de badges (spec
+        # "ofertaReal Boolean Independence") — nunca se deriva de, ni se
+        # fusiona silenciosamente en, la pertenencia a 'verified_deal'. Con el
+        # multi-badge, un producto con ofertaReal=True normalmente SÍ incluye
+        # 'verified_deal' en su set (la condición de es_oferta_real es un
+        # subconjunto de la de verified_deal), pero ambos valores se reportan
+        # de forma independiente sin que uno sobreescriba al otro.
 
-        badge = ''
-
-        # PRECIO BAJO HISTÓRICO: precio actual es mínimo histórico (requiere historial)
-        if hist and comp <= 35:
-            badge = 'precio_historico_bajo'
-
-        # PRECIO BAJO ESTADÍSTICO: outlier inferior de Tukey O z-score < -1.5
-        elif cheap or (comp <= 20 and mz <= -1.5):
-            badge = 'precio_bajo'
-
-        # OFERTA REAL: ver cálculo de es_oferta_real arriba
-        elif es_oferta_real:
-            badge = 'oferta_real'
-
-        # TENDENCIA: cluster de alta demanda Y precio razonable
-        elif alta and comp <= 65:
-            badge = 'tendencia'
-
-        # PRECIO BAJANDO: tendencia histórica a la baja
-        elif trend == 'bajando' and comp <= 40:
-            badge = 'precio_bajando'
-
-        # PRECIO ALTO ESTADÍSTICO: outlier superior de Tukey O z-score > +1.5
-        elif exp or (comp >= 80 and mz >= 1.5):
-            badge = 'precio_alto'
-
-        # DESCUENTO COSMÉTICO: hay "oferta" pero el descuento es irrelevante
-        elif ratio > 1.0 and desc_pct < 12:
-            badge = 'descuento_cosmetico'
-
-        scores[pid]['badge'] = badge
-        if badge: badge_counts[badge] += 1
+        badges = assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_oferta_real)
+        scores[pid]['badges'] = badges
+        scores[pid]['badge']  = badges[0] if badges else ''
+        for b in badges:
+            badge_counts[b] += 1
 
     print("[ML] Badges asignados:", dict(badge_counts), file=sys.stderr)
 
-    # Logging de validación R9: consistencia ofertaReal == True vs badge oferta_real
+    # Logging de validación R9: consistencia ofertaReal == True vs badge verified_deal
     n_oferta_real = sum(1 for v in scores.values() if v.get('ofertaReal'))
     print(f"[ML] ofertaReal=True en {n_oferta_real} productos "
-          f"(badge oferta_real={badge_counts.get('oferta_real', 0)})", file=sys.stderr)
+          f"(badge verified_deal={badge_counts.get('verified_deal', 0)})", file=sys.stderr)
 
     # Logging de validación: precios originales no parseables (rechazados a 0.0)
     n_orig_cero = sum(1 for p in productos
@@ -1194,17 +1219,18 @@ def main():
             'marca':     p.get('marca',''),
             'composite': sc.get('composite',50),
             'badge':     badge_override or sc.get('badge',''),
+            'badges':    sc.get('badges', []),
             'segment':   sc.get('segment','standard'),
             'categoria': p.get('categoria',''),
         }
 
     # 1. Mínimos históricos
     hist_bajos = [make_prod_dict(p) for p in productos
-        if scores.get(p.get('url','') or p.get('nombre',''),{}).get('badge') == 'precio_historico_bajo'][:4]
+        if 'all_time_low' in scores.get(p.get('url','') or p.get('nombre',''),{}).get('badges', [])][:4]
 
     # 2. Ofertas reales (descuento significativo)
     ofertas = [make_prod_dict(p) for p in productos
-        if scores.get(p.get('url','') or p.get('nombre',''),{}).get('badge') == 'oferta_real'][:4]
+        if 'verified_deal' in scores.get(p.get('url','') or p.get('nombre',''),{}).get('badges', [])][:4]
 
     # 3. Budget: menor composite por categoría (1 por categoría)
     seen_cats_budget = set()

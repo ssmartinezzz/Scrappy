@@ -49,7 +49,7 @@ Productos con filtros y paginación server-side.
 | `q` | string | - | Búsqueda full-text en nombre |
 | `sitio` | string | - | Filtrar por tienda (exacto) |
 | `marca` | string | - | Filtrar por marca normalizada |
-| `badge` | string | - | Filtrar por badge ML |
+| `badge` | string | - | Filtrar por badge ML — pertenencia al set (`badges`), no igualdad exacta con el principal. Keys: `all_time_low`, `below_market`, `verified_deal`, `trending`, `price_dropping`, `above_market`, `fake_discount` |
 | `genero` | string | - | `hombre` / `mujer` / `unisex` |
 | `categoria` | string[] | - | Multi-select categoría |
 | `talle` | string[] | - | Multi-select talle |
@@ -80,7 +80,7 @@ visual (embeddings de imagen); un producto sin backfill de embeddings no matchea
       "generos": {"hombre": 120},
       "categorias": {"Zapatillas": 500},
       "marcas": {"Nike": 342, "Adidas": 280},
-      "badges": {"precio_bajo": 89, "oferta_real": 45},
+      "badges": {"below_market": 89, "verified_deal": 45},
       "fits": {"oversize": 120, "slim": 85},
       "estampados": {"liso": 900, "rayado": 40},
       "escotes": {"redondo": 300, "en v": 55},
@@ -102,7 +102,8 @@ visual (embeddings de imagen); un producto sin backfill de embeddings no matchea
       "marca": "Nike",
       "talles": ["39","40","41","42","43"],
       "ml": {
-        "badge": "oferta_real",
+        "badge": "verified_deal",
+        "badges": ["verified_deal", "trending"],
         "scoreP": 28,
         "ofertaReal": true,
         "tendencia": "bajando",
@@ -119,7 +120,9 @@ visual (embeddings de imagen); un producto sin backfill de embeddings no matchea
 
 Solo facets, sin productos (para cargar filtros rápido).
 
-**Response:** igual al objeto `meta.facets` de `/data`.
+**Response:** igual al objeto `meta.facets` de `/data`. `badges` cuenta un producto
+una vez POR CADA badge que tiene en su set (multi-badge) — la suma de todos los
+conteos puede superar el total de productos.
 
 ---
 
