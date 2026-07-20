@@ -47,7 +47,6 @@ the installer's optional image-classification step did not run.
 """
 import os
 import sys
-import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,36 +74,71 @@ _model_load_attempted = False
 _model_lock = threading.Lock()
 
 
+# ─── DB connection (psycopg2 over DATABASE_URL) ──────────────────────────────
+#
+# Batch 2 (decouple-services-postgres, design D4): the SQLite `db_path`
+# argv/hint is gone — every DB access goes through a fresh psycopg2
+# connection built from the `DATABASE_URL` env var, set by PythonRunner.java
+# (design D5) on every subprocess ProcessBuilder. `psycopg2` is imported
+# lazily here (not at module top-level) so this module stays importable on a
+# machine where the optional image-classification/DB deps aren't installed,
+# same lazy-import discipline as torch/open_clip/PIL below.
+
+
+def _get_connection():
+    """Open a new psycopg2 connection using the `DATABASE_URL` env var.
+
+    Raises (never degrades on its own — callers are responsible for
+    catching, exactly like the old `sqlite3.connect(db_path)` call sites
+    behaved) when `psycopg2` isn't installed, `DATABASE_URL` is unset, or the
+    connection itself fails.
+    """
+    import psycopg2
+
+    dsn = os.environ.get("DATABASE_URL")
+    if not dsn:
+        raise RuntimeError("DATABASE_URL no está configurado")
+    return psycopg2.connect(dsn)
+
+
 # ─── HF_HOME provisioning ─────────────────────────────────────────────────────
 
 
-def _default_hf_home(db_path):
+def _models_root():
+    """Resolve the models-cache root directory from `SCRAPER_MODELS_ROOT`
+    (design D5), falling back to a local `_models` dir for manual/standalone
+    runs where the env var isn't set (mirrors ml_pipeline.py/ml_train.py's
+    own fallback)."""
+    root = os.environ.get("SCRAPER_MODELS_ROOT")
+    return Path(root) if root else Path("_models")
+
+
+def _default_hf_home():
     """Compute the installer-warmed weights cache directory for this install.
 
-    Mirrors ``load_trained_models()`` in ml_pipeline.py: the models directory
-    lives next to ``scraper.db``, i.e. at the repo root / install root. This
-    MUST match the `%ROOT%\\_models\\marqo` path pinned by
-    INSTALAR_Y_CORRER.bat's step 3g so a runtime `hf-hub:` load hits the
-    pre-warmed cache instead of re-downloading ~300MB.
+    Mirrors ``load_trained_models()`` in ml_pipeline.py and PythonRunner.java's
+    `SCRAPER_MODELS_ROOT`-derived `HF_HOME` (design D5) — same
+    `<models_root>/marqo` shape, no longer derived from a DB file path.
     """
-    return Path(db_path).resolve().parent / "_models" / "marqo"
+    return _models_root() / "marqo"
 
 
-def _ensure_hf_home(db_path):
+def _ensure_hf_home():
     """Set HF_HOME to the installer-pinned path, unless already set.
 
-    The Java side (PR5) sets HF_HOME explicitly for the subprocess env; this
-    default only matters for manual/standalone runs of this module.
+    The Java side (PR5, updated by design D5) sets HF_HOME explicitly for
+    the subprocess env; this default only matters for manual/standalone runs
+    of this module.
     """
     if os.environ.get("HF_HOME"):
         return
-    os.environ["HF_HOME"] = str(_default_hf_home(db_path))
+    os.environ["HF_HOME"] = str(_default_hf_home())
 
 
 # ─── Model loader (lazy singleton) ───────────────────────────────────────────
 
 
-def _load_model(db_path="scraper.db"):
+def _load_model():
     """Load (once) the Marqo-FashionSigLIP model via open_clip.
 
     Returns ``(model, preprocess)`` on success, ``(None, None)`` if the
@@ -120,7 +154,7 @@ def _load_model(db_path="scraper.db"):
             return _model, _preprocess
         _model_load_attempted = True
         try:
-            _ensure_hf_home(db_path)
+            _ensure_hf_home()
             import torch
             import open_clip
 
@@ -138,7 +172,12 @@ def _load_model(db_path="scraper.db"):
     return _model, _preprocess
 
 
-# ─── SQLite cache I/O (image_embeddings table, schema from PR1) ─────────────
+# ─── Postgres cache I/O (image_embeddings table, bytea column) ──────────────
+#
+# Batch 2 (design D2/D4): `embedding` is now `bytea` (was SQLite `BLOB`).
+# psycopg2 returns a `bytes`/`memoryview`-like buffer for `bytea` columns —
+# wrapped in `bytes(...)` below so `np.frombuffer` always sees a real
+# `bytes` object regardless of the exact buffer type psycopg2 hands back.
 
 
 def get_cached(conn, url, model_version):
@@ -147,13 +186,19 @@ def get_cached(conn, url, model_version):
     Returns ``None`` on cache miss OR when the cached row's `model_version`
     does not match (a version bump is treated as a miss, per spec).
     """
-    row = conn.execute(
-        "SELECT embedding, dim, model_version FROM image_embeddings WHERE url = ?",
-        (url,),
-    ).fetchone()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT embedding, dim, model_version FROM image_embeddings WHERE url = %s",
+            (url,),
+        )
+        row = cur.fetchone()
+    finally:
+        cur.close()
     if row is None:
         return None
     blob, dim, cached_version = row
+    blob = bytes(blob)
     if cached_version != model_version:
         return None
     if len(blob) != dim * 4:
@@ -173,25 +218,36 @@ def get_cached(conn, url, model_version):
 
 
 def insert_cache(conn, url, embedding, dim, model_version):
-    """Insert or replace one embedding row keyed by image URL.
+    """Insert or upsert one embedding row keyed by image URL.
 
-    `embedding` is stored as a float32 little-endian `numpy.tobytes()` BLOB
-    (per design's cache schema decision). Uses INSERT OR REPLACE so a
-    URL re-processed under a new `model_version` overwrites the old row
-    (the cache key is the URL, never the version).
+    `embedding` is stored as a float32 little-endian `numpy.tobytes()`
+    `bytea` value (per design's cache schema decision). Uses
+    `INSERT ... ON CONFLICT (url) DO UPDATE` (Postgres equivalent of the old
+    SQLite `INSERT OR REPLACE`) so a URL re-processed under a new
+    `model_version` overwrites the old row (the cache key is the URL, never
+    the version).
     """
+    import psycopg2
     import numpy as np
 
     blob = np.asarray(embedding, dtype="<f4").tobytes()
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO image_embeddings
-            (url, embedding, dim, model_version, computed_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (url, blob, dim, model_version, datetime.now(timezone.utc).isoformat()),
-    )
-    conn.commit()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO image_embeddings (url, embedding, dim, model_version, computed_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (url) DO UPDATE SET
+                embedding = EXCLUDED.embedding,
+                dim = EXCLUDED.dim,
+                model_version = EXCLUDED.model_version,
+                computed_at = EXCLUDED.computed_at
+            """,
+            (url, psycopg2.Binary(blob), dim, model_version, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+    finally:
+        cur.close()
 
 
 # ─── Image download + embedding compute ─────────────────────────────────────
@@ -233,7 +289,7 @@ def _compute_embedding(model, preprocess, image):
 # ─── Public entrypoint ───────────────────────────────────────────────────────
 
 
-def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloaded_images=None):
+def embed_images(urls, model_version=MODEL_VERSION, preloaded_images=None):
     """Cache-first embedding computation for a list of image URLs.
 
     Returns ``{url: numpy.ndarray | None}``. ``None`` marks a degraded/
@@ -252,23 +308,17 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloa
     re-attempted here (a URL simply absent from the map, e.g. for callers
     that don't preload at all, is downloaded normally; deferred from
     PR3b2 judgment-day round 2, "failed-download re-download").
+
+    Connects to Postgres via `DATABASE_URL` (design D4) — no more SQLite
+    `db_path`/WAL tuning; Postgres MVCC already lets this run share the
+    table with an in-progress scrape/cron write without lock contention.
     """
     results = {}
     try:
-        conn = sqlite3.connect(db_path, timeout=30)
+        conn = _get_connection()
     except Exception as e:
-        print(f"[ml_embeddings] DB connect failed for {db_path}: {e}", file=sys.stderr)
+        print(f"[ml_embeddings] DB connect failed: {e}", file=sys.stderr)
         return {url: None for url in urls}
-
-    try:
-        # Best-effort concurrency setting (deferred from PR3a judgment-day
-        # review): WAL lets the backfill CLI (PR3b) and an in-progress
-        # scrape share scraper.db without lock contention. Not fatal if
-        # unsupported (e.g. some network filesystems) — the `timeout=30`
-        # above is the real degradation backstop either way.
-        conn.execute("PRAGMA journal_mode=WAL")
-    except Exception:
-        pass
 
     try:
         model = preprocess = None
@@ -290,7 +340,7 @@ def embed_images(urls, db_path="scraper.db", model_version=MODEL_VERSION, preloa
                 continue
 
             if not model_load_tried:
-                model, preprocess = _load_model(db_path)
+                model, preprocess = _load_model()
                 model_load_tried = True
 
             if model is None:
@@ -459,7 +509,7 @@ _prompt_embeddings_attempted = False
 _prompt_embeddings_lock = threading.Lock()
 
 
-def _get_prompt_embeddings(db_path="scraper.db"):
+def _get_prompt_embeddings():
     """Lazily compute + cache one text embedding per PROMPTS entry, using
     the SAME loaded model's text tower (`_load_model` singleton).
 
@@ -475,7 +525,7 @@ def _get_prompt_embeddings(db_path="scraper.db"):
             return _prompt_embeddings
         _prompt_embeddings_attempted = True
 
-        model, _preprocess = _load_model(db_path)
+        model, _preprocess = _load_model()
         if model is None:
             return None
 
@@ -523,7 +573,7 @@ def _cosine_top_and_margin(embedding, candidates):
     return best_label, best_score, best_score - second_score
 
 
-def classify(embedding, db_path="scraper.db"):
+def classify(embedding):
     """Zero-shot classify one image embedding into Spanish visual-attribute
     signals, abstaining per-signal below threshold.
 
@@ -550,7 +600,7 @@ def classify(embedding, db_path="scraper.db"):
     if embedding is None:
         return empty
 
-    prompt_embeddings = _get_prompt_embeddings(db_path)
+    prompt_embeddings = _get_prompt_embeddings()
     if prompt_embeddings is None:
         return empty
 
@@ -639,10 +689,15 @@ def _pending_urls(conn, force, model_version):
     """Return `(url, imagen_url)` pairs for active products that still need
     an embedding computed under `model_version` (or every active product
     with an image, when `force`)."""
-    rows = conn.execute(
-        "SELECT url, imagen_url FROM productos "
-        "WHERE activo = 1 AND imagen_url IS NOT NULL AND imagen_url != ''"
-    ).fetchall()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT url, imagen_url FROM productos "
+            "WHERE activo = 1 AND imagen_url IS NOT NULL AND imagen_url != ''"
+        )
+        rows = cur.fetchall()
+    finally:
+        cur.close()
     if force:
         return rows
     pending = []
@@ -679,11 +734,15 @@ def _persist_visual_attrs(conn, url, attrs, color):
     per row (deferred from PR3b2 judgment-day round 2: "_persist_
     visual_attrs commits per product row").
     """
-    conn.execute(
-        "UPDATE productos SET fit = ?, estampado = ?, escote = ?, "
-        "color_dominante = COALESCE(?, color_dominante) WHERE url = ?",
-        (attrs.get("fit", ""), attrs.get("estampado", ""), attrs.get("escote", ""), color, url),
-    )
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE productos SET fit = %s, estampado = %s, escote = %s, "
+            "color_dominante = COALESCE(%s, color_dominante) WHERE url = %s",
+            (attrs.get("fit", ""), attrs.get("estampado", ""), attrs.get("escote", ""), color, url),
+        )
+    finally:
+        cur.close()
 
 
 def _emit_progress(pct, msg):
@@ -713,7 +772,7 @@ def _emit_progress(pct, msg):
 _BACKFILL_CHUNK_SIZE = 20
 
 
-def backfill(db_path="scraper.db", force=False, use_gpu=True):
+def backfill(force=False, use_gpu=True):
     """Full-catalog visual-attribute backfill entrypoint (CLI + PR5's
     `PythonRunner.backfillEmbeddingsEnBackground`).
 
@@ -743,6 +802,9 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
     connect/query failure) to a no-op, logging to stderr instead —
     mirrors `embed_images`'s degradation contract (spec:
     "degradation-behavior").
+
+    Connects to Postgres via `DATABASE_URL` (design D4) — no more
+    SQLite `db_path` argument or WAL tuning.
     """
     if not use_gpu:
         # Force CPU-only for this process. Must be set before `_load_model`
@@ -751,16 +813,11 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
     try:
-        conn = sqlite3.connect(db_path, timeout=30)
+        conn = _get_connection()
     except Exception as e:
-        print(f"[ml_embeddings] backfill: DB connect failed for {db_path}: {e}", file=sys.stderr)
+        print(f"[ml_embeddings] backfill: DB connect failed: {e}", file=sys.stderr)
         _emit_progress(0, "error: no se pudo conectar a la base de datos")
         return
-
-    try:
-        conn.execute("PRAGMA journal_mode=WAL")
-    except Exception:
-        pass
 
     try:
         pending = _pending_urls(conn, force, MODEL_VERSION)
@@ -809,7 +866,6 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
 
         embeddings = embed_images(
             chunk_imagen_urls,
-            db_path=db_path,
             model_version=MODEL_VERSION,
             preloaded_images=images,
         )
@@ -817,7 +873,7 @@ def backfill(db_path="scraper.db", force=False, use_gpu=True):
         for url, imagen_url in chunk:
             try:
                 embedding = embeddings.get(imagen_url)
-                attrs = classify(embedding, db_path=db_path)
+                attrs = classify(embedding)
 
                 if attrs.get("genero", "") == "":
                     # `classify()` returned its degraded/no-signal sentinel
@@ -881,9 +937,8 @@ if __name__ == "__main__":
     if len(sys.argv) >= 2 and sys.argv[1] == "smoke":
         # Manual smoke check: attempts the REAL model load (network +
         # weights required) and prints OK/FAIL. Never run automatically
-        # by pytest. Usage: python ml_embeddings.py smoke [db_path]
-        db_path_arg = sys.argv[2] if len(sys.argv) >= 3 else "scraper.db"
-        m, p = _load_model(db_path_arg)
+        # by pytest. Usage: python ml_embeddings.py smoke
+        m, p = _load_model()
         if m is not None:
             print("OK: model loaded successfully")
             sys.exit(0)
@@ -891,22 +946,16 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if len(sys.argv) >= 2 and sys.argv[1] == "backfill":
-        # Usage: python ml_embeddings.py backfill [db_path] [--force] [--no-gpu]
-        # Flags are recognized by their "--" prefix regardless of position,
-        # so e.g. `backfill --force` (no explicit db_path) doesn't silently
-        # bind "--force" to db_path_arg — SQLite would otherwise create a
-        # literal file named "--force" and drop the flag (deferred from
-        # PR3b2 judgment-day round 2: "CLI arg parsing").
-        rest = sys.argv[2:]
-        flags = [arg for arg in rest if arg.startswith("--")]
-        positional = [arg for arg in rest if not arg.startswith("--")]
-        db_path_arg = positional[0] if positional else "scraper.db"
+        # Usage: python ml_embeddings.py backfill [--force] [--no-gpu]
+        # Batch 2 (design D4): no more positional `db_path` — the DSN comes
+        # from the `DATABASE_URL` env var PythonRunner.java sets on the
+        # subprocess. Only "--"-prefixed flags are recognized now.
+        flags = sys.argv[2:]
         backfill(
-            db_path_arg,
             force="--force" in flags,
             use_gpu="--no-gpu" not in flags,
         )
         sys.exit(0)
 
-    print("Usage: python ml_embeddings.py smoke|backfill [db_path] [--force] [--no-gpu]", file=sys.stderr)
+    print("Usage: python ml_embeddings.py smoke|backfill [--force] [--no-gpu]", file=sys.stderr)
     sys.exit(2)

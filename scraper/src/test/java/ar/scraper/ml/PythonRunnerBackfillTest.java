@@ -20,6 +20,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code ProcessBuilder} construction is extracted into a package-private seam
  * that builds (but never {@code .start()}s) the process, so these tests assert
  * directly on the resulting command and environment map.</p>
+ *
+ * <p>Batch 2 (decouple-services-postgres, design D5): {@code dbPath} is no
+ * longer forwarded as a subprocess argv token, and {@code HF_HOME} is no
+ * longer derived from it — every test below was updated to match. New
+ * coverage: the {@code DATABASE_URL}/{@code SCRAPER_MODELS_ROOT}/
+ * {@code HF_HOME} env trio {@link PythonRunner#aplicarEnvBaseDatosYModelos}
+ * now applies to this subprocess.</p>
  */
 @Epic("ML Pipeline")
 @Feature("Python Runner")
@@ -30,11 +37,14 @@ class PythonRunnerBackfillTest {
     private final PythonRunner runner = new PythonRunner();
 
     @Test
-    void commandContainsBackfillSubcommandAndDbPath() {
+    void commandContainsBackfillSubcommandWithoutDbPathArgv() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
                 "python", "script.py", "scraper.db", false, true);
 
-        assertThat(pb.command()).contains("backfill", "scraper.db");
+        assertThat(pb.command()).contains("backfill");
+        // design D5: dbPath is no longer forwarded as a subprocess argv
+        // token — the subprocess reads DATABASE_URL from its env instead.
+        assertThat(pb.command()).doesNotContain("scraper.db");
     }
 
     @Test
@@ -96,33 +106,59 @@ class PythonRunnerBackfillTest {
                 .containsEntry("PYTHONUNBUFFERED", "1");
     }
 
-    // ── T5.3: HF_HOME pinning ────────────────────────────────────────────────
+    // ── Batch 2 (decouple-services-postgres, design D5): SCRAPER_MODELS_ROOT
+    // ── / HF_HOME derived from it, no longer from dbPath ─────────────────────
     // Without HF_HOME the backfill subprocess can't find the installer-warmed
     // Marqo weights cache and would re-download ~300MB (or fail offline).
     // Must match the installer's pinning (INSTALAR_Y_CORRER.bat step 3g:
-    // HF_HOME=%ROOT%\_models\marqo`) and ml_embeddings.py's
-    // `_default_hf_home(db_path)` (Path(db_path).resolve().parent / "_models" / "marqo").
+    // HF_HOME=%ROOT%\_models\marqo) and ml_embeddings.py's own fallback
+    // (`_default_hf_home()`: `<SCRAPER_MODELS_ROOT or _models>/marqo`).
 
     @Test
-    void setsHfHomeToModelsMarqoDirectoryNextToDbPath() {
+    void setsHfHomeToModelsMarqoDirectoryUnderWorkDirFallback() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
                 "python", "script.py", "scraper.db", false, true);
 
-        Path expected = Paths.get("scraper.db").toAbsolutePath().getParent()
-                .resolve("_models").resolve("marqo");
+        // No SCRAPER_MODELS_ROOT env var set in this test JVM — falls back
+        // to workDir/_models, matching resolveModelsRoot's own contract.
+        Path expected = Paths.get("").toAbsolutePath().resolve("_models").resolve("marqo");
         assertThat(pb.environment()).containsEntry("HF_HOME", expected.toString());
     }
 
     @Test
-    void setsHfHomeRelativeToAnAbsoluteDbPathsParentDirectory(
-            @org.junit.jupiter.api.io.TempDir Path installRoot) {
-        // TempDir yields a genuinely absolute path on every OS; a literal
-        // "C:/..." is relative on Linux and gets resolved against the CWD.
-        Path absoluteDb = installRoot.resolve("scraper.db");
+    void setsScraperModelsRootEnvVar() {
         ProcessBuilder pb = runner.construirProcessBuilderBackfill(
-                "python", "script.py", absoluteDb.toString(), false, true);
+                "python", "script.py", "scraper.db", false, true);
 
-        Path expected = absoluteDb.getParent().resolve("_models").resolve("marqo");
-        assertThat(pb.environment()).containsEntry("HF_HOME", expected.toString());
+        Path expected = Paths.get("").toAbsolutePath().resolve("_models");
+        assertThat(pb.environment()).containsEntry("SCRAPER_MODELS_ROOT", expected.toString());
+    }
+
+    // ── resolveModelsRoot / hfHomeParaModelsRoot: pure test seams ───────────
+
+    @Test
+    void resolveModelsRootPrefersExplicitEnvValue(@org.junit.jupiter.api.io.TempDir Path workDir) {
+        String resolved = PythonRunner.resolveModelsRoot("/custom/models/root", workDir);
+        assertThat(resolved).isEqualTo("/custom/models/root");
+    }
+
+    @Test
+    void resolveModelsRootFallsBackToWorkDirModelsWhenEnvUnset(
+            @org.junit.jupiter.api.io.TempDir Path workDir) {
+        String resolved = PythonRunner.resolveModelsRoot(null, workDir);
+        assertThat(resolved).isEqualTo(workDir.resolve("_models").toString());
+    }
+
+    @Test
+    void resolveModelsRootFallsBackToWorkDirModelsWhenEnvBlank(
+            @org.junit.jupiter.api.io.TempDir Path workDir) {
+        String resolved = PythonRunner.resolveModelsRoot("   ", workDir);
+        assertThat(resolved).isEqualTo(workDir.resolve("_models").toString());
+    }
+
+    @Test
+    void hfHomeParaModelsRootAppendsMarqo() {
+        String resolved = PythonRunner.hfHomeParaModelsRoot("/some/root");
+        assertThat(resolved).isEqualTo(Paths.get("/some/root").resolve("marqo").toString());
     }
 }

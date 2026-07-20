@@ -252,7 +252,9 @@ public class PythonRunner {
                 var cmd = new java.util.ArrayList<String>();
                 cmd.add(python);
                 cmd.add(trainScript.toString());
-                cmd.add(dbPath);
+                // dbPath no longer forwarded as argv (design D5) — ml_train.py
+                // reads DATABASE_URL from its env instead (see
+                // construirProcessBuilderEntrenamiento/aplicarEnvBaseDatosYModelos).
 
                 boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
                 boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -766,7 +768,9 @@ public class PythonRunner {
             var cmd = new java.util.ArrayList<String>();
             cmd.add(python);
             cmd.add(trainScript.toString());
-            cmd.add(dbPath);
+            // dbPath no longer forwarded as argv (design D5) — ml_train.py
+            // reads DATABASE_URL from its env instead (see
+            // construirProcessBuilderEntrenamiento/aplicarEnvBaseDatosYModelos).
 
             boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
             boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -1046,6 +1050,7 @@ public class PythonRunner {
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
         pb.environment().put("PYTHONUNBUFFERED", "1");
+        aplicarEnvBaseDatosYModelos(pb, workDir);
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
         }
@@ -1060,30 +1065,7 @@ public class PythonRunner {
                 .redirectErrorStream(false);
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
-        if (!useGpuSnapshot) {
-            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
-        }
-        return pb;
-    }
-
-    /** ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}). */
-    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath, String dbPath,
-            boolean force, boolean useGpuSnapshot) {
-        var cmd = new java.util.ArrayList<String>();
-        cmd.add(python);
-        cmd.add(scriptPath);
-        cmd.add("backfill");
-        cmd.add(dbPath);
-        if (force) cmd.add("--force");
-        if (!useGpuSnapshot) cmd.add("--no-gpu");
-
-        ProcessBuilder pb = new ProcessBuilder(cmd)
-                .directory(Paths.get("").toAbsolutePath().toFile())
-                .redirectErrorStream(false);
-        pb.environment().put("PYTHONIOENCODING", "utf-8");
-        pb.environment().put("PYTHONUTF8", "1");
-        pb.environment().put("PYTHONUNBUFFERED", "1");
-        pb.environment().put("HF_HOME", hfHomeParaDb(dbPath));
+        aplicarEnvBaseDatosYModelos(pb, workDir);
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
         }
@@ -1091,18 +1073,92 @@ public class PythonRunner {
     }
 
     /**
-     * Directorio de pesos Marqo pre-descargados por el instalador para el
-     * subproceso de backfill (T5.3). MUST mirror the installer's pinning
-     * ({@code INSTALAR_Y_CORRER.bat} step 3g: {@code HF_HOME=%ROOT%\_models\marqo})
-     * and {@code ml_embeddings.py}'s own fallback ({@code _default_hf_home(db_path)}:
-     * {@code Path(db_path).resolve().parent / "_models" / "marqo"}) — same
-     * directory shape, computed the same way (parent of the resolved DB
-     * path), so a real run always hits the pre-warmed cache instead of
-     * re-downloading ~300MB.
+     * ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}).
+     *
+     * <p>{@code dbPath} is no longer forwarded as a subprocess argv token
+     * (decouple-services-postgres Batch 2, design D5) — the subprocess reads
+     * {@code DATABASE_URL} from its env instead (see
+     * {@link #aplicarEnvBaseDatosYModelos}). The parameter itself stays only
+     * because {@code ApiController}'s filesystem-based
+     * {@code encontrarDbFile()} still supplies one; removing it entirely is
+     * Batch 3 scope once the backend stops resolving a SQLite file path.</p>
      */
-    static String hfHomeParaDb(String dbPath) {
-        return Paths.get(dbPath).toAbsolutePath().getParent()
-                .resolve("_models").resolve("marqo").toString();
+    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath, String dbPath,
+            boolean force, boolean useGpuSnapshot) {
+        var cmd = new java.util.ArrayList<String>();
+        cmd.add(python);
+        cmd.add(scriptPath);
+        cmd.add("backfill");
+        if (force) cmd.add("--force");
+        if (!useGpuSnapshot) cmd.add("--no-gpu");
+
+        Path workDir = Paths.get("").toAbsolutePath();
+        ProcessBuilder pb = new ProcessBuilder(cmd)
+                .directory(workDir.toFile())
+                .redirectErrorStream(false);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        pb.environment().put("PYTHONUTF8", "1");
+        pb.environment().put("PYTHONUNBUFFERED", "1");
+        aplicarEnvBaseDatosYModelos(pb, workDir);
+        if (!useGpuSnapshot) {
+            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
+        }
+        return pb;
+    }
+
+    /**
+     * Test seam (package-private): applies the {@code DATABASE_URL} /
+     * {@code SCRAPER_MODELS_ROOT} / {@code HF_HOME} env trio (design D5,
+     * decouple-services-postgres Batch 2) to every Python subprocess
+     * {@code ProcessBuilder} — scoring, training, and backfill all need DB
+     * + models-dir access now that neither is derived from a {@code dbPath}
+     * filesystem argument. Extracted so all three
+     * {@code construirProcessBuilder*} seams share one implementation.
+     * {@code DATABASE_URL} is only set when present in THIS process's own
+     * environment (never clobbers with a literal null); it would already be
+     * inherited by the child via {@code ProcessBuilder}'s environment-copy
+     * default, but setting it explicitly keeps the contract visible and
+     * directly testable here rather than implicit.
+     */
+    void aplicarEnvBaseDatosYModelos(ProcessBuilder pb, Path workDir) {
+        String databaseUrl = System.getenv("DATABASE_URL");
+        if (databaseUrl != null) {
+            pb.environment().put("DATABASE_URL", databaseUrl);
+        }
+        String modelsRoot = resolveModelsRoot(System.getenv("SCRAPER_MODELS_ROOT"), workDir);
+        pb.environment().put("SCRAPER_MODELS_ROOT", modelsRoot);
+        pb.environment().put("HF_HOME", hfHomeParaModelsRoot(modelsRoot));
+    }
+
+    /**
+     * Test seam (package-private, pure): resolves {@code SCRAPER_MODELS_ROOT}
+     * for a Python subprocess env. {@code envModelsRoot} is an explicit
+     * parameter (rather than reading {@code System.getenv} directly) so a
+     * test can inject a fake value without mutating the JVM's real
+     * environment. Falls back to {@code workDir.resolve("_models")} — the
+     * SAME models dir Java itself already resolves for the training-model
+     * freshness check (see {@link #entrenarEnBackground}/
+     * {@link #ejecutarFaseEntrenamientoSecuenciada}: {@code
+     * workDir.resolve("_models")}), so scoring/training/backfill subprocesses
+     * and the JVM always agree on one models directory even when the env var
+     * isn't set (manual/standalone runs).
+     */
+    static String resolveModelsRoot(String envModelsRoot, Path workDir) {
+        if (envModelsRoot != null && !envModelsRoot.isBlank()) return envModelsRoot;
+        return workDir.resolve("_models").toString();
+    }
+
+    /**
+     * Test seam (package-private, pure): {@code <modelsRoot>/marqo} — same
+     * shape the installer pins ({@code INSTALAR_Y_CORRER.bat} step 3g:
+     * {@code HF_HOME=%ROOT%\_models\marqo}) and {@code ml_embeddings.py}'s
+     * own fallback ({@code _default_hf_home()}: {@code <SCRAPER_MODELS_ROOT
+     * or _models>/marqo}), now derived from {@code SCRAPER_MODELS_ROOT}
+     * instead of a DB file path (design D5 — replaces the removed
+     * {@code hfHomeParaDb(String dbPath)}).
+     */
+    static String hfHomeParaModelsRoot(String modelsRoot) {
+        return Paths.get(modelsRoot).resolve("marqo").toString();
     }
 
     /** ProcessBuilder de los probes {@code tieneCuda}/{@code tienePytorch}. */
