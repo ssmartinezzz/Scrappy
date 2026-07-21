@@ -109,6 +109,12 @@ echo "[4/6] Frontend React/Vite..."
 if [ ! -f "$FRONTEND_DIR/.env" ] && [ -f "$FRONTEND_DIR/.env.example" ]; then
   cp "$FRONTEND_DIR/.env.example" "$FRONTEND_DIR/.env"
 fi
+# vite.config.js fail-fasts on a production `vite build` when VITE_API_BASE_URL
+# is unset (frontend is its own service post-decouple). Vite does NOT populate
+# process.env from .env, so it must be a real env var BEFORE the build — the
+# .env generation further down runs too late. Exported here so the build
+# subshell inherits it.
+export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:3000}"
 (
   cd "$FRONTEND_DIR"
   [ -d node_modules ] || npm install --prefer-offline
