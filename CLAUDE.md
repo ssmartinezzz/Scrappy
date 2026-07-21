@@ -28,7 +28,7 @@ Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y 
 | ML Pipeline | Python 3.11 embeddable (subprocess desde Java) — estadístico + TF-IDF + zero-shot visual; conecta a Postgres directo vía `psycopg2`/`DATABASE_URL` |
 | Clasificación visual | Marqo-FashionSigLIP vía open_clip (requiere `transformers` para el tokenizer) |
 | Build | Maven + Spring Boot Maven Plugin (fat JAR). Toolchain bundled en `_tools/` (jdk21/maven/node/python/**pgsql**, sin dependencias del sistema) |
-| Config | Env-only (`.env` gitignored, generado por el installer/`Ejecutar_instalar.sh`, jamás parseado en runtime por Java/Python — solo variables de proceso) |
+| Config | Env-only (`.env` gitignored, generado por el installer/`Ejecutar_instalar.sh`, jamás parseado en runtime por Java/Python — solo variables de proceso). Backend/frontend fail-fast si falta una var requerida en el profile default (`SPRING_PROFILES_ACTIVE=dev` para fallbacks locales) — ver "Gotchas de entorno". Plantilla canónica: `.env.example` (raíz) + `frontend/.env.example` |
 
 ---
 
@@ -225,6 +225,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 - **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita el prefijo `jdbc:` (`jdbc:postgresql://host:port/db`); psycopg2 (Python) NO entiende `jdbc:` — solo `postgresql://...`. `PythonRunner.toPsycopgDsn` traduce automáticamente antes de pasarlo al subproceso; si alguna vez se agrega OTRO consumidor de `DATABASE_URL`, revisar este mismo problema.
 - **Postgres portable:** el installer lo provisiona bajo `_tools/pgsql` (binarios EDB) + `_tools/pgdata` (datadir, `initdb -A trust` — sin password en local). El servidor queda corriendo entre ejecuciones del `.bat` (no se detiene solo); reusa la misma instancia la próxima vez (`pg_ctl status` chequea antes de re-arrancar).
 - **Tests contra Postgres real:** `PostgresTestBase` (`scraper/src/test/java/ar/scraper/db/support/`) auto-selecciona Testcontainers (si hay Docker) o modo portable-local (`_tools/pgsql`, sin Docker) o se skipea con un mensaje claro si no hay ninguno — nunca hace fallar toda la suite por falta de infra.
+- **Fail-fast en vars de entorno requeridas:** el backend NO tiene defaults silenciosos para `DATABASE_URL`/`DATABASE_USERNAME`/`DATABASE_PASSWORD`/`APP_CORS_ALLOWED_ORIGINS` en el profile default — `RequiredEnvVarsGuard` (`ar.scraper.config`, `EnvironmentPostProcessor`) aborta el arranque con un mensaje que nombra cada variable faltante. `DATABASE_PASSWORD` vacío (trust-auth local) SÍ cuenta como "presente" — solo una var totalmente ausente del entorno cuenta como faltante. Fallbacks de desarrollo local viven en `application-dev.properties`, activo solo con `SPRING_PROFILES_ACTIVE=dev`; los tests activan el profile `test` (mismo efecto de skip) vía `spring.profiles.active` en el `systemPropertyVariables` del surefire plugin (`scraper/pom.xml`), no vía anotaciones por clase. El frontend exige `VITE_API_BASE_URL` para `vite build` (prod) — falla el build si falta; `vite dev` sigue usando el proxy local sin requerirla. La plantilla canónica de variables es `.env.example` (raíz) + `frontend/.env.example` (solo `VITE_API_BASE_URL`, no duplicado en la raíz).
 
 ## Problemas conocidos / pendientes
 

@@ -23,11 +23,19 @@ import java.util.Arrays;
  * {@code false} — this also means the allow-list may safely include multiple
  * origins without the stricter same-origin-echo requirement credentialed CORS
  * would impose.</p>
+ *
+ * <p>No fallback default on the {@code @Value} below (scoped correction,
+ * verify-report CRITICAL-1): a second silent default here would defeat
+ * {@code RequiredEnvVarsGuard}/{@code application.properties}'s fail-fast
+ * behavior for {@code APP_CORS_ALLOWED_ORIGINS}. Local dev fallback lives in
+ * {@code application-dev.properties} (SPRING_PROFILES_ACTIVE=dev); tests that
+ * import this config directly (e.g. {@code CorsConfigTest}) supply the
+ * property explicitly via {@code @TestPropertySource}.</p>
  */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
     @Override

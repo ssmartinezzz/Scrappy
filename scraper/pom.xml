@@ -193,6 +193,11 @@
                     <argLine>@{argLine} -javaagent:"${settings.localRepository}/org/aspectj/aspectjweaver/${aspectj.version}/aspectjweaver-${aspectj.version}.jar"</argLine>
                     <systemPropertyVariables>
                         <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
+                        <!-- decouple-services-postgres scoped correction: activates the `test`
+                             Spring profile for the whole surefire JVM so RequiredEnvVarsGuard
+                             (and any future @SpringBootTest) skips the fail-fast required-env-var
+                             check without needing real DATABASE_URL/etc. in the test environment. -->
+                        <spring.profiles.active>test</spring.profiles.active>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

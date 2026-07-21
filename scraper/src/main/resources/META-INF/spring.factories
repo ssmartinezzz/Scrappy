@@ -1,0 +1,5 @@
+# decouple-services-postgres scoped correction (verify-report CRITICAL-1):
+# registers RequiredEnvVarsGuard so it runs during environment preparation,
+# before any bean (DataSource/CorsConfig) is created.
+org.springframework.boot.env.EnvironmentPostProcessor=\
+ar.scraper.config.RequiredEnvVarsGuard
