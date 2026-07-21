@@ -32,13 +32,19 @@ Java: ResultAggregator.agregar()
   "scores": {
     "https://producto-url": {
       "pctil": 23,
-      "badge": "precio_bajo",
-      "ofertaReal": false,
-      "descuentoCosmetico": false,
-      "altaDemanda": true,
-      "clusterId": 5,
-      "clusterSize": 183,
-      "tendenciaPrecio": "bajando"
+      "composite": 28,
+      "zScore": -0.82,
+      "mzScore": -0.70,
+      "segment": "budget",
+      "badge": "below_market",
+      "badges": ["below_market", "trending"],
+      "ofertaReal": true,
+      "descuentoSig": true,
+      "descuentoPct": 27.5,
+      "tendenciaPrecio": "bajando",
+      "histLow": true,
+      "priceVelocity": -0.03,
+      "rubro": "moda"
     }
   },
   "tendencias": {
@@ -61,47 +67,66 @@ Java: ResultAggregator.agregar()
 
 ## Badges disponibles
 
-| Badge | Condición | Color UI |
-|-------|-----------|----------|
-| `precio_bajo` | percentil ≤ 20 en su categoría, o precio bajando y pctil ≤ 25 | 💚 Verde |
-| `oferta_real` | descuento ≥ 25% Y precio en mitad inferior del mercado | ✅ Púrpura |
-| `tendencia` | cluster con ≥ 3% del catálogo total | 🔥 Naranja |
-| `descuento_cosmetico` | descuento < 13% | ⚠️ Gris |
-| `precio_alto` | percentil ≥ 80 | 📈 Rosa |
+> Actualizado por `badges-oportunidades-revamp`. Los badges son **multi-badge, no
+> exclusivos**: cada producto puede calificar para varios a la vez (condiciones
+> independientes, no una cadena `elif`). Se persisten en `productos.ml_badge` como
+> TEXT comma-delimited, **principal primero** (p.ej. `verified_deal,trending`). El
+> orden de prioridad de abajo define cuál es el "principal" (`badge`) y el resto va
+> en el set completo (`badges[]`). Las keys viejas (`precio_bajo`, `oferta_real`,
+> `tendencia`, `descuento_cosmetico`, `precio_alto`) **ya no existen**.
+
+Orden de prioridad (principal = primero del set), tal como `assign_badges()` en
+`ml_pipeline.py` (~línea 454):
+
+| Badge | Label UI | Condición (resumen) |
+|-------|----------|---------------------|
+| `all_time_low` | Mínimo histórico | precio actual = mínimo histórico propio del producto |
+| `below_market` | Por debajo del mercado | precio unitario claramente bajo el mercado de su categoría (pctil/z-score modificado) |
+| `verified_deal` | Descuento verificado | descuento significativo Y precio en la mitad inferior del mercado |
+| `trending` | En demanda | pertenece a un cluster TF-IDF con demanda alta |
+| `price_dropping` | Bajando de precio | tendencia de precio a la baja (`priceVelocity` negativa) |
+| `above_market` | Caro vs. mercado | precio unitario por encima del mercado de su categoría |
+| `fake_discount` | Descuento dudoso | descuento cosmético / no verificado contra historial propio |
+
+`ofertaReal` es un **boolean aparte e independiente** del set de badges (spec
+"ofertaReal Boolean Independence") — nunca se deriva del badge mostrado, aunque en
+la práctica un producto con `ofertaReal=true` normalmente también tiene
+`verified_deal` en su set.
 
 ---
 
 ## Cómo agregar un nuevo badge
 
+Los badges son un **set independiente**, no una cadena `elif`. Cada condición se
+evalúa por separado y se hace `append` al set; el orden de `BADGE_PRIORITY` define
+el principal.
+
 ### 1. Definir la condición en `ml_pipeline.py`
 
 ```python
-# En la sección "Asignar badge final" (al final del main())
-# Agregar ANTES del badge existente de mayor prioridad
-
-elif s.get('mi_condicion', False):
-    badge = 'mi_badge'
+# En assign_badges() (~línea 464): agregá un append INDEPENDIENTE, no un elif.
+# La posición dentro de la función no importa para la prioridad — eso lo fija
+# BADGE_PRIORITY (~línea 460); reordená ahí si querés cambiar cuál es principal.
+def assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_oferta_real):
+    badges = []
+    # ... condiciones existentes ...
+    if mi_condicion:
+        badges.append('mi_badge')
+    return badges
 ```
 
-### 2. Agregar label en `index.html`
+Sumá `'mi_badge'` a `BADGE_PRIORITY` en la posición de prioridad que quieras.
+El campo se propaga solo: `scores[pid]['badges']` (set completo) y
+`scores[pid]['badge']` (principal = `badges[0]`), persistido en
+`productos.ml_badge` comma-delimited.
 
-```javascript
-const BADGE_LABELS_SIDEBAR = {
-  // ... existentes ...
-  'mi_badge': '🎯 Mi Label'
-};
-```
+### 2. Agregar el label en el frontend (React/Vite)
 
-### 3. Agregar CSS en `index.html`
-
-```css
-.badge-mi_badge {
-  background: rgba(X,Y,Z,.15);
-  color: #HEXCOLOR;
-  border: 1px solid rgba(X,Y,Z,.3)
-}
-.ml-badge-btn.active.b-mi_badge { /* mismo */ }
-```
+El frontend es React en `frontend/`, **no** `index.html`. Los labels y estilos de
+badge viven en los componentes/constantes de `frontend/src/` (buscá el mapa de
+labels de badge y la clase/variante correspondiente). Agregá tu key `mi_badge`
+ahí con su label y color; `/api/data?badge=mi_badge` ya filtra por pertenencia al
+set sin cambios de backend.
 
 ---
 
