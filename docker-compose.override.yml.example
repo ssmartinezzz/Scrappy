@@ -1,0 +1,22 @@
+# Example override for using an EXTERNAL/managed Postgres instance instead
+# of the bundled `postgres` service in docker-compose.yml.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   # edit DATABASE_URL/DATABASE_USERNAME/DATABASE_PASSWORD in your .env to
+#   # point at the external host
+#   docker compose up
+#
+# `docker compose` automatically merges docker-compose.override.yml on top
+# of docker-compose.yml — no extra -f flags needed.
+services:
+  postgres:
+    # Scale the bundled service to zero: nothing is started for it, but the
+    # backend service definition (and its `depends_on: postgres`) is left
+    # untouched here on purpose — Compose still resolves the dependency
+    # graph, it just won't start any container for a service with no
+    # replicas. If your Compose version rejects that, delete the
+    # `depends_on: postgres` block from the backend service in a second
+    # override stanza instead.
+    deploy:
+      replicas: 0
