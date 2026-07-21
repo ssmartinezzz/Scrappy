@@ -9,6 +9,15 @@
 
 Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y hardware/PC) con dashboard web inteligente. Un solo `.bat` instala todo y ejecuta desde cero en Windows. El usuario configura parámetros de búsqueda, lanza el scraping (manual o por cronjobs), y navega los resultados con filtros, comparador multi-sitio, feed personalizado, armador de outfits, análisis de cuotas/inflación y panel de tendencias ML con clasificación de imagen zero-shot.
 
+> **interactive-cli-launcher** (2026-07-21): el tail del `.bat`/`Ejecutar_instalar.sh`
+> ya no lanza el backend en foreground — invoca `menu.ps1`/`menu.sh`, un menú
+> interactivo (REST client puro de la API existente, sin endpoints nuevos) que
+> arranca backend + frontend (`npm run preview` en `:5173`), ofrece scrape/
+> retrain/status/CRUD de sitios/abrir dashboard, y hace teardown limpio de
+> ambos procesos al salir (Q o Ctrl+C). Standalone/re-invocable: correr
+> `menu.ps1`/`menu.sh` directo funciona igual. Ver "Sitios configurados" no
+> cambia — este launcher es solo la capa de invocación.
+
 ---
 
 ## Stack técnico
@@ -40,7 +49,11 @@ fashion-scraper-new/
 ├── SKILL.md                           ← Índice de documentación técnica
 ├── INSTALAR_Y_CORRER.bat              ← Instala Java + PostgreSQL portable + Maven + Python + Node + deps ML
 │                                          (incl. psycopg2-binary) + compila + genera .env + ejecuta (Windows)
-├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema, no vendoriza
+├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema, vendoriza solo jq/gum
+├── menu.ps1                           ← Menú interactivo Windows (PowerShell) — REST client puro, arranca backend+frontend
+├── menu.sh                            ← Menú interactivo POSIX (bash+jq, gum opcional) — mismo contrato que menu.ps1
+├── tests/menu.Tests.ps1               ← Pester: Build-SiteJson (JSON seguro, sin interpolación de shell)
+├── tests/menu_test.sh                 ← bash: build_site_json vía jq -n --arg (mismo caso RED)
 ├── docs/                              ← ARCHITECTURE, ADD_SCRAPER, ML_PIPELINE, API_REFERENCE
 └── scraper/
     ├── pom.xml                        ← postgresql, flyway, HikariCP, testcontainers (test); playwright, opencsv, jackson; allure-bom (test)

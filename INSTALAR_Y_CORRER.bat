@@ -622,6 +622,7 @@ echo   FASHION SCRAPER - SERVIDOR LISTO
 echo  ============================================================
 echo.
 echo   API      : http://localhost:3000  ^(API-only — backend ya no sirve la SPA^)
+echo   Panel    : http://localhost:5173  ^(se abre desde el menu interactivo^)
 echo   DB       : PostgreSQL 127.0.0.1:%PG_PORT%/%PG_DB%
 if "!HAS_GPU!"=="1" (
     echo   GPU      : !GPU_NAME! - CUDA !CUDA_MAJOR!
@@ -633,7 +634,7 @@ if exist "%ALLURE_EXE%" (
     echo   Tests    : para correr las suites -^> cd scraper ^&^& mvn test
     echo   Allure   : ver reporte HTML -^> allure serve scraper\target\allure-results  ^(despues de 'mvn test'^)
 )
-echo   Detener  : Ctrl+C
+echo   Salir    : opcion Q del menu, o Ctrl+C
 echo  ============================================================
 echo.
 
@@ -650,14 +651,14 @@ del /f /q "%PROJECT%\scraper.log"    2>nul
 del /f /q "%PROJECT%\scraper.*.log"  2>nul
 mkdir "%PROJECT%\logs" 2>nul
 
-pushd "%PROJECT%"
-"%JAVA_EXE%" ^
-  -Xmx768m ^
-  -Dfile.encoding=UTF-8 ^
-  -DPYTHON_EXE="%PYTHON_EXE%" ^
-  -DPYTHON_DIR="%PYTHON_DIR%" ^
-  -jar "%JAR%"
-popd
+:: ============================================================
+:: interactive-cli-launcher (design D7): menu.ps1 owns the lifecycle of
+:: BOTH the backend (java -jar, background) and the frontend
+:: (npm run preview --strictPort :5173) it spawns — pure REST client of
+:: the existing API, no new backend endpoints. Standalone/re-invocable:
+:: running "powershell -File menu.ps1" directly works the same way.
+:: ============================================================
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\menu.ps1"
 
 echo.
 echo  Servidor detenido. Presiona cualquier tecla para cerrar...
