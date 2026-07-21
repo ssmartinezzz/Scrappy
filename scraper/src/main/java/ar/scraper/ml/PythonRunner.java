@@ -212,8 +212,7 @@ public class PythonRunner {
      * Solo entrena si no existe modelo o si el modelo tiene más de 24h de antigüedad.
      * Con forceRetrain=true, saltea la verificación de antigüedad y siempre entrena.
      */
-    public void entrenarEnBackground(String dbPath, boolean forceRetrain,
-                                      boolean withImages, int epochs) {
+    public void entrenarEnBackground(boolean forceRetrain, boolean withImages, int epochs) {
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         String python = detectarPython();
         if (python == null) { LOG.info("[ML-TRAIN] Python no disponible, saltando entrenamiento"); return; }
@@ -252,7 +251,10 @@ public class PythonRunner {
                 var cmd = new java.util.ArrayList<String>();
                 cmd.add(python);
                 cmd.add(trainScript.toString());
-                cmd.add(dbPath);
+                // dbPath is no longer a parameter at all (design D5 + Batch 3
+                // task 3.6) — ml_train.py reads DATABASE_URL from its env
+                // instead (see construirProcessBuilderEntrenamiento/
+                // aplicarEnvBaseDatosYModelos).
 
                 boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
                 boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -337,12 +339,12 @@ public class PythonRunner {
         });
     }
 
-    public void entrenarEnBackground(String dbPath, boolean forceRetrain) {
-        entrenarEnBackground(dbPath, forceRetrain, false, 8);
+    public void entrenarEnBackground(boolean forceRetrain) {
+        entrenarEnBackground(forceRetrain, false, 8);
     }
 
-    public void entrenarEnBackground(String dbPath) {
-        entrenarEnBackground(dbPath, false, false, 8);
+    public void entrenarEnBackground() {
+        entrenarEnBackground(false, false, 8);
     }
 
     /**
@@ -436,7 +438,7 @@ public class PythonRunner {
      *         no-op-degraded) the sequence; {@code false} when a sequence was
      *         already in flight and this request was dropped.
      */
-    public boolean construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+    public boolean construirIndiceVisualEnBackground(boolean forceRetrainTexto,
             boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
         if (!intentarReservarSecuenciaIndiceVisual()) {
             LOG.info("[ML-INDEX] Secuencia de construcción de índice visual ya en curso — solicitud ignorada");
@@ -454,7 +456,7 @@ public class PythonRunner {
         Path workDir = Paths.get("").toAbsolutePath();
 
         try {
-            lanzarHiloSecuencia(() -> ejecutarSecuenciaIndiceVisual(python, workDir, dbPath,
+            lanzarHiloSecuencia(() -> ejecutarSecuenciaIndiceVisual(python, workDir,
                     forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
         } catch (Throwable t) {
             // RESI-001: no thread was started, so nothing will ever clear the
@@ -539,7 +541,7 @@ public class PythonRunner {
      * {@code !trainingOk && backfillOk} branch re-asserts a durable,
      * non-running error state whose message reflects both outcomes.</p>
      */
-    void ejecutarSecuenciaIndiceVisual(String python, Path workDir, String dbPath,
+    void ejecutarSecuenciaIndiceVisual(String python, Path workDir,
             boolean forceRetrainTexto, boolean withImages, int epochs, boolean forceBackfillEmbeddings,
             boolean useGpuSnapshot) {
         boolean trainingOk = false;
@@ -547,14 +549,14 @@ public class PythonRunner {
         try {
             trainingStatus.set(new TrainingStatus(true, "training", 0, "",
                     java.time.Instant.now().toString()));
-            trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, dbPath, forceRetrainTexto,
+            trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, forceRetrainTexto,
                     withImages, epochs, useGpuSnapshot);
 
             if (trainingOk) {
                 trainingStatus.set(new TrainingStatus(true, "embedding", 0, "",
                         trainingStatus.get().startedAt()));
             }
-            backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, dbPath, forceBackfillEmbeddings,
+            backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, forceBackfillEmbeddings,
                     useGpuSnapshot);
 
             if (!trainingOk && backfillOk) {
@@ -572,9 +574,9 @@ public class PythonRunner {
         }
     }
 
-    public boolean construirIndiceVisualEnBackground(String dbPath, boolean forceRetrainTexto,
+    public boolean construirIndiceVisualEnBackground(boolean forceRetrainTexto,
             boolean forceBackfillEmbeddings) {
-        return construirIndiceVisualEnBackground(dbPath, forceRetrainTexto, false, 8, forceBackfillEmbeddings);
+        return construirIndiceVisualEnBackground(forceRetrainTexto, false, 8, forceBackfillEmbeddings);
     }
 
     /** Outcome of {@link #esperarConDrain}: whether the process finished within
@@ -743,7 +745,7 @@ public class PythonRunner {
      * @return {@code true} on success (including a fresh-model skip); {@code false}
      * on timeout, non-zero exit, or an unexpected exception — in every failure
      * case a durable error state is written via {@link #marcarFalloIndiceVisual}. */
-    boolean ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir, String dbPath,
+    boolean ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir,
             boolean forceRetrain, boolean withImages, int epochs, boolean useGpuSnapshot) {
         try {
             Path modelsDir = workDir.resolve("_models");
@@ -766,7 +768,10 @@ public class PythonRunner {
             var cmd = new java.util.ArrayList<String>();
             cmd.add(python);
             cmd.add(trainScript.toString());
-            cmd.add(dbPath);
+            // dbPath is no longer a parameter at all (design D5 + Batch 3
+            // task 3.6) — ml_train.py reads DATABASE_URL from its env
+            // instead (see construirProcessBuilderEntrenamiento/
+            // aplicarEnvBaseDatosYModelos).
 
             boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
             boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -811,12 +816,12 @@ public class PythonRunner {
      * timeout, non-zero exit, RESI-002 degraded-run detection, or an unexpected
      * exception — in every failure case a durable error state is written via
      * {@link #marcarFalloIndiceVisual}. */
-    boolean ejecutarFaseBackfillSecuenciada(String python, Path workDir, String dbPath,
+    boolean ejecutarFaseBackfillSecuenciada(String python, Path workDir,
             boolean force, boolean useGpuSnapshot) {
         try {
             Path scriptPath = extraerEmbeddingsScript(workDir);
             ProcessBuilder pb = construirProcessBuilderBackfill(
-                    python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
+                    python, scriptPath.toString(), force, useGpuSnapshot);
             Process proc = pb.start();
 
             var filasProcesadas = new java.util.concurrent.atomic.AtomicInteger(-1);
@@ -865,7 +870,7 @@ public class PythonRunner {
      * (~línea 718), que nombra explícitamente este método como su contraparte Java.
      * Nunca lanza excepciones — cualquier fallo degrada a un no-op logueado.
      */
-    public void backfillEmbeddingsEnBackground(String dbPath, boolean force) {
+    public void backfillEmbeddingsEnBackground(boolean force) {
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         try {
             String python = detectarPython();
@@ -884,7 +889,7 @@ public class PythonRunner {
                     Path scriptPath = extraerEmbeddingsScript(workDir);
 
                     ProcessBuilder pb = construirProcessBuilderBackfill(
-                            python, scriptPath.toString(), dbPath, force, useGpuSnapshot);
+                            python, scriptPath.toString(), force, useGpuSnapshot);
                     Process proc = pb.start();
 
                     // RESI-002: counters for degraded-backfill detection (model never
@@ -965,8 +970,8 @@ public class PythonRunner {
         }
     }
 
-    public void backfillEmbeddingsEnBackground(String dbPath) {
-        backfillEmbeddingsEnBackground(dbPath, false);
+    public void backfillEmbeddingsEnBackground() {
+        backfillEmbeddingsEnBackground(false);
     }
 
     private void aplicarModeloActual() {
@@ -1046,6 +1051,7 @@ public class PythonRunner {
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
         pb.environment().put("PYTHONUNBUFFERED", "1");
+        aplicarEnvBaseDatosYModelos(pb, workDir);
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
         }
@@ -1060,30 +1066,7 @@ public class PythonRunner {
                 .redirectErrorStream(false);
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
-        if (!useGpuSnapshot) {
-            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
-        }
-        return pb;
-    }
-
-    /** ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}). */
-    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath, String dbPath,
-            boolean force, boolean useGpuSnapshot) {
-        var cmd = new java.util.ArrayList<String>();
-        cmd.add(python);
-        cmd.add(scriptPath);
-        cmd.add("backfill");
-        cmd.add(dbPath);
-        if (force) cmd.add("--force");
-        if (!useGpuSnapshot) cmd.add("--no-gpu");
-
-        ProcessBuilder pb = new ProcessBuilder(cmd)
-                .directory(Paths.get("").toAbsolutePath().toFile())
-                .redirectErrorStream(false);
-        pb.environment().put("PYTHONIOENCODING", "utf-8");
-        pb.environment().put("PYTHONUTF8", "1");
-        pb.environment().put("PYTHONUNBUFFERED", "1");
-        pb.environment().put("HF_HOME", hfHomeParaDb(dbPath));
+        aplicarEnvBaseDatosYModelos(pb, workDir);
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
         }
@@ -1091,18 +1074,136 @@ public class PythonRunner {
     }
 
     /**
-     * Directorio de pesos Marqo pre-descargados por el instalador para el
-     * subproceso de backfill (T5.3). MUST mirror the installer's pinning
-     * ({@code INSTALAR_Y_CORRER.bat} step 3g: {@code HF_HOME=%ROOT%\_models\marqo})
-     * and {@code ml_embeddings.py}'s own fallback ({@code _default_hf_home(db_path)}:
-     * {@code Path(db_path).resolve().parent / "_models" / "marqo"}) — same
-     * directory shape, computed the same way (parent of the resolved DB
-     * path), so a real run always hits the pre-warmed cache instead of
-     * re-downloading ~300MB.
+     * ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}).
+     *
+     * <p>{@code dbPath} is no longer a parameter at all (decouple-services-postgres
+     * Batch 2 stopped forwarding it as a subprocess argv token per design D5;
+     * Batch 3 task 3.6 removed the parameter itself now that the backend no
+     * longer resolves a SQLite file path) — the subprocess reads
+     * {@code DATABASE_URL} from its env instead (see
+     * {@link #aplicarEnvBaseDatosYModelos}).</p>
      */
-    static String hfHomeParaDb(String dbPath) {
-        return Paths.get(dbPath).toAbsolutePath().getParent()
-                .resolve("_models").resolve("marqo").toString();
+    ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath,
+            boolean force, boolean useGpuSnapshot) {
+        var cmd = new java.util.ArrayList<String>();
+        cmd.add(python);
+        cmd.add(scriptPath);
+        cmd.add("backfill");
+        if (force) cmd.add("--force");
+        if (!useGpuSnapshot) cmd.add("--no-gpu");
+
+        Path workDir = Paths.get("").toAbsolutePath();
+        ProcessBuilder pb = new ProcessBuilder(cmd)
+                .directory(workDir.toFile())
+                .redirectErrorStream(false);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        pb.environment().put("PYTHONUTF8", "1");
+        pb.environment().put("PYTHONUNBUFFERED", "1");
+        aplicarEnvBaseDatosYModelos(pb, workDir);
+        if (!useGpuSnapshot) {
+            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
+        }
+        return pb;
+    }
+
+    /**
+     * Test seam (package-private): applies the {@code DATABASE_URL} /
+     * {@code SCRAPER_MODELS_ROOT} / {@code HF_HOME} env trio (design D5,
+     * decouple-services-postgres Batch 2) to every Python subprocess
+     * {@code ProcessBuilder} — scoring, training, and backfill all need DB
+     * + models-dir access now that neither is derived from a {@code dbPath}
+     * filesystem argument. Extracted so all three
+     * {@code construirProcessBuilder*} seams share one implementation.
+     * {@code DATABASE_URL} is only set when present in THIS process's own
+     * environment (never clobbers with a literal null); it would already be
+     * inherited by the child via {@code ProcessBuilder}'s environment-copy
+     * default, but setting it explicitly keeps the contract visible and
+     * directly testable here rather than implicit.
+     */
+    void aplicarEnvBaseDatosYModelos(ProcessBuilder pb, Path workDir) {
+        String databaseUrl = System.getenv("DATABASE_URL");
+        if (databaseUrl != null) {
+            String psycopgDsn = toPsycopgDsn(databaseUrl,
+                    System.getenv("DATABASE_USERNAME"), System.getenv("DATABASE_PASSWORD"));
+            pb.environment().put("DATABASE_URL", psycopgDsn);
+        }
+        String modelsRoot = resolveModelsRoot(System.getenv("SCRAPER_MODELS_ROOT"), workDir);
+        pb.environment().put("SCRAPER_MODELS_ROOT", modelsRoot);
+        pb.environment().put("HF_HOME", hfHomeParaModelsRoot(modelsRoot));
+    }
+
+    /**
+     * Test seam (package-private, pure): translates the JVM's own
+     * {@code DATABASE_URL} (JDBC format — {@code jdbc:postgresql://host:port
+     * /db}, required by Spring's {@code spring.datasource.url}/HikariCP) into
+     * a libpq/psycopg2-compatible DSN ({@code postgresql://host:port/db
+     * [?user=...&password=...]}) for the Python subprocess env.
+     *
+     * <p>Batch 2 forwarded {@code DATABASE_URL} to Python verbatim, which
+     * silently breaks {@code psycopg2.connect(dsn)} the moment the value is
+     * a real {@code jdbc:} URL (as opposed to unset in a test): libpq only
+     * recognizes the {@code postgresql://}/{@code postgres://} schemes, not
+     * {@code jdbc:}. Discovered in Batch 4 while wiring the installer's
+     * generated {@code .env} — this is the first place a real
+     * {@code DATABASE_URL} flows through both Java and Python at once.</p>
+     *
+     * <p>{@code username}/{@code password} are appended as libpq URI query
+     * parameters (the standard PostgreSQL URI extension point for keywords
+     * not in the userinfo section) only when non-blank — local dev's trust
+     * auth (the installer's {@code initdb -A trust}) needs at least a
+     * {@code user} param since psycopg2 otherwise defaults to the OS
+     * username, which does not match the {@code postgres} role.</p>
+     */
+    static String toPsycopgDsn(String jdbcOrPlainUrl, String username, String password) {
+        if (jdbcOrPlainUrl == null) {
+            return null;
+        }
+        String plain = jdbcOrPlainUrl.startsWith("jdbc:")
+                ? jdbcOrPlainUrl.substring("jdbc:".length())
+                : jdbcOrPlainUrl;
+        StringBuilder query = new StringBuilder();
+        if (username != null && !username.isBlank()) {
+            query.append("user=").append(username);
+        }
+        if (password != null && !password.isBlank()) {
+            if (query.length() > 0) query.append('&');
+            query.append("password=").append(password);
+        }
+        if (query.length() == 0) {
+            return plain;
+        }
+        return plain + (plain.contains("?") ? "&" : "?") + query;
+    }
+
+    /**
+     * Test seam (package-private, pure): resolves {@code SCRAPER_MODELS_ROOT}
+     * for a Python subprocess env. {@code envModelsRoot} is an explicit
+     * parameter (rather than reading {@code System.getenv} directly) so a
+     * test can inject a fake value without mutating the JVM's real
+     * environment. Falls back to {@code workDir.resolve("_models")} — the
+     * SAME models dir Java itself already resolves for the training-model
+     * freshness check (see {@link #entrenarEnBackground}/
+     * {@link #ejecutarFaseEntrenamientoSecuenciada}: {@code
+     * workDir.resolve("_models")}), so scoring/training/backfill subprocesses
+     * and the JVM always agree on one models directory even when the env var
+     * isn't set (manual/standalone runs).
+     */
+    static String resolveModelsRoot(String envModelsRoot, Path workDir) {
+        if (envModelsRoot != null && !envModelsRoot.isBlank()) return envModelsRoot;
+        return workDir.resolve("_models").toString();
+    }
+
+    /**
+     * Test seam (package-private, pure): {@code <modelsRoot>/marqo} — same
+     * shape the installer pins ({@code INSTALAR_Y_CORRER.bat} step 3g:
+     * {@code HF_HOME=%ROOT%\_models\marqo}) and {@code ml_embeddings.py}'s
+     * own fallback ({@code _default_hf_home()}: {@code <SCRAPER_MODELS_ROOT
+     * or _models>/marqo}), now derived from {@code SCRAPER_MODELS_ROOT}
+     * instead of a DB file path (design D5 — replaces the removed
+     * {@code hfHomeParaDb(String dbPath)}).
+     */
+    static String hfHomeParaModelsRoot(String modelsRoot) {
+        return Paths.get(modelsRoot).resolve("marqo").toString();
     }
 
     /** ProcessBuilder de los probes {@code tieneCuda}/{@code tienePytorch}. */

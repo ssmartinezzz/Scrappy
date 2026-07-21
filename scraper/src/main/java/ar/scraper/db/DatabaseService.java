@@ -5,28 +5,47 @@ import ar.scraper.cron.CronJob;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Paths;
-import java.sql.*;
+import javax.sql.DataSource;
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * SQLite persistence layer.
+ * PostgreSQL persistence layer (decouple-services-postgres, Batch 1).
  *
- * Archivo: scraper.db en el directorio de trabajo (junto al .jar)
+ * Conexión: pool HikariCP administrado por Spring Boot ({@code DataSource}
+ * inyectado), apuntando a {@code DATABASE_URL} (env-only, design D6). Cada
+ * método de este servicio toma prestada una conexión del pool por llamada
+ * (try-with-resources) — ya NO existe una conexión única compartida de
+ * escritura/lectura ni el {@code writeLock}/{@code readLock} que la
+ * serializaban: Postgres MVCC permite lectores y escritor conviviendo sin
+ * el lock-dance que SQLite necesitaba (design D1). El schema (15 tablas +
+ * funciones {@code sp_upsert_run}/{@code sp_soft_delete_ausentes}) lo
+ * administra Flyway ({@code db/migration/V1__baseline.sql}) — reemplaza el
+ * bootstrap runtime que existía en {@code initEn()}/{@code crearTablas()}/
+ * {@code migrarColumna()} (removidos, design D3).
  *
- * Upsert logic:
- *   - Producto nuevo  → INSERT
+ * Upsert logic (preservada exactamente, ahora ejecutada server-side vía
+ * {@code sp_upsert_run}, design D2):
+ *   - Producto nuevo  → INSERT + historial
  *   - Precio igual    → UPDATE touched_at solamente
  *   - Precio cambió   → UPDATE precio + INSERT en precio_historico
- *   - No apareció     → soft-delete (activo=0)
+ *   - No apareció     → soft-delete (activo=0) vía {@code sp_soft_delete_ausentes}
  */
 @Service
 public class DatabaseService {
@@ -37,390 +56,27 @@ public class DatabaseService {
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    // volatile: publicado una sola vez en initEn (PostConstruct o test seam) y
-    // leído desde hilos de lectura/escritura sin sincronización propia antes
-    // del null-check — la visibilidad cross-thread de la asignación no está
-    // garantizada de otro modo.
-    private volatile Connection conn;
+    private final DataSource dataSource;
 
-    // Monitor único de escritura: TODOS los métodos que commitean sobre la
-    // conexión compartida serializan sobre este lock. Antes solo los métodos
-    // de cron sincronizaban (entre sí), y las escrituras concurrentes
-    // scrape/cron/API sobre la misma transacción producían
-    // SQLITE_BUSY_SNAPSHOT y batches perdidos por rollback.
-    private final Object writeLock = new Object();
-
-    // Conexión dedicada de solo-lectura (autoCommit=true), separada de `conn`
-    // (autoCommit=false). Los métodos de lectura standalone (no invocados
-    // desde dentro de una transacción de escritura) usan `readConn` bajo
-    // `readLock`, de forma que nunca observan un snapshot en vuelo de una
-    // escritura ni bloquean/son bloqueados por `writeLock` — WAL permite que
-    // lectores y el escritor convivan sin pisarse.
-    private volatile Connection readConn;
-    private final Object readLock = new Object();
+    public DatabaseService(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
 
     @PostConstruct
-    public void init() {
-        initEn(Paths.get("scraper.db").toAbsolutePath().toString());
-    }
-
-    /**
-     * Variante de {@link #init()} con path explícito — usada por tests
-     * unitarios para apuntar a un archivo SQLite temporal en lugar del
-     * {@code scraper.db} real del directorio de trabajo.
-     */
-    void initEn(String path) {
+    void init() {
         try {
-            conn = DriverManager.getConnection("jdbc:sqlite:" + path);
-            // Pragmas de concurrencia (todavía en autocommit): WAL permite
-            // convivir con el proceso Python (ml_embeddings.py) que escribe al
-            // mismo archivo, y busy_timeout evita fallar de inmediato ante un
-            // lock ajeno (mismo timeout de 30s que usa el lado Python).
-            try (Statement st = conn.createStatement()) {
-                st.execute("PRAGMA busy_timeout=30000");
-                st.execute("PRAGMA journal_mode=WAL");
-            }
-            conn.setAutoCommit(false);
-            crearTablas();
-            conn.commit();
-            backfillBadgeKeys();
-            LOG.info("[DB] Conectado: {}", path);
+            seedPresetIlustrativoSiVacio();
+            LOG.info("[DB] Conectado (pool HikariCP sobre {})", safeDescribeDataSource());
         } catch (Exception e) {
-            LOG.error("[DB] Error al iniciar: {}", e.getMessage(), e);
+            LOG.error("[DB] Error en el seed inicial: {}", e.getMessage(), e);
         }
+    }
+
+    private String safeDescribeDataSource() {
         try {
-            // journal_mode=WAL es una propiedad persistente en el header del
-            // archivo — se hereda automáticamente al abrir una nueva conexión,
-            // no hace falta re-ejecutar el PRAGMA acá. busy_timeout sí es por
-            // conexión y debe fijarse explícitamente.
-            readConn = DriverManager.getConnection("jdbc:sqlite:" + path);
-            try (Statement st = readConn.createStatement()) {
-                st.execute("PRAGMA busy_timeout=30000");
-            }
-            readConn.setAutoCommit(true);
+            return dataSource.getClass().getSimpleName();
         } catch (Exception e) {
-            LOG.error("[DB] Error al iniciar readConn: {}", e.getMessage(), e);
-            readConn = null;
-        }
-    }
-
-    /** Expone la conexión subyacente — usado por tests para verificar pragmas (WAL, busy_timeout). */
-    Connection conexion() {
-        return conn;
-    }
-
-    /** Expone la conexión de lectura dedicada — usado por tests de lifecycle. */
-    Connection readConexion() {
-        return readConn;
-    }
-
-    /** Cierra la conexión subyacente — usado por tests para liberar el archivo SQLite temporal. */
-    void cerrar() {
-        try {
-            if (conn != null) conn.close();
-        } catch (Exception ignored) {}
-        try {
-            if (readConn != null) readConn.close();
-        } catch (Exception ignored) {}
-    }
-
-    /**
-     * Cierra cualquier snapshot de lectura diferido (WAL) que haya quedado
-     * abierto por métodos de solo-lectura sobre esta conexión: con
-     * autoCommit=false, cualquier SELECT abre una transacción implícita que
-     * persiste hasta el próximo commit/rollback. Si el proceso Python
-     * (ml_embeddings.py) commitea en el medio, la próxima escritura sobre ese
-     * snapshot viejo falla con SQLITE_BUSY_SNAPSHOT — esperar no alcanza: hay
-     * que refrescar el snapshot con un rollback. Debe llamarse como primera
-     * sentencia dentro de cada bloque {@code synchronized (writeLock)}.
-     */
-    private void refrescarSnapshot() {
-        try { conn.rollback(); } catch (Exception ignored) {}
-    }
-
-    // ─── Schema ──────────────────────────────────────────────────────────────
-
-    /**
-     * Migración aditiva idempotente: intenta agregar una columna a una tabla
-     * existente. SQLite no soporta "ADD COLUMN IF NOT EXISTS", así que se
-     * intenta y se ignora el error de "duplicate column" si ya existe.
-     */
-    private void migrarColumna(Statement st, String tabla, String colDef) {
-        try {
-            st.executeUpdate("ALTER TABLE " + tabla + " ADD COLUMN " + colDef);
-            LOG.info("[DB] Migración: columna agregada en {} -> {}", tabla, colDef);
-        } catch (SQLException e) {
-            LOG.debug("[DB] Columna ya existe en {} ({})", tabla, e.getMessage());
-        }
-    }
-
-    private void crearTablas() throws SQLException {
-        try (Statement st = conn.createStatement()) {
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precios_externos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    producto_url TEXT NOT NULL,
-                    sitio        TEXT NOT NULL,
-                    titulo       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    externo_url  TEXT,
-                    condicion    TEXT DEFAULT 'new',
-                    fecha        TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_pe_url ON precios_externos(producto_url)");
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS productos (
-                    url          TEXT PRIMARY KEY,
-                    sitio        TEXT NOT NULL,
-                    nombre       TEXT NOT NULL,
-                    precio       REAL NOT NULL,
-                    precio_orig  TEXT,
-                    imagen_url   TEXT,
-                    categoria    TEXT,
-                    genero       TEXT,
-                    talles       TEXT,
-                    ml_badge     TEXT DEFAULT '',
-                    ml_score     INTEGER DEFAULT 50,
-                    ml_oferta    INTEGER DEFAULT 0,
-                    ml_tendencia TEXT DEFAULT '',
-                    ml_segment   TEXT DEFAULT 'standard',
-                    ml_zscore    REAL DEFAULT 0.0,
-                    rubro        TEXT DEFAULT 'indumentaria',
-                    marca        TEXT DEFAULT '',
-                    gymrat       INTEGER DEFAULT 0,
-                    marca_premium INTEGER DEFAULT 0,
-                    cantidad_unidades INTEGER DEFAULT 1,
-                    sub_categoria TEXT DEFAULT '',
-                    fit             TEXT DEFAULT '',
-                    estampado       TEXT DEFAULT '',
-                    escote          TEXT DEFAULT '',
-                    color_dominante TEXT DEFAULT '',
-                    activo       INTEGER DEFAULT 1,
-                    touched_at   TEXT,
-                    created_at   TEXT
-                )""");
-
-            migrarColumna(st, "productos", "gymrat INTEGER DEFAULT 0");
-            migrarColumna(st, "productos", "marca_premium INTEGER DEFAULT 0");
-            migrarColumna(st, "productos", "cantidad_unidades INTEGER DEFAULT 1");
-            migrarColumna(st, "productos", "sub_categoria TEXT DEFAULT ''");
-            // Image classification visual attributes (fashion-image-classification PR1) —
-            // additive/fill-only, populated by MlEnricher from ml_embeddings.py scores in PR5.
-            migrarColumna(st, "productos", "fit TEXT DEFAULT ''");
-            migrarColumna(st, "productos", "estampado TEXT DEFAULT ''");
-            migrarColumna(st, "productos", "escote TEXT DEFAULT ''");
-            migrarColumna(st, "productos", "color_dominante TEXT DEFAULT ''");
-
-            // image_embeddings — Marqo-FashionSigLIP embedding cache keyed by
-            // image URL (fashion-image-classification PR1). Reused by both the
-            // full-catalog backfill and the incremental scrape path (PR3a/PR5).
-            // model_version bump invalidates the cache (treated as a miss).
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS image_embeddings (
-                    url           TEXT PRIMARY KEY,
-                    embedding     BLOB NOT NULL,
-                    dim           INTEGER NOT NULL,
-                    model_version TEXT NOT NULL,
-                    computed_at   TEXT NOT NULL
-                )""");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS precio_historico (
-                    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-                    url     TEXT NOT NULL,
-                    precio  REAL NOT NULL,
-                    fecha   TEXT NOT NULL,
-                    UNIQUE(url, fecha)
-                )""");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS ml_output (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    payload    TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )""");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS sitios_dinamicos (
-                    nombre     TEXT PRIMARY KEY,
-                    url        TEXT NOT NULL,
-                    plataforma TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )""");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS categoria_stats (
-                    categoria  TEXT PRIMARY KEY,
-                    payload    TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )""");
-
-            // Indices
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_prod_sitio  ON productos(sitio)");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_prod_activo ON productos(activo)");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_hist_url   ON precio_historico(url)");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS favoritos (
-                    url             TEXT PRIMARY KEY,
-                    sitio           TEXT NOT NULL,
-                    nombre          TEXT,
-                    added_at        TEXT,
-                    last_checked_at TEXT
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_fav_sitio ON favoritos(sitio)");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS outfit_feedback (
-                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                    genero        TEXT,
-                    liked         INTEGER NOT NULL DEFAULT 0,
-                    torso_url     TEXT,
-                    piernas_url   TEXT,
-                    calzado_url   TEXT,
-                    accesorio_url TEXT,
-                    created_at    TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_outfit_fb_liked ON outfit_feedback(liked)");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS outfit_feedback_item (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    genero     TEXT,
-                    slot       TEXT NOT NULL,
-                    url        TEXT NOT NULL,
-                    liked      INTEGER NOT NULL DEFAULT 0,
-                    estilo     TEXT NOT NULL DEFAULT 'gym',
-                    created_at TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_liked ON outfit_feedback_item(liked)");
-
-            // Migración: separar la señal de gusto por estilo (gym vs casual).
-            // Filas viejas del builder → 'gym'; filas del feed (slot='catalog') → 'catalog'.
-            // El backfill es idempotente: solo re-etiqueta filas 'catalog' aún marcadas
-            // 'gym' por el default de la columna recién agregada.
-            migrarColumna(st, "outfit_feedback_item", "estilo TEXT NOT NULL DEFAULT 'gym'");
-            st.executeUpdate(
-                "UPDATE outfit_feedback_item SET estilo='catalog' WHERE slot='catalog' AND estilo='gym'");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_ofi_estilo ON outfit_feedback_item(estilo)");
-
-            // categoria_dismiss — "no me interesa esta categoría" en el feed de
-            // recomendados (Decision 1 de design.md, personalized-recommendations-feed).
-            // Tabla dedicada, NO un sentinel blank-marca en outfit_feedback_item, para
-            // evitar colisión con productos sin marca reales (ver design.md Decision 1).
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS categoria_dismiss (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    categoria  TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_catdismiss_cat ON categoria_dismiss(categoria)");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS financiacion_presets (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    label      TEXT NOT NULL,
-                    recargo_pct REAL NOT NULL,
-                    cuotas     INTEGER NOT NULL,
-                    activo     INTEGER DEFAULT 0,
-                    created_at TEXT NOT NULL
-                )""");
-
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS saved_outfits (
-                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre           TEXT NOT NULL DEFAULT 'Outfit',
-                    slots_json       TEXT NOT NULL,
-                    suplementos_json TEXT,
-                    total_estimado   REAL NOT NULL DEFAULT 0,
-                    created_at       TEXT NOT NULL
-                )""");
-
-            // cron_jobs / cron_executions — scraper-cronjobs (PR1 backend).
-            // sitios_json usa el mismo formato que talles en `productos` (array
-            // Jackson); [] = todos los sitios (mismo criterio que /api/scrape sin
-            // seleccion). next_run_at/last_run_at son ISO (LocalDateTime.toString())
-            // en la zona del server (decision 7 — single-tz v1).
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS cron_jobs (
-                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name          TEXT    NOT NULL,
-                    precio_min    REAL    NOT NULL DEFAULT 0,
-                    precio_max    REAL    NOT NULL DEFAULT 0,
-                    sitios_json   TEXT    NOT NULL DEFAULT '[]',
-                    force_retrain INTEGER NOT NULL DEFAULT 0,
-                    use_gpu       INTEGER NOT NULL DEFAULT 1,
-                    cron_expr     TEXT    NOT NULL,
-                    enabled       INTEGER NOT NULL DEFAULT 1,
-                    created_at    TEXT    NOT NULL,
-                    updated_at    TEXT    NOT NULL,
-                    last_run_at   TEXT,
-                    next_run_at   TEXT
-                )""");
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS cron_executions (
-                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                    job_id         INTEGER NOT NULL,
-                    started_at     TEXT    NOT NULL,
-                    finished_at    TEXT,
-                    status         TEXT    NOT NULL,
-                    skipped_reason TEXT,
-                    duration_ms    INTEGER,
-                    log_output     TEXT,
-                    FOREIGN KEY(job_id) REFERENCES cron_jobs(id)
-                )""");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_cron_exec_job ON cron_executions(job_id, id DESC)");
-            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled, next_run_at)");
-        }
-        seedPresetIlustrativoSiVacio();
-    }
-
-    // ─── Badge key migration (badges-oportunidades-revamp) ─────────────────
-
-    /**
-     * Old (Spanish snake_case) → new (English) badge key mapping — spec
-     * "Badge Key Taxonomy → Renamed Keys and Labels". Kept as the single
-     * source of truth for the one-time startup backfill below.
-     */
-    private static final Map<String, String> BADGE_KEY_MIGRATION = Map.of(
-            "precio_historico_bajo", "all_time_low",
-            "precio_bajo",           "below_market",
-            "oferta_real",           "verified_deal",
-            "tendencia",             "trending",
-            "precio_bajando",        "price_dropping",
-            "precio_alto",           "above_market",
-            "descuento_cosmetico",   "fake_discount"
-    );
-
-    /**
-     * Idempotent startup backfill (design D1, spec "ml_badge Migration and
-     * Backfill"): rewrites any {@code productos.ml_badge} row still holding
-     * one of the 7 old single-value keys to its new key. Runs once per
-     * {@code initEn} call, right after schema creation/migration. Idempotent
-     * by construction — the WHERE clause only ever matches the 7 old-key
-     * literals, and a new key never re-matches on a subsequent run.
-     */
-    void backfillBadgeKeys() {
-        String caseExpr = BADGE_KEY_MIGRATION.entrySet().stream()
-                .map(e -> "WHEN '" + e.getKey() + "' THEN '" + e.getValue() + "'")
-                .collect(java.util.stream.Collectors.joining(" "));
-        String inClause = BADGE_KEY_MIGRATION.keySet().stream()
-                .map(k -> "'" + k + "'")
-                .collect(java.util.stream.Collectors.joining(","));
-        String sql = "UPDATE productos SET ml_badge = CASE ml_badge " + caseExpr
-                + " ELSE ml_badge END WHERE ml_badge IN (" + inClause + ")";
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (Statement st = conn.createStatement()) {
-                int filas = st.executeUpdate(sql);
-                conn.commit();
-                if (filas > 0) {
-                    LOG.info("[DB] Migración de badges: {} filas actualizadas de keys viejas a nuevas.", filas);
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error en backfillBadgeKeys: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+            return "DataSource";
         }
     }
 
@@ -431,15 +87,13 @@ public class DatabaseService {
      * frente al total de productos activos.
      */
     public long contarEmbeddings() {
-        if (readConn == null) return 0L;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM image_embeddings")) {
-                return rs.next() ? rs.getLong(1) : 0L;
-            } catch (SQLException e) {
-                LOG.error("[DB] Error al contar image_embeddings", e);
-                return 0L;
-            }
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM image_embeddings")) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        } catch (SQLException e) {
+            LOG.error("[DB] Error al contar image_embeddings", e);
+            return 0L;
         }
     }
 
@@ -459,18 +113,20 @@ public class DatabaseService {
      * que el usuario configure nada manualmente.
      */
     private void seedPresetIlustrativoSiVacio() throws SQLException {
-        try (Statement st = conn.createStatement();
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
             if (rs.next() && rs.getInt(1) == 0) {
-                crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                crearPresetInterno(c, PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
                         PRESET_ILUSTRATIVO_CUOTAS, true);
                 LOG.info("[DB] Preset ilustrativo creado y activado (tabla vacía).");
             }
         }
     }
 
-    private int crearPresetInterno(String label, double recargoPct, int cuotas, boolean activo) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("""
+    private int crearPresetInterno(Connection c, String label, double recargoPct, int cuotas, boolean activo)
+            throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("""
                 INSERT INTO financiacion_presets (label, recargo_pct, cuotas, activo, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """, Statement.RETURN_GENERATED_KEYS)) {
@@ -488,38 +144,34 @@ public class DatabaseService {
 
     public List<Preset> listarPresets() {
         List<Preset> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
-                while (rs.next()) {
-                    result.add(new Preset(
-                            rs.getInt("id"), rs.getString("label"),
-                            rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
-                            rs.getInt("activo") == 1));
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error listando presets: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
+            while (rs.next()) {
+                result.add(new Preset(
+                        rs.getInt("id"), rs.getString("label"),
+                        rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
+                        rs.getInt("activo") == 1));
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando presets: {}", e.getMessage());
         }
         return result;
     }
 
     public Optional<Preset> cargarPresetActivo() {
-        if (readConn == null) return Optional.empty();
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo=1 LIMIT 1")) {
-                if (rs.next()) {
-                    return Optional.of(new Preset(
-                            rs.getInt("id"), rs.getString("label"),
-                            rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true));
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error cargando preset activo: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo=1 LIMIT 1")) {
+            if (rs.next()) {
+                return Optional.of(new Preset(
+                        rs.getInt("id"), rs.getString("label"),
+                        rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true));
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando preset activo: {}", e.getMessage());
         }
         return Optional.empty();
     }
@@ -530,22 +182,15 @@ public class DatabaseService {
      * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
      */
     public int crearPreset(String label, double recargoPct, int cuotas) {
-        if (conn == null) return -1;
         if (cuotas <= 0 || recargoPct <= -100) {
             LOG.warn("[DB] crearPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return -1;
         }
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try {
-                int id = crearPresetInterno(label, recargoPct, cuotas, false);
-                conn.commit();
-                return id;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error creando preset: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return -1;
-            }
+        try (Connection c = dataSource.getConnection()) {
+            return crearPresetInterno(c, label, recargoPct, cuotas, false);
+        } catch (Exception e) {
+            LOG.warn("[DB] Error creando preset: {}", e.getMessage());
+            return -1;
         }
     }
 
@@ -556,33 +201,27 @@ public class DatabaseService {
      * y recargoPct&gt;-100), o si ocurre un error.
      */
     public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
-        if (conn == null) return false;
         if (cuotas <= 0 || recargoPct <= -100) {
             LOG.warn("[DB] editarPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return false;
         }
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     UPDATE financiacion_presets SET label=?, recargo_pct=?, cuotas=? WHERE id=?
                     """)) {
-                ps.setString(1, label);
-                ps.setDouble(2, recargoPct);
-                ps.setInt(3, cuotas);
-                ps.setInt(4, id);
-                int filasEditadas = ps.executeUpdate();
-                if (filasEditadas == 0) {
-                    LOG.warn("[DB] editarPreset: id {} no existe.", id);
-                    conn.rollback();
-                    return false;
-                }
-                conn.commit();
-                return true;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error editando preset {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+            ps.setString(1, label);
+            ps.setDouble(2, recargoPct);
+            ps.setInt(3, cuotas);
+            ps.setInt(4, id);
+            int filasEditadas = ps.executeUpdate();
+            if (filasEditadas == 0) {
+                LOG.warn("[DB] editarPreset: id {} no existe.", id);
                 return false;
             }
+            return true;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error editando preset {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
@@ -592,28 +231,30 @@ public class DatabaseService {
      * evita quedar sin ningún preset activo por un id inválido/obsoleto.
      */
     public boolean activarPreset(int id) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement psOff = conn.prepareStatement(
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement psOff = c.prepareStatement(
                     "UPDATE financiacion_presets SET activo=0 WHERE activo=1");
-                 PreparedStatement psOn = conn.prepareStatement(
+                 PreparedStatement psOn = c.prepareStatement(
                     "UPDATE financiacion_presets SET activo=1 WHERE id=?")) {
                 psOff.executeUpdate();
                 psOn.setInt(1, id);
                 int filasActivadas = psOn.executeUpdate();
                 if (filasActivadas == 0) {
                     LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
-                    conn.rollback();
+                    c.rollback();
                     return false;
                 }
-                conn.commit();
+                c.commit();
                 return true;
             } catch (Exception e) {
                 LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
                 return false;
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
@@ -633,235 +274,161 @@ public class DatabaseService {
      *         borrado; {@code false} si no existía (no-op) o si ocurrió un error.
      */
     public boolean eliminarPreset(int id) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
                 int total;
-                try (Statement st = conn.createStatement();
+                try (Statement st = c.createStatement();
                      ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
                     total = rs.next() ? rs.getInt(1) : 0;
                 }
 
                 int filasBorradas;
-                try (PreparedStatement ps = conn.prepareStatement(
+                try (PreparedStatement ps = c.prepareStatement(
                         "DELETE FROM financiacion_presets WHERE id=?")) {
                     ps.setInt(1, id);
                     filasBorradas = ps.executeUpdate();
                 }
 
                 if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
-                    crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                    crearPresetInterno(c, PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
                             PRESET_ILUSTRATIVO_CUOTAS, true);
                     LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
                 }
 
-                conn.commit();
+                c.commit();
                 return filasBorradas > 0;
             } catch (Exception e) {
                 LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
                 return false;
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
-    // ─── Upsert de productos ─────────────────────────────────────────────────
+    // ─── Upsert de productos (write-path, design D2) ─────────────────────────
 
     /**
-     * Aplica la lógica de merge al dataset completo de un scraping.
-     * Retorna estadísticas: {nuevos, actualizados, sinCambios, desactivados}
+     * Aplica la lógica de merge al dataset completo de un scraping, delegando
+     * la decisión de "cambió el precio" y el insert/upsert/historial a
+     * {@code sp_upsert_run} (server-side, design D2) — ya NO hay una lectura
+     * previa {@code getPreciosActuales()} en Java que pueda desincronizarse
+     * con un writer concurrente. Retorna estadísticas: {nuevos, actualizados,
+     * sinCambios, desactivados}.
      */
     public UpsertStats upsertProductos(List<Product> productos) {
-        if (conn == null) return new UpsertStats(0, 0, 0, 0);
-
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
-        int nuevos = 0, actualizados = 0, sinCambios = 0;
-
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
-                // 1. Obtener precios actuales de todos los productos activos
-                Map<String, Double> preciosActuales = getPreciosActuales();
-                Set<String> urlsNuevoRun = new HashSet<>();
+                String rowsJson = buildRowsJson(productos, now, today, true);
 
-                // RELY-001 fix: fit/estampado/escote/color_dominante use COALESCE(NULLIF(excluded.x,''), x)
-                // instead of a blind `= excluded.x` — ml_pipeline.py only populates these 4 keys for the
-                // needs_image_fallback-gated subset of a given run (capped at 400), so every OTHER product
-                // arrives here with blank visual fields even though it may already have non-blank values
-                // persisted from an earlier run or the backfill CLI. A blind overwrite silently wiped those
-                // back to '' on every regular scrape. Mirrors ml_embeddings.py's own additive invariant
-                // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must only ever ADD signal,
-                // never remove it").
-                String upsertSql = """
-                    INSERT INTO productos
-                        (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
-                         talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                         rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,
-                         fit,estampado,escote,color_dominante,activo,touched_at,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
-                    ON CONFLICT(url) DO UPDATE SET
-                        sitio        = excluded.sitio,
-                        nombre       = excluded.nombre,
-                        precio       = excluded.precio,
-                        precio_orig  = excluded.precio_orig,
-                        imagen_url   = excluded.imagen_url,
-                        categoria    = excluded.categoria,
-                        genero       = excluded.genero,
-                        talles       = excluded.talles,
-                        ml_badge     = excluded.ml_badge,
-                        ml_score     = excluded.ml_score,
-                        ml_oferta    = excluded.ml_oferta,
-                        ml_tendencia = excluded.ml_tendencia,
-                        ml_segment   = excluded.ml_segment,
-                        ml_zscore    = excluded.ml_zscore,
-                        rubro        = excluded.rubro,
-                        marca        = excluded.marca,
-                        gymrat       = excluded.gymrat,
-                        marca_premium = excluded.marca_premium,
-                        cantidad_unidades = excluded.cantidad_unidades,
-                        sub_categoria = excluded.sub_categoria,
-                        fit             = COALESCE(NULLIF(excluded.fit,''), fit),
-                        estampado       = COALESCE(NULLIF(excluded.estampado,''), estampado),
-                        escote          = COALESCE(NULLIF(excluded.escote,''), escote),
-                        color_dominante = COALESCE(NULLIF(excluded.color_dominante,''), color_dominante),
-                        activo       = 1,
-                        touched_at   = excluded.touched_at
-                    """;
-
-                String histSql = """
-                    INSERT OR IGNORE INTO precio_historico (url, precio, fecha)
-                    VALUES (?, ?, ?)
-                    """;
-
-                try (PreparedStatement psUpsert = conn.prepareStatement(upsertSql);
-                     PreparedStatement psHist   = conn.prepareStatement(histSql)) {
-
-                    for (Product p : productos) {
-                        if (p.url() == null || p.url().isBlank()) continue;
-                        urlsNuevoRun.add(p.url());
-
-                        String tallesJson = MAPPER.writeValueAsString(
-                                p.talles() != null ? p.talles() : List.of());
-
-                        // ML fields
-                        // ml_badge: comma-delimited, principal-first (design D1) — reuses the
-                        // existing TEXT column, no schema change. Empty list -> "".
-                        String badge    = (p.ml() != null && p.ml().badges() != null)
-                                ? String.join(",", p.ml().badges()) : "";
-                        int    score    = p.ml() != null ? p.ml().scoreP()        : 50;
-                        int    oferta   = (p.ml() != null && p.ml().ofertaReal()) ? 1 : 0;
-                        String tendencia = p.ml() != null ? p.ml().tendencia()    : "";
-
-                        psUpsert.setString(1,  p.url());
-                        psUpsert.setString(2,  p.sitio());
-                        psUpsert.setString(3,  p.nombre());
-                        psUpsert.setDouble(4,  p.precio());
-                        psUpsert.setString(5,  p.precioOriginal());
-                        psUpsert.setString(6,  p.imagenUrl());
-                        psUpsert.setString(7,  p.categoria());
-                        psUpsert.setString(8,  p.genero());
-                        psUpsert.setString(9,  tallesJson);
-                        psUpsert.setString(10, badge);
-                        psUpsert.setInt   (11, score);
-                        psUpsert.setInt   (12, oferta);
-                        psUpsert.setString(13, tendencia);
-                        psUpsert.setString(14, p.ml() != null ? p.ml().segment() : "standard");
-                        psUpsert.setDouble(15, p.ml() != null ? p.ml().zScore() : 0.0);
-                        psUpsert.setString(16, p.rubro() != null ? p.rubro() : "indumentaria");
-                        psUpsert.setString(17, p.marca() != null ? p.marca() : "");
-                        psUpsert.setInt   (18, p.gymrat() ? 1 : 0);
-                        psUpsert.setInt   (19, p.marcaPremium() ? 1 : 0);
-                        psUpsert.setInt   (20, p.cantidadUnidades());
-                        psUpsert.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
-
-                        Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
-                        psUpsert.setString(22, visual.fit()            != null ? visual.fit()            : "");
-                        psUpsert.setString(23, visual.estampado()      != null ? visual.estampado()      : "");
-                        psUpsert.setString(24, visual.escote()         != null ? visual.escote()         : "");
-                        psUpsert.setString(25, visual.colorDominante() != null ? visual.colorDominante() : "");
-                        psUpsert.setString(26, now);   // touched_at
-                        psUpsert.setString(27, now);   // created_at
-                        psUpsert.executeUpdate();
-
-                        Double prevPrecio = preciosActuales.get(p.url());
-                        if (prevPrecio == null) {
-                            // Producto nuevo
-                            nuevos++;
-                            psHist.setString(1, p.url());
-                            psHist.setDouble(2, p.precio());
-                            psHist.setString(3, today);
-                            psHist.executeUpdate();
-                        } else if (Math.abs(prevPrecio - p.precio()) > 0.01) {
-                            // Precio cambió
-                            actualizados++;
-                            psHist.setString(1, p.url());
-                            psHist.setDouble(2, p.precio());
-                            psHist.setString(3, today);
-                            psHist.executeUpdate();
-                        } else {
-                            sinCambios++;
+                int nuevos = 0, actualizados = 0, sinCambios = 0;
+                try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
+                    ps.setString(1, rowsJson);
+                    ps.setBoolean(2, true);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            JsonNode stats = MAPPER.readTree(rs.getString(1));
+                            nuevos       = stats.path("nuevos").asInt(0);
+                            actualizados = stats.path("actualizados").asInt(0);
+                            sinCambios   = stats.path("sinCambios").asInt(0);
                         }
                     }
                 }
 
-                // 2. Soft-delete: productos en DB que no aparecieron en este run
-                int desactivados = softDeleteAusentes(urlsNuevoRun, now);
+                Set<String> urlsNuevoRun = new LinkedHashSet<>();
+                for (Product p : productos) {
+                    if (p.url() != null && !p.url().isBlank()) urlsNuevoRun.add(p.url());
+                }
+                int desactivados = softDeleteAusentes(c, urlsNuevoRun, now);
 
-                // 3. Purgar historial > 90 días
-                purgarHistorialViejo();
+                purgarHistorialViejo(c);
 
-                conn.commit();
+                c.commit();
 
                 LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
                         nuevos, actualizados, sinCambios, desactivados);
                 return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
-
             } catch (Exception e) {
                 LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
                 return new UpsertStats(0, 0, 0, 0);
             }
+        } catch (SQLException e) {
+            LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
+            return new UpsertStats(0, 0, 0, 0);
         }
     }
 
-    private Map<String, Double> getPreciosActuales() throws SQLException {
-        Map<String, Double> map = new HashMap<>();
-        try (Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery("SELECT url, precio FROM productos WHERE activo=1")) {
-            while (rs.next()) map.put(rs.getString(1), rs.getDouble(2));
+    /**
+     * Serializa el batch de productos al array JSON consumido por
+     * {@code sp_upsert_run} — mismo set de columnas que antes armaba el
+     * {@code PreparedStatement} Java, ahora empaquetado como filas jsonb.
+     */
+    private String buildRowsJson(List<Product> productos, String now, String fecha, boolean includeVisual)
+            throws Exception {
+        ArrayNode arr = MAPPER.createArrayNode();
+        for (Product p : productos) {
+            if (p.url() == null || p.url().isBlank()) continue;
+            ObjectNode row = arr.addObject();
+            row.put("url", p.url());
+            row.put("sitio", p.sitio());
+            row.put("nombre", p.nombre());
+            row.put("precio", p.precio());
+            row.put("precioOrig", p.precioOriginal());
+            row.put("imagenUrl", p.imagenUrl());
+            row.put("categoria", p.categoria());
+            row.put("genero", p.genero());
+            row.put("talles", MAPPER.writeValueAsString(p.talles() != null ? p.talles() : List.of()));
+            String badge = (p.ml() != null && p.ml().badges() != null)
+                    ? String.join(",", p.ml().badges()) : "";
+            row.put("mlBadge", badge);
+            row.put("mlScore", p.ml() != null ? p.ml().scoreP() : 50);
+            row.put("mlOferta", (p.ml() != null && p.ml().ofertaReal()) ? 1 : 0);
+            row.put("mlTendencia", p.ml() != null ? p.ml().tendencia() : "");
+            row.put("mlSegment", p.ml() != null ? p.ml().segment() : "standard");
+            row.put("mlZscore", p.ml() != null ? p.ml().zScore() : 0.0);
+            row.put("rubro", p.rubro() != null ? p.rubro() : "indumentaria");
+            row.put("marca", p.marca() != null ? p.marca() : "");
+            row.put("gymrat", p.gymrat() ? 1 : 0);
+            row.put("marcaPremium", p.marcaPremium() ? 1 : 0);
+            row.put("cantidadUnidades", p.cantidadUnidades());
+            row.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+
+            if (includeVisual) {
+                Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+                row.put("fit", visual.fit() != null ? visual.fit() : "");
+                row.put("estampado", visual.estampado() != null ? visual.estampado() : "");
+                row.put("escote", visual.escote() != null ? visual.escote() : "");
+                row.put("colorDominante", visual.colorDominante() != null ? visual.colorDominante() : "");
+            }
+
+            row.put("now", now);
+            row.put("fecha", fecha);
         }
-        return map;
+        return MAPPER.writeValueAsString(arr);
     }
 
-    private int softDeleteAusentes(Set<String> urlsPresentes, String now) throws SQLException {
-        // Traer todos los urls activos
-        List<String> activos = new ArrayList<>();
-        try (Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery("SELECT url FROM productos WHERE activo=1")) {
-            while (rs.next()) activos.add(rs.getString(1));
-        }
-        List<String> ausentes = activos.stream()
-                .filter(u -> !urlsPresentes.contains(u))
-                .toList();
-        if (ausentes.isEmpty()) return 0;
-
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE productos SET activo=0, touched_at=? WHERE url=?")) {
-            for (String url : ausentes) {
-                ps.setString(1, now);
-                ps.setString(2, url);
-                ps.executeUpdate();
+    private int softDeleteAusentes(Connection c, Set<String> urlsPresentes, String now) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT sp_soft_delete_ausentes(?, ?)")) {
+            Array urlArray = c.createArrayOf("text", urlsPresentes.toArray());
+            ps.setArray(1, urlArray);
+            ps.setString(2, now);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
             }
         }
-        return ausentes.size();
     }
 
-    private void purgarHistorialViejo() throws SQLException {
+    private void purgarHistorialViejo(Connection c) throws SQLException {
         String cutoff = LocalDate.now().minusDays(MAX_HIST_DAYS).format(DATE);
-        try (PreparedStatement ps = conn.prepareStatement(
+        try (PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM precio_historico WHERE fecha < ? " +
                 "AND url NOT IN (SELECT url FROM favoritos)")) {
             ps.setString(1, cutoff);
@@ -870,137 +437,74 @@ public class DatabaseService {
         }
     }
 
-
     /**
      * Upsert parcial durante scraping progresivo.
      * NUNCA hace soft-delete — solo inserta/actualiza los productos dados.
      * El soft-delete lo hace upsertProductos() al final del run completo.
+     * Columnas visuales excluidas a propósito (mismo motivo que antes: en
+     * esta etapa del pipeline VisualAttrs todavía no está poblado).
      */
     public void upsertParcial(List<Product> productos) {
-        if (conn == null || productos.isEmpty()) return;
+        if (productos == null || productos.isEmpty()) return;
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
-                // Columnas visuales (fit/estampado/escote/color_dominante) excluidas a propósito:
-                // en esta etapa del pipeline (upsert parcial durante scraping) VisualAttrs todavía
-                // no está poblado (se calcula recién en MlEnricher), así que se dejan sin tocar acá.
-                String upsertSql = """
-                    INSERT INTO productos
-                        (url,sitio,nombre,precio,precio_orig,imagen_url,categoria,genero,
-                         talles,ml_badge,ml_score,ml_oferta,ml_tendencia,ml_segment,ml_zscore,
-                         rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria,activo,touched_at,created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
-                    ON CONFLICT(url) DO UPDATE SET
-                        sitio        = excluded.sitio,
-                        nombre       = excluded.nombre,
-                        precio       = excluded.precio,
-                        precio_orig  = excluded.precio_orig,
-                        imagen_url   = excluded.imagen_url,
-                        categoria    = excluded.categoria,
-                        genero       = excluded.genero,
-                        talles       = excluded.talles,
-                        rubro        = excluded.rubro,
-                        marca        = excluded.marca,
-                        gymrat       = excluded.gymrat,
-                        marca_premium = excluded.marca_premium,
-                        cantidad_unidades = excluded.cantidad_unidades,
-                        sub_categoria = excluded.sub_categoria,
-                        activo       = 1,
-                        touched_at   = excluded.touched_at
-                    """;
-                String histSql = "INSERT OR IGNORE INTO precio_historico (url,precio,fecha) VALUES(?,?,?)";
-                Map<String,Double> prevPrecios = getPreciosActuales();
-
-                try (PreparedStatement psU = conn.prepareStatement(upsertSql);
-                     PreparedStatement psH = conn.prepareStatement(histSql)) {
-                    for (Product p : productos) {
-                        if (p.url() == null || p.url().isBlank()) continue;
-                        String tallesJson = MAPPER.writeValueAsString(p.talles() != null ? p.talles() : List.of());
-                        psU.setString(1,  p.url());
-                        psU.setString(2,  p.sitio());
-                        psU.setString(3,  p.nombre());
-                        psU.setDouble(4,  p.precio());
-                        psU.setString(5,  p.precioOriginal() != null ? p.precioOriginal() : "");
-                        psU.setString(6,  p.imagenUrl()      != null ? p.imagenUrl()      : "");
-                        psU.setString(7,  p.categoria()      != null ? p.categoria()      : "");
-                        psU.setString(8,  p.genero()         != null ? p.genero()         : "");
-                        psU.setString(9,  tallesJson);
-                        psU.setString(10, "");                        // ml_badge
-                        psU.setInt   (11, 50);                        // ml_score
-                        psU.setInt   (12, 0);                         // ml_oferta
-                        psU.setString(13, "");                        // ml_tendencia
-                        psU.setString(14, "standard");                // ml_segment
-                        psU.setDouble(15, 0.0);                       // ml_zscore
-                        psU.setString(16, p.rubro() != null ? p.rubro() : "indumentaria"); // rubro
-                        psU.setString(17, p.marca() != null ? p.marca() : "");             // marca
-                        psU.setInt   (18, p.gymrat() ? 1 : 0);                             // gymrat
-                        psU.setInt   (19, p.marcaPremium() ? 1 : 0);                       // marca_premium
-                        psU.setInt   (20, p.cantidadUnidades());                           // cantidad_unidades
-                        psU.setString(21, p.subCategoria() != null ? p.subCategoria() : ""); // sub_categoria
-                        psU.setString(22, now);                       // touched_at
-                        psU.setString(23, now);                       // created_at
-                        psU.executeUpdate();
-                        Double prev = prevPrecios.get(p.url());
-                        if (prev == null || Math.abs(prev - p.precio()) > 0.01) {
-                            psH.setString(1, p.url());
-                            psH.setDouble(2, p.precio());
-                            psH.setString(3, today);
-                            psH.executeUpdate();
-                        }
-                    }
+                String rowsJson = buildRowsJson(productos, now, today, false);
+                try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
+                    ps.setString(1, rowsJson);
+                    ps.setBoolean(2, false);
+                    ps.executeQuery().close();
                 }
-                conn.commit();
+                c.commit();
             } catch (Exception e) {
                 LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
         }
     }
 
     // ─── Cargar productos ────────────────────────────────────────────────────
 
     public List<Product> cargarProductos() {
-        if (readConn == null) return List.of();
         List<Product> result = new ArrayList<>();
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
-                    "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                    "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
-                    "fit,estampado,escote,color_dominante " +
-                    "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
-                while (rs.next()) {
-                    result.add(productoDesdeFila(rs));
-                }
-                LOG.info("[DB] Cargados {} productos activos", result.size());
-            } catch (Exception e) {
-                LOG.error("[DB] Error cargando productos: {}", e.getMessage(), e);
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
+                "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+                "fit,estampado,escote,color_dominante " +
+                "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
+            while (rs.next()) {
+                result.add(productoDesdeFila(rs));
             }
+            LOG.info("[DB] Cargados {} productos activos", result.size());
+        } catch (Exception e) {
+            LOG.error("[DB] Error cargando productos: {}", e.getMessage(), e);
         }
         return result;
     }
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
     public java.util.Optional<Product> obtenerProducto(String url) {
-        if (readConn == null) return java.util.Optional.empty();
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
-                    "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                    "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
-                    "fit,estampado,escote,color_dominante FROM productos WHERE url=?")) {
-                ps.setString(1, url);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) return java.util.Optional.empty();
-                    return java.util.Optional.of(productoDesdeFila(rs));
-                }
-            } catch (Exception e) {
-                LOG.error("[DB] Error obteniendo producto {}: {}", url, e.getMessage(), e);
-                return java.util.Optional.empty();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
+                "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
+                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+                "fit,estampado,escote,color_dominante FROM productos WHERE url=?")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return java.util.Optional.empty();
+                return java.util.Optional.of(productoDesdeFila(rs));
             }
+        } catch (Exception e) {
+            LOG.error("[DB] Error obteniendo producto {}: {}", url, e.getMessage(), e);
+            return java.util.Optional.empty();
         }
     }
 
@@ -1015,8 +519,8 @@ public class DatabaseService {
             }
         } catch (Exception ignored) {}
 
-        // ml_badge: comma-delimited, principal-first (design D1) -> split back into an
-        // ordered List<String>; "" (or NULL) means no badges.
+        // ml_badge: comma-delimited, principal-first (design D1 badges-oportunidades-revamp) ->
+        // split back into an ordered List<String>; "" (or NULL) means no badges.
         String mlBadgeRaw = rs.getString("ml_badge");
         List<String> badges = (mlBadgeRaw != null && !mlBadgeRaw.isBlank())
                 ? Arrays.asList(mlBadgeRaw.split(","))
@@ -1064,34 +568,36 @@ public class DatabaseService {
     // ─── ML Output ──────────────────────────────────────────────────────────
 
     public void guardarMlOutput(JsonNode mlOutput) {
-        if (conn == null || mlOutput == null) return;
+        if (mlOutput == null) return;
         if (!esMlOutputValido(mlOutput)) {
             LOG.debug("[DB] ML output inválido (sin scores/tendencias) — no se persiste");
             return;
         }
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
                 String json = MAPPER.writeValueAsString(mlOutput);
                 String now  = LocalDateTime.now().format(DT);
-                try (PreparedStatement ps = conn.prepareStatement(
+                try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
                     ps.setString(1, json);
                     ps.setString(2, now);
                     ps.executeUpdate();
                 }
                 // Mantener solo los últimos 10 outputs
-                try (Statement st = conn.createStatement()) {
+                try (Statement st = c.createStatement()) {
                     st.executeUpdate("""
                         DELETE FROM ml_output WHERE id NOT IN (
                             SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
                         )""");
                 }
-                conn.commit();
+                c.commit();
             } catch (Exception e) {
                 LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
         }
     }
 
@@ -1109,17 +615,15 @@ public class DatabaseService {
     }
 
     public JsonNode cargarMlOutput() {
-        if (readConn == null) return null;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT payload FROM ml_output ORDER BY id DESC LIMIT 1")) {
-                if (rs.next()) {
-                    return MAPPER.readTree(rs.getString(1));
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error cargando ML output: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT payload FROM ml_output ORDER BY id DESC LIMIT 1")) {
+            if (rs.next()) {
+                return MAPPER.readTree(rs.getString(1));
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando ML output: {}", e.getMessage());
         }
         return null;
     }
@@ -1128,21 +632,20 @@ public class DatabaseService {
 
     public List<Map<String, Object>> cargarHistorial(String url) {
         List<Map<String, Object>> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha ASC")) {
-                ps.setString(1, url);
-                ResultSet rs = ps.executeQuery();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha ASC")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("fecha",  rs.getString(1));
                     row.put("precio", rs.getDouble(2));
                     result.add(row);
                 }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error historial: {}", e.getMessage());
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error historial: {}", e.getMessage());
         }
         return result;
     }
@@ -1151,60 +654,48 @@ public class DatabaseService {
 
     public void guardarSitio(String nombre, String url, String plataforma) {
         Objects.requireNonNull(nombre, "nombre must not be null");
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO sitios_dinamicos (nombre, url, plataforma, created_at)
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT(nombre) DO UPDATE SET url=excluded.url, plataforma=excluded.plataforma
                     """)) {
-                ps.setString(1, nombre);
-                ps.setString(2, url);
-                ps.setString(3, plataforma);
-                ps.setString(4, LocalDateTime.now().format(DT));
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+            ps.setString(1, nombre);
+            ps.setString(2, url);
+            ps.setString(3, plataforma);
+            ps.setString(4, LocalDateTime.now().format(DT));
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
         }
     }
 
     public void eliminarSitio(String nombre) {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
-                ps.setString(1, nombre);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
+            ps.setString(1, nombre);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
         }
     }
 
     public List<Map<String, String>> cargarSitiosDinamicos() {
         List<Map<String, String>> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT nombre, url, plataforma FROM sitios_dinamicos ORDER BY created_at")) {
-                while (rs.next()) {
-                    Map<String, String> row = new LinkedHashMap<>();
-                    row.put("nombre",     rs.getString(1));
-                    row.put("url",        rs.getString(2));
-                    row.put("plataforma", rs.getString(3));
-                    result.add(row);
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error cargando sitios: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT nombre, url, plataforma FROM sitios_dinamicos ORDER BY created_at")) {
+            while (rs.next()) {
+                Map<String, String> row = new LinkedHashMap<>();
+                row.put("nombre",     rs.getString(1));
+                row.put("url",        rs.getString(2));
+                row.put("plataforma", rs.getString(3));
+                result.add(row);
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando sitios: {}", e.getMessage());
         }
         return result;
     }
@@ -1212,13 +703,13 @@ public class DatabaseService {
     // ─── Categoria Stats ─────────────────────────────────────────────────────────
 
     public void guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode statsNode) {
-        if (conn == null || statsNode == null) return;
+        if (statsNode == null) return;
         String now = LocalDateTime.now().format(DT);
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
                 var it = statsNode.fields();
-                try (PreparedStatement ps = conn.prepareStatement(
+                try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO categoria_stats (categoria, payload, updated_at) VALUES (?,?,?) " +
                         "ON CONFLICT(categoria) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at")) {
                     while (it.hasNext()) {
@@ -1229,25 +720,25 @@ public class DatabaseService {
                         ps.executeUpdate();
                     }
                 }
-                conn.commit();
+                c.commit();
             } catch (Exception e) {
                 LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
         }
     }
 
     public java.util.Map<String, String> cargarCategoriaStats() {
         java.util.Map<String, String> result = new java.util.LinkedHashMap<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT categoria, payload FROM categoria_stats ORDER BY categoria")) {
-                while (rs.next()) result.put(rs.getString(1), rs.getString(2));
-            } catch (Exception e) {
-                LOG.warn("[DB] Error cargando categoria_stats: {}", e.getMessage());
-            }
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT categoria, payload FROM categoria_stats ORDER BY categoria")) {
+            while (rs.next()) result.put(rs.getString(1), rs.getString(2));
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando categoria_stats: {}", e.getMessage());
         }
         return result;
     }
@@ -1256,18 +747,18 @@ public class DatabaseService {
 
     public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
-        if (conn == null || resultados == null || resultados.isEmpty()) return;
+        if (resultados == null || resultados.isEmpty()) return;
         String hoy = LocalDate.now().format(DATE);
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
                 // Borrar los del día para no duplicar
-                try (PreparedStatement del = conn.prepareStatement(
+                try (PreparedStatement del = c.prepareStatement(
                         "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
                     del.setString(1, productoUrl); del.setString(2, sitio); del.setString(3, hoy);
                     del.executeUpdate();
                 }
-                try (PreparedStatement ps = conn.prepareStatement(
+                try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO precios_externos (producto_url,sitio,titulo,precio,externo_url,condicion,fecha) VALUES(?,?,?,?,?,?,?)")) {
                     for (var r : resultados) {
                         ps.setString(1, productoUrl);
@@ -1280,23 +771,24 @@ public class DatabaseService {
                         ps.executeUpdate();
                     }
                 }
-                conn.commit();
+                c.commit();
             } catch (Exception e) {
                 LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
         }
     }
 
     public java.util.List<java.util.Map<String,Object>> cargarPreciosExternos(String productoUrl) {
         var result = new java.util.ArrayList<java.util.Map<String,Object>>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT sitio,titulo,precio,externo_url,condicion,fecha " +
-                    "FROM precios_externos WHERE producto_url=? ORDER BY fecha DESC, precio ASC LIMIT 20")) {
-                ps.setString(1, productoUrl);
-                ResultSet rs = ps.executeQuery();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT sitio,titulo,precio,externo_url,condicion,fecha " +
+                "FROM precios_externos WHERE producto_url=? ORDER BY fecha DESC, precio ASC LIMIT 20")) {
+            ps.setString(1, productoUrl);
+            try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     var row = new java.util.LinkedHashMap<String,Object>();
                     row.put("sitio",     rs.getString("sitio"));
@@ -1307,26 +799,22 @@ public class DatabaseService {
                     row.put("fecha",     rs.getString("fecha"));
                     result.add(row);
                 }
-            } catch (Exception e) { LOG.warn("[DB] Error cargando precios_externos: {}", e.getMessage()); }
-        }
+            }
+        } catch (Exception e) { LOG.warn("[DB] Error cargando precios_externos: {}", e.getMessage()); }
         return result;
     }
 
     /** Actualiza la categoría de un producto (corrección por modelo ML) */
     public void actualizarCategoria(String url, String nuevaCategoria) {
-        if (conn == null || url == null || nuevaCategoria == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE productos SET categoria=? WHERE url=?")) {
-                ps.setString(1, nuevaCategoria);
-                ps.setString(2, url);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando categoria: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        if (url == null || nuevaCategoria == null) return;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE productos SET categoria=? WHERE url=?")) {
+            ps.setString(1, nuevaCategoria);
+            ps.setString(2, url);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando categoria: {}", e.getMessage());
         }
     }
 
@@ -1337,23 +825,19 @@ public class DatabaseService {
      */
     public void actualizarNormalizacion(String url, String categoria, String marca,
                                          String genero, List<String> talles, String subCategoria) {
-        if (conn == null || url == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
-                ps.setString(1, categoria != null ? categoria : "");
-                ps.setString(2, marca != null ? marca : "");
-                ps.setString(3, genero != null ? genero : "");
-                ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-                ps.setString(5, subCategoria != null ? subCategoria : "");
-                ps.setString(6, url);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        if (url == null) return;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
+            ps.setString(1, categoria != null ? categoria : "");
+            ps.setString(2, marca != null ? marca : "");
+            ps.setString(3, genero != null ? genero : "");
+            ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
+            ps.setString(5, subCategoria != null ? subCategoria : "");
+            ps.setString(6, url);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
         }
     }
 
@@ -1362,63 +846,51 @@ public class DatabaseService {
 
     public void guardarFavorito(String url, String sitio, String nombre) {
         Objects.requireNonNull(url, "url must not be null");
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO favoritos (url, sitio, nombre, added_at, last_checked_at)
                     VALUES (?, ?, ?, ?, NULL)
                     ON CONFLICT(url) DO UPDATE SET sitio=excluded.sitio, nombre=excluded.nombre
                     """)) {
-                ps.setString(1, url);
-                ps.setString(2, sitio);
-                ps.setString(3, nombre);
-                ps.setString(4, LocalDateTime.now().format(DT));
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando favorito: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+            ps.setString(1, url);
+            ps.setString(2, sitio);
+            ps.setString(3, nombre);
+            ps.setString(4, LocalDateTime.now().format(DT));
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando favorito: {}", e.getMessage());
         }
     }
 
     public void eliminarFavorito(String url) {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM favoritos WHERE url=?")) {
-                ps.setString(1, url);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error eliminando favorito: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "DELETE FROM favoritos WHERE url=?")) {
+            ps.setString(1, url);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error eliminando favorito: {}", e.getMessage());
         }
     }
 
     public List<Map<String, String>> listarFavoritos() {
         List<Map<String, String>> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT url, sitio, nombre, added_at, last_checked_at " +
-                    "FROM favoritos ORDER BY added_at DESC")) {
-                while (rs.next()) {
-                    Map<String, String> row = new LinkedHashMap<>();
-                    row.put("url",            rs.getString(1));
-                    row.put("sitio",          rs.getString(2));
-                    row.put("nombre",         rs.getString(3));
-                    row.put("added_at",       rs.getString(4));
-                    row.put("last_checked_at", rs.getString(5));
-                    result.add(row);
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error listando favoritos: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT url, sitio, nombre, added_at, last_checked_at " +
+                "FROM favoritos ORDER BY added_at DESC")) {
+            while (rs.next()) {
+                Map<String, String> row = new LinkedHashMap<>();
+                row.put("url",            rs.getString(1));
+                row.put("sitio",          rs.getString(2));
+                row.put("nombre",         rs.getString(3));
+                row.put("added_at",       rs.getString(4));
+                row.put("last_checked_at", rs.getString(5));
+                result.add(row);
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando favoritos: {}", e.getMessage());
         }
         return result;
     }
@@ -1445,26 +917,21 @@ public class DatabaseService {
      * ApiController.buildFeedbackModel).
      */
     public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked, String estilo) {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO outfit_feedback_item
                         (genero, slot, url, liked, estilo, created_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """)) {
-                ps.setString(1, genero);
-                ps.setString(2, slot);
-                ps.setString(3, url);
-                ps.setInt(4, liked ? 1 : 0);
-                ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
-                ps.setString(6, LocalDateTime.now().format(DT));
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+            ps.setString(1, genero);
+            ps.setString(2, slot);
+            ps.setString(3, url);
+            ps.setInt(4, liked ? 1 : 0);
+            ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
+            ps.setString(6, LocalDateTime.now().format(DT));
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
         }
     }
 
@@ -1477,22 +944,20 @@ public class DatabaseService {
      */
     public List<OutfitItemRow> obtenerOutfitFeedback() {
         List<OutfitItemRow> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT slot, url, liked, estilo FROM outfit_feedback_item")) {
-                while (rs.next()) {
-                    String estilo = rs.getString("estilo");
-                    result.add(new OutfitItemRow(
-                            rs.getString("slot"),
-                            rs.getString("url"),
-                            rs.getInt("liked") == 1,
-                            (estilo == null || estilo.isBlank()) ? "gym" : estilo));
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT slot, url, liked, estilo FROM outfit_feedback_item")) {
+            while (rs.next()) {
+                String estilo = rs.getString("estilo");
+                result.add(new OutfitItemRow(
+                        rs.getString("slot"),
+                        rs.getString("url"),
+                        rs.getInt("liked") == 1,
+                        (estilo == null || estilo.isBlank()) ? "gym" : estilo));
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
         }
         return result;
     }
@@ -1505,33 +970,35 @@ public class DatabaseService {
      * categoria ya está dismissed, no inserta una fila duplicada.
      */
     public void guardarCategoriaDismiss(String categoria) {
-        if (conn == null || categoria == null || categoria.isBlank()) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
+        if (categoria == null || categoria.isBlank()) return;
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
             try {
-                try (PreparedStatement check = conn.prepareStatement(
+                try (PreparedStatement check = c.prepareStatement(
                         "SELECT 1 FROM categoria_dismiss WHERE categoria=?")) {
                     check.setString(1, categoria);
                     try (ResultSet rs = check.executeQuery()) {
                         if (rs.next()) {
-                            conn.rollback(); // ya existe — no-op idempotente, resuelve la transacción implícita del SELECT
+                            c.rollback(); // ya existe — no-op idempotente
                             return;
                         }
                     }
                 }
-                try (PreparedStatement ps = conn.prepareStatement("""
+                try (PreparedStatement ps = c.prepareStatement("""
                         INSERT INTO categoria_dismiss (categoria, created_at)
                         VALUES (?, ?)
                         """)) {
                     ps.setString(1, categoria);
                     ps.setString(2, LocalDateTime.now().format(DT));
                     ps.executeUpdate();
-                    conn.commit();
+                    c.commit();
                 }
             } catch (Exception e) {
                 LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
         }
     }
 
@@ -1540,17 +1007,18 @@ public class DatabaseService {
      * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
      */
     public void limpiarOutfitFeedback() {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (Statement st = conn.createStatement()) {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (Statement st = c.createStatement()) {
                 st.executeUpdate("DELETE FROM outfit_feedback_item");
                 st.executeUpdate("DELETE FROM outfit_feedback");
-                conn.commit();
+                c.commit();
             } catch (Exception e) {
                 LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
         }
     }
 
@@ -1561,102 +1029,80 @@ public class DatabaseService {
      * (evita borrar todo por accidente; para eso está el overload sin argumentos).
      */
     public void limpiarOutfitFeedback(String estilo) {
-        if (conn == null || estilo == null || estilo.isBlank()) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM outfit_feedback_item WHERE estilo=?")) {
-                ps.setString(1, estilo);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        if (estilo == null || estilo.isBlank()) return;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "DELETE FROM outfit_feedback_item WHERE estilo=?")) {
+            ps.setString(1, estilo);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
         }
     }
 
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
     public void borrarCategoriaDismiss(String categoria) {
-        if (conn == null || categoria == null || categoria.isBlank()) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM categoria_dismiss WHERE categoria=?")) {
-                ps.setString(1, categoria);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        if (categoria == null || categoria.isBlank()) return;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "DELETE FROM categoria_dismiss WHERE categoria=?")) {
+            ps.setString(1, categoria);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
         }
     }
 
     /** Lee todas las categorias dismissed feed-wide. */
     public Set<String> obtenerCategoriaDismiss() {
         Set<String> result = new HashSet<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT categoria FROM categoria_dismiss")) {
-                while (rs.next()) {
-                    result.add(rs.getString("categoria"));
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error cargando categoria dismiss: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT categoria FROM categoria_dismiss")) {
+            while (rs.next()) {
+                result.add(rs.getString("categoria"));
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error cargando categoria dismiss: {}", e.getMessage());
         }
         return result;
     }
 
     public void marcarDescontinuado(String url) {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE productos SET activo=0 WHERE url=?")) {
-                ps.setString(1, url);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error marcando descontinuado: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE productos SET activo=0 WHERE url=?")) {
+            ps.setString(1, url);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error marcando descontinuado: {}", e.getMessage());
         }
     }
 
     public void tocarFavorito(String url) {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE favoritos SET last_checked_at=? WHERE url=?")) {
-                ps.setString(1, LocalDateTime.now().format(DT));
-                ps.setString(2, url);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando last_checked_at: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE favoritos SET last_checked_at=? WHERE url=?")) {
+            ps.setString(1, LocalDateTime.now().format(DT));
+            ps.setString(2, url);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando last_checked_at: {}", e.getMessage());
         }
     }
 
     public boolean esProductoActivo(String url) {
-        if (readConn == null) return false;
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT activo FROM productos WHERE url=?")) {
-                ps.setString(1, url);
-                try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next() && rs.getInt(1) == 1;
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error consultando activo: {}", e.getMessage());
-                return false;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT activo FROM productos WHERE url=?")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) == 1;
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error consultando activo: {}", e.getMessage());
+            return false;
         }
     }
 
@@ -1664,17 +1110,16 @@ public class DatabaseService {
 
     public List<HistorialEntry> getHistorialPrecios(String url) {
         var result = new java.util.ArrayList<HistorialEntry>();
-        if (readConn == null || url == null) return result;
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha")) {
-                ps.setString(1, url);
-                var rs = ps.executeQuery();
-                while (rs.next())
-                    result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
-            } catch (Exception e) {
-                LOG.warn("[DB] historial {}: {}", url, e.getMessage());
-            }
+        if (url == null) return result;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha")) {
+            ps.setString(1, url);
+            var rs = ps.executeQuery();
+            while (rs.next())
+                result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+        } catch (Exception e) {
+            LOG.warn("[DB] historial {}: {}", url, e.getMessage());
         }
         return result;
     }
@@ -1692,7 +1137,7 @@ public class DatabaseService {
      */
     public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
         Map<String, List<HistorialEntry>> result = new HashMap<>();
-        if (readConn == null || urls == null || urls.isEmpty()) return result;
+        if (urls == null || urls.isEmpty()) return result;
 
         List<String> validUrls = urls.stream()
                 .filter(u -> u != null && !u.isBlank())
@@ -1704,21 +1149,20 @@ public class DatabaseService {
         String sql = "SELECT url, fecha, precio FROM precio_historico WHERE url IN (" +
                 placeholders + ") ORDER BY url, fecha";
 
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(sql)) {
-                for (int i = 0; i < validUrls.size(); i++) {
-                    ps.setString(i + 1, validUrls.get(i));
-                }
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        String url = rs.getString("url");
-                        result.computeIfAbsent(url, k -> new ArrayList<>())
-                              .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
-                    }
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            for (int i = 0; i < validUrls.size(); i++) {
+                ps.setString(i + 1, validUrls.get(i));
             }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String url = rs.getString("url");
+                    result.computeIfAbsent(url, k -> new ArrayList<>())
+                          .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                }
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
         }
         return result;
     }
@@ -1726,30 +1170,30 @@ public class DatabaseService {
     // ─── Clear methods ───────────────────────────────────────────────────────
 
     public void limpiarProductos() throws SQLException {
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (var st = conn.createStatement()) {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (var st = c.createStatement()) {
                 st.execute("DELETE FROM productos");
                 st.execute("DELETE FROM precio_historico");
                 st.execute("DELETE FROM categoria_stats");
-                conn.commit();
+                c.commit();
                 LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
             } catch (SQLException e) {
-                conn.rollback();
+                c.rollback();
                 throw e;
             }
         }
     }
 
     public void limpiarMlOutput() throws SQLException {
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (var st = conn.createStatement()) {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (var st = c.createStatement()) {
                 st.execute("DELETE FROM ml_output");
-                conn.commit();
+                c.commit();
                 LOG.info("[DB] Datos ML eliminados.");
             } catch (SQLException e) {
-                conn.rollback();
+                c.rollback();
                 throw e;
             }
         }
@@ -1759,233 +1203,198 @@ public class DatabaseService {
 
     /**
      * Persiste un outfit generado con su nombre, slots y suplementos en JSON, y el
-     * total estimado. Retorna el id generado por AUTOINCREMENT, o -1 en error.
+     * total estimado. Retorna el id generado, o -1 en error.
      */
     public int guardarOutfit(String nombre, String slotsJson, String suplementosJson, double total) {
-        if (conn == null) return -1;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO saved_outfits (nombre, slots_json, suplementos_json, total_estimado, created_at)
                     VALUES (?, ?, ?, ?, ?)
                     """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                ps.setString(1, nombre != null ? nombre : "Outfit");
-                ps.setString(2, slotsJson != null ? slotsJson : "[]");
-                ps.setString(3, suplementosJson);
-                ps.setDouble(4, total);
-                ps.setString(5, LocalDateTime.now().format(DT));
-                ps.executeUpdate();
-                int generatedId;
-                try (ResultSet keys = ps.getGeneratedKeys()) {
-                    generatedId = keys.next() ? keys.getInt(1) : -1;
-                }
-                conn.commit();
-                return generatedId;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return -1;
+            ps.setString(1, nombre != null ? nombre : "Outfit");
+            ps.setString(2, slotsJson != null ? slotsJson : "[]");
+            ps.setString(3, suplementosJson);
+            ps.setDouble(4, total);
+            ps.setString(5, LocalDateTime.now().format(DT));
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getInt(1) : -1;
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
+            return -1;
         }
     }
 
     /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
     public List<Map<String, Object>> obtenerOutfitsGuardados() {
         List<Map<String, Object>> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (java.sql.Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT id, nombre, slots_json, suplementos_json, total_estimado, created_at " +
-                    "FROM saved_outfits ORDER BY created_at DESC")) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("id",            rs.getInt("id"));
-                    row.put("nombre",        rs.getString("nombre"));
-                    row.put("totalEstimado", rs.getDouble("total_estimado"));
-                    row.put("createdAt",     rs.getString("created_at"));
-                    String slotsJson = rs.getString("slots_json");
-                    String suplJson  = rs.getString("suplementos_json");
-                    try { row.put("slots",       MAPPER.readValue(slotsJson, List.class)); }
-                    catch (Exception e) { row.put("slots", List.of()); }
-                    try { row.put("suplementos", suplJson != null ? MAPPER.readValue(suplJson, List.class) : List.of()); }
-                    catch (Exception e) { row.put("suplementos", List.of()); }
-                    result.add(row);
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             java.sql.Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id, nombre, slots_json, suplementos_json, total_estimado, created_at " +
+                "FROM saved_outfits ORDER BY created_at DESC")) {
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id",            rs.getInt("id"));
+                row.put("nombre",        rs.getString("nombre"));
+                row.put("totalEstimado", rs.getDouble("total_estimado"));
+                row.put("createdAt",     rs.getString("created_at"));
+                String slotsJson = rs.getString("slots_json");
+                String suplJson  = rs.getString("suplementos_json");
+                try { row.put("slots",       MAPPER.readValue(slotsJson, List.class)); }
+                catch (Exception e) { row.put("slots", List.of()); }
+                try { row.put("suplementos", suplJson != null ? MAPPER.readValue(suplJson, List.class) : List.of()); }
+                catch (Exception e) { row.put("suplementos", List.of()); }
+                result.add(row);
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
         }
         return result;
     }
 
     /** Elimina un outfit guardado por id. Retorna true si existía. */
     public boolean eliminarOutfitGuardado(int id) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM saved_outfits WHERE id=?")) {
-                ps.setInt(1, id);
-                int rows = ps.executeUpdate();
-                conn.commit();
-                return rows > 0;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "DELETE FROM saved_outfits WHERE id=?")) {
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
     public boolean renombrarOutfit(int id, String nombre) {
-        if (conn == null || nombre == null || nombre.isBlank()) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
-                ps.setString(1, nombre.trim());
-                ps.setInt(2, id);
-                int rows = ps.executeUpdate();
-                conn.commit();
-                return rows > 0;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+        if (nombre == null || nombre.isBlank()) return false;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
+            ps.setString(1, nombre.trim());
+            ps.setInt(2, id);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
     // ─── Cron Jobs ───────────────────────────────────────────────────────────
-    // Escrituras sincronizadas sobre el writeLock global de la clase, igual
-    // que el resto de los métodos de escritura.
+    // Ya no hay writeLock global: cada método toma su propia conexión pooled;
+    // la correctitud concurrente la da Postgres MVCC (design D1), no un lock
+    // de aplicación.
 
     public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
-        if (conn == null) return -1;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO cron_jobs
                         (name, precio_min, precio_max, sitios_json, force_retrain, use_gpu,
                          cron_expr, enabled, created_at, updated_at, next_run_at)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     """, Statement.RETURN_GENERATED_KEYS)) {
-                String now = LocalDateTime.now().format(DT);
-                ps.setString(1, name);
-                ps.setDouble(2, precioMin);
-                ps.setDouble(3, precioMax);
-                ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
-                ps.setInt(5, forceRetrain ? 1 : 0);
-                ps.setInt(6, useGpu ? 1 : 0);
-                ps.setString(7, cronExpr);
-                ps.setInt(8, enabled ? 1 : 0);
-                ps.setString(9, now);
-                ps.setString(10, now);
-                ps.setString(11, nextRunAt);
-                ps.executeUpdate();
-                long generatedId;
-                try (ResultSet keys = ps.getGeneratedKeys()) {
-                    generatedId = keys.next() ? keys.getLong(1) : -1;
-                }
-                conn.commit();
-                return generatedId;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error creando cron job: {}", e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return -1;
+            String now = LocalDateTime.now().format(DT);
+            ps.setString(1, name);
+            ps.setDouble(2, precioMin);
+            ps.setDouble(3, precioMax);
+            ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
+            ps.setInt(5, forceRetrain ? 1 : 0);
+            ps.setInt(6, useGpu ? 1 : 0);
+            ps.setString(7, cronExpr);
+            ps.setInt(8, enabled ? 1 : 0);
+            ps.setString(9, now);
+            ps.setString(10, now);
+            ps.setString(11, nextRunAt);
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getLong(1) : -1;
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error creando cron job: {}", e.getMessage());
+            return -1;
         }
     }
 
     /** Retorna {@code false} sin persistir si {@code id} no existe. */
     public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     UPDATE cron_jobs SET name=?, precio_min=?, precio_max=?, sitios_json=?,
                         force_retrain=?, use_gpu=?, cron_expr=?, enabled=?, updated_at=?, next_run_at=?
                     WHERE id=?
                     """)) {
-                ps.setString(1, name);
-                ps.setDouble(2, precioMin);
-                ps.setDouble(3, precioMax);
-                ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
-                ps.setInt(5, forceRetrain ? 1 : 0);
-                ps.setInt(6, useGpu ? 1 : 0);
-                ps.setString(7, cronExpr);
-                ps.setInt(8, enabled ? 1 : 0);
-                ps.setString(9, LocalDateTime.now().format(DT));
-                ps.setString(10, nextRunAt);
-                ps.setLong(11, id);
-                int rows = ps.executeUpdate();
-                if (rows == 0) { conn.rollback(); return false; }
-                conn.commit();
-                return true;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando cron job {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+            ps.setString(1, name);
+            ps.setDouble(2, precioMin);
+            ps.setDouble(3, precioMax);
+            ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
+            ps.setInt(5, forceRetrain ? 1 : 0);
+            ps.setInt(6, useGpu ? 1 : 0);
+            ps.setString(7, cronExpr);
+            ps.setInt(8, enabled ? 1 : 0);
+            ps.setString(9, LocalDateTime.now().format(DT));
+            ps.setString(10, nextRunAt);
+            ps.setLong(11, id);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando cron job {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
     /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
     public boolean deleteCronJob(long id) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement delExec = conn.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
-                 PreparedStatement delJob  = conn.prepareStatement("DELETE FROM cron_jobs WHERE id=?")) {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement delExec = c.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
+                 PreparedStatement delJob  = c.prepareStatement("DELETE FROM cron_jobs WHERE id=?")) {
                 delExec.setLong(1, id);
                 delExec.executeUpdate();
                 delJob.setLong(1, id);
                 int rows = delJob.executeUpdate();
-                if (rows == 0) { conn.rollback(); return false; }
-                conn.commit();
+                if (rows == 0) { c.rollback(); return false; }
+                c.commit();
                 return true;
             } catch (Exception e) {
                 LOG.warn("[DB] Error eliminando cron job {}: {}", id, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
+                try { c.rollback(); } catch (Exception ignored) {}
                 return false;
             }
+        } catch (SQLException e) {
+            LOG.warn("[DB] Error eliminando cron job {}: {}", id, e.getMessage());
+            return false;
         }
     }
 
     public List<CronJob> listCronJobs() {
         List<CronJob> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (Statement st = readConn.createStatement();
-                 ResultSet rs = st.executeQuery(
-                    "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
-                    "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs ORDER BY id")) {
-                while (rs.next()) result.add(cronJobDesdeFila(rs));
-            } catch (Exception e) {
-                LOG.warn("[DB] Error listando cron jobs: {}", e.getMessage());
-            }
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
+                "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs ORDER BY id")) {
+            while (rs.next()) result.add(cronJobDesdeFila(rs));
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando cron jobs: {}", e.getMessage());
         }
         return result;
     }
 
     public Optional<CronJob> getCronJob(long id) {
-        if (readConn == null) return Optional.empty();
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
-                    "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs WHERE id=?")) {
-                ps.setLong(1, id);
-                try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next() ? Optional.of(cronJobDesdeFila(rs)) : Optional.empty();
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error obteniendo cron job {}: {}", id, e.getMessage());
-                return Optional.empty();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
+                "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs WHERE id=?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(cronJobDesdeFila(rs)) : Optional.empty();
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error obteniendo cron job {}: {}", id, e.getMessage());
+            return Optional.empty();
         }
     }
 
@@ -2010,134 +1419,104 @@ public class DatabaseService {
 
     /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
     public boolean touchLastRunAt(long jobId, String lastRunAt) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE cron_jobs SET last_run_at=? WHERE id=?")) {
-                ps.setString(1, lastRunAt);
-                ps.setLong(2, jobId);
-                int rows = ps.executeUpdate();
-                conn.commit();
-                return rows > 0;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando last_run_at job {}: {}", jobId, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE cron_jobs SET last_run_at=? WHERE id=?")) {
+            ps.setString(1, lastRunAt);
+            ps.setLong(2, jobId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando last_run_at job {}: {}", jobId, e.getMessage());
+            return false;
         }
     }
 
     /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
     public boolean updateNextRunAt(long jobId, String nextRunAt) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE cron_jobs SET next_run_at=? WHERE id=?")) {
-                ps.setString(1, nextRunAt);
-                ps.setLong(2, jobId);
-                int rows = ps.executeUpdate();
-                conn.commit();
-                return rows > 0;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando next_run_at job {}: {}", jobId, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE cron_jobs SET next_run_at=? WHERE id=?")) {
+            ps.setString(1, nextRunAt);
+            ps.setLong(2, jobId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando next_run_at job {}: {}", jobId, e.getMessage());
+            return false;
         }
     }
 
     // ─── Cron Executions ────────────────────────────────────────────────────
 
     public long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {
-        if (conn == null) return -1;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO cron_executions (job_id, started_at, status, skipped_reason)
                     VALUES (?,?,?,?)
                     """, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setLong(1, jobId);
-                ps.setString(2, startedAt);
-                ps.setString(3, status);
-                ps.setString(4, skippedReason);
-                ps.executeUpdate();
-                long generatedId;
-                try (ResultSet keys = ps.getGeneratedKeys()) {
-                    generatedId = keys.next() ? keys.getLong(1) : -1;
-                }
-                conn.commit();
-                return generatedId;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error creando cron execution (job {}): {}", jobId, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return -1;
+            ps.setLong(1, jobId);
+            ps.setString(2, startedAt);
+            ps.setString(3, status);
+            ps.setString(4, skippedReason);
+            ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                return keys.next() ? keys.getLong(1) : -1;
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error creando cron execution (job {}): {}", jobId, e.getMessage());
+            return -1;
         }
     }
 
     public boolean updateCronExecution(long execId, String finishedAt, String status,
             String skippedReason, String logOutput, Integer durationMs) {
-        if (conn == null) return false;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     UPDATE cron_executions
                     SET finished_at=?, status=?, skipped_reason=?, log_output=?, duration_ms=?
                     WHERE id=?
                     """)) {
-                ps.setString(1, finishedAt);
-                ps.setString(2, status);
-                ps.setString(3, skippedReason);
-                ps.setString(4, logOutput);
-                if (durationMs != null) ps.setInt(5, durationMs); else ps.setNull(5, Types.INTEGER);
-                ps.setLong(6, execId);
-                int rows = ps.executeUpdate();
-                if (rows == 0) { conn.rollback(); return false; }
-                conn.commit();
-                return true;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error actualizando cron execution {}: {}", execId, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+            ps.setString(1, finishedAt);
+            ps.setString(2, status);
+            ps.setString(3, skippedReason);
+            ps.setString(4, logOutput);
+            if (durationMs != null) ps.setInt(5, durationMs); else ps.setNull(5, Types.INTEGER);
+            ps.setLong(6, execId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando cron execution {}: {}", execId, e.getMessage());
+            return false;
         }
     }
 
     public List<CronExecution> listExecutions(long jobId, int limit) {
         List<CronExecution> result = new ArrayList<>();
-        if (readConn == null) return result;
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
-                    "FROM cron_executions WHERE job_id=? ORDER BY id DESC LIMIT ?")) {
-                ps.setLong(1, jobId);
-                ps.setInt(2, limit);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) result.add(cronExecutionDesdeFila(rs));
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error listando cron executions (job {}): {}", jobId, e.getMessage());
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
+                "FROM cron_executions WHERE job_id=? ORDER BY id DESC LIMIT ?")) {
+            ps.setLong(1, jobId);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(cronExecutionDesdeFila(rs));
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error listando cron executions (job {}): {}", jobId, e.getMessage());
         }
         return result;
     }
 
     public Optional<CronExecution> getExecution(long execId) {
-        if (readConn == null) return Optional.empty();
-        synchronized (readLock) {
-            try (PreparedStatement ps = readConn.prepareStatement(
-                    "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
-                    "FROM cron_executions WHERE id=?")) {
-                ps.setLong(1, execId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next() ? Optional.of(cronExecutionDesdeFila(rs)) : Optional.empty();
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error obteniendo cron execution {}: {}", execId, e.getMessage());
-                return Optional.empty();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
+                "FROM cron_executions WHERE id=?")) {
+            ps.setLong(1, execId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(cronExecutionDesdeFila(rs)) : Optional.empty();
             }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error obteniendo cron execution {}: {}", execId, e.getMessage());
+            return Optional.empty();
         }
     }
 
@@ -2153,23 +1532,18 @@ public class DatabaseService {
 
     /** Retiene solo las últimas {@code keep} ejecuciones por job (decision 7: 50). */
     public void pruneCronExecutions(long jobId, int keep) {
-        if (conn == null) return;
-        synchronized (writeLock) {
-            refrescarSnapshot();
-            try (PreparedStatement ps = conn.prepareStatement("""
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                     DELETE FROM cron_executions WHERE job_id=? AND id NOT IN (
                         SELECT id FROM cron_executions WHERE job_id=? ORDER BY id DESC LIMIT ?
                     )
                     """)) {
-                ps.setLong(1, jobId);
-                ps.setLong(2, jobId);
-                ps.setInt(3, keep);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error pruning cron executions (job {}): {}", jobId, e.getMessage());
-                try { conn.rollback(); } catch (Exception ignored) {}
-            }
+            ps.setLong(1, jobId);
+            ps.setLong(2, jobId);
+            ps.setInt(3, keep);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error pruning cron executions (job {}): {}", jobId, e.getMessage());
         }
     }
 

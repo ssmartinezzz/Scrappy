@@ -1,19 +1,37 @@
 # -*- coding: utf-8 -*-
 """
-Tests for ml_embeddings.py (PR3a slice): model load + embedding cache.
+Tests for `ml_embeddings.py`: model-load singleton, `embed_images()`'s
+cache-first pipeline, HF_HOME provisioning, and DB-failure degradation
+paths.
+
+Migrated (task 4.9, `decouple-services-postgres`) from the pre-Postgres
+`ml-tests/py-batch4-pending/test_ml_embeddings.py`, which built a real
+SQLite fixture and called the (now-removed) `db_path=...` keyword argument
+on `embed_images`/`_load_model`/`_ensure_hf_home`. Since design D4/D5,
+`ml_embeddings.py` connects via `_get_connection()` (psycopg2 over
+`DATABASE_URL`) and derives HF_HOME from `SCRAPER_MODELS_ROOT`, not a
+filesystem `db_path` — every test here monkeypatches `_get_connection`
+to return the shared in-memory `FakeConnection` (`ml-tests/_pg_fakes.py`,
+same fake-cursor pattern Batch 2's `test_ml_embeddings_postgres_cache.py`
+established) instead of building a real SQLite file.
+
+The `get_cached`/`insert_cache` bytea round-trip itself (cache hit/miss,
+model-version mismatch, corrupted row, `ON CONFLICT` overwrite) is already
+covered directly in `test_ml_embeddings_postgres_cache.py` — not repeated
+here. This file focuses on the scenarios the old suite pinned that are
+NOT covered there: the `embed_images()`-level pipeline (cache-first
+short-circuit, preloaded-image handling, degradation on download/model/DB
+failure), the model-load singleton, and HF_HOME provisioning.
 
 Runs with NO network access and NO model weights present — every heavy
 dependency (open_clip, torch, PIL) is monkeypatched at the module's own
-lazy-import boundary (`_load_model`, `_download_image`, `_compute_embedding`),
-so this module stays importable and testable even on a machine where
-open_clip/torch are not installed (a required constraint per this PR's
-apply-progress brief).
+lazy-import boundary (`_load_model`, `_download_image`, `_compute_embedding`).
 """
-import sqlite3
 import numpy as np
 import pytest
 
 import ml_embeddings
+from _pg_fakes import FakeConnection, seed_embedding
 
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -33,36 +51,15 @@ def _reset_model_singleton():
 
 
 @pytest.fixture
-def db_path(tmp_path):
-    """A temp SQLite file with the `image_embeddings` table pre-created
-    using the EXACT schema shipped in PR1 (DatabaseService.crearTablas)."""
-    path = tmp_path / "scraper.db"
-    conn = sqlite3.connect(str(path))
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS image_embeddings (
-            url           TEXT PRIMARY KEY,
-            embedding     BLOB NOT NULL,
-            dim           INTEGER NOT NULL,
-            model_version TEXT NOT NULL,
-            computed_at   TEXT NOT NULL
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
-    return str(path)
+def fake_conn():
+    return FakeConnection()
 
 
-def _seed_cache_row(db_path, url, embedding, model_version):
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "INSERT INTO image_embeddings (url, embedding, dim, model_version, computed_at) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (url, np.asarray(embedding, dtype=np.float32).tobytes(), len(embedding), model_version, "2026-01-01T00:00:00+00:00"),
-    )
-    conn.commit()
-    conn.close()
+def _use_fake_conn(monkeypatch, conn):
+    """Point `ml_embeddings._get_connection` at the given fake instead of a
+    real psycopg2 connection — every DB access in this module goes through
+    `_get_connection()` since the Batch 2 psycopg2/DATABASE_URL rewrite."""
+    monkeypatch.setattr(ml_embeddings, "_get_connection", lambda: conn)
 
 
 class _FakeModel:
@@ -89,45 +86,16 @@ class _FakeTorch:
         return name
 
 
-# ─── get_cached / insert_cache (direct unit coverage) ───────────────────────
-
-
-def test_insert_then_get_cached_round_trip(db_path):
-    conn = sqlite3.connect(db_path)
-    embedding = np.array([0.1, 0.2, 0.3], dtype=np.float32)
-    ml_embeddings.insert_cache(conn, "http://x/a.jpg", embedding, 3, "v1")
-
-    result = ml_embeddings.get_cached(conn, "http://x/a.jpg", "v1")
-    conn.close()
-
-    assert result is not None
-    np.testing.assert_array_almost_equal(result, embedding)
-
-
-def test_get_cached_returns_none_on_miss(db_path):
-    conn = sqlite3.connect(db_path)
-    result = ml_embeddings.get_cached(conn, "http://x/missing.jpg", "v1")
-    conn.close()
-    assert result is None
-
-
-def test_get_cached_returns_none_on_model_version_mismatch(db_path):
-    _seed_cache_row(db_path, "http://x/a.jpg", [1.0, 2.0], "old-version")
-    conn = sqlite3.connect(db_path)
-    result = ml_embeddings.get_cached(conn, "http://x/a.jpg", "new-version")
-    conn.close()
-    assert result is None
-
-
 # ─── embed_images: cache hit ─────────────────────────────────────────────────
 
 
-def test_cache_hit_skips_download_and_inference(monkeypatch, db_path):
+def test_cache_hit_skips_download_and_inference(monkeypatch, fake_conn):
     url = "http://x/cached.jpg"
-    seeded = [0.5, 0.25, 0.75]
-    _seed_cache_row(db_path, url, seeded, ml_embeddings.MODEL_VERSION)
+    seeded = np.array([0.5, 0.25, 0.75], dtype="<f4")
+    seed_embedding(fake_conn, url, seeded.tobytes(), 3, ml_embeddings.MODEL_VERSION)
+    _use_fake_conn(monkeypatch, fake_conn)
 
-    def _boom_load(*_a, **_kw):
+    def _boom_load():
         raise AssertionError("model should never be loaded on a cache hit")
 
     def _boom_download(*_a, **_kw):
@@ -136,75 +104,70 @@ def test_cache_hit_skips_download_and_inference(monkeypatch, db_path):
     monkeypatch.setattr(ml_embeddings, "_load_model", _boom_load)
     monkeypatch.setattr(ml_embeddings, "_download_image", _boom_download)
 
-    results = ml_embeddings.embed_images([url], db_path=db_path)
+    results = ml_embeddings.embed_images([url])
 
     assert url in results
-    np.testing.assert_array_almost_equal(results[url], np.array(seeded, dtype=np.float32))
+    np.testing.assert_array_almost_equal(results[url], seeded)
 
 
 # ─── embed_images: cache miss ────────────────────────────────────────────────
 
 
-def test_cache_miss_downloads_computes_and_inserts(monkeypatch, db_path):
+def test_cache_miss_downloads_computes_and_inserts(monkeypatch, fake_conn):
     url = "http://x/new.jpg"
     computed = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    _use_fake_conn(monkeypatch, fake_conn)
 
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (_FakeModel(), object()))
     monkeypatch.setattr(ml_embeddings, "_download_image", lambda u: "fake-pil-image")
     monkeypatch.setattr(
         ml_embeddings, "_compute_embedding", lambda model, preprocess, image: computed
     )
 
-    results = ml_embeddings.embed_images([url], db_path=db_path)
+    results = ml_embeddings.embed_images([url])
 
     assert url in results
     np.testing.assert_array_almost_equal(results[url], computed)
 
     # Verify it was actually persisted, not just returned in-memory.
-    conn = sqlite3.connect(db_path)
-    cached = ml_embeddings.get_cached(conn, url, ml_embeddings.MODEL_VERSION)
-    conn.close()
+    cached = ml_embeddings.get_cached(fake_conn, url, ml_embeddings.MODEL_VERSION)
     assert cached is not None
     np.testing.assert_array_almost_equal(cached, computed)
 
 
-def test_model_version_mismatch_treated_as_miss_and_recomputed(monkeypatch, db_path):
+def test_model_version_mismatch_treated_as_miss_and_recomputed(monkeypatch, fake_conn):
     url = "http://x/stale.jpg"
-    _seed_cache_row(db_path, url, [9.0, 9.0], "old-version")
+    seed_embedding(
+        fake_conn, url, np.array([9.0, 9.0], dtype="<f4").tobytes(), 2, "old-version"
+    )
+    _use_fake_conn(monkeypatch, fake_conn)
 
     recomputed = np.array([1.0, 1.0], dtype=np.float32)
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (_FakeModel(), object()))
     monkeypatch.setattr(ml_embeddings, "_download_image", lambda u: "fake-pil-image")
     monkeypatch.setattr(
         ml_embeddings, "_compute_embedding", lambda model, preprocess, image: recomputed
     )
 
-    results = ml_embeddings.embed_images([url], db_path=db_path, model_version=ml_embeddings.MODEL_VERSION)
+    results = ml_embeddings.embed_images([url], model_version=ml_embeddings.MODEL_VERSION)
 
     np.testing.assert_array_almost_equal(results[url], recomputed)
-
-    conn = sqlite3.connect(db_path)
-    row = conn.execute(
-        "SELECT model_version FROM image_embeddings WHERE url = ?", (url,)
-    ).fetchone()
-    conn.close()
-    assert row[0] == ml_embeddings.MODEL_VERSION
+    assert fake_conn._embeddings[url][2] == ml_embeddings.MODEL_VERSION
 
 
-# ─── embed_images: preloaded_images (PR3b2 judgment-day round 2) ───────────
+# ─── embed_images: preloaded_images ──────────────────────────────────────────
 
 
-def test_preloaded_image_is_embedded_without_downloading(monkeypatch, db_path):
+def test_preloaded_image_is_embedded_without_downloading(monkeypatch, fake_conn):
     """Regression: a non-None `preloaded_images[url]` entry must be used
     directly on a cache miss — `_download_image` must never be called for
-    that URL — exercised against the REAL `embed_images`, not a test
-    double (deferred from PR3b2 judgment-day round 2 test gap: "the real
-    embed_images preloaded_images branch is unpinned")."""
+    that URL."""
     url = "http://x/preloaded.jpg"
     computed = np.array([1.0, 2.0, 3.0], dtype=np.float32)
     fake_image = "already-downloaded-pil-image"
+    _use_fake_conn(monkeypatch, fake_conn)
 
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (_FakeModel(), object()))
 
     def _boom_download(*_a, **_kw):
         raise AssertionError("_download_image must not be called when a preloaded image is available")
@@ -218,30 +181,24 @@ def test_preloaded_image_is_embedded_without_downloading(monkeypatch, db_path):
         ),
     )
 
-    results = ml_embeddings.embed_images(
-        [url], db_path=db_path, preloaded_images={url: fake_image}
-    )
+    results = ml_embeddings.embed_images([url], preloaded_images={url: fake_image})
 
     np.testing.assert_array_almost_equal(results[url], computed)
-
-    conn = sqlite3.connect(db_path)
-    cached = ml_embeddings.get_cached(conn, url, ml_embeddings.MODEL_VERSION)
-    conn.close()
+    cached = ml_embeddings.get_cached(fake_conn, url, ml_embeddings.MODEL_VERSION)
     np.testing.assert_array_almost_equal(cached, computed)
 
 
-def test_explicit_none_preload_is_treated_as_a_failed_download_not_reattempted(monkeypatch, db_path):
+def test_explicit_none_preload_is_treated_as_a_failed_download_not_reattempted(monkeypatch, fake_conn):
     """Regression: an explicit `preloaded_images[url] = None` entry means
     "the caller already tried and failed to download this URL" and must
     NOT trigger a second `_download_image` call — a URL truly absent from
-    the map is unaffected and still downloads normally (deferred from
-    PR3b2 judgment-day round 2 CONFIRMED issue: "failed-download
-    re-download")."""
+    the map is unaffected and still downloads normally."""
     url = "http://x/failed-download.jpg"
     other_url = "http://x/not-preloaded.jpg"
     computed = np.array([4.0, 5.0], dtype=np.float32)
+    _use_fake_conn(monkeypatch, fake_conn)
 
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (_FakeModel(), object()))
 
     download_calls = []
 
@@ -256,7 +213,6 @@ def test_explicit_none_preload_is_treated_as_a_failed_download_not_reattempted(m
 
     results = ml_embeddings.embed_images(
         [url, other_url],
-        db_path=db_path,
         preloaded_images={url: None},  # explicit skip for `url` only
     )
 
@@ -272,52 +228,52 @@ def test_explicit_none_preload_is_treated_as_a_failed_download_not_reattempted(m
 # ─── Degradation paths ────────────────────────────────────────────────────────
 
 
-def test_image_download_failure_skipped_without_raising(monkeypatch, db_path):
+def test_image_download_failure_skipped_without_raising(monkeypatch, fake_conn):
     url = "http://x/broken.jpg"
+    _use_fake_conn(monkeypatch, fake_conn)
 
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (_FakeModel(), object()))
 
     def _raise_download(_url):
         raise TimeoutError("simulated network failure")
 
     monkeypatch.setattr(ml_embeddings, "_download_image", _raise_download)
 
-    results = ml_embeddings.embed_images([url], db_path=db_path)
+    results = ml_embeddings.embed_images([url])
 
     assert results[url] is None
-
-    conn = sqlite3.connect(db_path)
-    row = conn.execute("SELECT 1 FROM image_embeddings WHERE url = ?", (url,)).fetchone()
-    conn.close()
-    assert row is None  # nothing was persisted for a failed download
+    assert url not in fake_conn._embeddings  # nothing was persisted for a failed download
 
 
-def test_blank_url_skipped_without_touching_model_or_db(monkeypatch, db_path):
-    def _boom_load(*_a, **_kw):
+def test_blank_url_skipped_without_touching_model_or_db(monkeypatch, fake_conn):
+    _use_fake_conn(monkeypatch, fake_conn)
+
+    def _boom_load():
         raise AssertionError("model should never load for a blank URL")
 
     monkeypatch.setattr(ml_embeddings, "_load_model", _boom_load)
 
-    results = ml_embeddings.embed_images([""], db_path=db_path)
+    results = ml_embeddings.embed_images([""])
 
     assert results[""] is None
 
 
-def test_model_unavailable_marks_all_pending_urls_as_none(monkeypatch, db_path):
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (None, None))
+def test_model_unavailable_marks_all_pending_urls_as_none(monkeypatch, fake_conn):
+    _use_fake_conn(monkeypatch, fake_conn)
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (None, None))
 
     def _boom_download(*_a, **_kw):
         raise AssertionError("should never attempt download when model is unavailable")
 
     monkeypatch.setattr(ml_embeddings, "_download_image", _boom_download)
 
-    results = ml_embeddings.embed_images(["http://x/1.jpg", "http://x/2.jpg"], db_path=db_path)
+    results = ml_embeddings.embed_images(["http://x/1.jpg", "http://x/2.jpg"])
 
     assert results["http://x/1.jpg"] is None
     assert results["http://x/2.jpg"] is None
 
 
-def test_load_model_degrades_to_none_on_import_failure(monkeypatch, db_path):
+def test_load_model_degrades_to_none_on_import_failure(monkeypatch):
     """`_load_model` itself must never raise, even if open_clip/torch are
     missing or the underlying model load throws for any reason."""
 
@@ -331,13 +287,13 @@ def test_load_model_degrades_to_none_on_import_failure(monkeypatch, db_path):
     monkeypatch.setitem(_sys.modules, "torch", _FakeTorch())
     monkeypatch.setitem(_sys.modules, "open_clip", _FakeOpenClip())
 
-    model, preprocess = ml_embeddings._load_model(db_path)
+    model, preprocess = ml_embeddings._load_model()
 
     assert model is None
     assert preprocess is None
 
 
-def test_load_model_is_a_singleton_loaded_at_most_once(monkeypatch, db_path):
+def test_load_model_is_a_singleton_loaded_at_most_once(monkeypatch):
     calls = {"n": 0}
 
     class _FakeOpenClip:
@@ -351,9 +307,9 @@ def test_load_model_is_a_singleton_loaded_at_most_once(monkeypatch, db_path):
     monkeypatch.setitem(_sys.modules, "torch", _FakeTorch())
     monkeypatch.setitem(_sys.modules, "open_clip", _FakeOpenClip())
 
-    ml_embeddings._load_model(db_path)
-    ml_embeddings._load_model(db_path)
-    ml_embeddings._load_model(db_path)
+    ml_embeddings._load_model()
+    ml_embeddings._load_model()
+    ml_embeddings._load_model()
 
     assert calls["n"] == 1
 
@@ -361,21 +317,22 @@ def test_load_model_is_a_singleton_loaded_at_most_once(monkeypatch, db_path):
 # ─── HF_HOME provisioning ─────────────────────────────────────────────────────
 
 
-def test_ensure_hf_home_sets_default_next_to_db_when_unset(monkeypatch, db_path):
+def test_ensure_hf_home_sets_default_next_to_models_root_when_unset(monkeypatch):
     monkeypatch.delenv("HF_HOME", raising=False)
+    monkeypatch.delenv("SCRAPER_MODELS_ROOT", raising=False)
 
-    ml_embeddings._ensure_hf_home(db_path)
+    ml_embeddings._ensure_hf_home()
 
-    expected = ml_embeddings._default_hf_home(db_path)
+    expected = ml_embeddings._default_hf_home()
     assert ml_embeddings.os.environ["HF_HOME"] == str(expected)
     assert expected.name == "marqo"
-    assert expected.parent.name == "_models"
+    assert expected.parent.name == "_models"  # fallback root when SCRAPER_MODELS_ROOT unset
 
 
-def test_ensure_hf_home_respects_existing_env_var(monkeypatch, db_path):
+def test_ensure_hf_home_respects_existing_env_var(monkeypatch):
     monkeypatch.setenv("HF_HOME", "/already/set/path")
 
-    ml_embeddings._ensure_hf_home(db_path)
+    ml_embeddings._ensure_hf_home()
 
     assert ml_embeddings.os.environ["HF_HOME"] == "/already/set/path"
 
@@ -383,69 +340,51 @@ def test_ensure_hf_home_respects_existing_env_var(monkeypatch, db_path):
 # ─── DB-failure degradation paths ────────────────────────────────────────────
 
 
-def test_missing_table_degrades_to_none_without_raising(tmp_path):
-    """A DB file that exists but never had `image_embeddings` created
-    (e.g. schema migration didn't run yet) must degrade, not raise."""
-    path = tmp_path / "no_table.db"
-    conn = sqlite3.connect(str(path))
-    conn.close()
+def test_missing_table_degrades_to_none_without_raising(monkeypatch):
+    """A DB that exists but never had `image_embeddings` created (e.g.
+    schema migration didn't run yet) must degrade, not raise."""
+    conn = FakeConnection(raise_on_embeddings_select=True)
+    _use_fake_conn(monkeypatch, conn)
 
-    results = ml_embeddings.embed_images(
-        ["http://x/1.jpg", "http://x/2.jpg"], db_path=str(path)
-    )
+    results = ml_embeddings.embed_images(["http://x/1.jpg", "http://x/2.jpg"])
 
     assert results["http://x/1.jpg"] is None
     assert results["http://x/2.jpg"] is None
 
 
-def test_corrupted_cache_row_is_treated_as_a_miss_and_recomputed(monkeypatch, db_path):
+def test_corrupted_cache_row_is_treated_as_a_miss_and_recomputed(monkeypatch, fake_conn):
     """A cached row whose blob length doesn't match `dim*4` is explicitly
-    validated (PR3b fix, deferred from PR3a judgment-day): `get_cached`
-    now detects this up front and returns `None`, the SAME contract as
-    any other cache miss — so `embed_images` self-heals by recomputing
-    and overwriting the corrupted row, exactly like a model_version-bump
-    miss, rather than degrading the whole URL to `None`."""
+    validated by `get_cached` and treated as a miss — `embed_images`
+    self-heals by recomputing and overwriting the corrupted row, exactly
+    like a model_version-bump miss."""
     url = "http://x/corrupted.jpg"
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-        "INSERT INTO image_embeddings (url, embedding, dim, model_version, computed_at) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (url, b"\x00\x01\x02", 999, ml_embeddings.MODEL_VERSION, "2026-01-01T00:00:00+00:00"),
-    )
-    conn.commit()
-    conn.close()
+    seed_embedding(fake_conn, url, b"\x00\x01\x02", 999, ml_embeddings.MODEL_VERSION)
+    _use_fake_conn(monkeypatch, fake_conn)
 
     recomputed = np.array([1.0, 1.0], dtype=np.float32)
-    monkeypatch.setattr(ml_embeddings, "_load_model", lambda db_path: (_FakeModel(), object()))
+    monkeypatch.setattr(ml_embeddings, "_load_model", lambda: (_FakeModel(), object()))
     monkeypatch.setattr(ml_embeddings, "_download_image", lambda u: "fake-pil-image")
     monkeypatch.setattr(
         ml_embeddings, "_compute_embedding", lambda model, preprocess, image: recomputed
     )
 
-    results = ml_embeddings.embed_images([url], db_path=db_path)
+    results = ml_embeddings.embed_images([url])
 
     np.testing.assert_array_almost_equal(results[url], recomputed)
-
-    conn = sqlite3.connect(db_path)
-    row = conn.execute(
-        "SELECT dim, model_version FROM image_embeddings WHERE url = ?", (url,)
-    ).fetchone()
-    conn.close()
-    assert row == (2, ml_embeddings.MODEL_VERSION)
+    blob, dim, model_version = fake_conn._embeddings[url]
+    assert (dim, model_version) == (2, ml_embeddings.MODEL_VERSION)
 
 
-def test_unusable_db_path_degrades_all_urls_to_none(monkeypatch, tmp_path):
-    """`sqlite3.connect()` itself failing (e.g. an unwritable/unreachable
-    path, or a locked-DB scenario surfacing at connect time) must degrade
-    every requested URL to `None` instead of raising out of `embed_images`."""
+def test_unusable_db_connection_degrades_all_urls_to_none(monkeypatch):
+    """`_get_connection()` itself failing (e.g. `DATABASE_URL` unreachable,
+    auth failure, or Postgres down) must degrade every requested URL to
+    `None` instead of raising out of `embed_images`."""
 
-    def _boom_connect(*_a, **_kw):
-        raise sqlite3.OperationalError("simulated: database is locked")
+    def _boom_connect():
+        raise RuntimeError("simulated: could not connect to server")
 
-    monkeypatch.setattr(ml_embeddings.sqlite3, "connect", _boom_connect)
+    monkeypatch.setattr(ml_embeddings, "_get_connection", _boom_connect)
 
-    results = ml_embeddings.embed_images(
-        ["http://x/1.jpg", "http://x/2.jpg"], db_path=str(tmp_path / "unreachable.db")
-    )
+    results = ml_embeddings.embed_images(["http://x/1.jpg", "http://x/2.jpg"])
 
     assert results == {"http://x/1.jpg": None, "http://x/2.jpg": None}

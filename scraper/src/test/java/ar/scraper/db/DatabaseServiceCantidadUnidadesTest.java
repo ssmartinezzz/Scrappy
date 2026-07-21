@@ -1,18 +1,16 @@
 package ar.scraper.db;
 
+import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,10 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Feature("Presets / Pack Pricing / Category Dismiss")
 @Story("Pack pricing")
 @DisplayName("DatabaseService — cantidadUnidades persistence round-trip")
-class DatabaseServiceCantidadUnidadesTest {
-
-    @TempDir
-    Path tempDir;
+class DatabaseServiceCantidadUnidadesTest extends PostgresTestBase {
 
     private DatabaseService db;
 
@@ -47,14 +42,9 @@ class DatabaseServiceCantidadUnidadesTest {
 
     @Step("Open temp-file SQLite DB and initialize schema")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService();
-        db.initEn(tempDir.resolve("test-cantidad-unidades.db").toString());
+        db = new DatabaseService(dataSource());
     }
 
-    @AfterEach
-    void tearDown() {
-        db.cerrar();
-    }
 
     private Product producto(String url, String nombre, int cantidadUnidades) {
         return new Product(

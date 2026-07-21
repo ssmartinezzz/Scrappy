@@ -10,8 +10,14 @@ warns and exits cleanly instead of running `train_image_model()`.
 
 No real DB/scikit-learn is needed: `load_dataset` and `train_text_model`
 are monkeypatched with deterministic fakes (this sandbox has neither a real
-`scraper.db` nor scikit-learn installed — same discipline as every other
-file in this suite that avoids torch/open_clip/PIL).
+Postgres instance nor scikit-learn installed — same discipline as every
+other file in this suite that avoids torch/open_clip/PIL).
+
+Batch 2 (decouple-services-postgres): `load_dataset()` no longer takes a
+`db_path` positional argument (it reads `DATABASE_URL` internally, design
+D4), and `main()` no longer expects a `db_path` argv token at all — every
+`sys.argv` fixture below was updated to drop it. `SCRAPER_MODELS_ROOT`
+(design D5) replaces the old `db_path`-derived `_models` dir.
 """
 import json
 import sys
@@ -33,21 +39,20 @@ def _fake_text_meta():
 
 
 def _install_fakes(monkeypatch, tmp_path):
-    db_path = str(tmp_path / "scraper.db")
+    monkeypatch.setenv("SCRAPER_MODELS_ROOT", str(tmp_path / "_models"))
     monkeypatch.setattr(
         ml_train, "load_dataset",
-        lambda dbp: [("remera negra", "Remera", "indumentaria", "Nike")] * 60,
+        lambda: [("remera negra", "Remera", "indumentaria", "Nike")] * 60,
     )
     monkeypatch.setattr(ml_train, "train_text_model", lambda cleaned, models_dir: _fake_text_meta())
-    return db_path
 
 
 # ─── T4.5: `--images` is a no-op that warns and exits cleanly ───────────────
 
 
 def test_images_flag_is_noop_and_does_not_crash(monkeypatch, tmp_path, capsys):
-    db_path = _install_fakes(monkeypatch, tmp_path)
-    monkeypatch.setattr(sys, "argv", ["ml_train.py", db_path, "--images"])
+    _install_fakes(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "argv", ["ml_train.py", "--images"])
 
     ml_train.main()  # must not raise, even with no torch/PyTorch installed
 
@@ -58,8 +63,8 @@ def test_images_flag_is_noop_and_does_not_crash(monkeypatch, tmp_path, capsys):
 
 
 def test_images_flag_result_has_noop_status(monkeypatch, tmp_path, capsys):
-    db_path = _install_fakes(monkeypatch, tmp_path)
-    monkeypatch.setattr(sys, "argv", ["ml_train.py", db_path, "--images"])
+    _install_fakes(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "argv", ["ml_train.py", "--images"])
 
     ml_train.main()
 
@@ -97,10 +102,10 @@ def test_text_training_branch_still_runs_and_is_unaffected_by_images_flag(monkey
         calls["text"] += 1
         return _fake_text_meta()
 
-    db_path = str(tmp_path / "scraper.db")
-    monkeypatch.setattr(ml_train, "load_dataset", lambda dbp: [("remera negra", "Remera", "indumentaria", "Nike")] * 60)
+    monkeypatch.setenv("SCRAPER_MODELS_ROOT", str(tmp_path / "_models"))
+    monkeypatch.setattr(ml_train, "load_dataset", lambda: [("remera negra", "Remera", "indumentaria", "Nike")] * 60)
     monkeypatch.setattr(ml_train, "train_text_model", fake_train_text)
-    monkeypatch.setattr(sys, "argv", ["ml_train.py", db_path])  # no --images at all
+    monkeypatch.setattr(sys, "argv", ["ml_train.py"])  # no --images at all
 
     ml_train.main()
 
@@ -116,10 +121,10 @@ def test_text_training_still_runs_when_images_flag_is_also_passed(monkeypatch, t
         calls["text"] += 1
         return _fake_text_meta()
 
-    db_path = str(tmp_path / "scraper.db")
-    monkeypatch.setattr(ml_train, "load_dataset", lambda dbp: [("remera negra", "Remera", "indumentaria", "Nike")] * 60)
+    monkeypatch.setenv("SCRAPER_MODELS_ROOT", str(tmp_path / "_models"))
+    monkeypatch.setattr(ml_train, "load_dataset", lambda: [("remera negra", "Remera", "indumentaria", "Nike")] * 60)
     monkeypatch.setattr(ml_train, "train_text_model", fake_train_text)
-    monkeypatch.setattr(sys, "argv", ["ml_train.py", db_path, "--images"])
+    monkeypatch.setattr(sys, "argv", ["ml_train.py", "--images"])
 
     ml_train.main()
 
@@ -127,8 +132,8 @@ def test_text_training_still_runs_when_images_flag_is_also_passed(monkeypatch, t
 
 
 def test_results_have_no_image_key_when_images_flag_not_passed(monkeypatch, tmp_path, capsys):
-    db_path = _install_fakes(monkeypatch, tmp_path)
-    monkeypatch.setattr(sys, "argv", ["ml_train.py", db_path])
+    _install_fakes(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "argv", ["ml_train.py"])
 
     ml_train.main()
 
@@ -136,3 +141,17 @@ def test_results_have_no_image_key_when_images_flag_not_passed(monkeypatch, tmp_
     last_line = [line for line in captured.out.strip().splitlines() if line.strip()][-1]
     results = json.loads(last_line)
     assert "image" not in results
+
+
+# ─── Batch 2 regression: DATABASE_URL-driven load_dataset ───────────────────
+
+
+def test_load_dataset_returns_empty_when_database_url_unset(monkeypatch):
+    """`load_dataset()` must degrade to an empty list (not raise) when
+    `DATABASE_URL` isn't configured — mirrors the old `db_path`-missing
+    degradation path."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    rows = ml_train.load_dataset()
+
+    assert rows == []

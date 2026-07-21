@@ -1,17 +1,15 @@
 package ar.scraper.db;
 
+import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -21,10 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Feature("Outfit Feedback / Saved Outfits")
 @Story("Saved outfits")
 @DisplayName("DatabaseService — saved outfits CRUD")
-class DatabaseServiceSavedOutfitsTest {
-
-    @TempDir
-    Path tempDir;
+class DatabaseServiceSavedOutfitsTest extends PostgresTestBase {
 
     private DatabaseService db;
 
@@ -35,14 +30,9 @@ class DatabaseServiceSavedOutfitsTest {
 
     @Step("Open temp-file SQLite DB and initialize schema")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService();
-        db.initEn(tempDir.resolve("test-saved-outfits.db").toString());
+        db = new DatabaseService(dataSource());
     }
 
-    @AfterEach
-    void tearDown() {
-        db.cerrar();
-    }
 
     @Test
     void guardarOutfitReturnsPositiveId() {

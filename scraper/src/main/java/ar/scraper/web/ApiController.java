@@ -1691,7 +1691,9 @@ public class ApiController {
         // in a future cleanup. This endpoint runs text re-training FIRST,
         // then the embeddings backfill, on ONE background thread, without
         // blocking this HTTP response.
-        String dbPath = encontrarDbFile().getAbsolutePath();
+        // decouple-services-postgres Batch 3 (task 3.6): no filesystem DB
+        // path to resolve anymore — the subprocess reads DATABASE_URL from
+        // its own env (see PythonRunner.aplicarEnvBaseDatosYModelos).
         // READ-004: named args instead of naked booleans. forceRetrainTexto
         // stays true (unchanged observable behavior: every manual button
         // click forces a fresh text re-train, same as before);
@@ -1701,7 +1703,7 @@ public class ApiController {
         boolean forceRetrainTexto = true;
         boolean forceBackfillEmbeddings = true;
         boolean iniciado = pythonRunner.construirIndiceVisualEnBackground(
-                dbPath, forceRetrainTexto, images, epochs, forceBackfillEmbeddings);
+                forceRetrainTexto, images, epochs, forceBackfillEmbeddings);
         // RESI-002 ≡ RELY-001: two near-simultaneous POSTs can both pass the
         // isTrainingRunning() pre-check above; the atomic CAS inside the
         // runner picks exactly one winner. The loser's request was NOT
@@ -1988,64 +1990,29 @@ public class ApiController {
 
     // ─── DB Export / Import ──────────────────────────────────────────────────────
 
+    // decouple-services-postgres Batch 3 (task 3.6): the backend no longer
+    // resolves a filesystem SQLite path — persistence lives in Postgres
+    // (Batch 1, design D1-D3). The old file-based export/import (which
+    // downloaded/replaced a `scraper.db` file, backed by the removed
+    // `encontrarDbFile()`) has no equivalent for a networked Postgres
+    // instance and is retired here rather than left silently broken.
+    // A Postgres-native backup/restore flow (pg_dump/pg_restore, an
+    // installer/ops concern) is out of scope for this change; these
+    // endpoints now answer honestly instead of pretending to work.
     @GetMapping("/db/export")
-    public ResponseEntity<org.springframework.core.io.Resource> exportDb() {
-        try {
-            // Buscar el archivo de base de datos
-            java.io.File dbFile = encontrarDbFile();
-            if (dbFile == null || !dbFile.exists())
-                return ResponseEntity.notFound().build();
-            var resource = new org.springframework.core.io.FileSystemResource(dbFile);
-            String filename = "scraper-" + java.time.LocalDate.now() + ".db";
-            return ResponseEntity.ok()
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
-                    "attachment; filename=\"" + filename + "\"")
-                .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
-                .contentLength(dbFile.length())
-                .body(resource);
-        } catch (Exception e) {
-            LOG.warn("[API] exportDb error: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
+    public ResponseEntity<Object> exportDb() {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.GONE)
+            .body(java.util.Map.of("error",
+                "DB export de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_dump."));
     }
 
     @PostMapping(value = "/db/import",
                  consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Object> importDb(
             @RequestParam("file") org.springframework.web.multipart.MultipartFile upload) {
-        if (service.getStatus().name().equals("RUNNING"))
-            return ResponseEntity.badRequest()
-                .body(java.util.Map.of("error","No se puede importar mientras el scraping está en curso"));
-        try {
-            java.io.File dbFile = encontrarDbFile();
-            if (dbFile == null) dbFile = new java.io.File("scraper.db");
-            // Backup del archivo actual
-            java.io.File backup = new java.io.File(dbFile.getParentFile(),
-                "scraper-backup-" + java.time.LocalDateTime.now().toString().replace(":","") + ".db");
-            if (dbFile.exists()) dbFile.renameTo(backup);
-            // Escribir el nuevo archivo
-            upload.transferTo(dbFile);
-            LOG.info("[API] DB importada: {} bytes (backup: {})", upload.getSize(), backup.getName());
-            return ResponseEntity.ok(java.util.Map.of(
-                "ok", true,
-                "backup", backup.getName(),
-                "bytes", upload.getSize()
-            ));
-        } catch (Exception e) {
-            LOG.warn("[API] importDb error: {}", e.getMessage());
-            return ResponseEntity.internalServerError()
-                .body(java.util.Map.of("error", e.getMessage()));
-        }
-    }
-
-    private java.io.File encontrarDbFile() {
-        String[] candidates = { "scraper.db", "data/scraper.db",
-            System.getProperty("user.dir") + "/scraper.db" };
-        for (String path : candidates) {
-            java.io.File f = new java.io.File(path);
-            if (f.exists()) return f;
-        }
-        return new java.io.File("scraper.db");
+        return ResponseEntity.status(org.springframework.http.HttpStatus.GONE)
+            .body(java.util.Map.of("error",
+                "DB import de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_restore."));
     }
 
     // ─── Búsqueda precios externos (MercadoLibre API pública) ──────────────────

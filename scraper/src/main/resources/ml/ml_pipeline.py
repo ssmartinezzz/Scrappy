@@ -36,7 +36,7 @@ GENERICAS = frozenset({'indumentaria', 'general', 'ropa', 'pc & tech', 'tecnolog
 
 
 # ─── Cargar modelo entrenado si existe ───────────────────────────────────────
-def load_trained_models(db_path="scraper.db"):
+def load_trained_models():
     """Carga el modelo de texto entrenado por ml_train.py si existe.
 
     PR4: la carga del modelo de imagen bespoke (MobileNetV3/EfficientNet,
@@ -44,9 +44,15 @@ def load_trained_models(db_path="scraper.db"):
     de imagen ahora la hace ``ml_embeddings.py`` (Marqo-FashionSigLIP,
     zero-shot, sin entrenamiento propio). Ver ``predict_category_image``
     (removida) y ``ml_train.py``'s ``--images`` no-op.
+
+    Batch 2 (design D5): `models_dir` ya no se deriva de un `db_path` de
+    SQLite — viene de la env var `SCRAPER_MODELS_ROOT` que PythonRunner.java
+    setea en el subproceso (fallback a `_models` local para corridas
+    manuales/standalone).
     """
     from pathlib import Path
-    models_dir = Path(db_path).parent / "_models"
+    models_root = os.environ.get("SCRAPER_MODELS_ROOT")
+    models_dir = Path(models_root) if models_root else Path("_models")
     text_model = le = None
 
     # ── Modelo de texto (TF-IDF + LogReg) ──────────────────────────────────
@@ -511,10 +517,9 @@ def main():
 
     # ─── 1. Construir PriceStats por grupo ───────────────────────────────────
     print("[ML] Calculando estadísticas por categoría+género...", file=sys.stderr)
-    # Cargar modelo entrenado para refinar categorías
-    json_arg = sys.argv[1] if len(sys.argv) > 1 else "ml_productos.json"
-    db_path_hint = os.path.join(os.path.dirname(os.path.abspath(json_arg)), "scraper.db")
-    text_model, label_enc = load_trained_models(db_path_hint)
+    # Cargar modelo entrenado para refinar categorías (Batch 2: ya no hace
+    # falta un db_path_hint derivado del path del json — ver design D5)
+    text_model, label_enc = load_trained_models()
     ml_refinements = 0  # contador de categorías refinadas por ML
 
     # ── Normalización de categorías ──────────────────────────────────────
@@ -960,7 +965,7 @@ def main():
             # present around download/classify in this block.
             try:
                 embeddings = ml_embeddings.embed_images(
-                    distinct_urls, db_path=db_path_hint,
+                    distinct_urls,
                     model_version=ml_embeddings.MODEL_VERSION,
                     preloaded_images=images,
                 )
@@ -972,7 +977,7 @@ def main():
                 url = candidate_urls_by_idx[i]
                 try:
                     embedding = embeddings.get(url)
-                    attrs = ml_embeddings.classify(embedding, db_path=db_path_hint)
+                    attrs = ml_embeddings.classify(embedding)
                     color = ''
                     image = images.get(url)
                     if image is not None:

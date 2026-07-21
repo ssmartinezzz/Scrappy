@@ -34,12 +34,24 @@ public class App {
         return Clock.systemDefaultZone();
     }
 
-    /** Abrir el browser automaticamente cuando Spring arranca */
+    /**
+     * Abre el browser automaticamente cuando Spring arranca — gated detrás de
+     * {@code APP_OPEN_URL} (decouple-services-postgres, Batch 3, design D6).
+     * El backend ahora es API-only (sin SPA embebida en {@code static/}), así
+     * que ya no hay una página propia útil para abrir por default: sin la
+     * variable de entorno, este listener es un no-op. Si se define
+     * {@code APP_OPEN_URL} (por ejemplo, apuntando al frontend standalone),
+     * se abre esa URL.
+     */
     @EventListener(ContextRefreshedEvent.class)
     public void onStart() {
+        String url = System.getenv("APP_OPEN_URL");
+        if (url == null || url.isBlank()) {
+            LOG.debug("APP_OPEN_URL no configurada — no se abre el navegador (backend API-only)");
+            return;
+        }
         try {
             Thread.sleep(500); // esperar que Tomcat este listo
-            String url = "http://localhost:3000";
             LOG.info("Abriendo navegador en {}", url);
             if (Desktop.isDesktopSupported()) {
                 Desktop.getDesktop().browse(URI.create(url));

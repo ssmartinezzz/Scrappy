@@ -13,13 +13,18 @@ clasificación de imagen es zero-shot vía ml_embeddings.py
 ml_pipeline.py's stage 1b.
 
 Uso:
-  python ml_train.py scraper.db [--images] [--epochs N]
+  python ml_train.py [--images] [--epochs N]
+
+Batch 2 (decouple-services-postgres, design D4/D5): ya no toma un `db_path`
+posicional — se conecta a Postgres vía `DATABASE_URL` (env var, seteada por
+PythonRunner.java en el subproceso) y guarda los modelos entrenados bajo
+`SCRAPER_MODELS_ROOT` (env var; fallback local `_models`).
 
 Output JSON:
   { "status": "ok", "text": {...metrics}, "image": {"status": "no-op", ...} }
 """
 
-import sys, os, json, pickle, sqlite3, re
+import sys, os, json, pickle, re
 # UTF-8 se fuerza via PYTHONIOENCODING=utf-8 en el ProcessBuilder de Java
 from pathlib import Path
 from collections import Counter
@@ -51,11 +56,20 @@ def normalize_text(s):
 
 # ─── Cargar datos del DB ──────────────────────────────────────────────────────
 
-def load_dataset(db_path):
-    if not Path(db_path).exists():
-        log(f"DB no encontrada: {db_path}"); return []
-    conn = sqlite3.connect(db_path)
-    cur  = conn.execute("""
+def load_dataset():
+    """Carga el dataset de entrenamiento desde Postgres vía `DATABASE_URL`.
+
+    Batch 2 (design D4): reemplaza el `sqlite3.connect(db_path)` original —
+    ya no toma un `db_path` posicional, se conecta directo a la env var.
+    """
+    import psycopg2
+
+    dsn = os.environ.get("DATABASE_URL")
+    if not dsn:
+        log("DATABASE_URL no configurado"); return []
+    conn = psycopg2.connect(dsn)
+    cur = conn.cursor()
+    cur.execute("""
         SELECT nombre, categoria, rubro, marca
         FROM productos
         WHERE activo=1 AND nombre IS NOT NULL AND nombre != ''
@@ -65,6 +79,7 @@ def load_dataset(db_path):
           AND categoria != 'PC & Tech'
     """)
     rows = cur.fetchall()
+    cur.close()
     conn.close()
     log(f"Registros cargados del DB: {len(rows)}")
     return rows
@@ -357,19 +372,18 @@ def train_text_model(cleaned, models_dir):
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    db_path   = sys.argv[1] if len(sys.argv) > 1 else "scraper.db"
     do_images = "--images" in sys.argv
     epochs    = int(next((sys.argv[i+1] for i, a in enumerate(sys.argv)
                           if a == "--epochs"), 8))
-    models_dir = Path(db_path).parent / "_models"
-    models_dir.mkdir(exist_ok=True)
+    models_root = os.environ.get("SCRAPER_MODELS_ROOT")
+    models_dir = Path(models_root) if models_root else Path("_models")
+    models_dir.mkdir(parents=True, exist_ok=True)
 
-    log(f"DB: {db_path}")
     log(f"Models dir: {models_dir}")
     log(f"Image training: {do_images}, epochs: {epochs}")
 
     # Cargar y limpiar dataset
-    rows = load_dataset(db_path)
+    rows = load_dataset()
     if len(rows) < 50:
         out = {"status": "error", "reason": "pocas_muestras", "n": len(rows)}
         print(json.dumps(out)); return
