@@ -204,8 +204,7 @@ class PythonRunnerSequencingTest {
     void trainingPhaseWritesDurableErrorStatusWhenProcessCannotStart(@org.junit.jupiter.api.io.TempDir
             java.nio.file.Path workDir) {
         boolean ok = runner.ejecutarFaseEntrenamientoSecuenciada(
-                PYTHON_INEXISTENTE, workDir, workDir.resolve("scraper.db").toString(),
-                false, false, 8, false);
+                PYTHON_INEXISTENTE, workDir, false, false, 8, false);
 
         assertThat(ok).isFalse();
         TrainingStatus estado = runner.getTrainingStatus();
@@ -218,7 +217,7 @@ class PythonRunnerSequencingTest {
     void backfillPhaseWritesDurableErrorStatusWhenProcessCannotStart(@org.junit.jupiter.api.io.TempDir
             java.nio.file.Path workDir) {
         boolean ok = runner.ejecutarFaseBackfillSecuenciada(
-                PYTHON_INEXISTENTE, workDir, workDir.resolve("scraper.db").toString(), false, false);
+                PYTHON_INEXISTENTE, workDir, false, false);
 
         assertThat(ok).isFalse();
         TrainingStatus estado = runner.getTrainingStatus();
@@ -276,7 +275,7 @@ class PythonRunnerSequencingTest {
     void bothPhasesSucceedEndsIdle(@org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
         String python = escribirPythonFalso(workDir, 0, 0);
 
-        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir,
                 false, false, 8, false, false);
 
         TrainingStatus estado = runner.getTrainingStatus();
@@ -291,7 +290,7 @@ class PythonRunnerSequencingTest {
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
         String python = escribirPythonFalso(workDir, 1, 0);
 
-        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir,
                 false, false, 8, false, false);
 
         TrainingStatus estado = runner.getTrainingStatus();
@@ -312,7 +311,7 @@ class PythonRunnerSequencingTest {
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) throws Exception {
         String python = escribirPythonFalso(workDir, 0, 1);
 
-        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir,
                 false, false, 8, false, false);
 
         TrainingStatus estado = runner.getTrainingStatus();
@@ -329,7 +328,7 @@ class PythonRunnerSequencingTest {
             throws Exception {
         String python = escribirPythonFalso(workDir, 1, 1);
 
-        runner.ejecutarSecuenciaIndiceVisual(python, workDir, workDir.resolve("scraper.db").toString(),
+        runner.ejecutarSecuenciaIndiceVisual(python, workDir,
                 false, false, 8, false, false);
 
         TrainingStatus estado = runner.getTrainingStatus();
@@ -376,7 +375,7 @@ class PythonRunnerSequencingTest {
     void reservaSecuenciaTieneExitoTrasEstadoDeErrorDurable(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path workDir) {
         runner.ejecutarFaseEntrenamientoSecuenciada(PYTHON_INEXISTENTE, workDir,
-                workDir.resolve("scraper.db").toString(), false, false, 8, false);
+                false, false, 8, false);
         assertThat(runner.getTrainingStatus().phase()).isEqualTo("error");
         assertThat(runner.isTrainingRunning()).isFalse();
 
@@ -389,7 +388,7 @@ class PythonRunnerSequencingTest {
         assertThat(runner.intentarReservarSecuenciaIndiceVisual()).isTrue();
         TrainingStatus antes = runner.getTrainingStatus();
 
-        boolean iniciado = runner.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
+        boolean iniciado = runner.construirIndiceVisualEnBackground(false, false, 8, false);
         Thread.sleep(100);
 
         assertThat(iniciado).isFalse();
@@ -412,8 +411,8 @@ class PythonRunnerSequencingTest {
             @Override Thread lanzarHiloSecuencia(Runnable body) { return new Thread(body); } // nunca started
         };
 
-        boolean ganador  = sinHiloReal.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
-        boolean perdedor = sinHiloReal.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false);
+        boolean ganador  = sinHiloReal.construirIndiceVisualEnBackground(false, false, 8, false);
+        boolean perdedor = sinHiloReal.construirIndiceVisualEnBackground(false, false, 8, false);
 
         assertThat(ganador).isTrue();
         assertThat(perdedor).isFalse();
@@ -437,7 +436,7 @@ class PythonRunnerSequencingTest {
         };
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                fallaAlLanzar.construirIndiceVisualEnBackground("scraper.db", false, false, 8, false))
+                fallaAlLanzar.construirIndiceVisualEnBackground(false, false, 8, false))
             .isInstanceOf(IllegalStateException.class);
 
         TrainingStatus estado = fallaAlLanzar.getTrainingStatus();

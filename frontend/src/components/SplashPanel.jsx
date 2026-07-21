@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { fetchSitios, startScrape, exportarDB, importarDB, limpiarCatalogo, limpiarMl } from '../api';
+import { fetchSitios, startScrape, limpiarCatalogo, limpiarMl } from '../api';
 import { cn } from '../lib/utils';
 import MlStatusPanel from './MlStatusPanel';
 import { SEMANTIC } from '../lib/colors';
@@ -52,12 +52,10 @@ export default function SplashPanel({
   const [precioMax, setPrecioMax] = useState(config?.precioMax || 300000);
   const [tab,          setTab]          = useState('launch'); // launch | config
   const [pct,          setPct]          = useState(5);
-  const [dbMsg,        setDbMsg]        = useState('');
   const [forceRetrain, setForceRetrain] = useState(false);
   const [clearMsg,     setClearMsg]     = useState('');
   const [clearOk,      setClearOk]      = useState(null);
   const pctRef    = useRef(5);
-  const fileRef   = useRef();
   const isRunning = scrapeStatus === 'RUNNING';
 
   useEffect(() => {
@@ -121,20 +119,6 @@ export default function SplashPanel({
   };
 
   const sitioColor = s => ({ done: SEMANTIC.positive, error: SEMANTIC.negative, running: SEMANTIC.warn, idle:'var(--bd2)' }[s]);
-
-  // Export / Import
-  async function handleExport() {
-    exportarDB(); setDbMsg('⬇ Descargando scraper.db...');
-    setTimeout(() => setDbMsg(''), 3000);
-  }
-  async function handleImport(e) {
-    const file = e.target.files?.[0]; if (!file) return;
-    setDbMsg('Importando...');
-    const res = await importarDB(file);
-    setDbMsg(res?.ok ? `✓ DB importada (${(res.bytes/1024/1024).toFixed(1)} MB)` : '✗ Error');
-    setTimeout(() => setDbMsg(''), 5000);
-    if (fileRef.current) fileRef.current.value = '';
-  }
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-start overflow-y-auto bg-bg p-4">
@@ -323,29 +307,10 @@ export default function SplashPanel({
                   💾 Base de datos
                 </div>
                 <div className="mb-2.5 text-[.7rem] leading-relaxed text-t4">
-                  Exportá para backup · Importá para restaurar datos anteriores
+                  PostgreSQL — backup/restore vía <code>pg_dump</code>/<code>pg_restore</code> contra <code>DATABASE_URL</code>
                 </div>
-                <div className="flex gap-[7px]">
-                  <button className="btn-sm btn-outline" onClick={handleExport}>
-                    ⬇ Exportar DB
-                  </button>
-                  <button className="btn-sm btn-ghost" onClick={() => fileRef.current?.click()}>
-                    ⬆ Importar DB
-                  </button>
-                  <input ref={fileRef} type="file" accept=".db"
-                    className="hidden" onChange={handleImport}/>
-                </div>
-                {dbMsg && (
-                  <div className={cn(
-                    'mt-2 text-[.7rem]',
-                    dbMsg.startsWith('✓') ? 'text-success' :
-                    dbMsg.startsWith('✗') ? 'text-danger' : 'text-t4'
-                  )}>
-                    {dbMsg}
-                  </div>
-                )}
 
-                <div className="mt-3.5 border-t border-s3 pt-3">
+                <div className="border-t border-s3 pt-3">
                   <div className="mb-2 text-[.68rem] font-bold uppercase tracking-[.06em] text-danger">
                     Borrar datos
                   </div>
@@ -400,8 +365,8 @@ export default function SplashPanel({
               {/* Info */}
               <div className="border-t border-s3 pt-2.5">
                 {[
-                  ['🌐 Puerto', 'localhost:3000'],
-                  ['🗄 Base de datos', 'scraper.db (SQLite)'],
+                  ['🌐 API', 'localhost:3000 (VITE_API_BASE_URL)'],
+                  ['🗄 Base de datos', 'PostgreSQL (DATABASE_URL)'],
                   ['🤖 ML', 'Python 3.11 · Percentil + Z-score + IQR'],
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between border-b border-s3 py-1 text-[.72rem]">

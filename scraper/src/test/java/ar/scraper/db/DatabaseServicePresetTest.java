@@ -1,18 +1,16 @@
 package ar.scraper.db;
 
+import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.db.DatabaseService.Preset;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,19 +18,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for the financing-preset CRUD methods added to
- * {@link DatabaseService}. Uses a real (temp-file) SQLite connection via the
- * package-private {@code initEn(path)} test seam, since {@code DatabaseService}
- * has no DB abstraction to mock against — mirrors how {@code crearTablas()} is
- * exercised indirectly elsewhere in this codebase (no pure in-memory fakes).
+ * {@link DatabaseService}. Runs against a real Postgres instance via
+ * {@link PostgresTestBase} (Testcontainers or portable-local
+ * {@code _tools/pgsql}) — migrated from the SQLite-era {@code initEn(path)}
+ * test seam per decouple-services-postgres Batch 4 task 4.6.
  */
 @Epic("Persistence")
 @Feature("Presets / Pack Pricing / Category Dismiss")
 @Story("Presets")
 @DisplayName("DatabaseService — financing preset CRUD")
-class DatabaseServicePresetTest {
-
-    @TempDir
-    Path tempDir;
+class DatabaseServicePresetTest extends PostgresTestBase {
 
     private DatabaseService db;
 
@@ -41,16 +36,16 @@ class DatabaseServicePresetTest {
         abrirBaseDeDatosTemporal();
     }
 
-    @Step("Open temp-file SQLite DB and initialize schema")
+    @Step("Open Postgres-backed DatabaseService and run its @PostConstruct seed")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService();
-        db.initEn(tempDir.resolve("test-financiacion.db").toString());
+        db = new DatabaseService(dataSource());
+        // DatabaseService.init() (@PostConstruct: seeds the illustrative default
+        // preset) only runs automatically when Spring manages the bean. Tests
+        // construct it directly via `new`, so invoke the same package-private
+        // lifecycle hook explicitly to reproduce real startup behavior.
+        db.init();
     }
 
-    @AfterEach
-    void tearDown() {
-        db.cerrar();
-    }
 
     @Test
     void firstRunSeedsIllustrativeDefaultPresetAsActive() {

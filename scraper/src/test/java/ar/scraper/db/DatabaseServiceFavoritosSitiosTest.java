@@ -1,16 +1,14 @@
 package ar.scraper.db;
 
+import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
@@ -28,10 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 @Feature("Favoritos / Sitios dinamicos")
 @Story("Null primary-key fail-fast guard")
 @DisplayName("DatabaseService — favoritos/sitios null PK guard")
-class DatabaseServiceFavoritosSitiosTest {
-
-    @TempDir
-    Path tempDir;
+class DatabaseServiceFavoritosSitiosTest extends PostgresTestBase {
 
     private DatabaseService db;
 
@@ -42,14 +37,9 @@ class DatabaseServiceFavoritosSitiosTest {
 
     @Step("Open temp-file SQLite DB and initialize schema")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService();
-        db.initEn(tempDir.resolve("test-favoritos-sitios.db").toString());
+        db = new DatabaseService(dataSource());
     }
 
-    @AfterEach
-    void tearDown() {
-        db.cerrar();
-    }
 
     @Test
     void guardarFavoritoWithNullUrlThrowsAndInsertsNothing() {

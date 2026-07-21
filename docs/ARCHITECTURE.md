@@ -6,19 +6,23 @@
 
 ### ¿Por qué un fat JAR con todo incluido?
 
-**Decisión**: Spring Boot fat JAR con Tomcat embebido.
+**Decisión**: Spring Boot fat JAR con Tomcat embebido, backend **API-only** (sin servir la SPA).
 
-**Razón**: el usuario objetivo es Santiago en Windows, sin conocimientos de deployment. Un `.bat` que descarga Java y ejecuta `java -jar scraper.jar` es la UX más simple posible. No hay Dockerfile, no hay instalaciones previas, no hay conflictos de versiones.
+**Razón**: es una herramienta local mono-usuario en Windows, no un servicio desplegado. Para ese escenario, un `.bat` que descarga Java + Postgres portable + Node + Python y ejecuta `java -jar scraper.jar` es la UX más simple posible: cero-setup, sin infraestructura previa. No hay Dockerfile, no hay instalaciones previas, no hay conflictos de versiones.
+
+**Actualización (decouple-services-postgres, Batch 3/D6)**: el backend dejó de servir `static/` (se retiró `SpaController`); el proyecto pasó de "monolito con SPA embebida" a **3 servicios independientes** (backend API, frontend Vite, ML Python subprocess lanzado por el backend), cada uno configurado 100% por variables de entorno (`spec` "Environment-Only Configuration"). Ver el diagrama de topología más abajo.
 
 ---
 
-### ¿Por qué SQLite y no H2?
+### ¿Por qué PostgreSQL y no SQLite/H2?
 
-**Decisión**: `sqlite-jdbc` en lugar de H2 embebida de Spring Boot.
+**Decisión** (decouple-services-postgres, Batch 1, design D1-D3): `postgresql` JDBC + HikariCP + Flyway, reemplazando `sqlite-jdbc`.
 
-**Razón**: H2 por defecto es in-memory (se pierde al reiniciar) o requiere configuración de archivo. SQLite genera un único archivo `scraper.db` en el directorio de trabajo, visible y transferible. El usuario puede abrirlo con DB Browser for SQLite si quiere inspeccionar datos. No requiere Spring Data JPA ni configuración de datasource.
+**Historia**: el proyecto arrancó con SQLite (un archivo `scraper.db`, cero configuración, visible/transferible) por su simplicidad para un usuario único en Windows. Esa elección tuvo un costo real: SQLite es single-writer, y a medida que se agregaron cronjobs + API + scraping concurrente, apareció `SQLITE_BUSY_SNAPSHOT` (escrituras solapadas pisándose commits) que se parcheó con un lock-dance de aplicación (`writeLock`/`readLock`/`refrescarSnapshot()` + `readConn` dedicada) — una solución cada vez más frágil para un problema que SQLite no está diseñado para resolver.
 
-**Trade-off**: no hay migraciones automáticas. Si el schema cambia, hay que manejar ALTER TABLE manualmente o borrar `scraper.db`.
+**Razón del swap**: Postgres da concurrencia real vía MVCC — múltiples escritores/lectores sin locks de aplicación. El write-path (upsert + historial + soft-delete) se movió a funciones `plpgsql` server-side (`sp_upsert_run`/`sp_soft_delete_ausentes`, design D2) para que la decisión "¿cambió el precio?" ocurra DENTRO de una sola sentencia SQL, eliminando la carrera de "leer precio actual → decidir → escribir" entre callers concurrentes. `UNIQUE(url, fecha)` + `ON CONFLICT DO NOTHING` hace el insert en `precio_historico` idempotente incluso con escritores solapados.
+
+**Trade-off**: ya no hay un archivo único portable — Postgres corre como proceso (portátil bajo `_tools/pgsql`, provisionado por el installer, o un Postgres externo vía `DATABASE_URL`). A cambio, las migraciones son versionadas (Flyway `V1__baseline.sql`), no `ALTER TABLE` manual, y el problema de concurrencia queda resuelto estructuralmente en vez de parchado.
 
 ---
 
@@ -90,25 +94,46 @@
 
 ---
 
-### ¿Por qué el frontend es HTML/JS vanilla?
+### ¿Por qué React + Vite en el frontend?
 
-**Decisión**: SPA vanilla sin React/Vue/Angular.
+**Decisión**: SPA en React 18 + Vite 5, servida como su **propio servicio** (no más static resource embebido en el JAR).
 
-**Razón**: el frontend es servido como static resource desde Spring Boot. No hay build step, no hay `npm install`, no hay webpack. El usuario descarga el JAR y funciona. Un framework JavaScript agregaría complejidad de build sin beneficio real dado el tamaño del proyecto.
-
-**Trade-off**: el código JS en `index.html` es más verbose. Aceptable para una app de uso personal.
+**Nota histórica**: este documento describía el frontend como "HTML/JS vanilla servido como static resource desde Spring Boot" — eso dejó de ser preciso mucho antes de `decouple-services-postgres` (el frontend ya era React/Vite, buildeando a `scraper/src/main/resources/static/`). El swap de `decouple-services-postgres` (Batch 3, design D6) es un cambio distinto y posterior: dejar de embeber el build de Vite en el JAR — el backend ahora es API-only (`SpaController` removido) y el frontend corre como servicio independiente, hablándole al backend por CORS (`APP_CORS_ALLOWED_ORIGINS`) usando `VITE_API_BASE_URL` como base de sus fetches (`frontend/src/api.js`).
 
 ---
 
-## Diagrama de capas
+## Diagrama de capas y topología de servicios
+
+**Topología (decouple-services-postgres, Batch 3, design D6)**: 3 servicios independientes, cada uno arrancable solo con env vars — ninguno requiere que los otros estén corriendo para bootear (spec "Independent Service Startup").
 
 ```
-┌─────────────────────────────────────────┐
-│           index.html (SPA)              │  Frontend vanilla
-└───────────────────┬─────────────────────┘
-                    │ REST API
+┌───────────────────────────┐        ┌───────────────────────────┐
+│   Frontend (Vite/React)   │  CORS  │   Backend (Spring Boot)    │
+│   VITE_API_BASE_URL ──────┼───────►│   APP_CORS_ALLOWED_ORIGINS │
+│   propio proceso/puerto   │  fetch │   API-only (sin SPA)       │
+└───────────────────────────┘        └──────────────┬──────────────┘
+                                                      │ lanza subprocess
+                                      ┌───────────────▼───────────────┐
+                                      │  Python ML (subprocess)        │
+                                      │  DATABASE_URL (psycopg2 DSN,   │
+                                      │  traducido desde el jdbc: de   │
+                                      │  Java por toPsycopgDsn)         │
+                                      │  SCRAPER_MODELS_ROOT / HF_HOME │
+                                      └───────────────┬───────────────┘
+                                                      │
+                                      ┌───────────────▼───────────────┐
+                                      │      PostgreSQL (DATABASE_URL) │
+                                      │  Flyway V1__baseline.sql +     │
+                                      │  sp_upsert_run/                │
+                                      │  sp_soft_delete_ausentes       │
+                                      └────────────────────────────────┘
+```
+
+Capas internas del backend (sin cambios de forma, solo el datasource):
+
+```
 ┌───────────────────▼─────────────────────┐
-│         ApiController.java              │  Spring MVC
+│         ApiController.java              │  Spring MVC (+ CorsConfig)
 ├─────────────────────────────────────────┤
 │         ScraperService.java             │  Orquestación async
 ├──────────────┬──────────────────────────┤
@@ -116,9 +141,10 @@
 │  *Page.java  │  (aggregator.normalize/  │  normalizar + agrupar
 │              │   .grouping/.text)       │
 ├──────────────┴──────────────────────────┤
-│         DatabaseService.java            │  SQLite persistence
+│         DatabaseService.java            │  PostgreSQL (HikariCP pool),
+│                                          │  write-path via plpgsql
 ├─────────────────────────────────────────┤
-│   PythonRunner → ml_pipeline.py         │  ML subprocess
+│   PythonRunner → ml_pipeline.py         │  ML subprocess (psycopg2)
 └─────────────────────────────────────────┘
 ```
 

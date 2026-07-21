@@ -30,6 +30,19 @@ set "PIP_EXE=%PYTHON_DIR%\Scripts\pip.exe"
 set "NODE_DIR=%TOOLS%\node"
 set "PROJECT=%ROOT%\scraper"
 set "JAR=%PROJECT%\scraper.jar"
+:: decouple-services-postgres, Batch 4 (task 4.2): portable PostgreSQL —
+:: mirrors the jdk21/maven pattern (binaries under _tools/, datadir + running
+:: server are the only local state). ENV_FILE is the gitignored .env the
+:: launcher generates/sources so Java/Python/frontend share ONE config source
+:: (spec "Environment-Only Configuration" / "Installer-generated .env sourced
+:: by launcher").
+set "PG_DIR=%TOOLS%\pgsql"
+set "PG_BIN=%PG_DIR%\bin"
+set "PG_DATA=%TOOLS%\pgdata"
+set "PG_PORT=5432"
+set "PG_DB=scraper"
+set "PG_USER=postgres"
+set "ENV_FILE=%ROOT%\.env"
 if not exist "%TOOLS%" mkdir "%TOOLS%"
 
 echo  Raiz    : %ROOT%
@@ -37,9 +50,9 @@ echo  Proyecto: %PROJECT%
 echo.
 
 :: ============================================================
-:: [1/7] Internet
+:: [1/8] Internet
 :: ============================================================
-echo [1/7] Verificando internet...
+echo [1/8] Verificando internet...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "try{(New-Object Net.WebClient).DownloadString('https://www.google.com')|Out-Null;exit 0}catch{exit 1}"
 if errorlevel 1 (
@@ -50,9 +63,9 @@ echo        OK
 echo.
 
 :: ============================================================
-:: [2/7] Java 21
+:: [2/8] Java 21
 :: ============================================================
-echo [2/7] Java 21...
+echo [2/8] Java 21...
 if exist "%JAVA_EXE%" (
     echo        Ya instalado.
     goto :java_ok
@@ -85,9 +98,81 @@ set "PATH=%JAVA_DIR%\bin;%PATH%"
 echo.
 
 :: ============================================================
-:: [3/7] Python 3.11 + pip + paquetes ML
+:: [3/8] PostgreSQL portable (decouple-services-postgres, Batch 4)
 :: ============================================================
-echo [3/7] Python + scikit-learn + PyTorch...
+echo [3/8] PostgreSQL portable...
+if exist "%PG_BIN%\postgres.exe" (
+    echo        Ya instalado.
+    goto :pg_bin_ok
+)
+echo        Descargando PostgreSQL 16 portable aprox 320MB...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "[Net.ServicePointManager]::SecurityProtocol='Tls12';" ^
+  "$ProgressPreference='SilentlyContinue';" ^
+  "(New-Object Net.WebClient).DownloadFile(" ^
+  "'https://get.enterprisedb.com/postgresql/postgresql-16.4-1-windows-x64-binaries.zip'," ^
+  "'%TOOLS%\pgsql.zip')"
+if not exist "%TOOLS%\pgsql.zip" (
+    echo  [ERROR] Descarga PostgreSQL fallo.
+    pause & exit /b 1
+)
+echo        Descomprimiendo PostgreSQL...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Expand-Archive -LiteralPath '%TOOLS%\pgsql.zip' -DestinationPath '%TOOLS%\pgsql_tmp' -Force"
+move "%TOOLS%\pgsql_tmp\pgsql" "%PG_DIR%" >nul 2>&1
+:: pgAdmin4/StackBuilder/doc no se usan en runtime headless — se descartan.
+rmdir /s /q "%TOOLS%\pgsql_tmp" 2>nul
+del /f /q "%TOOLS%\pgsql.zip" 2>nul
+if not exist "%PG_BIN%\postgres.exe" (
+    echo  [ERROR] Extraccion PostgreSQL fallo.
+    pause & exit /b 1
+)
+echo        PostgreSQL portable listo.
+:pg_bin_ok
+
+if exist "%PG_DATA%\PG_VERSION" (
+    echo        Data directory ya inicializado.
+    goto :pg_initdb_ok
+)
+echo        Inicializando data directory...
+"%PG_BIN%\initdb.exe" -D "%PG_DATA%" -U "%PG_USER%" -A trust --locale=C -E UTF8 >nul
+if not exist "%PG_DATA%\PG_VERSION" (
+    echo  [ERROR] initdb fallo.
+    pause & exit /b 1
+)
+:pg_initdb_ok
+
+"%PG_BIN%\pg_ctl.exe" -D "%PG_DATA%" status >nul 2>&1
+if not errorlevel 1 (
+    echo        Servidor ya esta corriendo.
+    goto :pg_start_ok
+)
+echo        Iniciando servidor en 127.0.0.1:%PG_PORT%...
+"%PG_BIN%\pg_ctl.exe" -D "%PG_DATA%" ^
+  -o "-p %PG_PORT% -c listen_addresses=127.0.0.1 -c unix_socket_directories=" ^
+  -l "%TOOLS%\pgserver.log" -w start
+if errorlevel 1 (
+    echo  [ERROR] PostgreSQL no arranco. Ver %TOOLS%\pgserver.log.
+    pause & exit /b 1
+)
+:pg_start_ok
+
+"%PG_BIN%\psql.exe" -h 127.0.0.1 -p %PG_PORT% -U "%PG_USER%" -tAc ^
+  "SELECT 1 FROM pg_database WHERE datname='%PG_DB%'" > "%TOOLS%\pgcheck.tmp" 2>nul
+set "PG_DB_EXISTS="
+set /p PG_DB_EXISTS=<"%TOOLS%\pgcheck.tmp"
+del /f /q "%TOOLS%\pgcheck.tmp" 2>nul
+if not "!PG_DB_EXISTS!"=="1" (
+    echo        Creando base de datos '%PG_DB%'...
+    "%PG_BIN%\createdb.exe" -h 127.0.0.1 -p %PG_PORT% -U "%PG_USER%" "%PG_DB%"
+)
+echo        PostgreSQL listo en 127.0.0.1:%PG_PORT%/%PG_DB%.
+echo.
+
+:: ============================================================
+:: [4/8] Python 3.11 + pip + paquetes ML
+:: ============================================================
+echo [4/8] Python + scikit-learn + PyTorch...
 echo.
 
 :: 3a - Python embeddable
@@ -212,6 +297,18 @@ if errorlevel 1 (
     echo        scikit-learn ya instalado.
 )
 
+:: decouple-services-postgres, Batch 4 (task 4.2): psycopg2-binary — el
+:: pipeline ML (ml_pipeline.py/ml_train.py/ml_embeddings.py) habla Postgres
+:: directo via DATABASE_URL (design D4), ya no SQLite.
+"%PYTHON_EXE%" -c "import psycopg2" 2>nul
+if errorlevel 1 (
+    echo        Instalando psycopg2-binary aprox 3MB...
+    "%PIP_EXE%" install --quiet --no-warn-script-location --timeout 120 --retries 5 psycopg2-binary
+    echo        psycopg2-binary instalado.
+) else (
+    echo        psycopg2-binary ya instalado.
+)
+
 :: 3e - PyTorch
 "%PYTHON_EXE%" -c "import torch" 2>nul
 if errorlevel 1 (
@@ -263,9 +360,11 @@ if errorlevel 1 (
 if not errorlevel 1 set "IMGCLS_DEPS_OK=1"
 
 :: 3g - Pesos del modelo Marqo-FashionSigLIP aprox 300MB
-:: El runtime calcula HF_HOME al lado de scraper.db (PythonRunner.hfHomeParaDb
-:: y ml_embeddings._default_hf_home), es decir %PROJECT%\_models\marqo. El
-:: warm-up del installer debe apuntar al mismo directorio o el backfill
+:: decouple-services-postgres (Batch 2/4, design D5): el runtime ya no deriva
+:: HF_HOME de un archivo scraper.db — PythonRunner.hfHomeParaModelsRoot y
+:: ml_embeddings._default_hf_home lo calculan como <SCRAPER_MODELS_ROOT>/marqo,
+:: con SCRAPER_MODELS_ROOT fijado a %PROJECT%\_models mas abajo (bloque .env).
+:: El warm-up del installer debe apuntar al mismo directorio o el backfill
 :: arranca con cache frio y degrada a "modelo no disponible".
 set "MODELS_DIR=%PROJECT%\_models"
 set "MARQO_DIR=%MODELS_DIR%\marqo"
@@ -309,9 +408,9 @@ if "!MARQO_OK!"=="1" (
 echo.
 
 :: ============================================================
-:: [4/7] Node.js + Frontend
+:: [5/8] Node.js + Frontend
 :: ============================================================
-echo [4/7] Node.js + Frontend React/Vite...
+echo [5/8] Node.js + Frontend React/Vite...
 if exist "%NODE_DIR%\node.exe" (
     echo        Node.js ya instalado.
     goto :node_ok
@@ -385,9 +484,9 @@ cd /d "%ROOT%"
 echo.
 
 :: ============================================================
-:: [5/7] Maven
+:: [6/8] Maven
 :: ============================================================
-echo [5/7] Maven...
+echo [6/8] Maven...
 if exist "%MVN_EXE%" (
     echo        Ya instalado.
     goto :mvn_ok
@@ -422,9 +521,9 @@ set "PATH=%MVN_DIR%\bin;%PATH%"
 echo.
 
 :: ============================================================
-:: [6/7] Allure CLI (reportes de test)
+:: [7/8] Allure CLI (reportes de test)
 :: ============================================================
-echo [6/7] Allure CLI...
+echo [7/8] Allure CLI...
 if exist "%ALLURE_EXE%" (
     echo        Ya instalado.
     goto :allure_ok
@@ -459,9 +558,9 @@ if exist "%ALLURE_EXE%" set "PATH=%ALLURE_DIR%\bin;%PATH%"
 echo.
 
 :: ============================================================
-:: [7/7] Compilar JAR
+:: [8/8] Compilar JAR
 :: ============================================================
-echo [7/7] Compilando backend Java...
+echo [8/8] Compilando backend Java...
 if exist "%JAR%" (
     echo        JAR ya existe, saltando compilacion.
     goto :jar_ok
@@ -488,6 +587,32 @@ echo        Backend listo.
 echo.
 
 :: ============================================================
+:: Generar .env (gitignored) — env-only config, sin defaults silenciosos
+:: (spec "Environment-Only Configuration" / "Installer-generated .env sourced
+:: by launcher"). DATABASE_URL usa el formato jdbc: que Spring/HikariCP
+:: requiere; PythonRunner.toPsycopgDsn lo traduce al formato libpq/psycopg2
+:: antes de pasarlo al subproceso Python (design D5, Batch 4 fix).
+:: ============================================================
+set "SCRAPER_MODELS_ROOT=%PROJECT%\_models"
+set "DATABASE_URL=jdbc:postgresql://127.0.0.1:%PG_PORT%/%PG_DB%"
+set "DATABASE_USERNAME=%PG_USER%"
+set "DATABASE_PASSWORD="
+set "APP_CORS_ALLOWED_ORIGINS=http://localhost:5173"
+set "VITE_API_BASE_URL=http://localhost:3000"
+set "APP_OPEN_URL=http://localhost:3000"
+(
+  echo DATABASE_URL=%DATABASE_URL%
+  echo DATABASE_USERNAME=%DATABASE_USERNAME%
+  echo DATABASE_PASSWORD=%DATABASE_PASSWORD%
+  echo SCRAPER_MODELS_ROOT=%SCRAPER_MODELS_ROOT%
+  echo APP_CORS_ALLOWED_ORIGINS=%APP_CORS_ALLOWED_ORIGINS%
+  echo VITE_API_BASE_URL=%VITE_API_BASE_URL%
+  echo APP_OPEN_URL=%APP_OPEN_URL%
+) > "%ENV_FILE%"
+echo        .env generado en %ENV_FILE% ^(gitignored^)
+echo.
+
+:: ============================================================
 :: LANZAR servidor
 :: ============================================================
 cls
@@ -496,7 +621,8 @@ echo  ============================================================
 echo   FASHION SCRAPER - SERVIDOR LISTO
 echo  ============================================================
 echo.
-echo   URL      : http://localhost:3000
+echo   API      : http://localhost:3000  ^(API-only — backend ya no sirve la SPA^)
+echo   DB       : PostgreSQL 127.0.0.1:%PG_PORT%/%PG_DB%
 if "!HAS_GPU!"=="1" (
     echo   GPU      : !GPU_NAME! - CUDA !CUDA_MAJOR!
     echo   Training : EfficientNet-B3 habilitado

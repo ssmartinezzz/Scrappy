@@ -1,4 +1,10 @@
-const BASE = '';
+// decouple-services-postgres, Batch 3 (task 3.5, design D6): the backend is
+// now an API-only service on its own origin (SpaController/static/ removed),
+// so the frontend can no longer assume same-origin '' relative paths in
+// production. VITE_API_BASE_URL is the env-driven base; it defaults to ''
+// (relative) so local dev keeps using Vite's `/api` proxy (vite.config.js)
+// unless the var is explicitly set.
+const BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export async function fetchStatus() {
   const r = await fetch(`${BASE}/api/status`);
@@ -137,7 +143,7 @@ export { BADGE_LABELS } from './lib/colors';
 export async function buscarExterno(nombre, productoUrl) {
   const p = new URLSearchParams({ q: nombre });
   if (productoUrl) p.set('url', productoUrl);
-  const r = await fetch(`/api/buscar-externo?${p}`);
+  const r = await fetch(`${BASE}/api/buscar-externo?${p}`);
   if (!r.ok) return { resultados: [], searchUrl: EXTERNAL_SEARCH.mercadolibre(nombre), queryUsada: nombre };
   const data = await r.json();
   // Compatibilidad: si el backend devuelve array (legacy) o el nuevo objeto
@@ -151,31 +157,19 @@ export const EXTERNAL_SEARCH = {
   google:       q => `https://www.google.com.ar/search?q=${encodeURIComponent(q)}+precio+argentina&tbm=shop`,
 };
 
-// ─── DB backup ───────────────────────────────────────────────────────────────
-
-export function exportarDB() {
-  // Trigger browser download of scraper.db via anchor
-  const a = document.createElement('a');
-  a.href = '/api/db/export';
-  a.download = `scraper-${new Date().toISOString().slice(0,10)}.db`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-export async function importarDB(file) {
-  const form = new FormData();
-  form.append('file', file);
-  const r = await fetch('/api/db/import', { method: 'POST', body: form });
-  return r.ok ? r.json() : null;
-}
+// Note (decouple-services-postgres, task 4.10): the file-based DB
+// export/import helpers (exportarDB/importarDB) were removed — persistence
+// moved to PostgreSQL (no scraper.db file to download/upload). The backend
+// endpoints they called (`GET /api/db/export`, `POST /api/db/import`) now
+// answer `410 Gone`. Use `pg_dump`/`pg_restore` directly against
+// `DATABASE_URL` for backup/restore.
 
 export async function fetchGrupos(filters = {}) {
   const p = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== '' && v != null) p.set(k, v);
   });
-  const r = await fetch(`/api/grupos?${p}`);
+  const r = await fetch(`${BASE}/api/grupos?${p}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;
 }
@@ -183,7 +177,7 @@ export async function fetchGrupos(filters = {}) {
 export async function fetchMejores(rubro = '') {
   const p = new URLSearchParams();
   if (rubro) p.set('rubro', rubro);
-  const r = await fetch(`/api/mejores?${p}`);
+  const r = await fetch(`${BASE}/api/mejores?${p}`);
   if (r.status === 204) return [];
   return r.ok ? r.json() : [];
 }
@@ -191,35 +185,35 @@ export async function fetchMejores(rubro = '') {
 export async function fetchMarcasBrowser(params = {}) {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
-  const r = await fetch(`/api/marcas-browser?${p}`);
+  const r = await fetch(`${BASE}/api/marcas-browser?${p}`);
   if (r.status === 204) return [];
   return r.ok ? r.json() : [];
 }
 
 // ─── ML Training ─────────────────────────────────────────────────────────────
 export async function fetchMlEstado() {
-  const r = await fetch('/api/ml/estado');
+  const r = await fetch(`${BASE}/api/ml/estado`);
   return r.ok ? r.json() : null;
 }
 
 export async function startMlTraining(images = false, epochs = 8) {
   const p = new URLSearchParams({ images, epochs });
-  const r = await fetch(`/api/ml/entrenar?${p}`, { method: 'POST' });
+  const r = await fetch(`${BASE}/api/ml/entrenar?${p}`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 
 export async function fetchMlResultado() {
-  const r = await fetch('/api/ml/resultado');
+  const r = await fetch(`${BASE}/api/ml/resultado`);
   return r.ok ? r.json() : null;
 }
 
 export async function aplicarModeloML() {
-  const r = await fetch('/api/ml/aplicar', { method: 'POST' });
+  const r = await fetch(`${BASE}/api/ml/aplicar`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 
 export async function renormalizarCatalogo() {
-  const r = await fetch('/api/ml/renormalizar', { method: 'POST' });
+  const r = await fetch(`${BASE}/api/ml/renormalizar`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 

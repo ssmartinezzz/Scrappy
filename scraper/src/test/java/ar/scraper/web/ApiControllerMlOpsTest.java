@@ -190,7 +190,7 @@ class ApiControllerMlOpsTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("error").asText()).contains("curso");
         verify(pythonRunner, never())
-                .construirIndiceVisualEnBackground(any(), anyBoolean(), anyBoolean(), anyInt(), anyBoolean());
+                .construirIndiceVisualEnBackground(anyBoolean(), anyBoolean(), anyInt(), anyBoolean());
     }
 
     // T6.1/T6.2: /api/ml/entrenar drives the T5.4 sequencing entrypoint
@@ -201,7 +201,7 @@ class ApiControllerMlOpsTest {
     @Test
     void mlEntrenarReturnsStartedWhenIdle() {
         when(pythonRunner.isTrainingRunning()).thenReturn(false);
-        when(pythonRunner.construirIndiceVisualEnBackground(any(), anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
+        when(pythonRunner.construirIndiceVisualEnBackground(anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
                 .thenReturn(true);
 
         var resp = controller.mlEntrenar(false, 8);
@@ -209,8 +209,8 @@ class ApiControllerMlOpsTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
-        verify(pythonRunner).construirIndiceVisualEnBackground(any(), eq(true), eq(false), eq(8), eq(true));
-        verify(pythonRunner, never()).entrenarEnBackground(any(), anyBoolean(), anyBoolean(), anyInt());
+        verify(pythonRunner).construirIndiceVisualEnBackground(eq(true), eq(false), eq(8), eq(true));
+        verify(pythonRunner, never()).entrenarEnBackground(anyBoolean(), anyBoolean(), anyInt());
     }
 
     // RESI-002 ≡ RELY-001 (4R PR6 follow-up): two near-simultaneous POSTs can
@@ -220,7 +220,7 @@ class ApiControllerMlOpsTest {
     @Test
     void mlEntrenarReturns409WhenLosingTheStartRace() {
         when(pythonRunner.isTrainingRunning()).thenReturn(false);
-        when(pythonRunner.construirIndiceVisualEnBackground(any(), anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
+        when(pythonRunner.construirIndiceVisualEnBackground(anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
                 .thenReturn(false);
 
         var resp = controller.mlEntrenar(false, 8);
@@ -237,7 +237,7 @@ class ApiControllerMlOpsTest {
         // dispatches to a background thread and returns immediately (true =
         // reservation won) — the controller must never await any callback/latch,
         // just delegate and respond "started" synchronously.
-        when(pythonRunner.construirIndiceVisualEnBackground(any(), anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
+        when(pythonRunner.construirIndiceVisualEnBackground(anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
                 .thenReturn(true);
 
         long start = System.nanoTime();
@@ -246,7 +246,7 @@ class ApiControllerMlOpsTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(elapsedMs).isLessThan(500);
-        verify(pythonRunner).construirIndiceVisualEnBackground(any(), eq(true), eq(true), eq(8), eq(true));
+        verify(pythonRunner).construirIndiceVisualEnBackground(eq(true), eq(true), eq(8), eq(true));
     }
 
     // ── POST /api/ml/aplicar ─────────────────────────────────────────────

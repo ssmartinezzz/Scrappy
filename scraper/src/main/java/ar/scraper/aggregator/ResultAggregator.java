@@ -148,10 +148,11 @@ public class ResultAggregator {
 
         LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", validacion.todos().size(), conFinanciacion.size());
 
-        // Entrenamiento background post-scraping
-        String dbPath = System.getProperty("user.dir") + java.io.File.separator + "scraper.db";
+        // Entrenamiento background post-scraping. No filesystem DB path to
+        // resolve anymore (decouple-services-postgres Batch 3, task 3.6) —
+        // the subprocess reads DATABASE_URL from its own env.
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
-        pythonRunner.entrenarEnBackground(dbPath, forceRetrain);
+        pythonRunner.entrenarEnBackground(forceRetrain);
 
         return new AggregatedResult(conFinanciacion, validacion.conteo(), validacion.errores(), facets, minP, maxP, validacion.stats());
     }
