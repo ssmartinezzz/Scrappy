@@ -32,7 +32,11 @@ export default defineConfig(({ command, mode }) => {
     },
   },
   build: {
-    outDir:     '../scraper/src/main/resources/static',
+    // Frontend is its own deployable service now (design D6) — it no longer
+    // builds into the backend's `scraper/src/main/resources/static` (the
+    // backend is API-only, `SpaController`/static serving was removed). Emit to
+    // the Vite-default local `dist/` (gitignored) that the frontend service serves.
+    outDir:     'dist',
     emptyOutDir: true,
     sourcemap:  false,
     rollupOptions: {
