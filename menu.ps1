@@ -273,6 +273,37 @@ function Get-Sitios {
     }
 }
 
+# Extracts the API's real `mensaje` field from a failed request's response
+# body (PowerShell 5.1: Invoke-RestMethod throws on non-2xx and discards the
+# body unless read back explicitly via $_.ErrorDetails.Message or the
+# underlying response stream). Falls back to the raw exception text when the
+# body isn't parseable JSON with a `mensaje` key.
+function Get-ApiErrorMessage {
+    param($ErrorRecord)
+    $raw = $null
+    if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+        $raw = $ErrorRecord.ErrorDetails.Message
+    } elseif ($ErrorRecord.Exception.Response) {
+        try {
+            $stream = $ErrorRecord.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $raw = $reader.ReadToEnd()
+        } catch {
+            $raw = $null
+        }
+    }
+    if ($raw) {
+        try {
+            $parsed = $raw | ConvertFrom-Json
+            if ($parsed.mensaje) { return $parsed.mensaje }
+        } catch {
+            # not JSON / no mensaje field — fall through to raw text
+        }
+        return $raw
+    }
+    return $ErrorRecord.Exception.Message
+}
+
 function Add-Sitio {
     $nombre = Read-Host "  nombre"
     $url = Read-Host "  url"
@@ -287,7 +318,7 @@ function Add-Sitio {
             Write-Host "  No se agrego: $($resp.mensaje)" -ForegroundColor Yellow
         }
     } catch {
-        Write-Host "  [ERROR] POST /api/sitios fallo: $_" -ForegroundColor Red
+        Write-Host "  No se agrego: $(Get-ApiErrorMessage $_)" -ForegroundColor Yellow
     }
 }
 

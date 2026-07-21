@@ -55,6 +55,22 @@ assert_eq "plataforma passthrough" "tiendanube" "$parsed_plataforma"
 json_default="$(build_site_json "MiMarca" "https://mimarca.com")"
 assert_eq "plataforma defaults to tiendanube" "tiendanube" "$(printf '%s' "$json_default" | jq -r '.plataforma')"
 
+# remove_sitio must URL-encode the site name before building the DELETE
+# path (parity with menu.ps1's Remove-Sitio / [uri]::EscapeDataString) so
+# names with spaces/special chars resolve to the right site.
+name_with_space="Mi Marca & Co"
+encoded="$(printf '%s' "$name_with_space" | "$JQ_BIN" -sRr @uri)"
+# @uri encoding never leaves a literal space or & in the output.
+case "$encoded" in
+  *" "*|*"&"*)
+    echo "FAIL: URL-encoding of site name still contains raw space/& -> $encoded"
+    fail=1
+    ;;
+  *)
+    echo "PASS: URL-encoding of site name strips raw space/&"
+    ;;
+esac
+
 if [ "$fail" -ne 0 ]; then
   echo "menu_test.sh: FAILED"
   exit 1

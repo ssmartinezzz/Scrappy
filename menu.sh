@@ -227,8 +227,8 @@ invoke_scrape() {
   read -r -p "  forceRetrain? (s/N): " force_retrain_raw
 
   local qs="" sep=""
-  if [ -n "$precio_min" ]; then qs="${qs}${sep}precioMin=$(printf '%s' "$precio_min" | jq -sRr @uri 2>/dev/null || printf '%s' "$precio_min")"; sep="&"; fi
-  if [ -n "$precio_max" ]; then qs="${qs}${sep}precioMax=$(printf '%s' "$precio_max" | jq -sRr @uri 2>/dev/null || printf '%s' "$precio_max")"; sep="&"; fi
+  if [ -n "$precio_min" ]; then qs="${qs}${sep}precioMin=$(printf '%s' "$precio_min" | "$JQ_BIN" -sRr @uri 2>/dev/null || printf '%s' "$precio_min")"; sep="&"; fi
+  if [ -n "$precio_max" ]; then qs="${qs}${sep}precioMax=$(printf '%s' "$precio_max" | "$JQ_BIN" -sRr @uri 2>/dev/null || printf '%s' "$precio_max")"; sep="&"; fi
   if [ -n "$sitios_raw" ]; then
     IFS=',' read -ra sitios_arr <<< "$sitios_raw"
     for s in "${sitios_arr[@]}"; do
@@ -303,8 +303,11 @@ add_sitio() {
 
 remove_sitio() {
   read -r -p "  nombre a eliminar: " nombre
-  local resp
-  resp="$(curl -sS --max-time 10 -X DELETE "$API_BASE/api/sitios/$nombre" 2>/dev/null)" || {
+  local nombre_enc resp
+  # URL-encode the path segment (mirrors menu.ps1's [uri]::EscapeDataString)
+  # so names with spaces/special chars resolve to the right site.
+  nombre_enc="$(printf '%s' "$nombre" | "$JQ_BIN" -sRr @uri)"
+  resp="$(curl -sS --max-time 10 -X DELETE "$API_BASE/api/sitios/$nombre_enc" 2>/dev/null)" || {
     echo "  [ERROR] DELETE /api/sitios fallo"
     return 1
   }

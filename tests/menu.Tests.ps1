@@ -40,3 +40,25 @@ Describe "Build-SiteJson (safe JSON body building)" {
         { Build-SiteJson -Nombre '$(Remove-Item C:\should-not-run)' -Url 'https://x.com' } | Should Not Throw
     }
 }
+
+Describe "Get-ApiErrorMessage (surfaces the API's real mensaje on error)" {
+
+    It "extracts 'mensaje' from ErrorDetails.Message JSON body (400 validation case)" {
+        # Mirrors what Invoke-RestMethod's catch block sees in PS 5.1 for a
+        # 400 from POST /api/sitios: ErrorDetails.Message holds the raw
+        # response body, e.g. {"ok":false,"mensaje":"nombre y url son obligatorios"}
+        $fakeError = [pscustomobject]@{
+            ErrorDetails = [pscustomobject]@{ Message = '{"ok":false,"mensaje":"nombre y url son obligatorios"}' }
+            Exception    = [pscustomobject]@{ Message = 'The remote server returned an error: (400) Bad Request.' }
+        }
+        Get-ApiErrorMessage $fakeError | Should Be 'nombre y url son obligatorios'
+    }
+
+    It "falls back to the raw exception message when the body isn't JSON" {
+        $fakeError = [pscustomobject]@{
+            ErrorDetails = $null
+            Exception    = [pscustomobject]@{ Message = 'Unable to connect to the remote server' }
+        }
+        Get-ApiErrorMessage $fakeError | Should Be 'Unable to connect to the remote server'
+    }
+}
