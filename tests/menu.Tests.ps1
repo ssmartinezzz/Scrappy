@@ -62,3 +62,45 @@ Describe "Get-ApiErrorMessage (surfaces the API's real mensaje on error)" {
         Get-ApiErrorMessage $fakeError | Should Be 'Unable to connect to the remote server'
     }
 }
+
+Describe "Import-DotEnv (standalone .env sourcing)" {
+
+    It "sets a variable that isn't already in the process environment" {
+        $tmp = Join-Path $env:TEMP ("dotenv_test_{0}.env" -f ([guid]::NewGuid().ToString('N')))
+        "MENU_TEST_DBURL=jdbc:postgresql://127.0.0.1:5432/scraper" | Set-Content -LiteralPath $tmp
+        Remove-Item Env:MENU_TEST_DBURL -ErrorAction SilentlyContinue
+        try {
+            Import-DotEnv $tmp
+            $env:MENU_TEST_DBURL | Should Be 'jdbc:postgresql://127.0.0.1:5432/scraper'
+        } finally {
+            Remove-Item $tmp -ErrorAction SilentlyContinue
+            Remove-Item Env:MENU_TEST_DBURL -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "never clobbers a var the parent process already set" {
+        $tmp = Join-Path $env:TEMP ("dotenv_test_{0}.env" -f ([guid]::NewGuid().ToString('N')))
+        "MENU_TEST_KEEP=from_dotenv" | Set-Content -LiteralPath $tmp
+        $env:MENU_TEST_KEEP = 'from_parent'
+        try {
+            Import-DotEnv $tmp
+            $env:MENU_TEST_KEEP | Should Be 'from_parent'
+        } finally {
+            Remove-Item $tmp -ErrorAction SilentlyContinue
+            Remove-Item Env:MENU_TEST_KEEP -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "ignores comments and blank lines without throwing" {
+        $tmp = Join-Path $env:TEMP ("dotenv_test_{0}.env" -f ([guid]::NewGuid().ToString('N')))
+        @('# a comment', '', 'MENU_TEST_OK=1') | Set-Content -LiteralPath $tmp
+        Remove-Item Env:MENU_TEST_OK -ErrorAction SilentlyContinue
+        try {
+            { Import-DotEnv $tmp } | Should Not Throw
+            $env:MENU_TEST_OK | Should Be '1'
+        } finally {
+            Remove-Item $tmp -ErrorAction SilentlyContinue
+            Remove-Item Env:MENU_TEST_OK -ErrorAction SilentlyContinue
+        }
+    }
+}

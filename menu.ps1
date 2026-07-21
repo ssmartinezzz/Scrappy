@@ -50,27 +50,57 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ----------------------------------------------------------------------------
-# Configuration (inherited from the launcher's process environment; falls
-# back to local defaults when menu.ps1 is invoked standalone).
+# Configuration. When launched from INSTALAR_Y_CORRER.bat these come from the
+# parent process environment; when menu.ps1 runs STANDALONE they don't exist
+# yet, so we resolve the repo root first and source the installer-generated
+# .env (spec "Installer-generated .env sourced by launcher") before anything
+# else. Without this the backend fail-fasts on missing DATABASE_URL and the
+# readiness poll waits ~60s on a process that already died.
 # ----------------------------------------------------------------------------
+$RepoRoot = if ($env:ROOT) { $env:ROOT } else { $PSScriptRoot }
+
+function Import-DotEnv {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return }
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+        $idx = $trimmed.IndexOf('=')
+        if ($idx -lt 1) { continue }
+        $name  = $trimmed.Substring(0, $idx).Trim()
+        $value = $trimmed.Substring($idx + 1).Trim()
+        # Never clobber a var the launcher/parent process already set.
+        if (-not [Environment]::GetEnvironmentVariable($name, 'Process')) {
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
+    }
+}
+Import-DotEnv (Join-Path $RepoRoot '.env')
+
 $ApiBase      = if ($env:VITE_API_BASE_URL) { $env:VITE_API_BASE_URL } else { 'http://localhost:3000' }
 $FrontendPort = 5173
 $FrontendUrl  = "http://localhost:$FrontendPort"
 
-$RepoRoot    = if ($env:ROOT) { $env:ROOT } else { $PSScriptRoot }
 $ProjectDir  = if ($env:PROJECT) { $env:PROJECT } else { Join-Path $RepoRoot 'scraper' }
 $JarPath     = if ($env:JAR) { $env:JAR } else { Join-Path $ProjectDir 'scraper.jar' }
-$JavaExe     = if ($env:JAVA_EXE) { $env:JAVA_EXE } else { 'java' }
+# Prefer the bundled JDK 21: a system `java` may be an older major that cannot
+# run the Java 21 fat JAR (UnsupportedClassVersionError -> instant backend
+# death -> silent 60s hang). An explicit JAVA_EXE (set by the .bat) still wins.
+$BundledJava = Join-Path $RepoRoot '_tools\jdk21\bin\java.exe'
+$JavaExe     = if ($env:JAVA_EXE) { $env:JAVA_EXE } elseif (Test-Path $BundledJava) { $BundledJava } else { 'java' }
 $PythonExe   = $env:PYTHON_EXE
 $PythonDir   = $env:PYTHON_DIR
 $FrontendDir = if ($env:FRONTEND_DIR) { $env:FRONTEND_DIR } else { Join-Path $RepoRoot 'frontend' }
-$NodeDir     = $env:NODE_DIR
+$NodeDir     = if ($env:NODE_DIR) { $env:NODE_DIR }
+               elseif (Test-Path (Join-Path $RepoRoot '_tools\node\npm.cmd')) { Join-Path $RepoRoot '_tools\node' }
+               else { $null }
 $NpmCmd      = if ($NodeDir -and (Test-Path (Join-Path $NodeDir 'npm.cmd'))) { Join-Path $NodeDir 'npm.cmd' } else { 'npm' }
 
 $Global:BackendProcess  = $null
 $Global:FrontendProcess = $null
 $Global:BackendReady    = $false
 $Global:FrontendReady   = $false
+$Global:BackendLog      = $null
 
 # ----------------------------------------------------------------------------
 # D2 - Safe JSON body building. Builds a .NET object graph and lets
@@ -114,9 +144,25 @@ function Wait-ForUrl {
 }
 
 function Wait-Backend {
-    $result = Wait-ForUrl -Url "$ApiBase/api/status"
-    $Global:BackendReady = ($null -ne $result)
-    return $result
+    # Same bound as Wait-ForUrl (30 x 2s) but aborts the moment the backend
+    # process exits, so a backend that dies on boot (e.g. Postgres down, or an
+    # UnsupportedClassVersionError) surfaces in ~seconds instead of ~60s of
+    # polling a corpse. The caller inspects HasExited to print the real error.
+    for ($i = 1; $i -le 30; $i++) {
+        if ($Global:BackendProcess -and $Global:BackendProcess.HasExited) {
+            $Global:BackendReady = $false
+            return $null
+        }
+        try {
+            $resp = Invoke-RestMethod -Uri "$ApiBase/api/status" -Method Get -TimeoutSec 5
+            $Global:BackendReady = $true
+            return $resp
+        } catch {
+            Start-Sleep -Seconds 2
+        }
+    }
+    $Global:BackendReady = $false
+    return $null
 }
 
 function Wait-Frontend {
@@ -148,10 +194,22 @@ function Start-Backend {
         return $null
     }
     $argList = @('-Xmx768m', '-Dfile.encoding=UTF-8')
+    # RequiredEnvVarsGuard requires DATABASE_PASSWORD to be PRESENT (even empty,
+    # for local trust-auth). Windows cannot hold an empty env var — both cmd
+    # `set VAR=` and .NET SetEnvironmentVariable('') DELETE it — so the empty
+    # trust password would read as "missing" and the backend fail-fasts. Pass it
+    # as a -D system property (which Spring's containsProperty() sees) so an
+    # empty value still counts as present. This is the single java-launch point
+    # for BOTH standalone and the .bat, so it fixes both.
+    $argList += "-DDATABASE_PASSWORD=$($env:DATABASE_PASSWORD)"
     if ($PythonExe) { $argList += "-DPYTHON_EXE=$PythonExe" }
     if ($PythonDir) { $argList += "-DPYTHON_DIR=$PythonDir" }
     $argList += @('-jar', $JarPath)
-    $proc = Start-Process -FilePath $JavaExe -ArgumentList $argList -WorkingDirectory $ProjectDir -WindowStyle Hidden -PassThru
+    # Capture stderr so a boot failure (missing env, DB down, wrong Java major)
+    # can be shown to the user instead of vanishing behind -WindowStyle Hidden.
+    $Global:BackendLog = Join-Path $ProjectDir 'logs\backend-launcher.err.log'
+    New-Item -ItemType Directory -Force -Path (Split-Path $Global:BackendLog) | Out-Null
+    $proc = Start-Process -FilePath $JavaExe -ArgumentList $argList -WorkingDirectory $ProjectDir -WindowStyle Hidden -PassThru -RedirectStandardError $Global:BackendLog
     return $proc
 }
 
@@ -416,7 +474,16 @@ function Invoke-MainLoop {
     Write-Host "  Esperando a que el backend responda (hasta ~60s)..."
     $status = Wait-Backend
     if (-not $Global:BackendReady) {
-        Write-Host "  [ERROR] El backend no respondio a tiempo. El menu se abre igual con acciones de API deshabilitadas." -ForegroundColor Red
+        if ($Global:BackendProcess -and $Global:BackendProcess.HasExited) {
+            Write-Host "  [ERROR] El backend se cerro al arrancar (exit code $($Global:BackendProcess.ExitCode))." -ForegroundColor Red
+            if ($Global:BackendLog -and (Test-Path $Global:BackendLog)) {
+                Write-Host "  Ultimas lineas del backend:" -ForegroundColor Yellow
+                Get-Content -LiteralPath $Global:BackendLog -Tail 8 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+            }
+            Write-Host "  Causa tipica: PostgreSQL no esta corriendo. Corre INSTALAR_Y_CORRER.bat (arranca la DB, setea el entorno y compila) o levanta Postgres antes de usar menu.ps1 standalone." -ForegroundColor Yellow
+        } else {
+            Write-Host "  [ERROR] El backend no respondio a tiempo. El menu se abre igual con acciones de API deshabilitadas." -ForegroundColor Red
+        }
     }
 
     Write-Host "  Esperando a que el frontend responda (hasta ~60s)..."

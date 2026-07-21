@@ -48,17 +48,47 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ----------------------------------------------------------------------------
-# Configuration (inherited from the launcher's process environment; falls
-# back to local defaults when menu.sh is invoked standalone).
+# Configuration. From Ejecutar_instalar.sh these come from the parent process
+# environment; STANDALONE they don't exist yet, so resolve the repo root first
+# and source the installer-generated .env (spec "Installer-generated .env
+# sourced by launcher") before anything else. Without DATABASE_URL et al. the
+# backend fail-fasts and the readiness poll waits ~60s on a dead process.
 # ----------------------------------------------------------------------------
+REPO_ROOT="${ROOT:-$SCRIPT_DIR}"
+
+load_dotenv() {
+  local envfile="$1" line name
+  [ -f "$envfile" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    name="${line%%=*}"
+    name="$(printf '%s' "$name" | tr -d '[:space:]')"
+    [ -n "$name" ] || continue
+    # Never clobber a var the launcher/parent process already exported.
+    if [ -z "${!name:-}" ]; then
+      export "$name=${line#*=}"
+    fi
+  done < "$envfile"
+}
+load_dotenv "$REPO_ROOT/.env"
+
 API_BASE="${VITE_API_BASE_URL:-http://localhost:3000}"
 FRONTEND_PORT=5173
 FRONTEND_URL="http://localhost:${FRONTEND_PORT}"
 
-REPO_ROOT="${ROOT:-$SCRIPT_DIR}"
 PROJECT_DIR="${PROJECT:-$REPO_ROOT/scraper}"
 JAR_PATH="${JAR:-$PROJECT_DIR/scraper.jar}"
-JAVA_EXE="${JAVA_EXE:-java}"
+# Prefer the bundled JDK 21: a system `java` may be an older major that cannot
+# run the Java 21 fat JAR (UnsupportedClassVersionError). Env override wins.
+if [ -n "${JAVA_EXE:-}" ]; then
+  :
+elif [ -x "$REPO_ROOT/_tools/jdk21/bin/java" ]; then
+  JAVA_EXE="$REPO_ROOT/_tools/jdk21/bin/java"
+else
+  JAVA_EXE="java"
+fi
 FRONTEND_DIR="${FRONTEND_DIR:-$REPO_ROOT/frontend}"
 
 # D6: prefer the vendored jq/curl under _tools/ (installer-provisioned);
@@ -121,11 +151,23 @@ wait_for_url() {
 }
 
 wait_backend() {
-  if wait_for_url "$API_BASE/api/status"; then
-    BACKEND_READY=1
-  else
-    BACKEND_READY=0
-  fi
+  # Same bound as wait_for_url (30 x 2s) but aborts the moment the backend
+  # process dies, so a backend that fails on boot (Postgres down, wrong Java
+  # major) surfaces in seconds instead of ~60s of polling a corpse.
+  local i
+  for ((i = 1; i <= 30; i++)); do
+    if [ -n "$BACKEND_PID" ] && ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+      BACKEND_READY=0
+      return 1
+    fi
+    if curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$API_BASE/api/status" 2>/dev/null | grep -qE '^[0-9]+$'; then
+      BACKEND_READY=1
+      return 0
+    fi
+    sleep 2
+  done
+  BACKEND_READY=0
+  return 1
 }
 
 wait_frontend() {
@@ -152,7 +194,11 @@ start_backend() {
     return 1
   fi
   mkdir -p "$PROJECT_DIR/logs"
-  ( cd "$PROJECT_DIR" && "$JAVA_EXE" -Xmx768m -Dfile.encoding=UTF-8 -jar "$JAR_PATH" \
+  # Pass DATABASE_PASSWORD as a -D system property so an empty trust-auth value
+  # counts as PRESENT for RequiredEnvVarsGuard (parity with menu.ps1; harmless
+  # on POSIX where empty env vars already export fine).
+  ( cd "$PROJECT_DIR" && "$JAVA_EXE" -Xmx768m -Dfile.encoding=UTF-8 \
+      "-DDATABASE_PASSWORD=${DATABASE_PASSWORD:-}" -jar "$JAR_PATH" \
       > "$PROJECT_DIR/logs/backend.out.log" 2>&1 ) &
   BACKEND_PID=$!
 }
@@ -398,7 +444,16 @@ main_loop() {
   echo "  Esperando a que el backend responda (hasta ~60s)..."
   wait_backend
   if [ "$BACKEND_READY" -ne 1 ]; then
-    echo "  [ERROR] El backend no respondio a tiempo. El menu se abre igual con acciones de API deshabilitadas."
+    if [ -n "$BACKEND_PID" ] && ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+      echo "  [ERROR] El backend se cerro al arrancar."
+      if [ -f "$PROJECT_DIR/logs/backend.out.log" ]; then
+        echo "  Ultimas lineas del backend:"
+        tail -n 8 "$PROJECT_DIR/logs/backend.out.log" | sed 's/^/    /'
+      fi
+      echo "  Causa tipica: PostgreSQL no esta corriendo. Corre Ejecutar_instalar.sh (arranca la DB, setea el entorno y compila) o levanta Postgres antes de usar menu.sh standalone."
+    else
+      echo "  [ERROR] El backend no respondio a tiempo. El menu se abre igual con acciones de API deshabilitadas."
+    fi
   fi
 
   echo "  Esperando a que el frontend responda (hasta ~60s)..."
