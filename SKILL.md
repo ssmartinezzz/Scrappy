@@ -14,19 +14,24 @@ Este índice referencia todos los documentos técnicos del proyecto. Cada doc es
 | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Cómo funciona el pipeline ML y cómo extenderlo | Al modificar scoring, badges o clustering |
 | [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) | Todos los endpoints REST con params y responses | Al modificar la API o integrar con externos |
 | [`docs/migration/aggregator-solid-modularization.md`](./docs/migration/aggregator-solid-modularization.md) | Historial slice por slice de la modularización SOLID de `ar.scraper.aggregator` (NormalizerService/GroupingService/ResultAggregator → orquestadores + collaborators) | Al tocar código en `aggregator/` y necesitar entender por qué una clase quedó donde quedó |
+| [`docker-compose.yml`](./docker-compose.yml) + [`docker.env.example`](./docker.env.example) | Vía de instalación **aditiva** por Docker (`docker compose up`): 3 servicios (postgres + backend Java/Python/Playwright + frontend nginx). No reemplaza el `.bat`/`.sh`. | Al correr el proyecto con Docker o tocar la config de contenedores (ver también la topología en `ARCHITECTURE.md`) |
+| [`menu.ps1`](./menu.ps1) / [`menu.sh`](./menu.sh) | Launcher interactivo (REST client puro de la API): arranca backend + frontend, ofrece scrape/retrain/status/CRUD de sitios, teardown limpio | Al modificar el menú interactivo o el arranque de servicios del flujo portable |
 
 ---
 
 ## Convenciones del proyecto
 
-### Nombrado de versiones
-Los zips se entregan como `fashion-scraper-vN[letter].zip`. Hotfixes de compilación usan letra (`v18b`). Features nuevas incrementan el número (`v19`).
+### Entrega y control de versiones
+El proyecto se entrega por **git**: cada cambio va en una feature branch → PR a
+`master` (squash merge), con **conventional commits** (`feat:`, `fix:`, `chore:`,
+`docs:`, `ci:`…). Sin "Co-Authored-By" ni atribución de IA en los commits.
 
-### Spec Driven Development
-Antes de codear cualquier feature:
-1. Escribir la spec en chat (qué cambia, qué NO cambia, decisiones a confirmar)
-2. Usuario aprueba
-3. Implementar en orden: model → service → api → frontend
+### Spec Driven Development (SDD)
+Los cambios sustanciales pasan por el ciclo SDD, con los artefactos **persistidos
+en engram** (no en chat): `explore → proposal → spec → design → tasks → apply →
+verify → archive`. Cada fase la corre un sub-agente que lee/escribe su artefacto
+en engram (topic keys `sdd/{change}/{fase}`). El orden de implementación dentro de
+`apply` sigue siendo model → service → api → frontend.
 
 ### Escaping en Java strings con JS embebido
 **Regla crítica**: dentro de strings Java que contienen código JavaScript:
@@ -36,4 +41,4 @@ Antes de codear cualquier feature:
 - Verificar siempre con el script Python de validación antes de empaquetar
 
 ### Patrón de adición de sitio nuevo
-Ver `docs/ADD_SCRAPER.md` — siempre 4 archivos a tocar: `config.properties`, `ScraperFactory`, y opcionalmente un nuevo `*Page.java` + `*Scraper.java`.
+Ver `docs/ADD_SCRAPER.md`. Para una plataforma ya soportada (Shopify/TN/VTEX/Vaypol/Woo) alcanza con **2 archivos**: `config.properties` + el name-set en `ScraperFactory`. Una plataforma totalmente custom suma hasta **2 más**: un nuevo `*Page.java` + `*Scraper.java`.

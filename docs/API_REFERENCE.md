@@ -5,9 +5,40 @@ Base URL: `http://localhost:3000/api`
 > `menu.ps1` (Windows) / `menu.sh` (POSIX) are pure REST clients of this API
 > (interactive-cli-launcher) — they own the lifecycle of the backend and the
 > frontend `npm run preview` process but add no new endpoints. Each script
-> carries a `# API CONTRACT` header block mirroring the six endpoints below
-> and an optional `--selftest` action that checks live responses against
-> this document for drift.
+> carries a `# API CONTRACT` header block mirroring its core endpoints and an
+> optional `--selftest` action that checks live responses against this document
+> for drift.
+
+## CORS e integración externa
+
+Desde `decouple-services-postgres`, el backend es **API-only** (no sirve la SPA).
+El frontend es un servicio propio que le habla por **CORS**:
+
+- El backend acepta orígenes de la env var **`APP_CORS_ALLOWED_ORIGINS`**
+  (allow-list separada por comas, sin default en el profile por defecto).
+- El frontend usa **`VITE_API_BASE_URL`** como base de sus fetches (build-time).
+- En Docker, el compose cablea las dos (ver `docs/DOCKER` / `docker.env.example`).
+  Cualquier integración externa debe agregar su origen a `APP_CORS_ALLOWED_ORIGINS`.
+
+## Índice de endpoints
+
+Las secciones detalladas de abajo cubren el núcleo. El resto sigue las mismas
+convenciones (params server-side, respuestas JSON). Lista completa por grupo:
+
+| Grupo | Endpoints |
+|-------|-----------|
+| Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
+| Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
+| ML | `GET /tendencias` · `GET /historial?url=` · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
+| Comparador | `GET /grupos` · `GET /buscar-externo` (MercadoLibre) |
+| Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
+| Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `POST /outfits/feedback` · CRUD `/outfits/saved` |
+| Para ti | `GET /recomendados` · `POST /recomendados/feedback` · `POST`/`DELETE /recomendados/dismiss-categoria` |
+| Favoritos | `GET`/`POST`/`DELETE /favoritos` · `POST /favoritos/rescrape` |
+| Picks/Marcas | `GET /mejores?rubro=` · `GET /marcas-browser` |
+| Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
+| Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |
+| DB | `GET /db/export` · `POST /db/import` (ambos **410 Gone** — usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · `DELETE /db/productos` · `DELETE /db/ml` |
 
 ---
 
@@ -64,6 +95,12 @@ Productos con filtros y paginación server-side.
 | `estampado` | string | - | Atributo visual: estampado (ej. `liso`, `rayado`) |
 | `escote` | string | - | Atributo visual: escote (ej. `redondo`, `en v`) |
 | `colorDominante` | string | - | Atributo visual: color dominante de la foto |
+| `subCategoria` | string[] | - | Multi-select subcategoría |
+| `rubro` | string | - | `moda` / `gym` / `suplementos` / `deportes` / `tecnologia` |
+| `gymrat` | boolean | - | Solo productos tagueados gymrat |
+| `pack` | boolean | - | Solo packs/combos (`cantidadUnidades > 1`) |
+| `segment` | string | - | `budget` / `standard` / `premium` / `luxury` |
+| `precioMin` / `precioMax` | double | - | Rango de precio |
 | `orden` | string | `precio_asc` | `precio_asc` / `precio_desc` / `nombre` |
 
 Los cuatro filtros de atributos visuales son single-select y provienen del índice
