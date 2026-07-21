@@ -7,10 +7,19 @@ Antes de codear, determinar la plataforma del sitio:
 ```
 ¿Tiene /products.json?          → Shopify
 ¿Tiene /api/catalog_system/pub? → VTEX Legacy
+¿Es WooCommerce (wp-json/wc)?   → WooCommerce  {dcshoes}
 ¿URL termina en /productos/p/N? → Vaypol/City platform
 ¿Es tiendanube.com?             → Tiendanube (JS heurístico)
-¿Otro?                          → Necesita Page custom
+¿Otro?                          → Necesita Page/Scraper custom
 ```
+
+> **Detección real** (`ScraperFactory.crear`, en orden): WooCommerce → Maximus →
+> FullH4rd → CompraGamer → Vaypol → VTEX → Shopify → Monkyforce → default
+> (Tiendanube). Además de las plataformas genéricas de arriba, el proyecto ya
+> tiene scrapers propios por sitio: **Maximus, FullH4rd, CompraGamer** (hardware/
+> PC — el proyecto ya no es solo moda) y **Monkyforce** (gym). Esos son el "Caso 5"
+> (Page/Scraper custom) ya resueltos; agregá el nombre a su name-set si aparece
+> otra tienda de la misma plataforma.
 
 **Cómo detectar la plataforma**:
 1. Ver el HTML fuente: buscar `meta-shopify`, `cdn/shop/`, `LS.store`, `vtex`

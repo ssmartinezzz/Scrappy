@@ -12,6 +12,28 @@
 
 **Actualización (docker-install-alternative, 2026-07-21)**: la afirmación "no hay Dockerfile" de arriba queda como contexto histórico de por qué el installer portable fue la primera opción, no como estado actual — ahora existe una alternativa Docker **aditiva** (`Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml`) para quien prefiera `docker compose up` en vez del `.bat`/`Ejecutar_instalar.sh` portable. Es un camino de instalación adicional, no un reemplazo: el installer portable, `menu.ps1`/`menu.sh` y `_tools/` siguen intactos y sin cambios. El backend usa la imagen `mcr.microsoft.com/playwright/java:v1.44.0-jammy` (Chromium + libs ya matcheadas a `playwright.version=1.44.0`) con Temurin 21 instalado explícitamente encima (la imagen base trae JDK 17) y Python 3.11 + deps ML (`psycopg2-binary`, `torch`/`torchvision` CPU, `open_clip_torch`, `huggingface_hub`, `transformers`) para que `PythonRunner.detectarPython()` resuelva `python3` por PATH sin necesitar `_tools/`. El frontend usa un build multi-stage (`node:20-alpine` → `nginx:alpine`) con `VITE_API_BASE_URL` como build ARG. Volúmenes nombrados (`pgdata`, `models`, `logs`) preservan datos y pesos ML descargados entre `docker compose down`/`up`. Ver `docker.env.example` para la plantilla de variables de este modo (distinta de `.env.example`).
 
+Topología del modo Docker (mapea 1:1 a los 3 servicios de abajo; el ML sigue
+siendo un subprocess **dentro** del contenedor backend, no un servicio propio):
+
+```
+docker compose up
+┌─────────────────────┐   CORS    ┌──────────────────────────────┐
+│ frontend (nginx)    │  :8080    │ backend (Java+Python+Chromium)│
+│  host :8080 → :80   │──────────►│  host :3000 → :3000           │
+│  build ARG          │  fetch    │  ├─ ML subprocess (psycopg2)  │
+│  VITE_API_BASE_URL  │           │  └─ Playwright/Chromium       │
+└─────────────────────┘           └──────────────┬───────────────┘
+        depends_on: backend                       │ DNS interna: "postgres"
+                                   ┌──────────────▼───────────────┐
+                                   │ postgres:16-alpine (healthcheck)│
+                                   └──────────────┬───────────────┘
+volúmenes nombrados:  pgdata (DB)  ·  models (pesos Marqo/HF, lazy)  ·  logs
+```
+
+`APP_CORS_ALLOWED_ORIGINS` (`:8080`) y `VITE_API_BASE_URL` (`:3000`) tienen que
+cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, no
+`localhost`) o a un Postgres externo (ver `docker-compose.override.yml.example`).
+
 **Actualización (decouple-services-postgres, Batch 3/D6)**: el backend dejó de servir `static/` (se retiró `SpaController`); el proyecto pasó de "monolito con SPA embebida" a **3 servicios independientes** (backend API, frontend Vite, ML Python subprocess lanzado por el backend), cada uno configurado 100% por variables de entorno (`spec` "Environment-Only Configuration"). Ver el diagrama de topología más abajo.
 
 ---

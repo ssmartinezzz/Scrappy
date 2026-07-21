@@ -18,6 +18,17 @@ Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y 
 > `menu.ps1`/`menu.sh` directo funciona igual. Ver "Sitios configurados" no
 > cambia — este launcher es solo la capa de invocación.
 
+> **docker-install-alternative** (2026-07-21, PR #109): existe una **tercera vía
+> de instalación aditiva** por Docker — `docker compose up` levanta postgres +
+> backend + frontend. NO reemplaza ni toca el flujo portable (`.bat`/`.sh`/
+> `menu.*`/`_tools/`); es para quien ya tiene Docker (Linux/macOS/CI/server).
+> El backend es UNA imagen que bundlea Java 21 + Python 3.11 + Playwright/
+> Chromium (el ML sigue siendo subprocess in-process, no un servicio aparte).
+> Frontend = `vite build` → nginx, con `VITE_API_BASE_URL` como **build ARG**
+> (build-time, no runtime). Plantilla de variables propia: `docker.env.example`
+> (copiala a `.env`). Ver `docs/ARCHITECTURE.md` (topología + decisiones) y
+> gotchas de Docker abajo.
+
 ---
 
 ## Stack técnico
@@ -52,6 +63,13 @@ fashion-scraper-new/
 ├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema, vendoriza solo jq/gum
 ├── menu.ps1                           ← Menú interactivo Windows (PowerShell) — REST client puro, arranca backend+frontend
 ├── menu.sh                            ← Menú interactivo POSIX (bash+jq, gum opcional) — mismo contrato que menu.ps1
+├── Dockerfile                         ← Backend multi-stage (maven build → Playwright-java v1.44.0 + Temurin 21 + Python 3.11 + deps ML)
+├── frontend/Dockerfile                ← Frontend multi-stage (vite build, ARG VITE_API_BASE_URL → nginx)
+├── frontend/nginx.conf                ← nginx SPA fallback a index.html
+├── docker-compose.yml                 ← postgres + backend + frontend, volúmenes pgdata/models/logs
+├── docker-compose.override.yml.example← Override para Postgres externo
+├── docker.env.example                 ← Plantilla de env del modo Docker (copiar a .env). Aditivo — NO reemplaza .env.example
+├── .dockerignore / frontend/.dockerignore ← Excluyen _tools/, target/, node_modules del build context
 ├── tests/menu.Tests.ps1               ← Pester: Build-SiteJson (JSON seguro, sin interpolación de shell)
 ├── tests/menu_test.sh                 ← bash: build_site_json vía jq -n --arg (mismo caso RED)
 ├── docs/                              ← ARCHITECTURE, ADD_SCRAPER, ML_PIPELINE, API_REFERENCE
@@ -239,6 +257,12 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 - **Postgres portable:** el installer lo provisiona bajo `_tools/pgsql` (binarios EDB) + `_tools/pgdata` (datadir, `initdb -A trust` — sin password en local). El servidor queda corriendo entre ejecuciones del `.bat` (no se detiene solo); reusa la misma instancia la próxima vez (`pg_ctl status` chequea antes de re-arrancar).
 - **Tests contra Postgres real:** `PostgresTestBase` (`scraper/src/test/java/ar/scraper/db/support/`) auto-selecciona Testcontainers (si hay Docker) o modo portable-local (`_tools/pgsql`, sin Docker) o se skipea con un mensaje claro si no hay ninguno — nunca hace fallar toda la suite por falta de infra.
 - **Fail-fast en vars de entorno requeridas:** el backend NO tiene defaults silenciosos para `DATABASE_URL`/`DATABASE_USERNAME`/`DATABASE_PASSWORD`/`APP_CORS_ALLOWED_ORIGINS` en el profile default — `RequiredEnvVarsGuard` (`ar.scraper.config`, `EnvironmentPostProcessor`) aborta el arranque con un mensaje que nombra cada variable faltante. `DATABASE_PASSWORD` vacío (trust-auth local) SÍ cuenta como "presente" — solo una var totalmente ausente del entorno cuenta como faltante. Fallbacks de desarrollo local viven en `application-dev.properties`, activo solo con `SPRING_PROFILES_ACTIVE=dev`; los tests activan el profile `test` (mismo efecto de skip) vía `spring.profiles.active` en el `systemPropertyVariables` del surefire plugin (`scraper/pom.xml`), no vía anotaciones por clase. El frontend exige `VITE_API_BASE_URL` para `vite build` (prod) — falla el build si falta; `vite dev` sigue usando el proxy local sin requerirla. La plantilla canónica de variables es `.env.example` (raíz) + `frontend/.env.example` (solo `VITE_API_BASE_URL`, no duplicado en la raíz).
+- **Docker (modo aditivo, no solo Windows):**
+  - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo requiere `docker compose up --build`, un `up` a secas NO lo toma. El resto de las vars son runtime (se toman con reiniciar).
+  - En `DATABASE_URL` el host es **`postgres`** (nombre del servicio, DNS interna de Docker), NO `localhost`. La comunicación backend↔postgres es contenedor-a-contenedor; la del navegador↔backend usa `localhost:3000` (puerto publicado).
+  - Triángulo que tiene que cerrar: `APP_CORS_ALLOWED_ORIGINS` (origen del frontend, `:8080`) ↔ `VITE_API_BASE_URL` (backend, `:3000`) ↔ port mappings del compose. Si no coinciden → error de CORS.
+  - `pgdata`/`models`/`logs` son **volúmenes nombrados** → sobreviven a `docker compose down`; los pesos de Marqo/HF se bajan una sola vez (lazy, al primer run).
+  - Sin Docker en el sandbox de dev (Windows-only): el smoke real de runtime (`compose up`/scrape) se valida en CI vía `.github/workflows/docker-smoke.yml` (`compose config` + `docker build` de ambas imágenes).
 
 ## Problemas conocidos / pendientes
 
