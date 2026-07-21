@@ -32,8 +32,8 @@ echo "Raiz    : $ROOT"
 echo "Proyecto: $PROJECT"
 echo
 
-# ── [1/5] Internet ───────────────────────────────────────────────────────
-echo "[1/5] Verificando internet..."
+# ── [1/6] Internet ───────────────────────────────────────────────────────
+echo "[1/6] Verificando internet..."
 if ! curl -fsS --max-time 5 https://www.google.com -o /dev/null; then
   echo "  [ERROR] Sin internet." >&2
   exit 1
@@ -41,8 +41,8 @@ fi
 echo "       OK"
 echo
 
-# ── [2/5] Toolchain (java21+, maven, python3, node) ─────────────────────
-echo "[2/5] Verificando toolchain (java21+/maven/python3/node)..."
+# ── [2/6] Toolchain (java21+, maven, python3, node) ─────────────────────
+echo "[2/6] Verificando toolchain (java21+/maven/python3/node)..."
 require() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "  [ERROR] Falta '$1' en PATH. Instalalo con tu gestor de paquetes" >&2
@@ -62,8 +62,8 @@ fi
 echo "       OK"
 echo
 
-# ── [3/5] PostgreSQL (system package or already-running instance) ───────
-echo "[3/5] PostgreSQL..."
+# ── [3/6] PostgreSQL (system package or already-running instance) ───────
+echo "[3/6] PostgreSQL..."
 if command -v pg_ctl >/dev/null 2>&1 && command -v initdb >/dev/null 2>&1; then
   if [ ! -f "$PG_DATA/PG_VERSION" ]; then
     echo "       Inicializando data directory en $PG_DATA..."
@@ -103,8 +103,8 @@ else
 fi
 echo
 
-# ── [4/5] Frontend build ─────────────────────────────────────────────────
-echo "[4/5] Frontend React/Vite..."
+# ── [4/6] Frontend build ─────────────────────────────────────────────────
+echo "[4/6] Frontend React/Vite..."
 [ -f "$FRONTEND_DIR/package.json" ] || { echo "  [ERROR] Falta frontend/package.json" >&2; exit 1; }
 if [ ! -f "$FRONTEND_DIR/.env" ] && [ -f "$FRONTEND_DIR/.env.example" ]; then
   cp "$FRONTEND_DIR/.env.example" "$FRONTEND_DIR/.env"
@@ -117,8 +117,8 @@ fi
 echo "       Frontend compilado OK."
 echo
 
-# ── [5/5] Backend build ──────────────────────────────────────────────────
-echo "[5/5] Compilando backend Java..."
+# ── [5/6] Backend build ──────────────────────────────────────────────────
+echo "[5/6] Compilando backend Java..."
 JAR="$PROJECT/scraper.jar"
 if [ ! -f "$JAR" ]; then
   ( cd "$PROJECT" && mvn clean package -DskipTests --batch-mode )
@@ -147,14 +147,85 @@ EOF
 echo "       .env generado en $ENV_FILE (gitignored)"
 echo
 
+# ── [6/6] menu.sh dependencies: jq (required) + gum (optional UI veneer) ──
+# interactive-cli-launcher design D6: vendored under _tools/ so menu.sh's
+# safe JSON body building (jq -n --arg) never depends on a system package.
+# gum is a nicer-menu fast-follow — menu.sh falls back to plain bash
+# prompts when it isn't present, so a failed/skipped download here is
+# non-fatal.
+echo "[6/6] Verificando dependencias de menu.sh (jq/gum)..."
+TOOLS_DIR="$ROOT/_tools"
+JQ_DIR="$TOOLS_DIR/jq"
+GUM_DIR="$TOOLS_DIR/gum"
+mkdir -p "$JQ_DIR" "$GUM_DIR"
+
+detect_os_arch() {
+  local os arch
+  os="$(uname -s)"
+  arch="$(uname -m)"
+  case "$os" in
+    Linux) OS_TAG="linux" ;;
+    Darwin) OS_TAG="macos" ;;
+    *) OS_TAG="" ;;
+  esac
+  case "$arch" in
+    x86_64|amd64) ARCH_TAG="amd64" ;;
+    arm64|aarch64) ARCH_TAG="arm64" ;;
+    *) ARCH_TAG="" ;;
+  esac
+}
+detect_os_arch
+
+if [ -x "$JQ_DIR/jq" ]; then
+  echo "       jq ya vendorizado en $JQ_DIR/jq"
+elif command -v jq >/dev/null 2>&1; then
+  echo "       jq del sistema encontrado — no se vendoriza."
+elif [ -n "$OS_TAG" ]; then
+  JQ_URL="https://github.com/jqlang/jq/releases/latest/download/jq-${OS_TAG}-${ARCH_TAG}"
+  echo "       Descargando jq ($OS_TAG/$ARCH_TAG)..."
+  if curl -fsSL --max-time 30 -o "$JQ_DIR/jq" "$JQ_URL"; then
+    chmod +x "$JQ_DIR/jq"
+    echo "       jq vendorizado en $JQ_DIR/jq"
+  else
+    echo "  [WARN] No se pudo descargar jq. menu.sh requiere jq en PATH para" >&2
+    echo "         agregar/eliminar sitios de forma segura." >&2
+  fi
+else
+  echo "  [WARN] SO/arquitectura no reconocidos ($(uname -s)/$(uname -m)) —" >&2
+  echo "         instala jq manualmente (apt/brew install jq)." >&2
+fi
+
+if [ -x "$GUM_DIR/gum" ] || command -v gum >/dev/null 2>&1; then
+  echo "       gum disponible (o ya vendorizado)."
+else
+  echo "       gum no encontrado — menu.sh usara prompts de bash simples (opcional)."
+fi
+echo
+
 echo "============================================================"
 echo " FASHION SCRAPER - SERVIDOR LISTO"
 echo "============================================================"
-echo "  API : http://localhost:3000  (API-only — backend ya no sirve la SPA)"
-echo "  DB  : PostgreSQL 127.0.0.1:$PG_PORT/$PG_DB"
-echo "  Detener: Ctrl+C"
+echo "  API   : http://localhost:3000  (API-only — backend ya no sirve la SPA)"
+echo "  Panel : http://localhost:5173  (se abre desde el menu interactivo)"
+echo "  DB    : PostgreSQL 127.0.0.1:$PG_PORT/$PG_DB"
+echo "  Salir : opcion Q del menu, o Ctrl+C"
 echo "============================================================"
 echo
 
+# ── interactive-cli-launcher (design D7) ──────────────────────────────────
+# menu.sh owns the lifecycle of both processes started here: backend
+# (background) and frontend (npm run preview --strictPort :5173). Pure
+# REST client of the existing API — no new backend endpoints. Standalone/
+# re-invocable: running "bash menu.sh" directly spawns both itself.
+mkdir -p "$PROJECT/logs"
 cd "$PROJECT"
-exec java -Xmx768m -Dfile.encoding=UTF-8 -jar "$JAR"
+java -Xmx768m -Dfile.encoding=UTF-8 -jar "$JAR" > "$PROJECT/logs/backend.out.log" 2>&1 &
+JAVA_PID=$!
+
+cd "$ROOT/frontend"
+npm run preview -- --port 5173 --strictPort &
+VITE_PID=$!
+
+cd "$ROOT"
+ROOT="$ROOT" PROJECT="$PROJECT" JAR="$JAR" FRONTEND_DIR="$ROOT/frontend" \
+  JAVA_PID="$JAVA_PID" VITE_PID="$VITE_PID" bash "$ROOT/menu.sh"
