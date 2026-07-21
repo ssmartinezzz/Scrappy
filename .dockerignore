@@ -1,0 +1,15 @@
+# docker-install-alternative — excluded from the backend build context.
+# Portable-toolchain artifacts (Windows-only) and build/VCS noise that must
+# never end up inside the image.
+_tools/
+**/node_modules
+**/target
+.git
+logs
+_models
+scraper/_models
+dist
+scraper.jar
+scraper/scraper.jar
+frontend/
+*.md
