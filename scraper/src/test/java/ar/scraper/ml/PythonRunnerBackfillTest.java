@@ -161,4 +161,69 @@ class PythonRunnerBackfillTest {
         String resolved = PythonRunner.hfHomeParaModelsRoot("/some/root");
         assertThat(resolved).isEqualTo(Paths.get("/some/root").resolve("marqo").toString());
     }
+
+    // ── toPsycopgDsn: pure test seam (decouple-services-postgres, Batch 4) ──
+    //
+    // Spring's spring.datasource.url MUST keep the `jdbc:postgresql://...`
+    // scheme (required by the JDBC PG driver / DriverManager), but psycopg2
+    // does NOT understand a `jdbc:` prefix at all (libpq only recognizes the
+    // `postgresql://`/`postgres://` schemes) — forwarding DATABASE_URL
+    // verbatim to the Python subprocess (as aplicarEnvBaseDatosYModelos did
+    // through Batch 2/3) silently breaks every psycopg2.connect(dsn) call
+    // the moment DATABASE_URL is actually a real jdbc: URL (as the Batch 4
+    // installer's generated .env sets it) rather than left unset in a test.
+
+    @Test
+    void toPsycopgDsnStripsJdbcPrefix() {
+        String dsn = PythonRunner.toPsycopgDsn(
+                "jdbc:postgresql://127.0.0.1:5432/scraper", null, null);
+        assertThat(dsn).isEqualTo("postgresql://127.0.0.1:5432/scraper");
+    }
+
+    @Test
+    void toPsycopgDsnAppendsUsernameAndPasswordAsQueryParams() {
+        String dsn = PythonRunner.toPsycopgDsn(
+                "jdbc:postgresql://127.0.0.1:5432/scraper", "postgres", "secret");
+        assertThat(dsn).isEqualTo("postgresql://127.0.0.1:5432/scraper?user=postgres&password=secret");
+    }
+
+    @Test
+    void toPsycopgDsnAppendsOnlyUsernameWhenPasswordBlank() {
+        String dsn = PythonRunner.toPsycopgDsn(
+                "jdbc:postgresql://127.0.0.1:5432/scraper", "postgres", "");
+        assertThat(dsn).isEqualTo("postgresql://127.0.0.1:5432/scraper?user=postgres");
+    }
+
+    @Test
+    void toPsycopgDsnLeavesNonJdbcUrlUnchangedWhenAlreadyPlain() {
+        String dsn = PythonRunner.toPsycopgDsn(
+                "postgresql://127.0.0.1:5432/scraper", null, null);
+        assertThat(dsn).isEqualTo("postgresql://127.0.0.1:5432/scraper");
+    }
+
+    @Test
+    void toPsycopgDsnReturnsNullWhenInputNull() {
+        assertThat(PythonRunner.toPsycopgDsn(null, "postgres", "x")).isNull();
+    }
+
+    @Test
+    void aplicarEnvBaseDatosYModelosSetsPsycopgFormattedDatabaseUrlFromEnv(
+            @org.junit.jupiter.api.io.TempDir Path workDir) throws Exception {
+        // aplicarEnvBaseDatosYModelos reads System.getenv() directly (not
+        // injectable), so this exercises it end-to-end only when the test
+        // JVM's own env happens to carry these vars (CI/dev with a real
+        // Postgres wired) — otherwise it degrades to a no-DATABASE_URL no-op,
+        // which is asserted instead. The pure toPsycopgDsn tests above are
+        // the primary, environment-independent coverage for the translation.
+        ProcessBuilder pb = new ProcessBuilder("python", "script.py");
+        PythonRunner runner = new PythonRunner();
+        runner.aplicarEnvBaseDatosYModelos(pb, workDir);
+
+        String jvmDatabaseUrl = System.getenv("DATABASE_URL");
+        if (jvmDatabaseUrl == null) {
+            assertThat(pb.environment()).doesNotContainKey("DATABASE_URL");
+        } else {
+            assertThat(pb.environment().get("DATABASE_URL")).doesNotStartWith("jdbc:");
+        }
+    }
 }

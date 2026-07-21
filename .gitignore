@@ -68,3 +68,15 @@ Thumbs.db
 # Local machine config
 .claude/settings.local.json
 identidad/
+
+# decouple-services-postgres, Batch 4: installer-generated env (DATABASE_URL,
+# SCRAPER_MODELS_ROOT, CORS/VITE origins, ports) — never committed, sourced by
+# the launcher at process-start time only.
+.env
+frontend/.env
+
+# Portable Postgres data directory (provisioned by the installer under
+# _tools/pgsql, already covered by the _tools/ rule above, but the runtime
+# datadir can also be created outside _tools/ during local dev/testing)
+pgdata/
+_pgdata/

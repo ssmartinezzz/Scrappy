@@ -1,7 +1,7 @@
 # Fashion Scraper Argentina — Contexto del Proyecto
 
 > Este archivo existe para que Claude pueda leer el estado completo del proyecto en una nueva sesión sin necesidad de que el usuario lo explique desde cero. Leelo siempre antes de sugerir cambios.
-> Última actualización integral: 2026-07-14.
+> Última actualización integral: 2026-07-21.
 
 ---
 
@@ -13,15 +13,22 @@ Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y 
 
 ## Stack técnico
 
+> **decouple-services-postgres** (2026-07-21): el proyecto pasó de monolito
+> SQLite+SPA-embebida a **3 servicios independientes** (backend API-only,
+> frontend Vite, ML Python subprocess) sobre **PostgreSQL**, 100% configurados
+> por variables de entorno. Ver `docs/ARCHITECTURE.md` para el diagrama de
+> topología completo y el detalle de las decisiones D1-D8.
+
 | Capa | Tecnología |
 |------|-----------|
-| Backend/Scraper | Java 21 + Spring Boot 3.2 + Playwright 1.44 |
-| Servidor web | Tomcat embebido en localhost:3000 |
-| Frontend | React 18 + Vite 5 (SPA en `frontend/`, buildea a `scraper/src/main/resources/static/`) |
-| Base de datos | SQLite (archivo `scraper.db` junto al .jar) |
-| ML Pipeline | Python 3.11 embeddable (subprocess desde Java) — estadístico + TF-IDF + zero-shot visual |
+| Backend/Scraper | Java 21 + Spring Boot 3.2 + Playwright 1.44 — **API-only** (sin `SpaController`, no sirve la SPA) |
+| Servidor web | Tomcat embebido en localhost:3000 (configurable) |
+| Frontend | React 18 + Vite 5 (SPA en `frontend/`), servido como **servicio propio**, habla al backend por CORS vía `VITE_API_BASE_URL` |
+| Base de datos | **PostgreSQL** (`DATABASE_URL`) — Flyway `V1__baseline.sql` (15 tablas + `sp_upsert_run`/`sp_soft_delete_ausentes` plpgsql), pool HikariCP |
+| ML Pipeline | Python 3.11 embeddable (subprocess desde Java) — estadístico + TF-IDF + zero-shot visual; conecta a Postgres directo vía `psycopg2`/`DATABASE_URL` |
 | Clasificación visual | Marqo-FashionSigLIP vía open_clip (requiere `transformers` para el tokenizer) |
-| Build | Maven + Spring Boot Maven Plugin (fat JAR). Toolchain bundled en `_tools/` (sin mvn/java del sistema) |
+| Build | Maven + Spring Boot Maven Plugin (fat JAR). Toolchain bundled en `_tools/` (jdk21/maven/node/python/**pgsql**, sin dependencias del sistema) |
+| Config | Env-only (`.env` gitignored, generado por el installer/`Ejecutar_instalar.sh`, jamás parseado en runtime por Java/Python — solo variables de proceso) |
 
 ---
 
@@ -31,10 +38,12 @@ Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y 
 fashion-scraper-new/
 ├── CLAUDE.md                          ← Este archivo
 ├── SKILL.md                           ← Índice de documentación técnica
-├── INSTALAR_Y_CORRER.bat              ← Instala Java + Maven + Python + Node + deps ML + compila + ejecuta
+├── INSTALAR_Y_CORRER.bat              ← Instala Java + PostgreSQL portable + Maven + Python + Node + deps ML
+│                                          (incl. psycopg2-binary) + compila + genera .env + ejecuta (Windows)
+├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema, no vendoriza
 ├── docs/                              ← ARCHITECTURE, ADD_SCRAPER, ML_PIPELINE, API_REFERENCE
 └── scraper/
-    ├── pom.xml                        ← sqlite-jdbc, playwright, opencsv, jackson; allure-bom (test)
+    ├── pom.xml                        ← postgresql, flyway, HikariCP, testcontainers (test); playwright, opencsv, jackson; allure-bom (test)
     └── src/main/
         ├── java/ar/scraper/
         │   ├── App.java               ← Entry point Spring Boot
@@ -56,26 +65,30 @@ fashion-scraper-new/
         │   │   └── text/              ← AccentStripper
         │   ├── ml/
         │   │   ├── PythonRunner.java  ← Subprocess Python; extrae ml_pipeline/ml_train/ml_embeddings del JAR;
-        │   │   │                        secuencia índice visual (train texto + backfill embeddings); HF_HOME junto a scraper.db
+        │   │   │                        secuencia índice visual (train texto + backfill embeddings); env DATABASE_URL
+        │   │   │                        (traducido a DSN psycopg2 vía toPsycopgDsn)/SCRAPER_MODELS_ROOT/HF_HOME
         │   │   └── MlEnricher.java    ← Aplica scores Python → Product.MlScore
-        │   ├── db/DatabaseService.java← SQLite: 15 tablas (ver "Base de datos")
+        │   ├── db/DatabaseService.java← PostgreSQL (HikariCP pool): 15 tablas (ver "Base de datos")
         │   └── web/
         │       ├── ScraperService.java    ← Orquesta scraping async, carga DB al arrancar
         │       ├── ApiController.java     ← REST /api/** (ver "API REST")
         │       ├── CronApiController.java ← REST /api/cron/**
-        │       └── SpaController.java     ← Sirve la SPA
+        │       └── CorsConfig.java        ← Allow-list CORS (APP_CORS_ALLOWED_ORIGINS) — backend API-only
         └── resources/
-            ├── application.properties ← port=3000
+            ├── application.properties ← port=3000; spring.datasource.* env-driven
             ├── logback-spring.xml     ← LOG_DIR configurable (default logs/): scraper.log + error.log rolling diario
             ├── config.properties      ← Sitios, precios, threads
-            ├── ml/
-            │   ├── ml_pipeline.py     ← Pipeline estadístico + stage 1b visual (se extrae junto al .jar)
-            │   ├── ml_train.py        ← Entrena SOLO texto (TF-IDF+LogReg); --images es no-op
-            │   └── ml_embeddings.py   ← Marqo-FashionSigLIP zero-shot + cache de embeddings + backfill CLI
-            └── static/                ← Build output de Vite (NO editar directamente)
+            ├── db/migration/
+            │   └── V1__baseline.sql   ← Flyway: 15 tablas + sp_upsert_run/sp_soft_delete_ausentes
+            └── ml/
+                ├── ml_pipeline.py     ← Pipeline estadístico + stage 1b visual (se extrae junto al .jar)
+                ├── ml_train.py        ← Entrena SOLO texto (TF-IDF+LogReg); --images es no-op
+                └── ml_embeddings.py   ← Marqo-FashionSigLIP zero-shot + cache de embeddings + backfill CLI
 ```
 
 Las copias `scraper/ml_pipeline.py`, `scraper/ml_train.py` y `scraper/ml_embeddings.py` que aparecen junto al jar son artefactos de extracción runtime — están gitignoreadas; la única fuente de verdad es `scraper/src/main/resources/ml/`.
+
+El frontend (`frontend/`) ya NO se buildea a `scraper/src/main/resources/static/` — corre como servicio propio (`npm run dev`/`npm run build`), hablando al backend por CORS vía `VITE_API_BASE_URL`.
 
 ---
 
@@ -131,11 +144,11 @@ default     → TiendanubeScraper (JS heurístico)
 | Picks/Marcas | GET `/api/mejores?rubro=` · GET `/api/marcas-browser` |
 | Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
 | Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · GET `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
-| DB | GET `/api/db/export` · POST `/api/db/import` · DELETE `/api/db/productos` · DELETE `/api/db/ml` |
+| DB | GET `/api/db/export` · POST `/api/db/import` (ambos **410 Gone** desde decouple-services-postgres — no hay archivo `scraper.db`; usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · DELETE `/api/db/productos` · DELETE `/api/db/ml` |
 
 ---
 
-## Base de datos SQLite (`scraper.db`)
+## Base de datos PostgreSQL (`DATABASE_URL`)
 
 ```
 productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gymrat, pack, visual attrs)
@@ -153,7 +166,7 @@ financiacion_presets -- Presets de cuotas/recargo
 cron_jobs / cron_executions -- Scraping programado + historial de corridas
 ```
 
-**Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` · precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=0`).
+**Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` · precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=0`). Desde decouple-services-postgres (Batch 1, design D2) esto corre server-side en las funciones plpgsql `sp_upsert_run`/`sp_soft_delete_ausentes` (Flyway `V1__baseline.sql`), no en Java — la decisión "¿cambió el precio?" queda dentro de una sola sentencia SQL, sin locks de aplicación (Postgres MVCC + `UNIQUE(url,fecha)` + `ON CONFLICT` alcanzan). El viejo `writeLock`/`readLock`/`refrescarSnapshot()`/`readConn` dedicada (parche para el single-writer de SQLite) fue **removido por completo** junto con el resto de la lock-dance.
 
 ---
 
@@ -167,7 +180,7 @@ cron_jobs / cron_executions -- Scraping programado + historial de corridas
 
 **`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + LogisticRegression, ~30s) → `_models/text_classifier.pkl`. El entrenamiento de imagen fue REMOVIDO; `--images` es no-op (la clasificación visual es zero-shot, sin entrenamiento).
 
-**`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía open_clip, zero-shot con prompts en inglés / labels en español, abstención por margen. Cache en tabla `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` default = `_models/marqo` junto a `scraper.db`. El tokenizer requiere el paquete `transformers` (lo instala el paso 3f del .bat) — sin él, el modelo carga pero el backfill degrada a "modelo no disponible".
+**`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía open_clip, zero-shot con prompts en inglés / labels en español, abstención por margen. Cache en tabla `image_embeddings` (invalidada por `MODEL_VERSION`, leída/escrita vía `psycopg2`/`DATABASE_URL`). `HF_HOME` default = `<SCRAPER_MODELS_ROOT>/marqo` (env, ya no derivado de una ruta de archivo DB). El tokenizer requiere el paquete `transformers` (lo instala el paso de deps ML del installer) — sin él, el modelo carga pero el backfill degrada a "modelo no disponible".
 
 ---
 
@@ -207,19 +220,24 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 
 - **Jar stale:** el `.bat` saltea Maven si `scraper/scraper.jar` existe. Tras recompilar, copiar a mano `scraper/target/fashion-scraper-1.0.0.jar` → `scraper/scraper.jar`.
 - **Python embeddable:** `python311._pth` congela `sys.path` (no agrega el dir del script ni respeta PYTHONPATH). `ml_pipeline.py` inserta su propio dir antes de importar `ml_embeddings`.
-- **HF_HOME:** el runtime lo resuelve junto a `scraper.db` (`scraper/_models/marqo`); el warm-up del installer apunta al mismo lugar y migra caches viejos de `_models/` en la raíz.
+- **HF_HOME:** el runtime lo resuelve como `<SCRAPER_MODELS_ROOT>/marqo` (env var, ya no derivado de una ruta de archivo DB); el installer genera `.env` con `SCRAPER_MODELS_ROOT=<repo>/scraper/_models` y el warm-up apunta al mismo lugar.
 - **Build:** usar el toolchain bundled (`_tools/jdk21`, `_tools/maven`) desde la RAÍZ del repo, nunca desde `scraper/`.
+- **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita el prefijo `jdbc:` (`jdbc:postgresql://host:port/db`); psycopg2 (Python) NO entiende `jdbc:` — solo `postgresql://...`. `PythonRunner.toPsycopgDsn` traduce automáticamente antes de pasarlo al subproceso; si alguna vez se agrega OTRO consumidor de `DATABASE_URL`, revisar este mismo problema.
+- **Postgres portable:** el installer lo provisiona bajo `_tools/pgsql` (binarios EDB) + `_tools/pgdata` (datadir, `initdb -A trust` — sin password en local). El servidor queda corriendo entre ejecuciones del `.bat` (no se detiene solo); reusa la misma instancia la próxima vez (`pg_ctl status` chequea antes de re-arrancar).
+- **Tests contra Postgres real:** `PostgresTestBase` (`scraper/src/test/java/ar/scraper/db/support/`) auto-selecciona Testcontainers (si hay Docker) o modo portable-local (`_tools/pgsql`, sin Docker) o se skipea con un mensaje claro si no hay ninguno — nunca hace fallar toda la suite por falta de infra.
 
 ## Problemas conocidos / pendientes
 
 | Problema | Estado |
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación API |
-| `SQLITE_BUSY_SNAPSHOT` en `upsertParcial`/cron cuando scrape y cron escriben a la vez | RESUELTO 2026-07-14: todas las escrituras serializadas en `writeLock` + `refrescarSnapshot()` + PRAGMA busy_timeout/WAL en `DatabaseService.initEn` |
-| Lecturas sin lock sobre la `Connection` compartida pueden degradar (lista parcial/vacía + WARN) si coinciden con un commit/rollback | RESUELTO 2026-07-14: `DatabaseService` ahora abre una `readConn` dedicada (autoCommit=true) guardada bajo un `readLock` propio, separada de `conn`/`writeLock`; los 21 métodos de lectura standalone (cargarProductos, listCronJobs, etc.) corren aislados de las transacciones de escritura vía WAL, sin bloquear ni ser bloqueados por el escritor |
+| `SQLITE_BUSY_SNAPSHOT` / lock-dance de aplicación (writeLock/readLock/refrescarSnapshot) | RESUELTO 2026-07-21 (`decouple-services-postgres`): migración completa a PostgreSQL + write-path en funciones plpgsql server-side; toda la lock-dance de aplicación fue removida, la concurrencia la resuelve Postgres MVCC |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges post-deploy, no recalibrar thresholds aún (ver docs/ML_PIPELINE.md) |
 | `safe_price` puede parsear mal ciertos formatos de `precioOriginal` | Heurística interina aceptada (1611/6692 rechazados a 0.0 en el último run) |
 | Bare `except:` en safe_price/price_velocity/history load | Nit no bloqueante — migrar a `except Exception:` |
+| `/api/db/export`/`/api/db/import` (410 Gone) — sin backup/restore vía UI | Aceptado por diseño (task 4.10): usar `pg_dump`/`pg_restore` directo contra `DATABASE_URL`; frontend `exportarDB()`/`importarDB()` removidos |
+| `sp_upsert_run` reactivando un producto soft-deleted reinserta `precio_historico` aunque el precio no haya cambiado | Follow-up no bloqueante, documentado en `sdd/decouple-services-postgres` — no fixeado en este change |
+| Instalador Windows portable-only: `Ejecutar_instalar.sh` (POSIX) asume herramientas del sistema (java/mvn/python3/node/postgresql-server o Docker) en vez de vendorizar todo como el `.bat` | Escrito y revisado, NO ejecutado end-to-end en Linux/macOS real (sandbox de desarrollo es Windows-only) |
 
 ---
 

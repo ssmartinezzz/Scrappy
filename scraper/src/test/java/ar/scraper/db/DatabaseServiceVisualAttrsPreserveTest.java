@@ -1,18 +1,16 @@
 package ar.scraper.db;
 
+import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,10 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Feature("Visual attributes")
 @Story("RELY-001: additive-preserve upsert of fit/estampado/escote/color_dominante")
 @DisplayName("DatabaseService — visual attrs preserved across blank-visual upserts")
-class DatabaseServiceVisualAttrsPreserveTest {
-
-    @TempDir
-    Path tempDir;
+class DatabaseServiceVisualAttrsPreserveTest extends PostgresTestBase {
 
     private DatabaseService db;
 
@@ -51,14 +46,9 @@ class DatabaseServiceVisualAttrsPreserveTest {
 
     @Step("Open temp-file SQLite DB and initialize schema")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService();
-        db.initEn(tempDir.resolve("test-visual-attrs.db").toString());
+        db = new DatabaseService(dataSource());
     }
 
-    @AfterEach
-    void tearDown() {
-        db.cerrar();
-    }
 
     private Product productoConVisual(String url, Product.VisualAttrs visual) {
         return new Product(

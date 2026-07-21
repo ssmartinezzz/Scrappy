@@ -217,6 +217,8 @@ El archivo `precio_historico.json` acumula cambios de precio por URL. Estructura
 }
 ```
 
-Se sincroniza con la tabla `precio_historico` en SQLite. Ambos se mantienen en paralelo porque el script Python no tiene acceso directo a la DB.
+Se sincroniza con la tabla `precio_historico` en PostgreSQL.
+
+**Actualización (decouple-services-postgres, Batch 2, design D4)**: desde este cambio, Python SÍ tiene acceso directo a la base — `ml_pipeline.py`/`ml_embeddings.py`/`ml_train.py` conectan vía `psycopg2` usando el env var `DATABASE_URL` (el mismo `DATABASE_URL` que usa Java para `spring.datasource.url`, pero traducido de formato JDBC a DSN libpq por `PythonRunner.toPsycopgDsn` antes de pasarlo al subproceso — psycopg2 no entiende el prefijo `jdbc:`). Ya no hay un `db_path` posicional ni un archivo `scraper.db` que resolver: `PythonRunner` fija `DATABASE_URL`/`SCRAPER_MODELS_ROOT`/`HF_HOME` como variables de entorno del subproceso (design D5).
 
 **Purga automática**: entradas > 90 días se eliminan en cada run.

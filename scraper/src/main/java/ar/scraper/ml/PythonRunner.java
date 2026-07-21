@@ -1123,11 +1123,56 @@ public class PythonRunner {
     void aplicarEnvBaseDatosYModelos(ProcessBuilder pb, Path workDir) {
         String databaseUrl = System.getenv("DATABASE_URL");
         if (databaseUrl != null) {
-            pb.environment().put("DATABASE_URL", databaseUrl);
+            String psycopgDsn = toPsycopgDsn(databaseUrl,
+                    System.getenv("DATABASE_USERNAME"), System.getenv("DATABASE_PASSWORD"));
+            pb.environment().put("DATABASE_URL", psycopgDsn);
         }
         String modelsRoot = resolveModelsRoot(System.getenv("SCRAPER_MODELS_ROOT"), workDir);
         pb.environment().put("SCRAPER_MODELS_ROOT", modelsRoot);
         pb.environment().put("HF_HOME", hfHomeParaModelsRoot(modelsRoot));
+    }
+
+    /**
+     * Test seam (package-private, pure): translates the JVM's own
+     * {@code DATABASE_URL} (JDBC format — {@code jdbc:postgresql://host:port
+     * /db}, required by Spring's {@code spring.datasource.url}/HikariCP) into
+     * a libpq/psycopg2-compatible DSN ({@code postgresql://host:port/db
+     * [?user=...&password=...]}) for the Python subprocess env.
+     *
+     * <p>Batch 2 forwarded {@code DATABASE_URL} to Python verbatim, which
+     * silently breaks {@code psycopg2.connect(dsn)} the moment the value is
+     * a real {@code jdbc:} URL (as opposed to unset in a test): libpq only
+     * recognizes the {@code postgresql://}/{@code postgres://} schemes, not
+     * {@code jdbc:}. Discovered in Batch 4 while wiring the installer's
+     * generated {@code .env} — this is the first place a real
+     * {@code DATABASE_URL} flows through both Java and Python at once.</p>
+     *
+     * <p>{@code username}/{@code password} are appended as libpq URI query
+     * parameters (the standard PostgreSQL URI extension point for keywords
+     * not in the userinfo section) only when non-blank — local dev's trust
+     * auth (the installer's {@code initdb -A trust}) needs at least a
+     * {@code user} param since psycopg2 otherwise defaults to the OS
+     * username, which does not match the {@code postgres} role.</p>
+     */
+    static String toPsycopgDsn(String jdbcOrPlainUrl, String username, String password) {
+        if (jdbcOrPlainUrl == null) {
+            return null;
+        }
+        String plain = jdbcOrPlainUrl.startsWith("jdbc:")
+                ? jdbcOrPlainUrl.substring("jdbc:".length())
+                : jdbcOrPlainUrl;
+        StringBuilder query = new StringBuilder();
+        if (username != null && !username.isBlank()) {
+            query.append("user=").append(username);
+        }
+        if (password != null && !password.isBlank()) {
+            if (query.length() > 0) query.append('&');
+            query.append("password=").append(password);
+        }
+        if (query.length() == 0) {
+            return plain;
+        }
+        return plain + (plain.contains("?") ? "&" : "?") + query;
     }
 
     /**

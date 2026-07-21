@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
@@ -18,14 +19,11 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.ResponseEntity;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -47,10 +45,7 @@ import static org.mockito.Mockito.when;
 @Feature("Outfits")
 @Story("Style feedback")
 @DisplayName("ApiController — Style feedback isolation (gym vs casual)")
-class ApiControllerFeedbackEstiloTest {
-
-    @TempDir
-    Path tempDir;
+class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
 
     private DatabaseService db;
     private ApiController controller;
@@ -68,8 +63,7 @@ class ApiControllerFeedbackEstiloTest {
 
     @Step("Wire ApiController with a real temp-file DatabaseService and mocked collaborators")
     private void wireController() {
-        db = new DatabaseService();
-        db.initEn(tempDir.resolve("test-feedback-estilo.db").toString());
+        db = new DatabaseService(dataSource());
 
         service                                     = mock(ScraperService.class);
         InflacionService inflacionService           = mock(InflacionService.class);
@@ -84,10 +78,6 @@ class ApiControllerFeedbackEstiloTest {
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
-    @AfterEach
-    void tearDown() {
-        db.cerrar();
-    }
 
     private boolean hasBuzoPumaSlot(ResponseEntity<ObjectNode> resp) {
         JsonNode slots = resp.getBody().get("slots");

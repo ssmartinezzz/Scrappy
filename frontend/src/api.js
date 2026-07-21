@@ -157,24 +157,12 @@ export const EXTERNAL_SEARCH = {
   google:       q => `https://www.google.com.ar/search?q=${encodeURIComponent(q)}+precio+argentina&tbm=shop`,
 };
 
-// ─── DB backup ───────────────────────────────────────────────────────────────
-
-export function exportarDB() {
-  // Trigger browser download of scraper.db via anchor
-  const a = document.createElement('a');
-  a.href = `${BASE}/api/db/export`;
-  a.download = `scraper-${new Date().toISOString().slice(0,10)}.db`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-export async function importarDB(file) {
-  const form = new FormData();
-  form.append('file', file);
-  const r = await fetch(`${BASE}/api/db/import`, { method: 'POST', body: form });
-  return r.ok ? r.json() : null;
-}
+// Note (decouple-services-postgres, task 4.10): the file-based DB
+// export/import helpers (exportarDB/importarDB) were removed — persistence
+// moved to PostgreSQL (no scraper.db file to download/upload). The backend
+// endpoints they called (`GET /api/db/export`, `POST /api/db/import`) now
+// answer `410 Gone`. Use `pg_dump`/`pg_restore` directly against
+// `DATABASE_URL` for backup/restore.
 
 export async function fetchGrupos(filters = {}) {
   const p = new URLSearchParams();

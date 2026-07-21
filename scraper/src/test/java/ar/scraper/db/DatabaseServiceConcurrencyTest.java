@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.db.support.PostgresContainerSupport;
+import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -9,7 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,36 +19,33 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * decouple-services-postgres, Batch 1, task 1.4 (highest priority — RED
- * first, per strict TDD). Covers spec "Concurrent Write-Path Correctness
- * Without Lock Dance": overlapping scrape + cron + API callers writing
- * overlapping/independent product URLs concurrently, with NO application
- * lock (design D1) — correctness now rests entirely on Postgres MVCC +
- * {@code sp_upsert_run}'s per-row read-then-decide happening inside a single
- * server-side statement, plus {@code UNIQUE(url,fecha)} + {@code ON CONFLICT
- * DO NOTHING} making the concurrent precio_historico insert idempotent.
+ * decouple-services-postgres, Batch 1 task 1.4 / Batch 4 task 4.6 — GATE-1.
+ * Covers spec "Concurrent Write-Path Correctness Without Lock Dance":
+ * overlapping scrape + cron + API callers writing overlapping/independent
+ * product URLs concurrently, with NO application lock (design D1) —
+ * correctness now rests entirely on Postgres MVCC + {@code sp_upsert_run}'s
+ * per-row read-then-decide happening inside a single server-side statement,
+ * plus {@code UNIQUE(url,fecha)} + {@code ON CONFLICT DO NOTHING} making the
+ * concurrent precio_historico insert idempotent.
  *
  * <p>Assertions: no lost updates (every URL's final price is one of the
  * values actually written by a caller, never a corrupted/intermediate
  * state) and no busy/lock-timeout-class failure surfaces from any thread.</p>
  *
- * <p><b>Runtime status at apply time</b>: written against Testcontainers;
- * NOT executed in this sandbox (no Docker daemon available — see
- * {@code sdd/decouple-services-postgres/apply-progress}).</p>
+ * <p>Runs against {@link PostgresTestBase} (Testcontainers or portable-local
+ * {@code _tools/pgsql}) — this is the vehicle that actually closes GATE-1.</p>
  */
 @Epic("Persistence")
 @Feature("PostgreSQL write-path (decouple-services-postgres)")
 @Story("Concurrent writers, no lock dance")
 @DisplayName("DatabaseService — concurrent scrape+cron+API writers, no SQLITE_BUSY-class failures")
-class DatabaseServiceConcurrencyTest {
+class DatabaseServiceConcurrencyTest extends PostgresTestBase {
 
     private DatabaseService db;
 
     @BeforeEach
-    void setUp() throws Exception {
-        DataSource dataSource = PostgresContainerSupport.start();
-        PostgresContainerSupport.truncateAll(dataSource);
-        db = new DatabaseService(dataSource);
+    void setUp() {
+        db = new DatabaseService(dataSource());
     }
 
     private Product producto(String url, String nombre, double precio) {

@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.db.support.PostgresContainerSupport;
+import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -9,39 +9,31 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * decouple-services-postgres, Batch 1, task 1.3 (RED first, per strict TDD).
+ * decouple-services-postgres, Batch 1 task 1.3 / Batch 4 task 4.6.
  *
  * Covers spec "Data Round-Trip Parity" and "Upsert Semantics Preserved"
- * against a real Postgres instance (Testcontainers), exercising the
+ * against a real Postgres instance ({@link PostgresTestBase} — Testcontainers
+ * in CI, portable {@code _tools/pgsql} locally), exercising the
  * {@code sp_upsert_run}/{@code sp_soft_delete_ausentes} write path wired in
  * {@link DatabaseService#upsertProductos(List)}.
- *
- * <p><b>Runtime status at apply time</b>: written against Testcontainers;
- * NOT executed in this sandbox (no Docker daemon available — see
- * {@code sdd/decouple-services-postgres/apply-progress}). Compiles cleanly
- * against the rewritten {@code DatabaseService(DataSource)} constructor.</p>
  */
 @Epic("Persistence")
 @Feature("PostgreSQL write-path (decouple-services-postgres)")
 @Story("Upsert semantics preserved on Postgres")
 @DisplayName("DatabaseService — Postgres round-trip + upsert semantics")
-class DatabaseServiceTest {
+class DatabaseServiceTest extends PostgresTestBase {
 
     private DatabaseService db;
-    private DataSource dataSource;
 
     @BeforeEach
-    void setUp() throws Exception {
-        dataSource = PostgresContainerSupport.start();
-        PostgresContainerSupport.truncateAll(dataSource);
-        db = new DatabaseService(dataSource);
+    void setUp() {
+        db = new DatabaseService(dataSource());
     }
 
     private Product producto(String url, String nombre, double precio) {
