@@ -1,0 +1,40 @@
+name: Docker Smoke
+
+# Static + build validation for the additive Docker install path.
+# Runs ONLY when Docker-related files change. Does NOT boot the stack or
+# scrape (that needs a live DB and real sites) — it validates that the
+# compose file is well-formed and that both images actually build
+# (base image tag exists, apt/pip deps resolve, Temurin 21 installs, etc.).
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose.yml'
+      - 'docker-compose.override.yml.example'
+      - 'docker.env.example'
+      - 'frontend/Dockerfile'
+      - 'frontend/.dockerignore'
+      - 'frontend/nginx.conf'
+      - '.github/workflows/docker-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose file
+        run: docker compose --env-file docker.env.example config --quiet
+
+      - name: Build backend image
+        run: docker build -t fashion-scraper-backend:smoke -f Dockerfile .
+
+      - name: Build frontend image
+        run: >-
+          docker build -t fashion-scraper-frontend:smoke
+          --build-arg VITE_API_BASE_URL=http://localhost:3000
+          -f frontend/Dockerfile frontend
