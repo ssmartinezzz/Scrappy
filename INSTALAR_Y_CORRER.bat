@@ -436,6 +436,12 @@ echo        Node.js listo.
 :node_ok
 set "PATH=%NODE_DIR%;%PATH%"
 
+:: vite.config.js fail-fasts on a production `vite build` when
+:: VITE_API_BASE_URL is unset (frontend is its own service post-decouple).
+:: Vite does NOT populate process.env from .env, so it must be a real env
+:: var BEFORE the build below — the .env generation at [8/8] runs too late.
+set "VITE_API_BASE_URL=http://localhost:3000"
+
 echo        Compilando frontend...
 set "FRONTEND_DIR=%ROOT%\frontend"
 if not exist "%FRONTEND_DIR%\package.json" (
