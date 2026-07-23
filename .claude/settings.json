@@ -24,10 +24,5 @@
       }
     }
   },
-  "outputStyle": "Gentleman",
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/ccline/ccline.exe",
-    "padding": 0
-  }
+  "outputStyle": "Gentleman"
 }
