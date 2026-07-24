@@ -31,6 +31,45 @@ public final class CategoryGroups {
         "Barra Proteica","Pancake Proteico","Snack Proteico"
     );
 
+    /**
+     * Calzado canonical category names (llm-catalog-nlp, design D4/Safeguard
+     * A) — mirrors {@link #esCalzado}'s membership check, but as an
+     * enumerable set: {@code esCalzado} is a predicate over
+     * {@code CategoryClassifier}'s actual {@code return} literals, which are
+     * not otherwise centralized as a list.
+     */
+    private static final Set<String> CATEGORIAS_CALZADO = Set.of(
+        "Zapatilla Running","Zapatilla Entrenamiento","Zapatilla Skate",
+        "Zapatilla Urbana","Zapatilla","Sneaker",
+        "Botines","Borcego","Botas","Ojotas","Sandalia","Mocasin","Zapato","Pantufla"
+    );
+
+    /** Tech ("rubro=tecnologia") canonical category names — {@code CategoryClassifier}. */
+    private static final Set<String> CATEGORIAS_TECH = Set.of(
+        "Notebook","PC","Monitor","GPU","CPU","RAM","Gabinete","Teclado","Mouse","Auricular","Webcam"
+    );
+
+    /** Standalone canonical categories not covered by the sets above. */
+    private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Perfume");
+
+    /**
+     * Full canonical {@code categoria} vocabulary the agent's
+     * {@code propose_reclassify} tool (llm-catalog-nlp, Safeguard A) accepts
+     * — the union of every category name {@code CategoryClassifier} can
+     * resolve to. Single source of truth injected into the tool schema
+     * {@code enum} and the system prompt so the model cannot invent a
+     * nonexistent category.
+     */
+    public static Set<String> canonicalCategories() {
+        Set<String> all = new java.util.HashSet<>();
+        all.addAll(INDUMENTARIA_O_CALZADO_EXTRA);
+        all.addAll(CATEGORIAS_SUPLEMENTO);
+        all.addAll(CATEGORIAS_CALZADO);
+        all.addAll(CATEGORIAS_TECH);
+        all.addAll(CATEGORIAS_OTRAS);
+        return java.util.Collections.unmodifiableSet(all);
+    }
+
     /** Categorías de calzado — excluidas de gymrat (el tag es para ROPA). */
     public static boolean esCalzado(String cat) {
         if (cat == null) return false;

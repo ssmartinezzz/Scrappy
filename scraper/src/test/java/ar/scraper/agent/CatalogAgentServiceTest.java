@@ -1,0 +1,153 @@
+package ar.scraper.agent;
+
+import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.aggregator.ResultAggregator.Facets;
+import ar.scraper.model.Product;
+import ar.scraper.web.ScraperService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * RED→GREEN coverage for {@link CatalogAgentService} (llm-catalog-nlp, task
+ * 4.3-4.7 — design D3/D4/D8): the bounded, READ-ONLY tool-use loop. A fake
+ * {@link ChatProvider} scripts each turn's {@link ChatResponse} so the whole
+ * loop runs deterministically without any real LLM/network dependency.
+ */
+@Epic("LLM Catalog Agent")
+@Feature("CatalogAgentService")
+@Story("Bounded read-only tool-use loop")
+@DisplayName("CatalogAgentService")
+class CatalogAgentServiceTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private ScraperService scraperService;
+    private ToolRegistry registry;
+    private Product product;
+
+    @BeforeEach
+    void setUp() {
+        scraperService = mock(ScraperService.class);
+        product = new Product("Sitio", "Zapatilla SAD Adidas", 1000, null, "https://a.com/1", "img",
+                "Zapatilla Running", "hombre", List.of(), Product.MlScore.EMPTY, "Adidas",
+                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        AggregatedResult result = new AggregatedResult(List.of(product), Map.of(), Map.of(), facets, 0, 0);
+        when(scraperService.getLastResult()).thenReturn(result);
+        registry = new ToolRegistry(new SearchProductsTool(scraperService),
+                new ViewProductTool(scraperService), new ProposeReclassifyTool(scraperService));
+    }
+
+    @Test
+    @DisplayName("canonical search→view→propose_reclassify flow: proposals collected, no write, in dependency order")
+    void canonicalFlowCollectsProposalNoWrite() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueToolCall(ViewProductTool.NAME, Map.of("url", "https://a.com/1"));
+        provider.enqueueToolCall(ProposeReclassifyTool.NAME,
+                Map.of("url", "https://a.com/1", "categoria", "Buzo"));
+        provider.enqueueFinalAnswer("Te propongo cambiar la categoría a Buzo, ¿confirmás?");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(List.of(ChatMessage.user("corregí la zapatilla SAD Adidas")), null);
+
+        assertThat(resp.assistantText()).contains("Buzo");
+        assertThat(resp.proposals()).hasSize(1);
+        assertThat(resp.proposals().get(0).categoriaPropuesta()).isEqualTo("Buzo");
+        assertThat(provider.calledToolNamesInOrder())
+                .containsExactly(SearchProductsTool.NAME, ViewProductTool.NAME, ProposeReclassifyTool.NAME);
+    }
+
+    @Test
+    @DisplayName("malformed/unknown tool call → is_error fed back, loop continues (no crash/500)")
+    void malformedToolCallIsErrorFedBackLoopContinues() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall("delete_everything", Map.of());
+        provider.enqueueFinalAnswer("No pude ejecutar esa acción, pero seguí funcionando.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(List.of(ChatMessage.user("hacé algo raro")), null);
+
+        assertThat(resp.assistantText()).isEqualTo("No pude ejecutar esa acción, pero seguí funcionando.");
+        assertThat(resp.proposals()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("MAX_ITERATIONS bound → graceful reply, never infinite loop")
+    void maxIterationsBoundGracefulReply() {
+        FakeChatProvider provider = new FakeChatProvider();
+        // Always request another tool call — never terminates on its own.
+        for (int i = 0; i < 20; i++) {
+            provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        }
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(List.of(ChatMessage.user("segui buscando para siempre")), null);
+
+        assertThat(resp.assistantText()).isNotBlank();
+        assertThat(provider.callCount()).isEqualTo(CatalogAgentService.MAX_ITERATIONS);
+    }
+
+    @Test
+    @DisplayName("run(history, model) forwards the model through to ChatProvider.next()")
+    void runForwardsModelToProvider() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("ok");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(List.of(ChatMessage.user("hola")), "llama3.1:8b");
+
+        assertThat(provider.lastModelUsed()).isEqualTo("llama3.1:8b");
+    }
+
+    // ── Fake ChatProvider test double ──────────────────────────────────
+
+    private static class FakeChatProvider implements ChatProvider {
+        private final Deque<ChatResponse> script = new ArrayDeque<>();
+        private final List<String> calledToolNames = new ArrayList<>();
+        private String lastModelUsed;
+        private int callCount = 0;
+
+        void enqueueToolCall(String name, Map<String, Object> args) {
+            var node = MAPPER.valueToTree(args);
+            script.add(new ChatResponse("", List.of(new ToolCall("call_" + script.size(), name, node))));
+        }
+
+        void enqueueFinalAnswer(String text) {
+            script.add(new ChatResponse(text, List.of()));
+        }
+
+        List<String> calledToolNamesInOrder() { return calledToolNames; }
+        int callCount() { return callCount; }
+        String lastModelUsed() { return lastModelUsed; }
+
+        @Override
+        public ChatResponse next(List<ChatMessage> history, List<ToolSpec> tools, String model) {
+            callCount++;
+            lastModelUsed = model;
+            ChatResponse next = script.isEmpty()
+                    ? new ChatResponse("sin más pasos programados", List.of())
+                    : script.poll();
+            next.toolCalls().forEach(tc -> calledToolNames.add(tc.name()));
+            return next;
+        }
+
+        @Override
+        public List<String> listModels() { return List.of(); }
+    }
+}
