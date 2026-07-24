@@ -86,14 +86,18 @@ if command -v pg_ctl >/dev/null 2>&1 && command -v initdb >/dev/null 2>&1; then
   echo "       PostgreSQL listo en 127.0.0.1:$PG_PORT/$PG_DB."
 elif command -v docker >/dev/null 2>&1; then
   echo "       No hay initdb/pg_ctl del sistema — usando un contenedor Docker."
-  if ! docker ps --format '{{.Names}}' | grep -q '^fashion-scraper-pg$'; then
+  if docker ps --format '{{.Names}}' | grep -q '^fashion-scraper-pg$'; then
+    echo "       Contenedor 'fashion-scraper-pg' ya esta corriendo."
+  elif docker ps -a --format '{{.Names}}' | grep -q '^fashion-scraper-pg$'; then
+    echo "       Contenedor 'fashion-scraper-pg' existe pero apagado — arrancandolo."
+    docker start fashion-scraper-pg >/dev/null
+    sleep 2
+  else
     docker run -d --name fashion-scraper-pg \
       -e POSTGRES_USER="$PG_USER" -e POSTGRES_DB="$PG_DB" -e POSTGRES_HOST_AUTH_METHOD=trust \
       -p "$PG_PORT:5432" postgres:16-alpine >/dev/null
     echo "       Esperando a que Postgres levante..."
     sleep 3
-  else
-    echo "       Contenedor 'fashion-scraper-pg' ya esta corriendo."
   fi
 else
   echo "  [ERROR] No se encontro postgresql-server (initdb/pg_ctl) ni Docker." >&2
