@@ -1,0 +1,37 @@
+change: llm-catalog-nlp
+artifact_store: engram
+engram_project_key: fashion-scraper-new
+status: verified
+phases_completed:
+  - explore
+  - propose
+  - spec
+  - design
+  - tasks
+  - apply
+  - verify
+phases_pending:
+  - archive
+verify_result: PASS
+verify_notes: >
+  0 CRITICAL, 1 WARNING (Phase-5 RED-first ordering skipped; low risk),
+  2 SUGGESTION (both addressed / cosmetic). Backend full suite GREEN
+  (748 tests, 0 failures/errors). Security invariants (Safeguard B zero-write,
+  scrape gate, model override 400, MAX_ITERATIONS=6, no LLM_* in REQUIRED_VARS)
+  confirmed by source inspection. verify-report.md on disk + Engram #743.
+  Open by design: 6.4 + 6.7 manual Ollama smoke (user-run).
+apply_notes: >
+  44/47 tasks done. Backend full suite GREEN (748 tests, 0 failures/errors) under
+  JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 with
+  -Dmaven.compiler.release= -Dmaven.compiler.source=21 -Dmaven.compiler.target=21
+  (sandbox JDK21 lacks ct.sym → --release fails; must bypass). Pending:
+  6.4 + 6.7 (manual Ollama smoke — user runs), 7.1 (.env.example — sandbox denies
+  Read/Write on .env* paths; LLM_* block to be pasted by user). No commit/push yet.
+delivery_strategy: single-pr
+chain_strategy: size-exception
+size_exception: accepted
+created_at: "2026-07-24"
+notes: >
+  Planning artifacts authored in Engram (project key fashion-scraper-new):
+  proposal #735, spec #736, design #737, tasks #738, scope #734, viability #733.
+  Materialized to disk on 2026-07-24 for apply. Strict TDD backend.
