@@ -176,6 +176,7 @@ default     → TiendanubeScraper (JS heurístico)
 | Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
 | Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · GET `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
 | DB | GET `/api/db/export` · POST `/api/db/import` (ambos **410 Gone** desde decouple-services-postgres — no hay archivo `scraper.db`; usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · DELETE `/api/db/productos` · DELETE `/api/db/ml` |
+| LLM Agent | POST `/api/agent/chat` (tool-use, gateado por scraping) · POST `/api/agent/apply` (único write, tras confirmación humana, gateado por scraping) · GET `/api/agent/models` (no gateado) — ver "LLM Catalog Agent" abajo |
 
 ---
 
@@ -212,6 +213,39 @@ cron_jobs / cron_executions -- Scraping programado + historial de corridas
 **`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + LogisticRegression, ~30s) → `_models/text_classifier.pkl`. El entrenamiento de imagen fue REMOVIDO; `--images` es no-op (la clasificación visual es zero-shot, sin entrenamiento).
 
 **`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía open_clip, zero-shot con prompts en inglés / labels en español, abstención por margen. Cache en tabla `image_embeddings` (invalidada por `MODEL_VERSION`, leída/escrita vía `psycopg2`/`DATABASE_URL`). `HF_HOME` default = `<SCRAPER_MODELS_ROOT>/marqo` (env, ya no derivado de una ruta de archivo DB). El tokenizer requiere el paquete `transformers` (lo instala el paso de deps ML del installer) — sin él, el modelo carga pero el backfill degrada a "modelo no disponible".
+
+---
+
+## LLM Catalog Agent (`ar.scraper.agent`, llm-catalog-nlp)
+
+Agente de chat con tool-use, **provider-pluggable**, para revisar/corregir la
+clasificación (categoría/subcategoría/marca/género) de productos reales por
+lenguaje natural. Seam `ChatProvider` (records de dominio, sin formas
+OpenAI/Anthropic filtradas a los callers) con un único adapter hoy:
+`OpenAiCompatProvider` (Ollama `/v1/chat/completions` + `/v1/models`, vía
+`java.net.http.HttpClient`+Jackson, mismo patrón que `InflacionService`).
+
+**El agente tiene EXACTAMENTE 3 herramientas, TODAS de solo lectura** dentro
+del loop acotado (`CatalogAgentService`, `MAX_ITERATIONS=6`): `search_products`,
+`view_product`, `propose_reclassify`. La reclasificación es **two-phase
+propose/confirm** — `propose_reclassify` valida (URL existe + categoría ∈
+taxonomía canónica de `CategoryGroups`/`GarmentTaxonomy`) y devuelve un diff,
+**nunca escribe**; el único write real es `POST /api/agent/apply`, fuera del
+loop, solo tras confirmación explícita del usuario en la UI, re-validando
+server-side y persistiendo vía el mismo `DatabaseService.actualizarNormalizacion`
+que ya usa la re-normalización del catálogo (sin ruta paralela). Esto acota el
+riesgo de tool-calling poco confiable de un modelo local 14b a "una propuesta
+rechazable", nunca a una escritura corrupta.
+
+Config 100% por env (`LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY`,
+todas opcionales con default local Ollama — **no** están en
+`RequiredEnvVarsGuard`). Selector de modelo en runtime (`GET /api/agent/models`
+descubre dinámicamente los modelos pulleados, sin hardcodear lista; `model`
+opcional por-request en `POST /api/agent/chat`, sin estado mutable server-side).
+`POST /api/agent/chat`/`POST /api/agent/apply` están gateados por scraping
+(409 si `RUNNING`, misma VRAM que compite con Marqo-FashionSigLIP);
+`GET /api/agent/models` NO. Frontend: botón "Ask Agent" en `MlStatusPanel.jsx`
+→ `AgentChatPanel.jsx` (selector de modelo + `ProposalCard` [Sí]/[No]).
 
 ---
 

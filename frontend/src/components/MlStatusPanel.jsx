@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchMlEstado, startMlTraining, aplicarModeloML, fetchMlResultado } from '../api';
 import { SEMANTIC } from '../lib/colors';
 import { PHASE_LABELS } from '../lib/mlPhaseLabels';
+import AgentChatPanel from './AgentChatPanel';
 
 // ─── Toast helper ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -30,6 +31,7 @@ export default function MlStatusPanel() {
   const [running,  setRunning]  = useState(false);
   const [applying, setApplying] = useState(false);
   const [tick,     setTick]     = useState(0);
+  const [showAgent, setShowAgent] = useState(false);
 
   const reload = () => fetchMlEstado().then(e => {
     setEstado(e);
@@ -187,8 +189,14 @@ export default function MlStatusPanel() {
               {applying ? 'Aplicando...' : 'Aplicar a datos'}
             </Btn>
           )}
+          <Btn color='var(--p)' bg='color-mix(in srgb, var(--p) 12%, transparent)'
+            onClick={() => setShowAgent(v => !v)}>
+            Ask Agent
+          </Btn>
         </div>
       )}
+
+      {showAgent && <AgentChatPanel onClose={() => setShowAgent(false)} />}
     </div>
   );
 }

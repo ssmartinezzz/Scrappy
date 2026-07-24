@@ -39,6 +39,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
 | Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |
 | DB | `GET /db/export` · `POST /db/import` (ambos **410 Gone** — usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · `DELETE /db/productos` · `DELETE /db/ml` |
+| LLM Agent | `POST /agent/chat` · `POST /agent/apply` · `GET /agent/models` |
 
 ---
 
@@ -312,3 +313,63 @@ Descarga CSV completo (sin filtrar) con BOM para Excel.
 **Headers:** `Content-Disposition: attachment; filename=ofertas.csv`
 
 **Columnas:** Sitio, Nombre, Precio, Precio Original, Categoria, Genero, Talles, URL, Imagen
+
+---
+
+## LLM Catalog Agent (llm-catalog-nlp)
+
+Agente de chat con tool-use, provider-pluggable (env `LLM_PROVIDER`/`LLM_MODEL`/
+`LLM_BASE_URL`/`LLM_API_KEY`, ver `.env.example` — todas opcionales, con
+defaults locales para Ollama). El agente SOLO tiene herramientas de lectura
+(`search_products`, `view_product`, `propose_reclassify`); `propose_reclassify`
+NUNCA escribe — valida y devuelve un diff. El único endpoint que escribe es
+`POST /agent/apply`, fuera del loop del agente y solo tras confirmación
+explícita del usuario en la UI.
+
+`POST /agent/chat` y `POST /agent/apply` están gateados por scraping (igual
+que `DELETE /db/productos`): devuelven **409** mientras `GET /status` está
+`RUNNING` (evita contención de VRAM entre el LLM local y el modelo visual
+Marqo-FashionSigLIP). `GET /agent/models` NO está gateado (metadata de solo
+lectura, no toca VRAM).
+
+### POST /agent/chat
+
+**Body:**
+```json
+{ "messages": [{"role": "user", "text": "..."}], "model": "qwen3:14b" }
+```
+`model` es opcional — presente y disponible → se usa para ese request; ausente
+→ default de `LLM_MODEL`; presente pero desconocido → `400` (nunca fallback
+silencioso).
+
+**Responses:**
+- `200` `{"assistantText": "...", "proposals": [{"url","nombreProducto","categoriaActual","categoriaPropuesta","subCategoriaPropuesta","marcaPropuesta","generoPropuesto"}]}`
+- `400` — `messages` vacío/ausente, o `model` desconocido
+- `409` — scraping en curso
+
+### POST /agent/apply
+
+Confirma (fuera del loop del agente) una propuesta de reclasificación devuelta
+por `/agent/chat`. Re-valida server-side (url existe + categoría ∈ taxonomía
+canónica) — el cliente nunca se asume validado. Persiste vía el mismo write
+path existente (`DatabaseService.actualizarNormalizacion`), sin ruta paralela.
+
+**Body:**
+```json
+{ "url": "...", "categoria": "Buzo", "subCategoria": "...", "marca": "...", "genero": "..." }
+```
+(`subCategoria`/`marca`/`genero` opcionales — si se omiten se preservan los
+valores actuales del producto.)
+
+**Responses:**
+- `200` `{"ok": true, "applied": 1, "mensaje": "..."}`
+- `400` `{"ok": false, "mensaje": "..."}` — url o categoría inválida, ningún write
+- `409` — scraping en curso
+
+### GET /agent/models
+
+Descubre dinámicamente los modelos disponibles del proveedor activo (ej. los
+modelos pulleados en la instancia local de Ollama) — no es una lista
+hardcodeada. NO gateado por scraping.
+
+**Response:** `{"available": ["qwen3:14b", "llama3.1:8b"], "default": "qwen3:14b"}`
