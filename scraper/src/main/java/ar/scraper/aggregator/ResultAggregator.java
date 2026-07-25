@@ -281,6 +281,18 @@ public class ResultAggregator {
         int categoriaCambiada = 0;
         int marcaCambiada     = 0;
 
+        // agent-chat-finetune WU2: escrituras* miden lo que REALMENTE se
+        // persistió (el row count real de actualizarNormalizacion), separado
+        // de categoriaCambiada/marcaCambiada arriba, que siguen siendo el
+        // diff INTENCIONAL detectado por NormalizerService (significado
+        // preservado a propósito — redefinir esas claves en silencio sería un
+        // defecto de silent-change nuevo). Antes de este fix, una excepción
+        // en el write se tragaba sin contarla en ningún lado, y un UPDATE de
+        // 0 filas no se distinguía de uno exitoso.
+        int escriturasIntentadas = 0;
+        int escriturasAplicadas  = 0;
+        int escriturasFallidas   = 0;
+
         int n = Math.min(actuales.size(), renormalizados.size());
         for (int i = 0; i < n; i++) {
             Product antes  = actuales.get(i);
@@ -309,20 +321,40 @@ public class ResultAggregator {
             if (marcaCambio) marcaCambiada++;
 
             if (catCambio || marcaCambio || genCambio || tallesCambio || subCatCambio) {
+                escriturasIntentadas++;
                 try {
-                    db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
-                } catch (Exception ignored) {}
+                    int rows = db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
+                    if (rows > 0) {
+                        escriturasAplicadas++;
+                    } else {
+                        escriturasFallidas++;
+                    }
+                } catch (Exception e) {
+                    escriturasFallidas++;
+                    LOG.warn("[RENORM] Error escribiendo normalización para {}: {}", ahora.url(), e.getMessage());
+                }
             }
         }
 
-        LOG.info("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada",
-                totalRevisados, categoriaCambiada, marcaCambiada);
+        if (escriturasFallidas > 0) {
+            LOG.warn("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada — "
+                    + "{}/{} escrituras aplicadas, {} fallidas",
+                    totalRevisados, categoriaCambiada, marcaCambiada,
+                    escriturasAplicadas, escriturasIntentadas, escriturasFallidas);
+        } else {
+            LOG.info("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada — "
+                    + "{}/{} escrituras aplicadas",
+                    totalRevisados, categoriaCambiada, marcaCambiada, escriturasAplicadas, escriturasIntentadas);
+        }
 
-        return Map.of(
-                "totalRevisados", totalRevisados,
-                "categoriaCambiada", categoriaCambiada,
-                "marcaCambiada", marcaCambiada
-        );
+        Map<String, Integer> resultado = new LinkedHashMap<>();
+        resultado.put("totalRevisados", totalRevisados);
+        resultado.put("categoriaCambiada", categoriaCambiada);
+        resultado.put("marcaCambiada", marcaCambiada);
+        resultado.put("escriturasIntentadas", escriturasIntentadas);
+        resultado.put("escriturasAplicadas", escriturasAplicadas);
+        resultado.put("escriturasFallidas", escriturasFallidas);
+        return resultado;
     }
 
     /**
