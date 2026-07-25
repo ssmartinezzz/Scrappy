@@ -250,6 +250,17 @@ server-side.
 > guard**: compara `categoriaActual` del body contra la categoría real leída
 > de la DB (no del snapshot en memoria) — un conflicto devuelve `422
 > conflicto_stale` con los valores vigentes en vez de sobrescribir a ciegas.
+>
+> **Parche del catálogo en memoria** (fix posterior): `/api/data` y
+> `/api/mejores` sirven de `lastResult`, NO de la DB en cada request — ese
+> snapshot solo se reconstruye al arrancar o tras un scrape. Sin parchear la
+> memoria, una reclasificación persistida quedaba invisible en la UI (Picks
+> incluido) hasta reiniciar el backend. `agentApply` ahora llama a
+> `ScraperService.actualizarProductoEnMemoria` DESPUÉS de verificar que la
+> escritura ocurrió, mismo patrón que `eliminarProductoDeMemoria` tras un
+> soft-delete. Recalcula facetas (a diferencia del soft-delete) porque
+> reclasificar mueve al producto entre categorías y los contadores del filtro
+> quedarían mintiendo.
 
 Config 100% por env (`LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY`,
 todas opcionales con default local Ollama — **no** están en

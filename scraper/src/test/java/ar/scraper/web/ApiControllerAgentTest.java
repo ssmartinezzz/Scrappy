@@ -290,6 +290,42 @@ class ApiControllerAgentTest {
     }
 
     @Test
+    @DisplayName("5.2b apply → patches the in-memory catalog so the UI reflects the change")
+    void applyPatchesTheInMemoryCatalogOnSuccess() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        // /api/data and /api/mejores serve from lastResult, not from the DB, so
+        // without this the persisted change stays invisible until scrape/restart.
+        verify(service).actualizarProductoEnMemoria(
+                "https://a.com/1", "Buzo", "Adidas", "hombre", current.subCategoria());
+    }
+
+    @Test
+    @DisplayName("5.2c apply → never patches memory when the write did not happen")
+    void applyDoesNotPatchMemoryWhenWriteFails() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(false);
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
+        controller.agentApply(body);
+
+        verify(service, never()).actualizarProductoEnMemoria(any(), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("5.3 apply → 409 when scraping RUNNING, no write")
     void applyReturns409WhenRunning() {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
