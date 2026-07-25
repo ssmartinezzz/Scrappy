@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageSquare, X, Sparkles, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { renderRichText } from '@/lib/richText';
 import { fetchAgentModels, askAgent, applyProposal } from '../api';
 
 /**
@@ -234,10 +235,10 @@ export default function AgentChatPanel() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="flex max-h-[70vh] w-[380px] flex-col overflow-hidden rounded-card border border-border bg-s2/95 shadow-2xl backdrop-blur-xl"
+            className="flex max-h-[70vh] w-[380px] flex-col overflow-hidden rounded-card border border-border bg-s2 shadow-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between gap-2 border-b border-border bg-s1/60 px-4 py-3">
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-s1 px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
                   <Sparkles className="h-4 w-4" />
@@ -300,13 +301,15 @@ export default function AgentChatPanel() {
                 <div
                   key={i}
                   className={cn(
-                    'max-w-[85%] rounded-2xl px-3 py-2 text-[.75rem] leading-snug',
+                    'flex max-w-[85%] flex-col rounded-2xl px-3 py-2 text-[.75rem] leading-snug',
                     m.role === 'user'
                       ? 'self-end rounded-tr-sm bg-primary text-white'
-                      : 'self-start rounded-tl-sm bg-s3 text-t2',
+                      : 'self-start rounded-tl-sm bg-s3 text-t2 [&_a]:text-primary',
                   )}
                 >
-                  {m.text}
+                  {/* Only model output gets markdown treatment — what the user
+                      typed is shown verbatim. */}
+                  {m.role === 'assistant' ? renderRichText(m.text) : m.text}
                 </div>
               ))}
               {proposals.map((p, i) => (
@@ -327,7 +330,7 @@ export default function AgentChatPanel() {
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2 border-t border-border bg-s1/60 px-3 py-2.5">
+            <div className="flex items-center gap-2 border-t border-border bg-s1 px-3 py-2.5">
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}

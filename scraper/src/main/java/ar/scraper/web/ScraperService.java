@@ -139,6 +139,46 @@ public class ScraperService {
         }
     }
 
+    /** Reemplaza la clasificación de un producto en el catálogo en memoria tras
+     *  una reclasificación confirmada y ya persistida por
+     *  {@code POST /api/agent/apply} (DatabaseService.aplicarReclasificacionAuditada).
+     *  Mismo motivo que {@link #eliminarProductoDeMemoria}: {@code /api/data} y
+     *  {@code /api/mejores} sirven de {@code lastResult}, no de la DB en cada
+     *  request, así que sin esto el cambio no se vería hasta el próximo
+     *  scrape/restart.
+     *
+     *  <p>Un valor nulo o en blanco deja el dato anterior — el endpoint ya aplica
+     *  ese mismo fallback al persistir, así que memoria y DB no divergen. A
+     *  diferencia del soft-delete, acá las facetas SE RECALCULAN: la
+     *  reclasificación mueve al producto entre categorías/marcas y reusar los
+     *  contadores viejos dejaría el filtro del catálogo ofreciendo la categoría
+     *  que el producto ya no tiene. */
+    public void actualizarProductoEnMemoria(String url, String categoria, String marca,
+                                            String genero, String subCategoria) {
+        synchronized (catalogLock) {
+            if (lastResult == null || url == null) return;
+            List<Product> parcheados = lastResult.productos().stream()
+                    .map(p -> url.equals(p.url())
+                            ? new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
+                                    p.url(), p.imagenUrl(),
+                                    noVacio(categoria, p.categoria()), noVacio(genero, p.genero()),
+                                    p.talles(), p.ml(), noVacio(marca, p.marca()), p.rubro(),
+                                    p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
+                                    p.cantidadUnidades(), noVacio(subCategoria, p.subCategoria()),
+                                    p.visual())
+                            : p)
+                    .toList();
+            lastResult = new AggregatedResult(parcheados, lastResult.conteoPorSitio(),
+                    lastResult.erroresPorSitio(), ResultAggregator.calcularFacets(parcheados),
+                    lastResult.minPrecio(), lastResult.maxPrecio(),
+                    lastResult.statsPorSitio());
+        }
+    }
+
+    private static String noVacio(String nuevo, String anterior) {
+        return (nuevo != null && !nuevo.isBlank()) ? nuevo : anterior;
+    }
+
     /**
      * Test seam — replaces the in-memory catalog directly, without going
      * through a scrape/fromDB cycle. Package-visible would suffice but this

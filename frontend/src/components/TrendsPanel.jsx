@@ -28,12 +28,16 @@ const Insights = ({ cats, badges, total }) => {
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       <div className="detail-section-title">💡 Insights de mercado</div>
       {[
-        { icon:'💸', text: `La categoría más accesible es <strong>${cheapest.categoria}</strong> con mediana $${fmt(cheapest.med)}` },
-        { icon:'💎', text: `La más cara es <strong>${priciest.categoria}</strong> con mediana $${fmt(priciest.med)}` },
-        { icon:'📦', text: `<strong>${mostProd.categoria}</strong> tiene la mayor oferta: ${mostProd.n} productos` },
-        highCV.length > 0 && { icon:'⚠️', text: `Alta variabilidad en: <strong>${highCV.map(c=>c.categoria).join(', ')}</strong> — conviene comparar bien` },
-        ofertaCount > 0 && { icon:'✅', text: `Hay <strong>${ofertaCount}</strong> ofertas reales detectadas estadísticamente (${(ofertaCount/total*100).toFixed(1)}% del catálogo)` },
-        histLow > 0 && { icon:'🏆', text: `<strong>${histLow}</strong> productos están en su mínimo histórico de precio` },
+        // `text` holds React nodes, not an HTML string: these sentences
+        // interpolate catalog values that ultimately come from scraped
+        // third-party pages, and building markup out of them meant injecting it
+        // verbatim into the DOM. Emphasis is expressed as elements instead.
+        { icon:'💸', text: <>La categoría más accesible es <strong>{cheapest.categoria}</strong> con mediana ${fmt(cheapest.med)}</> },
+        { icon:'💎', text: <>La más cara es <strong>{priciest.categoria}</strong> con mediana ${fmt(priciest.med)}</> },
+        { icon:'📦', text: <><strong>{mostProd.categoria}</strong> tiene la mayor oferta: {mostProd.n} productos</> },
+        highCV.length > 0 && { icon:'⚠️', text: <>Alta variabilidad en: <strong>{highCV.map(c=>c.categoria).join(', ')}</strong> — conviene comparar bien</> },
+        ofertaCount > 0 && { icon:'✅', text: <>Hay <strong>{ofertaCount}</strong> ofertas reales detectadas estadísticamente ({(ofertaCount/total*100).toFixed(1)}% del catálogo)</> },
+        histLow > 0 && { icon:'🏆', text: <><strong>{histLow}</strong> productos están en su mínimo histórico de precio</> },
       ].filter(Boolean).map((ins, i) => (
         <div key={i} style={{
           display:'flex', gap:10, alignItems:'flex-start',
@@ -41,7 +45,7 @@ const Insights = ({ cats, badges, total }) => {
           border:'1px solid var(--bd)', fontSize:'.75rem', color:'var(--t3)',
         }}>
           <span style={{ flexShrink:0 }}>{ins.icon}</span>
-          <span dangerouslySetInnerHTML={{ __html: ins.text }}/>
+          <span>{ins.text}</span>
         </div>
       ))}
     </div>

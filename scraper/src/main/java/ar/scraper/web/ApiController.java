@@ -2452,6 +2452,19 @@ public class ApiController {
             return ResponseEntity.internalServerError()
                     .body(Map.of("ok", false, "mensaje", "No se pudo aplicar la reclasificación."));
         }
+
+        // El catálogo se sirve de lastResult, no de la DB en cada request, así que
+        // sin este parche la reclasificación recién persistida no se vería en
+        // /api/data ni /api/mejores hasta el próximo scrape/restart. Mismo patrón
+        // que eliminarProductoDeMemoria tras un soft-delete. Va DESPUÉS del check
+        // de `applied`: nunca se parchea memoria por una escritura que no ocurrió.
+        service.actualizarProductoEnMemoria(
+                body.url(),
+                body.categoriaPropuesta(),
+                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
+                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria());
+
         return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
     }
 
