@@ -13,6 +13,7 @@ import ProductGrid   from './ProductGrid';
 import DetailPanel   from './DetailPanel';
 import RouteFallback from './RouteFallback';
 import GpuTrainingOverlay from './GpuTrainingOverlay';
+import AgentChatPanel from './AgentChatPanel';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 
@@ -227,6 +228,8 @@ function CatalogoRoute() {
           {gpuRunning ? 'Entrenando...' : 'Construir índice visual'}
         </button>
       </div>{/* .gpu-fab */}
+
+      <AgentChatPanel />
 
       <SearchHero
         ref={heroRef}
