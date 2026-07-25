@@ -8,6 +8,7 @@ import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ChatMessage;
+import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
 import ar.scraper.agent.ViewProductTool;
 import ar.scraper.config.ScraperConfig;
@@ -2378,44 +2379,51 @@ public class ApiController {
     }
 
     @PostMapping("/agent/apply")
-    public ResponseEntity<Object> agentApply(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<Object> agentApply(@RequestBody ReclassifyProposal body) {
         if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
             return ResponseEntity.status(409)
                     .body(Map.of("ok", false, "mensaje", "Hay un scraping en curso. Esperá a que termine."));
         }
 
-        String url = agentStr(body.get("url"));
-        String categoria = agentStr(body.get("categoria"));
-        if (url == null || url.isBlank() || categoria == null || categoria.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "Faltan campos requeridos: 'url' y 'categoria'."));
+        // agent-chat-finetune WU4: typed @RequestBody instead of Map<String,Object>
+        // — the endpoint now reads the SAME field names ReclassifyProposal
+        // actually carries (categoriaPropuesta, not "categoria"), fixing the
+        // contract mismatch that 400'd every real confirm click. Per-field
+        // required check names only what's actually missing (never a
+        // blanket "'url' y 'categoria'" message when only one is absent).
+        List<String> faltantes = new ArrayList<>();
+        if (body.url() == null || body.url().isBlank()) faltantes.add("url");
+        if (body.categoriaPropuesta() == null || body.categoriaPropuesta().isBlank()) faltantes.add("categoriaPropuesta");
+        if (!faltantes.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "mensaje",
+                    "Faltan campos requeridos: " + String.join(", ", faltantes) + "."));
         }
-        if (!CategoryGroups.canonicalCategories().contains(categoria)) {
+        if (!CategoryGroups.canonicalCategories().contains(body.categoriaPropuesta())) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + categoria + "'."));
+                    .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + body.categoriaPropuesta() + "'."));
         }
 
         // Server-side re-validation — the client is NEVER trusted to have
         // validated (design D4 Phase 2): look up the current product to
         // confirm the url exists AND to preserve fields the proposal didn't
         // touch (talles is not part of ReclassifyProposal at all).
-        Product current = ViewProductTool.find(service.getLastResult(), url);
+        Product current = ViewProductTool.find(service.getLastResult(), body.url());
         if (current == null) {
             return ResponseEntity.badRequest()
                     .body(Map.of("ok", false, "mensaje", "No existe ningún producto con esa url en el catálogo actual."));
         }
 
-        String subCategoria = agentStr(body.get("subCategoria"));
-        String marca = agentStr(body.get("marca"));
-        String genero = agentStr(body.get("genero"));
+        String subCategoria = body.subCategoriaPropuesta();
+        String marca = body.marcaPropuesta();
+        String genero = body.generoPropuesto();
 
         // agent-chat-finetune WU3: aplicarReclasificacionAuditada is the
         // truthful write path (WU1) — its boolean return is ALWAYS checked, so
         // a failed/no-op write can never be reported as "Reclasificación
         // aplicada." (the original silent-success defect this fixes).
         boolean applied = db.aplicarReclasificacionAuditada(
-                url,
-                categoria,
+                body.url(),
+                body.categoriaPropuesta(),
                 (marca != null && !marca.isBlank()) ? marca : current.marca(),
                 (genero != null && !genero.isBlank()) ? genero : current.genero(),
                 current.talles(),
@@ -2438,5 +2446,4 @@ public class ApiController {
         }
     }
 
-    private static String agentStr(Object o) { return o == null ? null : o.toString(); }
 }
