@@ -6,14 +6,120 @@ import { fetchAgentModels, askAgent, applyProposal } from '../api';
 
 /**
  * Floating chat widget for the LLM catalog agent (llm-catalog-nlp).
- * Self-contained: owns its own FAB + open state, so it can be mounted once in
- * the catalog (like the "Construir índice visual" FAB). Real wiring —
- * `GET /api/agent/models` populates the model selector (D8),
+ * Self-contained: owns its own FAB + open state, and is mounted once at the
+ * layout level (not inside a route), so the conversation survives navigation.
+ * Real wiring — `GET /api/agent/models` populates the model selector (D8),
  * `POST /api/agent/chat` drives the conversation, and each reclassification
  * proposal renders a {@link ProposalCard} committed via `POST /api/agent/apply`
  * ([Sí]) or discarded locally ([No]). A 409 (scrape in progress) shows a clear
  * "wait" message instead of a generic error.
+ *
+ * Conversation state is mirrored to sessionStorage so a page reload keeps it
+ * too; persistence is best-effort and never blocks the UI if storage fails.
+ * The snapshot carries a sliding TTL — `savedAt` is refreshed on every write,
+ * so a thread expires after {@link STORAGE_TTL_MS} of inactivity and the widget
+ * comes back on the starter prompts instead of a stale conversation.
+ *
+ * What comes back out of storage is NOT trusted: {@link sanitizeSnapshot}
+ * rebuilds it field by field against the expected shape. Restored proposals in
+ * particular are replayed to `POST /api/agent/apply`, so they are reduced to
+ * the server's `ReclassifyProposal` fields and nothing else.
  */
+const STORAGE_KEY = 'agentChat:v1';
+
+/** Idle window after which a persisted conversation is dropped on load. */
+const STORAGE_TTL_MS = 30 * 60 * 1000;
+
+/** Hard caps so a bloated or tampered snapshot can't flood state and the DOM. */
+const MAX_MESSAGES = 100;
+const MAX_PROPOSALS = 20;
+const MAX_TEXT_LEN = 4000;
+const MAX_FIELD_LEN = 500;
+
+/** Exactly the fields of the server-side `ReclassifyProposal` record. */
+const PROPOSAL_FIELDS = [
+  'url',
+  'nombreProducto',
+  'categoriaActual',
+  'categoriaPropuesta',
+  'subCategoriaPropuesta',
+  'marcaPropuesta',
+  'generoPropuesto',
+];
+
+const asString = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
+
+const isHttpUrl = (v) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(v).protocol);
+  } catch {
+    return false;
+  }
+};
+
+function sanitizeMessage(m) {
+  if (!m || typeof m !== 'object') return null;
+  if (m.role !== 'user' && m.role !== 'assistant') return null;
+  const text = asString(m.text, MAX_TEXT_LEN);
+  return text ? { role: m.role, text } : null;
+}
+
+function sanitizeProposal(p) {
+  if (!p || typeof p !== 'object') return null;
+  // Rebuilt key by key (never spread): anything the server never sent is dropped
+  // instead of riding along to POST /api/agent/apply.
+  const clean = {};
+  for (const f of PROPOSAL_FIELDS) clean[f] = asString(p[f], MAX_FIELD_LEN);
+  if (!isHttpUrl(clean.url) || !clean.categoriaPropuesta) return null;
+  // Keep the applied/rejected UI state, but only in its expected types —
+  // `_applied` stays undefined while the proposal is still pending.
+  if (typeof p._applied === 'boolean') clean._applied = p._applied;
+  if (p._mensaje !== undefined) clean._mensaje = asString(p._mensaje, MAX_FIELD_LEN);
+  return clean;
+}
+
+function sanitizeSnapshot(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const messages = (Array.isArray(raw.messages) ? raw.messages : [])
+    .slice(-MAX_MESSAGES)
+    .map(sanitizeMessage)
+    .filter(Boolean);
+  const proposals = (Array.isArray(raw.proposals) ? raw.proposals : [])
+    .slice(-MAX_PROPOSALS)
+    .map(sanitizeProposal)
+    .filter(Boolean);
+  return {
+    open: raw.open === true,
+    model: asString(raw.model, MAX_FIELD_LEN),
+    messages,
+    proposals,
+  };
+}
+
+function loadPersisted() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    // Negated form so a missing/corrupt savedAt (NaN) also counts as expired.
+    if (!(Date.now() - parsed.savedAt < STORAGE_TTL_MS)) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return sanitizeSnapshot(parsed);
+  } catch {
+    return null;
+  }
+}
+
+/** Starter prompts shown on the empty state to guide the first question. */
+const SUGGESTED_PROMPTS = [
+  'Buscá remeras oversize en el catálogo',
+  '¿Qué productos hay de la marca Nike?',
+  'Mostrame un buzo y cómo está clasificado',
+  'Revisá la categoría de un pantalón cargo',
+];
+
 const panelVariants = {
   hidden:  { opacity: 0, y: 20, scale: 0.95 },
   visible: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', damping: 26, stiffness: 320 } },
@@ -21,30 +127,44 @@ const panelVariants = {
 };
 
 export default function AgentChatPanel() {
-  const [open, setOpen] = useState(false);
+  const [restored] = useState(loadPersisted);
+  const [open, setOpen] = useState(!!restored?.open);
   const [models, setModels] = useState({ available: [], default: '' });
-  const [model, setModel] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [model, setModel] = useState(restored?.model || '');
+  const [messages, setMessages] = useState(restored?.messages || []);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [scrapeWait, setScrapeWait] = useState(false);
-  const [proposals, setProposals] = useState([]);
+  const [proposals, setProposals] = useState(restored?.proposals || []);
   const scrollRef = useRef(null);
 
   useEffect(() => {
     fetchAgentModels().then(m => {
       if (!m) return;
       setModels(m);
-      setModel(m.default || '');
+      // Keep a restored selection only if the server still offers it (a model
+      // can be removed from Ollama, or the value can be tampered with).
+      setModel(prev => (m.available?.includes(prev) ? prev : (m.default || '')));
     });
   }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ savedAt: Date.now(), open, model, messages, proposals }),
+      );
+    } catch {
+      // Storage full or unavailable (private mode) — persistence is optional.
+    }
+  }, [open, model, messages, proposals]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, proposals, sending, open]);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (preset) => {
+    const text = (preset ?? input).trim();
     if (!text || sending) return;
     setSending(true);
     setScrapeWait(false);
@@ -129,9 +249,26 @@ export default function AgentChatPanel() {
             {/* Messages */}
             <div ref={scrollRef} className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
               {messages.length === 0 && !scrapeWait && (
-                <div className="text-[.72rem] leading-relaxed text-t4">
-                  Preguntame sobre un producto del catálogo — puedo buscarlo, verlo y proponerte una
-                  re-clasificación. Nada se guarda hasta que confirmes.
+                <div className="flex flex-col gap-2.5">
+                  <div className="text-[.72rem] leading-relaxed text-t2">
+                    Preguntame sobre un producto del catálogo — puedo buscarlo, verlo y proponerte una
+                    re-clasificación. Nada se guarda hasta que confirmes.
+                  </div>
+                  <div className="text-[.58rem] font-semibold uppercase tracking-wide text-t3">
+                    Para empezar
+                  </div>
+                  <div className="flex flex-col items-start gap-1.5">
+                    {SUGGESTED_PROMPTS.map(p => (
+                      <button
+                        key={p}
+                        onClick={() => send(p)}
+                        disabled={sending}
+                        className="rounded-full border border-bd2 bg-s1 px-3 py-1.5 text-left text-[.7rem] text-t2 transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               {messages.map((m, i) => (
@@ -168,7 +305,7 @@ export default function AgentChatPanel() {
                 className="flex-1 rounded-full border border-bd2 bg-s1 px-3 py-2 text-[.75rem] text-t1 outline-none transition-colors focus:border-primary"
               />
               <button
-                onClick={send}
+                onClick={() => send()}
                 disabled={sending || !input.trim()}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white transition hover:bg-primary2 disabled:opacity-40"
                 aria-label="Enviar"
