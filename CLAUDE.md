@@ -237,7 +237,7 @@ server-side.
 
 > **agent-chat-finetune** (2026-07-25): el botón de confirmación nunca había
 > funcionado — `POST /api/agent/apply` leía un shape de `Map` distinto al
-> `ReclassifyProposal` que el agente realmente produce (todo click 400eaba).
+> `ReclassifyProposal` que el agente realmente produce (todo click daba 400).
 > Fix: el endpoint acepta ahora el `ReclassifyProposal` tipado tal cual
 > (`@JsonIgnoreProperties(ignoreUnknown = true)`, sin DTO paralelo). Persiste
 > vía `DatabaseService.aplicarReclasificacionAuditada` — UPDATE + INSERT de
