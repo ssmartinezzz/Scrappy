@@ -193,17 +193,20 @@ class ApiControllerAgentTest {
     // ── POST /api/agent/apply ────────────────────────────────────────────
 
     @Test
-    @DisplayName("5.4 apply commits via actualizarNormalizacion, preserving untouched fields (e.g. talles)")
+    @DisplayName("5.4 apply commits via aplicarReclasificacionAuditada, preserving untouched fields (e.g. talles)")
     void applyCommitsViaActualizarNormalizacion() {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
 
         var body = Map.<String, Object>of("url", "https://a.com/1", "categoria", "Buzo");
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).actualizarNormalizacion("https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"), "");
+        verify(db).aplicarReclasificacionAuditada(
+                "https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"), "", current);
     }
 
     @Test
@@ -231,6 +234,22 @@ class ApiControllerAgentTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(db);
+    }
+
+    @Test
+    @DisplayName("T3.1 apply → the write failing (aplicarReclasificacionAuditada=false) is NEVER reported as applied")
+    void applyReturns500WhenWriteFails() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(false);
+
+        var body = Map.<String, Object>of("url", "https://a.com/1", "categoria", "Buzo");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isNotEqualTo(200);
+        assertThat(resp.getBody().toString()).doesNotContain("Reclasificación aplicada");
     }
 
     @Test

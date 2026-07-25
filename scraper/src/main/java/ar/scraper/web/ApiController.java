@@ -2409,14 +2409,23 @@ public class ApiController {
         String marca = agentStr(body.get("marca"));
         String genero = agentStr(body.get("genero"));
 
-        db.actualizarNormalizacion(
+        // agent-chat-finetune WU3: aplicarReclasificacionAuditada is the
+        // truthful write path (WU1) — its boolean return is ALWAYS checked, so
+        // a failed/no-op write can never be reported as "Reclasificación
+        // aplicada." (the original silent-success defect this fixes).
+        boolean applied = db.aplicarReclasificacionAuditada(
                 url,
                 categoria,
                 (marca != null && !marca.isBlank()) ? marca : current.marca(),
                 (genero != null && !genero.isBlank()) ? genero : current.genero(),
                 current.talles(),
-                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : current.subCategoria());
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : current.subCategoria(),
+                current);
 
+        if (!applied) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("ok", false, "mensaje", "No se pudo aplicar la reclasificación."));
+        }
         return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
     }
 
