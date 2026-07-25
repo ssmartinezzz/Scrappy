@@ -229,8 +229,6 @@ function CatalogoRoute() {
         </button>
       </div>{/* .gpu-fab */}
 
-      <AgentChatPanel />
-
       <SearchHero
         ref={heroRef}
         busq={S.busq} view={S.view} orden={S.orden} total={S.totalProds}
@@ -681,6 +679,10 @@ export default function AppLayout() {
       {gpuTraining && (
         <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
       )}
+
+      {/* Mounted at layout level (not inside a route) so the conversation
+          survives navigation between views. */}
+      <AgentChatPanel />
     </div>
   );
 }
