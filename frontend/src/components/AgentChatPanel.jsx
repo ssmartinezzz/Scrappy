@@ -64,6 +64,9 @@ function sanitizeMessage(m) {
   return text ? { role: m.role, text } : null;
 }
 
+/** Known-safe keys of the 422 conflicto_stale `actual` payload — see conflictoStale() server-side. */
+const CONFLICTO_FIELDS = ['categoria', 'marca', 'genero', 'subCategoria'];
+
 function sanitizeProposal(p) {
   if (!p || typeof p !== 'object') return null;
   // Rebuilt key by key (never spread): anything the server never sent is dropped
@@ -71,10 +74,16 @@ function sanitizeProposal(p) {
   const clean = {};
   for (const f of PROPOSAL_FIELDS) clean[f] = asString(p[f], MAX_FIELD_LEN);
   if (!isHttpUrl(clean.url) || !clean.categoriaPropuesta) return null;
-  // Keep the applied/rejected UI state, but only in its expected types —
-  // `_applied` stays undefined while the proposal is still pending.
+  // Keep the applied/rejected/conflict UI state, but only in its expected
+  // types — `_applied`/`_conflicto` stay undefined while the proposal is
+  // still pending.
   if (typeof p._applied === 'boolean') clean._applied = p._applied;
   if (p._mensaje !== undefined) clean._mensaje = asString(p._mensaje, MAX_FIELD_LEN);
+  if (p._conflicto && typeof p._conflicto === 'object') {
+    const conflicto = {};
+    for (const f of CONFLICTO_FIELDS) conflicto[f] = asString(p._conflicto[f], MAX_FIELD_LEN);
+    clean._conflicto = conflicto;
+  }
   return clean;
 }
 
@@ -187,6 +196,15 @@ export default function AgentChatPanel() {
   const confirmProposal = async (proposal) => {
     const res = await applyProposal(proposal);
     if (res?.scraping) { setScrapeWait(true); return; }
+    // 422 conflicto_stale (WU5): the product changed since this proposal was
+    // generated — surface the live values instead of a plain "no se pudo
+    // aplicar", and never let the card offer a resend of stale data.
+    if (res?.codigo === 'conflicto_stale') {
+      setProposals(ps => ps.map(p => p === proposal
+        ? { ...p, _conflicto: res.actual || {} }
+        : p));
+      return;
+    }
     setProposals(ps => ps.map(p => p === proposal
       ? { ...p, _applied: !!res?.ok, _mensaje: res?.mensaje }
       : p));
@@ -194,6 +212,13 @@ export default function AgentChatPanel() {
 
   const rejectProposal = (proposal) => {
     setProposals(ps => ps.filter(p => p !== proposal));
+  };
+
+  /** "Volver a consultar" (T6.2): drop the stale card and re-ask the agent for
+   * a fresh proposal on the same product, instead of ever resending the old one. */
+  const requeryProposal = (proposal) => {
+    setProposals(ps => ps.filter(p => p !== proposal));
+    send(`Volvé a revisar la clasificación de ${proposal.url} — la propuesta anterior quedó desactualizada.`);
   };
 
   return (
@@ -285,7 +310,13 @@ export default function AgentChatPanel() {
                 </div>
               ))}
               {proposals.map((p, i) => (
-                <ProposalCard key={i} proposal={p} onConfirm={confirmProposal} onReject={rejectProposal} />
+                <ProposalCard
+                  key={i}
+                  proposal={p}
+                  onConfirm={confirmProposal}
+                  onReject={rejectProposal}
+                  onRequery={requeryProposal}
+                />
               ))}
               {sending && <div className="self-start text-[.7rem] italic text-t4">Pensando…</div>}
               {scrapeWait && (
@@ -334,8 +365,9 @@ export default function AgentChatPanel() {
   );
 }
 
-function ProposalCard({ proposal, onConfirm, onReject }) {
+function ProposalCard({ proposal, onConfirm, onReject, onRequery }) {
   const applied = proposal._applied;
+  const conflicto = proposal._conflicto;
   return (
     <div className="rounded-card border border-primary/25 bg-primary/[.08] px-3 py-2.5 text-[.72rem]">
       <div className="mb-1 font-bold text-t1">{proposal.nombreProducto}</div>
@@ -344,24 +376,54 @@ function ProposalCard({ proposal, onConfirm, onReject }) {
         {' → '}
         <strong className="text-primary">{proposal.categoriaPropuesta}</strong>
       </div>
-      {applied === undefined && (
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={() => onConfirm(proposal)}
-            className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
-          >
-            Sí
-          </button>
-          <button
-            onClick={() => onReject(proposal)}
-            className="rounded-btn border border-bd2 px-3 py-1 font-semibold text-t3 transition-colors hover:border-t3"
-          >
-            No
-          </button>
-        </div>
+      {/* 422 conflicto_stale (WU5): el producto cambió desde que se generó la
+          propuesta — mostramos el valor real actual y NUNCA ofrecemos [Sí]
+          (reenviar el payload viejo), solo volver a consultar al agente. */}
+      {conflicto ? (
+        <>
+          <div className="mt-1.5 text-warning">
+            El producto cambió desde que se generó esta propuesta.
+          </div>
+          <div className="mt-1 text-t3">
+            Categoría actual: <strong className="text-t2">{conflicto.categoria || '—'}</strong>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => onRequery(proposal)}
+              className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              Volver a consultar
+            </button>
+            <button
+              onClick={() => onReject(proposal)}
+              className="rounded-btn border border-bd2 px-3 py-1 font-semibold text-t3 transition-colors hover:border-t3"
+            >
+              Descartar
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          {applied === undefined && (
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => onConfirm(proposal)}
+                className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+              >
+                Sí
+              </button>
+              <button
+                onClick={() => onReject(proposal)}
+                className="rounded-btn border border-bd2 px-3 py-1 font-semibold text-t3 transition-colors hover:border-t3"
+              >
+                No
+              </button>
+            </div>
+          )}
+          {applied === true && <div className="mt-1.5 text-success">Aplicado ✓</div>}
+          {applied === false && <div className="mt-1.5 text-t4">No se pudo aplicar: {proposal._mensaje}</div>}
+        </>
       )}
-      {applied === true && <div className="mt-1.5 text-success">Aplicado ✓</div>}
-      {applied === false && <div className="mt-1.5 text-t4">No se pudo aplicar: {proposal._mensaje}</div>}
     </div>
   );
 }

@@ -819,15 +819,16 @@ public class DatabaseService {
     }
 
     /**
-     * Actualiza categoria/marca/genero/talles de un producto ya existente en la
-     * DB sin re-scrapear. Usado por la re-normalización del catálogo: aplica las
-     * reglas actuales de {@code NormalizerService} sobre datos ya persistidos.
+     * UPDATE compartido de categoria/marca/genero/talles/sub_categoria — extraído
+     * de {@link #actualizarNormalizacion} (agent-chat-finetune WU1) para que
+     * también lo reutilice {@link #aplicarReclasificacionAuditada} dentro de su
+     * propia transacción. Devuelve directamente el row count de
+     * {@code executeUpdate()}: el llamador SIEMPRE debe mirarlo (descartar este
+     * valor era la raíz del defecto "silent success" original).
      */
-    public void actualizarNormalizacion(String url, String categoria, String marca,
-                                         String genero, List<String> talles, String subCategoria) {
-        if (url == null) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
+    private int updateNormalizacion(Connection c, String url, String categoria, String marca,
+                                     String genero, List<String> talles, String subCategoria) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement(
                 "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
             ps.setString(1, categoria != null ? categoria : "");
             ps.setString(2, marca != null ? marca : "");
@@ -835,9 +836,84 @@ public class DatabaseService {
             ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
             ps.setString(5, subCategoria != null ? subCategoria : "");
             ps.setString(6, url);
-            ps.executeUpdate();
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Actualiza categoria/marca/genero/talles de un producto ya existente en la
+     * DB sin re-scrapear. Usado por la re-normalización bulk del catálogo
+     * ({@code ResultAggregator#renormalizarCatalogo}): aplica las reglas
+     * actuales de {@code NormalizerService} sobre datos ya persistidos.
+     * Devuelve el row count real del UPDATE (0 si la url no existe o hubo una
+     * excepción) — el llamador lo usa para distinguir "escritura intentada" de
+     * "escritura aplicada" (agent-chat-finetune WU1/WU2; antes de este fix este
+     * método era {@code void} y el bulk path contaba cambios intentados como si
+     * hubieran sido efectivamente persistidos).
+     */
+    public int actualizarNormalizacion(String url, String categoria, String marca,
+                                        String genero, List<String> talles, String subCategoria) {
+        if (url == null) return 0;
+        try (Connection c = dataSource.getConnection()) {
+            return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria);
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Camino auditado de reclasificación humana ({@code POST /api/agent/apply},
+     * agent-chat-finetune WU1 — fix del confirm-button del LLM catalog agent).
+     * Una sola conexión, una sola transacción: el UPDATE de
+     * {@link #updateNormalizacion} y el INSERT de auditoría se confirman juntos
+     * o ninguno de los dos. Si el UPDATE afecta 0 filas (url inexistente) o el
+     * INSERT de auditoría falla por cualquier motivo, se hace rollback completo
+     * y se devuelve {@code false} — nunca queda una reclasificación sin fila de
+     * auditoría, ni una fila de auditoría de algo que no pasó (tradeoff elegido:
+     * se pierde un click humano confirmado antes que dejar un cambio sin
+     * auditar). Los valores "antes" de la auditoría salen de {@code previo}
+     * (una lectura server-side previa, nunca de valores que mande el cliente).
+     */
+    public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
+                                                   String genero, List<String> talles, String subCategoria,
+                                                   Product previo) {
+        if (url == null) return false;
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria);
+                if (rows != 1) {
+                    c.rollback();
+                    return false;
+                }
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO agent_reclassify_audit " +
+                        "(url, categoria_antes, categoria_despues, marca_antes, marca_despues, " +
+                        "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, applied_at) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?)")) {
+                    ps.setString(1, url);
+                    ps.setString(2, previo != null && previo.categoria() != null ? previo.categoria() : "");
+                    ps.setString(3, categoria != null ? categoria : "");
+                    ps.setString(4, previo != null && previo.marca() != null ? previo.marca() : "");
+                    ps.setString(5, marca != null ? marca : "");
+                    ps.setString(6, previo != null && previo.genero() != null ? previo.genero() : "");
+                    ps.setString(7, genero != null ? genero : "");
+                    ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
+                    ps.setString(9, subCategoria != null ? subCategoria : "");
+                    ps.setString(10, LocalDateTime.now().format(DT));
+                    ps.executeUpdate();
+                }
+                c.commit();
+                return true;
+            } catch (Exception e) {
+                LOG.error("[DB] Error en aplicarReclasificacionAuditada, rollback: {}", e.getMessage(), e);
+                try { c.rollback(); } catch (Exception ignored) {}
+                return false;
+            }
+        } catch (Exception e) {
+            LOG.error("[DB] Error abriendo conexión en aplicarReclasificacionAuditada: {}", e.getMessage(), e);
+            return false;
         }
     }
 
