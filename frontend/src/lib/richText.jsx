@@ -83,6 +83,42 @@ function parseInline(line, keyPrefix) {
   return nodes;
 }
 
+const PRICE = /\$[\d.,]+/g;
+
+/**
+ * Emphasises the money amounts inside an otherwise plain sentence, returning
+ * React nodes.
+ *
+ * Replaces the `dangerouslySetInnerHTML` + `String.replace` pattern that used to
+ * build `<strong>` tags as raw HTML in `DetailPanel`. The strings themselves are
+ * assembled locally from product data, but building HTML out of interpolated
+ * catalog values is a standing injection hazard: the values ultimately originate
+ * in scraped third-party store pages, so the day one of these sentences
+ * interpolates a product name or brand instead of a category or a number, raw
+ * HTML injection becomes live. Returning elements removes the hazard rather than
+ * relying on today's inputs staying tame.
+ *
+ * @param {string} text plain sentence, no markup
+ * @param {string} color CSS color applied to the highlighted amounts
+ * @returns {import('react').ReactNode}
+ */
+export function highlightPrices(text, color) {
+  if (typeof text !== 'string' || !text) return text ?? null;
+
+  const nodes = [];
+  let lastIndex = 0;
+  let match;
+  PRICE.lastIndex = 0;
+
+  while ((match = PRICE.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    nodes.push(<strong key={match.index} style={{ color }}>{match[0]}</strong>);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
 /**
  * Renders `text` as React nodes, preserving line breaks and rendering
  * `- `/`* ` prefixed lines as bullets.
