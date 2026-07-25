@@ -231,7 +231,8 @@ public abstract class PostgresTestBase {
                     precios_externos, productos, image_embeddings, precio_historico,
                     ml_output, sitios_dinamicos, categoria_stats, favoritos,
                     outfit_feedback, outfit_feedback_item, categoria_dismiss,
-                    financiacion_presets, saved_outfits, cron_executions, cron_jobs
+                    financiacion_presets, saved_outfits, cron_executions, cron_jobs,
+                    agent_reclassify_audit
                 RESTART IDENTITY CASCADE
                 """);
         }

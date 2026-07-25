@@ -1,7 +1,7 @@
 # Fashion Scraper Argentina — Contexto del Proyecto
 
 > Este archivo existe para que Claude pueda leer el estado completo del proyecto en una nueva sesión sin necesidad de que el usuario lo explique desde cero. Leelo siempre antes de sugerir cambios.
-> Última actualización integral: 2026-07-21.
+> Última actualización integral: 2026-07-25.
 
 ---
 
@@ -196,6 +196,7 @@ saved_outfits        -- Outfits persistidos
 categoria_dismiss    -- Categorías "no me interesa" del feed
 financiacion_presets -- Presets de cuotas/recargo
 cron_jobs / cron_executions -- Scraping programado + historial de corridas
+agent_reclassify_audit -- Auditoría de reclasificaciones humanas vía POST /api/agent/apply (V2 Flyway)
 ```
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` · precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=0`). Desde decouple-services-postgres (Batch 1, design D2) esto corre server-side en las funciones plpgsql `sp_upsert_run`/`sp_soft_delete_ausentes` (Flyway `V1__baseline.sql`), no en Java — la decisión "¿cambió el precio?" queda dentro de una sola sentencia SQL, sin locks de aplicación (Postgres MVCC + `UNIQUE(url,fecha)` + `ON CONFLICT` alcanzan). El viejo `writeLock`/`readLock`/`refrescarSnapshot()`/`readConn` dedicada (parche para el single-writer de SQLite) fue **removido por completo** junto con el resto de la lock-dance.
@@ -232,10 +233,23 @@ propose/confirm** — `propose_reclassify` valida (URL existe + categoría ∈
 taxonomía canónica de `CategoryGroups`/`GarmentTaxonomy`) y devuelve un diff,
 **nunca escribe**; el único write real es `POST /api/agent/apply`, fuera del
 loop, solo tras confirmación explícita del usuario en la UI, re-validando
-server-side y persistiendo vía el mismo `DatabaseService.actualizarNormalizacion`
-que ya usa la re-normalización del catálogo (sin ruta paralela). Esto acota el
-riesgo de tool-calling poco confiable de un modelo local 14b a "una propuesta
-rechazable", nunca a una escritura corrupta.
+server-side.
+
+> **agent-chat-finetune** (2026-07-25): el botón de confirmación nunca había
+> funcionado — `POST /api/agent/apply` leía un shape de `Map` distinto al
+> `ReclassifyProposal` que el agente realmente produce (todo click daba 400).
+> Fix: el endpoint acepta ahora el `ReclassifyProposal` tipado tal cual
+> (`@JsonIgnoreProperties(ignoreUnknown = true)`, sin DTO paralelo). Persiste
+> vía `DatabaseService.aplicarReclasificacionAuditada` — UPDATE + INSERT de
+> auditoría (`agent_reclassify_audit`) en una sola transacción, con rollback
+> completo si cualquiera de los dos falla; su booleano de retorno SIEMPRE se
+> chequea (antes, `actualizarNormalizacion` tragaba excepciones en silencio y
+> devolvía `200 "Reclasificación aplicada."` sin haber escrito nada — el
+> mismo defecto también afectaba a `POST /ml/renormalizar`, que ahora
+> reporta `escrituras*` reales además del diff intencional). Nuevo **staleness
+> guard**: compara `categoriaActual` del body contra la categoría real leída
+> de la DB (no del snapshot en memoria) — un conflicto devuelve `422
+> conflicto_stale` con los valores vigentes en vez de sobrescribir a ciegas.
 
 Config 100% por env (`LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY`,
 todas opcionales con default local Ollama — **no** están en
@@ -244,8 +258,11 @@ descubre dinámicamente los modelos pulleados, sin hardcodear lista; `model`
 opcional por-request en `POST /api/agent/chat`, sin estado mutable server-side).
 `POST /api/agent/chat`/`POST /api/agent/apply` están gateados por scraping
 (409 si `RUNNING`, misma VRAM que compite con Marqo-FashionSigLIP);
-`GET /api/agent/models` NO. Frontend: botón "Ask Agent" en `MlStatusPanel.jsx`
-→ `AgentChatPanel.jsx` (selector de modelo + `ProposalCard` [Sí]/[No]).
+`GET /api/agent/models` NO. Frontend: widget flotante `AgentChatPanel.jsx`
+montado a nivel `AppLayout` (no un botón dentro de `MlStatusPanel.jsx` — mudó
+ahí en los commits 3fb328e/ddd48ed), con selector de modelo + `ProposalCard`
+([Sí]/[No] normal, o [Volver a consultar]/[Descartar] cuando la propuesta
+quedó stale).
 
 ---
 
@@ -304,6 +321,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación API |
 | `SQLITE_BUSY_SNAPSHOT` / lock-dance de aplicación (writeLock/readLock/refrescarSnapshot) | RESUELTO 2026-07-21 (`decouple-services-postgres`): migración completa a PostgreSQL + write-path en funciones plpgsql server-side; toda la lock-dance de aplicación fue removida, la concurrencia la resuelve Postgres MVCC |
+| Botón de confirmación del LLM Catalog Agent nunca funcionaba (`POST /api/agent/apply` 400 en todo click, contrato de body distinto al `ReclassifyProposal` real) + escrituras silenciosamente truncadas (`actualizarNormalizacion` tragaba excepciones y devolvía `200` sin haber escrito) | RESUELTO 2026-07-25 (`agent-chat-finetune`): body tipado, write path auditado con rollback atómico, staleness guard contra la DB (`422 conflicto_stale`) |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges post-deploy, no recalibrar thresholds aún (ver docs/ML_PIPELINE.md) |
 | `safe_price` puede parsear mal ciertos formatos de `precioOriginal` | Heurística interina aceptada (1611/6692 rechazados a 0.0 en el último run) |
 | Bare `except:` en safe_price/price_velocity/history load | Nit no bloqueante — migrar a `except Exception:` |

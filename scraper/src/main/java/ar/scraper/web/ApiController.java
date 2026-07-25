@@ -8,6 +8,7 @@ import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ChatMessage;
+import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
 import ar.scraper.agent.ViewProductTool;
 import ar.scraper.config.ScraperConfig;
@@ -2378,46 +2379,101 @@ public class ApiController {
     }
 
     @PostMapping("/agent/apply")
-    public ResponseEntity<Object> agentApply(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<Object> agentApply(@RequestBody ReclassifyProposal body) {
         if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
             return ResponseEntity.status(409)
                     .body(Map.of("ok", false, "mensaje", "Hay un scraping en curso. Esperá a que termine."));
         }
 
-        String url = agentStr(body.get("url"));
-        String categoria = agentStr(body.get("categoria"));
-        if (url == null || url.isBlank() || categoria == null || categoria.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "Faltan campos requeridos: 'url' y 'categoria'."));
+        // agent-chat-finetune WU4: typed @RequestBody instead of Map<String,Object>
+        // — the endpoint now reads the SAME field names ReclassifyProposal
+        // actually carries (categoriaPropuesta, not "categoria"), fixing the
+        // contract mismatch that 400'd every real confirm click. Per-field
+        // required check names only what's actually missing (never a
+        // blanket "'url' y 'categoria'" message when only one is absent).
+        List<String> faltantes = new ArrayList<>();
+        if (body.url() == null || body.url().isBlank()) faltantes.add("url");
+        if (body.categoriaPropuesta() == null || body.categoriaPropuesta().isBlank()) faltantes.add("categoriaPropuesta");
+        if (!faltantes.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "mensaje",
+                    "Faltan campos requeridos: " + String.join(", ", faltantes) + "."));
         }
-        if (!CategoryGroups.canonicalCategories().contains(categoria)) {
+        if (!CategoryGroups.canonicalCategories().contains(body.categoriaPropuesta())) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + categoria + "'."));
+                    .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + body.categoriaPropuesta() + "'."));
         }
 
         // Server-side re-validation — the client is NEVER trusted to have
         // validated (design D4 Phase 2): look up the current product to
-        // confirm the url exists AND to preserve fields the proposal didn't
-        // touch (talles is not part of ReclassifyProposal at all).
-        Product current = ViewProductTool.find(service.getLastResult(), url);
+        // confirm the url exists in the in-memory catalog snapshot.
+        Product current = ViewProductTool.find(service.getLastResult(), body.url());
         if (current == null) {
             return ResponseEntity.badRequest()
                     .body(Map.of("ok", false, "mensaje", "No existe ningún producto con esa url en el catálogo actual."));
         }
 
-        String subCategoria = agentStr(body.get("subCategoria"));
-        String marca = agentStr(body.get("marca"));
-        String genero = agentStr(body.get("genero"));
+        // Staleness guard (agent-chat-finetune WU5): reads the DATABASE, never
+        // `current` above — `current` and the proposal's own categoriaActual
+        // both derive from the SAME in-memory snapshot (service.getLastResult()),
+        // so comparing them against each other would never detect drift.
+        // categoria is the only field the proposal carries a baseline for
+        // (subCategoria/marca/genero have no "before" in ReclassifyProposal).
+        // Fails closed: obtenerProducto returns Optional.empty() for both
+        // "not found" and an actual read error (see its Javadoc) — either way
+        // this is treated as a conflict, never as "safe to write".
+        Optional<Product> dbProducto = db.obtenerProducto(body.url());
+        String categoriaEnDb = dbProducto.map(Product::categoria).map(String::trim).orElse(null);
+        String categoriaActualPropuesta = body.categoriaActual() != null ? body.categoriaActual().trim() : "";
+        if (categoriaEnDb == null || !categoriaEnDb.equals(categoriaActualPropuesta)) {
+            return conflictoStale(dbProducto);
+        }
+        Product previo = dbProducto.get();
 
-        db.actualizarNormalizacion(
-                url,
-                categoria,
-                (marca != null && !marca.isBlank()) ? marca : current.marca(),
-                (genero != null && !genero.isBlank()) ? genero : current.genero(),
-                current.talles(),
-                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : current.subCategoria());
+        String subCategoria = body.subCategoriaPropuesta();
+        String marca = body.marcaPropuesta();
+        String genero = body.generoPropuesto();
 
+        // agent-chat-finetune WU3: aplicarReclasificacionAuditada is the
+        // truthful write path (WU1) — its boolean return is ALWAYS checked, so
+        // a failed/no-op write can never be reported as "Reclasificación
+        // aplicada." (the original silent-success defect this fixes). talles
+        // and blank-field fallbacks now source from `previo` (the DB read
+        // above), not from the in-memory `current`.
+        boolean applied = db.aplicarReclasificacionAuditada(
+                body.url(),
+                body.categoriaPropuesta(),
+                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
+                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
+                previo.talles(),
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
+                previo);
+
+        if (!applied) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("ok", false, "mensaje", "No se pudo aplicar la reclasificación."));
+        }
         return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
+    }
+
+    /**
+     * 422 response for the WU5 staleness guard — {@code actual} carries every
+     * field {@link #agentApply} read from the DB (when available) so the UI
+     * can show the caller what the product actually looks like now, without
+     * requiring a second round-trip.
+     */
+    private ResponseEntity<Object> conflictoStale(Optional<Product> dbProducto) {
+        Map<String, Object> actual = new LinkedHashMap<>();
+        dbProducto.ifPresent(p -> {
+            actual.put("categoria", p.categoria() != null ? p.categoria() : "");
+            actual.put("marca", p.marca() != null ? p.marca() : "");
+            actual.put("genero", p.genero() != null ? p.genero() : "");
+            actual.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+        });
+        return ResponseEntity.status(422).body(Map.of(
+                "ok", false,
+                "codigo", "conflicto_stale",
+                "mensaje", "El producto cambió desde que se generó esta propuesta — volvé a consultar.",
+                "actual", actual));
     }
 
     private static Role parseAgentRole(Object roleRaw) {
@@ -2429,5 +2485,4 @@ public class ApiController {
         }
     }
 
-    private static String agentStr(Object o) { return o == null ? null : o.toString(); }
 }

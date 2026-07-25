@@ -13,18 +13,30 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * RED→GREEN coverage for the 3 LLM catalog agent endpoints (llm-catalog-nlp,
@@ -52,6 +64,17 @@ class ApiControllerAgentTest {
     private AgentConfig agentConfig;
     private ApiController controller;
 
+    // T4.1-T4.3: real MockMvc dispatch (standalone, NOT @WebMvcTest — ApiController
+    // has 11 constructor deps) is the only way to prove the @RequestBody JSON
+    // binding contract itself, as opposed to a direct Java method call which
+    // never exercises Jackson deserialization at all. The plain ObjectMapper here
+    // (no Boot auto-config) keeps FAIL_ON_UNKNOWN_PROPERTIES at its Jackson
+    // default (true) — Boot disables that feature — so T4.2 genuinely proves
+    // ReclassifyProposal's own @JsonIgnoreProperties(ignoreUnknown = true), not
+    // an ambient Boot setting.
+    private MockMvc mockMvc;
+    private ObjectMapper objectMapper;
+
     @BeforeEach
     void setUp() {
         service               = mock(ScraperService.class);
@@ -67,6 +90,11 @@ class ApiControllerAgentTest {
         agentConfig           = mock(AgentConfig.class);
         controller = new ApiController(service, inflacionService, config, aggregator, db, grouping,
                 pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig);
+
+        objectMapper = new ObjectMapper();
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+                .build();
     }
 
     // ── POST /api/agent/chat ────────────────────────────────────────────
@@ -191,19 +219,30 @@ class ApiControllerAgentTest {
     }
 
     // ── POST /api/agent/apply ────────────────────────────────────────────
+    // agent-chat-finetune WU4: every direct-call test below now builds a real
+    // ReclassifyProposal instead of a Map.of(...) — the same typed shape
+    // POST /agent/chat actually returns and frontend/src/api.js's
+    // applyProposal() posts verbatim. categoriaActual is deliberately set to
+    // the non-canonical "Zapatilla Running" the producto() helper's `categoria`
+    // param carries (prep for WU5's staleness guard, which compares
+    // categoriaActual against the DB, never against canonicalCategories()).
 
     @Test
-    @DisplayName("5.4 apply commits via actualizarNormalizacion, preserving untouched fields (e.g. talles)")
+    @DisplayName("5.4 apply commits via aplicarReclasificacionAuditada, preserving untouched fields (e.g. talles)")
     void applyCommitsViaActualizarNormalizacion() {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
 
-        var body = Map.<String, Object>of("url", "https://a.com/1", "categoria", "Buzo");
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).actualizarNormalizacion("https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"), "");
+        verify(db).aplicarReclasificacionAuditada(
+                "https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"), "", current);
     }
 
     @Test
@@ -212,7 +251,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
 
-        var body = Map.<String, Object>of("url", "https://nope.com/x", "categoria", "Buzo");
+        ReclassifyProposal body = proposal("https://nope.com/x", "Zapatilla Running", "Buzo");
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
@@ -226,7 +265,7 @@ class ApiControllerAgentTest {
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of());
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
 
-        var body = Map.<String, Object>of("url", "https://a.com/1", "categoria", "Frisa");
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Frisa");
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
@@ -234,15 +273,143 @@ class ApiControllerAgentTest {
     }
 
     @Test
+    @DisplayName("T3.1 apply → the write failing (aplicarReclasificacionAuditada=false) is NEVER reported as applied")
+    void applyReturns500WhenWriteFails() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(false);
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isNotEqualTo(200);
+        assertThat(resp.getBody().toString()).doesNotContain("Reclasificación aplicada");
+    }
+
+    @Test
     @DisplayName("5.3 apply → 409 when scraping RUNNING, no write")
     void applyReturns409WhenRunning() {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
 
-        var body = Map.<String, Object>of("url", "https://a.com/1", "categoria", "Buzo");
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         verifyNoInteractions(db);
+    }
+
+    // ── T5.1-T5.3: staleness guard (reads the DATABASE, never getLastResult) ──
+
+    @Test
+    @DisplayName("T5.1 apply → stale categoriaActual vs DB → 422 conflicto_stale, actual populated, no write")
+    void applyDetectsStaleCategoriaActualAgainstDb() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
+        // Alguien más ya reclasificó este producto en la DB desde que se generó
+        // la propuesta — el snapshot en memoria (getLastResult) sigue viejo.
+        Product enDb = producto("https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(enDb));
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(422);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
+        assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
+        assertThat(respBody.get("actual")).isNotNull();
+        verify(db, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("T5.2 apply → obtenerProducto empty (not found or read error) → 422, fails closed, no write")
+    void applyFailsClosedWhenDbReadIsEmpty() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.empty());
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(422);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
+        assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
+        verify(db, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("T5.3 apply → non-canonical categoriaPropuesta rejected independently of staleness (regression guard)")
+    void applyRejectsNonCanonicalCategoryRegardlessOfStaleness() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Frisa");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        verifyNoInteractions(db);
+    }
+
+    // ── T4.1-T4.3: real JSON binding via MockMvc (the actual contract fix) ──
+
+    @Test
+    @DisplayName("T4.1 apply accepts the real ReclassifyProposal JSON shape end-to-end (typed @RequestBody, not a Map)")
+    void applyAcceptsRealReclassifyProposalJsonBody() throws Exception {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
+
+        mockMvc.perform(post("/api/agent/apply")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("T4.2 apply tolerates UI-only keys (_applied/_mensaje) on a retried proposal — ignoreUnknown")
+    void applyToleratesUiOnlyKeysOnRetriedProposal() throws Exception {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+
+        ObjectNode json = objectMapper.valueToTree(proposal("https://a.com/1", "Zapatilla Running", "Buzo"));
+        json.put("_applied", false);
+        json.put("_mensaje", "retry");
+
+        mockMvc.perform(post("/api/agent/apply")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(json)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("T4.3 apply with a blank url → 400 naming ONLY 'url' (not categoriaPropuesta)")
+    void applyWithBlankUrlNamesOnlyUrl() throws Exception {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+
+        ReclassifyProposal body = proposal("", "Zapatilla Running", "Buzo");
+
+        mockMvc.perform(post("/api/agent/apply")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("url")))
+                .andExpect(content().string(not(containsString("categoriaPropuesta"))));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -257,5 +424,9 @@ class ApiControllerAgentTest {
                 categoria, genero, talles, Product.MlScore.EMPTY, marca,
                 "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+    }
+
+    private ReclassifyProposal proposal(String url, String categoriaActual, String categoriaPropuesta) {
+        return new ReclassifyProposal(url, "Producto", categoriaActual, categoriaPropuesta, "", "", "");
     }
 }
