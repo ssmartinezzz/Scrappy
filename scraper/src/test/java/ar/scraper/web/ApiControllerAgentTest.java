@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -232,6 +233,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
         when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
@@ -276,6 +278,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
         when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(false);
 
@@ -298,6 +301,62 @@ class ApiControllerAgentTest {
         verifyNoInteractions(db);
     }
 
+    // ── T5.1-T5.3: staleness guard (reads the DATABASE, never getLastResult) ──
+
+    @Test
+    @DisplayName("T5.1 apply → stale categoriaActual vs DB → 422 conflicto_stale, actual populated, no write")
+    void applyDetectsStaleCategoriaActualAgainstDb() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
+        // Alguien más ya reclasificó este producto en la DB desde que se generó
+        // la propuesta — el snapshot en memoria (getLastResult) sigue viejo.
+        Product enDb = producto("https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(enDb));
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(422);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
+        assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
+        assertThat(respBody.get("actual")).isNotNull();
+        verify(db, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("T5.2 apply → obtenerProducto empty (not found or read error) → 422, fails closed, no write")
+    void applyFailsClosedWhenDbReadIsEmpty() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.empty());
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(422);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
+        assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
+        verify(db, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("T5.3 apply → non-canonical categoriaPropuesta rejected independently of staleness (regression guard)")
+    void applyRejectsNonCanonicalCategoryRegardlessOfStaleness() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
+
+        ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Frisa");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        verifyNoInteractions(db);
+    }
+
     // ── T4.1-T4.3: real JSON binding via MockMvc (the actual contract fix) ──
 
     @Test
@@ -306,6 +365,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
         when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
@@ -323,6 +383,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
         when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 

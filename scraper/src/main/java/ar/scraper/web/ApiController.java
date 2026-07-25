@@ -2405,13 +2405,29 @@ public class ApiController {
 
         // Server-side re-validation — the client is NEVER trusted to have
         // validated (design D4 Phase 2): look up the current product to
-        // confirm the url exists AND to preserve fields the proposal didn't
-        // touch (talles is not part of ReclassifyProposal at all).
+        // confirm the url exists in the in-memory catalog snapshot.
         Product current = ViewProductTool.find(service.getLastResult(), body.url());
         if (current == null) {
             return ResponseEntity.badRequest()
                     .body(Map.of("ok", false, "mensaje", "No existe ningún producto con esa url en el catálogo actual."));
         }
+
+        // Staleness guard (agent-chat-finetune WU5): reads the DATABASE, never
+        // `current` above — `current` and the proposal's own categoriaActual
+        // both derive from the SAME in-memory snapshot (service.getLastResult()),
+        // so comparing them against each other would never detect drift.
+        // categoria is the only field the proposal carries a baseline for
+        // (subCategoria/marca/genero have no "before" in ReclassifyProposal).
+        // Fails closed: obtenerProducto returns Optional.empty() for both
+        // "not found" and an actual read error (see its Javadoc) — either way
+        // this is treated as a conflict, never as "safe to write".
+        Optional<Product> dbProducto = db.obtenerProducto(body.url());
+        String categoriaEnDb = dbProducto.map(Product::categoria).map(String::trim).orElse(null);
+        String categoriaActualPropuesta = body.categoriaActual() != null ? body.categoriaActual().trim() : "";
+        if (categoriaEnDb == null || !categoriaEnDb.equals(categoriaActualPropuesta)) {
+            return conflictoStale(dbProducto);
+        }
+        Product previo = dbProducto.get();
 
         String subCategoria = body.subCategoriaPropuesta();
         String marca = body.marcaPropuesta();
@@ -2420,21 +2436,44 @@ public class ApiController {
         // agent-chat-finetune WU3: aplicarReclasificacionAuditada is the
         // truthful write path (WU1) — its boolean return is ALWAYS checked, so
         // a failed/no-op write can never be reported as "Reclasificación
-        // aplicada." (the original silent-success defect this fixes).
+        // aplicada." (the original silent-success defect this fixes). talles
+        // and blank-field fallbacks now source from `previo` (the DB read
+        // above), not from the in-memory `current`.
         boolean applied = db.aplicarReclasificacionAuditada(
                 body.url(),
                 body.categoriaPropuesta(),
-                (marca != null && !marca.isBlank()) ? marca : current.marca(),
-                (genero != null && !genero.isBlank()) ? genero : current.genero(),
-                current.talles(),
-                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : current.subCategoria(),
-                current);
+                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
+                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
+                previo.talles(),
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
+                previo);
 
         if (!applied) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("ok", false, "mensaje", "No se pudo aplicar la reclasificación."));
         }
         return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
+    }
+
+    /**
+     * 422 response for the WU5 staleness guard — {@code actual} carries every
+     * field {@link #agentApply} read from the DB (when available) so the UI
+     * can show the caller what the product actually looks like now, without
+     * requiring a second round-trip.
+     */
+    private ResponseEntity<Object> conflictoStale(Optional<Product> dbProducto) {
+        Map<String, Object> actual = new LinkedHashMap<>();
+        dbProducto.ifPresent(p -> {
+            actual.put("categoria", p.categoria() != null ? p.categoria() : "");
+            actual.put("marca", p.marca() != null ? p.marca() : "");
+            actual.put("genero", p.genero() != null ? p.genero() : "");
+            actual.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+        });
+        return ResponseEntity.status(422).body(Map.of(
+                "ok", false,
+                "codigo", "conflicto_stale",
+                "mensaje", "El producto cambió desde que se generó esta propuesta — volvé a consultar.",
+                "actual", actual));
     }
 
     private static Role parseAgentRole(Object roleRaw) {
