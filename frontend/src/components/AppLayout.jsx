@@ -13,6 +13,7 @@ import ProductGrid   from './ProductGrid';
 import DetailPanel   from './DetailPanel';
 import RouteFallback from './RouteFallback';
 import GpuTrainingOverlay from './GpuTrainingOverlay';
+import AgentChatPanel from './AgentChatPanel';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 
@@ -678,6 +679,10 @@ export default function AppLayout() {
       {gpuTraining && (
         <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
       )}
+
+      {/* Mounted at layout level (not inside a route) so the conversation
+          survives navigation between views. */}
+      <AgentChatPanel />
     </div>
   );
 }

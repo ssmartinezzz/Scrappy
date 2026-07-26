@@ -5,6 +5,7 @@ import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
 import { normCat } from '../lib/cat';
+import { highlightPrices } from '../lib/richText';
 
 // MercadoLibre's official brand yellow — third-party partner color, not one
 // of the 7 canonical semantic roles in lib/colors.js. Kept as a local named
@@ -324,9 +325,7 @@ function PriceContext({ product: p, st }) {
           <div key={i} style={{ border: `1px solid ${item.color}22` }}
                className="flex items-start gap-2.5 rounded-lg bg-s2 px-[.75rem] py-[.5rem] text-[.73rem] text-t3">
             <span className="flex-shrink-0 text-[.85rem]">{item.icon}</span>
-            <span dangerouslySetInnerHTML={{ __html: item.text
-              .replace(/\$[\d.,]+/g, m => `<strong style="color:${item.color}">${m}</strong>`)
-            }}/>
+            <span>{highlightPrices(item.text, item.color)}</span>
           </div>
         ))}
       </div>

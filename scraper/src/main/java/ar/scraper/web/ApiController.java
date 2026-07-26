@@ -3,9 +3,18 @@ package ar.scraper.web;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.ResultAggregator.Facets;
+import ar.scraper.aggregator.normalize.CategoryGroups;
+import ar.scraper.agent.AgentConfig;
+import ar.scraper.agent.AgentChatResponse;
+import ar.scraper.agent.CatalogAgentService;
+import ar.scraper.agent.ChatMessage;
+import ar.scraper.agent.ReclassifyProposal;
+import ar.scraper.agent.Role;
+import ar.scraper.agent.ViewProductTool;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,7 +60,17 @@ public class ApiController {
     private final ar.scraper.ml.PythonRunner pythonRunner;
     private final OutfitService outfitService;
     private final RecommendationService recommendationService;
+    private final CatalogAgentService catalogAgentService;
+    private final AgentConfig agentConfig;
 
+    /**
+     * Primary constructor (llm-catalog-nlp) — adds the LLM catalog agent's
+     * two collaborators. Spring wires this one (see {@code @Autowired}
+     * below); a legacy 9-arg overload is kept right below purely so the
+     * ~20 existing unit tests that construct {@code ApiController} directly
+     * (none of which exercise the agent endpoints) keep compiling unchanged.
+     */
+    @Autowired
     public ApiController(ScraperService service,
                          InflacionService inflacionService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
@@ -59,7 +78,9 @@ public class ApiController {
                          ar.scraper.aggregator.grouping.GroupingService grouping,
                          ar.scraper.ml.PythonRunner pythonRunner,
                          OutfitService outfitService,
-                         RecommendationService recommendationService) {
+                         RecommendationService recommendationService,
+                         CatalogAgentService catalogAgentService,
+                         AgentConfig agentConfig) {
         this.service           = service;
         this.inflacionService  = inflacionService;
         this.config            = config;
@@ -69,6 +90,21 @@ public class ApiController {
         this.pythonRunner      = pythonRunner;
         this.outfitService     = outfitService;
         this.recommendationService = recommendationService;
+        this.catalogAgentService = catalogAgentService;
+        this.agentConfig        = agentConfig;
+    }
+
+    /** Legacy constructor (pre-agent) — see the note on the primary constructor above. */
+    public ApiController(ScraperService service,
+                         InflacionService inflacionService, ScraperConfig config,
+                         ar.scraper.aggregator.ResultAggregator aggregator,
+                         ar.scraper.db.DatabaseService db,
+                         ar.scraper.aggregator.grouping.GroupingService grouping,
+                         ar.scraper.ml.PythonRunner pythonRunner,
+                         OutfitService outfitService,
+                         RecommendationService recommendationService) {
+        this(service, inflacionService, config, aggregator, db, grouping, pythonRunner,
+             outfitService, recommendationService, null, null);
     }
 
     // ---------------------------------------------------------------
@@ -2279,4 +2315,187 @@ public class ApiController {
     }
 
     private String safe(String s) { return s != null ? s : ""; }
+
+    // ---------------------------------------------------------------
+    // LLM Catalog Agent (llm-catalog-nlp) — chat / apply / models, grouped
+    // together behind the same future admin-only gate. NOTE (task 5.7, scope
+    // id 734): this whole group is the intended insertion point for an
+    // admin-only auth guard once user accounts/roles exist — no no-op guard
+    // is added now, this comment only marks WHERE it goes.
+    // ---------------------------------------------------------------
+
+    @PostMapping("/agent/chat")
+    public ResponseEntity<Object> agentChat(@RequestBody Map<String, Object> body) {
+        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+            return ResponseEntity.status(409)
+                    .body(Map.of("mensaje", "Hay un scraping en curso. Esperá a que termine."));
+        }
+        if (catalogAgentService == null) {
+            return ResponseEntity.internalServerError().body(Map.of("mensaje", "Agent no disponible."));
+        }
+
+        Object messagesRaw = body.get("messages");
+        List<ChatMessage> history = new ArrayList<>();
+        if (messagesRaw instanceof List<?> messagesList) {
+            for (Object m : messagesList) {
+                if (!(m instanceof Map<?, ?> mm)) continue;
+                Object textRaw = mm.get("text");
+                String text = textRaw == null ? "" : textRaw.toString();
+                if (text.isBlank()) continue;
+                Role role = parseAgentRole(mm.get("role"));
+                history.add(new ChatMessage(role, text, List.of(), null));
+            }
+        }
+        if (history.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("mensaje", "El campo 'messages' es requerido y no puede estar vacío."));
+        }
+
+        Object modelRaw = body.get("model");
+        String model = null;
+        if (modelRaw != null && !modelRaw.toString().isBlank()) {
+            model = modelRaw.toString();
+            if (!catalogAgentService.listModels().contains(model)) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("mensaje", "Modelo desconocido: '" + model + "'."));
+            }
+        }
+
+        AgentChatResponse resp = catalogAgentService.run(history, model);
+        return ResponseEntity.ok(resp);
+    }
+
+    @GetMapping("/agent/models")
+    public ResponseEntity<Object> agentModels() {
+        // NOT scrape-gated (spec "Runtime Model Selection" / design D5) —
+        // read-only metadata, touches no model/VRAM.
+        if (catalogAgentService == null || agentConfig == null) {
+            return ResponseEntity.internalServerError().body(Map.of("mensaje", "Agent no disponible."));
+        }
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("available", catalogAgentService.listModels());
+        resp.put("default", agentConfig.model());
+        return ResponseEntity.ok(resp);
+    }
+
+    @PostMapping("/agent/apply")
+    public ResponseEntity<Object> agentApply(@RequestBody ReclassifyProposal body) {
+        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+            return ResponseEntity.status(409)
+                    .body(Map.of("ok", false, "mensaje", "Hay un scraping en curso. Esperá a que termine."));
+        }
+
+        // agent-chat-finetune WU4: typed @RequestBody instead of Map<String,Object>
+        // — the endpoint now reads the SAME field names ReclassifyProposal
+        // actually carries (categoriaPropuesta, not "categoria"), fixing the
+        // contract mismatch that 400'd every real confirm click. Per-field
+        // required check names only what's actually missing (never a
+        // blanket "'url' y 'categoria'" message when only one is absent).
+        List<String> faltantes = new ArrayList<>();
+        if (body.url() == null || body.url().isBlank()) faltantes.add("url");
+        if (body.categoriaPropuesta() == null || body.categoriaPropuesta().isBlank()) faltantes.add("categoriaPropuesta");
+        if (!faltantes.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "mensaje",
+                    "Faltan campos requeridos: " + String.join(", ", faltantes) + "."));
+        }
+        if (!CategoryGroups.canonicalCategories().contains(body.categoriaPropuesta())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + body.categoriaPropuesta() + "'."));
+        }
+
+        // Server-side re-validation — the client is NEVER trusted to have
+        // validated (design D4 Phase 2): look up the current product to
+        // confirm the url exists in the in-memory catalog snapshot.
+        Product current = ViewProductTool.find(service.getLastResult(), body.url());
+        if (current == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("ok", false, "mensaje", "No existe ningún producto con esa url en el catálogo actual."));
+        }
+
+        // Staleness guard (agent-chat-finetune WU5): reads the DATABASE, never
+        // `current` above — `current` and the proposal's own categoriaActual
+        // both derive from the SAME in-memory snapshot (service.getLastResult()),
+        // so comparing them against each other would never detect drift.
+        // categoria is the only field the proposal carries a baseline for
+        // (subCategoria/marca/genero have no "before" in ReclassifyProposal).
+        // Fails closed: obtenerProducto returns Optional.empty() for both
+        // "not found" and an actual read error (see its Javadoc) — either way
+        // this is treated as a conflict, never as "safe to write".
+        Optional<Product> dbProducto = db.obtenerProducto(body.url());
+        String categoriaEnDb = dbProducto.map(Product::categoria).map(String::trim).orElse(null);
+        String categoriaActualPropuesta = body.categoriaActual() != null ? body.categoriaActual().trim() : "";
+        if (categoriaEnDb == null || !categoriaEnDb.equals(categoriaActualPropuesta)) {
+            return conflictoStale(dbProducto);
+        }
+        Product previo = dbProducto.get();
+
+        String subCategoria = body.subCategoriaPropuesta();
+        String marca = body.marcaPropuesta();
+        String genero = body.generoPropuesto();
+
+        // agent-chat-finetune WU3: aplicarReclasificacionAuditada is the
+        // truthful write path (WU1) — its boolean return is ALWAYS checked, so
+        // a failed/no-op write can never be reported as "Reclasificación
+        // aplicada." (the original silent-success defect this fixes). talles
+        // and blank-field fallbacks now source from `previo` (the DB read
+        // above), not from the in-memory `current`.
+        boolean applied = db.aplicarReclasificacionAuditada(
+                body.url(),
+                body.categoriaPropuesta(),
+                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
+                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
+                previo.talles(),
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
+                previo);
+
+        if (!applied) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("ok", false, "mensaje", "No se pudo aplicar la reclasificación."));
+        }
+
+        // El catálogo se sirve de lastResult, no de la DB en cada request, así que
+        // sin este parche la reclasificación recién persistida no se vería en
+        // /api/data ni /api/mejores hasta el próximo scrape/restart. Mismo patrón
+        // que eliminarProductoDeMemoria tras un soft-delete. Va DESPUÉS del check
+        // de `applied`: nunca se parchea memoria por una escritura que no ocurrió.
+        service.actualizarProductoEnMemoria(
+                body.url(),
+                body.categoriaPropuesta(),
+                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
+                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria());
+
+        return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
+    }
+
+    /**
+     * 422 response for the WU5 staleness guard — {@code actual} carries every
+     * field {@link #agentApply} read from the DB (when available) so the UI
+     * can show the caller what the product actually looks like now, without
+     * requiring a second round-trip.
+     */
+    private ResponseEntity<Object> conflictoStale(Optional<Product> dbProducto) {
+        Map<String, Object> actual = new LinkedHashMap<>();
+        dbProducto.ifPresent(p -> {
+            actual.put("categoria", p.categoria() != null ? p.categoria() : "");
+            actual.put("marca", p.marca() != null ? p.marca() : "");
+            actual.put("genero", p.genero() != null ? p.genero() : "");
+            actual.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+        });
+        return ResponseEntity.status(422).body(Map.of(
+                "ok", false,
+                "codigo", "conflicto_stale",
+                "mensaje", "El producto cambió desde que se generó esta propuesta — volvé a consultar.",
+                "actual", actual));
+    }
+
+    private static Role parseAgentRole(Object roleRaw) {
+        if (roleRaw == null) return Role.USER;
+        try {
+            return Role.valueOf(roleRaw.toString().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return Role.USER;
+        }
+    }
+
 }

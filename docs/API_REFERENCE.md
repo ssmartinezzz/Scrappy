@@ -40,6 +40,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
 | Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |
 | DB | `GET /db/export` · `POST /db/import` (ambos **410 Gone** — usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · `DELETE /db/productos` · `DELETE /db/ml` |
+| LLM Agent | `POST /agent/chat` · `POST /agent/apply` · `GET /agent/models` |
 
 ---
 
@@ -306,6 +307,33 @@ Snapshot corto del estado de entrenamiento: `{running, phase, pct, msg, done}`.
 
 ---
 
+## POST /ml/renormalizar
+
+Re-aplica las reglas actuales de `NormalizerService` sobre el catálogo ya
+persistido en la DB (sin re-scrapear). Síncrono — corre antes de cada
+entrenamiento de imagen (ver "Pipeline ML" en `CLAUDE.md`).
+
+**Response:**
+```json
+{
+  "totalRevisados": 3034,
+  "categoriaCambiada": 12,
+  "marcaCambiada": 4,
+  "escriturasIntentadas": 14,
+  "escriturasAplicadas": 13,
+  "escriturasFallidas": 1
+}
+```
+`totalRevisados`/`categoriaCambiada`/`marcaCambiada` describen el diff
+**intencional** detectado por `NormalizerService` (significado sin cambios).
+`escrituras*` (agent-chat-finetune) son aditivos y describen el resultado
+**real** del `UPDATE` en DB: `escriturasIntentadas` = productos con algún
+campo cambiado, `escriturasAplicadas` = filas realmente actualizadas,
+`escriturasFallidas` = 0 filas afectadas o excepción — un producto que falla
+no aborta el resto del batch.
+
+---
+
 ## GET /csv
 
 Descarga CSV completo (sin filtrar) con BOM para Excel.
@@ -313,3 +341,98 @@ Descarga CSV completo (sin filtrar) con BOM para Excel.
 **Headers:** `Content-Disposition: attachment; filename=ofertas.csv`
 
 **Columnas:** Sitio, Nombre, Precio, Precio Original, Categoria, Genero, Talles, URL, Imagen
+
+---
+
+## LLM Catalog Agent (llm-catalog-nlp)
+
+Agente de chat con tool-use, provider-pluggable (env `LLM_PROVIDER`/`LLM_MODEL`/
+`LLM_BASE_URL`/`LLM_API_KEY`, ver `.env.example` — todas opcionales, con
+defaults locales para Ollama). El agente SOLO tiene herramientas de lectura
+(`search_products`, `view_product`, `propose_reclassify`); `propose_reclassify`
+NUNCA escribe — valida y devuelve un diff. El único endpoint que escribe es
+`POST /agent/apply`, fuera del loop del agente y solo tras confirmación
+explícita del usuario en la UI.
+
+`POST /agent/chat` y `POST /agent/apply` están gateados por scraping (igual
+que `DELETE /db/productos`): devuelven **409** mientras `GET /status` está
+`RUNNING` (evita contención de VRAM entre el LLM local y el modelo visual
+Marqo-FashionSigLIP). `GET /agent/models` NO está gateado (metadata de solo
+lectura, no toca VRAM).
+
+### POST /agent/chat
+
+**Body:**
+```json
+{ "messages": [{"role": "user", "text": "..."}], "model": "qwen3:14b" }
+```
+`model` es opcional — presente y disponible → se usa para ese request; ausente
+→ default de `LLM_MODEL`; presente pero desconocido → `400` (nunca fallback
+silencioso).
+
+**Responses:**
+- `200` `{"assistantText": "...", "proposals": [{"url","nombreProducto","categoriaActual","categoriaPropuesta","subCategoriaPropuesta","marcaPropuesta","generoPropuesto"}]}`
+- `400` — `messages` vacío/ausente, o `model` desconocido
+- `409` — scraping en curso
+
+### POST /agent/apply
+
+Confirma (fuera del loop del agente) una propuesta de reclasificación devuelta
+por `/agent/chat`. Body tipado — acepta el mismo `ReclassifyProposal` que
+`/agent/chat` devuelve y `frontend/src/api.js`'s `applyProposal` postea tal
+cual (agent-chat-finetune; antes leía un shape de Map distinto y todo click
+de confirmación devolvía `400`). Re-valida server-side en 3 pasos
+independientes — el cliente nunca se asume validado, ni siquiera con un body
+tipado:
+1. `url`/`categoriaPropuesta` presentes.
+2. `categoriaPropuesta` ∈ taxonomía canónica (`CategoryGroups.canonicalCategories()`).
+3. **Staleness guard**: `categoriaActual` del body vs. la categoría real leída
+   de la DB (`DatabaseService.obtenerProducto`, no el snapshot en memoria) —
+   detecta que el producto cambió entre que se generó la propuesta y que se
+   confirmó. Falla cerrado: una lectura vacía (no existe, o error de DB)
+   cuenta como conflicto, nunca como "seguro escribir".
+
+Persiste vía `DatabaseService.aplicarReclasificacionAuditada`: UPDATE +
+INSERT de auditoría (tabla `agent_reclassify_audit`) en una sola transacción
+— si el INSERT de auditoría falla, el UPDATE también se revierte (nunca una
+reclasificación sin fila de auditoría, ni una fila de auditoría de algo que
+no pasó).
+
+**Body:**
+```json
+{
+  "url": "...",
+  "nombreProducto": "...",
+  "categoriaActual": "Zapatilla Running",
+  "categoriaPropuesta": "Buzo",
+  "subCategoriaPropuesta": "...",
+  "marcaPropuesta": "...",
+  "generoPropuesto": "..."
+}
+```
+(`subCategoriaPropuesta`/`marcaPropuesta`/`generoPropuesto` opcionales — si se
+omiten o vienen en blanco se preservan los valores actuales del producto.
+Claves desconocidas se ignoran — `@JsonIgnoreProperties(ignoreUnknown = true)`
+— así una propuesta reintentada puede seguir cargando las claves de UI
+`_applied`/`_mensaje` sin romper el binding.)
+
+**Responses:**
+- `200` `{"ok": true, "applied": 1, "mensaje": "..."}`
+- `400` `{"ok": false, "mensaje": "..."}` — falta `url`/`categoriaPropuesta`
+  (nombra solo lo que falta), categoría inválida, o la url no existe en el
+  catálogo
+- `422` `{"ok": false, "codigo": "conflicto_stale", "mensaje": "...", "actual": {"categoria", "marca", "genero", "subCategoria"}}`
+  — staleness guard: el producto cambió desde que se generó la propuesta;
+  `actual` trae los valores reales para que el cliente los muestre sin un
+  segundo round-trip
+- `500` `{"ok": false, "mensaje": "..."}` — el write falló (0 filas afectadas
+  o excepción); nunca se reporta como aplicado
+- `409` — scraping en curso
+
+### GET /agent/models
+
+Descubre dinámicamente los modelos disponibles del proveedor activo (ej. los
+modelos pulleados en la instancia local de Ollama) — no es una lista
+hardcodeada. NO gateado por scraping.
+
+**Response:** `{"available": ["qwen3:14b", "llama3.1:8b"], "default": "qwen3:14b"}`

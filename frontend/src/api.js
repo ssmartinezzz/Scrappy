@@ -436,3 +436,38 @@ export async function fetchCronExecutions(id, limit = 50) {
   const r = await fetch(`${BASE}/api/cron/${id}/executions?${p}`);
   return r.ok ? r.json() : null;
 }
+
+// ─── LLM Catalog Agent (llm-catalog-nlp) ─────────────────────────────────────
+// Read-only chat/model-discovery + the single out-of-loop write endpoint
+// (applyProposal). askAgent/fetchAgentModels surface a 409 as
+// { scraping: true } instead of throwing — the panel shows a clear
+// "wait for the scrape to finish" message instead of a generic error.
+
+export async function fetchAgentModels() {
+  const r = await fetch(`${BASE}/api/agent/models`);
+  return r.ok ? r.json() : null;
+}
+
+export async function askAgent(messages, model) {
+  const r = await fetch(`${BASE}/api/agent/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(model ? { messages, model } : { messages }),
+  });
+  if (r.status === 409) return { scraping: true };
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    return { error: true, mensaje: body.mensaje || 'No se pudo consultar al agente.' };
+  }
+  return r.json();
+}
+
+export async function applyProposal(proposal) {
+  const r = await fetch(`${BASE}/api/agent/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(proposal),
+  });
+  if (r.status === 409) return { scraping: true };
+  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+}

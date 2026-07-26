@@ -1,7 +1,7 @@
 # Fashion Scraper Argentina — Contexto del Proyecto
 
 > Este archivo existe para que Claude pueda leer el estado completo del proyecto en una nueva sesión sin necesidad de que el usuario lo explique desde cero. Leelo siempre antes de sugerir cambios.
-> Última actualización integral: 2026-07-21.
+> Última actualización integral: 2026-07-25.
 
 ---
 
@@ -198,6 +198,7 @@ default     → TiendanubeScraper (JS heurístico)
 | Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
 | Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · GET `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
 | DB | GET `/api/db/export` · POST `/api/db/import` (ambos **410 Gone** desde decouple-services-postgres — no hay archivo `scraper.db`; usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · DELETE `/api/db/productos` · DELETE `/api/db/ml` |
+| LLM Agent | POST `/api/agent/chat` (tool-use, gateado por scraping) · POST `/api/agent/apply` (único write, tras confirmación humana, gateado por scraping) · GET `/api/agent/models` (no gateado) — ver "LLM Catalog Agent" abajo |
 
 ---
 
@@ -217,6 +218,7 @@ saved_outfits        -- Outfits persistidos
 categoria_dismiss    -- Categorías "no me interesa" del feed
 financiacion_presets -- Presets de cuotas/recargo
 cron_jobs / cron_executions -- Scraping programado + historial de corridas
+agent_reclassify_audit -- Auditoría de reclasificaciones humanas vía POST /api/agent/apply (V2 Flyway)
 ```
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` · precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=0`). Desde decouple-services-postgres (Batch 1, design D2) esto corre server-side en las funciones plpgsql `sp_upsert_run`/`sp_soft_delete_ausentes` (Flyway `V1__baseline.sql`), no en Java — la decisión "¿cambió el precio?" queda dentro de una sola sentencia SQL, sin locks de aplicación (Postgres MVCC + `UNIQUE(url,fecha)` + `ON CONFLICT` alcanzan). El viejo `writeLock`/`readLock`/`refrescarSnapshot()`/`readConn` dedicada (parche para el single-writer de SQLite) fue **removido por completo** junto con el resto de la lock-dance.
@@ -234,6 +236,66 @@ cron_jobs / cron_executions -- Scraping programado + historial de corridas
 **`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + LogisticRegression, ~30s) → `_models/text_classifier.pkl`. El entrenamiento de imagen fue REMOVIDO; `--images` es no-op (la clasificación visual es zero-shot, sin entrenamiento).
 
 **`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía open_clip, zero-shot con prompts en inglés / labels en español, abstención por margen. Cache en tabla `image_embeddings` (invalidada por `MODEL_VERSION`, leída/escrita vía `psycopg2`/`DATABASE_URL`). `HF_HOME` default = `<SCRAPER_MODELS_ROOT>/marqo` (env, ya no derivado de una ruta de archivo DB). El tokenizer requiere el paquete `transformers` (lo instala el paso de deps ML del installer) — sin él, el modelo carga pero el backfill degrada a "modelo no disponible".
+
+---
+
+## LLM Catalog Agent (`ar.scraper.agent`, llm-catalog-nlp)
+
+Agente de chat con tool-use, **provider-pluggable**, para revisar/corregir la
+clasificación (categoría/subcategoría/marca/género) de productos reales por
+lenguaje natural. Seam `ChatProvider` (records de dominio, sin formas
+OpenAI/Anthropic filtradas a los callers) con un único adapter hoy:
+`OpenAiCompatProvider` (Ollama `/v1/chat/completions` + `/v1/models`, vía
+`java.net.http.HttpClient`+Jackson, mismo patrón que `InflacionService`).
+
+**El agente tiene EXACTAMENTE 3 herramientas, TODAS de solo lectura** dentro
+del loop acotado (`CatalogAgentService`, `MAX_ITERATIONS=6`): `search_products`,
+`view_product`, `propose_reclassify`. La reclasificación es **two-phase
+propose/confirm** — `propose_reclassify` valida (URL existe + categoría ∈
+taxonomía canónica de `CategoryGroups`/`GarmentTaxonomy`) y devuelve un diff,
+**nunca escribe**; el único write real es `POST /api/agent/apply`, fuera del
+loop, solo tras confirmación explícita del usuario en la UI, re-validando
+server-side.
+
+> **agent-chat-finetune** (2026-07-25): el botón de confirmación nunca había
+> funcionado — `POST /api/agent/apply` leía un shape de `Map` distinto al
+> `ReclassifyProposal` que el agente realmente produce (todo click daba 400).
+> Fix: el endpoint acepta ahora el `ReclassifyProposal` tipado tal cual
+> (`@JsonIgnoreProperties(ignoreUnknown = true)`, sin DTO paralelo). Persiste
+> vía `DatabaseService.aplicarReclasificacionAuditada` — UPDATE + INSERT de
+> auditoría (`agent_reclassify_audit`) en una sola transacción, con rollback
+> completo si cualquiera de los dos falla; su booleano de retorno SIEMPRE se
+> chequea (antes, `actualizarNormalizacion` tragaba excepciones en silencio y
+> devolvía `200 "Reclasificación aplicada."` sin haber escrito nada — el
+> mismo defecto también afectaba a `POST /ml/renormalizar`, que ahora
+> reporta `escrituras*` reales además del diff intencional). Nuevo **staleness
+> guard**: compara `categoriaActual` del body contra la categoría real leída
+> de la DB (no del snapshot en memoria) — un conflicto devuelve `422
+> conflicto_stale` con los valores vigentes en vez de sobrescribir a ciegas.
+>
+> **Parche del catálogo en memoria** (fix posterior): `/api/data` y
+> `/api/mejores` sirven de `lastResult`, NO de la DB en cada request — ese
+> snapshot solo se reconstruye al arrancar o tras un scrape. Sin parchear la
+> memoria, una reclasificación persistida quedaba invisible en la UI (Picks
+> incluido) hasta reiniciar el backend. `agentApply` ahora llama a
+> `ScraperService.actualizarProductoEnMemoria` DESPUÉS de verificar que la
+> escritura ocurrió, mismo patrón que `eliminarProductoDeMemoria` tras un
+> soft-delete. Recalcula facetas (a diferencia del soft-delete) porque
+> reclasificar mueve al producto entre categorías y los contadores del filtro
+> quedarían mintiendo.
+
+Config 100% por env (`LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY`,
+todas opcionales con default local Ollama — **no** están en
+`RequiredEnvVarsGuard`). Selector de modelo en runtime (`GET /api/agent/models`
+descubre dinámicamente los modelos pulleados, sin hardcodear lista; `model`
+opcional por-request en `POST /api/agent/chat`, sin estado mutable server-side).
+`POST /api/agent/chat`/`POST /api/agent/apply` están gateados por scraping
+(409 si `RUNNING`, misma VRAM que compite con Marqo-FashionSigLIP);
+`GET /api/agent/models` NO. Frontend: widget flotante `AgentChatPanel.jsx`
+montado a nivel `AppLayout` (no un botón dentro de `MlStatusPanel.jsx` — mudó
+ahí en los commits 3fb328e/ddd48ed), con selector de modelo + `ProposalCard`
+([Sí]/[No] normal, o [Volver a consultar]/[Descartar] cuando la propuesta
+quedó stale).
 
 ---
 
@@ -293,6 +355,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación API |
 | `SQLITE_BUSY_SNAPSHOT` / lock-dance de aplicación (writeLock/readLock/refrescarSnapshot) | RESUELTO 2026-07-21 (`decouple-services-postgres`): migración completa a PostgreSQL + write-path en funciones plpgsql server-side; toda la lock-dance de aplicación fue removida, la concurrencia la resuelve Postgres MVCC |
+| Botón de confirmación del LLM Catalog Agent nunca funcionaba (`POST /api/agent/apply` 400 en todo click, contrato de body distinto al `ReclassifyProposal` real) + escrituras silenciosamente truncadas (`actualizarNormalizacion` tragaba excepciones y devolvía `200` sin haber escrito) | RESUELTO 2026-07-25 (`agent-chat-finetune`): body tipado, write path auditado con rollback atómico, staleness guard contra la DB (`422 conflicto_stale`) |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges post-deploy, no recalibrar thresholds aún (ver docs/ML_PIPELINE.md) |
 | `safe_price` puede parsear mal ciertos formatos de `precioOriginal` | Heurística interina aceptada (1611/6692 rechazados a 0.0 en el último run) |
 | Bare `except:` en safe_price/price_velocity/history load | Nit no bloqueante — migrar a `except Exception:` |
