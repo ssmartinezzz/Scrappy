@@ -1,0 +1,51 @@
+name: CLI Tests
+
+# Runs the native CLI's pytest suite (tests/cli/) on Linux CI. This job is
+# additive and does NOT gate the existing Maven job (backend-tests.yml).
+# The real `_tools/cli-venv` bootstrap (uv-managed CPython, slice 3) is
+# Windows-specific and manual/sandbox-only per design.md risk 4 — this job
+# uses a plain `actions/setup-python` + pip install of cli/requirements.txt
+# instead. That list carries pytest + textual + pytest-asyncio: the headless
+# core/ tests are stdlib-only, but the Textual Pilot tests (tests/cli/
+# test_tui_app.py) need textual and pytest-asyncio to run.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect CLI changes
+        id: changes
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD \
+              | grep -qE '^cli/|^tests/cli/|^\.github/workflows/cli-tests\.yml'; then
+            echo "cli=true" >> $GITHUB_OUTPUT
+          else
+            echo "cli=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        if: steps.changes.outputs.cli == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install CLI test dependencies
+        if: steps.changes.outputs.cli == 'true'
+        run: python -m pip install -r cli/requirements.txt
+
+      - name: Run pytest tests/cli
+        if: steps.changes.outputs.cli == 'true'
+        run: python -m pytest tests/cli -v
+
+      - name: No CLI changes
+        if: steps.changes.outputs.cli == 'false'
+        run: echo "No cli/ or tests/cli/ changes — CLI tests skipped."

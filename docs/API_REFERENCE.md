@@ -2,12 +2,13 @@
 
 Base URL: `http://localhost:3000/api`
 
-> `menu.ps1` (Windows) / `menu.sh` (POSIX) are pure REST clients of this API
-> (interactive-cli-launcher) — they own the lifecycle of the backend and the
-> frontend `npm run preview` process but add no new endpoints. Each script
-> carries a `# API CONTRACT` header block mirroring its core endpoints and an
-> optional `--selftest` action that checks live responses against this document
-> for drift.
+> The native CLI (`cli/`, `native-cli-installer` 2026-07-25) is a pure REST
+> client of this API — it owns the lifecycle of the backend and the frontend
+> `npm run preview` process but adds no new endpoints. `cli/core/rest.py` is
+> the single source of truth for which endpoints it calls (status, scrape,
+> `ml/entrenar`, `sitios` CRUD); `tests/cli/test_rest.py` asserts no other
+> endpoint is ever invoked. Supersedes the retired `menu.ps1`/`menu.sh`
+> (`interactive-cli-launcher`, PR #108), which carried the same contract.
 
 ## CORS e integración externa
 

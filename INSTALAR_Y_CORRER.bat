@@ -32,10 +32,11 @@ set "PROJECT=%ROOT%\scraper"
 set "JAR=%PROJECT%\scraper.jar"
 :: decouple-services-postgres, Batch 4 (task 4.2): portable PostgreSQL —
 :: mirrors the jdk21/maven pattern (binaries under _tools/, datadir + running
-:: server are the only local state). ENV_FILE is the gitignored .env the
-:: launcher generates/sources so Java/Python/frontend share ONE config source
-:: (spec "Environment-Only Configuration" / "Installer-generated .env sourced
-:: by launcher").
+:: server are the only local state). ENV_FILE is the gitignored .env so
+:: Java/Python/frontend share ONE config source (spec "Environment-Only
+:: Configuration"). native-cli-installer: this .bat no longer WRITES
+:: ENV_FILE — cli\core\env_file.py does, on first `build`/CLI run — the
+:: variable stays here only as a documented path constant.
 set "PG_DIR=%TOOLS%\pgsql"
 set "PG_BIN=%PG_DIR%\bin"
 set "PG_DATA=%TOOLS%\pgdata"
@@ -408,9 +409,9 @@ if "!MARQO_OK!"=="1" (
 echo.
 
 :: ============================================================
-:: [5/8] Node.js + Frontend
+:: [5/8] Node.js (solo aprovisionamiento — el build vive en el CLI nativo)
 :: ============================================================
-echo [5/8] Node.js + Frontend React/Vite...
+echo [5/8] Node.js...
 if exist "%NODE_DIR%\node.exe" (
     echo        Node.js ya instalado.
     goto :node_ok
@@ -436,57 +437,12 @@ echo        Node.js listo.
 :node_ok
 set "PATH=%NODE_DIR%;%PATH%"
 
-:: vite.config.js fail-fasts on a production `vite build` when
-:: VITE_API_BASE_URL is unset (frontend is its own service post-decouple).
-:: Vite does NOT populate process.env from .env, so it must be a real env
-:: var BEFORE the build below — the .env generation at [8/8] runs too late.
-set "VITE_API_BASE_URL=http://localhost:3000"
-
-echo        Compilando frontend...
-set "FRONTEND_DIR=%ROOT%\frontend"
-if not exist "%FRONTEND_DIR%\package.json" (
-    echo  [ERROR] Falta frontend\package.json
-    pause & exit /b 1
-)
-cd /d "%FRONTEND_DIR%"
-set "NEED_INSTALL=0"
-if not exist "node_modules" set "NEED_INSTALL=1"
-if not exist "node_modules\.install-stamp" set "NEED_INSTALL=1"
-if "%NEED_INSTALL%"=="0" (
-    for /f %%i in ('powershell -NoProfile -Command "if ((Get-Item 'package.json').LastWriteTime -gt (Get-Item 'node_modules\.install-stamp').LastWriteTime) {1} else {0}"') do set "NEED_INSTALL=%%i"
-)
-if "%NEED_INSTALL%"=="1" (
-    echo        Instalando dependencias npm...
-    call "%NODE_DIR%\npm.cmd" install --prefer-offline 2>nul
-    if errorlevel 1 (
-        set "NPMCLI=%NODE_DIR%\node_modules\npm\bin\npm-cli.js"
-        if exist "!NPMCLI!" (
-            "%NODE_DIR%\node.exe" "!NPMCLI!" install --prefer-offline
-        ) else (
-            npm install --prefer-offline
-        )
-        if errorlevel 1 (
-            echo  [ERROR] npm install fallo.
-            pause & exit /b 1
-        )
-    )
-    echo. > "node_modules\.install-stamp"
-)
-call "%NODE_DIR%\npm.cmd" run build 2>nul
-if errorlevel 1 (
-    set "NPMCLI=%NODE_DIR%\node_modules\npm\bin\npm-cli.js"
-    if exist "!NPMCLI!" (
-        "%NODE_DIR%\node.exe" "!NPMCLI!" run build
-    ) else (
-        npm run build
-    )
-    if errorlevel 1 (
-        echo  [ERROR] Build frontend fallo.
-        pause & exit /b 1
-    )
-)
-echo        Frontend compilado OK.
-cd /d "%ROOT%"
+:: native-cli-installer (design.md invariant, §9): el instalador ya NO
+:: corre `npm install`/`npm run build` — eso, junto con el ordenamiento
+:: critico "VITE_API_BASE_URL debe ser una env var REAL antes de `npm run
+:: build`" (Vite no lee .env en build time), ahora vive en
+:: cli\core\builder.py (build_project()). Este paso deja Node.js
+:: unicamente provisionado bajo _tools\node para que el CLI lo use.
 echo.
 
 :: ============================================================
@@ -564,71 +520,110 @@ if exist "%ALLURE_EXE%" set "PATH=%ALLURE_DIR%\bin;%PATH%"
 echo.
 
 :: ============================================================
-:: [8/8] Compilar JAR
+:: [8/8] uv + _tools\cli-venv (native-cli-installer, ADR-002 / design §7.1)
 :: ============================================================
-echo [8/8] Compilando backend Java...
-if exist "%JAR%" (
-    echo        JAR ya existe, saltando compilacion.
-    goto :jar_ok
+:: uv-managed standalone CPython (pinned 3.11.x) — NOT the ML embeddable at
+:: %PYTHON_DIR% above. The CLI never imports ML libraries, so this venv
+:: shares nothing with it: no python311._pth involvement, deterministic
+:: bootstrap by construction (design.md ADR-002/§7.2). The ~235-line
+:: ML-deps block in [4/8] and %PYTHON_DIR% itself are untouched.
+echo [8/8] uv + entorno Python del CLI nativo (_tools\cli-venv)...
+set "UV_DIR=%TOOLS%\uv"
+set "UV_EXE=%UV_DIR%\uv.exe"
+set "UV_VERSION=0.11.32"
+set "UV_PY_VER=3.11.9"
+set "CLI_VENV=%TOOLS%\cli-venv"
+set "CLI_VENV_PY=%CLI_VENV%\Scripts\python.exe"
+:: Fully vendored under _tools\uv\ — never touches a global/user uv
+:: install, cache, or Python registry.
+set "UV_PYTHON_INSTALL_DIR=%UV_DIR%\python"
+set "UV_CACHE_DIR=%UV_DIR%\cache"
+if not exist "%UV_DIR%" mkdir "%UV_DIR%"
+
+if exist "%UV_EXE%" (
+    echo        uv ya instalado.
+    goto :uv_bin_ok
 )
-echo        Primera compilacion con Maven aprox 3 minutos...
-echo        (las proximas veces saltea esto automaticamente)
-echo.
-pushd "%PROJECT%"
-call "%MVN_EXE%" clean package -DskipTests --batch-mode ^
-  -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
-set "MVN_EXIT=!errorlevel!"
-popd
-if "!MVN_EXIT!" NEQ "0" (
-    echo  [ERROR] Compilacion Java fallo. Ver errores arriba.
+echo        Descargando uv aprox 15MB...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "[Net.ServicePointManager]::SecurityProtocol='Tls12';" ^
+  "$ProgressPreference='SilentlyContinue';" ^
+  "(New-Object Net.WebClient).DownloadFile(" ^
+  "'https://github.com/astral-sh/uv/releases/download/%UV_VERSION%/uv-x86_64-pc-windows-msvc.zip'," ^
+  "'%TOOLS%\uv.zip')"
+if not exist "%TOOLS%\uv.zip" (
+    echo  [ERROR] Descarga de uv fallo. El CLI nativo requiere Python/uv — instalacion abortada.
     pause & exit /b 1
 )
-if not exist "%PROJECT%\target\fashion-scraper-1.0.0.jar" (
-    echo  [ERROR] JAR no encontrado.
+echo        Descomprimiendo uv...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Expand-Archive -LiteralPath '%TOOLS%\uv.zip' -DestinationPath '%TOOLS%\uv_tmp' -Force"
+for /d %%D in ("%TOOLS%\uv_tmp\*") do if exist "%%D\uv.exe" copy /y "%%D\uv.exe" "%UV_EXE%" >nul
+if not exist "%UV_EXE%" if exist "%TOOLS%\uv_tmp\uv.exe" copy /y "%TOOLS%\uv_tmp\uv.exe" "%UV_EXE%" >nul
+rmdir /s /q "%TOOLS%\uv_tmp" 2>nul
+del /f /q "%TOOLS%\uv.zip" 2>nul
+if not exist "%UV_EXE%" (
+    echo  [ERROR] Extraccion de uv fallo. El CLI nativo requiere Python/uv — instalacion abortada.
     pause & exit /b 1
 )
-copy /y "%PROJECT%\target\fashion-scraper-1.0.0.jar" "%JAR%" >nul
-echo        Backend listo.
-:jar_ok
+echo        uv listo.
+:uv_bin_ok
+
+set "CLI_VENV_READY=0"
+if exist "%CLI_VENV_PY%" (
+    "%CLI_VENV_PY%" -c "import textual" 2>nul
+    if not errorlevel 1 set "CLI_VENV_READY=1"
+)
+if "!CLI_VENV_READY!"=="1" (
+    echo        _tools\cli-venv ya provisionado ^(uv-managed CPython %UV_PY_VER%^).
+    goto :cli_venv_ok
+)
+echo        Instalando CPython %UV_PY_VER% administrado por uv...
+"%UV_EXE%" python install %UV_PY_VER%
+if errorlevel 1 (
+    echo  [ERROR] "uv python install %UV_PY_VER%" fallo. El CLI nativo requiere Python —
+    echo          instalacion abortada. Verifica conexion a internet y reintenta.
+    pause & exit /b 1
+)
+echo        Creando _tools\cli-venv...
+"%UV_EXE%" venv --managed-python --python %UV_PY_VER% "%CLI_VENV%"
+if errorlevel 1 (
+    echo  [ERROR] "uv venv" fallo al crear _tools\cli-venv. Instalacion abortada.
+    pause & exit /b 1
+)
+echo        Instalando dependencias del CLI ^(textual — ver cli\requirements.txt^)...
+"%UV_EXE%" pip install --python "%CLI_VENV_PY%" -r "%ROOT%\cli\requirements.txt"
+if errorlevel 1 (
+    echo  [ERROR] "uv pip install" fallo instalando cli\requirements.txt. Instalacion abortada.
+    pause & exit /b 1
+)
+:cli_venv_ok
+
+:: Python es ahora load-bearing en Windows (spec installer-provisioning,
+:: "Python Load-Bearing on Windows"): sin un _tools\cli-venv funcional no
+:: hay forma de compilar/arrancar el proyecto (el CLI reemplaza a
+:: menu.ps1), asi que una falla aqui debe abortar la instalacion en vez de
+:: continuar en silencio — a diferencia del AVISO "ML desactivado" de [4/8],
+:: que sigue siendo degradacion aceptada solo para el pipeline ML.
+"%CLI_VENV_PY%" -c "import textual" 2>nul
+if errorlevel 1 (
+    echo  [ERROR] "_tools\cli-venv" no tiene "textual" instalado tras el aprovisionamiento.
+    echo          El CLI nativo no puede arrancar sin el. Revisa la salida de "uv pip install"
+    echo          arriba, o borra _tools\uv y _tools\cli-venv y reintenta.
+    pause & exit /b 1
+)
+echo        _tools\cli-venv listo ^(Python %UV_PY_VER% administrado por uv, "import textual" OK^).
 echo.
 
 :: ============================================================
-:: Generar .env (gitignored) — env-only config, sin defaults silenciosos
-:: (spec "Environment-Only Configuration" / "Installer-generated .env sourced
-:: by launcher"). DATABASE_URL usa el formato jdbc: que Spring/HikariCP
-:: requiere; PythonRunner.toPsycopgDsn lo traduce al formato libpq/psycopg2
-:: antes de pasarlo al subproceso Python (design D5, Batch 4 fix).
-:: ============================================================
-set "SCRAPER_MODELS_ROOT=%PROJECT%\_models"
-set "DATABASE_URL=jdbc:postgresql://127.0.0.1:%PG_PORT%/%PG_DB%"
-set "DATABASE_USERNAME=%PG_USER%"
-set "DATABASE_PASSWORD="
-set "APP_CORS_ALLOWED_ORIGINS=http://localhost:5173"
-set "VITE_API_BASE_URL=http://localhost:3000"
-set "APP_OPEN_URL=http://localhost:3000"
-(
-  echo DATABASE_URL=%DATABASE_URL%
-  echo DATABASE_USERNAME=%DATABASE_USERNAME%
-  echo DATABASE_PASSWORD=%DATABASE_PASSWORD%
-  echo SCRAPER_MODELS_ROOT=%SCRAPER_MODELS_ROOT%
-  echo APP_CORS_ALLOWED_ORIGINS=%APP_CORS_ALLOWED_ORIGINS%
-  echo VITE_API_BASE_URL=%VITE_API_BASE_URL%
-  echo APP_OPEN_URL=%APP_OPEN_URL%
-) > "%ENV_FILE%"
-echo        .env generado en %ENV_FILE% ^(gitignored^)
-echo.
-
-:: ============================================================
-:: LANZAR servidor
+:: TOOLCHAIN LISTO — build/.env/arranque ahora los maneja el CLI nativo
 :: ============================================================
 cls
 echo.
 echo  ============================================================
-echo   FASHION SCRAPER - SERVIDOR LISTO
+echo   FASHION SCRAPER - TOOLCHAIN LISTO
 echo  ============================================================
 echo.
-echo   API      : http://localhost:3000  ^(API-only — backend ya no sirve la SPA^)
-echo   Panel    : http://localhost:5173  ^(se abre desde el menu interactivo^)
 echo   DB       : PostgreSQL 127.0.0.1:%PG_PORT%/%PG_DB%
 if "!HAS_GPU!"=="1" (
     echo   GPU      : !GPU_NAME! - CUDA !CUDA_MAJOR!
@@ -640,7 +635,9 @@ if exist "%ALLURE_EXE%" (
     echo   Tests    : para correr las suites -^> cd scraper ^&^& mvn test
     echo   Allure   : ver reporte HTML -^> allure serve scraper\target\allure-results  ^(despues de 'mvn test'^)
 )
-echo   Salir    : opcion Q del menu, o Ctrl+C
+echo   A continuacion: el CLI nativo compila ^(build^), genera .env y arranca
+echo   backend ^(:3000^) + frontend ^(:5173^) desde su propio menu.
+echo   Salir    : opcion Q del CLI, o Ctrl+C
 echo  ============================================================
 echo.
 
@@ -658,14 +655,19 @@ del /f /q "%PROJECT%\scraper.*.log"  2>nul
 mkdir "%PROJECT%\logs" 2>nul
 
 :: ============================================================
-:: interactive-cli-launcher (design D7): menu.ps1 owns the lifecycle of
-:: BOTH the backend (java -jar, background) and the frontend
-:: (npm run preview --strictPort :5173) it spawns — pure REST client of
-:: the existing API, no new backend endpoints. Standalone/re-invocable:
-:: running "powershell -File menu.ps1" directly works the same way.
+:: native-cli-installer (ADR-004): menu.ps1 was retired — the native CLI
+:: (cli\, run on the just-provisioned _tools\cli-venv) now owns build,
+:: .env generation, and backend+frontend lifecycle. It is invoked with
+:: `-m cli` (module form), NOT `cli\__main__.py` directly: the CLI's
+:: modules use absolute `cli.*` imports, so it must run as a package with
+:: %ROOT% as cwd (verified empirically — running the .py file path
+:: directly raises ModuleNotFoundError: No module named 'cli'). Standalone/
+:: re-invocable: running "_tools\cli-venv\Scripts\python.exe -m cli" from
+:: %ROOT% works the same way.
 :: ============================================================
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\menu.ps1"
+cd /d "%ROOT%"
+"%CLI_VENV_PY%" -m cli
 
 echo.
-echo  Servidor detenido. Presiona cualquier tecla para cerrar...
+echo  CLI detenido. Presiona cualquier tecla para cerrar...
 pause >nul

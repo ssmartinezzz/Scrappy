@@ -2,7 +2,8 @@
 #
 # Additive bring-up path: `docker compose up` starts postgres + backend +
 # frontend, all mutually reachable. Does not replace or modify
-# INSTALAR_Y_CORRER.bat / Ejecutar_instalar.sh / menu.ps1 / menu.sh.
+# INSTALAR_Y_CORRER.bat / Ejecutar_instalar.sh / the native CLI (cli/,
+# native-cli-installer 2026-07-25 — supersedes the retired menu.ps1/menu.sh).
 #
 # Copy docker.env.example to .env (gitignored) before running, or export the
 # same vars in your shell. See docker.env.example for the full documented
