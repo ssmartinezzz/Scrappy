@@ -9,19 +9,34 @@
 
 Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y hardware/PC) con dashboard web inteligente. Un solo `.bat` instala todo y ejecuta desde cero en Windows. El usuario configura parámetros de búsqueda, lanza el scraping (manual o por cronjobs), y navega los resultados con filtros, comparador multi-sitio, feed personalizado, armador de outfits, análisis de cuotas/inflación y panel de tendencias ML con clasificación de imagen zero-shot.
 
-> **interactive-cli-launcher** (2026-07-21): el tail del `.bat`/`Ejecutar_instalar.sh`
-> ya no lanza el backend en foreground — invoca `menu.ps1`/`menu.sh`, un menú
-> interactivo (REST client puro de la API existente, sin endpoints nuevos) que
-> arranca backend + frontend (`npm run preview` en `:5173`), ofrece scrape/
-> retrain/status/CRUD de sitios/abrir dashboard, y hace teardown limpio de
-> ambos procesos al salir (Q o Ctrl+C). Standalone/re-invocable: correr
-> `menu.ps1`/`menu.sh` directo funciona igual. Ver "Sitios configurados" no
-> cambia — este launcher es solo la capa de invocación.
+> **native-cli-installer** (2026-07-25): supersede a `interactive-cli-launcher`
+> (2026-07-21) — `menu.ps1`/`menu.sh` fueron **retirados** (borrados, junto con
+> `tests/menu.Tests.ps1`/`tests/menu_test.sh`). El `.bat`/`Ejecutar_instalar.sh`
+> ahora **solo aprovisionan el toolchain** (JDK/Maven/Node/Python embeddable+ML/
+> Postgres portable, más `uv` + un `_tools/cli-venv` dedicado — ver abajo) y en
+> su tail invocan un **CLI nativo en Python** (`cli/`, corrido con
+> `_tools/cli-venv/.../python.exe -m cli` desde la raíz del repo — NO
+> `cli\__main__.py` directo, que falla por los imports absolutos `cli.*`). El
+> CLI (no el instalador) ahora posee: `npm install`/`npm run build` +
+> `mvn clean package` + copia del jar, la generación/reconciliación de `.env`
+> (template-driven desde `.env.example`, nunca pisa valores existentes salvo
+> `--regenerate`/`--force`), y la orquestación de backend (`:3000`) + frontend
+> (`npm run preview` en `:5173`) — con el mismo contrato REST-only, teardown
+> limpio en Q/Ctrl+C, y la carga JVM `-DDATABASE_PASSWORD=<valor, incluso
+> vacío>` que evita el bug de Windows con env vars vacías. Presenta una TUI
+> Textual si la terminal es interactiva, con fallback automático a un runner
+> de texto plano (`--plain`, `NO_COLOR`, `TERM=dumb`, stdin/stdout no-tty, o
+> Textual no instalable) — nunca crashea. `_tools/cli-venv` es un venv
+> **uv-managed CPython 3.11.9 aislado** (NO el embeddable de ML) — el CLI
+> nunca importa librerías ML, así que no comparte nada con el pipeline de
+> imágenes ni arriesga el guard de versión de torch. Cobertura: `pytest
+> tests/cli` (headless `core/` + Textual `Pilot` + injection-safety, que
+> reemplaza estructuralmente a los viejos `menu.Tests.ps1`/`menu_test.sh`).
 
 > **docker-install-alternative** (2026-07-21, PR #109): existe una **tercera vía
 > de instalación aditiva** por Docker — `docker compose up` levanta postgres +
 > backend + frontend. NO reemplaza ni toca el flujo portable (`.bat`/`.sh`/
-> `menu.*`/`_tools/`); es para quien ya tiene Docker (Linux/macOS/CI/server).
+> el CLI nativo en `cli/`/`_tools/`); es para quien ya tiene Docker (Linux/macOS/CI/server).
 > El backend es UNA imagen que bundlea Java 21 + Python 3.11 + Playwright/
 > Chromium (el ML sigue siendo subprocess in-process, no un servicio aparte).
 > Frontend = `vite build` → nginx, con `VITE_API_BASE_URL` como **build ARG**
@@ -47,8 +62,9 @@ Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y 
 | Base de datos | **PostgreSQL** (`DATABASE_URL`) — Flyway `V1__baseline.sql` (15 tablas + `sp_upsert_run`/`sp_soft_delete_ausentes` plpgsql), pool HikariCP |
 | ML Pipeline | Python 3.11 embeddable (subprocess desde Java) — estadístico + TF-IDF + zero-shot visual; conecta a Postgres directo vía `psycopg2`/`DATABASE_URL` |
 | Clasificación visual | Marqo-FashionSigLIP vía open_clip (requiere `transformers` para el tokenizer) |
-| Build | Maven + Spring Boot Maven Plugin (fat JAR). Toolchain bundled en `_tools/` (jdk21/maven/node/python/**pgsql**, sin dependencias del sistema) |
-| Config | Env-only (`.env` gitignored, generado por el installer/`Ejecutar_instalar.sh`, jamás parseado en runtime por Java/Python — solo variables de proceso). Backend/frontend fail-fast si falta una var requerida en el profile default (`SPRING_PROFILES_ACTIVE=dev` para fallbacks locales) — ver "Gotchas de entorno". Plantilla canónica: `.env.example` (raíz) + `frontend/.env.example` |
+| Build | Maven + Spring Boot Maven Plugin (fat JAR), ahora invocado por el **CLI nativo** (`cli/core/builder.py`), no por el installer. Toolchain bundled en `_tools/` (jdk21/maven/node/python/pgsql/**uv+cli-venv**, sin dependencias del sistema) |
+| CLI nativo | `cli/` — Python (headless `core/` + presentador Textual + fallback texto plano), corrido sobre `_tools/cli-venv` (uv-managed CPython 3.11.9, aislado del embeddable de ML). Reemplaza a `menu.ps1`/`menu.sh` (retirados) y absorbe build + `.env` + orquestación backend/frontend — ver nota `native-cli-installer` arriba |
+| Config | Env-only (`.env` gitignored, generado/reconciliado por el **CLI nativo** — `cli/core/env_file.py`, template-driven desde `.env.example` — ya no por el installer, jamás parseado en runtime por Java/Python — solo variables de proceso). Backend/frontend fail-fast si falta una var requerida en el profile default (`SPRING_PROFILES_ACTIVE=dev` para fallbacks locales) — ver "Gotchas de entorno". Plantilla canónica: `.env.example` (raíz) + `frontend/.env.example` |
 
 ---
 
@@ -59,10 +75,14 @@ fashion-scraper-new/
 ├── CLAUDE.md                          ← Este archivo
 ├── SKILL.md                           ← Índice de documentación técnica
 ├── INSTALAR_Y_CORRER.bat              ← Instala Java + PostgreSQL portable + Maven + Python + Node + deps ML
-│                                          (incl. psycopg2-binary) + compila + genera .env + ejecuta (Windows)
-├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema, vendoriza solo jq/gum
-├── menu.ps1                           ← Menú interactivo Windows (PowerShell) — REST client puro, arranca backend+frontend
-├── menu.sh                            ← Menú interactivo POSIX (bash+jq, gum opcional) — mismo contrato que menu.ps1
+│                                          (incl. psycopg2-binary) + uv + _tools\cli-venv, e invoca el CLI nativo
+│                                          (`-m cli`) — YA NO compila ni genera .env (eso es del CLI) (Windows)
+├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema (java/mvn/
+│                                          python3/node), aprovisiona Postgres + uv/_tools/cli-venv, invoca el CLI
+├── cli/                               ← CLI nativo (Python): core/ headless (config/env_file/builder/rest/
+│                                          processes/errors) + tui/ (Textual) + plain/ (fallback texto plano) +
+│                                          __main__.py (detección de capacidad + routing). Reemplaza a menu.ps1/
+│                                          menu.sh (retirados 2026-07-25, native-cli-installer) — ver requirements.txt
 ├── Dockerfile                         ← Backend multi-stage (maven build → Playwright-java v1.44.0 + Temurin 21 + Python 3.11 + deps ML)
 ├── frontend/Dockerfile                ← Frontend multi-stage (vite build, ARG VITE_API_BASE_URL → nginx)
 ├── frontend/nginx.conf                ← nginx SPA fallback a index.html
@@ -70,8 +90,10 @@ fashion-scraper-new/
 ├── docker-compose.override.yml.example← Override para Postgres externo
 ├── docker.env.example                 ← Plantilla de env del modo Docker (copiar a .env). Aditivo — NO reemplaza .env.example
 ├── .dockerignore / frontend/.dockerignore ← Excluyen _tools/, target/, node_modules del build context
-├── tests/menu.Tests.ps1               ← Pester: Build-SiteJson (JSON seguro, sin interpolación de shell)
-├── tests/menu_test.sh                 ← bash: build_site_json vía jq -n --arg (mismo caso RED)
+├── tests/cli/                          ← pytest del CLI nativo: core/ (env-gen, VITE-ordering, injection-safety,
+│                                           teardown-funnel) + Textual Pilot (tui/) + degradation-routing (__main__).
+│                                           Reemplaza estructuralmente a tests/menu.Tests.ps1/tests/menu_test.sh
+│                                           (retirados) — la injection-safety test es el reemplazo directo.
 ├── docs/                              ← ARCHITECTURE, ADD_SCRAPER, ML_PIPELINE, API_REFERENCE
 └── scraper/
     ├── pom.xml                        ← postgresql, flyway, HikariCP, testcontainers (test); playwright, opencsv, jackson; allure-bom (test)
@@ -249,10 +271,11 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 
 ## Gotchas de entorno (Windows)
 
-- **Jar stale:** el `.bat` saltea Maven si `scraper/scraper.jar` existe. Tras recompilar, copiar a mano `scraper/target/fashion-scraper-1.0.0.jar` → `scraper/scraper.jar`.
-- **Python embeddable:** `python311._pth` congela `sys.path` (no agrega el dir del script ni respeta PYTHONPATH). `ml_pipeline.py` inserta su propio dir antes de importar `ml_embeddings`.
-- **HF_HOME:** el runtime lo resuelve como `<SCRAPER_MODELS_ROOT>/marqo` (env var, ya no derivado de una ruta de archivo DB); el installer genera `.env` con `SCRAPER_MODELS_ROOT=<repo>/scraper/_models` y el warm-up apunta al mismo lugar.
-- **Build:** usar el toolchain bundled (`_tools/jdk21`, `_tools/maven`) desde la RAÍZ del repo, nunca desde `scraper/`.
+- **Jar stale:** el CLI nativo (`cli/core/builder.py`) saltea el build si `scraper/scraper.jar` existe. Tras recompilar a mano, copiar `scraper/target/fashion-scraper-1.0.0.jar` → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI de nuevo.
+- **Python embeddable:** `python311._pth` congela `sys.path` (no agrega el dir del script ni respeta PYTHONPATH). `ml_pipeline.py` inserta su propio dir antes de importar `ml_embeddings`. Esto es **solo del embeddable de ML** (`_tools/python`) — el `_tools/cli-venv` del CLI nativo es un venv uv-managed normal, sin este problema (por diseño: no comparte nada con el embeddable — ver nota `native-cli-installer`).
+- **HF_HOME:** el runtime lo resuelve como `<SCRAPER_MODELS_ROOT>/marqo` (env var, ya no derivado de una ruta de archivo DB); el CLI genera `.env` con `SCRAPER_MODELS_ROOT=<repo>/scraper/_models` y el warm-up apunta al mismo lugar.
+- **Build:** usar el toolchain bundled (`_tools/jdk21`, `_tools/maven`) desde la RAÍZ del repo, nunca desde `scraper/` — esto ahora lo hace el CLI nativo (`cli/core/builder.py`), invocado desde su propio menú (`build`), no el `.bat`/`.sh`.
+- **CLI nativo (`_tools/cli-venv`):** si `import textual` falla dentro de `_tools/cli-venv`, el instalador aborta con un mensaje accionable (Python es load-bearing en ambos SO desde `native-cli-installer`). Para reprovisionarlo desde cero: borrar `_tools/uv` y `_tools/cli-venv` y re-correr el `.bat`/`Ejecutar_instalar.sh`. `python -m cli` (NO `cli/__main__.py` directo — falla por imports absolutos `cli.*`) debe correrse con cwd = raíz del repo.
 - **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita el prefijo `jdbc:` (`jdbc:postgresql://host:port/db`); psycopg2 (Python) NO entiende `jdbc:` — solo `postgresql://...`. `PythonRunner.toPsycopgDsn` traduce automáticamente antes de pasarlo al subproceso; si alguna vez se agrega OTRO consumidor de `DATABASE_URL`, revisar este mismo problema.
 - **Postgres portable:** el installer lo provisiona bajo `_tools/pgsql` (binarios EDB) + `_tools/pgdata` (datadir, `initdb -A trust` — sin password en local). El servidor queda corriendo entre ejecuciones del `.bat` (no se detiene solo); reusa la misma instancia la próxima vez (`pg_ctl status` chequea antes de re-arrancar).
 - **Tests contra Postgres real:** `PostgresTestBase` (`scraper/src/test/java/ar/scraper/db/support/`) auto-selecciona Testcontainers (si hay Docker) o modo portable-local (`_tools/pgsql`, sin Docker) o se skipea con un mensaje claro si no hay ninguno — nunca hace fallar toda la suite por falta de infra.
@@ -275,7 +298,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 | Bare `except:` en safe_price/price_velocity/history load | Nit no bloqueante — migrar a `except Exception:` |
 | `/api/db/export`/`/api/db/import` (410 Gone) — sin backup/restore vía UI | Aceptado por diseño (task 4.10): usar `pg_dump`/`pg_restore` directo contra `DATABASE_URL`; frontend `exportarDB()`/`importarDB()` removidos |
 | `sp_upsert_run` reactivando un producto soft-deleted reinserta `precio_historico` aunque el precio no haya cambiado | Follow-up no bloqueante, documentado en `sdd/decouple-services-postgres` — no fixeado en este change |
-| Instalador Windows portable-only: `Ejecutar_instalar.sh` (POSIX) asume herramientas del sistema (java/mvn/python3/node/postgresql-server o Docker) en vez de vendorizar todo como el `.bat` | Escrito y revisado, NO ejecutado end-to-end en Linux/macOS real (sandbox de desarrollo es Windows-only) |
+| Instalador Windows portable-only: `Ejecutar_instalar.sh` (POSIX) asume herramientas del sistema (java/mvn/python3/node/postgresql-server o Docker) en vez de vendorizar todo como el `.bat` — la parte NUEVA de `native-cli-installer` (uv + `_tools/cli-venv`) SÍ vendoriza igual que el `.bat` en ambos SO | El aprovisionamiento java/mvn/node sigue asumiendo el sistema (gap preexistente, no resuelto en `native-cli-installer` — fuera de su scope). La parte nueva (uv/cli-venv + invocación del CLI) SÍ fue ejecutada end-to-end en un sandbox Linux real 2026-07-25: `bash Ejecutar_instalar.sh` corrió las 4 fases completas, provisionó `_tools/uv`+`_tools/cli-venv` reales, y el tail invocó el CLI (`python -m cli`) que respondió `status` contra un backend real en `:3000`. `INSTALAR_Y_CORRER.bat` sigue sin ejecutarse end-to-end (sandbox de desarrollo de esta sesión también fue Linux, no Windows) |
 
 ---
 

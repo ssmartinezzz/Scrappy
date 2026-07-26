@@ -2,13 +2,18 @@
 # Fashion Scraper Argentina — instalador/lanzador POSIX (Linux/macOS).
 #
 # decouple-services-postgres, Batch 4 (task 4.3): mirror of
-# INSTALAR_Y_CORRER.bat's sequencing (Postgres up -> backend -> frontend),
-# adapted to POSIX package-manager conventions instead of Windows portable
-# zips — Linux/macOS users are expected to have (or be able to install via
+# INSTALAR_Y_CORRER.bat's sequencing (Postgres up -> toolchain), adapted to
+# POSIX package-manager conventions instead of Windows portable zips —
+# Linux/macOS users are expected to have (or be able to install via
 # apt/brew) java21+, maven, python3, node, and postgresql-server tooling,
 # unlike the zero-assumption Windows .bat which vendors everything under
-# _tools/. This script provisions/generates the SAME gitignored .env the
-# .bat writes, so both launchers are interchangeable for local dev.
+# _tools/.
+#
+# native-cli-installer: this script now ONLY provisions the toolchain
+# (java/mvn/python3/node checks, PostgreSQL, uv + _tools/cli-venv) and
+# hands off to the native CLI (cli/, invoked as `-m cli` on the
+# uv-provisioned venv), which owns build, .env generation (no longer
+# written here), and backend+frontend orchestration. menu.sh was retired.
 #
 # NOT executed end-to-end in the apply sandbox (Windows-only) — written and
 # reviewed against the .bat's logic, but a real Linux/macOS smoke run is a
@@ -32,8 +37,8 @@ echo "Raiz    : $ROOT"
 echo "Proyecto: $PROJECT"
 echo
 
-# ── [1/6] Internet ───────────────────────────────────────────────────────
-echo "[1/6] Verificando internet..."
+# ── [1/4] Internet ───────────────────────────────────────────────────────
+echo "[1/4] Verificando internet..."
 if ! curl -fsS --max-time 5 https://www.google.com -o /dev/null; then
   echo "  [ERROR] Sin internet." >&2
   exit 1
@@ -41,8 +46,8 @@ fi
 echo "       OK"
 echo
 
-# ── [2/6] Toolchain (java21+, maven, python3, node) ─────────────────────
-echo "[2/6] Verificando toolchain (java21+/maven/python3/node)..."
+# ── [2/4] Toolchain (java21+, maven, python3, node) ─────────────────────
+echo "[2/4] Verificando toolchain (java21+/maven/python3/node)..."
 require() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "  [ERROR] Falta '$1' en PATH. Instalalo con tu gestor de paquetes" >&2
@@ -62,8 +67,8 @@ fi
 echo "       OK"
 echo
 
-# ── [3/6] PostgreSQL (system package or already-running instance) ───────
-echo "[3/6] PostgreSQL..."
+# ── [3/4] PostgreSQL (system package or already-running instance) ───────
+echo "[3/4] PostgreSQL..."
 if command -v pg_ctl >/dev/null 2>&1 && command -v initdb >/dev/null 2>&1; then
   if [ ! -f "$PG_DATA/PG_VERSION" ]; then
     echo "       Inicializando data directory en $PG_DATA..."
@@ -103,135 +108,117 @@ else
 fi
 echo
 
-# ── [4/6] Frontend build ─────────────────────────────────────────────────
-echo "[4/6] Frontend React/Vite..."
-[ -f "$FRONTEND_DIR/package.json" ] || { echo "  [ERROR] Falta frontend/package.json" >&2; exit 1; }
-if [ ! -f "$FRONTEND_DIR/.env" ] && [ -f "$FRONTEND_DIR/.env.example" ]; then
-  cp "$FRONTEND_DIR/.env.example" "$FRONTEND_DIR/.env"
-fi
-# vite.config.js fail-fasts on a production `vite build` when VITE_API_BASE_URL
-# is unset (frontend is its own service post-decouple). Vite does NOT populate
-# process.env from .env, so it must be a real env var BEFORE the build — the
-# .env generation further down runs too late. Exported here so the build
-# subshell inherits it.
-export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:3000}"
-(
-  cd "$FRONTEND_DIR"
-  [ -d node_modules ] || npm install --prefer-offline
-  npm run build
-)
-echo "       Frontend compilado OK."
-echo
+# ── native-cli-installer (design.md invariant, §9): this script no longer
+# runs `npm install`/`npm run build`, `mvn clean package`, or writes .env —
+# those, plus the critical "VITE_API_BASE_URL must be a REAL env var
+# BEFORE `npm run build`" ordering hazard (Vite never reads .env at build
+# time), now live in cli/core/builder.py / cli/core/env_file.py. This
+# installer only provisions the toolchain the CLI's build step will use
+# (java/mvn/python3/node above, uv + _tools/cli-venv below) and hands off.
 
-# ── [5/6] Backend build ──────────────────────────────────────────────────
-echo "[5/6] Compilando backend Java..."
-JAR="$PROJECT/scraper.jar"
-if [ ! -f "$JAR" ]; then
-  ( cd "$PROJECT" && mvn clean package -DskipTests --batch-mode )
-  cp "$PROJECT/target/fashion-scraper-1.0.0.jar" "$JAR"
-fi
-echo "       Backend listo."
-echo
+# ── [4/4] uv + _tools/cli-venv (native-cli-installer, ADR-002 / design §7.1) ─
+# uv-managed standalone CPython (pinned 3.11.x) — NOT the system python3
+# checked above and NOT the ML embeddable the .bat provisions on Windows.
+# The CLI never imports ML libraries, so this venv is fully isolated and
+# reproducible regardless of whatever python3 the distro ships (design
+# §7.2/§7.3). Fully vendored under _tools/uv/ — never touches a global/user
+# uv install, cache, or Python installation.
+echo "[4/4] uv + entorno Python del CLI nativo (_tools/cli-venv)..."
+UV_DIR="$ROOT/_tools/uv"
+UV_BIN="$UV_DIR/uv"
+UV_VERSION="0.11.32"
+UV_PY_VER="3.11.9"
+CLI_VENV="$ROOT/_tools/cli-venv"
+CLI_VENV_PY="$CLI_VENV/bin/python"
+export UV_PYTHON_INSTALL_DIR="$UV_DIR/python"
+export UV_CACHE_DIR="$UV_DIR/cache"
+mkdir -p "$UV_DIR"
 
-# ── Generar .env (gitignored) — mismo contrato que INSTALAR_Y_CORRER.bat ─
-export SCRAPER_MODELS_ROOT="$PROJECT/_models"
-export DATABASE_URL="jdbc:postgresql://127.0.0.1:$PG_PORT/$PG_DB"
-export DATABASE_USERNAME="$PG_USER"
-export DATABASE_PASSWORD=""
-export APP_CORS_ALLOWED_ORIGINS="http://localhost:5173"
-export VITE_API_BASE_URL="http://localhost:3000"
-export APP_OPEN_URL="http://localhost:3000"
-cat > "$ENV_FILE" <<EOF
-DATABASE_URL=$DATABASE_URL
-DATABASE_USERNAME=$DATABASE_USERNAME
-DATABASE_PASSWORD=$DATABASE_PASSWORD
-SCRAPER_MODELS_ROOT=$SCRAPER_MODELS_ROOT
-APP_CORS_ALLOWED_ORIGINS=$APP_CORS_ALLOWED_ORIGINS
-VITE_API_BASE_URL=$VITE_API_BASE_URL
-APP_OPEN_URL=$APP_OPEN_URL
-EOF
-echo "       .env generado en $ENV_FILE (gitignored)"
-echo
-
-# ── [6/6] menu.sh dependencies: jq (required) + gum (optional UI veneer) ──
-# interactive-cli-launcher design D6: vendored under _tools/ so menu.sh's
-# safe JSON body building (jq -n --arg) never depends on a system package.
-# gum is a nicer-menu fast-follow — menu.sh falls back to plain bash
-# prompts when it isn't present, so a failed/skipped download here is
-# non-fatal.
-echo "[6/6] Verificando dependencias de menu.sh (jq/gum)..."
-TOOLS_DIR="$ROOT/_tools"
-JQ_DIR="$TOOLS_DIR/jq"
-GUM_DIR="$TOOLS_DIR/gum"
-mkdir -p "$JQ_DIR" "$GUM_DIR"
-
-detect_os_arch() {
-  local os arch
-  os="$(uname -s)"
-  arch="$(uname -m)"
-  case "$os" in
-    Linux) OS_TAG="linux" ;;
-    Darwin) OS_TAG="macos" ;;
-    *) OS_TAG="" ;;
+if [ -x "$UV_BIN" ]; then
+  echo "       uv ya instalado."
+else
+  UV_ARCH=""
+  case "$(uname -m)" in
+    x86_64|amd64) UV_ARCH="x86_64-unknown-linux-gnu" ;;
+    aarch64|arm64) UV_ARCH="aarch64-unknown-linux-gnu" ;;
   esac
-  case "$arch" in
-    x86_64|amd64) ARCH_TAG="amd64" ;;
-    arm64|aarch64) ARCH_TAG="arm64" ;;
-    *) ARCH_TAG="" ;;
-  esac
-}
-detect_os_arch
-
-if [ -x "$JQ_DIR/jq" ]; then
-  echo "       jq ya vendorizado en $JQ_DIR/jq"
-elif command -v jq >/dev/null 2>&1; then
-  echo "       jq del sistema encontrado — no se vendoriza."
-elif [ -n "$OS_TAG" ]; then
-  JQ_URL="https://github.com/jqlang/jq/releases/latest/download/jq-${OS_TAG}-${ARCH_TAG}"
-  echo "       Descargando jq ($OS_TAG/$ARCH_TAG)..."
-  if curl -fsSL --max-time 30 -o "$JQ_DIR/jq" "$JQ_URL"; then
-    chmod +x "$JQ_DIR/jq"
-    echo "       jq vendorizado en $JQ_DIR/jq"
-  else
-    echo "  [WARN] No se pudo descargar jq. menu.sh requiere jq en PATH para" >&2
-    echo "         agregar/eliminar sitios de forma segura." >&2
+  if [ -z "$UV_ARCH" ]; then
+    echo "  [ERROR] Arquitectura no reconocida ($(uname -m)) para descargar uv." >&2
+    echo "          El CLI nativo requiere Python/uv — instalacion abortada." >&2
+    exit 1
   fi
-else
-  echo "  [WARN] SO/arquitectura no reconocidos ($(uname -s)/$(uname -m)) —" >&2
-  echo "         instala jq manualmente (apt/brew install jq)." >&2
+  echo "       Descargando uv ($UV_ARCH)..."
+  UV_TARBALL="$UV_DIR/uv.tar.gz"
+  if ! curl -fsSL --max-time 60 -o "$UV_TARBALL" \
+      "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz"; then
+    echo "  [ERROR] Descarga de uv fallo. El CLI nativo requiere Python/uv —" >&2
+    echo "          instalacion abortada." >&2
+    exit 1
+  fi
+  tar -xzf "$UV_TARBALL" -C "$UV_DIR"
+  mv "$UV_DIR/uv-${UV_ARCH}/uv" "$UV_BIN"
+  rm -rf "$UV_DIR/uv-${UV_ARCH}" "$UV_TARBALL"
+  chmod +x "$UV_BIN"
+  if [ ! -x "$UV_BIN" ]; then
+    echo "  [ERROR] Extraccion de uv fallo. Instalacion abortada." >&2
+    exit 1
+  fi
+  echo "       uv listo."
 fi
 
-if [ -x "$GUM_DIR/gum" ] || command -v gum >/dev/null 2>&1; then
-  echo "       gum disponible (o ya vendorizado)."
+if [ -x "$CLI_VENV_PY" ] && "$CLI_VENV_PY" -c "import textual" >/dev/null 2>&1; then
+  echo "       _tools/cli-venv ya provisionado (uv-managed CPython $UV_PY_VER)."
 else
-  echo "       gum no encontrado — menu.sh usara prompts de bash simples (opcional)."
+  echo "       Instalando CPython $UV_PY_VER administrado por uv..."
+  if ! "$UV_BIN" python install "$UV_PY_VER"; then
+    echo "  [ERROR] 'uv python install $UV_PY_VER' fallo. El CLI nativo requiere" >&2
+    echo "          Python — instalacion abortada. Verifica conexion a internet y reintenta." >&2
+    exit 1
+  fi
+  echo "       Creando _tools/cli-venv..."
+  if ! "$UV_BIN" venv --managed-python --python "$UV_PY_VER" "$CLI_VENV"; then
+    echo "  [ERROR] 'uv venv' fallo al crear _tools/cli-venv. Instalacion abortada." >&2
+    exit 1
+  fi
+  echo "       Instalando dependencias del CLI (textual — ver cli/requirements.txt)..."
+  if ! "$UV_BIN" pip install --python "$CLI_VENV_PY" -r "$ROOT/cli/requirements.txt"; then
+    echo "  [ERROR] 'uv pip install' fallo instalando cli/requirements.txt. Instalacion abortada." >&2
+    exit 1
+  fi
 fi
+
+# Python es ahora load-bearing en Linux tambien (spec installer-provisioning,
+# "Python Load-Bearing" — alinea Linux con el hard-fail que este script ya
+# aplicaba a `require python3`, ahora extendido al CLI venv que reemplaza
+# a menu.sh).
+if ! "$CLI_VENV_PY" -c "import textual" >/dev/null 2>&1; then
+  echo "  [ERROR] '_tools/cli-venv' no tiene 'textual' instalado tras el" >&2
+  echo "          aprovisionamiento. El CLI nativo no puede arrancar sin el. Revisa" >&2
+  echo "          la salida de 'uv pip install' arriba, o borra _tools/uv y" >&2
+  echo "          _tools/cli-venv y reintenta." >&2
+  exit 1
+fi
+echo "       _tools/cli-venv listo (Python $UV_PY_VER administrado por uv, 'import textual' OK)."
 echo
 
 echo "============================================================"
-echo " FASHION SCRAPER - SERVIDOR LISTO"
+echo " FASHION SCRAPER - TOOLCHAIN LISTO"
 echo "============================================================"
-echo "  API   : http://localhost:3000  (API-only — backend ya no sirve la SPA)"
-echo "  Panel : http://localhost:5173  (se abre desde el menu interactivo)"
-echo "  DB    : PostgreSQL 127.0.0.1:$PG_PORT/$PG_DB"
-echo "  Salir : opcion Q del menu, o Ctrl+C"
+echo "  DB  : PostgreSQL 127.0.0.1:$PG_PORT/$PG_DB"
+echo "  A continuacion: el CLI nativo compila (build), genera .env y arranca"
+echo "  backend (:3000) + frontend (:5173) desde su propio menu."
+echo "  Salir : opcion Q del CLI, o Ctrl+C"
 echo "============================================================"
 echo
 
-# ── interactive-cli-launcher (design D7) ──────────────────────────────────
-# menu.sh owns the lifecycle of both processes started here: backend
-# (background) and frontend (npm run preview --strictPort :5173). Pure
-# REST client of the existing API — no new backend endpoints. Standalone/
-# re-invocable: running "bash menu.sh" directly spawns both itself.
+# ── native-cli-installer (ADR-004): menu.sh was retired — the native CLI
+# (cli/, run on the just-provisioned _tools/cli-venv) now owns build, .env
+# generation, and backend+frontend lifecycle. Invoked with `-m cli`
+# (module form), NOT `cli/__main__.py` directly: the CLI's modules use
+# absolute `cli.*` imports, so it must run as a package with $ROOT as cwd
+# (verified empirically — running the .py file path directly raises
+# ModuleNotFoundError: No module named 'cli'). Standalone/re-invocable:
+# running "_tools/cli-venv/bin/python -m cli" from $ROOT works the same way.
 mkdir -p "$PROJECT/logs"
-cd "$PROJECT"
-java -Xmx768m -Dfile.encoding=UTF-8 -jar "$JAR" > "$PROJECT/logs/backend.out.log" 2>&1 &
-JAVA_PID=$!
-
-cd "$ROOT/frontend"
-npm run preview -- --port 5173 --strictPort &
-VITE_PID=$!
-
 cd "$ROOT"
-ROOT="$ROOT" PROJECT="$PROJECT" JAR="$JAR" FRONTEND_DIR="$ROOT/frontend" \
-  JAVA_PID="$JAVA_PID" VITE_PID="$VITE_PID" bash "$ROOT/menu.sh"
+exec "$CLI_VENV_PY" -m cli

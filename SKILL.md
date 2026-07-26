@@ -15,7 +15,7 @@ Este índice referencia todos los documentos técnicos del proyecto. Cada doc es
 | [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) | Todos los endpoints REST con params y responses | Al modificar la API o integrar con externos |
 | [`docs/migration/aggregator-solid-modularization.md`](./docs/migration/aggregator-solid-modularization.md) | Historial slice por slice de la modularización SOLID de `ar.scraper.aggregator` (NormalizerService/GroupingService/ResultAggregator → orquestadores + collaborators) | Al tocar código en `aggregator/` y necesitar entender por qué una clase quedó donde quedó |
 | [`docker-compose.yml`](./docker-compose.yml) + [`docker.env.example`](./docker.env.example) | Vía de instalación **aditiva** por Docker (`docker compose up`): 3 servicios (postgres + backend Java/Python/Playwright + frontend nginx). No reemplaza el `.bat`/`.sh`. | Al correr el proyecto con Docker o tocar la config de contenedores (ver también la topología en `ARCHITECTURE.md`) |
-| [`menu.ps1`](./menu.ps1) / [`menu.sh`](./menu.sh) | Launcher interactivo (REST client puro de la API): arranca backend + frontend, ofrece scrape/retrain/status/CRUD de sitios, teardown limpio | Al modificar el menú interactivo o el arranque de servicios del flujo portable |
+| [`cli/`](./cli/) | CLI nativo (Python): reemplaza a `menu.ps1`/`menu.sh` (retirados, `native-cli-installer` 2026-07-25) — headless `core/` (build/`.env`/REST/procesos) + presentador Textual + fallback texto plano. Arranca backend + frontend, ofrece build/scrape/retrain/status/CRUD de sitios, teardown limpio. Tests en `tests/cli/` (pytest) | Al modificar el launcher interactivo, el build, la generación de `.env`, o el arranque de servicios del flujo portable |
 
 ---
 

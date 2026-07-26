@@ -1,0 +1,26 @@
+# Dependency list for the native CLI's Python environment.
+#
+# Consumed later by `uv pip install --python _tools/cli-venv/... -r
+# cli/requirements.txt --offline` (slice 3, task 3.1.5). For now (slice 1)
+# only pytest is needed — the headless `core/` package has zero third-party
+# runtime dependencies (stdlib only: urllib, json, subprocess, pathlib).
+#
+# Pin chosen 2026-07-24 (task 1.0.2): pytest==9.1.1 is the latest pytest
+# release resolved by pip at pin time — no prior CLI pytest pin existed to
+# match, so this is a fresh "sensible current" pin, not a carried-over one.
+pytest==9.1.1
+
+# Added in slice 2 (Textual TUI presenter). Pinned 2026-07-25 (task 2.3):
+# textual==8.2.8 is the latest release resolved by pip at pin time,
+# verified locally against `App.run_test()`/`Pilot`, `@work(thread=True)`
+# workers, and `call_from_thread` (see tests/cli/test_tui_app.py). Pulls
+# in `rich`/`markdown-it-py` as transitive deps — the plain fallback
+# (`cli/plain/runner.py`) imports none of this tree, by design.
+textual==8.2.8
+
+# Test-only. Required to run the Textual Pilot tests in tests/cli/test_tui_app.py:
+# those tests are `async def` (Textual's `App.run_test()` is an async context
+# manager) and marked `@pytest.mark.asyncio`, which pytest cannot execute without
+# this plugin — a fresh install / CI would report them as failures otherwise.
+# Pinned 2026-07-25: pytest-asyncio==1.4.0 (latest resolved at pin time).
+pytest-asyncio==1.4.0

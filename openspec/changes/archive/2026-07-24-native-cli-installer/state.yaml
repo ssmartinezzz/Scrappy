@@ -1,0 +1,209 @@
+change: native-cli-installer
+artifact_store: openspec
+status: archived
+phases_completed:
+  - explore
+  - propose
+  - spec
+  - design
+  - tasks
+  - apply
+  - verify
+  - archive
+phases_pending: []
+created_at: "2026-07-24"
+archived_at: "2026-07-26"
+notes: |
+  Explore + propose originally persisted only to Engram (obs #728/#729), which
+  disconnected mid-cycle. Re-materialized on disk 2026-07-24 from the locked
+  conversation decisions so the cycle no longer depends on Engram.
+  Runs in worktree branch worktree-native-cli-installer.
+  Spec phase (2026-07-24): 5 new-domain full specs written under
+  openspec/changes/native-cli-installer/specs/ (no prior openspec/specs/
+  entries existed for these domains, so each is a FULL spec, not a delta):
+  installer-provisioning, native-cli-orchestration, env-file-generation,
+  cli-rest-contract, legacy-launcher-retirement.
+  Tasks phase (2026-07-24): openspec/changes/native-cli-installer/tasks.md
+  written — 3 slices (headless core+pytest / Textual TUI+degradation /
+  installer shrink+uv+menu.* retirement), slice 3 sequenced last and marked
+  irreversible. Hard cross-slice gate: task 1.5.1 (injection-safety pytest)
+  must be green before tasks 3.3.2-3.3.5 (menu.* deletion). Engram
+  disconnected this session — persisted to disk only, no mem_save.
+
+  Apply phase, Slice 1 of 3 (2026-07-24): Slice 1 (Headless core + pytest)
+  fully implemented and green — 25/25 tests pass. New: cli/core/{config,
+  errors,env_file,builder,rest,processes}.py, tests/cli/ (conftest + 5 test
+  modules), cli/requirements.txt (pytest==9.1.1 pinned),
+  .github/workflows/cli-tests.yml (additive, path-filtered, does not gate
+  backend-tests.yml). Task 1.5.1 [ORDERING GATE] injection-safety test is
+  GREEN. Diff is additive-only: zero changes under INSTALAR_Y_CORRER.bat,
+  Ejecutar_instalar.sh, menu.ps1, menu.sh (verified via git status).
+  Details + full pytest output + inferred pins/deviations in
+  openspec/changes/native-cli-installer/apply-progress.md.
+  Apply phase, Slice 2 of 3 (2026-07-25): Slice 2 (Textual TUI + graceful
+  degradation) fully implemented and green. New: cli/__main__.py (capability
+  detection + mode routing — the ONLY place degradation is decided),
+  cli/plain/{__init__,runner}.py (zero textual/rich imports, verified by a
+  source-text test AND by running the full suite in a venv with Textual not
+  installed at all), cli/tui/{__init__,app,widgets}.py (Textual App; all
+  core/ calls dispatch via a single @work(thread=True) worker so nothing
+  blocks the UI thread), 3 new test modules (test_main.py, test_plain_runner
+  .py, test_tui_app.py). textual==8.2.8 pinned in cli/requirements.txt —
+  verified directly against the installed package's source (App.run_test/
+  Pilot, @work(thread=True), call_from_thread, Binding priority for q/
+  ctrl+c) since this session had network access to actually pip-install it.
+  Full suite: 67/67 green with textual installed; re-ran in a second venv
+  with textual absent: 55 passed / 2 skipped (only the two TUI-import-
+  dependent items skip cleanly via pytest.importorskip) — proves the plain/
+  routing path has zero hard Textual dependency. Manual smoke: `python -m
+  cli --plain` hit a real backend already running on :3000 in this sandbox
+  (GET /api/status returned real data) and quit cleanly on `q`; the
+  interactive TUI itself was validated via Pilot tests, not a live TTY
+  (none available in this tool-driven session). Diff remains additive-only
+  (verified via git status): zero changes under INSTALAR_Y_CORRER.bat,
+  Ejecutar_instalar.sh, menu.ps1, menu.sh. Full detail in apply-progress.md.
+  Apply phase, Slice 3 of 3 (2026-07-25, IRREVERSIBLE, FINAL): gate check
+  3.3.1 re-verified GREEN (67/67 pytest incl. injection-safety) BEFORE any
+  deletion. Deleted menu.ps1, menu.sh, tests/menu.Tests.ps1, tests/
+  menu_test.sh. Added uv + _tools/cli-venv provisioning (uv==0.11.32,
+  uv-managed CPython 3.11.9, --managed-python venv, `uv pip install -r
+  cli/requirements.txt`, `import textual` acceptance check, hard-fail on
+  any step) to both INSTALAR_Y_CORRER.bat and Ejecutar_instalar.sh. Shrank
+  both installers: removed npm/mvn build steps, jar copy, and the .env
+  echo/heredoc block; removed Ejecutar_instalar.sh's jq/gum vendoring
+  (menu.sh-only dependency, per design.md §9's table — this deviates from
+  one paraphrased orchestrator instruction that said "keep jq/gum", which
+  contradicted both design.md and tasks.md task 3.2.3; resolved in favor of
+  the authoritative design/tasks artifacts). Installer tails now invoke the
+  CLI via `-m cli` module form (NOT `cli\__main__.py`/`cli/__main__.py` as
+  a direct script path, which was verified empirically to fail with
+  ModuleNotFoundError given the CLI's absolute `cli.*` imports — a
+  deviation from the literal task/design wording, documented in
+  apply-progress.md). Verified installer/CLI boundary invariant via grep
+  (zero executable npm/mvn/jar-copy/.env-write commands in installers;
+  zero download/extract/install commands in cli/). Updated CLAUDE.md,
+  docs/ARCHITECTURE.md (new dedicated CLI-launcher section), SKILL.md,
+  docs/API_REFERENCE.md, docker-compose.yml comment. Real end-to-end
+  validation this session (Linux sandbox): ran `bash Ejecutar_instalar.sh`
+  against the actual worktree — real uv download, real uv-managed CPython
+  3.11.9 install, real _tools/cli-venv creation, real `uv pip install`,
+  `import textual` passed, tail invoked `-m cli` which reached a live
+  backend on :3000 via `status` and quit cleanly on `q` with zero orphan
+  processes. Re-ran `pytest tests/cli` directly against that real
+  `_tools/cli-venv` afterward: 67/67 green. Windows (.bat) NOT executed
+  end-to-end this session (no Windows sandbox available) — task 3.5.1
+  left unchecked in tasks.md as a residual follow-up, mirroring this
+  project's existing accepted convention for Windows-only manual gaps.
+  All three slices of native-cli-installer are implementation-complete;
+  `apply` moves to phases_completed on that basis. Full detail, deviations, and evidence tables in
+  apply-progress.md. Engram still disconnected this session — persisted
+  to disk only, no mem_save.
+
+  Verify phase (2026-07-26): FAILED. sdd-verify ran the full pytest suite
+  twice (67/67 with textual installed, 55 passed/2 skipped without —
+  matching apply-progress's claims exactly) and confirmed 20/22 spec
+  scenarios genuinely compliant with real passing tests, plus the seam
+  invariant (installer never builds; CLI never provisions toolchain) and
+  legacy launcher deletion. ONE CRITICAL blocker found and empirically
+  reproduced: `cli/core/builder.py`'s VITE_API_BASE_URL Build-Time Export
+  Ordering does NOT work against this repo's REAL `.env.example` files —
+  builder.py/env_file.py only read/write the root `.env.example`/`.env`,
+  but this repo's real root `.env.example` does not contain
+  `VITE_API_BASE_URL` as an active key (it lives only in the separate
+  `frontend/.env.example`, itself commented out by default — a pre-existing
+  split from `decouple-services-postgres`) and `APP_OPEN_URL` is commented
+  out too. Ran `generate_env()` directly against the real `.env.example` in
+  this session: the resulting `.env` has 5 of the 7 spec-required keys, not
+  7 — VITE_API_BASE_URL and APP_OPEN_URL are silently omitted. Consequence:
+  the CLI's `build` action would break `vite build` (which fails fast
+  without a real `VITE_API_BASE_URL` process env var) against the real
+  repo — the exact hazard this change's headline feature claims to solve.
+  The passing unit test (`test_vite_api_base_url_present_in_env_before_npm_run_build`)
+  is a false positive: it fabricates a synthetic `.env.example` with
+  VITE_API_BASE_URL as an active key, not matching real project state.
+  Full detail, evidence, and suggested fix paths in verify.md. `verify`
+  stays in phases_pending; NOT advanced to phases_completed. Engram
+  disconnected this session — persisted to disk only.
+
+  Apply correction (2026-07-26): scoped sdd-apply correction closing
+  verify.md CRITICAL-1. Strict TDD: fixed tests/cli/test_builder.py's
+  _bare_project fixture to faithfully mirror the real root/frontend
+  .env.example split BEFORE touching implementation; confirmed RED against
+  the pre-fix builder.py (KeyError 'VITE_API_BASE_URL'). Fix: activated
+  VITE_API_BASE_URL in frontend/.env.example (its D6-correct home);
+  cli/core/builder.py's build_project() now generates/reconciles
+  frontend/.env from frontend/.env.example under the same contract as the
+  root .env, merging both into the child_env passed to npm install/npm run
+  build. Confirmed GREEN. Full pytest tests/cli: 67/67 (textual installed)
+  and 55 passed/2 skipped (textual absent) — identical to the original
+  verify.md counts, zero regressions. specs/env-file-generation/spec.md,
+  design.md, tasks.md updated accordingly. APP_OPEN_URL left intentionally
+  commented (out of this correction's bounded scope — not read by npm run
+  build or any cli/ module; documented in apply-progress.md). Only
+  frontend/.env.example, cli/core/builder.py, tests/cli/test_builder.py, and
+  the SDD artifacts were touched — no installer/docs/other cli/ file
+  changed, no commit made. `apply` remains in phases_completed (the
+  correction is a bounded fix within the already-applied change, not a new
+  apply cycle); `verify` remains in phases_pending pending a fresh
+  sdd-verify pass. Engram disconnected this session — persisted to disk
+  only.
+
+  Verify phase RE-VERIFY (2026-07-26, same day, after the correction):
+  VERIFIED-WITH-NOTES. sdd-verify independently re-reproduced CRITICAL-1's
+  closure against the REAL repo files (not the correction's own claims) by
+  running the actual production generate_env()/parse_env() code path
+  against the real root .env.example and frontend/.env.example, confirming
+  child_env would contain VITE_API_BASE_URL=http://localhost:3000 in a real
+  build; confirmed via git status/file content that root .env.example
+  remains byte-unchanged (D6 preserved) and only frontend/.env.example was
+  newly modified. Confirmed tests/cli/test_builder.py's _bare_project
+  fixture is a faithful (non-tautological) regression guard, matching the
+  correction's embedded RED (KeyError against pre-fix builder.py) -> GREEN
+  transcript. Confirmed the new "Frontend Env Generation Mirrors the Root
+  Contract" requirement in specs/env-file-generation/spec.md maps to
+  implemented code (builder.py's second generate_env/parse_env call) and
+  test coverage. Re-ran the full pytest suite in two fresh scratchpad
+  venvs this session: 67/67 passed (textual installed), 55 passed/2
+  skipped (textual absent) -- identical to all prior counts, zero
+  regressions across the other 20 previously-passing scenarios (spot-
+  checked injection-safety and env-file-generation targeted subsets too).
+  Confirmed via rg that no cli/ module reads APP_OPEN_URL at runtime --
+  accurately tracked as a NOTE, not a blocker. 24/24 scenarios now
+  compliant (2 upgraded from FAILING, 2 new from the correction's added
+  requirement, 20 unaffected). Two pre-existing non-blocking gaps remain
+  (task 3.5.1 Windows manual run; live-toolchain smoke of orchestrated
+  startup) -- both already accepted, neither related to CRITICAL-1, hence
+  VERIFIED-WITH-NOTES rather than a bare VERIFIED. verify moves to
+  phases_completed; archive remains pending. Full detail in verify.md
+  (overwritten with this re-verify report; prior FAIL report's content is
+  preserved as a "History" section at the top of the new verify.md).
+  Engram MCP disconnected this session too -- persisted to disk only, no
+  mem_save.
+
+  Archive phase (2026-07-26): sdd-archive executed. All 5 spec files moved
+  from openspec/changes/native-cli-installer/specs/ to canonical
+  openspec/specs/{installer-provisioning,native-cli-orchestration,env-file-generation,
+  cli-rest-contract,legacy-launcher-retirement}/ tree. Change folder moved
+  to openspec/changes/archive/2026-07-24-native-cli-installer/ with all
+  phase artifacts (explore, proposal, design, tasks, apply-progress, verify,
+  state, archive-report). state.yaml updated: phases_completed now includes
+  'archive', phases_pending emptied, status set to 'archived'. Archive report
+  summarizes the delivered solution (installers→provisioners-only, native
+  Python/Textual CLI, menu.* retirement, uv/_tools/cli-venv, template-driven
+  .env incl. frontend/.env), the verify verdict (VERIFIED-WITH-NOTES), and
+  CRITICAL-1 closure (independently re-verified against real repo files).
+  Two pre-existing non-blocking gaps documented as accepted intentional gaps.
+  No blockers remain. Engram MCP disconnected throughout; all work persisted
+  to disk only.
+
+blockers: []
+resolved_blockers:
+  - "CRITICAL-1 (cli/core/builder.py + cli/core/env_file.py did not export
+    VITE_API_BASE_URL/APP_OPEN_URL into the generated .env against this
+    repo's REAL root .env.example) -- CLOSED. Fixed via a scoped sdd-apply
+    correction (see apply-progress.md 'Correction: verify.md CRITICAL-1'
+    and tasks.md 'Correction: verify.md CRITICAL-1 (2026-07-26)', tasks
+    C1.1-C1.5, all [x]). Independently re-verified against real repo
+    templates by the RE-VERIFY sdd-verify pass on 2026-07-26 (see verify.md
+    'CRITICAL-1 Closure Evidence' section for full reproduction). No
+    remaining blockers; change is ready for sdd-archive."
