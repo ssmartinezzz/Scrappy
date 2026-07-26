@@ -10,7 +10,7 @@
 
 **Razón**: es una herramienta local mono-usuario en Windows, no un servicio desplegado. Para ese escenario, un `.bat` que descarga Java + Postgres portable + Node + Python y ejecuta `java -jar scraper.jar` es la UX más simple posible: cero-setup, sin infraestructura previa. No hay Dockerfile, no hay instalaciones previas, no hay conflictos de versiones.
 
-**Actualización (docker-install-alternative, 2026-07-21)**: la afirmación "no hay Dockerfile" de arriba queda como contexto histórico de por qué el installer portable fue la primera opción, no como estado actual — ahora existe una alternativa Docker **aditiva** (`Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml`) para quien prefiera `docker compose up` en vez del `.bat`/`Ejecutar_instalar.sh` portable. Es un camino de instalación adicional, no un reemplazo: el installer portable, `menu.ps1`/`menu.sh` y `_tools/` siguen intactos y sin cambios. El backend usa la imagen `mcr.microsoft.com/playwright/java:v1.44.0-jammy` (Chromium + libs ya matcheadas a `playwright.version=1.44.0`) con Temurin 21 instalado explícitamente encima (la imagen base trae JDK 17) y Python 3.11 + deps ML (`psycopg2-binary`, `torch`/`torchvision` CPU, `open_clip_torch`, `huggingface_hub`, `transformers`) para que `PythonRunner.detectarPython()` resuelva `python3` por PATH sin necesitar `_tools/`. El frontend usa un build multi-stage (`node:20-alpine` → `nginx:alpine`) con `VITE_API_BASE_URL` como build ARG. Volúmenes nombrados (`pgdata`, `models`, `logs`) preservan datos y pesos ML descargados entre `docker compose down`/`up`. Ver `docker.env.example` para la plantilla de variables de este modo (distinta de `.env.example`).
+**Actualización (docker-install-alternative, 2026-07-21)**: la afirmación "no hay Dockerfile" de arriba queda como contexto histórico de por qué el installer portable fue la primera opción, no como estado actual — ahora existe una alternativa Docker **aditiva** (`Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml`) para quien prefiera `docker compose up` en vez del `.bat`/`Ejecutar_instalar.sh` portable. Es un camino de instalación adicional, no un reemplazo: el installer portable y `_tools/` siguen intactos y sin cambios (el launcher interactivo que el installer portable invoca en su tail pasó de `menu.ps1`/`menu.sh` al CLI nativo en `cli/` — ver `native-cli-installer` más abajo — sin afectar este camino Docker). El backend usa la imagen `mcr.microsoft.com/playwright/java:v1.44.0-jammy` (Chromium + libs ya matcheadas a `playwright.version=1.44.0`) con Temurin 21 instalado explícitamente encima (la imagen base trae JDK 17) y Python 3.11 + deps ML (`psycopg2-binary`, `torch`/`torchvision` CPU, `open_clip_torch`, `huggingface_hub`, `transformers`) para que `PythonRunner.detectarPython()` resuelva `python3` por PATH sin necesitar `_tools/`. El frontend usa un build multi-stage (`node:20-alpine` → `nginx:alpine`) con `VITE_API_BASE_URL` como build ARG. Volúmenes nombrados (`pgdata`, `models`, `logs`) preservan datos y pesos ML descargados entre `docker compose down`/`up`. Ver `docker.env.example` para la plantilla de variables de este modo (distinta de `.env.example`).
 
 Topología del modo Docker (mapea 1:1 a los 3 servicios de abajo; el ML sigue
 siendo un subprocess **dentro** del contenedor backend, no un servicio propio):
@@ -181,6 +181,83 @@ Capas internas del backend (sin cambios de forma, solo el datasource):
 │   PythonRunner → ml_pipeline.py         │  ML subprocess (psycopg2)
 └─────────────────────────────────────────┘
 ```
+
+---
+
+### Launcher: CLI nativo (`native-cli-installer`, 2026-07-25)
+
+Supersede el launcher `menu.ps1`/`menu.sh` (`interactive-cli-launcher`, PR
+#108) — ambos scripts, y sus tests (`tests/menu.Tests.ps1`/
+`tests/menu_test.sh`), fueron **retirados** (borrados).
+
+**El seam se movió:** antes, `INSTALAR_Y_CORRER.bat`/`Ejecutar_instalar.sh`
+compilaban el proyecto (`npm install`/`npm run build`, `mvn clean package`),
+generaban `.env` con un bloque `echo`/`cat` hardcodeado, y en su tail
+invocaban `menu.ps1`/`menu.sh`. Ahora:
+
+- Los installers **solo aprovisionan el toolchain**: JDK, Maven, Node, el
+  Python 3.11 embeddable + deps ML (torch/scikit-learn/Marqo, sin cambios),
+  PostgreSQL portable, y — nuevo — `uv` + un `_tools/cli-venv` dedicado.
+- El **CLI nativo** (`cli/`, Python) posee todo lo que antes hacía el
+  installer post-toolchain: build (`npm`+`mvn` vía las rutas vendorizadas
+  en `_tools/`), generación/reconciliación de `.env` (template-driven desde
+  `.env.example` — crea si falta, nunca pisa valores existentes salvo
+  `--regenerate`/`--force`), y la orquestación de backend (`:3000`) +
+  frontend (`npm run preview` en `:5173`), incluyendo el mismo teardown
+  limpio en `Q`/`Ctrl+C` y la carga JVM `-DDATABASE_PASSWORD=<valor, incluso
+  vacío>` que evita el bug de Windows con variables de entorno vacías.
+- **Invariante (bloqueado por diseño):** el installer nunca compila el
+  proyecto; el CLI nunca descarga ni instala un componente del toolchain
+  bajo `_tools/`.
+
+**Arquitectura del CLI** (headless core + presentadores, no una app Textual
+monolítica):
+
+```
+cli/
+├── __main__.py        # entry point: detección de capacidad + routing
+├── core/               # HEADLESS — cero imports de textual/rich, testeable con pytest
+│   ├── config.py        #   repo-root, paths de _tools/, puertos
+│   ├── env_file.py       #   .env template-driven (crea/reconcilia/--force)
+│   ├── builder.py        #   npm+mvn, ordenamiento de VITE_API_BASE_URL
+│   ├── rest.py            #   cliente REST de la API existente (json.dumps, sin shell)
+│   ├── processes.py       #   lifecycle backend+frontend + teardown funnel
+│   └── errors.py          #   excepciones tipadas con mensaje accionable
+├── tui/                 # PRESENTADOR — Textual App, solo presentación
+└── plain/                # FALLBACK — driver de texto plano sobre el MISMO core
+```
+
+`__main__.py` decide UNA vez, antes de construir cualquier presentador, si
+la terminal soporta la TUI interactiva (`isatty`, `NO_COLOR`, `TERM=dumb`,
+`--plain`, `cmd.exe` legacy sin ANSI, o Textual no instalable) — si no,
+degrada al runner de texto plano sobre el mismo `core/`. Nunca crashea.
+
+**Aislamiento del venv del CLI (`_tools/cli-venv`):** construido por `uv`
+sobre un **CPython 3.11.9 administrado por uv** (`uv python install` +
+`uv venv --managed-python`), **NO** sobre el Python embeddable de ML
+(`_tools/python`). El CLI nunca importa librerías ML, así que este venv no
+comparte nada con el pipeline de imágenes y no arriesga el guard de versión
+de `torch` que el bloque ML del `.bat` ya protege. Esto también elimina por
+construcción el riesgo de bootstrap que tendría reusar el embeddable (su
+`python311._pth` congela `sys.path` de una forma que podría filtrarse a un
+venv construido encima). `import textual` es el acceptance check del
+installer — si falla tras el aprovisionamiento, el install aborta con un
+mensaje accionable (Python es ahora load-bearing en Windows, igual que ya
+lo era en POSIX).
+
+**Invocación:** `_tools/cli-venv/{Scripts/python.exe,bin/python} -m cli`,
+corrido con cwd = raíz del repo — **no** `cli/__main__.py` como ruta de
+script directa, que falla con `ModuleNotFoundError: No module named 'cli'`
+porque los módulos del CLI usan imports absolutos `cli.*` que solo resuelven
+cuando la raíz del repo está en `sys.path` (el caso de `-m cli`, no el de
+invocar el archivo directamente).
+
+**Tests:** `tests/cli/` (pytest) — unit tests del `core/` headless, tests
+`Pilot` de Textual para el `tui/`, tests de degradación del routing, y un
+test de **injection-safety** (`json.dumps` con input hostil `a"b;$(x)`
+round-tripea como un único campo JSON bien formado, sin invocar shell) que
+reemplaza estructuralmente a los viejos `tests/menu.Tests.ps1`/
+`tests/menu_test.sh`.
 
 ---
 
