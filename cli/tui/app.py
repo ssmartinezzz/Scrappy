@@ -24,12 +24,18 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Footer, Header, Input
 
+from cli.core import health
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
+from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient
-from cli.tui.widgets import LogTail, StatusPanel
+from cli.tui.widgets import HealthPanel, LogTail, StatusPanel
+
+# How often (seconds) the health panel re-probes build state + service
+# ports, so a service coming up flips ○ -> ● without any user action.
+HEALTH_REFRESH_SECONDS = 2.0
 
 
 class FashionScraperApp(App):
@@ -67,6 +73,15 @@ class FashionScraperApp(App):
     #main {
         padding: 1 2;
         height: 1fr;
+    }
+    #health {
+        height: auto;
+        padding: 1 2;
+        margin-bottom: 1;
+        background: $boost;
+        border: round $success;
+        border-title-color: $success;
+        border-title-align: left;
     }
     #status {
         height: auto;
@@ -136,6 +151,7 @@ class FashionScraperApp(App):
         processes: Optional[ProcessManager] = None,
         open_url: Optional[str] = None,
         opener: Callable[[str], object] = webbrowser.open,
+        connect: Optional[ConnectFn] = None,
     ) -> None:
         super().__init__()
         self.cfg = cfg
@@ -143,6 +159,9 @@ class FashionScraperApp(App):
         self.processes = processes or ProcessManager()
         self.open_url = open_url
         self.opener = opener
+        # Socket probe used by the health panel; injectable so tests never
+        # touch a real port (defaults to a real TCP connect).
+        self.connect = connect
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -159,6 +178,7 @@ class FashionScraperApp(App):
                 yield Button("Open dashboard", id="btn-open", variant="primary")
                 yield Button("Quit", id="btn-quit", variant="error")
             with Vertical(id="main"):
+                yield HealthPanel(id="health")
                 yield StatusPanel(id="status")
                 with Vertical(id="site-form"):
                     yield Input(placeholder="nombre del sitio", id="site-nombre")
@@ -169,10 +189,31 @@ class FashionScraperApp(App):
 
     def on_mount(self) -> None:
         """Border titles are set post-mount so they render reliably
-        regardless of Textual's compose-time attribute timing."""
+        regardless of Textual's compose-time attribute timing. Kicks off
+        the health poll: one immediate refresh, then every
+        `HEALTH_REFRESH_SECONDS` so services flip ○ -> ● as they come up."""
+        self.query_one("#health").border_title = "Servicios / Build"
         self.query_one("#status").border_title = "Estado"
         self.query_one("#site-form").border_title = "Sitio · Add (a) / Delete (x)"
         self.query_one("#log").border_title = "Log"
+        self._refresh_health()
+        self.set_interval(HEALTH_REFRESH_SECONDS, self._refresh_health)
+
+    # -- health poll -------------------------------------------------
+
+    @work(thread=True, exclusive=True, group="health")
+    def _refresh_health(self) -> None:
+        """Compute the build + service report off the UI thread (the TCP
+        probes block briefly) and marshal it back for rendering. `exclusive`
+        + a fixed group means overlapping ticks never pile up."""
+        report = health.health_report(self.cfg, connect=self.connect)
+        self.call_from_thread(self._apply_health, report)
+
+    def _apply_health(self, report) -> None:
+        try:
+            self.query_one("#health", HealthPanel).update_health(report)
+        except Exception:  # noqa: BLE001 - panel may not be mounted yet
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Route a sidebar click to the same `action_*` method its matching
@@ -214,6 +255,10 @@ class FashionScraperApp(App):
         self.call_from_thread(self._log, f"{label}: {result}")
         if label == "status":
             self.call_from_thread(self._set_status, result)
+        if label in ("build", "start"):
+            # A build or a launch just changed local state — reflect it in
+            # the health panel now instead of waiting for the next tick.
+            self.call_from_thread(self._refresh_health)
 
     # -- action methods (menu operations) ----------------------------
 

@@ -13,8 +13,9 @@ import pytest
 textual = pytest.importorskip("textual", reason="textual not installed in this environment")
 
 from cli.core.config import Config, Ports, ToolchainPaths  # noqa: E402
+from cli.core.health import Check  # noqa: E402
 from cli.tui.app import FashionScraperApp  # noqa: E402
-from cli.tui.widgets import StatusPanel  # noqa: E402
+from cli.tui.widgets import HealthPanel, StatusPanel  # noqa: E402
 
 
 def _cfg(tmp_path) -> Config:
@@ -77,10 +78,16 @@ class _FakeProcesses:
         self.shutdown_called = True
 
 
-def _make_app(tmp_path):
+def _make_app(tmp_path, connect=lambda *a: False):
     rest = _FakeRest()
     processes = _FakeProcesses()
-    app = FashionScraperApp(_cfg(tmp_path), rest=rest, processes=processes, opener=lambda url: opened.append(url))
+    app = FashionScraperApp(
+        _cfg(tmp_path),
+        rest=rest,
+        processes=processes,
+        opener=lambda url: opened.append(url),
+        connect=connect,  # stubbed: health probes never touch a real port
+    )
     return app, rest, processes
 
 
@@ -216,3 +223,29 @@ async def test_status_result_is_reflected_in_status_panel(tmp_path):
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert "ocioso" in app.query_one("#status", StatusPanel).status_text
+
+
+def test_health_panel_rows_mark_up_and_down():
+    """Pure row builder: an `ok` check gets the green ●, a down check the
+    red ○ — no widget mounting required."""
+    text = HealthPanel.rows([Check("Backend", True, ":3000"), Check("Postgres", False, ":5432")])
+    assert "[b green]●[/]" in text and "Backend" in text
+    assert "[b red]○[/]" in text and "Postgres" in text
+
+
+@pytest.mark.asyncio
+async def test_health_panel_populates_on_mount_from_connect_probe(tmp_path):
+    """On mount the health poll runs off-thread and fills the panel; the
+    injected connect (backend port up, rest down) drives the markers."""
+
+    def connect(host, port, timeout=0.35):
+        return port == 3000  # only the backend is "up"
+
+    app, _, _ = _make_app(tmp_path, connect=connect)
+    async with app.run_test() as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        rendered = app.query_one("#health", HealthPanel).last_rows
+    assert "Backend" in rendered and "Postgres" in rendered and "Frontend" in rendered
+    assert "[b green]●[/] Backend" in rendered   # backend probe was up
+    assert "[b red]○[/] Postgres" in rendered    # postgres probe was down
