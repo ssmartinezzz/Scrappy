@@ -1,11 +1,16 @@
 """Textual presenter: a thin `App` over the same headless `core/` the
 plain runner drives (design.md §2, ADR-001). Holds NO business logic of
-its own — every action method below is a one-line call into `core/`,
+its own -- every action method below is a one-line call into `core/`,
 dispatched off the UI thread via a `@work(thread=True)` worker so a
 blocking REST call or a multi-minute build never freezes rendering.
 
+Actions are reachable two ways, both routing to the same `action_*`
+methods: the single-key `BINDINGS` (shown in the Footer) and the clickable
+`Button`s in the sidebar (`on_button_pressed`). The look -- layout, borders,
+colours -- is the `CSS` block below; widgets stay presentation-only.
+
 `cli/__main__.py` is the only place that decides whether this module gets
-imported at all (capability-detection routing) — this file assumes
+imported at all (capability-detection routing) -- this file assumes
 Textual is present, by design.
 """
 from __future__ import annotations
@@ -16,15 +21,15 @@ from typing import Callable, Optional
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.widgets import Footer, Header, Input
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, Footer, Header, Input
 
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient
-from cli.tui.widgets import LogTail, MenuPanel, StatusPanel
+from cli.tui.widgets import LogTail, StatusPanel
 
 
 class FashionScraperApp(App):
@@ -32,6 +37,68 @@ class FashionScraperApp(App):
     `Q` and `Ctrl+C` both tear down backend + frontend before exiting."""
 
     TITLE = "Fashion Scraper"
+    SUB_TITLE = "CLI nativo · build · orquestación · REST"
+
+    CSS = """
+    Screen {
+        background: $background;
+    }
+
+    #body {
+        height: 1fr;
+    }
+
+    /* -- left: clickable action buttons ------------------------------ */
+    #sidebar {
+        width: 30;
+        padding: 1 2;
+        background: $panel;
+        border-right: tall $primary;
+    }
+    #sidebar Button {
+        width: 100%;
+        margin-bottom: 1;
+    }
+    #sidebar .spacer {
+        height: 1fr;
+    }
+
+    /* -- right: status / site form / log ----------------------------- */
+    #main {
+        padding: 1 2;
+        height: 1fr;
+    }
+    #status {
+        height: auto;
+        min-height: 3;
+        padding: 1 2;
+        margin-bottom: 1;
+        color: $text;
+        background: $boost;
+        border: round $accent;
+        border-title-color: $accent;
+        border-title-align: left;
+    }
+    #site-form {
+        height: auto;
+        padding: 1 2;
+        margin-bottom: 1;
+        border: round $secondary;
+        border-title-color: $secondary;
+        border-title-align: left;
+    }
+    #site-form Input {
+        margin-bottom: 1;
+    }
+    #log {
+        height: 1fr;
+        padding: 0 1;
+        background: $surface;
+        border: round $primary;
+        border-title-color: $primary;
+        border-title-align: left;
+    }
+    """
 
     BINDINGS = [
         Binding("q", "quit_app", "Quit", priority=True),
@@ -46,6 +113,21 @@ class FashionScraperApp(App):
         Binding("x", "delete_site", "Delete site"),
         Binding("o", "open_dashboard", "Open dashboard"),
     ]
+
+    # Sidebar button id -> the `action_<name>` method it triggers. Keeps
+    # click dispatch and key dispatch pointed at the exact same handlers.
+    _BUTTON_ACTIONS = {
+        "btn-build": "do_build",
+        "btn-start": "start_services",
+        "btn-scrape": "scrape",
+        "btn-retrain": "retrain",
+        "btn-status": "status",
+        "btn-list": "list_sites",
+        "btn-add": "add_site",
+        "btn-delete": "delete_site",
+        "btn-open": "open_dashboard",
+        "btn-quit": "quit_app",
+    }
 
     def __init__(
         self,
@@ -63,15 +145,41 @@ class FashionScraperApp(App):
         self.opener = opener
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        yield StatusPanel(id="status")
-        yield MenuPanel(id="menu")
-        with Vertical(id="site-form"):
-            yield Input(placeholder="site name (nombre)", id="site-nombre")
-            yield Input(placeholder="site url", id="site-url")
-            yield Input(placeholder="platform (default: tiendanube)", id="site-plataforma")
-        yield LogTail(id="log")
+        yield Header(show_clock=True)
+        with Horizontal(id="body"):
+            with Vertical(id="sidebar"):
+                yield Button("Build", id="btn-build", variant="primary")
+                yield Button("Start services", id="btn-start", variant="success")
+                yield Button("Scrape", id="btn-scrape", variant="primary")
+                yield Button("Retrain", id="btn-retrain", variant="warning")
+                yield Button("Status", id="btn-status")
+                yield Button("List sites", id="btn-list")
+                yield Button("Add site", id="btn-add", variant="success")
+                yield Button("Delete site", id="btn-delete", variant="error")
+                yield Button("Open dashboard", id="btn-open", variant="primary")
+                yield Button("Quit", id="btn-quit", variant="error")
+            with Vertical(id="main"):
+                yield StatusPanel(id="status")
+                with Vertical(id="site-form"):
+                    yield Input(placeholder="nombre del sitio", id="site-nombre")
+                    yield Input(placeholder="url del sitio", id="site-url")
+                    yield Input(placeholder="plataforma (default: tiendanube)", id="site-plataforma")
+                yield LogTail(id="log", highlight=False)
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Border titles are set post-mount so they render reliably
+        regardless of Textual's compose-time attribute timing."""
+        self.query_one("#status").border_title = "Estado"
+        self.query_one("#site-form").border_title = "Sitio · Add (a) / Delete (x)"
+        self.query_one("#log").border_title = "Log"
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Route a sidebar click to the same `action_*` method its matching
+        key binding would fire. Unknown ids are ignored (never crash)."""
+        action = self._BUTTON_ACTIONS.get(event.button.id or "")
+        if action is not None:
+            getattr(self, f"action_{action}")()
 
     # -- logging / status helpers -----------------------------------
 
@@ -157,7 +265,7 @@ class FashionScraperApp(App):
         self._log(f"Opened {url}")
 
     def action_quit_app(self) -> None:
-        """Bound to both `q` and `ctrl+c` — the clean-teardown funnel
+        """Bound to both `q` and `ctrl+c` -- the clean-teardown funnel
         (spec: native-cli-orchestration, "Clean teardown on exit")."""
         self.processes.shutdown_all()
         self.exit()
