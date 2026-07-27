@@ -8,8 +8,11 @@ block; these classes only hold the tiny bit of state the App updates.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Iterable
 
 from textual.widgets import Log, Static
+
+from cli.core.health import Check
 
 
 class StatusPanel(Static):
@@ -25,6 +28,33 @@ class StatusPanel(Static):
     def update_status(self, payload: object) -> None:
         self.status_text = f"status: {payload}"
         self.update(self.status_text)
+
+
+class HealthPanel(Static):
+    """Renders the local build + service health report as a column of
+    coloured indicator rows. `Check` values are entirely CLI-derived (path
+    labels, `:port`), never user input, so Rich markup here is safe.
+
+    `rows()` is a pure string builder (no widget state) so it is testable
+    without mounting; `last_rows` records what was last rendered for the
+    same reason."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.last_rows = "consultando…"
+        self.update(self.last_rows)
+
+    @staticmethod
+    def rows(checks: Iterable[Check]) -> str:
+        out = []
+        for c in checks:
+            mark = "[b green]●[/]" if c.ok else "[b red]○[/]"
+            out.append(f"{mark} {c.name:<15}[dim]{c.detail}[/]")
+        return "\n".join(out) if out else "sin datos"
+
+    def update_health(self, checks: Iterable[Check]) -> None:
+        self.last_rows = self.rows(checks)
+        self.update(self.last_rows)
 
 
 class LogTail(Log):
