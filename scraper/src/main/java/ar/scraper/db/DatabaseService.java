@@ -865,23 +865,46 @@ public class DatabaseService {
     }
 
     /**
-     * UPDATE compartido de categoria/marca/genero/talles/sub_categoria — extraído
-     * de {@link #actualizarNormalizacion} (agent-chat-finetune WU1) para que
-     * también lo reutilice {@link #aplicarReclasificacionAuditada} dentro de su
-     * propia transacción. Devuelve directamente el row count de
-     * {@code executeUpdate()}: el llamador SIEMPRE debe mirarlo (descartar este
-     * valor era la raíz del defecto "silent success" original).
+     * UPDATE compartido de clasificación (categoria/marca/genero/sub_categoria) +
+     * talles — extraído de {@link #actualizarNormalizacion} (agent-chat-finetune
+     * WU1), reutilizado por {@link #aplicarReclasificacionAuditada} (camino
+     * humano, dentro de su propia transacción) y por {@link #actualizarNormalizacion}
+     * (camino de máquina). {@code respectLock} decide si se agrega el guard
+     * {@code AND bloqueado_por IS NULL} a la sentencia de clasificación —
+     * {@code false} para el camino humano (una segunda confirmación debe poder
+     * re-lockear un producto ya bloqueado), {@code true} para el de máquina.
+     * Un único parámetro booleano en vez de dos sentencias mantenidas por
+     * separado (review fix F1, manual-classification-lock): antes de este fix,
+     * {@link #actualizarNormalizacion} traía su propio UPDATE duplicado
+     * hand-rolled con el guard, y este método quedaba sin usar desde ahí pese
+     * a lo que su JavaDoc afirmaba.
+     *
+     * <p>{@code talles} SIEMPRE se escribe en su PROPIA sentencia, sin guard:
+     * no es una columna bloqueada (design D3 — {@code SpUpsertRunColumnCoverageTest}
+     * la clasifica OVERWRITTEN, no LOCKED, y {@code sp_upsert_run} la sobrescribe
+     * siempre sin importar el estado del lock). Bundlearla dentro del UPDATE
+     * guardado congelaba {@code talles} en un producto bloqueado, contradiciendo
+     * esa misma taxonomía (review fix F2). El row count devuelto es el de la
+     * sentencia de CLASIFICACIÓN — la única que puede ser bloqueada — y es lo
+     * que el llamador SIEMPRE debe mirar (descartar este valor era la raíz del
+     * defecto "silent success" original).</p>
      */
     private int updateNormalizacion(Connection c, String url, String categoria, String marca,
-                                     String genero, List<String> talles, String subCategoria) throws Exception {
-        try (PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
+                                     String genero, List<String> talles, String subCategoria,
+                                     boolean respectLock) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement("UPDATE productos SET talles=? WHERE url=?")) {
+            ps.setString(1, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
+            ps.setString(2, url);
+            ps.executeUpdate();
+        }
+        String sql = "UPDATE productos SET categoria=?, marca=?, genero=?, sub_categoria=? WHERE url=?"
+                + (respectLock ? " AND bloqueado_por IS NULL" : "");
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, categoria != null ? categoria : "");
             ps.setString(2, marca != null ? marca : "");
             ps.setString(3, genero != null ? genero : "");
-            ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-            ps.setString(5, subCategoria != null ? subCategoria : "");
-            ps.setString(6, url);
+            ps.setString(4, subCategoria != null ? subCategoria : "");
+            ps.setString(5, url);
             return ps.executeUpdate();
         }
     }
@@ -891,35 +914,27 @@ public class DatabaseService {
      * DB sin re-scrapear. Usado por la re-normalización bulk del catálogo
      * ({@code ResultAggregator#renormalizarCatalogo}): aplica las reglas
      * actuales de {@code NormalizerService} sobre datos ya persistidos.
-     * Devuelve el row count real del UPDATE (0 si la url no existe o hubo una
-     * excepción) — el llamador lo usa para distinguir "escritura intentada" de
-     * "escritura aplicada" (agent-chat-finetune WU1/WU2; antes de este fix este
-     * método era {@code void} y el bulk path contaba cambios intentados como si
-     * hubieran sido efectivamente persistidos).
+     * Devuelve el row count real del UPDATE de clasificación (0 si la url no
+     * existe, el producto está bloqueado, o hubo una excepción) — el llamador
+     * lo usa para distinguir "escritura intentada" de "escritura aplicada"
+     * (agent-chat-finetune WU1/WU2; antes de este fix este método era
+     * {@code void} y el bulk path contaba cambios intentados como si hubieran
+     * sido efectivamente persistidos).
      *
      * <p>Camino de MÁQUINA (design D5) — llamado desde el bulk path de
      * {@code ResultAggregator.renormalizarCatalogo} ({@code POST /api/ml/renormalizar}).
-     * A diferencia de la {@code updateNormalizacion} privada compartida (que
-     * este método reutiliza), ESTE método público lleva el guard
-     * {@code AND bloqueado_por IS NULL}: un 0-row-count aquí sobre un producto
-     * bloqueado es el comportamiento correcto, no una falla — Phase 6 lo
-     * distingue de una escritura fallida real.</p>
+     * Reutiliza la {@code updateNormalizacion} privada compartida con
+     * {@code respectLock=true} (review fix F1): un 0-row-count aquí sobre un
+     * producto bloqueado es el comportamiento correcto, no una falla — Phase 6
+     * lo distingue de una escritura fallida real. {@code talles} SIEMPRE se
+     * escribe, incluso en un producto bloqueado (review fix F2) — no es una
+     * columna bloqueada.</p>
      */
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
         if (url == null) return 0;
         try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement(
-                    "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? "
-                            + "WHERE url=? AND bloqueado_por IS NULL")) {
-                ps.setString(1, categoria != null ? categoria : "");
-                ps.setString(2, marca != null ? marca : "");
-                ps.setString(3, genero != null ? genero : "");
-                ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-                ps.setString(5, subCategoria != null ? subCategoria : "");
-                ps.setString(6, url);
-                return ps.executeUpdate();
-            }
+            return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, true);
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
             return 0;
@@ -966,7 +981,7 @@ public class DatabaseService {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
-                int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria);
+                int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, false);
                 if (rows != 1) {
                     c.rollback();
                     return false;

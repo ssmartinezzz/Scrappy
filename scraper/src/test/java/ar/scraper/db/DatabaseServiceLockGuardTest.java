@@ -127,6 +127,25 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
         assertThat(reloaded.get().marca()).isEqualTo("Adidas");
     }
 
+    @Test
+    @DisplayName("review fix F2: talles updates on a locked product even though classification stays frozen")
+    void actualizarNormalizacionStillUpdatesTallesOnLockedProduct() throws Exception {
+        // talles is NOT a locked column (design D3 / SpUpsertRunColumnCoverageTest
+        // classifies it OVERWRITTEN, not LOCKED) — a talles-only change must reach
+        // the DB regardless of bloqueado_por, same as sp_upsert_run already does.
+        String url = "https://site.com/norm-locked-talles";
+        db.upsertProductos(List.of(producto(url, "Remeras", "Nike", "hombre")));
+        lockProduct(url, "local");
+
+        int rows = db.actualizarNormalizacion(url, "Remeras", "Nike", "hombre", List.of("S", "M", "L"), "");
+
+        Optional<Product> reloaded = db.obtenerProducto(url);
+        assertThat(reloaded).isPresent();
+        assertThat(reloaded.get().categoria()).isEqualTo("Remeras");
+        assertThat(reloaded.get().marca()).isEqualTo("Nike");
+        assertThat(reloaded.get().talles()).containsExactly("S", "M", "L");
+    }
+
     // ─── Human path (aplicarReclasificacionAuditada) — MUST still work on a locked row ──
 
     @Test
