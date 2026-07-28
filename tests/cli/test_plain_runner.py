@@ -62,12 +62,16 @@ class _FakeProcesses:
         self.backend_launched = False
         self.frontend_launched = False
         self.shutdown_called = False
+        self.backend_env = None
+        self.frontend_env = None
 
-    def launch_backend(self, cfg, database_password):
+    def launch_backend(self, cfg, database_password, env=None):
         self.backend_launched = True
+        self.backend_env = env
 
-    def launch_frontend(self, cfg):
+    def launch_frontend(self, cfg, env=None):
         self.frontend_launched = True
+        self.frontend_env = env
 
     def shutdown_all(self):
         self.shutdown_called = True
@@ -145,10 +149,19 @@ def test_open_action_calls_opener(tmp_path):
 
 
 def test_start_action_launches_backend_and_frontend(tmp_path):
+    # a real .env so we can assert its values reach the backend launch —
+    # the backend fails fast without DATABASE_URL, so this propagation is
+    # the "Start doesn't bring the backend up" regression guard.
+    (tmp_path / ".env").write_text(
+        "DATABASE_URL=jdbc:postgresql://localhost:5432/scraper\nDATABASE_PASSWORD=\n",
+        encoding="utf-8",
+    )
     r, _, processes, _ = _make_runner(tmp_path, "")
     r.dispatch("start")
     assert processes.backend_launched is True
     assert processes.frontend_launched is True
+    assert processes.backend_env["DATABASE_URL"] == "jdbc:postgresql://localhost:5432/scraper"
+    assert processes.frontend_env == processes.backend_env
 
 
 def test_unknown_command_does_not_raise(tmp_path):

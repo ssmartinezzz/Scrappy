@@ -277,9 +277,10 @@ class FashionScraperApp(App):
     def _start_services(self) -> str:
         from cli.core.env_file import parse_env
 
-        password = parse_env(self.cfg.repo_root / ".env").get("DATABASE_PASSWORD", "")
-        self.processes.launch_backend(self.cfg, database_password=password)
-        self.processes.launch_frontend(self.cfg)
+        env = parse_env(self.cfg.repo_root / ".env")
+        password = env.get("DATABASE_PASSWORD", "")
+        self.processes.launch_backend(self.cfg, database_password=password, env=env)
+        self.processes.launch_frontend(self.cfg, env=env)
         return "backend + frontend started"
 
     def action_scrape(self) -> None:
