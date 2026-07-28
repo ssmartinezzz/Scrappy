@@ -13,7 +13,14 @@
 -- WHO confirmed it, never a bare boolean. The CHECK constraint below makes
 -- "locked" unambiguous: bloqueado_por/bloqueado_at are both NULL (unlocked)
 -- or both populated with a non-blank actor (locked) — a blank actor can
--- never masquerade as locked.
+-- never masquerade as locked. The second branch tests "bloqueado_por IS NOT
+-- NULL" before "bloqueado_por <> ''" (review fix F4) — SQL's three-valued
+-- logic means "NULL <> ''" evaluates to NULL rather than FALSE, so without
+-- the explicit IS NOT NULL guard, the half-locked state (bloqueado_por NULL,
+-- bloqueado_at populated) made the whole OR expression NULL — which
+-- PostgreSQL accepts for a CHECK constraint (only an explicit FALSE is
+-- rejected) — silently allowing exactly the state this constraint claims to
+-- prevent.
 --
 -- V1__baseline.sql is NEVER edited (Flyway validates checksums). sp_upsert_run
 -- has no partial redefinition in Postgres, so this CREATE OR REPLACE carries
@@ -27,7 +34,7 @@ ALTER TABLE productos
     ADD COLUMN bloqueado_at TEXT,
     ADD CONSTRAINT chk_productos_bloqueo CHECK (
         (bloqueado_por IS NULL AND bloqueado_at IS NULL)
-        OR (bloqueado_por <> '' AND bloqueado_at IS NOT NULL)
+        OR (bloqueado_por IS NOT NULL AND bloqueado_por <> '' AND bloqueado_at IS NOT NULL)
     );
 
 -- agent_reclassify_audit gains the actor column session-readiness already
