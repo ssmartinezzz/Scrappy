@@ -324,6 +324,7 @@ public class ResultAggregator {
     public Map<String, Integer> renormalizarCatalogo() {
         List<Product> actuales      = db.cargarProductos();
         List<Product> renormalizados = normalizer.normalizar(actuales);
+        Map<String, ClasificacionBloqueada> bloqueos = db.cargarClasificacionBloqueada();
 
         int totalRevisados   = 0;
         int categoriaCambiada = 0;
@@ -340,6 +341,12 @@ public class ResultAggregator {
         int escriturasIntentadas = 0;
         int escriturasAplicadas  = 0;
         int escriturasFallidas   = 0;
+        // manual-classification-lock: un producto bloqueado nunca llega a intentar
+        // el UPDATE — sp_upsert_run ya lo protege (backstop), pero sin este skip
+        // acá actualizarNormalizacion devolvería 0 filas y el WARN de arriba
+        // reportaría "escritura fallida" sobre algo que en realidad es el
+        // comportamiento CORRECTO (D5). Contado aparte, nunca en escriturasFallidas.
+        int escriturasOmitidasPorBloqueo = 0;
 
         int n = Math.min(actuales.size(), renormalizados.size());
         for (int i = 0; i < n; i++) {
@@ -369,6 +376,10 @@ public class ResultAggregator {
             if (marcaCambio) marcaCambiada++;
 
             if (catCambio || marcaCambio || genCambio || tallesCambio || subCatCambio) {
+                if (bloqueos != null && bloqueos.containsKey(ahora.url())) {
+                    escriturasOmitidasPorBloqueo++;
+                    continue;
+                }
                 escriturasIntentadas++;
                 try {
                     int rows = db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
@@ -386,13 +397,14 @@ public class ResultAggregator {
 
         if (escriturasFallidas > 0) {
             LOG.warn("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada — "
-                    + "{}/{} escrituras aplicadas, {} fallidas",
+                    + "{}/{} escrituras aplicadas, {} fallidas, {} omitidas por bloqueo",
                     totalRevisados, categoriaCambiada, marcaCambiada,
-                    escriturasAplicadas, escriturasIntentadas, escriturasFallidas);
+                    escriturasAplicadas, escriturasIntentadas, escriturasFallidas, escriturasOmitidasPorBloqueo);
         } else {
             LOG.info("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada — "
-                    + "{}/{} escrituras aplicadas",
-                    totalRevisados, categoriaCambiada, marcaCambiada, escriturasAplicadas, escriturasIntentadas);
+                    + "{}/{} escrituras aplicadas, {} omitidas por bloqueo",
+                    totalRevisados, categoriaCambiada, marcaCambiada, escriturasAplicadas, escriturasIntentadas,
+                    escriturasOmitidasPorBloqueo);
         }
 
         Map<String, Integer> resultado = new LinkedHashMap<>();
@@ -402,6 +414,7 @@ public class ResultAggregator {
         resultado.put("escriturasIntentadas", escriturasIntentadas);
         resultado.put("escriturasAplicadas", escriturasAplicadas);
         resultado.put("escriturasFallidas", escriturasFallidas);
+        resultado.put("escriturasOmitidasPorBloqueo", escriturasOmitidasPorBloqueo);
         return resultado;
     }
 
