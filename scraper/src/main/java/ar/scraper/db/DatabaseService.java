@@ -514,6 +514,35 @@ public class DatabaseService {
         }
     }
 
+    /**
+     * Read-side of the manual classification lock (design D3/D4). One entry
+     * per locked product, keyed by url — {@code ResultAggregator.aplicarBloqueos}
+     * reads this ONCE per {@code agregar} call and applies it in memory before
+     * ML scoring and again after stage-1b (the SQL guards in {@code sp_upsert_run}
+     * are authoritative for persistence; this closes the in-memory
+     * {@code lastResult} snapshot gap, design problem 3).
+     */
+    public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
+        Map<String, ClasificacionBloqueada> result = new LinkedHashMap<>();
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT url,categoria,sub_categoria,marca,genero,rubro FROM productos "
+                        + "WHERE bloqueado_por IS NOT NULL")) {
+            while (rs.next()) {
+                result.put(rs.getString("url"), new ClasificacionBloqueada(
+                        rs.getString("categoria"),
+                        rs.getString("sub_categoria"),
+                        rs.getString("marca"),
+                        rs.getString("genero"),
+                        rs.getString("rubro")));
+            }
+        } catch (Exception e) {
+            LOG.error("[DB] Error cargando clasificaciones bloqueadas: {}", e.getMessage(), e);
+        }
+        return result;
+    }
+
     private Product productoDesdeFila(ResultSet rs) throws java.sql.SQLException {
         List<String> talles = List.of();
         try {

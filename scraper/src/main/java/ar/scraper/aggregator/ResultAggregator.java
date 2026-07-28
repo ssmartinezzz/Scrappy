@@ -1,5 +1,6 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.db.ClasificacionBloqueada;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -190,9 +191,26 @@ public class ResultAggregator {
                 .collect(Collectors.toList());
     }
 
-    /** Runs Java-side normalization, then the Python ML pipeline (scoring + category refinement). */
+    /**
+     * Runs Java-side normalization, then the Python ML pipeline (scoring +
+     * category refinement).
+     *
+     * <p>manual-classification-lock (design D4/D5, "Data Flow"): the lock map
+     * is read ONCE per run and applied via {@link #aplicarBloqueos} at TWO
+     * points — (1) before ML scoring, so a locked product is scored inside
+     * the human's own category peer group and
+     * {@link #persistirCategoriasRefinadas}'s diff stays truthful; (2) after
+     * stage-1b, because the visual classifier can override {@code categoria}
+     * on its own. SQL enforcement ({@code sp_upsert_run}'s CASE guards) is
+     * authoritative for persistence — this closes the separate gap where the
+     * in-memory {@code lastResult} snapshot (served directly by
+     * {@code GET /api/data}/{@code GET /api/mejores}) would otherwise show a
+     * reverted classification until the next restart.</p>
+     */
     private MlPipelineResult ejecutarPipelineMl(List<Product> sorted) {
-        List<Product> normalizados = normalizer.normalizar(sorted);
+        Map<String, ClasificacionBloqueada> bloqueos = db.cargarClasificacionBloqueada();
+
+        List<Product> normalizados = aplicarBloqueos(normalizer.normalizar(sorted), bloqueos);
 
         String prodJson = mlEnricher.serializarProductos(normalizados);
         LOG.info("[AGG] Ejecutando pipeline ML (esto puede tomar hasta 2 minutos)...");
@@ -200,9 +218,39 @@ public class ResultAggregator {
         LOG.info("[AGG] Pipeline ML completado.");
         lastMlOutput    = mlOut;
 
-        List<Product> enriquecidos = mlEnricher.enriquecer(normalizados, mlOut, db);
+        List<Product> enriquecidos = aplicarBloqueos(mlEnricher.enriquecer(normalizados, mlOut, db), bloqueos);
 
         return new MlPipelineResult(normalizados, enriquecidos, mlOut);
+    }
+
+    /**
+     * Pure function: overrides {@code categoria}/{@code subCategoria}/
+     * {@code marca}/{@code genero}/{@code rubro} for every product whose
+     * {@code url} appears in {@code bloqueos}, keyed by url — every other
+     * field (precio, nombre, talles, ml, visual, etc.) is preserved verbatim.
+     * A {@code null} or empty lock map is a no-op (returns {@code productos}
+     * unchanged) — this keeps every {@code agregar()} call site backward
+     * compatible with a mocked {@code DatabaseService} that never stubs
+     * {@code cargarClasificacionBloqueada()}.
+     */
+    static List<Product> aplicarBloqueos(List<Product> productos, Map<String, ClasificacionBloqueada> bloqueos) {
+        if (bloqueos == null || bloqueos.isEmpty() || productos == null || productos.isEmpty()) {
+            return productos;
+        }
+        List<Product> result = new ArrayList<>(productos.size());
+        for (Product p : productos) {
+            ClasificacionBloqueada c = p.url() != null ? bloqueos.get(p.url()) : null;
+            if (c == null) {
+                result.add(p);
+                continue;
+            }
+            result.add(new Product(
+                    p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(), p.imagenUrl(),
+                    c.categoria(), c.genero(), p.talles(), p.ml(), c.marca(), c.rubro(),
+                    p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
+                    c.subCategoria(), p.visual()));
+        }
+        return result;
     }
 
     /**
