@@ -236,6 +236,28 @@ def test_health_panel_rows_mark_up_and_down():
 
 
 @pytest.mark.asyncio
+async def test_start_auto_builds_when_not_built(tmp_path, monkeypatch):
+    """Pressing Start (u) with no jar/frontend build compiles first, then
+    launches — the user shouldn't have to remember Build."""
+    from cli.core import builder as builder_mod
+
+    calls = {"build": 0}
+
+    def fake_build(cfg, *a, **k):
+        calls["build"] += 1
+
+    monkeypatch.setattr(builder_mod, "build_project", fake_build)
+    app, _, processes = _make_app(tmp_path)  # nothing built in tmp_path
+    async with app.run_test() as pilot:
+        await pilot.press("u")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+    assert calls["build"] == 1
+    assert processes.backend_launched is True
+
+
+@pytest.mark.asyncio
 async def test_health_panel_populates_on_mount_from_connect_probe(tmp_path):
     """On mount the health poll runs off-thread and fills the panel; the
     injected connect (backend port up, rest down) drives the markers."""

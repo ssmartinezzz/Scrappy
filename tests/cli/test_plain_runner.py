@@ -148,10 +148,18 @@ def test_open_action_calls_opener(tmp_path):
     assert "Opened" in result
 
 
+def _mark_built(tmp_path):
+    (tmp_path / "scraper").mkdir(exist_ok=True)
+    (tmp_path / "scraper" / "scraper.jar").write_text("jar", encoding="utf-8")
+    (tmp_path / "frontend").mkdir(exist_ok=True)
+    (tmp_path / "frontend" / "dist").mkdir(exist_ok=True)
+
+
 def test_start_action_launches_backend_and_frontend(tmp_path):
     # a real .env so we can assert its values reach the backend launch —
     # the backend fails fast without DATABASE_URL, so this propagation is
     # the "Start doesn't bring the backend up" regression guard.
+    _mark_built(tmp_path)  # already built -> no auto-build, just launch
     (tmp_path / ".env").write_text(
         "DATABASE_URL=jdbc:postgresql://localhost:5432/scraper\nDATABASE_PASSWORD=\n",
         encoding="utf-8",
@@ -162,6 +170,34 @@ def test_start_action_launches_backend_and_frontend(tmp_path):
     assert processes.frontend_launched is True
     assert processes.backend_env["DATABASE_URL"] == "jdbc:postgresql://localhost:5432/scraper"
     assert processes.frontend_env == processes.backend_env
+
+
+def test_start_auto_builds_when_not_built(tmp_path, monkeypatch):
+    """Start compiles first when the jar/frontend build is missing, then
+    launches — the user shouldn't have to remember to Build first."""
+    calls = {"build": 0}
+
+    def fake_build(cfg, *a, **k):
+        calls["build"] += 1
+
+    monkeypatch.setattr(runner_module, "build_project", fake_build)
+    r, _, processes, out = _make_runner(tmp_path, "")  # nothing built in tmp_path
+    r.dispatch("start")
+
+    assert calls["build"] == 1
+    assert "compilando primero" in out.getvalue()
+    assert processes.backend_launched is True
+
+
+def test_start_does_not_rebuild_when_already_built(tmp_path, monkeypatch):
+    _mark_built(tmp_path)
+    calls = {"build": 0}
+    monkeypatch.setattr(runner_module, "build_project", lambda *a, **k: calls.__setitem__("build", calls["build"] + 1))
+    r, _, processes, _ = _make_runner(tmp_path, "")
+    r.dispatch("start")
+
+    assert calls["build"] == 0
+    assert processes.backend_launched is True
 
 
 def test_unknown_command_does_not_raise(tmp_path):
