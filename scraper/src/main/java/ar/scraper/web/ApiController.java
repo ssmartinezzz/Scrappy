@@ -2446,6 +2446,8 @@ public class ApiController {
         // aplicada." (the original silent-success defect this fixes). talles
         // and blank-field fallbacks now source from `previo` (the DB read
         // above), not from the in-memory `current`.
+        // TODO(manual-classification-lock Phase 7): replace this literal with
+        // actorResolver.current() once ActorResolver is wired into this controller.
         boolean applied = db.aplicarReclasificacionAuditada(
                 body.url(),
                 body.categoriaPropuesta(),
@@ -2453,7 +2455,8 @@ public class ApiController {
                 (genero != null && !genero.isBlank()) ? genero : previo.genero(),
                 previo.talles(),
                 (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
-                previo);
+                previo,
+                "local");
 
         if (!applied) {
             return ResponseEntity.internalServerError()

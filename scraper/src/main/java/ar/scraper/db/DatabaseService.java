@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.aggregator.normalize.RubroResolver;
+import ar.scraper.aggregator.normalize.SiteClassification;
 import ar.scraper.cron.CronExecution;
 import ar.scraper.cron.CronJob;
 import ar.scraper.model.Product;
@@ -57,6 +59,10 @@ public class DatabaseService {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final DataSource dataSource;
+    // Stateless (no injected dependencies of its own) — instantiated directly so this
+    // constructor's shape (DataSource only) stays unchanged for the ~18 existing test
+    // call sites (manual-classification-lock Phase 3, zero call-site churn).
+    private final RubroResolver rubroResolver = new RubroResolver();
 
     public DatabaseService(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -864,21 +870,41 @@ public class DatabaseService {
 
     /**
      * Camino auditado de reclasificación humana ({@code POST /api/agent/apply},
-     * agent-chat-finetune WU1 — fix del confirm-button del LLM catalog agent).
-     * Una sola conexión, una sola transacción: el UPDATE de
-     * {@link #updateNormalizacion} y el INSERT de auditoría se confirman juntos
-     * o ninguno de los dos. Si el UPDATE afecta 0 filas (url inexistente) o el
-     * INSERT de auditoría falla por cualquier motivo, se hace rollback completo
-     * y se devuelve {@code false} — nunca queda una reclasificación sin fila de
-     * auditoría, ni una fila de auditoría de algo que no pasó (tradeoff elegido:
-     * se pierde un click humano confirmado antes que dejar un cambio sin
+     * agent-chat-finetune WU1 — fix del confirm-button del LLM catalog agent;
+     * extendido por manual-classification-lock Phase 3 para adquirir el lock
+     * de clasificación). Una sola conexión, una sola transacción: el UPDATE de
+     * {@link #updateNormalizacion}, el UPDATE de {@code rubro}/lock y el
+     * INSERT de auditoría se confirman juntos o ninguno de los tres. Si el
+     * primer UPDATE afecta 0 filas (url inexistente) o el INSERT de auditoría
+     * falla por cualquier motivo, se hace rollback completo y se devuelve
+     * {@code false} — nunca queda una reclasificación sin fila de auditoría,
+     * ni una fila de auditoría de algo que no pasó (tradeoff elegido: se
+     * pierde un click humano confirmado antes que dejar un cambio sin
      * auditar). Los valores "antes" de la auditoría salen de {@code previo}
      * (una lectura server-side previa, nunca de valores que mande el cliente).
+     *
+     * <p>{@code rubro} se deriva de la {@code categoria} humana vía
+     * {@link RubroResolver} (design D3) — nunca lo propone el agente — y se
+     * persiste junto con el lock ({@code bloqueado_por}/{@code bloqueado_at})
+     * en la MISMA transacción, así {@code sp_upsert_run} lo congela como al
+     * resto de las columnas bloqueadas. {@code actor} viene de
+     * {@link ar.scraper.identity.ActorResolver#current()} — nunca leído
+     * inline. IMPORTANTE (Phase 4): este es un método PÚBLICO llamado por el
+     * camino humano; NO lleva el guard {@code AND bloqueado_por IS NULL} —
+     * una segunda confirmación humana debe poder re-lockear (con un actor
+     * distinto) un producto ya bloqueado. Solo los caminos de MÁQUINA
+     * ({@link #actualizarCategoria}, {@link #actualizarNormalizacion}) llevan
+     * ese guard.</p>
      */
     public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
                                                    String genero, List<String> talles, String subCategoria,
-                                                   Product previo) {
+                                                   Product previo, String actor) {
         if (url == null) return false;
+        String sitioKey = SiteClassification.sitioKey(previo != null ? previo.sitio() : "");
+        String rubroPrevio = previo != null ? previo.rubro() : null;
+        String rubro = rubroResolver.resolver(sitioKey, categoria, rubroPrevio);
+        String ahora = LocalDateTime.now().format(DT);
+
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -888,10 +914,19 @@ public class DatabaseService {
                     return false;
                 }
                 try (PreparedStatement ps = c.prepareStatement(
+                        "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                    ps.setString(1, rubro != null ? rubro : "indumentaria");
+                    ps.setString(2, actor != null && !actor.isBlank() ? actor : "local");
+                    ps.setString(3, ahora);
+                    ps.setString(4, url);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO agent_reclassify_audit " +
                         "(url, categoria_antes, categoria_despues, marca_antes, marca_despues, " +
-                        "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, applied_at) " +
-                        "VALUES (?,?,?,?,?,?,?,?,?,?)")) {
+                        "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, " +
+                        "applied_at, applied_by) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
                     ps.setString(1, url);
                     ps.setString(2, previo != null && previo.categoria() != null ? previo.categoria() : "");
                     ps.setString(3, categoria != null ? categoria : "");
@@ -901,7 +936,8 @@ public class DatabaseService {
                     ps.setString(7, genero != null ? genero : "");
                     ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
                     ps.setString(9, subCategoria != null ? subCategoria : "");
-                    ps.setString(10, LocalDateTime.now().format(DT));
+                    ps.setString(10, ahora);
+                    ps.setString(11, actor != null && !actor.isBlank() ? actor : "local");
                     ps.executeUpdate();
                 }
                 c.commit();
