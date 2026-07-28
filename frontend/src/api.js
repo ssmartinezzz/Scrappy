@@ -457,7 +457,11 @@ export async function askAgent(messages, model) {
   if (r.status === 409) return { scraping: true };
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
-    return { error: true, mensaje: body.mensaje || 'No se pudo consultar al agente.' };
+    return {
+      error: true,
+      mensaje: body.mensaje || 'No se pudo consultar al agente.',
+      codigo: body.codigo,
+    };
   }
   return r.json();
 }

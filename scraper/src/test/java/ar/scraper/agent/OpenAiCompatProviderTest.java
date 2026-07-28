@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -193,6 +194,61 @@ class OpenAiCompatProviderTest {
 
         JsonNode sentBody = readSentBody(captor.getValue());
         assertThat(sentBody.get("model").asText()).isEqualTo("qwen3:14b");
+    }
+
+    // ── agent-chat-response-quality: provider failure becomes unrepresentable
+    // as an answer — thrown, never a manufactured ChatResponse ────────────
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("next() throws ProviderUnavailableException(HTTP_ERROR) when the provider responds HTTP >= 400")
+    void nextThrowsHttpErrorOnStatusCodeAtLeast400() throws Exception {
+        HttpClient client = mock(HttpClient.class);
+        AgentConfig config = configWithDefault("qwen3:14b");
+        OpenAiCompatProvider provider = new OpenAiCompatProvider(client, config);
+
+        HttpResponse<String> httpResp = mock(HttpResponse.class);
+        when(httpResp.statusCode()).thenReturn(500);
+        when(client.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResp);
+
+        assertThatThrownBy(() -> provider.next(List.of(ChatMessage.user("hola")), List.of(), null))
+                .isInstanceOfSatisfying(ProviderUnavailableException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ProviderUnavailableException.Reason.HTTP_ERROR));
+    }
+
+    @Test
+    @DisplayName("next() throws ProviderUnavailableException(UNREACHABLE) when the connection fails/times out")
+    void nextThrowsUnreachableOnConnectionFailure() throws Exception {
+        HttpClient client = mock(HttpClient.class);
+        AgentConfig config = configWithDefault("qwen3:14b");
+        OpenAiCompatProvider provider = new OpenAiCompatProvider(client, config);
+
+        when(client.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenThrow(new java.io.IOException("connection refused"));
+
+        assertThatThrownBy(() -> provider.next(List.of(ChatMessage.user("hola")), List.of(), null))
+                .isInstanceOfSatisfying(ProviderUnavailableException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ProviderUnavailableException.Reason.UNREACHABLE));
+    }
+
+    @Test
+    @DisplayName("parseChatResponse throws ProviderUnavailableException(INVALID_RESPONSE) when the body has no usable choices")
+    void parseChatResponseThrowsInvalidResponseOnMissingChoices() {
+        String fixture = "{\"choices\": []}";
+
+        assertThatThrownBy(() -> OpenAiCompatProvider.parseChatResponse(fixture))
+                .isInstanceOfSatisfying(ProviderUnavailableException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ProviderUnavailableException.Reason.INVALID_RESPONSE));
+    }
+
+    @Test
+    @DisplayName("parseChatResponse throws ProviderUnavailableException(INVALID_RESPONSE) on an unparseable body")
+    void parseChatResponseThrowsInvalidResponseOnUnparseableBody() {
+        String fixture = "{not-json-at-all";
+
+        assertThatThrownBy(() -> OpenAiCompatProvider.parseChatResponse(fixture))
+                .isInstanceOfSatisfying(ProviderUnavailableException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ProviderUnavailableException.Reason.INVALID_RESPONSE));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────

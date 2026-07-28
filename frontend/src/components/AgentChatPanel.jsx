@@ -85,25 +85,120 @@ function sanitizeProposal(p) {
     for (const f of CONFLICTO_FIELDS) conflicto[f] = asString(p._conflicto[f], MAX_FIELD_LEN);
     clean._conflicto = conflicto;
   }
+  // Anchor (index of the assistant message this proposal accompanies) and
+  // client-side identity, mirroring the _applied/_mensaje typed-optional
+  // pattern above — absent on a pre-change snapshot, which is exactly the
+  // "render in the trailing block, fall back to index key" degradation.
+  if (typeof p._turn === 'number') clean._turn = p._turn;
+  if (typeof p._cid === 'number') clean._cid = p._cid;
   return clean;
 }
 
 function sanitizeSnapshot(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const messages = (Array.isArray(raw.messages) ? raw.messages : [])
-    .slice(-MAX_MESSAGES)
-    .map(sanitizeMessage)
-    .filter(Boolean);
+  const rawMessages = Array.isArray(raw.messages) ? raw.messages : [];
+  const messages = rawMessages.slice(-MAX_MESSAGES).map(sanitizeMessage).filter(Boolean);
+  // Front-truncation invalidates any surviving _turn index (it could now
+  // point at the wrong message) — degrade those proposals to the trailing
+  // block instead of trying to recompute a shifted index.
+  const truncated = rawMessages.length > MAX_MESSAGES;
   const proposals = (Array.isArray(raw.proposals) ? raw.proposals : [])
     .slice(-MAX_PROPOSALS)
     .map(sanitizeProposal)
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(p => {
+      if (!truncated || p._turn === undefined) return p;
+      const { _turn, ...rest } = p;
+      return rest;
+    });
   return {
     open: raw.open === true,
     model: asString(raw.model, MAX_FIELD_LEN),
     messages,
     proposals,
   };
+}
+
+// ─── Pure helpers (no React dependency — directly unit-testable the day a
+// frontend test harness lands, per design's A8 mitigation) ─────────────────
+
+/** Next client-side id for a new proposal, derived from the accumulator
+ * itself — since `prev` always includes every previously-seen proposal for
+ * this session (restored ones included, accumulate-never-replace), this
+ * cannot collide with a restored id without any extra seeding mechanism. */
+function nextCid(proposals) {
+  let max = 0;
+  for (const p of proposals) {
+    if (typeof p._cid === 'number' && p._cid > max) max = p._cid;
+  }
+  return max + 1;
+}
+
+/** Accumulates `incoming` proposals onto `prev` (never replaces), tagging
+ * each with a fresh `_cid` and, when `turnIndex` is a number, a `_turn`
+ * anchor. Caps to MAX_PROPOSALS so a long session can't flood the DOM. */
+function appendProposals(prev, incoming, turnIndex) {
+  if (!incoming || incoming.length === 0) return prev;
+  let cid = nextCid(prev);
+  const tagged = incoming.map(p => {
+    const withCid = { ...p, _cid: cid++ };
+    return typeof turnIndex === 'number' ? { ...withCid, _turn: turnIndex } : withCid;
+  });
+  return [...prev, ...tagged].slice(-MAX_PROPOSALS);
+}
+
+/** Groups proposals by the message index they're anchored to; anything
+ * without a valid `_turn` (legacy/restored/exhausted-turn proposals) renders
+ * as a trailing block, in conversation order, after the last message. */
+function anchorGroups(messages, proposals) {
+  const byTurn = new Map();
+  const trailing = [];
+  proposals.forEach((proposal, idx) => {
+    const entry = { proposal, idx };
+    if (typeof proposal._turn === 'number' && proposal._turn >= 0 && proposal._turn < messages.length) {
+      if (!byTurn.has(proposal._turn)) byTurn.set(proposal._turn, []);
+      byTurn.get(proposal._turn).push(entry);
+    } else {
+      trailing.push(entry);
+    }
+  });
+  return { byTurn, trailing };
+}
+
+/** Stable render key for a proposal: `_cid` when present (every
+ * newly-accumulated proposal has one), else the index fallback for a
+ * pre-change/legacy restored proposal. */
+const proposalRenderKey = ({ proposal, idx }) => (typeof proposal._cid === 'number' ? proposal._cid : `legacy-${idx}`);
+
+/** Identity used by the confirm/reject/requery handlers — `_cid` when
+ * present, else the object reference itself (legacy proposals). */
+const proposalIdentity = (p) => (typeof p._cid === 'number' ? p._cid : p);
+
+const OPTIONAL_FIELD_LABELS = {
+  subCategoriaPropuesta: 'Subcategoría',
+  marcaPropuesta: 'Marca',
+  generoPropuesto: 'Género',
+};
+
+/** Which rows a ProposalCard must render for a given proposal: the category
+ * diff only when it actually changes, one "se guardará" row per non-blank
+ * optional field disclosing the value that will be WRITTEN (never claimed as
+ * a proposed change — the payload carries no baseline for these fields, so a
+ * diff can't be proven; `optionalText` on the server falls back to the
+ * product's current value whenever the model didn't touch the field).
+ *
+ * There is deliberately no "is this a no-op?" flag. `categoria` is the only
+ * field with a baseline, and it is a REQUIRED tool argument, so a proposal
+ * that only changes marca/genero/subCategoria must still resend the current
+ * category — indistinguishable from a true no-op on the client. Gating the
+ * confirm button on that guess would block a legitimate reclassification;
+ * confirming a genuine no-op merely writes the same values back. */
+function disclosureRows(proposal) {
+  const categoryChanged = proposal.categoriaPropuesta !== proposal.categoriaActual;
+  const optionalRows = Object.entries(OPTIONAL_FIELD_LABELS)
+    .filter(([field]) => typeof proposal[field] === 'string' && proposal[field].trim() !== '')
+    .map(([field, label]) => ({ field, label, value: proposal[field] }));
+  return { categoryChanged, optionalRows };
 }
 
 function loadPersisted() {
@@ -146,6 +241,10 @@ export default function AgentChatPanel() {
   const [sending, setSending] = useState(false);
   const [scrapeWait, setScrapeWait] = useState(false);
   const [proposals, setProposals] = useState(restored?.proposals || []);
+  /** Ephemeral, turn-scoped notice (ungrounded rejection, loop exhaustion, or
+   * a provider failure) — NEVER persisted and NEVER pushed into `messages`,
+   * so it can't poison the history resent to the provider on the next turn. */
+  const [notice, setNotice] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -171,27 +270,72 @@ export default function AgentChatPanel() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, proposals, sending, open]);
+  }, [messages, proposals, notice, sending, open]);
 
-  const send = async (preset) => {
-    const text = (preset ?? input).trim();
-    if (!text || sending) return;
+  /**
+   * Runs one turn against the already-committed `historyForApi` (the user
+   * message this turn answers is expected to already be its last element).
+   * Shared by `send()` (which pushes a fresh user message first) and
+   * `retry()` (which re-sends the SAME already-visible user message instead
+   * of pushing a duplicate) — this is what a failed turn's Retry button
+   * calls, so N retries never grow the transcript or the resent history by
+   * more than the one original user turn.
+   */
+  const runTurn = async (historyForApi, turnIndex) => {
     setSending(true);
     setScrapeWait(false);
-    const nextMessages = [...messages, { role: 'user', text }];
-    setMessages(nextMessages);
-    setInput('');
+    setNotice(null);
 
-    const resp = await askAgent(nextMessages, model || undefined);
+    const resp = await askAgent(historyForApi, model || undefined);
     setSending(false);
 
     if (resp?.scraping) { setScrapeWait(true); return; }
     if (resp?.error) {
-      setMessages(m => [...m, { role: 'assistant', text: resp.mensaje }]);
+      // Grounding is mandatory: a provider failure is never delivered through
+      // the chat-bubble channel. The user's message stays visible above
+      // (already in `historyForApi`); this notice is separate and offers
+      // Retry, which re-sends the same history without duplicating it.
+      setNotice({ kind: 'failure', text: resp.mensaje });
+      return;
+    }
+
+    // Only a grounded/deterministic answer (complete/capability) becomes a
+    // durable message that gets resent as history next turn. An ungrounded
+    // rejection or loop exhaustion is an ephemeral notice instead — it never
+    // enters `messages`, so it can't poison the next turn's payload.
+    if (resp.outcome === 'ungrounded') {
+      setNotice({ kind: 'ungrounded', text: resp.assistantText });
+      return;
+    }
+    if (resp.outcome === 'exhausted') {
+      setNotice({ kind: 'exhausted', text: resp.assistantText });
+      setProposals(ps => appendProposals(ps, resp.proposals, null));
       return;
     }
     setMessages(m => [...m, { role: 'assistant', text: resp.assistantText }]);
-    setProposals(resp.proposals || []);
+    setProposals(ps => appendProposals(ps, resp.proposals, turnIndex));
+  };
+
+  const send = async (preset) => {
+    const text = (preset ?? input).trim();
+    if (!text || sending) return;
+    const nextMessages = [...messages, { role: 'user', text }];
+    setMessages(nextMessages);
+    setInput('');
+    // The assistant reply, if this turn produces a durable one, lands at
+    // this index — computed up front since we already know the exact
+    // length of the history this turn is answering.
+    const turnIndex = nextMessages.length;
+    await runTurn(nextMessages, turnIndex);
+  };
+
+  /** "Reintentar" on a provider-failure notice: the failed user message is
+   * already the last item in `messages` (never rolled back, per spec — it
+   * must stay visible throughout) — re-send that SAME history instead of
+   * pushing another copy of it, so retries never duplicate the user turn. */
+  const retry = () => {
+    if (sending) return;
+    runTurn(messages, messages.length);
   };
 
   const confirmProposal = async (proposal) => {
@@ -201,26 +345,41 @@ export default function AgentChatPanel() {
     // generated — surface the live values instead of a plain "no se pudo
     // aplicar", and never let the card offer a resend of stale data.
     if (res?.codigo === 'conflicto_stale') {
-      setProposals(ps => ps.map(p => p === proposal
+      setProposals(ps => ps.map(p => proposalIdentity(p) === proposalIdentity(proposal)
         ? { ...p, _conflicto: res.actual || {} }
         : p));
       return;
     }
-    setProposals(ps => ps.map(p => p === proposal
+    setProposals(ps => ps.map(p => proposalIdentity(p) === proposalIdentity(proposal)
       ? { ...p, _applied: !!res?.ok, _mensaje: res?.mensaje }
       : p));
   };
 
   const rejectProposal = (proposal) => {
-    setProposals(ps => ps.filter(p => p !== proposal));
+    setProposals(ps => ps.filter(p => proposalIdentity(p) !== proposalIdentity(proposal)));
   };
 
   /** "Volver a consultar" (T6.2): drop the stale card and re-ask the agent for
    * a fresh proposal on the same product, instead of ever resending the old one. */
   const requeryProposal = (proposal) => {
-    setProposals(ps => ps.filter(p => p !== proposal));
+    setProposals(ps => ps.filter(p => proposalIdentity(p) !== proposalIdentity(proposal)));
     send(`Volvé a revisar la clasificación de ${proposal.url} — la propuesta anterior quedó desactualizada.`);
   };
+
+  const anchoredProposals = anchorGroups(messages, proposals);
+
+  /** Single render call site for a proposal card — shared by the anchored
+   * (`byTurn`) and trailing render loops below, so a prop change is made
+   * once instead of twice. */
+  const renderProposalCard = (entry) => (
+    <ProposalCard
+      key={proposalRenderKey(entry)}
+      proposal={entry.proposal}
+      onConfirm={confirmProposal}
+      onReject={rejectProposal}
+      onRequery={requeryProposal}
+    />
+  );
 
   return (
     <div
@@ -298,33 +457,55 @@ export default function AgentChatPanel() {
                 </div>
               )}
               {messages.map((m, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    'flex max-w-[85%] flex-col rounded-2xl px-3 py-2 text-[.75rem] leading-snug',
-                    m.role === 'user'
-                      ? 'self-end rounded-tr-sm bg-primary text-white'
-                      : 'self-start rounded-tl-sm bg-s3 text-t2 [&_a]:text-primary',
-                  )}
-                >
-                  {/* Only model output gets markdown treatment — what the user
-                      typed is shown verbatim. */}
-                  {m.role === 'assistant' ? renderRichText(m.text) : m.text}
+                <div key={i} className="flex flex-col gap-2">
+                  <div
+                    className={cn(
+                      'flex max-w-[85%] flex-col rounded-2xl px-3 py-2 text-[.75rem] leading-snug',
+                      m.role === 'user'
+                        ? 'self-end rounded-tr-sm bg-primary text-white'
+                        : 'self-start rounded-tl-sm bg-s3 text-t2 [&_a]:text-primary',
+                    )}
+                  >
+                    {/* Only model output gets markdown treatment — what the user
+                        typed is shown verbatim. */}
+                    {m.role === 'assistant' ? renderRichText(m.text) : m.text}
+                  </div>
+                  {/* Proposal cards anchored to this message render right here,
+                      in conversation order — not detached at the bottom. */}
+                  {(anchoredProposals.byTurn.get(i) || []).map(renderProposalCard)}
                 </div>
               ))}
-              {proposals.map((p, i) => (
-                <ProposalCard
-                  key={i}
-                  proposal={p}
-                  onConfirm={confirmProposal}
-                  onReject={rejectProposal}
-                  onRequery={requeryProposal}
-                />
-              ))}
+              {/* Legacy/restored/exhausted-turn proposals with no valid anchor
+                  render as a trailing block, same as before this change. */}
+              {anchoredProposals.trailing.map(renderProposalCard)}
               {sending && <div className="self-start text-[.7rem] italic text-t4">Pensando…</div>}
               {scrapeWait && (
                 <div className="text-[.72rem] italic text-warning">
                   Hay un scraping en curso — esperá a que termine para usar el agente.
+                </div>
+              )}
+              {/* Ungrounded rejection / loop exhaustion / provider-failure
+                  notice — visually distinct from proposal cards so a pending
+                  card is never mistaken for a response to a failed turn. */}
+              {notice && (
+                <div
+                  className={cn(
+                    'rounded-card border px-3 py-2 text-[.72rem] italic leading-snug',
+                    notice.kind === 'failure'
+                      ? 'border-danger/40 bg-danger/10 text-danger'
+                      : 'border-bd2 bg-s3 text-t3',
+                  )}
+                >
+                  <span>{notice.text}</span>
+                  {notice.kind === 'failure' && (
+                    <button
+                      onClick={retry}
+                      disabled={sending}
+                      className="ml-2 rounded-btn border border-danger px-2 py-0.5 font-semibold not-italic text-danger transition-colors hover:bg-danger hover:text-white disabled:opacity-40"
+                    >
+                      Reintentar
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -371,14 +552,32 @@ export default function AgentChatPanel() {
 function ProposalCard({ proposal, onConfirm, onReject, onRequery }) {
   const applied = proposal._applied;
   const conflicto = proposal._conflicto;
+  const { categoryChanged, optionalRows } = disclosureRows(proposal);
   return (
     <div className="rounded-card border border-primary/25 bg-primary/[.08] px-3 py-2.5 text-[.72rem]">
       <div className="mb-1 font-bold text-t1">{proposal.nombreProducto}</div>
-      <div className="text-t3">
-        <span className="text-t4">{proposal.categoriaActual}</span>
-        {' → '}
-        <strong className="text-primary">{proposal.categoriaPropuesta}</strong>
-      </div>
+      {/* Category row — suppressed when the proposal doesn't actually change
+          it, since an arrow between two identical values is a misleading diff. */}
+      {categoryChanged && (
+        <div className="text-t3">
+          <span className="text-t4">{proposal.categoriaActual}</span>
+          {' → '}
+          <strong className="text-primary">{proposal.categoriaPropuesta}</strong>
+        </div>
+      )}
+      {/* One row per non-blank optional field, disclosing the value that will
+          be SAVED — not asserted as a proposed change, since the payload
+          carries no baseline for these fields and most already hold the
+          product's current, unchanged value (server fallback). */}
+      {optionalRows.map(row => (
+        <div key={row.field} className="mt-0.5 text-t3">
+          <span className="text-t4">Se guardará / {row.label}:</span>{' '}
+          <strong className="text-primary">{row.value}</strong>
+        </div>
+      ))}
+      {!categoryChanged && !conflicto && (
+        <div className="mt-1.5 text-t4">La categoría no cambia.</div>
+      )}
       {/* 422 conflicto_stale (WU5): el producto cambió desde que se generó la
           propuesta — mostramos el valor real actual y NUNCA ofrecemos [Sí]
           (reenviar el payload viejo), solo volver a consultar al agente. */}
@@ -409,6 +608,9 @@ function ProposalCard({ proposal, onConfirm, onReject, onRequery }) {
         <>
           {applied === undefined && (
             <div className="mt-2 flex gap-2">
+              {/* [Sí] is always offered: the client cannot prove a proposal
+                  changes nothing (see disclosureRows), and hiding it would
+                  make a marca/genero/subCategoria-only fix unappliable. */}
               <button
                 onClick={() => onConfirm(proposal)}
                 className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white"

@@ -8,6 +8,7 @@ import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ChatMessage;
+import ar.scraper.agent.ProviderUnavailableException;
 import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
 import ar.scraper.agent.ViewProductTool;
@@ -2361,8 +2362,14 @@ public class ApiController {
             }
         }
 
-        AgentChatResponse resp = catalogAgentService.run(history, model);
-        return ResponseEntity.ok(resp);
+        try {
+            AgentChatResponse resp = catalogAgentService.run(history, model);
+            return ResponseEntity.ok(resp);
+        } catch (ProviderUnavailableException e) {
+            return ResponseEntity.status(502)
+                    .body(Map.of("mensaje", "No se pudo contactar al proveedor LLM.",
+                            "codigo", "proveedor_no_disponible"));
+        }
     }
 
     @GetMapping("/agent/models")
