@@ -68,11 +68,13 @@ class _FakeProcesses:
         self.frontend_launched = False
         self.shutdown_called = False
 
-    def launch_backend(self, cfg, database_password):
+    def launch_backend(self, cfg, database_password, env=None):
         self.backend_launched = True
+        self.backend_env = env
 
-    def launch_frontend(self, cfg):
+    def launch_frontend(self, cfg, env=None):
         self.frontend_launched = True
+        self.frontend_env = env
 
     def shutdown_all(self):
         self.shutdown_called = True

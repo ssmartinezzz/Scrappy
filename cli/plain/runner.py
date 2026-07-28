@@ -101,8 +101,8 @@ class PlainRunner:
     def _print(self, text: str) -> None:
         print(text, file=self.out)
 
-    def _database_password(self) -> str:
-        return parse_env(self.cfg.repo_root / ".env").get("DATABASE_PASSWORD", "")
+    def _env(self) -> dict:
+        return parse_env(self.cfg.repo_root / ".env")
 
     def dispatch(self, line: str) -> bool:
         """Handle a single command line. Returns `False` when the runner
@@ -121,8 +121,11 @@ class PlainRunner:
                 build_project(self.cfg)
                 self._print("Build complete.")
             elif verb == "start":
-                self.processes.launch_backend(self.cfg, database_password=self._database_password())
-                self.processes.launch_frontend(self.cfg)
+                env = self._env()
+                self.processes.launch_backend(
+                    self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
+                )
+                self.processes.launch_frontend(self.cfg, env=env)
                 self._print("Backend + frontend started.")
             elif verb == "scrape":
                 self._print(cmd_scrape(self.rest))

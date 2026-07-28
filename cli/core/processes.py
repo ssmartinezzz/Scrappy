@@ -32,6 +32,26 @@ def _default_popen(cmd, *, cwd, **kwargs) -> "subprocess.Popen":
     return subprocess.Popen(cmd, cwd=str(cwd), **kwargs)
 
 
+def _java_exe(cfg: Config) -> str:
+    """The vendored JDK `java` if the installer provisioned it, else PATH
+    `java`. Windows vendors its own JDK under `_tools/jdk21`; the POSIX
+    installer assumes a system JDK (documented gap), so PATH is the
+    fallback rather than a hard error."""
+    exe = "java.exe" if platform.system() == "Windows" else "java"
+    vendored = cfg.tools.jdk21 / "bin" / exe
+    return str(vendored) if vendored.is_file() else "java"
+
+
+def _npm_cmd(cfg: Config) -> str:
+    """The vendored `npm` if present, else PATH `npm`. Node's Windows zip is
+    flat (`npm.cmd`); the POSIX tarball nests binaries under `bin/`."""
+    if platform.system() == "Windows":
+        vendored = cfg.tools.node / "npm.cmd"
+    else:
+        vendored = cfg.tools.node / "bin" / "npm"
+    return str(vendored) if vendored.is_file() else "npm"
+
+
 @dataclass
 class ProcessManager:
     """Tracks the backend + frontend subprocesses and owns their teardown.
@@ -50,26 +70,41 @@ class ProcessManager:
         self,
         cfg: Config,
         database_password: str,
+        env: Optional[dict] = None,
         python_exe: Optional[str] = None,
         python_dir: Optional[str] = None,
     ) -> ManagedProcess:
         """Start `scraper/scraper.jar` on `cfg.ports.backend`.
 
+        `env` is the parsed `.env` (DATABASE_URL / DATABASE_USERNAME /
+        APP_CORS_ALLOWED_ORIGINS / …). It is merged over `os.environ` into
+        the backend's process environment because the backend fails fast at
+        startup (`RequiredEnvVarsGuard`) when those are absent — inheriting
+        our own environment is NOT enough, since the CLI never loads `.env`
+        into its own process (it only writes the file). Passing them here is
+        the fix for "Start doesn't bring the backend up".
+
         `-DDATABASE_PASSWORD=<value>` is ALWAYS appended, even when the
         password is an empty string. Windows deletes empty environment
         variables (both `set VAR=` and `.NET SetEnvironmentVariable('')`),
-        so an empty trust-auth password would read as "missing" to the
-        backend's `RequiredEnvVarsGuard` if passed as an env var. Passing
-        it as a JVM system property instead is load-bearing — see
-        design.md §5.3 / `menu.ps1:197-204`.
+        so an empty trust-auth password would read as "missing" to
+        `RequiredEnvVarsGuard` if passed as an env var. Passing it as a JVM
+        system property instead is load-bearing — see design.md §5.3 /
+        `menu.ps1:197-204`.
         """
         scraper_dir = cfg.repo_root / "scraper"
+        jar = scraper_dir / "scraper.jar"
+        if not jar.is_file():
+            raise ProcessError(
+                "scraper/scraper.jar todavía no existe — el backend no se puede lanzar.",
+                action="Corré Build primero (tecla b en la TUI, o `build` en modo plano).",
+            )
         log_dir = scraper_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         err_log_path = log_dir / "backend-launcher.err.log"
 
         cmd = [
-            "java",
+            _java_exe(cfg),
             "-Xmx768m",
             "-Dfile.encoding=UTF-8",
             f"-DDATABASE_PASSWORD={database_password}",
@@ -80,28 +115,39 @@ class ProcessManager:
             cmd.append(f"-DPYTHON_DIR={python_dir}")
         cmd += ["-jar", "scraper.jar"]
 
+        child_env = {**os.environ, **(env or {})}
+
         err_log = open(err_log_path, "ab")
         try:
             popen = self.popen_factory(
-                cmd, cwd=scraper_dir, stderr=err_log, **self._spawn_kwargs()
+                cmd, cwd=scraper_dir, stderr=err_log, env=child_env, **self._spawn_kwargs()
             )
         except Exception as exc:
             raise ProcessError(
                 f"Failed to launch backend: {exc}",
-                action=f"Check {err_log_path} and confirm scraper/scraper.jar exists.",
+                action=f"Check {err_log_path} and confirm the vendored JDK + scraper.jar exist.",
             ) from exc
 
         managed = ManagedProcess(name="backend", popen=popen)
         self._procs.append(managed)
         return managed
 
-    def launch_frontend(self, cfg: Config) -> ManagedProcess:
+    def launch_frontend(self, cfg: Config, env: Optional[dict] = None) -> ManagedProcess:
         """Start `npm run preview -- --port <frontend port> --strictPort`
         on `cfg.ports.frontend`. `--strictPort` fails loudly on a port
-        clash rather than silently drifting to Vite's default 4173."""
+        clash rather than silently drifting to Vite's default 4173.
+
+        `env` (the parsed `.env`) is merged over `os.environ` for parity
+        with the backend launch. Requires `frontend/dist` to exist —
+        `npm run preview` only serves a prior `npm run build`."""
         frontend_dir = cfg.repo_root / "frontend"
+        if not (frontend_dir / "dist").is_dir():
+            raise ProcessError(
+                "frontend/dist todavía no existe — el frontend no está buildeado.",
+                action="Corré Build primero (tecla b / `build`); `npm run preview` sirve dist/.",
+            )
         cmd = [
-            "npm",
+            _npm_cmd(cfg),
             "run",
             "preview",
             "--",
@@ -109,12 +155,13 @@ class ProcessManager:
             str(cfg.ports.frontend),
             "--strictPort",
         ]
+        child_env = {**os.environ, **(env or {})}
         try:
-            popen = self.popen_factory(cmd, cwd=frontend_dir, **self._spawn_kwargs())
+            popen = self.popen_factory(cmd, cwd=frontend_dir, env=child_env, **self._spawn_kwargs())
         except Exception as exc:
             raise ProcessError(
                 f"Failed to launch frontend: {exc}",
-                action="Confirm `npm install`/`npm run build` completed under frontend/.",
+                action="Confirm the vendored Node + `npm run build` (frontend/dist) exist.",
             ) from exc
 
         managed = ManagedProcess(name="frontend", popen=popen)
