@@ -810,12 +810,23 @@ public class DatabaseService {
         return result;
     }
 
-    /** Actualiza la categoría de un producto (corrección por modelo ML) */
+    /**
+     * Actualiza la categoría de un producto (corrección por modelo ML).
+     *
+     * <p>Camino de MÁQUINA (design D5) — llamado en cada scrape desde
+     * {@code ResultAggregator.persistirCategoriasRefinadas} y desde
+     * {@code POST /api/ml/aplicar}. Lleva {@code AND bloqueado_por IS NULL}:
+     * un producto bloqueado no debe perder su categoría humana-confirmada
+     * por este camino. El camino HUMANO ({@link #aplicarReclasificacionAuditada},
+     * vía la {@code updateNormalizacion} privada compartida) NO lleva este
+     * guard — una segunda confirmación humana debe poder re-lockear un
+     * producto ya bloqueado.</p>
+     */
     public void actualizarCategoria(String url, String nuevaCategoria) {
         if (url == null || nuevaCategoria == null) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET categoria=? WHERE url=?")) {
+                "UPDATE productos SET categoria=? WHERE url=? AND bloqueado_por IS NULL")) {
             ps.setString(1, nuevaCategoria);
             ps.setString(2, url);
             ps.executeUpdate();
@@ -856,12 +867,30 @@ public class DatabaseService {
      * "escritura aplicada" (agent-chat-finetune WU1/WU2; antes de este fix este
      * método era {@code void} y el bulk path contaba cambios intentados como si
      * hubieran sido efectivamente persistidos).
+     *
+     * <p>Camino de MÁQUINA (design D5) — llamado desde el bulk path de
+     * {@code ResultAggregator.renormalizarCatalogo} ({@code POST /api/ml/renormalizar}).
+     * A diferencia de la {@code updateNormalizacion} privada compartida (que
+     * este método reutiliza), ESTE método público lleva el guard
+     * {@code AND bloqueado_por IS NULL}: un 0-row-count aquí sobre un producto
+     * bloqueado es el comportamiento correcto, no una falla — Phase 6 lo
+     * distingue de una escritura fallida real.</p>
      */
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
         if (url == null) return 0;
         try (Connection c = dataSource.getConnection()) {
-            return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria);
+            try (PreparedStatement ps = c.prepareStatement(
+                    "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? "
+                            + "WHERE url=? AND bloqueado_por IS NULL")) {
+                ps.setString(1, categoria != null ? categoria : "");
+                ps.setString(2, marca != null ? marca : "");
+                ps.setString(3, genero != null ? genero : "");
+                ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
+                ps.setString(5, subCategoria != null ? subCategoria : "");
+                ps.setString(6, url);
+                return ps.executeUpdate();
+            }
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
             return 0;
