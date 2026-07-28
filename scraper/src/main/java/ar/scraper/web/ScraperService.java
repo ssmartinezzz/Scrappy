@@ -153,8 +153,16 @@ public class ScraperService {
      *  reclasificación mueve al producto entre categorías/marcas y reusar los
      *  contadores viejos dejaría el filtro del catálogo ofreciendo la categoría
      *  que el producto ya no tiene. */
+    /**
+     * manual-classification-lock Phase 7: {@code rubro} was a pre-existing bug
+     * (obs #773/design finding 4) — this method kept {@code p.rubro()}
+     * unconditionally, so {@code rubro} diverged from a human-set
+     * {@code categoria} the moment {@code POST /api/agent/apply} ran, before
+     * any scrape. Now fill-only like every other patched field: a blank
+     * incoming {@code rubro} preserves the prior value.
+     */
     public void actualizarProductoEnMemoria(String url, String categoria, String marca,
-                                            String genero, String subCategoria) {
+                                            String genero, String subCategoria, String rubro) {
         synchronized (catalogLock) {
             if (lastResult == null || url == null) return;
             List<Product> parcheados = lastResult.productos().stream()
@@ -162,7 +170,7 @@ public class ScraperService {
                             ? new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
                                     p.url(), p.imagenUrl(),
                                     noVacio(categoria, p.categoria()), noVacio(genero, p.genero()),
-                                    p.talles(), p.ml(), noVacio(marca, p.marca()), p.rubro(),
+                                    p.talles(), p.ml(), noVacio(marca, p.marca()), noVacio(rubro, p.rubro()),
                                     p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
                                     p.cantidadUnidades(), noVacio(subCategoria, p.subCategoria()),
                                     p.visual())
