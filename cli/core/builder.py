@@ -89,8 +89,19 @@ def build_project(
     5. `npm install` (frontend)
     6. `npm run build` (frontend) — `VITE_API_BASE_URL` MUST already be a
        real env var in this subprocess's environment
-    7. `mvn clean package` (backend)
+    7. `mvn clean package -DskipTests` (backend)
     8. copy `scraper/target/fashion-scraper-1.0.0.jar` -> `scraper/scraper.jar`
+
+    Step 7 skips the test suite on purpose. This is an install-and-run
+    flow: its contract is "produce a runnable jar", not "validate the
+    codebase". Running the suite here makes a user's install depend on
+    infrastructure they need not have — the DB tests want Docker or a
+    local Postgres (`PostgresTestBase`), and Mockito/ByteBuddy refuses to
+    mock under a JDK newer than it supports (a system JDK 24 fails every
+    mock-based test while `javac` itself compiles fine). Test execution
+    belongs to CI (`.github/workflows/backend-tests.yml`), which runs on a
+    pinned toolchain. Test *sources* are still compiled, so a genuinely
+    broken test build still surfaces here.
     """
     example_path = example_path or (cfg.repo_root / ".env.example")
     env_path = env_path or (cfg.repo_root / ".env")
@@ -111,7 +122,11 @@ def build_project(
     try:
         runner([_npm_cmd(cfg), "install"], cwd=frontend_dir, env=child_env)
         runner([_npm_cmd(cfg), "run", "build"], cwd=frontend_dir, env=child_env)
-        runner([_mvn_cmd(cfg), "clean", "package"], cwd=scraper_dir, env=child_env)
+        runner(
+            [_mvn_cmd(cfg), "clean", "package", "-DskipTests"],
+            cwd=scraper_dir,
+            env=child_env,
+        )
     except BuildError:
         raise
     except Exception as exc:  # noqa: BLE001 - normalized into a typed error
@@ -125,7 +140,7 @@ def build_project(
     if not jar_src.is_file():
         raise BuildError(
             f"Expected build artifact not found: {jar_src}",
-            action="Confirm `mvn clean package` completed and produced the fat jar.",
+            action="Confirm `mvn clean package -DskipTests` completed and produced the fat jar.",
         )
     shutil.copyfile(jar_src, jar_dst)
     logger.info("Build complete: %s -> %s", jar_src, jar_dst)

@@ -94,7 +94,7 @@ def test_build_sequence_runs_in_exact_order(tmp_path: Path, monkeypatch: pytest.
     assert order[3] == "parse_env"
     assert order[4][-1] == "install"
     assert order[5][-2:] == ("run", "build")
-    assert order[6][-2:] == ("clean", "package")
+    assert order[6][-3:] == ("clean", "package", "-DskipTests")
     assert order[7] == "jar_copy"
 
 
@@ -146,6 +146,24 @@ def test_mvn_cmd_falls_back_to_path_when_vendored_absent(tmp_path: Path):
     cfg = _cfg(tmp_path)
 
     assert builder._mvn_cmd(cfg) == "mvn"
+
+
+def test_mvn_package_skips_tests(tmp_path: Path):
+    """The install flow must not run the backend suite: it needs Docker /
+    a local Postgres and a Mockito-compatible JDK, none of which an end
+    user installing the app is required to have. CI runs the tests."""
+    _bare_project(tmp_path)
+    cfg = _cfg(tmp_path)
+    _fake_jar(tmp_path)
+    calls: list = []
+
+    def fake_runner(cmd, *, cwd, env):
+        calls.append(list(cmd))
+
+    builder.build_project(cfg, runner=fake_runner)
+
+    mvn_call = next(c for c in calls if "package" in c)
+    assert "-DskipTests" in mvn_call
 
 
 def test_is_built_true_when_jar_and_dist_present(tmp_path: Path):
