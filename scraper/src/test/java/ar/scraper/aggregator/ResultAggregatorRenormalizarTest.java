@@ -140,6 +140,34 @@ class ResultAggregatorRenormalizarTest {
     }
 
     @Test
+    @DisplayName("review fix F3: a product locked AFTER the entry snapshot (race window) is attributed by a live check, not counted as a failure")
+    void productLockedAfterSnapshotIsCountedAsOmittedNotFailed() {
+        // p5 is NOT in the entry-time bloqueos snapshot (it got locked mid-run,
+        // after the snapshot was taken but before the loop reached its row) —
+        // the guarded UPDATE correctly returns 0 rows, but the code must not
+        // ASSUME "failure" just because the stale snapshot didn't know about it.
+        Product p5Antes = producto("http://test.com/5", "Zapatillas");
+        Product p5Ahora = producto("http://test.com/5", "Calzado Deportivo");
+
+        when(db.cargarProductos()).thenReturn(List.of(p5Antes));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(p5Ahora));
+        when(db.cargarClasificacionBloqueada()).thenReturn(Map.of()); // empty at snapshot time
+
+        when(db.actualizarNormalizacion(eq("http://test.com/5"), anyString(), anyString(),
+                anyString(), anyList(), anyString())).thenReturn(0); // guard fired: now locked
+        when(db.estaBloqueado("http://test.com/5")).thenReturn(true); // live read confirms the lock
+
+        Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
+
+        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(1);
+        assertThat(resultado.get("escriturasAplicadas")).isEqualTo(0);
+        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // never — the WARN comment's own invariant
+        assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
+
+        verify(db).estaBloqueado("http://test.com/5");
+    }
+
+    @Test
     @DisplayName("no changes detected -> zero escrituras*, no write calls")
     void noChangesDetected_zeroEscrituras() {
         Product antes = producto("http://test.com/unchanged", "Zapatillas");

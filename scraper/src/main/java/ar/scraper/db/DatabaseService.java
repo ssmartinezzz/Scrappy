@@ -1277,6 +1277,31 @@ public class DatabaseService {
         }
     }
 
+    /**
+     * Live single-URL read of the classification lock (review fix F3,
+     * manual-classification-lock). {@code ResultAggregator.renormalizarCatalogo}
+     * snapshots {@link #cargarClasificacionBloqueada()} once at method entry
+     * for the common case, but that snapshot goes stale the moment a product
+     * is locked via {@code POST /api/agent/apply} mid-run — the loop makes one
+     * sequential round-trip per changed product across the whole catalog, a
+     * realistic window. This lets the caller attribute a 0-row guarded write
+     * to "correctly skipped, now locked" from a FRESH read taken right after
+     * the write attempt, instead of trusting the stale snapshot.
+     */
+    public boolean estaBloqueado(String url) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT 1 FROM productos WHERE url=? AND bloqueado_por IS NOT NULL")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error consultando bloqueo de {}: {}", url, e.getMessage());
+            return false;
+        }
+    }
+
     public boolean esProductoActivo(String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(

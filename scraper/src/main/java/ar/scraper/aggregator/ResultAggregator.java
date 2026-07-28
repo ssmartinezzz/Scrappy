@@ -385,6 +385,15 @@ public class ResultAggregator {
                     int rows = db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
                     if (rows > 0) {
                         escriturasAplicadas++;
+                    } else if (db.estaBloqueado(ahora.url())) {
+                        // review fix F3: the entry snapshot (bloqueos, above) is stale by
+                        // design — a product can get locked via POST /api/agent/apply after
+                        // that snapshot but before this row is reached (one sequential
+                        // round-trip per changed product across the whole catalog). A 0-row
+                        // guarded write in that window is a correct lock skip, not a write
+                        // failure; attribute it from a LIVE read taken right now, never from
+                        // the stale snapshot.
+                        escriturasOmitidasPorBloqueo++;
                     } else {
                         escriturasFallidas++;
                     }
