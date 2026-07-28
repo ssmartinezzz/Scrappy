@@ -275,7 +275,15 @@ class FashionScraperApp(App):
         self._run_core("start", self._start_services)
 
     def _start_services(self) -> str:
+        from cli.core import builder
         from cli.core.env_file import parse_env
+
+        if not builder.is_built(self.cfg):
+            self.call_from_thread(
+                self._log, "jar/frontend ausente — compilando primero (puede tardar unos minutos)…"
+            )
+            builder.build_project(self.cfg)
+            self.call_from_thread(self._refresh_health)
 
         env = parse_env(self.cfg.repo_root / ".env")
         password = env.get("DATABASE_PASSWORD", "")

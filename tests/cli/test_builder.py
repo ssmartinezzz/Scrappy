@@ -111,3 +111,54 @@ def test_build_raises_typed_error_when_jar_artifact_missing(tmp_path: Path):
 
     with pytest.raises(BuildError):
         builder.build_project(cfg, runner=fake_runner)
+
+
+# -- vendored toolchain resolution with PATH fallback -------------------
+# (regression for "build fails: No such file or directory: .../_tools/node/
+#  bin/npm" on POSIX, where the installer assumes a system Node/Maven)
+
+
+def test_npm_cmd_prefers_vendored_when_present(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    npm = tmp_path / "_tools" / "node" / "bin" / "npm"  # POSIX layout (CI is Linux)
+    npm.parent.mkdir(parents=True)
+    npm.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    assert builder._npm_cmd(cfg) == str(npm)
+
+
+def test_npm_cmd_falls_back_to_path_when_vendored_absent(tmp_path: Path):
+    cfg = _cfg(tmp_path)  # no _tools/node provisioned (the POSIX system-tools case)
+
+    assert builder._npm_cmd(cfg) == "npm"
+
+
+def test_mvn_cmd_prefers_vendored_when_present(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    mvn = tmp_path / "_tools" / "maven" / "bin" / "mvn"
+    mvn.parent.mkdir(parents=True)
+    mvn.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    assert builder._mvn_cmd(cfg) == str(mvn)
+
+
+def test_mvn_cmd_falls_back_to_path_when_vendored_absent(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+
+    assert builder._mvn_cmd(cfg) == "mvn"
+
+
+def test_is_built_true_when_jar_and_dist_present(tmp_path: Path):
+    (tmp_path / "scraper").mkdir()
+    (tmp_path / "scraper" / "scraper.jar").write_text("jar", encoding="utf-8")
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / "frontend" / "dist").mkdir()
+
+    assert builder.is_built(_cfg(tmp_path)) is True
+
+
+def test_is_built_false_when_jar_missing(tmp_path: Path):
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / "frontend" / "dist").mkdir()  # dist present, jar absent
+
+    assert builder.is_built(_cfg(tmp_path)) is False

@@ -32,19 +32,36 @@ def _default_runner(cmd: Sequence[str], *, cwd: Path, env: dict) -> "subprocess.
     return subprocess.run(list(cmd), cwd=str(cwd), env=env, check=True)
 
 
+def is_built(cfg: Config) -> bool:
+    """True when both build artifacts already exist: the backend fat jar
+    (`scraper/scraper.jar`) and the frontend build (`frontend/dist`). Used
+    by the Start action to auto-build only when something is missing."""
+    return (cfg.repo_root / "scraper" / "scraper.jar").is_file() and (
+        cfg.repo_root / "frontend" / "dist"
+    ).is_dir()
+
+
 def _npm_cmd(cfg: Config) -> str:
-    """Resolve the vendored `npm` executable (Node.js Windows zip is flat;
-    the POSIX tarball nests binaries under `bin/`)."""
-    node_dir = cfg.tools.node
+    """The vendored `npm` if the installer provisioned it, else PATH `npm`.
+    Node's Windows zip is flat (`npm.cmd`); the POSIX tarball nests binaries
+    under `bin/`. The POSIX installer assumes a SYSTEM Node (documented gap),
+    so `_tools/node` may not exist there — fall back to PATH rather than
+    dying with 'No such file or directory: .../\\_tools/node/bin/npm'."""
     if platform.system() == "Windows":
-        return str(node_dir / "npm.cmd")
-    return str(node_dir / "bin" / "npm")
+        exe = "npm.cmd"
+        vendored = cfg.tools.node / exe
+    else:
+        exe = "npm"
+        vendored = cfg.tools.node / "bin" / "npm"
+    return str(vendored) if vendored.is_file() else exe
 
 
 def _mvn_cmd(cfg: Config) -> str:
-    """Resolve the vendored `mvn` executable (`bin/` on both platforms)."""
+    """The vendored `mvn` if present, else PATH `mvn` (same POSIX
+    system-tools fallback as `_npm_cmd`)."""
     exe = "mvn.cmd" if platform.system() == "Windows" else "mvn"
-    return str(cfg.tools.maven / "bin" / exe)
+    vendored = cfg.tools.maven / "bin" / exe
+    return str(vendored) if vendored.is_file() else exe
 
 
 def build_project(
