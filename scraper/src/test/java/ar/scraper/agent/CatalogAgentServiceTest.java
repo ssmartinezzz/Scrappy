@@ -4,6 +4,7 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.ResultAggregator.Facets;
 import ar.scraper.model.Product;
 import ar.scraper.web.ScraperService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -28,6 +29,11 @@ import static org.mockito.Mockito.when;
  * 4.3-4.7 — design D3/D4/D8): the bounded, READ-ONLY tool-use loop. A fake
  * {@link ChatProvider} scripts each turn's {@link ChatResponse} so the whole
  * loop runs deterministically without any real LLM/network dependency.
+ *
+ * <p>The {@code agent-chat-continuity} block at the bottom covers multi-turn
+ * transcript reconstruction: a past assistant turn's tool calls are replayed
+ * against the LIVE catalog so the model sees a coherent, currently-true
+ * transcript instead of bare prose.</p>
  */
 @Epic("LLM Catalog Agent")
 @Feature("CatalogAgentService")
@@ -44,14 +50,29 @@ class CatalogAgentServiceTest {
     @BeforeEach
     void setUp() {
         scraperService = mock(ScraperService.class);
-        product = new Product("Sitio", "Zapatilla SAD Adidas", 1000, null, "https://a.com/1", "img",
-                "Zapatilla Running", "hombre", List.of(), Product.MlScore.EMPTY, "Adidas",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
-        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
-        AggregatedResult result = new AggregatedResult(List.of(product), Map.of(), Map.of(), facets, 0, 0);
-        when(scraperService.getLastResult()).thenReturn(result);
+        product = producto("Zapatilla Running");
+        when(scraperService.getLastResult()).thenReturn(snapshotWith(product));
         registry = new ToolRegistry(new SearchProductsTool(scraperService),
                 new ViewProductTool(scraperService), new ProposeReclassifyTool(scraperService));
+    }
+
+    private static Product producto(String categoria) {
+        return new Product("Sitio", "Zapatilla SAD Adidas", 1000, null, "https://a.com/1", "img",
+                categoria, "hombre", List.of(), Product.MlScore.EMPTY, "Adidas",
+                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+    }
+
+    private static AggregatedResult snapshotWith(Product p) {
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        return new AggregatedResult(List.of(p), Map.of(), Map.of(), facets, 0, 0);
+    }
+
+    private static ToolStep step(String toolName, Map<String, Object> args) {
+        return new ToolStep(List.of(new ToolStep.Call(toolName, MAPPER.valueToTree(args))));
+    }
+
+    private static List<ConversationTurn> conversation(ConversationTurn... turns) {
+        return List.of(turns);
     }
 
     @Test
@@ -65,7 +86,8 @@ class CatalogAgentServiceTest {
         provider.enqueueFinalAnswer("Te propongo cambiar la categoría a Buzo, ¿confirmás?");
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        AgentChatResponse resp = service.run(List.of(ChatMessage.user("corregí la zapatilla SAD Adidas")), null);
+        AgentChatResponse resp = service.run(
+                conversation(ConversationTurn.user("corregí la zapatilla SAD Adidas")), null);
 
         assertThat(resp.assistantText()).contains("Buzo");
         assertThat(resp.proposals()).hasSize(1);
@@ -84,7 +106,7 @@ class CatalogAgentServiceTest {
         provider.enqueueFinalAnswer("No pude ejecutar esa acción, pero seguí funcionando.");
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        AgentChatResponse resp = service.run(List.of(ChatMessage.user("hacé algo raro")), null);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("hacé algo raro")), null);
 
         assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
         assertThat(resp.assistantText()).isNotEqualTo("No pude ejecutar esa acción, pero seguí funcionando.");
@@ -96,9 +118,10 @@ class CatalogAgentServiceTest {
     void answerWithoutAnyToolCallIsUngrounded() {
         FakeChatProvider provider = new FakeChatProvider();
         provider.enqueueFinalAnswer("Puedo ayudarte con lo que quieras.");
+        provider.enqueueFinalAnswer("Igual te insisto: puedo ayudarte con lo que quieras.");
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        AgentChatResponse resp = service.run(List.of(ChatMessage.user("dame consejos de moda")), null);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("dame consejos de moda")), null);
 
         assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
         assertThat(resp.assistantText()).isNotEqualTo("Puedo ayudarte con lo que quieras.");
@@ -116,7 +139,7 @@ class CatalogAgentServiceTest {
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
         AgentChatResponse resp = service.run(
-                List.of(ChatMessage.user("¿tenés algo de la marca inexistente xyz?")), null);
+                conversation(ConversationTurn.user("¿tenés algo de la marca inexistente xyz?")), null);
 
         assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
         assertThat(resp.assistantText()).isNotEqualTo("Encontré una remera azul con 50% de descuento.");
@@ -130,7 +153,7 @@ class CatalogAgentServiceTest {
         FakeChatProvider provider = new FakeChatProvider();
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        AgentChatResponse resp = service.run(List.of(ChatMessage.user("hola")), null);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("hola")), null);
 
         assertThat(resp.outcome()).isEqualTo(TurnOutcome.CAPABILITY);
         assertThat(resp.proposals()).isEmpty();
@@ -151,7 +174,8 @@ class CatalogAgentServiceTest {
         }
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        AgentChatResponse resp = service.run(List.of(ChatMessage.user("corregí la zapatilla SAD Adidas")), null);
+        AgentChatResponse resp = service.run(
+                conversation(ConversationTurn.user("corregí la zapatilla SAD Adidas")), null);
 
         assertThat(resp.outcome()).isEqualTo(TurnOutcome.EXHAUSTED);
         assertThat(resp.proposals()).hasSize(1);
@@ -167,7 +191,7 @@ class CatalogAgentServiceTest {
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
 
-        assertThatThrownBy(() -> service.run(List.of(ChatMessage.user("buscame una remera")), null))
+        assertThatThrownBy(() -> service.run(conversation(ConversationTurn.user("buscame una remera")), null))
                 .isInstanceOf(ProviderUnavailableException.class);
     }
 
@@ -181,22 +205,322 @@ class CatalogAgentServiceTest {
         }
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        AgentChatResponse resp = service.run(List.of(ChatMessage.user("segui buscando para siempre")), null);
+        AgentChatResponse resp = service.run(
+                conversation(ConversationTurn.user("segui buscando para siempre")), null);
 
         assertThat(resp.assistantText()).isNotBlank();
         assertThat(provider.callCount()).isEqualTo(CatalogAgentService.MAX_ITERATIONS);
     }
 
     @Test
-    @DisplayName("run(history, model) forwards the model through to ChatProvider.next()")
+    @DisplayName("run(conversation, model) forwards the model through to ChatProvider.next()")
     void runForwardsModelToProvider() {
         FakeChatProvider provider = new FakeChatProvider();
         provider.enqueueFinalAnswer("ok");
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        service.run(List.of(ChatMessage.user("buscame una remera")), "llama3.1:8b");
+        service.run(conversation(ConversationTurn.user("buscame una remera")), "llama3.1:8b");
 
         assertThat(provider.lastModelUsed()).isEqualTo("llama3.1:8b");
+    }
+
+    // ── agent-chat-continuity: grounding nudge ──────────────────────────
+
+    @Test
+    @DisplayName("a first ungrounded answer gets ONE corrective nudge; if the model then calls a tool "
+            + "successfully the turn completes normally (the nudge fixes the false negative, it does not "
+            + "launder grounding)")
+    void ungroundedAnswerGetsOneCorrectiveNudgeAndCanRecover() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("La zapatilla está en categoría Zapatilla Running.");
+        provider.enqueueToolCall(ViewProductTool.NAME, Map.of("url", "https://a.com/1"));
+        provider.enqueueFinalAnswer("Confirmado: está en Zapatilla Running.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("¿en qué categoría está?")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.assistantText()).isEqualTo("Confirmado: está en Zapatilla Running.");
+    }
+
+    @Test
+    @DisplayName("the corrective nudge fires at most ONCE per turn: a model that keeps answering without "
+            + "tools is still rejected as UNGROUNDED")
+    void nudgeFiresAtMostOncePerTurn() {
+        FakeChatProvider provider = new FakeChatProvider();
+        for (int i = 0; i < 5; i++) provider.enqueueFinalAnswer("Te respondo igual sin usar herramientas.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("inventame algo")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
+        assertThat(provider.callCount()).isEqualTo(2);
+    }
+
+    // ── agent-chat-continuity: multi-turn transcript replay ─────────────
+
+    @Test
+    @DisplayName("a past assistant turn's trace is replayed into the transcript as assistant(tool_calls) + "
+            + "tool result pairs, so the model sees that its previous answer came from tools")
+    void pastTurnTraceIsReplayedAsToolCallAndResultPairs() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueFinalAnswer("Ahí va.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(conversation(
+                ConversationTurn.user("mostrame la zapatilla"),
+                ConversationTurn.assistant("Es una Zapatilla Running de Adidas.",
+                        List.of(step(ViewProductTool.NAME, Map.of("url", "https://a.com/1")))),
+                ConversationTurn.user("¿y de qué marca es?")), null);
+
+        List<ChatMessage> sent = provider.firstHistory();
+        assertThat(sent.get(0).role()).isEqualTo(Role.SYSTEM);
+        assertThat(sent.get(1).role()).isEqualTo(Role.USER);
+
+        ChatMessage replayedCall = sent.get(2);
+        assertThat(replayedCall.role()).isEqualTo(Role.ASSISTANT);
+        assertThat(replayedCall.toolCalls()).singleElement()
+                .extracting(ToolCall::name).isEqualTo(ViewProductTool.NAME);
+
+        ChatMessage replayedResult = sent.get(3);
+        assertThat(replayedResult.role()).isEqualTo(Role.TOOL);
+        assertThat(replayedResult.toolCallId()).isEqualTo(replayedCall.toolCalls().get(0).id());
+        assertThat(replayedResult.text()).contains("Adidas");
+
+        assertThat(sent.get(4).role()).isEqualTo(Role.ASSISTANT);
+        assertThat(sent.get(4).text()).isEqualTo("Es una Zapatilla Running de Adidas.");
+        assertThat(sent.get(5).role()).isEqualTo(Role.USER);
+    }
+
+    @Test
+    @DisplayName("replayed tool results are re-read from the LIVE catalog, never carried by the client — "
+            + "a product reclassified between turns comes back with its NEW category")
+    void replayedResultsAreReReadFromTheLiveCatalog() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("ok");
+        provider.enqueueFinalAnswer("ok");
+
+        // The confirmed reclassification landed between the two turns.
+        when(scraperService.getLastResult()).thenReturn(snapshotWith(producto("Buzo")));
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(conversation(
+                ConversationTurn.user("mostrame la zapatilla"),
+                ConversationTurn.assistant("Está en Zapatilla Running.",
+                        List.of(step(ViewProductTool.NAME, Map.of("url", "https://a.com/1")))),
+                ConversationTurn.user("¿en qué categoría quedó?")), null);
+
+        ChatMessage replayedResult = provider.firstHistory().get(3);
+        assertThat(replayedResult.role()).isEqualTo(Role.TOOL);
+        assertThat(replayedResult.text()).contains("Buzo");
+        assertThat(replayedResult.text()).doesNotContain("Zapatilla Running");
+    }
+
+    @Test
+    @DisplayName("replaying a past propose_reclassify never re-emits its proposal — only calls the model "
+            + "issues in THIS turn produce proposal cards")
+    void replayNeverReEmitsPastProposals() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueFinalAnswer("Listo.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(
+                ConversationTurn.user("corregí la zapatilla"),
+                ConversationTurn.assistant("Te propuse pasarla a Buzo.",
+                        List.of(step(ProposeReclassifyTool.NAME,
+                                Map.of("url", "https://a.com/1", "categoria", "Buzo")))),
+                ConversationTurn.user("gracias, ahora buscame otra")), null);
+
+        assertThat(resp.proposals()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a tool name the registry does not know is dropped from a client-supplied trace: never "
+            + "executed, and no error text is injected into the replayed transcript")
+    void unknownToolNameInClientTraceIsDropped() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueFinalAnswer("Listo.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(conversation(
+                ConversationTurn.user("hola"),
+                ConversationTurn.assistant("Respuesta previa.",
+                        List.of(new ToolStep(List.of(
+                                new ToolStep.Call("delete_everything", MAPPER.createObjectNode()))))),
+                ConversationTurn.user("seguimos")), null);
+
+        assertThat(provider.firstHistory())
+                .noneMatch(m -> m.role() == Role.TOOL)
+                .noneMatch(m -> m.text() != null && m.text().contains("delete_everything"));
+    }
+
+    @Test
+    @DisplayName("replay never launders grounding: a turn whose only tool activity is replayed history is "
+            + "still rejected as UNGROUNDED when the model answers without calling anything itself")
+    void replayDoesNotLaunderGrounding() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("Vale 1500 pesos el dólar.");
+        provider.enqueueFinalAnswer("Te insisto: 1500 pesos.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(
+                ConversationTurn.user("mostrame la zapatilla"),
+                ConversationTurn.assistant("Es una Zapatilla Running.",
+                        List.of(step(ViewProductTool.NAME, Map.of("url", "https://a.com/1")))),
+                ConversationTurn.user("¿cuánto vale el dólar?")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
+        assertThat(resp.assistantText()).doesNotContain("1500");
+    }
+
+    @Test
+    @DisplayName("replay is bounded by MAX_REPLAY_CALLS, keeping the most RECENT turns and dropping the "
+            + "oldest — a long conversation can't grow the transcript without limit")
+    void replayIsBoundedKeepingTheMostRecentTurns() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("ok");
+        provider.enqueueFinalAnswer("ok");
+
+        List<ConversationTurn> longChat = new ArrayList<>();
+        int pastTurns = CatalogAgentService.MAX_REPLAY_CALLS + 4;
+        for (int i = 0; i < pastTurns; i++) {
+            longChat.add(ConversationTurn.user("pregunta " + i));
+            longChat.add(ConversationTurn.assistant("respuesta " + i,
+                    List.of(step(ViewProductTool.NAME, Map.of("url", "https://a.com/1")))));
+        }
+        longChat.add(ConversationTurn.user("última"));
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(longChat, null);
+
+        List<ChatMessage> sent = provider.firstHistory();
+        long replayedResults = sent.stream().filter(m -> m.role() == Role.TOOL).count();
+        assertThat(replayedResults).isEqualTo(CatalogAgentService.MAX_REPLAY_CALLS);
+
+        // The window is the tail of the conversation: the LAST assistant turn kept its trace…
+        int lastAssistant = sent.size() - 2; // the trailing user turn is last
+        assertThat(sent.get(lastAssistant).text()).isEqualTo("respuesta " + (pastTurns - 1));
+        assertThat(sent.get(lastAssistant - 1).role()).isEqualTo(Role.TOOL);
+        // …while the very first one was dropped (its text survives, its trace does not).
+        assertThat(sent.get(2).text()).isEqualTo("respuesta 0");
+        assertThat(sent.get(2).role()).isEqualTo(Role.ASSISTANT);
+    }
+
+    @Test
+    @DisplayName("replay never contributes confirmedNoMatches either: a past turn whose search found "
+            + "nothing cannot make a later toolless turn answer 'no encontré productos' — that message "
+            + "is a claim about THIS turn's search")
+    void replayDoesNotContributeConfirmedNoMatches() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("No hay nada de eso en el catálogo.");
+        provider.enqueueFinalAnswer("Te insisto: no hay nada.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(
+                ConversationTurn.user("¿tenés algo de la marca inexistente xyz?"),
+                ConversationTurn.assistant("No encontré nada de esa marca.",
+                        List.of(step(SearchProductsTool.NAME, Map.of("query", "marca-inexistente-xyz")))),
+                ConversationTurn.user("¿y de Adidas?")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
+        assertThat(resp.assistantText()).doesNotContain("No encontré productos que coincidan");
+    }
+
+    @Test
+    @DisplayName("a turn whose OWN trace exceeds the whole budget is truncated to its most recent steps, "
+            + "never dropped — dropping it collapsed replay to nothing exactly after the tool-heaviest turn")
+    void overBudgetTurnIsTruncatedToItsMostRecentStepsNotDropped() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("ok");
+        provider.enqueueFinalAnswer("ok");
+
+        List<ToolStep> fatTrace = new ArrayList<>();
+        int steps = CatalogAgentService.MAX_REPLAY_CALLS + 8;
+        for (int i = 0; i < steps; i++) {
+            fatTrace.add(step(ViewProductTool.NAME, Map.of("url", "https://a.com/1")));
+        }
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(conversation(
+                ConversationTurn.user("corregí todo el catálogo"),
+                ConversationTurn.assistant("Revisé varios productos.", fatTrace),
+                ConversationTurn.user("¿y ahora?")), null);
+
+        List<ChatMessage> sent = provider.firstHistory();
+        assertThat(sent.stream().filter(m -> m.role() == Role.TOOL).count())
+                .isEqualTo(CatalogAgentService.MAX_REPLAY_CALLS);
+        assertThat(sent).anyMatch(m -> m.role() == Role.TOOL && m.text().contains("Adidas"));
+    }
+
+    @Test
+    @DisplayName("a single step bigger than the whole budget is truncated to its most recent calls, and "
+            + "the replayed assistant message announces exactly the calls that get executed (well-formed wire)")
+    void overBudgetSingleStepIsTruncatedAndStaysWellFormed() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("ok");
+        provider.enqueueFinalAnswer("ok");
+
+        List<ToolStep.Call> manyCalls = new ArrayList<>();
+        for (int i = 0; i < CatalogAgentService.MAX_REPLAY_CALLS + 8; i++) {
+            manyCalls.add(new ToolStep.Call(ViewProductTool.NAME,
+                    MAPPER.valueToTree(Map.of("url", "https://a.com/1"))));
+        }
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        service.run(conversation(
+                ConversationTurn.user("mirá todo"),
+                ConversationTurn.assistant("Miré varios.", List.of(new ToolStep(manyCalls))),
+                ConversationTurn.user("¿y ahora?")), null);
+
+        List<ChatMessage> sent = provider.firstHistory();
+        ChatMessage announced = sent.stream()
+                .filter(m -> m.role() == Role.ASSISTANT && !m.toolCalls().isEmpty())
+                .findFirst().orElseThrow();
+        long results = sent.stream().filter(m -> m.role() == Role.TOOL).count();
+
+        assertThat(announced.toolCalls()).hasSize(CatalogAgentService.MAX_REPLAY_CALLS);
+        assertThat(results).isEqualTo(CatalogAgentService.MAX_REPLAY_CALLS);
+    }
+
+    @Test
+    @DisplayName("a COMPLETE turn exports the tool calls it issued as a step-ordered trace, so the next "
+            + "turn can replay them — errored calls are excluded")
+    void completeTurnExportsOnlySuccessfulCallsAsTrace() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueToolCall(ViewProductTool.NAME, Map.of("url", "https://inexistente.com/9"));
+        provider.enqueueToolCall(ViewProductTool.NAME, Map.of("url", "https://a.com/1"));
+        provider.enqueueFinalAnswer("Es una Zapatilla Running.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("mostrame la zapatilla")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.trace()).hasSize(2);
+        assertThat(resp.trace().get(0).calls()).singleElement()
+                .extracting(ToolStep.Call::name).isEqualTo(SearchProductsTool.NAME);
+        assertThat(resp.trace().get(1).calls()).singleElement()
+                .satisfies(call -> {
+                    assertThat(call.name()).isEqualTo(ViewProductTool.NAME);
+                    assertThat(call.arguments().path("url").asText()).isEqualTo("https://a.com/1");
+                });
+    }
+
+    @Test
+    @DisplayName("a turn that produces no durable assistant message (UNGROUNDED) exports no trace")
+    void ungroundedTurnExportsNoTrace() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("sin herramientas");
+        provider.enqueueFinalAnswer("sigo sin herramientas");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("inventá algo")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
+        assertThat(resp.trace()).isEmpty();
     }
 
     // ── Fake ChatProvider test double ──────────────────────────────────
@@ -205,11 +529,13 @@ class CatalogAgentServiceTest {
         /** Each element is either a {@link ChatResponse} or a {@link RuntimeException} to throw. */
         private final Deque<Object> script = new ArrayDeque<>();
         private final List<String> calledToolNames = new ArrayList<>();
+        /** Every history this provider was handed, in order — lets a test assert on the reconstructed transcript. */
+        private final List<List<ChatMessage>> histories = new ArrayList<>();
         private String lastModelUsed;
         private int callCount = 0;
 
         void enqueueToolCall(String name, Map<String, Object> args) {
-            var node = MAPPER.valueToTree(args);
+            JsonNode node = MAPPER.valueToTree(args);
             script.add(new ChatResponse("", List.of(new ToolCall("call_" + script.size(), name, node))));
         }
 
@@ -224,11 +550,13 @@ class CatalogAgentServiceTest {
         List<String> calledToolNamesInOrder() { return calledToolNames; }
         int callCount() { return callCount; }
         String lastModelUsed() { return lastModelUsed; }
+        List<ChatMessage> firstHistory() { return histories.get(0); }
 
         @Override
         public ChatResponse next(List<ChatMessage> history, List<ToolSpec> tools, String model) {
             callCount++;
             lastModelUsed = model;
+            histories.add(List.copyOf(history));
             Object next = script.isEmpty()
                     ? new ChatResponse("sin más pasos programados", List.of())
                     : script.poll();
