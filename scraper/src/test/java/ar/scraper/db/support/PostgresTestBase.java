@@ -3,6 +3,8 @@ package ar.scraper.db.support;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -46,6 +48,8 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class PostgresTestBase {
 
+    private static final Logger LOG = LoggerFactory.getLogger(PostgresTestBase.class);
+
     private static volatile DataSource sharedDataSource;
     private static volatile String unavailableReason;
     private static final Object LOCK = new Object();
@@ -69,13 +73,15 @@ public abstract class PostgresTestBase {
                 return sharedDataSource;
             }
             if (unavailableReason != null) {
-                Assumptions.assumeTrue(false, unavailableReason);
+                skipOrFail(unavailableReason);
             }
+            Throwable dockerFailure;
             try {
                 sharedDataSource = startTestcontainers();
                 return sharedDataSource;
-            } catch (Throwable dockerFailure) {
-                // Docker not reachable — fall back to portable-local.
+            } catch (Throwable failure) {
+                dockerFailure = failure;
+                LOG.warn("Testcontainers Postgres unavailable, falling back to portable-local: {}", failure.toString());
             }
             Path portableHome = findPortableHome();
             if (portableHome != null) {
@@ -83,17 +89,51 @@ public abstract class PostgresTestBase {
                     sharedDataSource = startPortableLocal(portableHome);
                     return sharedDataSource;
                 } catch (Exception portableFailure) {
-                    unavailableReason = "Postgres test seam unavailable: no Docker daemon reachable AND "
-                            + "portable-local start failed against " + portableHome + " (" + portableFailure + ")";
-                    Assumptions.assumeTrue(false, unavailableReason);
+                    unavailableReason = describeUnavailable(dockerFailure, portableFailure);
+                    skipOrFail(unavailableReason);
                 }
             }
-            unavailableReason = "Postgres test seam unavailable: no Docker daemon reachable and no portable "
-                    + "Postgres found under _tools/pgsql (run INSTALAR_Y_CORRER.bat / Ejecutar_instalar.sh once, "
-                    + "or set SCRAPER_TEST_PGSQL_HOME) — skipping.";
-            Assumptions.assumeTrue(false, unavailableReason);
-            return null; // unreachable, assumeTrue(false) throws
+            unavailableReason = describeUnavailable(dockerFailure, null);
+            skipOrFail(unavailableReason);
+            return null; // unreachable — skipOrFail always throws (assumeTrue(false) or requireDb hard failure)
         }
+    }
+
+    /**
+     * manual-classification-lock, Phase 0 (task 0.3, anti-silent-skip guard).
+     *
+     * <p>Default {@code false} so contributors without Docker/portable-Postgres can still
+     * build locally; CI and this change's own verification set it {@code true} so a DB-backed
+     * test that cannot reach Postgres fails loudly instead of silently reporting
+     * {@code Skipped} inside a green build.</p>
+     */
+    static boolean requireDb() {
+        return "true".equalsIgnoreCase(System.getProperty("scraper.test.requireDb", "false"));
+    }
+
+    /**
+     * Chains the Docker failure (previously swallowed silently at {@code catch (Throwable
+     * dockerFailure)}) and, when the portable-local fallback was also attempted, its failure
+     * too — instead of discarding the root cause.
+     */
+    static String describeUnavailable(Throwable dockerFailure, Throwable portableFailure) {
+        StringBuilder reason = new StringBuilder("Postgres test seam unavailable: Docker daemon check failed (")
+                .append(dockerFailure)
+                .append(")");
+        if (portableFailure != null) {
+            reason.append(" AND portable-local start failed (").append(portableFailure).append(")");
+        } else {
+            reason.append(" and no portable Postgres found under _tools/pgsql (run INSTALAR_Y_CORRER.bat / "
+                    + "Ejecutar_instalar.sh once, or set SCRAPER_TEST_PGSQL_HOME)");
+        }
+        return reason.toString();
+    }
+
+    private static void skipOrFail(String reason) {
+        if (requireDb()) {
+            throw new IllegalStateException(reason);
+        }
+        Assumptions.assumeTrue(false, reason);
     }
 
     // ── Mode 1: Testcontainers ────────────────────────────────────────────

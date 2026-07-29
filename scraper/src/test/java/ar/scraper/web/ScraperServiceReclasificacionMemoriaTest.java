@@ -62,7 +62,7 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperService service = serviceCon(
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual"));
 
-        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento");
+        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento", "indumentaria");
 
         Product patched = service.getLastResult().productos().get(0);
         assertThat(patched.categoria()).isEqualTo("Remera");
@@ -77,7 +77,7 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperService service = serviceCon(
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual"));
 
-        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento");
+        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento", "indumentaria");
 
         Product patched = service.getLastResult().productos().get(0);
         assertThat(patched.nombre()).isEqualTo("Epic Shirt");
@@ -94,7 +94,7 @@ class ScraperServiceReclasificacionMemoriaTest {
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual"),
                 producto("https://site.com/otro", "Pantalón", "Otra", "mujer", "Cargo"));
 
-        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento");
+        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento", "indumentaria");
 
         List<Product> productos = service.getLastResult().productos();
         assertThat(productos).hasSize(2);
@@ -113,12 +113,12 @@ class ScraperServiceReclasificacionMemoriaTest {
         DatabaseService db = Mockito.mock(DatabaseService.class);
         ScraperService sinCatalogo = new ScraperService(config, aggregator, db);
 
-        sinCatalogo.actualizarProductoEnMemoria(URL, "Remera", "M", "hombre", "Entrenamiento");
+        sinCatalogo.actualizarProductoEnMemoria(URL, "Remera", "M", "hombre", "Entrenamiento", "indumentaria");
         assertThat(sinCatalogo.getLastResult()).isNull();
 
         ScraperService conCatalogo = serviceCon(
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual"));
-        conCatalogo.actualizarProductoEnMemoria(null, "Remera", "M", "hombre", "Entrenamiento");
+        conCatalogo.actualizarProductoEnMemoria(null, "Remera", "M", "hombre", "Entrenamiento", "indumentaria");
         assertThat(conCatalogo.getLastResult().productos().get(0).categoria()).isEqualTo("Camisa");
     }
 
@@ -128,7 +128,7 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperService service = serviceCon(
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual"));
 
-        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento");
+        service.actualizarProductoEnMemoria(URL, "Remera", "Monkyforce", "hombre", "Entrenamiento", "indumentaria");
 
         // Reusing the previous facets (as eliminarProductoDeMemoria does) would
         // leave the catalog filter offering "Camisa" and hiding "Remera".
@@ -142,12 +142,41 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperService service = serviceCon(
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual"));
 
-        service.actualizarProductoEnMemoria(URL, "Remera", "", null, "  ");
+        service.actualizarProductoEnMemoria(URL, "Remera", "", null, "  ", "");
 
         Product patched = service.getLastResult().productos().get(0);
         assertThat(patched.categoria()).isEqualTo("Remera");
         assertThat(patched.marca()).isEqualTo("Genérica");
         assertThat(patched.genero()).isEqualTo("unisex");
         assertThat(patched.subCategoria()).isEqualTo("Casual");
+        assertThat(patched.rubro()).isEqualTo("indumentaria"); // blank rubro preserves the prior value
+    }
+
+    // ── manual-classification-lock Phase 7: rubro was a pre-existing bug —
+    //    kept as p.rubro() unconditionally, never patched, so it diverged from
+    //    a human-set categoria the moment agentApply ran, before any scrape. ──
+
+    @Test
+    @DisplayName("manual-classification-lock: patches rubro too, fixing the pre-existing stale-rubro bug")
+    void patchesRubroToo() {
+        ScraperService service = serviceCon(
+                producto(URL, "Camisa", "Genérica", "unisex", "Casual"));
+
+        service.actualizarProductoEnMemoria(URL, "Buzo", "Adidas", "mujer", "urbano", "indumentaria");
+
+        Product patched = service.getLastResult().productos().get(0);
+        assertThat(patched.rubro()).isEqualTo("indumentaria");
+    }
+
+    @Test
+    @DisplayName("manual-classification-lock: a non-blank rubro actually overrides the prior one")
+    void patchesRubroWhenItActuallyChanges() {
+        ScraperService service = serviceCon(
+                producto(URL, "Camisa", "Genérica", "unisex", "Casual")); // producto() defaults rubro to "indumentaria"
+
+        service.actualizarProductoEnMemoria(URL, "Zapatillas", "Nike", "hombre", "running", "tecnologia");
+
+        Product patched = service.getLastResult().productos().get(0);
+        assertThat(patched.rubro()).isEqualTo("tecnologia");
     }
 }

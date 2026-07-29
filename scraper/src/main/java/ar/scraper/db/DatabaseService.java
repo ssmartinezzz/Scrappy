@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.aggregator.normalize.RubroResolver;
+import ar.scraper.aggregator.normalize.SiteClassification;
 import ar.scraper.cron.CronExecution;
 import ar.scraper.cron.CronJob;
 import ar.scraper.model.Product;
@@ -57,6 +59,10 @@ public class DatabaseService {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final DataSource dataSource;
+    // Stateless (no injected dependencies of its own) — instantiated directly so this
+    // constructor's shape (DataSource only) stays unchanged for the ~18 existing test
+    // call sites (manual-classification-lock Phase 3, zero call-site churn).
+    private final RubroResolver rubroResolver = new RubroResolver();
 
     public DatabaseService(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -508,6 +514,35 @@ public class DatabaseService {
         }
     }
 
+    /**
+     * Read-side of the manual classification lock (design D3/D4). One entry
+     * per locked product, keyed by url — {@code ResultAggregator.aplicarBloqueos}
+     * reads this ONCE per {@code agregar} call and applies it in memory before
+     * ML scoring and again after stage-1b (the SQL guards in {@code sp_upsert_run}
+     * are authoritative for persistence; this closes the in-memory
+     * {@code lastResult} snapshot gap, design problem 3).
+     */
+    public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
+        Map<String, ClasificacionBloqueada> result = new LinkedHashMap<>();
+        try (Connection c = dataSource.getConnection();
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                "SELECT url,categoria,sub_categoria,marca,genero,rubro FROM productos "
+                        + "WHERE bloqueado_por IS NOT NULL")) {
+            while (rs.next()) {
+                result.put(rs.getString("url"), new ClasificacionBloqueada(
+                        rs.getString("categoria"),
+                        rs.getString("sub_categoria"),
+                        rs.getString("marca"),
+                        rs.getString("genero"),
+                        rs.getString("rubro")));
+            }
+        } catch (Exception e) {
+            LOG.error("[DB] Error cargando clasificaciones bloqueadas: {}", e.getMessage(), e);
+        }
+        return result;
+    }
+
     private Product productoDesdeFila(ResultSet rs) throws java.sql.SQLException {
         List<String> talles = List.of();
         try {
@@ -804,12 +839,23 @@ public class DatabaseService {
         return result;
     }
 
-    /** Actualiza la categoría de un producto (corrección por modelo ML) */
+    /**
+     * Actualiza la categoría de un producto (corrección por modelo ML).
+     *
+     * <p>Camino de MÁQUINA (design D5) — llamado en cada scrape desde
+     * {@code ResultAggregator.persistirCategoriasRefinadas} y desde
+     * {@code POST /api/ml/aplicar}. Lleva {@code AND bloqueado_por IS NULL}:
+     * un producto bloqueado no debe perder su categoría humana-confirmada
+     * por este camino. El camino HUMANO ({@link #aplicarReclasificacionAuditada},
+     * vía la {@code updateNormalizacion} privada compartida) NO lleva este
+     * guard — una segunda confirmación humana debe poder re-lockear un
+     * producto ya bloqueado.</p>
+     */
     public void actualizarCategoria(String url, String nuevaCategoria) {
         if (url == null || nuevaCategoria == null) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET categoria=? WHERE url=?")) {
+                "UPDATE productos SET categoria=? WHERE url=? AND bloqueado_por IS NULL")) {
             ps.setString(1, nuevaCategoria);
             ps.setString(2, url);
             ps.executeUpdate();
@@ -819,23 +865,46 @@ public class DatabaseService {
     }
 
     /**
-     * UPDATE compartido de categoria/marca/genero/talles/sub_categoria — extraído
-     * de {@link #actualizarNormalizacion} (agent-chat-finetune WU1) para que
-     * también lo reutilice {@link #aplicarReclasificacionAuditada} dentro de su
-     * propia transacción. Devuelve directamente el row count de
-     * {@code executeUpdate()}: el llamador SIEMPRE debe mirarlo (descartar este
-     * valor era la raíz del defecto "silent success" original).
+     * UPDATE compartido de clasificación (categoria/marca/genero/sub_categoria) +
+     * talles — extraído de {@link #actualizarNormalizacion} (agent-chat-finetune
+     * WU1), reutilizado por {@link #aplicarReclasificacionAuditada} (camino
+     * humano, dentro de su propia transacción) y por {@link #actualizarNormalizacion}
+     * (camino de máquina). {@code respectLock} decide si se agrega el guard
+     * {@code AND bloqueado_por IS NULL} a la sentencia de clasificación —
+     * {@code false} para el camino humano (una segunda confirmación debe poder
+     * re-lockear un producto ya bloqueado), {@code true} para el de máquina.
+     * Un único parámetro booleano en vez de dos sentencias mantenidas por
+     * separado (review fix F1, manual-classification-lock): antes de este fix,
+     * {@link #actualizarNormalizacion} traía su propio UPDATE duplicado
+     * hand-rolled con el guard, y este método quedaba sin usar desde ahí pese
+     * a lo que su JavaDoc afirmaba.
+     *
+     * <p>{@code talles} SIEMPRE se escribe en su PROPIA sentencia, sin guard:
+     * no es una columna bloqueada (design D3 — {@code SpUpsertRunColumnCoverageTest}
+     * la clasifica OVERWRITTEN, no LOCKED, y {@code sp_upsert_run} la sobrescribe
+     * siempre sin importar el estado del lock). Bundlearla dentro del UPDATE
+     * guardado congelaba {@code talles} en un producto bloqueado, contradiciendo
+     * esa misma taxonomía (review fix F2). El row count devuelto es el de la
+     * sentencia de CLASIFICACIÓN — la única que puede ser bloqueada — y es lo
+     * que el llamador SIEMPRE debe mirar (descartar este valor era la raíz del
+     * defecto "silent success" original).</p>
      */
     private int updateNormalizacion(Connection c, String url, String categoria, String marca,
-                                     String genero, List<String> talles, String subCategoria) throws Exception {
-        try (PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET categoria=?, marca=?, genero=?, talles=?, sub_categoria=? WHERE url=?")) {
+                                     String genero, List<String> talles, String subCategoria,
+                                     boolean respectLock) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement("UPDATE productos SET talles=? WHERE url=?")) {
+            ps.setString(1, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
+            ps.setString(2, url);
+            ps.executeUpdate();
+        }
+        String sql = "UPDATE productos SET categoria=?, marca=?, genero=?, sub_categoria=? WHERE url=?"
+                + (respectLock ? " AND bloqueado_por IS NULL" : "");
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, categoria != null ? categoria : "");
             ps.setString(2, marca != null ? marca : "");
             ps.setString(3, genero != null ? genero : "");
-            ps.setString(4, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-            ps.setString(5, subCategoria != null ? subCategoria : "");
-            ps.setString(6, url);
+            ps.setString(4, subCategoria != null ? subCategoria : "");
+            ps.setString(5, url);
             return ps.executeUpdate();
         }
     }
@@ -845,17 +914,27 @@ public class DatabaseService {
      * DB sin re-scrapear. Usado por la re-normalización bulk del catálogo
      * ({@code ResultAggregator#renormalizarCatalogo}): aplica las reglas
      * actuales de {@code NormalizerService} sobre datos ya persistidos.
-     * Devuelve el row count real del UPDATE (0 si la url no existe o hubo una
-     * excepción) — el llamador lo usa para distinguir "escritura intentada" de
-     * "escritura aplicada" (agent-chat-finetune WU1/WU2; antes de este fix este
-     * método era {@code void} y el bulk path contaba cambios intentados como si
-     * hubieran sido efectivamente persistidos).
+     * Devuelve el row count real del UPDATE de clasificación (0 si la url no
+     * existe, el producto está bloqueado, o hubo una excepción) — el llamador
+     * lo usa para distinguir "escritura intentada" de "escritura aplicada"
+     * (agent-chat-finetune WU1/WU2; antes de este fix este método era
+     * {@code void} y el bulk path contaba cambios intentados como si hubieran
+     * sido efectivamente persistidos).
+     *
+     * <p>Camino de MÁQUINA (design D5) — llamado desde el bulk path de
+     * {@code ResultAggregator.renormalizarCatalogo} ({@code POST /api/ml/renormalizar}).
+     * Reutiliza la {@code updateNormalizacion} privada compartida con
+     * {@code respectLock=true} (review fix F1): un 0-row-count aquí sobre un
+     * producto bloqueado es el comportamiento correcto, no una falla — Phase 6
+     * lo distingue de una escritura fallida real. {@code talles} SIEMPRE se
+     * escribe, incluso en un producto bloqueado (review fix F2) — no es una
+     * columna bloqueada.</p>
      */
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
         if (url == null) return 0;
         try (Connection c = dataSource.getConnection()) {
-            return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria);
+            return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, true);
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
             return 0;
@@ -864,34 +943,63 @@ public class DatabaseService {
 
     /**
      * Camino auditado de reclasificación humana ({@code POST /api/agent/apply},
-     * agent-chat-finetune WU1 — fix del confirm-button del LLM catalog agent).
-     * Una sola conexión, una sola transacción: el UPDATE de
-     * {@link #updateNormalizacion} y el INSERT de auditoría se confirman juntos
-     * o ninguno de los dos. Si el UPDATE afecta 0 filas (url inexistente) o el
-     * INSERT de auditoría falla por cualquier motivo, se hace rollback completo
-     * y se devuelve {@code false} — nunca queda una reclasificación sin fila de
-     * auditoría, ni una fila de auditoría de algo que no pasó (tradeoff elegido:
-     * se pierde un click humano confirmado antes que dejar un cambio sin
+     * agent-chat-finetune WU1 — fix del confirm-button del LLM catalog agent;
+     * extendido por manual-classification-lock Phase 3 para adquirir el lock
+     * de clasificación). Una sola conexión, una sola transacción: el UPDATE de
+     * {@link #updateNormalizacion}, el UPDATE de {@code rubro}/lock y el
+     * INSERT de auditoría se confirman juntos o ninguno de los tres. Si el
+     * primer UPDATE afecta 0 filas (url inexistente) o el INSERT de auditoría
+     * falla por cualquier motivo, se hace rollback completo y se devuelve
+     * {@code false} — nunca queda una reclasificación sin fila de auditoría,
+     * ni una fila de auditoría de algo que no pasó (tradeoff elegido: se
+     * pierde un click humano confirmado antes que dejar un cambio sin
      * auditar). Los valores "antes" de la auditoría salen de {@code previo}
      * (una lectura server-side previa, nunca de valores que mande el cliente).
+     *
+     * <p>{@code rubro} se deriva de la {@code categoria} humana vía
+     * {@link RubroResolver} (design D3) — nunca lo propone el agente — y se
+     * persiste junto con el lock ({@code bloqueado_por}/{@code bloqueado_at})
+     * en la MISMA transacción, así {@code sp_upsert_run} lo congela como al
+     * resto de las columnas bloqueadas. {@code actor} viene de
+     * {@link ar.scraper.identity.ActorResolver#current()} — nunca leído
+     * inline. IMPORTANTE (Phase 4): este es un método PÚBLICO llamado por el
+     * camino humano; NO lleva el guard {@code AND bloqueado_por IS NULL} —
+     * una segunda confirmación humana debe poder re-lockear (con un actor
+     * distinto) un producto ya bloqueado. Solo los caminos de MÁQUINA
+     * ({@link #actualizarCategoria}, {@link #actualizarNormalizacion}) llevan
+     * ese guard.</p>
      */
     public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
                                                    String genero, List<String> talles, String subCategoria,
-                                                   Product previo) {
+                                                   Product previo, String actor) {
         if (url == null) return false;
+        String sitioKey = SiteClassification.sitioKey(previo != null ? previo.sitio() : "");
+        String rubroPrevio = previo != null ? previo.rubro() : null;
+        String rubro = rubroResolver.resolver(sitioKey, categoria, rubroPrevio);
+        String ahora = LocalDateTime.now().format(DT);
+
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
-                int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria);
+                int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, false);
                 if (rows != 1) {
                     c.rollback();
                     return false;
                 }
                 try (PreparedStatement ps = c.prepareStatement(
+                        "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                    ps.setString(1, rubro != null ? rubro : "indumentaria");
+                    ps.setString(2, actor != null && !actor.isBlank() ? actor : "local");
+                    ps.setString(3, ahora);
+                    ps.setString(4, url);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO agent_reclassify_audit " +
                         "(url, categoria_antes, categoria_despues, marca_antes, marca_despues, " +
-                        "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, applied_at) " +
-                        "VALUES (?,?,?,?,?,?,?,?,?,?)")) {
+                        "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, " +
+                        "applied_at, applied_by) " +
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
                     ps.setString(1, url);
                     ps.setString(2, previo != null && previo.categoria() != null ? previo.categoria() : "");
                     ps.setString(3, categoria != null ? categoria : "");
@@ -901,7 +1009,8 @@ public class DatabaseService {
                     ps.setString(7, genero != null ? genero : "");
                     ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
                     ps.setString(9, subCategoria != null ? subCategoria : "");
-                    ps.setString(10, LocalDateTime.now().format(DT));
+                    ps.setString(10, ahora);
+                    ps.setString(11, actor != null && !actor.isBlank() ? actor : "local");
                     ps.executeUpdate();
                 }
                 c.commit();
@@ -1165,6 +1274,31 @@ public class DatabaseService {
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando last_checked_at: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Live single-URL read of the classification lock (review fix F3,
+     * manual-classification-lock). {@code ResultAggregator.renormalizarCatalogo}
+     * snapshots {@link #cargarClasificacionBloqueada()} once at method entry
+     * for the common case, but that snapshot goes stale the moment a product
+     * is locked via {@code POST /api/agent/apply} mid-run — the loop makes one
+     * sequential round-trip per changed product across the whole catalog, a
+     * realistic window. This lets the caller attribute a 0-row guarded write
+     * to "correctly skipped, now locked" from a FRESH read taken right after
+     * the write attempt, instead of trusting the stale snapshot.
+     */
+    public boolean estaBloqueado(String url) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "SELECT 1 FROM productos WHERE url=? AND bloqueado_por IS NOT NULL")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] Error consultando bloqueo de {}: {}", url, e.getMessage());
+            return false;
         }
     }
 

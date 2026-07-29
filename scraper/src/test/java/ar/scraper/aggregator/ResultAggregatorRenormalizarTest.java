@@ -1,5 +1,6 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.db.ClasificacionBloqueada;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -104,6 +105,66 @@ class ResultAggregatorRenormalizarTest {
                 anyString(), anyList(), anyString());
         verify(db).actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
                 anyString(), anyList(), anyString());
+    }
+
+    @Test
+    @DisplayName("manual-classification-lock: locked URLs are skipped from writes, counted separately, never in escriturasFallidas")
+    void lockedUrlsAreSkippedFromWritesAndCountedSeparately() {
+        Product p1Antes = producto("http://test.com/1", "Zapatillas");
+        Product p4Antes = producto("http://test.com/4", "Zapatillas"); // locked
+        Product p1Ahora = producto("http://test.com/1", "Calzado Deportivo");
+        Product p4Ahora = producto("http://test.com/4", "Calzado Deportivo"); // title-derived diff, but locked
+
+        when(db.cargarProductos()).thenReturn(List.of(p1Antes, p4Antes));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(p1Ahora, p4Ahora));
+        when(db.cargarClasificacionBloqueada()).thenReturn(
+                Map.of("http://test.com/4", new ClasificacionBloqueada("Zapatillas", "", "", "", "indumentaria")));
+
+        when(db.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
+                anyString(), anyList(), anyString())).thenReturn(1);
+
+        Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
+
+        assertThat(resultado.get("totalRevisados")).isEqualTo(2);
+        assertThat(resultado.get("categoriaCambiada")).isEqualTo(2); // diff intencional detectado para ambos
+
+        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(1); // solo p1 — p4 nunca se intenta
+        assertThat(resultado.get("escriturasAplicadas")).isEqualTo(1);
+        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // p4 NO cuenta como fallida
+        assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
+
+        verify(db).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
+                anyString(), anyList(), anyString());
+        verify(db, never()).actualizarNormalizacion(eq("http://test.com/4"), anyString(), anyString(),
+                anyString(), anyList(), anyString());
+    }
+
+    @Test
+    @DisplayName("review fix F3: a product locked AFTER the entry snapshot (race window) is attributed by a live check, not counted as a failure")
+    void productLockedAfterSnapshotIsCountedAsOmittedNotFailed() {
+        // p5 is NOT in the entry-time bloqueos snapshot (it got locked mid-run,
+        // after the snapshot was taken but before the loop reached its row) —
+        // the guarded UPDATE correctly returns 0 rows, but the code must not
+        // ASSUME "failure" just because the stale snapshot didn't know about it.
+        Product p5Antes = producto("http://test.com/5", "Zapatillas");
+        Product p5Ahora = producto("http://test.com/5", "Calzado Deportivo");
+
+        when(db.cargarProductos()).thenReturn(List.of(p5Antes));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(p5Ahora));
+        when(db.cargarClasificacionBloqueada()).thenReturn(Map.of()); // empty at snapshot time
+
+        when(db.actualizarNormalizacion(eq("http://test.com/5"), anyString(), anyString(),
+                anyString(), anyList(), anyString())).thenReturn(0); // guard fired: now locked
+        when(db.estaBloqueado("http://test.com/5")).thenReturn(true); // live read confirms the lock
+
+        Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
+
+        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(1);
+        assertThat(resultado.get("escriturasAplicadas")).isEqualTo(0);
+        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // never — the WARN comment's own invariant
+        assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
+
+        verify(db).estaBloqueado("http://test.com/5");
     }
 
     @Test
