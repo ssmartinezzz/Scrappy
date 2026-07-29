@@ -4,7 +4,9 @@ import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ChatMessage;
+import ar.scraper.agent.ProviderUnavailableException;
 import ar.scraper.agent.ReclassifyProposal;
+import ar.scraper.agent.TurnOutcome;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.ResultAggregator.Facets;
@@ -103,7 +105,7 @@ class ApiControllerAgentTest {
     @DisplayName("5.1 happy path → AgentChatResponse")
     void chatHappyPath() {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
-        var expected = new AgentChatResponse("Listo, encontré 2 productos.", List.of());
+        var expected = new AgentChatResponse("Listo, encontré 2 productos.", List.of(), TurnOutcome.COMPLETE);
         when(catalogAgentService.run(anyList(), isNull())).thenReturn(expected);
 
         var body = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "hola")));
@@ -141,6 +143,25 @@ class ApiControllerAgentTest {
         verifyNoInteractions(catalogAgentService);
     }
 
+    // ── agent-chat-response-quality: provider failure → 502 transport ────
+
+    @Test
+    @DisplayName("chat → service throws ProviderUnavailableException → 502 with codigo:proveedor_no_disponible, never a 200 chat bubble")
+    void chatMapsProviderUnavailableExceptionTo502() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(catalogAgentService.run(anyList(), isNull()))
+                .thenThrow(new ProviderUnavailableException(
+                        ProviderUnavailableException.Reason.UNREACHABLE, "No se pudo contactar al proveedor LLM."));
+
+        var body = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "hola")));
+        var resp = controller.agentChat(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(502);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
+        assertThat(respBody.get("codigo")).isEqualTo("proveedor_no_disponible");
+    }
+
     // ── 5.11-5.13: model override ───────────────────────────────────────
 
     @Test
@@ -149,7 +170,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         when(catalogAgentService.listModels()).thenReturn(List.of("qwen3:14b", "llama3.1:8b"));
         when(catalogAgentService.run(anyList(), eq("llama3.1:8b")))
-                .thenReturn(new AgentChatResponse("ok", List.of()));
+                .thenReturn(new AgentChatResponse("ok", List.of(), TurnOutcome.COMPLETE));
 
         var body = Map.<String, Object>of(
                 "messages", List.of(Map.of("role", "user", "text", "hola")),
@@ -165,7 +186,7 @@ class ApiControllerAgentTest {
     void chatWithoutModelUsesEnvDefault() {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
-                .thenReturn(new AgentChatResponse("ok", List.of()));
+                .thenReturn(new AgentChatResponse("ok", List.of(), TurnOutcome.COMPLETE));
 
         var body = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "hola")));
         controller.agentChat(body);
