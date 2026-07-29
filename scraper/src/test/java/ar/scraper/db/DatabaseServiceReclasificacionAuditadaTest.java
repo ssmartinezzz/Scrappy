@@ -20,14 +20,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * RED→GREEN coverage for {@link DatabaseService#aplicarReclasificacionAuditada}
- * (agent-chat-finetune WU1) — the truthful, audited write path behind
- * {@code POST /api/agent/apply}. Mirrors {@link DatabaseServiceCantidadUnidadesTest}'s
- * structure: a real Postgres connection via {@link PostgresTestBase}, no mocks,
- * so the atomic UPDATE + audit INSERT transaction is exercised for real.
+ * (agent-chat-finetune WU1, extended by manual-classification-lock Phase 3) —
+ * the truthful, audited write path behind {@code POST /api/agent/apply}.
+ * Mirrors {@link DatabaseServiceCantidadUnidadesTest}'s structure: a real
+ * Postgres connection via {@link PostgresTestBase}, no mocks, so the atomic
+ * UPDATE + audit INSERT transaction (now also acquiring the classification
+ * lock and the derived rubro) is exercised for real.
  */
 @Epic("Persistence")
 @Feature("LLM Catalog Agent")
-@Story("Audited reclassification write")
+@Story("Audited reclassification write acquires the classification lock")
 @DisplayName("DatabaseService — aplicarReclasificacionAuditada")
 class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
 
@@ -39,7 +41,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     }
 
     private Product producto(String url, String categoria, String marca, String genero, List<String> talles) {
-        return new Product("Sitio", "Producto", 15000.0, null, url, "http://img.example/x.jpg",
+        return new Product("freres", "Producto", 15000.0, null, url, "http://img.example/x.jpg",
                 categoria, genero, talles, Product.MlScore.EMPTY, marca,
                 "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
     }
@@ -56,6 +58,32 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
         }
     }
 
+    private record LockRow(String bloqueadoPor, String bloqueadoAt, String rubro) {}
+
+    private LockRow leerLock(String url) throws Exception {
+        try (Connection c = dataSource().getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT bloqueado_por, bloqueado_at, rubro FROM productos WHERE url=?")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                return new LockRow(rs.getString(1), rs.getString(2), rs.getString(3));
+            }
+        }
+    }
+
+    private String leerAppliedBy(String url) throws Exception {
+        try (Connection c = dataSource().getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT applied_by FROM agent_reclassify_audit WHERE url=? ORDER BY id DESC LIMIT 1")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                return rs.getString(1);
+            }
+        }
+    }
+
     @Test
     @DisplayName("success: UPDATE applied + exactly one audit row with old and new values")
     void successWritesUpdateAndAuditRow() throws Exception {
@@ -63,7 +91,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
         db.upsertProductos(List.of(previo));
 
         boolean applied = db.aplicarReclasificacionAuditada(
-                "https://site.com/p1", "Buzo", "Adidas", "mujer", List.of("S"), "urbano", previo);
+                "https://site.com/p1", "Buzo", "Adidas", "mujer", List.of("S"), "urbano", previo, "local");
 
         assertThat(applied).isTrue();
 
@@ -97,12 +125,63 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("success acquires the classification lock: bloqueado_por/at set, rubro derived, applied_by audited")
+    void successAcquiresTheClassificationLockAndDerivesRubro() throws Exception {
+        Product previo = producto("https://site.com/lock-acquire", "Remeras", "Nike", "hombre", List.of("M"));
+        db.upsertProductos(List.of(previo));
+
+        boolean applied = db.aplicarReclasificacionAuditada(
+                "https://site.com/lock-acquire", "Buzo", "Adidas", "mujer", List.of("S"), "urbano", previo, "local");
+
+        assertThat(applied).isTrue();
+
+        LockRow lock = leerLock("https://site.com/lock-acquire");
+        assertThat(lock.bloqueadoPor()).isEqualTo("local");
+        assertThat(lock.bloqueadoAt()).isNotBlank();
+        // "freres" is a Shopify site (indumentaria-family), so the locked
+        // categoria "Buzo" derives rubro "indumentaria" via RubroResolver —
+        // never re-derived from the machine's original title-derived guess.
+        assertThat(lock.rubro()).isEqualTo("indumentaria");
+
+        assertThat(leerAppliedBy("https://site.com/lock-acquire")).isEqualTo("local");
+    }
+
+    @Test
+    @DisplayName("second confirmation overwrites the lock: new actor and new timestamp replace the old ones")
+    void secondConfirmationOverwritesLockAndActor() throws Exception {
+        Product previo = producto("https://site.com/lock-overwrite", "Remeras", "Nike", "hombre", List.of("M"));
+        db.upsertProductos(List.of(previo));
+
+        db.aplicarReclasificacionAuditada(
+                "https://site.com/lock-overwrite", "Buzo", "Adidas", "mujer", List.of("S"), "urbano", previo, "local");
+        LockRow firstLock = leerLock("https://site.com/lock-overwrite");
+
+        Product actualizado = db.obtenerProducto("https://site.com/lock-overwrite").orElseThrow();
+        boolean secondApplied = db.aplicarReclasificacionAuditada(
+                "https://site.com/lock-overwrite", "Pantalones", "Puma", "unisex", List.of("M"), "trekking",
+                actualizado, "otro-actor");
+
+        assertThat(secondApplied).isTrue();
+        LockRow secondLock = leerLock("https://site.com/lock-overwrite");
+        assertThat(secondLock.bloqueadoPor()).isEqualTo("otro-actor");
+        assertThat(secondLock.bloqueadoAt()).isNotBlank();
+
+        Optional<Product> reloaded = db.obtenerProducto("https://site.com/lock-overwrite");
+        assertThat(reloaded).isPresent();
+        assertThat(reloaded.get().categoria()).isEqualTo("Pantalones");
+        assertThat(reloaded.get().marca()).isEqualTo("Puma");
+
+        assertThat(contarFilasAudit("https://site.com/lock-overwrite")).isEqualTo(2);
+        assertThat(leerAppliedBy("https://site.com/lock-overwrite")).isEqualTo("otro-actor");
+    }
+
+    @Test
     @DisplayName("zero-row UPDATE (nonexistent url) → false, zero audit rows, no partial write")
     void nonexistentUrlReturnsFalseWithNoAuditRow() throws Exception {
         Product previoInexistente = producto("https://site.com/no-existe", "Remeras", "Nike", "hombre", List.of());
 
         boolean applied = db.aplicarReclasificacionAuditada(
-                "https://site.com/no-existe", "Buzo", "Adidas", "mujer", List.of(), "urbano", previoInexistente);
+                "https://site.com/no-existe", "Buzo", "Adidas", "mujer", List.of(), "urbano", previoInexistente, "local");
 
         assertThat(applied).isFalse();
         assertThat(contarFilasAudit("https://site.com/no-existe")).isEqualTo(0);
@@ -124,7 +203,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
         }
         try {
             boolean applied = db.aplicarReclasificacionAuditada(
-                    "https://site.com/p2", "Buzo", "Adidas", "mujer", List.of("S"), "urbano", previo);
+                    "https://site.com/p2", "Buzo", "Adidas", "mujer", List.of("S"), "urbano", previo, "local");
 
             assertThat(applied).isFalse();
 
@@ -132,6 +211,9 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
             assertThat(sinCambios).isPresent();
             assertThat(sinCambios.get().categoria()).isEqualTo("Remeras"); // UPDATE was rolled back
             assertThat(sinCambios.get().marca()).isEqualTo("Nike");
+
+            LockRow lock = leerLock("https://site.com/p2");
+            assertThat(lock.bloqueadoPor()).isNull(); // lock acquisition rolled back too
         } finally {
             try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
                 st.execute("ALTER TABLE agent_reclassify_audit ADD COLUMN categoria_despues TEXT");

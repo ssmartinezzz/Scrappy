@@ -4,6 +4,9 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.ResultAggregator.Facets;
 import ar.scraper.aggregator.normalize.CategoryGroups;
+import ar.scraper.aggregator.normalize.RubroResolver;
+import ar.scraper.aggregator.normalize.SiteClassification;
+import ar.scraper.identity.ActorResolver;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.CatalogAgentService;
@@ -63,13 +66,20 @@ public class ApiController {
     private final RecommendationService recommendationService;
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
+    private final ActorResolver actorResolver;
+    // Stateless (no injected dependencies of its own) — instantiated directly, same
+    // rationale as DatabaseService.rubroResolver (manual-classification-lock Phase 3):
+    // a pure function of (sitioKey, categoria, rubroPrevio), so computing it here for the
+    // in-memory patch is guaranteed to match what aplicarReclasificacionAuditada persisted.
+    private final RubroResolver rubroResolver = new RubroResolver();
 
     /**
-     * Primary constructor (llm-catalog-nlp) — adds the LLM catalog agent's
-     * two collaborators. Spring wires this one (see {@code @Autowired}
-     * below); a legacy 9-arg overload is kept right below purely so the
-     * ~20 existing unit tests that construct {@code ApiController} directly
-     * (none of which exercise the agent endpoints) keep compiling unchanged.
+     * Primary constructor (manual-classification-lock Phase 7) — adds the
+     * {@link ActorResolver} seam (architecture/session-readiness, obs #773):
+     * {@code agentApply} resolves the acting identity through this ONE seam,
+     * never inline. Spring wires this one (see {@code @Autowired} below); two
+     * legacy overloads are kept right below purely so the existing unit tests
+     * that construct {@code ApiController} directly keep compiling unchanged.
      */
     @Autowired
     public ApiController(ScraperService service,
@@ -81,7 +91,8 @@ public class ApiController {
                          OutfitService outfitService,
                          RecommendationService recommendationService,
                          CatalogAgentService catalogAgentService,
-                         AgentConfig agentConfig) {
+                         AgentConfig agentConfig,
+                         ActorResolver actorResolver) {
         this.service           = service;
         this.inflacionService  = inflacionService;
         this.config            = config;
@@ -93,9 +104,30 @@ public class ApiController {
         this.recommendationService = recommendationService;
         this.catalogAgentService = catalogAgentService;
         this.agentConfig        = agentConfig;
+        this.actorResolver      = actorResolver;
     }
 
-    /** Legacy constructor (pre-agent) — see the note on the primary constructor above. */
+    /**
+     * Legacy 11-arg constructor (pre manual-classification-lock, llm-catalog-nlp
+     * shape) — see the note on the primary constructor above. Defaults to a real
+     * (not fake) {@link ActorResolver} — it has no dependencies of its own, so
+     * this is behaviorally identical to Spring injecting it.
+     */
+    public ApiController(ScraperService service,
+                         InflacionService inflacionService, ScraperConfig config,
+                         ar.scraper.aggregator.ResultAggregator aggregator,
+                         ar.scraper.db.DatabaseService db,
+                         ar.scraper.aggregator.grouping.GroupingService grouping,
+                         ar.scraper.ml.PythonRunner pythonRunner,
+                         OutfitService outfitService,
+                         RecommendationService recommendationService,
+                         CatalogAgentService catalogAgentService,
+                         AgentConfig agentConfig) {
+        this(service, inflacionService, config, aggregator, db, grouping, pythonRunner,
+             outfitService, recommendationService, catalogAgentService, agentConfig, new ActorResolver());
+    }
+
+    /** Legacy 9-arg constructor (pre-agent) — see the note on the primary constructor above. */
     public ApiController(ScraperService service,
                          InflacionService inflacionService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
@@ -2446,6 +2478,11 @@ public class ApiController {
         // aplicada." (the original silent-success defect this fixes). talles
         // and blank-field fallbacks now source from `previo` (the DB read
         // above), not from the in-memory `current`.
+        // manual-classification-lock Phase 7: the acting identity is resolved
+        // through the ONE ActorResolver seam (architecture/session-readiness,
+        // obs #773) — never read inline. No role/permission check is performed
+        // on it; it is recorded, not verified.
+        String actor = actorResolver.current();
         boolean applied = db.aplicarReclasificacionAuditada(
                 body.url(),
                 body.categoriaPropuesta(),
@@ -2453,7 +2490,8 @@ public class ApiController {
                 (genero != null && !genero.isBlank()) ? genero : previo.genero(),
                 previo.talles(),
                 (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
-                previo);
+                previo,
+                actor);
 
         if (!applied) {
             return ResponseEntity.internalServerError()
@@ -2465,12 +2503,18 @@ public class ApiController {
         // /api/data ni /api/mejores hasta el próximo scrape/restart. Mismo patrón
         // que eliminarProductoDeMemoria tras un soft-delete. Va DESPUÉS del check
         // de `applied`: nunca se parchea memoria por una escritura que no ocurrió.
+        // rubro se deriva vía RubroResolver (mismo cómputo puro que ya usó
+        // aplicarReclasificacionAuditada para persistirlo, design D3) — fix del
+        // bug preexistente donde rubro quedaba stale tras un apply.
+        String sitioKey = SiteClassification.sitioKey(previo.sitio());
+        String rubro = rubroResolver.resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
         service.actualizarProductoEnMemoria(
                 body.url(),
                 body.categoriaPropuesta(),
                 (marca != null && !marca.isBlank()) ? marca : previo.marca(),
                 (genero != null && !genero.isBlank()) ? genero : previo.genero(),
-                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria());
+                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
+                rubro);
 
         return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
     }
