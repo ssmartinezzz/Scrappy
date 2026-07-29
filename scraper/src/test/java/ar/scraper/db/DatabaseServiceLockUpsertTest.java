@@ -44,9 +44,18 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
 
     private Product producto(String url, String categoria, String subCategoria, String marca,
                               String genero, String rubro, double precio, String nombre) {
+        return producto(url, categoria, subCategoria, marca, genero, rubro, precio, nombre,
+                List.of("M", "L"));
+    }
+
+    /** Overload taking explicit talles, so a test can prove a volatile column actually
+     *  changed instead of asserting a value that was already there before the upsert. */
+    private Product producto(String url, String categoria, String subCategoria, String marca,
+                              String genero, String rubro, double precio, String nombre,
+                              List<String> talles) {
         return new Product(
                 "Sitio", nombre, precio, null, url, "http://img.example/x.jpg",
-                categoria, genero, List.of("M", "L"), Product.MlScore.EMPTY, marca,
+                categoria, genero, talles, Product.MlScore.EMPTY, marca,
                 rubro, false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1, subCategoria, Product.VisualAttrs.EMPTY);
     }
@@ -114,17 +123,22 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     void volatileFieldsStillUpdateOnALockedProduct() throws Exception {
         String url = "https://site.com/locked-volatile";
         db.upsertProductos(List.of(
-                producto(url, "Remeras", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera vieja")));
+                producto(url, "Remeras", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera vieja",
+                        List.of("M", "L"))));
         lockProduct(url, "local");
 
+        // Every volatile value below differs from the pre-lock one on purpose: asserting a
+        // value the row already held would pass even if the column were wrongly CASE-guarded
+        // in sp_upsert_run, so the assertion would prove nothing.
         db.upsertProductos(List.of(
-                producto(url, "Pantalones", "trekking", "Adidas", "mujer", "tecnologia", 18500.0, "Remera nueva")));
+                producto(url, "Pantalones", "trekking", "Adidas", "mujer", "tecnologia", 18500.0, "Remera nueva",
+                        List.of("S", "XL"))));
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
         assertThat(reloaded.get().nombre()).isEqualTo("Remera nueva");
         assertThat(reloaded.get().precio()).isEqualTo(18500.0);
-        assertThat(reloaded.get().talles()).containsExactly("M", "L");
+        assertThat(reloaded.get().talles()).containsExactly("S", "XL");
     }
 
     @Test
