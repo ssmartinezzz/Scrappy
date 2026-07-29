@@ -10,13 +10,16 @@ import ar.scraper.identity.ActorResolver;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.CatalogAgentService;
-import ar.scraper.agent.ChatMessage;
+import ar.scraper.agent.ConversationTurn;
 import ar.scraper.agent.ProviderUnavailableException;
 import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
+import ar.scraper.agent.ToolStep;
 import ar.scraper.agent.ViewProductTool;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
@@ -2357,6 +2360,25 @@ public class ApiController {
     // is added now, this comment only marks WHERE it goes.
     // ---------------------------------------------------------------
 
+    /**
+     * Transport caps on a client-supplied tool trace — see {@link #parseAgentTrace}.
+     * {@code AgentChatPanel} carries the same numbers, but that copy is only a
+     * convenience for what the browser stores: these are the enforced ones,
+     * since any caller can post to this endpoint directly.
+     */
+    private static final int AGENT_MAX_TRACE_STEPS = 8;
+    private static final int AGENT_MAX_TRACE_CALLS_PER_STEP = 6;
+    private static final int AGENT_MAX_TRACE_ARG_KEYS = 8;
+    private static final int AGENT_MAX_TRACE_ARG_LEN = 500;
+    /**
+     * How many raw entries the parser will even look at. Separate from the caps
+     * above because those only count entries it ACCEPTS — without this, a body
+     * made entirely of junk would still be walked end to end. Loose enough that
+     * a few malformed entries before the valid ones cost nothing.
+     */
+    private static final int AGENT_MAX_TRACE_SCAN = 64;
+    private static final ObjectMapper AGENT_MAPPER = new ObjectMapper();
+
     @PostMapping("/agent/chat")
     public ResponseEntity<Object> agentChat(@RequestBody Map<String, Object> body) {
         if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
@@ -2368,7 +2390,7 @@ public class ApiController {
         }
 
         Object messagesRaw = body.get("messages");
-        List<ChatMessage> history = new ArrayList<>();
+        List<ConversationTurn> conversation = new ArrayList<>();
         if (messagesRaw instanceof List<?> messagesList) {
             for (Object m : messagesList) {
                 if (!(m instanceof Map<?, ?> mm)) continue;
@@ -2376,10 +2398,15 @@ public class ApiController {
                 String text = textRaw == null ? "" : textRaw.toString();
                 if (text.isBlank()) continue;
                 Role role = parseAgentRole(mm.get("role"));
-                history.add(new ChatMessage(role, text, List.of(), null));
+                // Only an assistant turn can carry tool activity, and only the
+                // calls — results are re-executed server-side (agent-chat-continuity).
+                List<ToolStep> trace = role == Role.ASSISTANT
+                        ? parseAgentTrace(mm.get("trace"))
+                        : List.of();
+                conversation.add(new ConversationTurn(role, text, trace));
             }
         }
-        if (history.isEmpty()) {
+        if (conversation.isEmpty()) {
             return ResponseEntity.badRequest()
                     .body(Map.of("mensaje", "El campo 'messages' es requerido y no puede estar vacío."));
         }
@@ -2395,7 +2422,7 @@ public class ApiController {
         }
 
         try {
-            AgentChatResponse resp = catalogAgentService.run(history, model);
+            AgentChatResponse resp = catalogAgentService.run(conversation, model);
             return ResponseEntity.ok(resp);
         } catch (ProviderUnavailableException e) {
             return ResponseEntity.status(502)
@@ -2540,13 +2567,100 @@ public class ApiController {
                 "actual", actual));
     }
 
+    /**
+     * A client may only ever author the two roles it actually speaks in.
+     * Anything else — including a literal {@code "system"} or {@code "tool"} —
+     * degrades to {@code USER}: the system prompt and every tool result are
+     * server-authored, and a browser must not be able to smuggle one in by
+     * naming a role.
+     */
     private static Role parseAgentRole(Object roleRaw) {
-        if (roleRaw == null) return Role.USER;
-        try {
-            return Role.valueOf(roleRaw.toString().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return Role.USER;
+        return roleRaw != null && "assistant".equalsIgnoreCase(roleRaw.toString())
+                ? Role.ASSISTANT
+                : Role.USER;
+    }
+
+    /**
+     * Parses a past assistant turn's tool trace (agent-chat-continuity) out of
+     * the untrusted request body, rebuilt field by field rather than bound —
+     * the same posture {@code AgentChatPanel}'s {@code sanitizeSnapshot} takes
+     * on the client side.
+     *
+     * <p>Shape validation only: a name that no tool answers to is dropped
+     * later, by {@link ar.scraper.agent.CatalogAgentService} against its own
+     * registry, which is the component that actually knows the tool set. The
+     * caps here bound how much replay work one request can ask for — in
+     * entries scanned, entries accepted, and payload size per accepted call —
+     * and the service applies its own {@code MAX_REPLAY_CALLS} budget on top.</p>
+     */
+    private static List<ToolStep> parseAgentTrace(Object traceRaw) {
+        if (!(traceRaw instanceof List<?> steps)) return List.of();
+        List<ToolStep> parsed = new ArrayList<>();
+        int scanned = 0;
+        for (Object stepRaw : steps) {
+            if (parsed.size() >= AGENT_MAX_TRACE_STEPS || ++scanned > AGENT_MAX_TRACE_SCAN) break;
+            if (!(stepRaw instanceof Map<?, ?> stepMap)) continue;
+            if (!(stepMap.get("calls") instanceof List<?> callsRaw)) continue;
+            List<ToolStep.Call> calls = new ArrayList<>();
+            int scannedCalls = 0;
+            for (Object callRaw : callsRaw) {
+                if (calls.size() >= AGENT_MAX_TRACE_CALLS_PER_STEP
+                        || ++scannedCalls > AGENT_MAX_TRACE_SCAN) break;
+                if (!(callRaw instanceof Map<?, ?> callMap)) continue;
+                Object nameRaw = callMap.get("name");
+                if (nameRaw == null || nameRaw.toString().isBlank()) continue;
+                JsonNode args = callMap.get("arguments") instanceof Map<?, ?> argsMap
+                        ? sanitizeAgentArgs(argsMap)
+                        : AGENT_MAPPER.createObjectNode();
+                calls.add(new ToolStep.Call(nameRaw.toString(), args));
+            }
+            if (!calls.isEmpty()) parsed.add(new ToolStep(calls));
         }
+        return parsed;
+    }
+
+    /**
+     * Rebuilds a replayed call's arguments as the flat object of scalars the
+     * three catalog tools actually declare ({@code url} / {@code query} /
+     * {@code categoria} / {@code limit} …), dropping nested, null and
+     * over-long values instead of passing the client's map through.
+     *
+     * <p>Without this, {@code MAX_REPLAY_CALLS} bounds only HOW MANY calls get
+     * replayed, not how big each one is — and every replayed call's arguments
+     * are re-serialised into the model's context on every later turn of the
+     * conversation.</p>
+     */
+    private static JsonNode sanitizeAgentArgs(Map<?, ?> raw) {
+        ObjectNode clean = AGENT_MAPPER.createObjectNode();
+        int scanned = 0;
+        for (Map.Entry<?, ?> entry : raw.entrySet()) {
+            // Both bounds are needed: the key cap counts only entries ACCEPTED,
+            // and a non-scalar value is accepted by none of the branches below,
+            // so without the scan bound a map of nested junk is walked whole.
+            if (clean.size() >= AGENT_MAX_TRACE_ARG_KEYS || ++scanned > AGENT_MAX_TRACE_SCAN) break;
+            // The KEY is bounded too, not just the value — it is re-serialised
+            // into the model's context on every later turn exactly like the
+            // value is, so leaving it unbounded would defeat the whole cap.
+            String key = truncateAgentArg(String.valueOf(entry.getKey()));
+            if (key.isBlank()) continue;
+            Object value = entry.getValue();
+            if (value instanceof String s) {
+                clean.put(key, truncateAgentArg(s));
+            } else if (value instanceof Integer i) {
+                clean.put(key, i);
+            } else if (value instanceof Long l) {
+                clean.put(key, l);
+            } else if (value instanceof Number n) {
+                clean.put(key, n.doubleValue());
+            } else if (value instanceof Boolean b) {
+                clean.put(key, b);
+            }
+        }
+        return clean;
+    }
+
+    private static String truncateAgentArg(String s) {
+        return s.length() > AGENT_MAX_TRACE_ARG_LEN ? s.substring(0, AGENT_MAX_TRACE_ARG_LEN) : s;
     }
 
 }
