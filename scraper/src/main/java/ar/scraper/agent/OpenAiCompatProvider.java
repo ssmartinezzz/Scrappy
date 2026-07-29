@@ -75,18 +75,22 @@ public class OpenAiCompatProvider implements ChatProvider {
                 .POST(HttpRequest.BodyPublishers.ofString(bodyNode.toString()));
         if (config.hasApiKey()) req.header("Authorization", "Bearer " + config.apiKey());
 
+        HttpResponse<String> resp;
         try {
-            HttpResponse<String> resp = client.send(req.build(), HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() >= 400) {
-                LOG.warn("[Agent] LLM provider HTTP {} on chat/completions", resp.statusCode());
-                return new ChatResponse(
-                        "El proveedor LLM devolvió un error (HTTP " + resp.statusCode() + ").", List.of());
-            }
-            return parseChatResponse(resp.body());
+            resp = client.send(req.build(), HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {
             LOG.warn("[Agent] Error contactando al proveedor LLM: {}", e.getMessage());
-            return new ChatResponse("No se pudo contactar al proveedor LLM: " + e.getMessage(), List.of());
+            throw new ProviderUnavailableException(
+                    ProviderUnavailableException.Reason.UNREACHABLE,
+                    "No se pudo contactar al proveedor LLM.", e);
         }
+        if (resp.statusCode() >= 400) {
+            LOG.warn("[Agent] LLM provider HTTP {} on chat/completions", resp.statusCode());
+            throw new ProviderUnavailableException(
+                    ProviderUnavailableException.Reason.HTTP_ERROR,
+                    "El proveedor LLM devolvió un error (HTTP " + resp.statusCode() + ").");
+        }
+        return parseChatResponse(resp.body());
     }
 
     @Override
@@ -157,11 +161,21 @@ public class OpenAiCompatProvider implements ChatProvider {
     }
 
     static ChatResponse parseChatResponse(String json) {
+        JsonNode root;
         try {
-            JsonNode root = MAPPER.readTree(json);
+            root = MAPPER.readTree(json);
+        } catch (Exception e) {
+            LOG.warn("[Agent] Respuesta inválida del proveedor LLM: {}", e.getMessage());
+            throw new ProviderUnavailableException(
+                    ProviderUnavailableException.Reason.INVALID_RESPONSE,
+                    "Respuesta inválida del proveedor LLM.", e);
+        }
+        try {
             JsonNode choices = root.path("choices");
             if (!choices.isArray() || choices.isEmpty()) {
-                return new ChatResponse("", List.of());
+                throw new ProviderUnavailableException(
+                        ProviderUnavailableException.Reason.INVALID_RESPONSE,
+                        "Respuesta inválida del proveedor LLM: sin choices.");
             }
             JsonNode message = choices.get(0).path("message");
             JsonNode contentNode = message.path("content");
@@ -185,9 +199,13 @@ public class OpenAiCompatProvider implements ChatProvider {
                 }
             }
             return new ChatResponse(content, calls);
+        } catch (ProviderUnavailableException e) {
+            throw e;
         } catch (Exception e) {
             LOG.warn("[Agent] Respuesta inválida del proveedor LLM: {}", e.getMessage());
-            return new ChatResponse("Respuesta inválida del proveedor LLM.", List.of());
+            throw new ProviderUnavailableException(
+                    ProviderUnavailableException.Reason.INVALID_RESPONSE,
+                    "Respuesta inválida del proveedor LLM.", e);
         }
     }
 

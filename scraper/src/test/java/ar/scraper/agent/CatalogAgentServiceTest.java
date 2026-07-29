@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -71,10 +72,12 @@ class CatalogAgentServiceTest {
         assertThat(resp.proposals().get(0).categoriaPropuesta()).isEqualTo("Buzo");
         assertThat(provider.calledToolNamesInOrder())
                 .containsExactly(SearchProductsTool.NAME, ViewProductTool.NAME, ProposeReclassifyTool.NAME);
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
     }
 
     @Test
-    @DisplayName("malformed/unknown tool call → is_error fed back, loop continues (no crash/500)")
+    @DisplayName("malformed/unknown tool call → is_error fed back, loop continues (no crash/500); "
+            + "an only-error tool result does not count as grounding (outcome=UNGROUNDED, prose discarded)")
     void malformedToolCallIsErrorFedBackLoopContinues() {
         FakeChatProvider provider = new FakeChatProvider();
         provider.enqueueToolCall("delete_everything", Map.of());
@@ -83,8 +86,89 @@ class CatalogAgentServiceTest {
         CatalogAgentService service = new CatalogAgentService(provider, registry);
         AgentChatResponse resp = service.run(List.of(ChatMessage.user("hacé algo raro")), null);
 
-        assertThat(resp.assistantText()).isEqualTo("No pude ejecutar esa acción, pero seguí funcionando.");
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
+        assertThat(resp.assistantText()).isNotEqualTo("No pude ejecutar esa acción, pero seguí funcionando.");
         assertThat(resp.proposals()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("model answers without calling any tool → outcome=UNGROUNDED, model's prose discarded, proposals empty")
+    void answerWithoutAnyToolCallIsUngrounded() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("Puedo ayudarte con lo que quieras.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(List.of(ChatMessage.user("dame consejos de moda")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.UNGROUNDED);
+        assertThat(resp.assistantText()).isNotEqualTo("Puedo ayudarte con lo que quieras.");
+        assertThat(resp.proposals()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("search_products succeeding with ZERO matches does not count as real grounding by itself "
+            + "(model's prose is discarded, matching ViewProductTool's not-found semantics), but the turn is "
+            + "still answered honestly as COMPLETE with a system-authored no-matches message, not rejected")
+    void emptySearchResultDoesNotGroundButTurnIsStillAnsweredHonestly() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "marca-inexistente-xyz"));
+        provider.enqueueFinalAnswer("Encontré una remera azul con 50% de descuento."); // untrusted, must be discarded
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(
+                List.of(ChatMessage.user("¿tenés algo de la marca inexistente xyz?")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.assistantText()).isNotEqualTo("Encontré una remera azul con 50% de descuento.");
+        assertThat(resp.assistantText()).containsIgnoringCase("no encontr");
+        assertThat(resp.proposals()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("recognized meta-intent short-circuits before the loop: outcome=CAPABILITY, zero provider calls")
+    void metaIntentShortCircuitsWithZeroProviderCalls() {
+        FakeChatProvider provider = new FakeChatProvider();
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(List.of(ChatMessage.user("hola")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.CAPABILITY);
+        assertThat(resp.proposals()).isEmpty();
+        assertThat(provider.callCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("loop exhaustion keeps proposals collected before exhausting (outcome=EXHAUSTED)")
+    void exhaustionKeepsCollectedProposals() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueToolCall(ViewProductTool.NAME, Map.of("url", "https://a.com/1"));
+        provider.enqueueToolCall(ProposeReclassifyTool.NAME,
+                Map.of("url", "https://a.com/1", "categoria", "Buzo"));
+        // Never terminates on its own after that — forces MAX_ITERATIONS exhaustion.
+        for (int i = 0; i < 10; i++) {
+            provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        }
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(List.of(ChatMessage.user("corregí la zapatilla SAD Adidas")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.EXHAUSTED);
+        assertThat(resp.proposals()).hasSize(1);
+        assertThat(provider.callCount()).isEqualTo(CatalogAgentService.MAX_ITERATIONS);
+    }
+
+    @Test
+    @DisplayName("provider throwing ProviderUnavailableException propagates out of run() uncaught")
+    void providerFailurePropagatesUncaught() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueThrow(new ProviderUnavailableException(
+                ProviderUnavailableException.Reason.UNREACHABLE, "boom"));
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+
+        assertThatThrownBy(() -> service.run(List.of(ChatMessage.user("buscame una remera")), null))
+                .isInstanceOf(ProviderUnavailableException.class);
     }
 
     @Test
@@ -110,7 +194,7 @@ class CatalogAgentServiceTest {
         provider.enqueueFinalAnswer("ok");
 
         CatalogAgentService service = new CatalogAgentService(provider, registry);
-        service.run(List.of(ChatMessage.user("hola")), "llama3.1:8b");
+        service.run(List.of(ChatMessage.user("buscame una remera")), "llama3.1:8b");
 
         assertThat(provider.lastModelUsed()).isEqualTo("llama3.1:8b");
     }
@@ -118,7 +202,8 @@ class CatalogAgentServiceTest {
     // ── Fake ChatProvider test double ──────────────────────────────────
 
     private static class FakeChatProvider implements ChatProvider {
-        private final Deque<ChatResponse> script = new ArrayDeque<>();
+        /** Each element is either a {@link ChatResponse} or a {@link RuntimeException} to throw. */
+        private final Deque<Object> script = new ArrayDeque<>();
         private final List<String> calledToolNames = new ArrayList<>();
         private String lastModelUsed;
         private int callCount = 0;
@@ -132,6 +217,10 @@ class CatalogAgentServiceTest {
             script.add(new ChatResponse(text, List.of()));
         }
 
+        void enqueueThrow(RuntimeException ex) {
+            script.add(ex);
+        }
+
         List<String> calledToolNamesInOrder() { return calledToolNames; }
         int callCount() { return callCount; }
         String lastModelUsed() { return lastModelUsed; }
@@ -140,11 +229,15 @@ class CatalogAgentServiceTest {
         public ChatResponse next(List<ChatMessage> history, List<ToolSpec> tools, String model) {
             callCount++;
             lastModelUsed = model;
-            ChatResponse next = script.isEmpty()
+            Object next = script.isEmpty()
                     ? new ChatResponse("sin más pasos programados", List.of())
                     : script.poll();
-            next.toolCalls().forEach(tc -> calledToolNames.add(tc.name()));
-            return next;
+            if (next instanceof RuntimeException re) {
+                throw re;
+            }
+            ChatResponse resp = (ChatResponse) next;
+            resp.toolCalls().forEach(tc -> calledToolNames.add(tc.name()));
+            return resp;
         }
 
         @Override
