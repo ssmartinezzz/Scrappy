@@ -273,6 +273,33 @@ server-side.
 > de la DB (no del snapshot en memoria) — un conflicto devuelve `422
 > conflicto_stale` con los valores vigentes en vez de sobrescribir a ciegas.
 >
+> **agent-chat-continuity** (2026-07-29): el chat funcionaba UNA vez y después
+> rechazaba todo con "No pude responder eso con datos reales del catálogo"
+> (`TurnOutcome.UNGROUNDED`). Causa raíz: el historial que volvía al modelo era
+> **lossy** — el frontend guardaba solo `{role, text}` y `ApiController` lo
+> reconstruía como `new ChatMessage(role, text, List.of(), null)`, sin rastro
+> de tool calls. El modelo leía un transcript donde el assistant simplemente
+> respondía en prosa e imitaba ese patrón: dejaba de llamar herramientas, y el
+> guard de grounding de #121 (correctamente, dado lo que veía) descartaba su
+> texto. Se retroalimentaba, porque el aviso de rechazo no entra a `messages`.
+>
+> Fix estructural, sin estado de sesión en el servidor: cada mensaje assistant
+> ahora carga su **`trace`** (`ToolStep` = un step del loop con sus llamadas),
+> el cliente lo reenvía, y `CatalogAgentService.replayInto` **re-ejecuta** esas
+> llamadas contra el snapshot vivo antes de contactar al proveedor. El cliente
+> round-tripea **solo lo que el modelo PIDIÓ** (`name` + `arguments`), nunca lo
+> que el catálogo RESPONDIÓ → un `trace` manipulado no puede inyectar un dato
+> falso, y la evidencia replayada está al día (tras un `/agent/apply`
+> confirmado, un `view_product` replayado devuelve la categoría NUEVA).
+> El grounding sigue siendo **estrictamente por turno** — el replay reconstruye
+> contexto, no lo lava; el falso negativo restante se cubre con **un** empujón
+> correctivo (`GROUNDING_NUDGE`) antes de rechazar. Bounds: `MAX_REPLAY_CALLS=12`
+> (cola más reciente, contigua) + 8 steps × 6 calls de transporte.
+> Además: `parseAgentRole` ahora solo acepta `user`/`assistant` (un `system`
+> o `tool` del cliente degrada a `user`), y una reclasificación confirmada
+> entra al transcript como mensaje ("Cambio aplicado en el catálogo: …"),
+> que antes el modelo nunca llegaba a saber.
+>
 > **Parche del catálogo en memoria** (fix posterior): `/api/data` y
 > `/api/mejores` sirven de `lastResult`, NO de la DB en cada request — ese
 > snapshot solo se reconstruye al arrancar o tras un scrape. Sin parchear la
@@ -355,6 +382,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación API |
 | `SQLITE_BUSY_SNAPSHOT` / lock-dance de aplicación (writeLock/readLock/refrescarSnapshot) | RESUELTO 2026-07-21 (`decouple-services-postgres`): migración completa a PostgreSQL + write-path en funciones plpgsql server-side; toda la lock-dance de aplicación fue removida, la concurrencia la resuelve Postgres MVCC |
+| El chat del agente funcionaba una sola vez: tras el primer turno exitoso, toda consulta siguiente devolvía `UNGROUNDED` ("no puedo con el catálogo") | RESUELTO 2026-07-29 (`agent-chat-continuity`): el historial reenviado al modelo era lossy (sin tool calls), así que el modelo imitaba un transcript de prosa pelada y dejaba de llamar herramientas. Ahora cada turno lleva su `trace` y el servidor **re-ejecuta** esas llamadas contra el catálogo vivo (resultados jamás vienen del cliente) |
 | Botón de confirmación del LLM Catalog Agent nunca funcionaba (`POST /api/agent/apply` 400 en todo click, contrato de body distinto al `ReclassifyProposal` real) + escrituras silenciosamente truncadas (`actualizarNormalizacion` tragaba excepciones y devolvía `200` sin haber escrito) | RESUELTO 2026-07-25 (`agent-chat-finetune`): body tipado, write path auditado con rollback atómico, staleness guard contra la DB (`422 conflicto_stale`) |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges post-deploy, no recalibrar thresholds aún (ver docs/ML_PIPELINE.md) |
 | `safe_price` puede parsear mal ciertos formatos de `precioOriginal` | Heurística interina aceptada (1611/6692 rechazados a 0.0 en el último run) |

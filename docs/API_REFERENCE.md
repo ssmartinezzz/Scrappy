@@ -364,16 +364,62 @@ lectura, no toca VRAM).
 
 **Body:**
 ```json
-{ "messages": [{"role": "user", "text": "..."}], "model": "qwen3:14b" }
+{
+  "messages": [
+    { "role": "user", "text": "mostrame la zapatilla" },
+    { "role": "assistant", "text": "Es una Zapatilla Running.",
+      "trace": [{ "calls": [{ "name": "view_product", "arguments": {"url": "https://…"} }] }] },
+    { "role": "user", "text": "¿y de qué marca es?" }
+  ],
+  "model": "qwen3:14b"
+}
 ```
 `model` es opcional — presente y disponible → se usa para ese request; ausente
 → default de `LLM_MODEL`; presente pero desconocido → `400` (nunca fallback
 silencioso).
 
+**`trace` (agent-chat-continuity).** Es la actividad de herramientas de un
+turno `assistant` anterior — la lista de *steps* del loop, cada uno con las
+llamadas que el modelo emitió en ese step. Devuelto por este mismo endpoint
+(campo `trace` de la respuesta) y reenviado tal cual por el cliente en el
+siguiente turno.
+
+Contrato explícito: **el cliente manda solo lo que el modelo PIDIÓ (`name` +
+`arguments`), nunca lo que el catálogo RESPONDIÓ.** El servidor re-ejecuta cada
+llamada contra el snapshot vivo antes de contactar al proveedor, así que:
+
+- ningún resultado de herramienta llega desde el browser (un `trace`
+  manipulado no puede inyectarle un "dato del catálogo" al modelo);
+- la evidencia replayada está **al día** — después de un `/agent/apply`
+  confirmado, un `view_product` replayado devuelve la categoría NUEVA.
+
+Reglas del parseo (todo se descarta por campo, nunca se rechaza el request):
+`role` solo puede ser `user` o `assistant` (cualquier otro valor, incluidos
+`system` y `tool`, degrada a `user`); `trace` se ignora en turnos `user`; un
+nombre de herramienta desconocido se descarta antes de ejecutarse; máximo 8
+steps × 6 llamadas por step de transporte, y el servicio aplica encima su
+presupuesto `MAX_REPLAY_CALLS = 12`, quedándose con la **cola** más reciente de
+la conversación.
+
+Sin `trace`, el historial que vuelve al modelo son respuestas en prosa pelada
+sin rastro de que alguna vez se usó una herramienta — el modelo imita ese
+transcript, deja de llamar herramientas y el guard de grounding lo rechaza. Ese
+era el bug de "funciona una vez y después dice que no puede".
+
 **Responses:**
-- `200` `{"assistantText": "...", "proposals": [{"url","nombreProducto","categoriaActual","categoriaPropuesta","subCategoriaPropuesta","marcaPropuesta","generoPropuesto"}]}`
+- `200` `{"assistantText": "...", "outcome": "complete|capability|ungrounded|exhausted", "proposals": [{"url","nombreProducto","categoriaActual","categoriaPropuesta","subCategoriaPropuesta","marcaPropuesta","generoPropuesto"}], "trace": [{"calls":[{"name","arguments"}]}]}`
+  — `trace` solo viene poblado en `complete` (las demás outcomes no dejan
+  mensaje durable en la conversación, así que no exportan traza)
 - `400` — `messages` vacío/ausente, o `model` desconocido
 - `409` — scraping en curso
+- `502` — proveedor LLM caído (`codigo: proveedor_no_disponible`)
+
+**Grounding (sigue siendo por turno).** El replay reconstruye el contexto pero
+**no** otorga grounding: para que la prosa del modelo se entregue, el modelo
+tiene que ejecutar una herramienta con resultado válido *en ese turno*. Si
+responde sin herramientas, recibe **un** empujón correctivo pidiéndole que la
+use y, si insiste, el turno se rechaza (`outcome: ungrounded`) y su texto se
+descarta.
 
 ### POST /agent/apply
 

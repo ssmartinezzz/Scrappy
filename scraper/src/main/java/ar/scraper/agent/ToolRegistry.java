@@ -31,6 +31,18 @@ public class ToolRegistry {
         return tools.values().stream().map(CatalogTool::spec).toList();
     }
 
+    /**
+     * Whether {@code name} is one of the registered tools. Used when replaying
+     * a client-supplied trace (agent-chat-continuity): an unknown name there is
+     * dropped BEFORE execution rather than run through {@link #execute}, whose
+     * "Herramienta desconocida" error is meant for a model self-correcting
+     * inside the loop — injecting it into a replayed transcript would teach the
+     * model a failure it never actually made.
+     */
+    public boolean knows(String name) {
+        return tools.containsKey(name);
+    }
+
     public ToolResult execute(ToolCall call) {
         CatalogTool tool = tools.get(call.name());
         if (tool == null) {

@@ -25,6 +25,13 @@ import { fetchAgentModels, askAgent, applyProposal } from '../api';
  * rebuilds it field by field against the expected shape. Restored proposals in
  * particular are replayed to `POST /api/agent/apply`, so they are reduced to
  * the server's `ReclassifyProposal` fields and nothing else.
+ *
+ * Each assistant message also carries the `trace` of tool calls that produced
+ * it (agent-chat-continuity), resent with the history so the backend can
+ * rebuild a transcript in which the model can see its previous answers came
+ * from tools. A trace holds only tool NAMES and ARGUMENTS — never results,
+ * which the server re-executes against the live catalog — so nothing stored
+ * here can become a catalog fact the backend did not just produce.
  */
 const STORAGE_KEY = 'agentChat:v1';
 
@@ -36,6 +43,18 @@ const MAX_MESSAGES = 100;
 const MAX_PROPOSALS = 20;
 const MAX_TEXT_LEN = 4000;
 const MAX_FIELD_LEN = 500;
+
+/** Caps on a stored tool trace. Each one has a server-side counterpart with
+ *  the same value (`AGENT_MAX_TRACE_STEPS`, `AGENT_MAX_TRACE_CALLS_PER_STEP`,
+ *  `AGENT_MAX_TRACE_ARG_KEYS`, `AGENT_MAX_TRACE_ARG_LEN` in `ApiController`) —
+ *  these are the convenience copy, the server's are the enforced ones. */
+const MAX_TRACE_STEPS = 8;
+const MAX_TRACE_CALLS = 6;
+const MAX_TRACE_ARG_KEYS = 8;
+// Its own constant rather than reusing MAX_FIELD_LEN, which bounds unrelated
+// proposal/conflict fields — sharing it would silently desync this pair the
+// day the other one is retuned.
+const MAX_TRACE_ARG_LEN = 500;
 
 /** Exactly the fields of the server-side `ReclassifyProposal` record. */
 const PROPOSAL_FIELDS = [
@@ -58,11 +77,48 @@ const isHttpUrl = (v) => {
   }
 };
 
+/** Tool arguments as the three catalog tools actually declare them: a flat
+ *  object of scalars (url / query / categoria / limit …). Rebuilt key by key
+ *  so a nested, cyclic or oversized value from storage can never ride along
+ *  to `POST /api/agent/chat`. */
+function sanitizeArgs(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const clean = {};
+  for (const [k, v] of Object.entries(raw).slice(0, MAX_TRACE_ARG_KEYS)) {
+    const key = k.slice(0, MAX_TRACE_ARG_LEN);
+    if (typeof v === 'string') clean[key] = v.slice(0, MAX_TRACE_ARG_LEN);
+    else if (typeof v === 'number' || typeof v === 'boolean') clean[key] = v;
+  }
+  return clean;
+}
+
+/** An assistant turn's tool activity (agent-chat-continuity): the calls it
+ *  issued, grouped by step. Carries no results — the server re-executes every
+ *  call against the live catalog, so what's stored here can never become a
+ *  catalog "fact" the backend didn't just produce. A step left with no usable
+ *  call is dropped entirely rather than sent empty. */
+function sanitizeTrace(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, MAX_TRACE_STEPS)
+    .map(step => ({
+      calls: (Array.isArray(step?.calls) ? step.calls : [])
+        .slice(0, MAX_TRACE_CALLS)
+        .map(c => ({ name: asString(c?.name, MAX_FIELD_LEN), arguments: sanitizeArgs(c?.arguments) }))
+        .filter(c => c.name),
+    }))
+    .filter(step => step.calls.length > 0);
+}
+
 function sanitizeMessage(m) {
   if (!m || typeof m !== 'object') return null;
   if (m.role !== 'user' && m.role !== 'assistant') return null;
   const text = asString(m.text, MAX_TEXT_LEN);
-  return text ? { role: m.role, text } : null;
+  if (!text) return null;
+  // Only an assistant turn can carry tool activity; the server enforces the
+  // same rule on the way in, so a traced user turn is dropped on both sides.
+  const trace = m.role === 'assistant' ? sanitizeTrace(m.trace) : [];
+  return trace.length > 0 ? { role: m.role, text, trace } : { role: m.role, text };
 }
 
 /** Known-safe keys of the 422 conflicto_stale `actual` payload — see conflictoStale() server-side. */
@@ -173,6 +229,12 @@ const proposalRenderKey = ({ proposal, idx }) => (typeof proposal._cid === 'numb
 /** Identity used by the confirm/reject/requery handlers — `_cid` when
  * present, else the object reference itself (legacy proposals). */
 const proposalIdentity = (p) => (typeof p._cid === 'number' ? p._cid : p);
+
+/** The confirmation that enters the transcript once the server reports a
+ *  reclassification was really written — a statement of fact about a completed
+ *  write, deliberately terse and structured so it doesn't read as free prose. */
+const appliedNotice = (proposal) =>
+  `Cambio aplicado en el catálogo: «${proposal.nombreProducto}» → categoría ${proposal.categoriaPropuesta}.`;
 
 const OPTIONAL_FIELD_LABELS = {
   subCategoriaPropuesta: 'Subcategoría',
@@ -286,8 +348,22 @@ export default function AgentChatPanel() {
     setScrapeWait(false);
     setNotice(null);
 
-    const resp = await askAgent(historyForApi, model || undefined);
-    setSending(false);
+    let resp;
+    try {
+      resp = await askAgent(historyForApi, model || undefined);
+    } catch {
+      // `askAgent` awaits fetch without a try/catch of its own, so a
+      // network-level rejection (backend killed mid-turn) surfaces here rather
+      // than as its `{error:true}` shape. Same channel as any other failed
+      // turn, so Retry stays available.
+      setNotice({ kind: 'failure', text: 'No se pudo consultar al agente.' });
+      return;
+    } finally {
+      // Load-bearing: `sending` gates the input AND — since proposal cards are
+      // disabled while a turn is in flight — every pending confirmation. Left
+      // stuck true by a throw, the whole widget freezes until a page reload.
+      setSending(false);
+    }
 
     if (resp?.scraping) { setScrapeWait(true); return; }
     if (resp?.error) {
@@ -312,7 +388,16 @@ export default function AgentChatPanel() {
       setProposals(ps => appendProposals(ps, resp.proposals, null));
       return;
     }
-    setMessages(m => [...m, { role: 'assistant', text: resp.assistantText }]);
+    // The turn's tool trace is stored WITH the message it belongs to and
+    // resent next turn, so the server can rebuild a transcript where the model
+    // sees its own answers came from tools instead of appearing out of thin
+    // air — the cause of it silently giving up on tool calls mid-conversation.
+    // Kept off the message entirely when empty, so a turn that used no tools
+    // stores exactly the shape it stored before this change.
+    const trace = sanitizeTrace(resp.trace);
+    setMessages(m => [...m, trace.length > 0
+      ? { role: 'assistant', text: resp.assistantText, trace }
+      : { role: 'assistant', text: resp.assistantText }]);
     setProposals(ps => appendProposals(ps, resp.proposals, turnIndex));
   };
 
@@ -339,6 +424,10 @@ export default function AgentChatPanel() {
   };
 
   const confirmProposal = async (proposal) => {
+    // Never mutate the transcript while a turn is in flight: `runTurn` computed
+    // its proposal anchor from the message count before awaiting, and appending
+    // the confirmation below would shift it out from under that turn.
+    if (sending) return;
     const res = await applyProposal(proposal);
     if (res?.scraping) { setScrapeWait(true); return; }
     // 422 conflicto_stale (WU5): the product changed since this proposal was
@@ -353,6 +442,21 @@ export default function AgentChatPanel() {
     setProposals(ps => ps.map(p => proposalIdentity(p) === proposalIdentity(proposal)
       ? { ...p, _applied: !!res?.ok, _mensaje: res?.mensaje }
       : p));
+    // A confirmed write is the one event in this widget the model never used to
+    // learn about: it saw its own proposal and then nothing, so the next turn
+    // still reasoned over the pre-change classification. Recording it as a turn
+    // (assistant role — the only authorable role that speaks in the thread, and
+    // claiming the USER said it would be a lie) both closes that gap and gives
+    // the user a visible confirmation in the conversation, not just on the card.
+    // Appended only after the server reported the write actually happened.
+    // Tradeoff taken knowingly: this turn carries no trace, so it replays as
+    // bare prose — the shape this change exists to stop producing. Accepted
+    // because it states a completed WRITE rather than answering a catalog
+    // question, so it doesn't model "answer without consulting the catalog";
+    // fabricating a trace for a call the model never made would be worse.
+    if (res?.ok) {
+      setMessages(m => [...m, { role: 'assistant', text: appliedNotice(proposal) }]);
+    }
   };
 
   const rejectProposal = (proposal) => {
@@ -378,6 +482,7 @@ export default function AgentChatPanel() {
       onConfirm={confirmProposal}
       onReject={rejectProposal}
       onRequery={requeryProposal}
+      busy={sending}
     />
   );
 
@@ -549,7 +654,7 @@ export default function AgentChatPanel() {
   );
 }
 
-function ProposalCard({ proposal, onConfirm, onReject, onRequery }) {
+function ProposalCard({ proposal, onConfirm, onReject, onRequery, busy }) {
   const applied = proposal._applied;
   const conflicto = proposal._conflicto;
   const { categoryChanged, optionalRows } = disclosureRows(proposal);
@@ -592,7 +697,8 @@ function ProposalCard({ proposal, onConfirm, onReject, onRequery }) {
           <div className="mt-2 flex gap-2">
             <button
               onClick={() => onRequery(proposal)}
-              className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+              disabled={busy}
+              className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:opacity-40"
             >
               Volver a consultar
             </button>
@@ -613,7 +719,8 @@ function ProposalCard({ proposal, onConfirm, onReject, onRequery }) {
                   make a marca/genero/subCategoria-only fix unappliable. */}
               <button
                 onClick={() => onConfirm(proposal)}
-                className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+                disabled={busy}
+                className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:opacity-40"
               >
                 Sí
               </button>
