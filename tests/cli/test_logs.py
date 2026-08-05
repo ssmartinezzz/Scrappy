@@ -1,0 +1,269 @@
+"""Tests for cli.core.logs — service log paths + a bounded file tail.
+
+These back the "servers must never write to our TTY" fix: every child
+process gets a file here, and the console reads it back on demand instead
+of letting the child scribble over the rendered frame.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from cli.core.config import Config, Ports, ToolchainPaths
+from cli.core.logs import SERVICES, service_log_path, tail
+
+
+def _cfg(repo_root: Path) -> Config:
+    tools = ToolchainPaths(
+        jdk21=repo_root / "_tools" / "jdk21",
+        maven=repo_root / "_tools" / "maven",
+        node=repo_root / "_tools" / "node",
+        cli_venv=repo_root / "_tools" / "cli-venv",
+        pgsql=repo_root / "_tools" / "pgsql",
+    )
+    return Config(repo_root=repo_root, tools=tools, ports=Ports())
+
+
+def test_service_log_path_lives_under_scraper_logs(tmp_path: Path):
+    path = service_log_path(_cfg(tmp_path), "backend")
+    assert path == tmp_path / "scraper" / "logs" / "backend.log"
+
+
+def test_service_log_path_rejects_unknown_service(tmp_path: Path):
+    """The service name reaches a filesystem path, so it is validated
+    against a fixed allow-list rather than interpolated blindly."""
+    with pytest.raises(ValueError):
+        service_log_path(_cfg(tmp_path), "../../etc/passwd")
+
+
+def test_every_known_service_has_a_path(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    for service in SERVICES:
+        assert service_log_path(cfg, service).name == f"{service}.log"
+
+
+def test_tail_returns_empty_list_when_file_is_absent(tmp_path: Path):
+    assert tail(tmp_path / "nope.log") == []
+
+
+def test_tail_returns_last_n_lines_in_order(tmp_path: Path):
+    path = tmp_path / "a.log"
+    path.write_text("\n".join(f"line {i}" for i in range(100)) + "\n", encoding="utf-8")
+    assert tail(path, lines=3) == ["line 97", "line 98", "line 99"]
+
+
+def test_tail_returns_whole_file_when_shorter_than_requested(tmp_path: Path):
+    path = tmp_path / "a.log"
+    path.write_text("only\ntwo\n", encoding="utf-8")
+    assert tail(path, lines=50) == ["only", "two"]
+
+
+def test_tail_reads_from_the_end_without_loading_the_whole_file(tmp_path: Path):
+    """A backend log rolls to megabytes; the tail must stay bounded. The
+    seek-from-end read is asserted by size, not by timing: we never read
+    more than a bounded window even when the file is far larger."""
+    path = tmp_path / "big.log"
+    with path.open("w", encoding="utf-8") as fh:
+        for i in range(200_000):
+            fh.write(f"row {i}\n")
+
+    reads: list[int] = []
+    real_open = Path.open
+
+    class _CountingFile:
+        def __init__(self, fh):
+            self._fh = fh
+
+        def read(self, size=-1):
+            data = self._fh.read(size)
+            reads.append(len(data))
+            return data
+
+        def __getattr__(self, name):
+            return getattr(self._fh, name)
+
+        def __enter__(self):
+            self._fh.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            return self._fh.__exit__(*exc)
+
+    def _patched_open(self, *args, **kwargs):
+        return _CountingFile(real_open(self, *args, **kwargs))
+
+    Path.open = _patched_open
+    try:
+        out = tail(path, lines=5)
+    finally:
+        Path.open = real_open
+
+    assert out == [f"row {i}" for i in range(199_995, 200_000)]
+    assert sum(reads) < 200_000, "tail read the whole file instead of seeking to the end"
+
+
+def test_tail_tolerates_undecodable_bytes(tmp_path: Path):
+    """Child processes emit whatever they emit; a bad byte must not raise
+    inside the console render path."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"good line\n\xff\xfe broken\n")
+    assert len(tail(path)) == 2
+
+
+def test_tail_ignores_a_trailing_newline(tmp_path: Path):
+    path = tmp_path / "a.log"
+    path.write_text("one\ntwo\n", encoding="utf-8")
+    assert tail(path, lines=10) == ["one", "two"]
+
+
+# -- terminal-escape containment ---------------------------------------
+#
+# A log line is attacker-reachable: scraped third-party product names end up
+# in backend stack traces. `tail` output is rendered straight into a live
+# terminal by both presenters, so raw control bytes there are an injection
+# vector, not a cosmetic issue. Verified against a real PTY: an unstripped
+# ESC[2J clears the operator's screen and an OSC sequence rewrites the
+# window title.
+
+
+def test_tail_strips_ansi_colour_sequences_but_keeps_the_text(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"\x1b[31mERROR: boom\x1b[0m\n")
+    assert tail(path) == ["ERROR: boom"]
+
+
+def test_tail_strips_a_screen_clearing_sequence(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"\x1b[2Jgotcha\n")
+    assert tail(path) == ["gotcha"]
+    assert "\x1b" not in tail(path)[0]
+
+
+def test_tail_strips_an_osc_window_title_sequence(tmp_path):
+    """OSC is terminated by BEL or ST, not by a CSI final byte — a
+    CSI-only filter would leave this one through."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"\x1b]0;HIJACKED\x07after\n")
+    assert tail(path) == ["after"]
+
+
+def test_tail_strips_a_bare_escape_with_no_sequence_body(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"a\x1bZb\n")
+    assert "\x1b" not in tail(path)[0]
+
+
+def test_tail_strips_carriage_returns_and_backspaces(tmp_path):
+    """CR and BS overwrite already-rendered characters — the cheapest way
+    to make a log line claim something it does not say."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"harmless\rEVIL\n")
+    assert "\r" not in tail(path)[0]
+    path.write_bytes(b"ok\x08\x08\x08bad\n")
+    assert "\x08" not in tail(path)[0]
+
+
+def test_tail_keeps_tabs_and_ordinary_text(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"col1\tcol2 clasico\n")
+    assert tail(path) == ["col1\tcol2 clasico"]
+
+
+def test_tail_keeps_non_ascii_text(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_text("categoría: remerón\n", encoding="utf-8")
+    assert tail(path) == ["categoría: remerón"]
+
+
+# -- tail window edge cases --------------------------------------------
+
+
+def test_tail_returns_the_partial_line_when_the_window_holds_no_newline(tmp_path):
+    """A single line longer than the read window used to make the
+    partial-line trim swallow the whole window and return nothing."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"x" * 40_000)
+    out = tail(path, lines=5)
+    assert out, "tail discarded the entire window instead of returning the partial line"
+    assert set(out[-1]) == {"x"}
+
+
+def test_tail_with_zero_or_negative_lines_returns_empty(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_text("one\ntwo\n", encoding="utf-8")
+    assert tail(path, lines=0) == []
+    assert tail(path, lines=-1) == []
+
+
+# -- bounded growth ----------------------------------------------------
+#
+# Both services now append their full stdout+stderr here on every `start`,
+# for the life of the checkout. Before this change the frontend wrote no
+# file at all and the backend captured stderr only, so the growth is new.
+
+
+def test_open_log_rolls_the_file_once_it_exceeds_the_cap(tmp_path):
+    from cli.core.logs import MAX_LOG_BYTES, open_log
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"o" * (MAX_LOG_BYTES + 1))
+
+    open_log(cfg, "backend").close()
+
+    assert path.stat().st_size == 0, "the live log should restart empty after a roll"
+    rolled = path.with_suffix(".log.1")
+    assert rolled.is_file(), "the previous contents should be kept as .log.1"
+    assert rolled.stat().st_size == MAX_LOG_BYTES + 1
+
+
+def test_open_log_leaves_a_small_file_alone(tmp_path):
+    from cli.core.logs import open_log
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"previous run\n")
+
+    open_log(cfg, "backend").close()
+
+    assert path.read_bytes() == b"previous run\n"
+    assert not path.with_suffix(".log.1").exists()
+
+
+def test_rolling_twice_keeps_only_one_previous_generation(tmp_path):
+    """Exactly one backup, overwritten each roll — otherwise the thing we
+    are bounding just grows sideways instead of upward."""
+    from cli.core.logs import MAX_LOG_BYTES, open_log
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_bytes(b"a" * (MAX_LOG_BYTES + 1))
+    open_log(cfg, "backend").close()
+    path.write_bytes(b"b" * (MAX_LOG_BYTES + 1))
+    open_log(cfg, "backend").close()
+
+    assert set(path.with_suffix(".log.1").read_bytes()) == {ord("b")}
+    assert not path.with_suffix(".log.2").exists()
+
+
+def test_open_log_still_works_when_the_roll_cannot_happen(tmp_path, monkeypatch):
+    """A failed roll must not stop the service from launching — bounding
+    the log is housekeeping, not a precondition for running."""
+    from cli.core import logs as logs_mod
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"o" * (logs_mod.MAX_LOG_BYTES + 1))
+
+    def boom(*a, **k):
+        raise OSError("cannot rename")
+
+    monkeypatch.setattr(logs_mod.Path, "replace", boom)
+    handle = logs_mod.open_log(cfg, "backend")  # must not raise
+    handle.close()
