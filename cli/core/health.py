@@ -26,12 +26,19 @@ DEFAULT_CONNECT_TIMEOUT = 0.35
 
 @dataclass(frozen=True)
 class Check:
-    """One health row. `ok` drives the indicator; `detail` is a short,
-    non-user-derived hint (a path label or `:port`) safe to render."""
+    """One health signal. `ok` drives the indicator; `detail` is a short,
+    non-user-derived hint (a path label or `:port`) safe to render.
+
+    `short` is the compact label for the console's one-line status bar
+    (`api`, `pg`, `dist`). It lives here rather than in a lookup table in
+    the widget so renaming a check can't silently degrade the display —
+    empty means "no short form, use `name`".
+    """
 
     name: str
     ok: bool
     detail: str
+    short: str = ""
 
 
 def _default_connect(host: str, port: int, timeout: float) -> bool:
@@ -58,14 +65,14 @@ def build_checks(cfg: Config) -> list[Check]:
     way the CLI actually progresses."""
     root = cfg.repo_root
     specs = [
-        (".env", root / ".env", "generado", "falta — corré Build (b)"),
-        ("frontend/.env", root / "frontend" / ".env", "generado", "falta"),
-        ("backend jar", root / "scraper" / "scraper.jar", "compilado", "sin compilar"),
-        ("frontend build", root / "frontend" / "dist", "compilado", "sin compilar"),
+        (".env", "env", root / ".env", "generado", "falta — corré `build`"),
+        ("frontend/.env", "fe-env", root / "frontend" / ".env", "generado", "falta"),
+        ("backend jar", "jar", root / "scraper" / "scraper.jar", "compilado", "sin compilar"),
+        ("frontend build", "dist", root / "frontend" / "dist", "compilado", "sin compilar"),
     ]
     return [
-        Check(name, path.exists(), ok_detail if path.exists() else bad_detail)
-        for (name, path, ok_detail, bad_detail) in specs
+        Check(name, path.exists(), ok_detail if path.exists() else bad_detail, short=short)
+        for (name, short, path, ok_detail, bad_detail) in specs
     ]
 
 
@@ -73,13 +80,13 @@ def service_checks(cfg: Config, connect: Optional[ConnectFn] = None) -> list[Che
     """Liveness of each service by TCP port probe on localhost."""
     p = cfg.ports
     services = [
-        ("Postgres", p.postgres),
-        ("Backend", p.backend),
-        ("Frontend", p.frontend),
+        ("Postgres", "pg", p.postgres),
+        ("Backend", "api", p.backend),
+        ("Frontend", "web", p.frontend),
     ]
     return [
-        Check(name, port_open("localhost", port, connect=connect), f":{port}")
-        for (name, port) in services
+        Check(name, port_open("localhost", port, connect=connect), f":{port}", short=short)
+        for (name, short, port) in services
     ]
 
 

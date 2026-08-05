@@ -73,6 +73,9 @@ class _FakeProcesses:
         self.frontend_launched = True
         self.frontend_env = env
 
+    def alive(self):
+        return ["backend", "frontend"]
+
     def shutdown_all(self):
         self.shutdown_called = True
 
@@ -266,3 +269,104 @@ def test_module_level_run_forwards_force_env_flag(tmp_path, monkeypatch):
     rc = run(cfg, force_env=True, rest=_FakeRest(), processes=_FakeProcesses(), in_=io.StringIO(""), out=io.StringIO())
     assert rc == 0
     assert calls == [True]
+
+
+# -- shared command registry -----------------------------------------------
+#
+# Both presenters read `core.commands`. These tests are what stops the plain
+# runner from silently accepting a different vocabulary than the registry
+# advertises — a menu that lists a verb dispatch does not handle is a lie.
+
+
+def test_menu_is_rendered_from_the_shared_command_registry(tmp_path):
+    from cli.core.commands import COMMANDS
+
+    r, _, _, out = _make_runner(tmp_path, "")
+    r._print(runner_module.MENU)
+    printed = out.getvalue()
+    for cmd in COMMANDS:
+        assert cmd.name in printed
+
+
+def test_every_registry_command_is_accepted_by_dispatch(tmp_path):
+    """No verb may be advertised and then rejected as unknown."""
+    from cli.core.commands import COMMANDS
+
+    for cmd in COMMANDS:
+        if cmd.name == "quit":
+            continue  # covered separately: it returns False by design
+        r, _, _, out = _make_runner(tmp_path, "")
+        r.dispatch(cmd.name)
+        assert "Unknown command" not in out.getvalue(), f"{cmd.name} is advertised but unhandled"
+
+
+def test_aliases_dispatch_to_the_canonical_command(tmp_path):
+    r, rest, _, _ = _make_runner(tmp_path, "")
+    r.dispatch("st")
+    assert rest.calls == [("status",)]
+
+
+def test_help_prints_every_command(tmp_path):
+    from cli.core.commands import COMMANDS
+
+    r, _, _, out = _make_runner(tmp_path, "")
+    r.dispatch("help")
+    printed = out.getvalue()
+    for cmd in COMMANDS:
+        assert cmd.name in printed
+
+
+def test_stop_tears_down_services_without_ending_the_loop(tmp_path):
+    r, _, processes, _ = _make_runner(tmp_path, "")
+    assert r.dispatch("stop") is True
+    assert processes.shutdown_called is True
+
+
+def test_logs_prints_the_service_log_tail(tmp_path):
+    from cli.core.logs import service_log_path
+
+    r, _, _, out = _make_runner(tmp_path, "")
+    log = service_log_path(r.cfg, "backend")
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("started on :3000\n", encoding="utf-8")
+    r.dispatch("logs backend")
+    assert "started on :3000" in out.getvalue()
+
+
+def test_logs_on_a_missing_file_reports_instead_of_raising(tmp_path):
+    r, _, _, out = _make_runner(tmp_path, "")
+    assert r.dispatch("logs frontend") is True
+    assert "sin log" in out.getvalue().lower()
+
+
+def test_logs_rejects_an_unknown_service_name(tmp_path):
+    r, _, _, out = _make_runner(tmp_path, "")
+    assert r.dispatch("logs ../../etc/passwd") is True
+    assert "unknown service" in out.getvalue().lower()
+
+
+def test_a_command_missing_its_arguments_prints_usage(tmp_path):
+    r, rest, _, out = _make_runner(tmp_path, "")
+    r.dispatch("add-site solo-nombre")
+    assert rest.calls == []
+    assert "add-site <nombre> <url> [plataforma]" in out.getvalue()
+
+
+def test_start_reports_a_service_that_died_immediately(tmp_path, monkeypatch):
+    """Same honesty fix as the console: redirected stdio removed the user's
+    only crash signal, so a dead child must be named, not reported as up."""
+    monkeypatch.setattr("cli.plain.runner.is_built", lambda cfg: True)
+    r, _, processes, out = _make_runner(tmp_path, "")
+    processes.alive = lambda: ["frontend"]  # backend died on boot
+    r.dispatch("start")
+    printed = out.getvalue().lower()
+    assert "backend" in printed
+    assert "logs" in printed
+
+
+def test_start_reports_success_when_both_services_survive(tmp_path, monkeypatch):
+    monkeypatch.setattr("cli.plain.runner.is_built", lambda cfg: True)
+    r, _, processes, out = _make_runner(tmp_path, "")
+    processes.alive = lambda: ["backend", "frontend"]
+    r.dispatch("start")
+    assert "started" in out.getvalue().lower()
