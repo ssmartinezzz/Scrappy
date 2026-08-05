@@ -1,17 +1,29 @@
-"""Textual presenter: a thin `App` over the same headless `core/` the
-plain runner drives (design.md §2, ADR-001). Holds NO business logic of
-its own -- every action method below is a one-line call into `core/`,
-dispatched off the UI thread via a `@work(thread=True)` worker so a
-blocking REST call or a multi-minute build never freezes rendering.
+"""Textual presenter: a command console over the same headless `core/` the
+plain runner drives (design.md §2, ADR-001).
 
-Actions are reachable two ways, both routing to the same `action_*`
-methods: the single-key `BINDINGS` (shown in the Footer) and the clickable
-`Button`s in the sidebar (`on_button_pressed`). The look -- layout, borders,
-colours -- is the `CSS` block below; widgets stay presentation-only.
+Holds NO business logic of its own — every command below is a thin call
+into `core/`, dispatched off the UI thread via a `@work(thread=True)`
+worker so a blocking REST call or a multi-minute build never freezes
+rendering.
+
+**Shape.** One column, three rows of chrome: a one-line status strip, the
+console (everything else), a prompt with a one-line hint under it. There is
+no sidebar, no button grid, no bordered panel stack — the previous layout
+needed a maximized window before it was usable. Operations are reached by
+typing their verb, autocompleted from `core/commands.py` (the same registry
+`help` and the plain runner's menu render), not by single-letter keys —
+which also means letters like `q` are typeable instead of being swallowed
+as actions.
+
+**The console owns the terminal.** Nothing else may write to it. That is
+enforced in `core/processes.py`, where every child's stdout/stderr is bound
+to a log file (`core/logs.py`) — an inherited stdout is what used to paint
+Spring Boot and Vite output over the rendered frame and shred it. The
+`logs` command reads those files back into the console instead.
 
 `cli/__main__.py` is the only place that decides whether this module gets
-imported at all (capability-detection routing) -- this file assumes
-Textual is present, by design.
+imported at all (capability-detection routing) — this file assumes Textual
+is present, by design.
 """
 from __future__ import annotations
 
@@ -21,128 +33,139 @@ from typing import Callable, Optional
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Footer, Header, Input
+from textual.containers import Horizontal
+from textual.widgets import Input, Static
 
-from cli.core import health
+from cli.core import health, logs
+from cli.core.commands import find, help_lines
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient
-from cli.tui.widgets import HealthPanel, LogTail, StatusPanel
+from cli.tui.widgets import (
+    CommandSuggester,
+    Console,
+    HintBar,
+    StatusBar,
+    format_payload,
+    verb_completion,
+)
 
-# How often (seconds) the health panel re-probes build state + service
+# How often (seconds) the status strip re-probes build state + service
 # ports, so a service coming up flips ○ -> ● without any user action.
 HEALTH_REFRESH_SECONDS = 2.0
 
+BANNER = "scrappy · consola nativa — `help` lista todo"
 
-class FashionScraperApp(App):
-    """Menu: build/start/scrape/retrain/status/site CRUD/open dashboard.
-    `Q` and `Ctrl+C` both tear down backend + frontend before exiting."""
 
-    TITLE = "Fashion Scraper"
-    SUB_TITLE = "CLI nativo · build · orquestación · REST"
+class Prompt(Input):
+    """The command line. Adds Tab-to-complete and ↑/↓ history on top of
+    `Input`; everything else (editing, selection) is inherited."""
+
+    BINDINGS = [
+        Binding("tab", "complete", "Completar", show=False),
+        Binding("up", "history_prev", "Anterior", show=False),
+        Binding("down", "history_next", "Siguiente", show=False),
+    ]
+
+    def action_complete(self) -> None:
+        """Accept the verb completion. Computed from the shared registry
+        rather than read off the widget's async ghost-text state, so Tab
+        behaves identically whether or not the suggestion has landed."""
+        completed = verb_completion(self.value)
+        if completed:
+            self.value = completed
+            self.cursor_position = len(self.value)
+
+    def action_history_prev(self) -> None:
+        self.app.recall_history(-1)
+
+    def action_history_next(self) -> None:
+        self.app.recall_history(1)
+
+
+class ScrappyConsole(App):
+    """Command console: build / start / stop / scrape / retrain / status /
+    site CRUD / logs / open dashboard. `quit` and `Ctrl+C` both tear down
+    backend + frontend before exiting."""
+
+    TITLE = "scrappy"
 
     CSS = """
     Screen {
-        background: $background;
+        background: #0b0f14;
+        color: #d7e3ea;
+        layout: vertical;
     }
 
-    #body {
-        height: 1fr;
-    }
-
-    /* -- left: clickable action buttons ------------------------------ */
-    #sidebar {
-        width: 30;
-        padding: 1 2;
-        background: $panel;
-        border-right: tall $primary;
-    }
-    #sidebar Button {
+    /* -- one-line health strip -------------------------------------- */
+    #statusbar {
+        height: 1;
         width: 100%;
-        margin-bottom: 1;
-    }
-    #sidebar .spacer {
-        height: 1fr;
+        padding: 0 1;
+        background: #111820;
+        color: #9aa7b0;
     }
 
-    /* -- right: status / site form / log ----------------------------- */
-    #main {
-        padding: 1 2;
+    /* -- the console: the only thing that grows --------------------- */
+    #console {
         height: 1fr;
-    }
-    #health {
-        height: auto;
-        padding: 1 2;
-        margin-bottom: 1;
-        background: $boost;
-        border: round $success;
-        border-title-color: $success;
-        border-title-align: left;
-    }
-    #status {
-        height: auto;
-        min-height: 3;
-        padding: 1 2;
-        margin-bottom: 1;
-        color: $text;
-        background: $boost;
-        border: round $accent;
-        border-title-color: $accent;
-        border-title-align: left;
-    }
-    #site-form {
-        height: auto;
-        padding: 1 2;
-        margin-bottom: 1;
-        border: round $secondary;
-        border-title-color: $secondary;
-        border-title-align: left;
-    }
-    #site-form Input {
-        margin-bottom: 1;
-    }
-    #log {
-        height: 1fr;
+        width: 100%;
         padding: 0 1;
-        background: $surface;
-        border: round $primary;
-        border-title-color: $primary;
-        border-title-align: left;
+        background: #0b0f14;
+        scrollbar-size-vertical: 1;
+        scrollbar-background: #0b0f14;
+        scrollbar-color: #1e2a35;
+    }
+
+    /* -- prompt row -------------------------------------------------- */
+    #promptrow {
+        height: 1;
+        width: 100%;
+        background: #0e141b;
+    }
+    #sigil {
+        width: 2;
+        height: 1;
+        color: #4ade80;
+        text-style: bold;
+        background: #0e141b;
+    }
+    #prompt {
+        height: 1;
+        width: 1fr;
+        border: none;
+        padding: 0;
+        background: #0e141b;
+        color: #d7e3ea;
+    }
+    #prompt > .input--placeholder, #prompt > .input--suggestion {
+        color: #3d4a55;
+    }
+    #prompt > .input--cursor {
+        background: #4ade80;
+        color: #0b0f14;
+    }
+
+    /* -- one-line contextual hint ------------------------------------ */
+    #hint {
+        height: 1;
+        width: 100%;
+        padding: 0 1;
+        background: #0b0f14;
+        color: #4a5a66;
     }
     """
 
+    # Only two global keys. Everything else is a typed command, so the
+    # letters stay usable at the prompt. `priority` is required for
+    # ctrl+c: `Input` binds it to `copy` by default and would win.
     BINDINGS = [
-        Binding("q", "quit_app", "Quit", priority=True),
-        Binding("ctrl+c", "quit_app", "Quit", priority=True, show=False),
-        Binding("b", "do_build", "Build"),
-        Binding("u", "start_services", "Start"),
-        Binding("s", "scrape", "Scrape"),
-        Binding("r", "retrain", "Retrain"),
-        Binding("t", "status", "Status"),
-        Binding("l", "list_sites", "List sites"),
-        Binding("a", "add_site", "Add site"),
-        Binding("x", "delete_site", "Delete site"),
-        Binding("o", "open_dashboard", "Open dashboard"),
+        Binding("ctrl+c", "quit_app", "Salir", priority=True, show=False),
+        Binding("ctrl+l", "wipe_console", "Limpiar", priority=True, show=False),
     ]
-
-    # Sidebar button id -> the `action_<name>` method it triggers. Keeps
-    # click dispatch and key dispatch pointed at the exact same handlers.
-    _BUTTON_ACTIONS = {
-        "btn-build": "do_build",
-        "btn-start": "start_services",
-        "btn-scrape": "scrape",
-        "btn-retrain": "retrain",
-        "btn-status": "status",
-        "btn-list": "list_sites",
-        "btn-add": "add_site",
-        "btn-delete": "delete_site",
-        "btn-open": "open_dashboard",
-        "btn-quit": "quit_app",
-    }
 
     def __init__(
         self,
@@ -159,43 +182,31 @@ class FashionScraperApp(App):
         self.processes = processes or ProcessManager()
         self.open_url = open_url
         self.opener = opener
-        # Socket probe used by the health panel; injectable so tests never
+        # Socket probe used by the status strip; injectable so tests never
         # touch a real port (defaults to a real TCP connect).
         self.connect = connect
+        # Submitted command lines, oldest first, plus the cursor ↑/↓ walks.
+        self.history: list[str] = []
+        self._history_pos = 0
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        with Horizontal(id="body"):
-            with Vertical(id="sidebar"):
-                yield Button("Build", id="btn-build", variant="primary")
-                yield Button("Start services", id="btn-start", variant="success")
-                yield Button("Scrape", id="btn-scrape", variant="primary")
-                yield Button("Retrain", id="btn-retrain", variant="warning")
-                yield Button("Status", id="btn-status")
-                yield Button("List sites", id="btn-list")
-                yield Button("Add site", id="btn-add", variant="success")
-                yield Button("Delete site", id="btn-delete", variant="error")
-                yield Button("Open dashboard", id="btn-open", variant="primary")
-                yield Button("Quit", id="btn-quit", variant="error")
-            with Vertical(id="main"):
-                yield HealthPanel(id="health")
-                yield StatusPanel(id="status")
-                with Vertical(id="site-form"):
-                    yield Input(placeholder="nombre del sitio", id="site-nombre")
-                    yield Input(placeholder="url del sitio", id="site-url")
-                    yield Input(placeholder="plataforma (default: tiendanube)", id="site-plataforma")
-                yield LogTail(id="log", highlight=False)
-        yield Footer()
+        yield StatusBar(id="statusbar")
+        yield Console(id="console")
+        with Horizontal(id="promptrow"):
+            yield Static("❯ ", id="sigil")
+            yield Prompt(
+                placeholder="comando…",
+                suggester=CommandSuggester(),
+                id="prompt",
+            )
+        yield HintBar(id="hint")
 
     def on_mount(self) -> None:
-        """Border titles are set post-mount so they render reliably
-        regardless of Textual's compose-time attribute timing. Kicks off
-        the health poll: one immediate refresh, then every
-        `HEALTH_REFRESH_SECONDS` so services flip ○ -> ● as they come up."""
-        self.query_one("#health").border_title = "Servicios / Build"
-        self.query_one("#status").border_title = "Estado"
-        self.query_one("#site-form").border_title = "Sitio · Add (a) / Delete (x)"
-        self.query_one("#log").border_title = "Log"
+        """Greet, focus the prompt, and start the health poll: one
+        immediate refresh, then every `HEALTH_REFRESH_SECONDS` so services
+        flip ○ -> ● as they come up."""
+        self._emit("info", BANNER)
+        self.query_one("#prompt", Prompt).focus()
         self._refresh_health()
         self.set_interval(HEALTH_REFRESH_SECONDS, self._refresh_health)
 
@@ -211,67 +222,122 @@ class FashionScraperApp(App):
 
     def _apply_health(self, report) -> None:
         try:
-            self.query_one("#health", HealthPanel).update_health(report)
-        except Exception:  # noqa: BLE001 - panel may not be mounted yet
+            self.query_one("#statusbar", StatusBar).update_health(report)
+        except Exception:  # noqa: BLE001 - widget may not be mounted yet
             pass
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Route a sidebar click to the same `action_*` method its matching
-        key binding would fire. Unknown ids are ignored (never crash)."""
-        action = self._BUTTON_ACTIONS.get(event.button.id or "")
-        if action is not None:
-            getattr(self, f"action_{action}")()
+    # -- console helpers ---------------------------------------------
 
-    # -- logging / status helpers -----------------------------------
-
-    def _log(self, text: str) -> None:
+    def _emit(self, kind: str, text: object) -> None:
         try:
-            self.query_one("#log", LogTail).append_line(text)
-        except Exception:  # noqa: BLE001 - widget may not be mounted (e.g. early call)
+            self.query_one("#console", Console).emit(kind, format_payload(text))
+        except Exception:  # noqa: BLE001 - widget may not be mounted yet
             pass
 
-    def _set_status(self, payload: object) -> None:
+    def _emit_error(self, exc: CliError) -> None:
+        self._emit("err", exc.message)
+        if exc.action:
+            self._emit("info", exc.action)
+
+    # -- prompt ------------------------------------------------------
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Keep the hint line pointed at the verb being typed."""
+        verb = event.value.strip().split(" ")[0]
+        cmd = find(verb) if verb else None
         try:
-            self.query_one("#status", StatusPanel).update_status(payload)
+            self.query_one("#hint", HintBar).show(
+                f"{cmd.usage}   —   {cmd.help}" if cmd else None
+            )
         except Exception:  # noqa: BLE001
             pass
 
-    # -- off-UI-thread core dispatch ---------------------------------
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        line = event.value.strip()
+        event.input.value = ""
+        self._history_pos = len(self.history)
+        if not line:
+            return
+        self._remember(line)
+        self._emit("cmd", line)
+        self.dispatch(line)
+
+    def _remember(self, line: str) -> None:
+        """Append to history, collapsing an immediate repeat — walking back
+        through five identical `status` calls helps nobody."""
+        if not self.history or self.history[-1] != line:
+            self.history.append(line)
+        self._history_pos = len(self.history)
+
+    def recall_history(self, delta: int) -> None:
+        """Walk history with ↑/↓. Position `len(history)` is the live empty
+        line, so walking forward past the newest entry clears the prompt
+        rather than sticking on it."""
+        if not self.history:
+            return
+        self._history_pos = max(0, min(len(self.history), self._history_pos + delta))
+        prompt = self.query_one("#prompt", Prompt)
+        prompt.value = (
+            "" if self._history_pos >= len(self.history) else self.history[self._history_pos]
+        )
+        prompt.cursor_position = len(prompt.value)
+
+    # -- dispatch ----------------------------------------------------
+
+    def dispatch(self, line: str) -> None:
+        """Route one submitted line. Never raises: an unknown verb, a bad
+        argument count or a failing command all end as a console line."""
+        parts = line.split()
+        verb, args = parts[0], parts[1:]
+        cmd = find(verb)
+        if cmd is None:
+            self._emit("err", f"comando desconocido: {verb}")
+            self._emit("info", "escribí `help` para ver los disponibles")
+            return
+
+        handler = getattr(self, f"_cmd_{cmd.name.replace('-', '_')}")
+        try:
+            handler(args)
+        except CliError as exc:  # noqa: BLE001 - surfaced, never fatal
+            self._emit_error(exc)
+        except Exception as exc:  # noqa: BLE001 - the console must never crash
+            self._emit("err", str(exc))
 
     @work(thread=True, exclusive=False)
     def _run_core(self, label: str, fn: Callable[[], object]) -> None:
-        """Runs `fn` in a real OS thread (never the Textual event loop),
-        so a blocking `urllib` REST call or a multi-minute `npm`/`mvn`
-        build never freezes rendering. Results/errors are marshalled back
-        onto the UI thread via `call_from_thread`."""
+        """Runs `fn` in a real OS thread (never the Textual event loop), so
+        a blocking `urllib` REST call or a multi-minute `npm`/`mvn` build
+        never freezes rendering. Results and errors are marshalled back onto
+        the UI thread via `call_from_thread`."""
         try:
             result = fn()
         except CliError as exc:
-            self.call_from_thread(self._log, f"{label} failed: {exc.message}")
+            self.call_from_thread(self._emit_error, exc)
             return
         except Exception as exc:  # noqa: BLE001 - a worker must never crash the app
-            self.call_from_thread(self._log, f"{label} failed: {exc}")
+            self.call_from_thread(self._emit, "err", f"{label}: {exc}")
             return
-        self.call_from_thread(self._log, f"{label}: {result}")
-        if label == "status":
-            self.call_from_thread(self._set_status, result)
-        if label in ("build", "start"):
-            # A build or a launch just changed local state — reflect it in
-            # the health panel now instead of waiting for the next tick.
+        self.call_from_thread(self._emit, "out", result)
+        if label in ("build", "start", "stop"):
+            # Local state just changed — reflect it now instead of waiting
+            # for the next poll tick.
             self.call_from_thread(self._refresh_health)
 
-    # -- action methods (menu operations) ----------------------------
+    def _usage(self, name: str) -> None:
+        cmd = find(name)
+        self._emit("err", "faltan argumentos")
+        if cmd:
+            self._emit("info", cmd.usage)
 
-    def action_do_build(self) -> None:
-        self._run_core("build", lambda: self._build())
+    # -- commands: remote / slow (worker thread) ---------------------
 
-    def _build(self) -> str:
+    def _cmd_build(self, args: list[str]) -> None:
         from cli.core.builder import build_project
 
-        build_project(self.cfg)
-        return "build complete"
+        self._emit("info", "compilando (npm + mvn) — puede tardar unos minutos…")
+        self._run_core("build", lambda: (build_project(self.cfg), "build listo")[1])
 
-    def action_start_services(self) -> None:
+    def _cmd_start(self, args: list[str]) -> None:
         self._run_core("start", self._start_services)
 
     def _start_services(self) -> str:
@@ -280,54 +346,104 @@ class FashionScraperApp(App):
 
         if not builder.is_built(self.cfg):
             self.call_from_thread(
-                self._log, "jar/frontend ausente — compilando primero (puede tardar unos minutos)…"
+                self._emit, "info", "jar/dist ausente — compilando primero…"
             )
             builder.build_project(self.cfg)
             self.call_from_thread(self._refresh_health)
 
         env = parse_env(self.cfg.repo_root / ".env")
-        password = env.get("DATABASE_PASSWORD", "")
-        self.processes.launch_backend(self.cfg, database_password=password, env=env)
+        self.processes.launch_backend(
+            self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
+        )
         self.processes.launch_frontend(self.cfg, env=env)
-        return "backend + frontend started"
+        return "backend + frontend arriba — su salida va a `logs` (no a esta consola)"
 
-    def action_scrape(self) -> None:
+    def _cmd_stop(self, args: list[str]) -> None:
+        self._run_core("stop", lambda: (self.processes.shutdown_all(), "servicios bajados")[1])
+
+    def _cmd_scrape(self, args: list[str]) -> None:
         self._run_core("scrape", self.rest.scrape)
 
-    def action_retrain(self) -> None:
+    def _cmd_retrain(self, args: list[str]) -> None:
         self._run_core("retrain", self.rest.entrenar)
 
-    def action_status(self) -> None:
+    def _cmd_status(self, args: list[str]) -> None:
         self._run_core("status", self.rest.status)
 
-    def action_list_sites(self) -> None:
+    def _cmd_sites(self, args: list[str]) -> None:
         self._run_core("sites", self.rest.listar_sitios)
 
-    def action_add_site(self) -> None:
-        nombre = self.query_one("#site-nombre", Input).value
-        url = self.query_one("#site-url", Input).value
-        plataforma = self.query_one("#site-plataforma", Input).value or "tiendanube"
+    def _cmd_add_site(self, args: list[str]) -> None:
+        if len(args) < 2:
+            self._usage("add-site")
+            return
+        nombre, url = args[0], args[1]
+        plataforma = args[2] if len(args) > 2 else "tiendanube"
         self._run_core("add-site", lambda: self.rest.crear_sitio(nombre, url, plataforma))
 
-    def action_delete_site(self) -> None:
-        nombre = self.query_one("#site-nombre", Input).value
-        self._run_core("delete-site", lambda: self.rest.eliminar_sitio(nombre))
+    def _cmd_del_site(self, args: list[str]) -> None:
+        if not args:
+            self._usage("del-site")
+            return
+        nombre = args[0]
+        self._run_core("del-site", lambda: self.rest.eliminar_sitio(nombre))
 
-    def action_open_dashboard(self) -> None:
+    # -- commands: local / instant -----------------------------------
+
+    def _cmd_logs(self, args: list[str]) -> None:
+        """Read a service's log file back into the console. This is the
+        only way service output reaches the screen — the processes
+        themselves are redirected to these files precisely so they can't
+        write here directly."""
+        try:
+            service = logs.resolve_service(args[0] if args else None)
+        except ValueError as exc:
+            self._emit("err", str(exc))
+            return
+        count = int(args[1]) if len(args) > 1 and args[1].isdigit() else logs.DEFAULT_TAIL_LINES
+        path = logs.service_log_path(self.cfg, service)
+        lines = logs.tail(path, lines=count)
+        if not lines:
+            self._emit("info", f"sin log todavía para {service} ({path})")
+            return
+        self._emit("info", f"— {service} · últimas {len(lines)} líneas · {path}")
+        for line in lines:
+            self._emit("raw", line)
+
+    def _cmd_open(self, args: list[str]) -> None:
         url = self.open_url or f"http://localhost:{self.cfg.ports.frontend}"
         self.opener(url)
-        self._log(f"Opened {url}")
+        self._emit("out", f"abriendo {url}")
+
+    def _cmd_help(self, args: list[str]) -> None:
+        for line in help_lines():
+            self._emit("info", line)
+
+    def _cmd_clear(self, args: list[str]) -> None:
+        self.action_wipe_console()
+
+    def _cmd_quit(self, args: list[str]) -> None:
+        self.action_quit_app()
+
+    # -- global key actions ------------------------------------------
+
+    def action_wipe_console(self) -> None:
+        try:
+            self.query_one("#console", Console).wipe()
+        except Exception:  # noqa: BLE001
+            pass
 
     def action_quit_app(self) -> None:
-        """Bound to both `q` and `ctrl+c` -- the clean-teardown funnel
-        (spec: native-cli-orchestration, "Clean teardown on exit")."""
+        """Bound to `ctrl+c` and reached by the `quit` verb — the single
+        clean-teardown funnel (spec: native-cli-orchestration, "Clean
+        teardown on exit")."""
         self.processes.shutdown_all()
         self.exit()
 
 
 def run(cfg: Config, force_env: bool = False) -> int:
     """Entry point called by `cli/__main__.py` when capability detection
-    routes to the interactive Textual TUI."""
+    routes to the interactive console."""
     if force_env:
         generate_env(
             cfg.repo_root / ".env.example",
@@ -335,6 +451,5 @@ def run(cfg: Config, force_env: bool = False) -> int:
             compute_defaults(cfg),
             force=True,
         )
-    app = FashionScraperApp(cfg)
-    app.run()
+    ScrappyConsole(cfg).run()
     return 0

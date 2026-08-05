@@ -33,6 +33,35 @@ Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y 
 > tests/cli` (headless `core/` + Textual `Pilot` + injection-safety, que
 > reemplaza estructuralmente a los viejos `menu.Tests.ps1`/`menu_test.sh`).
 
+> **cli-command-console** (2026-08-05): la TUI dejó de ser un menú (sidebar de
+> botones + panel de health + panel de estado + formulario de sitios + log,
+> todo en cajas con borde) y pasó a ser una **consola por comandos**:
+> `ScrappyConsole` = franja de health de UNA línea + consola (1fr) + prompt +
+> línea de hint. Chrome total: 3 filas — corre en 60×18 sin maximizar nada,
+> que era la queja. Las operaciones se tipean, no se apretan: el vocabulario
+> vive en `cli/core/commands.py` (registro único del que salen el
+> autocompletado con ghost-text, `help`, y el menú del runner plano — no
+> pueden divergir), con Tab para completar el verbo, ↑↓ de historial, y
+> aliases (`q`/`exit`/`st`/`ls`). Ya no hay bindings de una sola letra, así
+> que `q` es un carácter tipeable en vez de una acción que se lo tragaba.
+> Sólo quedan `ctrl+c` (salir, con `priority=True` porque `Input` bindea
+> ctrl+c a `copy`) y `ctrl+l` (limpiar).
+>
+> **Y el bug de fondo, que NO era de layout sino de stdio:** `launch_backend`
+> redirigía sólo `stderr` (el **stdout** quedaba heredado) y `launch_frontend`
+> no redirigía nada — o sea Spring Boot y Vite escribían ANSI crudo sobre el
+> mismo TTY que Textual estaba pintando, y el frame quedaba destruido (Textual
+> no se entera, así que ningún repaint lo arregla). Ahora **los tres streams
+> de todo hijo están atados** (`_stdio_kwargs`): stdout+stderr al archivo de
+> `cli/core/logs.py` (`scraper/logs/backend.log`, `frontend.log`), stdin a
+> `DEVNULL` (si no, el hijo compite por las teclas del prompt). PIPE no es
+> opción: nadie lo drena y el hijo se cuelga cuando se llena el buffer. La
+> salida se lee con el comando `logs [backend|frontend] [n]` (tail con seek
+> desde el final, acotado). Bonus: el handle del log ahora se cierra en el
+> teardown — antes se filtraba un fd por cada launch. Cobertura: `tests/cli`
+> (180 tests), incluyendo un test con un **subproceso real** que escupe
+> stdout/stderr y verifica vía `capfd` que ni un byte llega a nuestra terminal.
+
 > **docker-install-alternative** (2026-07-21, PR #109): existe una **tercera vía
 > de instalación aditiva** por Docker — `docker compose up` levanta postgres +
 > backend + frontend. NO reemplaza ni toca el flujo portable (`.bat`/`.sh`/
@@ -80,9 +109,13 @@ fashion-scraper-new/
 ├── Ejecutar_instalar.sh               ← Mirror POSIX (Linux/macOS) — asume toolchain del sistema (java/mvn/
 │                                          python3/node), aprovisiona Postgres + uv/_tools/cli-venv, invoca el CLI
 ├── cli/                               ← CLI nativo (Python): core/ headless (config/env_file/builder/rest/
-│                                          processes/errors) + tui/ (Textual) + plain/ (fallback texto plano) +
-│                                          __main__.py (detección de capacidad + routing). Reemplaza a menu.ps1/
-│                                          menu.sh (retirados 2026-07-25, native-cli-installer) — ver requirements.txt
+│                                          processes/errors/commands/logs) + tui/ (consola Textual) + plain/
+│                                          (fallback texto plano) + __main__.py (detección de capacidad +
+│                                          routing). core/commands.py = registro único de verbos (autocompletado
+│                                          + help + menú plano); core/logs.py = archivos de log de servicios +
+│                                          tail acotado (los hijos NUNCA escriben en la terminal — ver
+│                                          cli-command-console arriba). Reemplaza a menu.ps1/menu.sh
+│                                          (retirados 2026-07-25, native-cli-installer) — ver requirements.txt
 ├── Dockerfile                         ← Backend multi-stage (maven build → Playwright-java v1.44.0 + Temurin 21 + Python 3.11 + deps ML)
 ├── frontend/Dockerfile                ← Frontend multi-stage (vite build, ARG VITE_API_BASE_URL → nginx)
 ├── frontend/nginx.conf                ← nginx SPA fallback a index.html
@@ -360,6 +393,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 
 ## Gotchas de entorno (Windows)
 
+- **Logs de los servicios lanzados por el CLI:** desde `cli-command-console` el backend y el frontend NO escriben en la terminal (romperían el render de la consola) — su stdout+stderr van a `scraper/logs/backend.log` y `scraper/logs/frontend.log`. Se leen con el comando `logs [backend|frontend] [n]` (en la consola o en modo plano), o abriendo el archivo. El viejo `scraper/logs/backend-launcher.err.log` ya no se usa. Esto es aparte del logback del backend (`scraper.log`/`error.log`), que sigue igual.
 - **Jar stale:** el CLI nativo (`cli/core/builder.py`) saltea el build si `scraper/scraper.jar` existe. Tras recompilar a mano, copiar `scraper/target/fashion-scraper-1.0.0.jar` → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI de nuevo.
 - **Python embeddable:** `python311._pth` congela `sys.path` (no agrega el dir del script ni respeta PYTHONPATH). `ml_pipeline.py` inserta su propio dir antes de importar `ml_embeddings`. Esto es **solo del embeddable de ML** (`_tools/python`) — el `_tools/cli-venv` del CLI nativo es un venv uv-managed normal, sin este problema (por diseño: no comparte nada con el embeddable — ver nota `native-cli-installer`).
 - **HF_HOME:** el runtime lo resuelve como `<SCRAPER_MODELS_ROOT>/marqo` (env var, ya no derivado de una ruta de archivo DB); el CLI genera `.env` con `SCRAPER_MODELS_ROOT=<repo>/scraper/_models` y el warm-up apunta al mismo lugar.
