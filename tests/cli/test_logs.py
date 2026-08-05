@@ -115,3 +115,155 @@ def test_tail_ignores_a_trailing_newline(tmp_path: Path):
     path = tmp_path / "a.log"
     path.write_text("one\ntwo\n", encoding="utf-8")
     assert tail(path, lines=10) == ["one", "two"]
+
+
+# -- terminal-escape containment ---------------------------------------
+#
+# A log line is attacker-reachable: scraped third-party product names end up
+# in backend stack traces. `tail` output is rendered straight into a live
+# terminal by both presenters, so raw control bytes there are an injection
+# vector, not a cosmetic issue. Verified against a real PTY: an unstripped
+# ESC[2J clears the operator's screen and an OSC sequence rewrites the
+# window title.
+
+
+def test_tail_strips_ansi_colour_sequences_but_keeps_the_text(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"\x1b[31mERROR: boom\x1b[0m\n")
+    assert tail(path) == ["ERROR: boom"]
+
+
+def test_tail_strips_a_screen_clearing_sequence(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"\x1b[2Jgotcha\n")
+    assert tail(path) == ["gotcha"]
+    assert "\x1b" not in tail(path)[0]
+
+
+def test_tail_strips_an_osc_window_title_sequence(tmp_path):
+    """OSC is terminated by BEL or ST, not by a CSI final byte — a
+    CSI-only filter would leave this one through."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"\x1b]0;HIJACKED\x07after\n")
+    assert tail(path) == ["after"]
+
+
+def test_tail_strips_a_bare_escape_with_no_sequence_body(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"a\x1bZb\n")
+    assert "\x1b" not in tail(path)[0]
+
+
+def test_tail_strips_carriage_returns_and_backspaces(tmp_path):
+    """CR and BS overwrite already-rendered characters — the cheapest way
+    to make a log line claim something it does not say."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"harmless\rEVIL\n")
+    assert "\r" not in tail(path)[0]
+    path.write_bytes(b"ok\x08\x08\x08bad\n")
+    assert "\x08" not in tail(path)[0]
+
+
+def test_tail_keeps_tabs_and_ordinary_text(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_bytes(b"col1\tcol2 clasico\n")
+    assert tail(path) == ["col1\tcol2 clasico"]
+
+
+def test_tail_keeps_non_ascii_text(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_text("categoría: remerón\n", encoding="utf-8")
+    assert tail(path) == ["categoría: remerón"]
+
+
+# -- tail window edge cases --------------------------------------------
+
+
+def test_tail_returns_the_partial_line_when_the_window_holds_no_newline(tmp_path):
+    """A single line longer than the read window used to make the
+    partial-line trim swallow the whole window and return nothing."""
+    path = tmp_path / "a.log"
+    path.write_bytes(b"x" * 40_000)
+    out = tail(path, lines=5)
+    assert out, "tail discarded the entire window instead of returning the partial line"
+    assert set(out[-1]) == {"x"}
+
+
+def test_tail_with_zero_or_negative_lines_returns_empty(tmp_path):
+    path = tmp_path / "a.log"
+    path.write_text("one\ntwo\n", encoding="utf-8")
+    assert tail(path, lines=0) == []
+    assert tail(path, lines=-1) == []
+
+
+# -- bounded growth ----------------------------------------------------
+#
+# Both services now append their full stdout+stderr here on every `start`,
+# for the life of the checkout. Before this change the frontend wrote no
+# file at all and the backend captured stderr only, so the growth is new.
+
+
+def test_open_log_rolls_the_file_once_it_exceeds_the_cap(tmp_path):
+    from cli.core.logs import MAX_LOG_BYTES, open_log
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"o" * (MAX_LOG_BYTES + 1))
+
+    open_log(cfg, "backend").close()
+
+    assert path.stat().st_size == 0, "the live log should restart empty after a roll"
+    rolled = path.with_suffix(".log.1")
+    assert rolled.is_file(), "the previous contents should be kept as .log.1"
+    assert rolled.stat().st_size == MAX_LOG_BYTES + 1
+
+
+def test_open_log_leaves_a_small_file_alone(tmp_path):
+    from cli.core.logs import open_log
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"previous run\n")
+
+    open_log(cfg, "backend").close()
+
+    assert path.read_bytes() == b"previous run\n"
+    assert not path.with_suffix(".log.1").exists()
+
+
+def test_rolling_twice_keeps_only_one_previous_generation(tmp_path):
+    """Exactly one backup, overwritten each roll — otherwise the thing we
+    are bounding just grows sideways instead of upward."""
+    from cli.core.logs import MAX_LOG_BYTES, open_log
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_bytes(b"a" * (MAX_LOG_BYTES + 1))
+    open_log(cfg, "backend").close()
+    path.write_bytes(b"b" * (MAX_LOG_BYTES + 1))
+    open_log(cfg, "backend").close()
+
+    assert set(path.with_suffix(".log.1").read_bytes()) == {ord("b")}
+    assert not path.with_suffix(".log.2").exists()
+
+
+def test_open_log_still_works_when_the_roll_cannot_happen(tmp_path, monkeypatch):
+    """A failed roll must not stop the service from launching — bounding
+    the log is housekeeping, not a precondition for running."""
+    from cli.core import logs as logs_mod
+
+    cfg = _cfg(tmp_path)
+    path = service_log_path(cfg, "backend")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"o" * (logs_mod.MAX_LOG_BYTES + 1))
+
+    def boom(*a, **k):
+        raise OSError("cannot rename")
+
+    monkeypatch.setattr(logs_mod.Path, "replace", boom)
+    handle = logs_mod.open_log(cfg, "backend")  # must not raise
+    handle.close()

@@ -11,6 +11,7 @@ Emits plain text only — no ANSI escape codes, no `rich` markup — so it is
 from __future__ import annotations
 
 import sys
+import time
 import webbrowser
 from typing import Callable, Optional, TextIO
 
@@ -22,6 +23,11 @@ from cli.core.env_file import compute_defaults, generate_env, parse_env
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient
+
+# Grace period before believing a just-launched service, mirroring the
+# console's STARTUP_GRACE_SECONDS. Kept local so this module stays free
+# of any import from cli/tui/ (the degradation contract).
+STARTUP_GRACE_SECONDS = 1.5
 
 # Rendered from `core.commands`, the same registry the console autocompletes
 # from — so the menu can never advertise a verb dispatch does not handle.
@@ -144,7 +150,19 @@ class PlainRunner:
                     self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
                 )
                 self.processes.launch_frontend(self.cfg, env=env)
-                self._print("Backend + frontend started. Su salida va a `logs`.")
+                # A service that dies on boot (bad DATABASE_URL, port taken)
+                # used to be visible because its output landed on the
+                # terminal. Now that it is redirected, saying so here is the
+                # only honest signal left. Same contract as the console.
+                time.sleep(STARTUP_GRACE_SECONDS)
+                dead = [n for n in ("backend", "frontend") if n not in self.processes.alive()]
+                if dead:
+                    self._print(
+                        f"{' and '.join(dead)} died on startup — run "
+                        f"`logs {dead[0]}` to see why."
+                    )
+                else:
+                    self._print("Backend + frontend started. Su salida va a `logs`.")
             elif name == "stop":
                 self.processes.shutdown_all()
                 self._print("Backend + frontend stopped.")

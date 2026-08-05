@@ -25,7 +25,7 @@ from typing import IO, Callable, Optional
 
 from cli.core.config import Config
 from cli.core.errors import ProcessError
-from cli.core.logs import open_log, service_log_path
+from cli.core.logs import log_dir, open_log, service_log_path
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class ProcessManager:
 
         child_env = {**os.environ, **(env or {})}
 
-        log_file = open_log(cfg, "backend")
+        log_file = self._open_service_log(cfg, "backend")
         try:
             popen = self.popen_factory(
                 cmd,
@@ -187,7 +187,7 @@ class ProcessManager:
         ]
         child_env = {**os.environ, **(env or {})}
         log_path = service_log_path(cfg, "frontend")
-        log_file = open_log(cfg, "frontend")
+        log_file = self._open_service_log(cfg, "frontend")
         try:
             popen = self.popen_factory(
                 cmd,
@@ -208,6 +208,19 @@ class ProcessManager:
         )
         self._procs.append(managed)
         return managed
+
+    @staticmethod
+    def _open_service_log(cfg: Config, service: str) -> IO[bytes]:
+        """Open the service log, translating a filesystem failure into the
+        same guided `ProcessError` as every other launch failure — a
+        read-only `scraper/logs/` should not surface as a raw `OSError`."""
+        try:
+            return open_log(cfg, service)
+        except OSError as exc:
+            raise ProcessError(
+                f"No se pudo abrir el log de {service}: {exc}",
+                action=f"Verificá permisos y espacio en {log_dir(cfg)}.",
+            ) from exc
 
     @staticmethod
     def _stdio_kwargs(log_file: IO[bytes]) -> dict:
@@ -264,16 +277,24 @@ class ProcessManager:
                         pass
         self._procs.clear()
 
-    def running(self) -> list[str]:
-        """Names of the tracked processes that are still alive. Used by the
-        console's status line so `stop` and a crashed backend look
-        different to the user."""
-        alive = []
+    def alive(self) -> list[str]:
+        """Names of the tracked processes that have not exited.
+
+        Redirecting child stdio fixed the rendering bug but removed the only
+        signal a user had that a service died on boot — its crash output
+        used to land (destructively) on the terminal. The presenters call
+        this right after `start` so an immediate death is reported instead
+        of being reported as success.
+
+        A child whose object exposes no `poll` is treated as running:
+        absence of evidence of death is not evidence of death.
+        """
+        names = []
         for managed in self._procs:
             poll = getattr(managed.popen, "poll", None)
             if poll is None or poll() is None:
-                alive.append(managed.name)
-        return alive
+                names.append(managed.name)
+        return names
 
     def _teardown_windows(self, pid: int, taskkill: Optional[TaskkillFn]) -> None:
         kill = taskkill or (

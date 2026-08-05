@@ -382,3 +382,73 @@ def test_a_real_child_writes_to_its_log_and_never_to_our_stdout(tmp_path: Path, 
     assert "BANNER-ON-STDOUT" not in captured.err
     assert "WARN-ON-STDERR" not in captured.out
     assert "WARN-ON-STDERR" not in captured.err
+
+
+def test_a_failing_log_open_is_reported_as_an_actionable_process_error(tmp_path: Path):
+    """Opening the log sits on the launch path; a permissions or disk
+    problem there must arrive as the same guided ProcessError as every
+    other launch failure, not as a raw OSError."""
+    from cli.core import processes as processes_mod
+
+    _prep(tmp_path)
+    cfg = _cfg(tmp_path)
+
+    def boom(*a, **k):
+        raise PermissionError("read-only filesystem")
+
+    original = processes_mod.open_log
+    processes_mod.open_log = boom
+    try:
+        mgr = ProcessManager(
+            is_windows=False, popen_factory=lambda cmd, *, cwd, **kw: _FakePopen(cmd, cwd=cwd)
+        )
+        with pytest.raises(ProcessError) as excinfo:
+            mgr.launch_backend(cfg, database_password="")
+    finally:
+        processes_mod.open_log = original
+
+    assert excinfo.value.action, "a ProcessError on the launch path must carry an action"
+
+
+def test_shutdown_all_twice_does_not_close_a_handle_twice_or_re_kill(tmp_path: Path):
+    """`stop` followed by `quit` is an ordinary sequence in the console."""
+    captured = _capture_launch(tmp_path, "backend")
+    mgr = captured["mgr"]
+    kills: list[int] = []
+    mgr.shutdown_all(killpg=lambda pid, sig: kills.append(pid))
+    mgr.shutdown_all(killpg=lambda pid, sig: kills.append(pid))
+    assert kills == [4242], "the second teardown must be a no-op"
+    assert captured["stdout"].closed
+
+
+# -- launch liveness ---------------------------------------------------
+#
+# Redirecting child output fixed the rendering bug but removed the only
+# signal a user had that a service died on boot: its crash used to land
+# (destructively) on the terminal. `alive` restores an honest answer.
+
+
+def test_alive_reports_a_running_child(tmp_path: Path):
+    captured = _capture_launch(tmp_path, "backend")
+    assert captured["mgr"].alive() == ["backend"]
+
+
+def test_alive_omits_a_child_that_already_exited(tmp_path: Path):
+    class _Exited(_FakePopen):
+        def poll(self):
+            return 1
+
+    _prep(tmp_path)
+    cfg = _cfg(tmp_path)
+    mgr = ProcessManager(
+        is_windows=False, popen_factory=lambda cmd, *, cwd, **kw: _Exited(cmd, cwd=cwd)
+    )
+    mgr.launch_backend(cfg, database_password="")
+    assert mgr.alive() == []
+
+
+def test_alive_treats_a_child_with_no_poll_as_running(tmp_path: Path):
+    """_FakePopen has no poll(); absence of evidence of death is not
+    evidence of death."""
+    captured = _capture_launch(tmp_path, "frontend")
+    assert captured["mgr"].alive() == ["frontend"]

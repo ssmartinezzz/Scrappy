@@ -27,6 +27,7 @@ is present, by design.
 """
 from __future__ import annotations
 
+import time
 import webbrowser
 from typing import Callable, Optional
 
@@ -56,6 +57,11 @@ from cli.tui.widgets import (
 # How often (seconds) the status strip re-probes build state + service
 # ports, so a service coming up flips ○ -> ● without any user action.
 HEALTH_REFRESH_SECONDS = 2.0
+
+# How long to let a just-launched service live before believing it. A
+# fail-fast backend (RequiredEnvVarsGuard) or a port clash dies well
+# inside this; it runs on a worker thread, so nothing blocks rendering.
+STARTUP_GRACE_SECONDS = 1.5
 
 BANNER = "scrappy · consola nativa — `help` lista todo"
 
@@ -93,10 +99,25 @@ class ScrappyConsole(App):
 
     TITLE = "scrappy"
 
+    # Palette first, then layout. Textual resolves `$name` at parse time,
+    # so a theme change is one edit here rather than a hunt through every
+    # selector. Deliberately literal rather than Textual's theme tokens:
+    # the console commits to one dark terminal look instead of inheriting
+    # whatever theme is active.
     CSS = """
+    $bg:        #0b0f14;
+    $bg-raised: #0e141b;
+    $bg-strip:  #111820;
+    $fg:        #d7e3ea;
+    $fg-muted:  #9aa7b0;
+    $fg-faint:  #4a5a66;
+    $fg-ghost:  #3d4a55;
+    $accent:    #4ade80;
+    $rule:      #1e2a35;
+
     Screen {
-        background: #0b0f14;
-        color: #d7e3ea;
+        background: $bg;
+        color: $fg;
         layout: vertical;
     }
 
@@ -105,8 +126,8 @@ class ScrappyConsole(App):
         height: 1;
         width: 100%;
         padding: 0 1;
-        background: #111820;
-        color: #9aa7b0;
+        background: $bg-strip;
+        color: $fg-muted;
     }
 
     /* -- the console: the only thing that grows --------------------- */
@@ -114,39 +135,39 @@ class ScrappyConsole(App):
         height: 1fr;
         width: 100%;
         padding: 0 1;
-        background: #0b0f14;
+        background: $bg;
         scrollbar-size-vertical: 1;
-        scrollbar-background: #0b0f14;
-        scrollbar-color: #1e2a35;
+        scrollbar-background: $bg;
+        scrollbar-color: $rule;
     }
 
     /* -- prompt row -------------------------------------------------- */
     #promptrow {
         height: 1;
         width: 100%;
-        background: #0e141b;
+        background: $bg-raised;
     }
     #sigil {
         width: 2;
         height: 1;
-        color: #4ade80;
+        color: $accent;
         text-style: bold;
-        background: #0e141b;
+        background: $bg-raised;
     }
     #prompt {
         height: 1;
         width: 1fr;
         border: none;
         padding: 0;
-        background: #0e141b;
-        color: #d7e3ea;
+        background: $bg-raised;
+        color: $fg;
     }
     #prompt > .input--placeholder, #prompt > .input--suggestion {
-        color: #3d4a55;
+        color: $fg-ghost;
     }
     #prompt > .input--cursor {
-        background: #4ade80;
-        color: #0b0f14;
+        background: $accent;
+        color: $bg;
     }
 
     /* -- one-line contextual hint ------------------------------------ */
@@ -154,8 +175,8 @@ class ScrappyConsole(App):
         height: 1;
         width: 100%;
         padding: 0 1;
-        background: #0b0f14;
-        color: #4a5a66;
+        background: $bg;
+        color: $fg-faint;
     }
     """
 
@@ -295,9 +316,15 @@ class ScrappyConsole(App):
             self._emit("info", "escribí `help` para ver los disponibles")
             return
 
-        handler = getattr(self, f"_cmd_{cmd.name.replace('-', '_')}")
         try:
+            # Inside the try on purpose: the registry and these methods are
+            # coupled only by name, so an entry added without its handler
+            # must degrade to a console line rather than raise into
+            # Textual's event loop and take the app down.
+            handler = getattr(self, f"_cmd_{cmd.name.replace('-', '_')}")
             handler(args)
+        except AttributeError:
+            self._emit("err", f"comando sin implementar: {cmd.name}")
         except CliError as exc:  # noqa: BLE001 - surfaced, never fatal
             self._emit_error(exc)
         except Exception as exc:  # noqa: BLE001 - the console must never crash
@@ -356,6 +383,19 @@ class ScrappyConsole(App):
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )
         self.processes.launch_frontend(self.cfg, env=env)
+
+        # Reporting success the moment Popen returns would be a lie: a
+        # backend with a bad DATABASE_URL, or a frontend whose port is
+        # taken, exits within a second. That death used to be visible
+        # because its output landed on the terminal; now that we redirect
+        # it, saying so here is the only honest signal left.
+        time.sleep(STARTUP_GRACE_SECONDS)
+        dead = [name for name in ("backend", "frontend") if name not in self.processes.alive()]
+        if dead:
+            return (
+                f"{' y '.join(dead)} murió al arrancar — corré `logs {dead[0]}` "
+                f"para ver por qué"
+            )
         return "backend + frontend arriba — su salida va a `logs` (no a esta consola)"
 
     def _cmd_stop(self, args: list[str]) -> None:

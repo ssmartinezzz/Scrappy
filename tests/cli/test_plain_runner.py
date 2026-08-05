@@ -73,6 +73,9 @@ class _FakeProcesses:
         self.frontend_launched = True
         self.frontend_env = env
 
+    def alive(self):
+        return ["backend", "frontend"]
+
     def shutdown_all(self):
         self.shutdown_called = True
 
@@ -347,3 +350,23 @@ def test_a_command_missing_its_arguments_prints_usage(tmp_path):
     r.dispatch("add-site solo-nombre")
     assert rest.calls == []
     assert "add-site <nombre> <url> [plataforma]" in out.getvalue()
+
+
+def test_start_reports_a_service_that_died_immediately(tmp_path, monkeypatch):
+    """Same honesty fix as the console: redirected stdio removed the user's
+    only crash signal, so a dead child must be named, not reported as up."""
+    monkeypatch.setattr("cli.plain.runner.is_built", lambda cfg: True)
+    r, _, processes, out = _make_runner(tmp_path, "")
+    processes.alive = lambda: ["frontend"]  # backend died on boot
+    r.dispatch("start")
+    printed = out.getvalue().lower()
+    assert "backend" in printed
+    assert "logs" in printed
+
+
+def test_start_reports_success_when_both_services_survive(tmp_path, monkeypatch):
+    monkeypatch.setattr("cli.plain.runner.is_built", lambda cfg: True)
+    r, _, processes, out = _make_runner(tmp_path, "")
+    processes.alive = lambda: ["backend", "frontend"]
+    r.dispatch("start")
+    assert "started" in out.getvalue().lower()

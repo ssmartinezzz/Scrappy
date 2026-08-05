@@ -13,10 +13,14 @@ docstring), so both presenters share it.
 """
 from __future__ import annotations
 
+import logging
+import re
 from pathlib import Path
 from typing import Optional
 
 from cli.core.config import Config
+
+logger = logging.getLogger(__name__)
 
 # The services whose stdio the CLI owns. This is a fixed allow-list, not a
 # suggestion: `service_log_path` refuses anything outside it, so a service
@@ -25,10 +29,49 @@ SERVICES: tuple[str, ...] = ("backend", "frontend")
 
 DEFAULT_TAIL_LINES = 40
 
+# Size at which a service log is rolled aside on the next launch.
+MAX_LOG_BYTES = 8 * 1024 * 1024
+
 # How much of the file's tail to read for a `tail()` call. A rolling
 # backend log reaches megabytes; reading it whole to show 40 lines would
 # stall the UI thread, so we seek from the end and read a bounded window.
 _TAIL_BLOCK = 16 * 1024
+
+# Escape sequences a child may emit, stripped before a log line is handed to
+# any renderer. Order matters: OSC is terminated by BEL or ST rather than by
+# a CSI final byte, so a CSI-only filter would let a window-title rewrite
+# through, and the catch-all two-character form must run last so it cannot
+# eat the introducer of a longer sequence first.
+_ANSI = re.compile(
+    r"""
+    \x1b\[ [0-?]* [ -/]* [@-~]          # CSI  — colour, cursor moves, ESC[2J
+  | \x1b\] .*? (?: \x07 | \x1b\\ )      # OSC  — window title, hyperlinks
+  | \x1b [@-Z\\-_]                      # two-character escapes
+  | \x1b                                # a lone, truncated introducer
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+# Everything else in C0/C1 except tab. CR and BS are in here deliberately:
+# they overwrite already-rendered characters, which is the cheapest way to
+# make a log line display something other than what it contains.
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def scrub(text: str) -> str:
+    """Strip terminal control sequences from one line of child output.
+
+    Log lines are attacker-reachable — scraped third-party product names
+    reach backend stack traces — and both presenters render `tail()` output
+    straight into a live terminal. Left raw, a line can clear the operator's
+    screen (`ESC[2J`), rewrite the window title (OSC), or overwrite what it
+    already printed (CR/BS) to misrepresent itself. Verified against a real
+    PTY before this scrubbing existed.
+
+    Tabs and all non-ASCII text survive: the point is to remove control,
+    not to mangle Spanish product names.
+    """
+    return _CONTROL.sub("", _ANSI.sub("", text))
 
 
 def log_dir(cfg: Config) -> Path:
@@ -49,12 +92,32 @@ def service_log_path(cfg: Config, service: str) -> Path:
     return log_dir(cfg) / f"{service}.log"
 
 
+def roll_if_large(path: Path) -> None:
+    """Move `path` aside to `<name>.log.1` once it exceeds `MAX_LOG_BYTES`.
+
+    Both services append their full stdout+stderr on every `start`, forever,
+    so without this the file grows unbounded for the life of the checkout.
+    Exactly one previous generation is kept — more would just move the
+    growth sideways instead of bounding it.
+
+    Failure is swallowed on purpose: bounding a log is housekeeping, and it
+    must never be the reason a service refuses to launch.
+    """
+    try:
+        if path.is_file() and path.stat().st_size > MAX_LOG_BYTES:
+            path.replace(path.with_suffix(".log.1"))
+    except OSError:
+        logger.warning("Could not roll %s; continuing with the existing file", path)
+
+
 def open_log(cfg: Config, service: str):
     """Open `service`'s log for appending in binary mode, creating the log
-    directory if needed. Binary because it is handed straight to `Popen` as
-    a stdio target — the child owns the encoding, not us."""
+    directory if needed and rolling it first if it has grown past the cap.
+    Binary because it is handed straight to `Popen` as a stdio target — the
+    child owns the encoding, not us."""
     path = service_log_path(cfg, service)
     path.parent.mkdir(parents=True, exist_ok=True)
+    roll_if_large(path)
     return path.open("ab")
 
 
@@ -83,10 +146,13 @@ def tail(path: Path, lines: int = DEFAULT_TAIL_LINES) -> list[str]:
         return []
 
     text = raw.decode("utf-8", errors="replace")
-    if want < size:
+    if want < size and "\n" in text:
         # The window may have cut a line in half — drop that first partial.
+        # Guarded on a newline being present: a single line longer than the
+        # window has nothing to trim, and partitioning would throw the whole
+        # window away and return nothing.
         _, _, text = text.partition("\n")
-    return text.splitlines()[-lines:]
+    return [scrub(line) for line in text.splitlines()[-lines:]]
 
 
 def tail_service(cfg: Config, service: str, lines: int = DEFAULT_TAIL_LINES) -> list[str]:

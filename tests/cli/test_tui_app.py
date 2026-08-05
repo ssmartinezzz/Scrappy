@@ -81,8 +81,13 @@ class _FakeProcesses:
     def shutdown_all(self):
         self.shutdown_called += 1
 
-    def running(self):
-        return ["backend"] if self.backend_launched else []
+    def alive(self):
+        names = []
+        if self.backend_launched:
+            names.append("backend")
+        if self.frontend_launched:
+            names.append("frontend")
+        return names
 
 
 opened: list[str] = []
@@ -101,12 +106,30 @@ def _make_app(tmp_path, connect=lambda *a: False):
     return app, rest, processes
 
 
+async def _settle(app) -> None:
+    """Wait for the app's workers, tolerating a cancelled one.
+
+    The health poll is `@work(exclusive=True, group="health")`, so a fresh
+    tick deliberately cancels the in-flight one — and commands that finish
+    by refreshing health (`start`, `stop`, `build`) trigger exactly that.
+    `wait_for_complete` raises `WorkerCancelled` for it, which is the
+    designed behavior surfacing as a test failure, not a defect. Swallowing
+    it here is what makes these tests deterministic instead of timing-
+    dependent."""
+    from textual.worker import WorkerCancelled
+
+    try:
+        await app.workers.wait_for_complete()
+    except WorkerCancelled:
+        pass
+
+
 async def _submit(app, pilot, line: str) -> None:
     """Type `line` at the prompt and press enter, then let the worker
     finish — the same sequence a user performs."""
     app.query_one("#prompt").value = line
     await pilot.press("enter")
-    await app.workers.wait_for_complete()
+    await _settle(app)
     await pilot.pause()
 
 
@@ -631,8 +654,134 @@ async def test_only_the_first_line_of_a_multi_line_result_is_timestamped(tmp_pat
 
 @pytest.mark.asyncio
 async def test_the_first_line_of_a_result_still_carries_the_clock(tmp_path):
+    """Targets the first line of the RESULT, not the echoed command.
+    Indexing blindly into history would hit the echo, which is always
+    stamped, and pass even if the multi-line stamping regressed."""
     app, _, _ = _make_app(tmp_path)
     async with app.run_test() as pilot:
         await _submit(app, pilot, "status")
-        first = app.query_one("#console", Console).history[1]
-        assert first[2] == ":" and first[5] == ":"
+        history = app.query_one("#console", Console).history
+        body = next(i for i, ln in enumerate(history) if ln.rstrip().endswith("{"))
+        assert history[body][2] == ":" and history[body][5] == ":"
+        assert '"estado"' in history[body + 1]
+        assert not history[body + 1].startswith(("0", "1", "2"))
+
+
+# -- registry/handler coupling -----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_every_registry_command_has_a_handler_and_never_raises(tmp_path, monkeypatch):
+    """The console routes by building a method name from the registry
+    entry. A command added to `core.commands` without its `_cmd_*` method
+    would otherwise raise an uncaught AttributeError into Textual's event
+    loop — `dispatch` promises it never raises, so prove it."""
+    from cli.core import builder as builder_mod
+    from cli.core.commands import COMMANDS
+    from cli.tui import app as app_mod
+
+    # `build` and `start` are in the registry and would otherwise shell out
+    # to a real npm/mvn build here, making the test slow and its worker
+    # outlive the harness.
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: None)
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    for cmd in COMMANDS:
+        app, _, _ = _make_app(tmp_path)
+        async with app.run_test() as pilot:
+            app.dispatch(cmd.name)  # must not raise for any registered verb
+            if cmd.name != "quit":
+                # `quit` exits the app and tears its workers down by design.
+                await _settle(app)
+            await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_a_registry_entry_with_no_handler_degrades_to_a_console_line(tmp_path, monkeypatch):
+    """The failure mode itself, forced: an unhandled verb becomes an error
+    line, not a crash."""
+    from cli.core import commands as commands_mod
+
+    orphan = commands_mod.Command("orphan-verb", "no handler on purpose")
+    monkeypatch.setattr(commands_mod, "_BY_NAME", {**commands_mod._BY_NAME, "orphan-verb": orphan})
+
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "orphan-verb")
+        assert app.is_running is True
+        assert "orphan-verb" in _console_text(app)
+
+
+# -- build / start through the console ---------------------------------
+#
+# These two carry the most side effects (a multi-minute build, a service
+# launch) and the rewrite dropped their old key-binding tests. Restored
+# against the command path a user actually drives.
+
+
+@pytest.mark.asyncio
+async def test_build_runs_the_project_build(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+
+    calls = {"n": 0}
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: calls.__setitem__("n", calls["n"] + 1))
+
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "build")
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_start_auto_builds_when_nothing_is_compiled(tmp_path, monkeypatch):
+    """Pressing start with no jar/dist compiles first — the user should not
+    have to remember `build`."""
+    from cli.core import builder as builder_mod
+
+    calls = {"n": 0}
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: calls.__setitem__("n", calls["n"] + 1))
+
+    app, _, processes = _make_app(tmp_path)  # nothing built in tmp_path
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+    assert calls["n"] == 1
+    assert processes.backend_launched is True
+    assert processes.frontend_launched is True
+
+
+@pytest.mark.asyncio
+async def test_start_reports_a_service_that_died_immediately(tmp_path, monkeypatch):
+    """Redirecting child output removed the user's only crash signal. If a
+    service exits on boot (bad DATABASE_URL, port taken), say so instead of
+    reporting success."""
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: None)
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    app, _, processes = _make_app(tmp_path)
+    processes.alive = lambda: ["frontend"]  # backend died on boot
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        text = _console_text(app).lower()
+    assert "backend" in text
+    assert "logs" in text, "the user must be pointed at where the crash actually landed"
+
+
+@pytest.mark.asyncio
+async def test_start_reports_success_when_both_services_survive(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: None)
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    app, _, processes = _make_app(tmp_path)
+    processes.alive = lambda: ["backend", "frontend"]
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        assert "arriba" in _console_text(app)

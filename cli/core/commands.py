@@ -6,8 +6,16 @@ runner's menu can never drift apart from what dispatch actually accepts.
 
 Headless: no `textual`/`rich` imports (see the `cli.core` package
 docstring). This module knows the *names* of the operations, never how to
-run them — dispatch stays in each presenter, because the console runs
-commands on a worker thread while the plain runner runs them inline.
+run them.
+
+Dispatch deliberately stays in each presenter. The console pushes its
+slow commands (build, start, stop, and every REST call) onto a
+`@work(thread=True)` worker and renders the result asynchronously, while
+the plain runner executes them inline and prints. Their local commands
+(`logs`, `open`, `help`, `clear`, `quit`) do run the same way in both, so
+this is a split over most of the registry rather than all of it — but the
+asynchronous half is what a shared dispatcher would have to model, and
+modelling it would cost more than the if/elif it replaces.
 """
 from __future__ import annotations
 
