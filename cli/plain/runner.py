@@ -14,26 +14,21 @@ import sys
 import webbrowser
 from typing import Callable, Optional, TextIO
 
+from cli.core import logs
 from cli.core.builder import build_project, is_built
+from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient
 
-MENU = """\
-Fashion Scraper -- plain mode (non-interactive terminal detected)
-  build       run the full build (npm install/build + mvn package)
-  start       start backend (:3000) + frontend (:5173)
-  scrape      POST /api/scrape
-  retrain     POST /api/ml/entrenar
-  status      GET /api/status
-  sites       GET /api/sitios
-  add-site <nombre> <url> [plataforma]   POST /api/sitios
-  del-site <nombre>                      DELETE /api/sitios/{nombre}
-  open        open the dashboard in the default browser
-  q           quit (tears down backend + frontend)
-"""
+# Rendered from `core.commands`, the same registry the console autocompletes
+# from — so the menu can never advertise a verb dispatch does not handle.
+MENU = (
+    "Fashion Scraper -- plain mode (non-interactive terminal detected)\n"
+    + menu_text()
+)
 
 
 def _payload_text(payload: object) -> str:
@@ -62,6 +57,20 @@ def cmd_add_sitio(rest: RestClient, nombre: str, url: str, plataforma: str = "ti
 
 def cmd_del_sitio(rest: RestClient, nombre: str) -> str:
     return _payload_text(rest.eliminar_sitio(nombre))
+
+
+def cmd_logs(cfg: Config, service: Optional[str] = None, count: Optional[str] = None) -> str:
+    """Tail of a service's log file. The services never write to this
+    terminal (see `core.processes` stdio containment) — this is how their
+    output is read back."""
+    resolved = logs.resolve_service(service)
+    lines = logs.tail(
+        logs.service_log_path(cfg, resolved),
+        lines=int(count) if count and count.isdigit() else logs.DEFAULT_TAIL_LINES,
+    )
+    if not lines:
+        return f"sin log todavía para {resolved}"
+    return "\n".join(lines)
 
 
 def cmd_open_dashboard(
@@ -111,16 +120,22 @@ class PlainRunner:
         command = line.strip()
         if not command:
             return True
-        if command in {"q", "quit", "exit"}:
+
+        parts = command.split()
+        verb, args = parts[0], parts[1:]
+        cmd = find(verb)
+        if cmd is None:
+            self._print(f"Unknown command: {command!r}. Type 'help' or 'q' to quit.")
+            return True
+        if cmd.name == "quit":
             return False
 
         try:
-            parts = command.split()
-            verb, args = parts[0], parts[1:]
-            if verb == "build":
+            name = cmd.name
+            if name == "build":
                 build_project(self.cfg)
                 self._print("Build complete.")
-            elif verb == "start":
+            elif name == "start":
                 if not is_built(self.cfg):
                     self._print("jar/frontend ausente — compilando primero…")
                     build_project(self.cfg)
@@ -129,24 +144,39 @@ class PlainRunner:
                     self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
                 )
                 self.processes.launch_frontend(self.cfg, env=env)
-                self._print("Backend + frontend started.")
-            elif verb == "scrape":
+                self._print("Backend + frontend started. Su salida va a `logs`.")
+            elif name == "stop":
+                self.processes.shutdown_all()
+                self._print("Backend + frontend stopped.")
+            elif name == "scrape":
                 self._print(cmd_scrape(self.rest))
-            elif verb == "retrain":
+            elif name == "retrain":
                 self._print(cmd_retrain(self.rest))
-            elif verb == "status":
+            elif name == "status":
                 self._print(cmd_status(self.rest))
-            elif verb == "sites":
+            elif name == "sites":
                 self._print(cmd_list_sitios(self.rest))
-            elif verb == "open":
+            elif name == "logs":
+                self._print(cmd_logs(self.cfg, *args[:2]))
+            elif name == "open":
                 self._print(cmd_open_dashboard(self.cfg))
-            elif verb == "add-site" and len(args) >= 2:
-                plataforma = args[2] if len(args) > 2 else "tiendanube"
-                self._print(cmd_add_sitio(self.rest, args[0], args[1], plataforma))
-            elif verb == "del-site" and len(args) >= 1:
-                self._print(cmd_del_sitio(self.rest, args[0]))
-            else:
-                self._print(f"Unknown command: {command!r}. Type 'q' to quit.")
+            elif name == "help":
+                self._print(MENU)
+            elif name == "clear":
+                # No screen to clear in a non-interactive stream; a rule is
+                # the honest equivalent and keeps the verb from being a lie.
+                self._print("-" * 60)
+            elif name == "add-site":
+                if len(args) < 2:
+                    self._print(f"Usage: {cmd.usage}")
+                else:
+                    plataforma = args[2] if len(args) > 2 else "tiendanube"
+                    self._print(cmd_add_sitio(self.rest, args[0], args[1], plataforma))
+            elif name == "del-site":
+                if not args:
+                    self._print(f"Usage: {cmd.usage}")
+                else:
+                    self._print(cmd_del_sitio(self.rest, args[0]))
         except CliError as exc:
             self._print(f"Error: {exc.message}")
         except Exception as exc:  # noqa: BLE001 - plain mode must never crash the process
