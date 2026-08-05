@@ -1,6 +1,16 @@
 """Backend + frontend subprocess lifecycle: launch, track, and tear down
 through a single funnel so neither process is ever left orphaned
 (design.md §5, ported from `menu.ps1` D4/D5).
+
+**Stdio containment.** Every child is launched with all three standard
+streams bound: stdout+stderr to its own file under `scraper/logs/`, stdin
+to DEVNULL. This is not tidiness — an inherited stdout is a rendering bug.
+The CLI draws a full-screen Textual frame on the terminal; a child that
+inherits it writes raw ANSI into the middle of that frame (Spring Boot's
+banner, Vite's re-render + screen clear) and Textual has no way to know it
+must repaint. The result is the shredded UI this redirection fixes. PIPE is
+not an option either: nobody drains it, so the child blocks forever once
+the pipe buffer fills.
 """
 from __future__ import annotations
 
@@ -10,10 +20,12 @@ import platform
 import signal
 import subprocess
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from pathlib import Path
+from typing import IO, Callable, Optional
 
 from cli.core.config import Config
 from cli.core.errors import ProcessError
+from cli.core.logs import open_log, service_log_path
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +36,14 @@ KillpgFn = Callable[[int, int], None]
 
 @dataclass
 class ManagedProcess:
+    """A launched child plus the log file it writes to. `log_file` is held
+    so teardown can close it — the previous code opened a log per launch
+    and never closed it, leaking one fd every time."""
+
     name: str
     popen: "subprocess.Popen"
+    log_path: Optional[Path] = None
+    log_file: Optional[IO[bytes]] = None
 
 
 def _default_popen(cmd, *, cwd, **kwargs) -> "subprocess.Popen":
@@ -97,11 +115,9 @@ class ProcessManager:
         if not jar.is_file():
             raise ProcessError(
                 "scraper/scraper.jar todavía no existe — el backend no se puede lanzar.",
-                action="Corré Build primero (tecla b en la TUI, o `build` en modo plano).",
+                action="Corré `build` primero.",
             )
-        log_dir = scraper_dir / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        err_log_path = log_dir / "backend-launcher.err.log"
+        log_path = service_log_path(cfg, "backend")
 
         cmd = [
             _java_exe(cfg),
@@ -117,18 +133,25 @@ class ProcessManager:
 
         child_env = {**os.environ, **(env or {})}
 
-        err_log = open(err_log_path, "ab")
+        log_file = open_log(cfg, "backend")
         try:
             popen = self.popen_factory(
-                cmd, cwd=scraper_dir, stderr=err_log, env=child_env, **self._spawn_kwargs()
+                cmd,
+                cwd=scraper_dir,
+                env=child_env,
+                **self._stdio_kwargs(log_file),
+                **self._spawn_kwargs(),
             )
         except Exception as exc:
+            log_file.close()
             raise ProcessError(
                 f"Failed to launch backend: {exc}",
-                action=f"Check {err_log_path} and confirm the vendored JDK + scraper.jar exist.",
+                action=f"Check {log_path} and confirm the vendored JDK + scraper.jar exist.",
             ) from exc
 
-        managed = ManagedProcess(name="backend", popen=popen)
+        managed = ManagedProcess(
+            name="backend", popen=popen, log_path=log_path, log_file=log_file
+        )
         self._procs.append(managed)
         return managed
 
@@ -137,6 +160,11 @@ class ProcessManager:
         on `cfg.ports.frontend`. `--strictPort` fails loudly on a port
         clash rather than silently drifting to Vite's default 4173.
 
+        `--clearScreen false` stops Vite from emitting a screen-clear +
+        re-render; combined with the stdio redirection below it means the
+        preview server cannot touch our terminal even in the odd case
+        where it believes it has one.
+
         `env` (the parsed `.env`) is merged over `os.environ` for parity
         with the backend launch. Requires `frontend/dist` to exist —
         `npm run preview` only serves a prior `npm run build`."""
@@ -144,7 +172,7 @@ class ProcessManager:
         if not (frontend_dir / "dist").is_dir():
             raise ProcessError(
                 "frontend/dist todavía no existe — el frontend no está buildeado.",
-                action="Corré Build primero (tecla b / `build`); `npm run preview` sirve dist/.",
+                action="Corré `build` primero; `npm run preview` sirve dist/.",
             )
         cmd = [
             _npm_cmd(cfg),
@@ -154,19 +182,44 @@ class ProcessManager:
             "--port",
             str(cfg.ports.frontend),
             "--strictPort",
+            "--clearScreen",
+            "false",
         ]
         child_env = {**os.environ, **(env or {})}
+        log_path = service_log_path(cfg, "frontend")
+        log_file = open_log(cfg, "frontend")
         try:
-            popen = self.popen_factory(cmd, cwd=frontend_dir, env=child_env, **self._spawn_kwargs())
+            popen = self.popen_factory(
+                cmd,
+                cwd=frontend_dir,
+                env=child_env,
+                **self._stdio_kwargs(log_file),
+                **self._spawn_kwargs(),
+            )
         except Exception as exc:
+            log_file.close()
             raise ProcessError(
                 f"Failed to launch frontend: {exc}",
                 action="Confirm the vendored Node + `npm run build` (frontend/dist) exist.",
             ) from exc
 
-        managed = ManagedProcess(name="frontend", popen=popen)
+        managed = ManagedProcess(
+            name="frontend", popen=popen, log_path=log_path, log_file=log_file
+        )
         self._procs.append(managed)
         return managed
+
+    @staticmethod
+    def _stdio_kwargs(log_file: IO[bytes]) -> dict:
+        """Bind all three streams away from the terminal. stdout and stderr
+        share one file (interleaved, the way you'd read them on a console);
+        stdin is DEVNULL so a child can never consume the keystrokes the
+        user is typing at our prompt."""
+        return {
+            "stdout": log_file,
+            "stderr": subprocess.STDOUT,
+            "stdin": subprocess.DEVNULL,
+        }
 
     def _spawn_kwargs(self) -> dict:
         if self.is_windows:
@@ -201,7 +254,26 @@ class ProcessManager:
                     "Teardown of %s (pid=%s) hit a non-fatal error",
                     managed.name, pid, exc_info=True,
                 )
+            finally:
+                # Always close, even when the kill failed: the fd is ours,
+                # and leaking one per launch is how `start` twice runs out.
+                if managed.log_file is not None:
+                    try:
+                        managed.log_file.close()
+                    except Exception:  # noqa: BLE001
+                        pass
         self._procs.clear()
+
+    def running(self) -> list[str]:
+        """Names of the tracked processes that are still alive. Used by the
+        console's status line so `stop` and a crashed backend look
+        different to the user."""
+        alive = []
+        for managed in self._procs:
+            poll = getattr(managed.popen, "poll", None)
+            if poll is None or poll() is None:
+                alive.append(managed.name)
+        return alive
 
     def _teardown_windows(self, pid: int, taskkill: Optional[TaskkillFn]) -> None:
         kill = taskkill or (

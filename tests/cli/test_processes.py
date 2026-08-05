@@ -154,6 +154,90 @@ def test_teardown_tolerates_already_dead_pid(tmp_path: Path):
     assert mgr._procs == []
 
 
+# -- stdio containment -------------------------------------------------
+#
+# The TUI owns the terminal. A child that inherits our stdout/stderr writes
+# raw ANSI over the rendered frame and shreds it. Every stream of every
+# child must therefore be bound to a file (or DEVNULL) at launch — this is
+# the regression suite for that.
+
+
+def _capture_launch(tmp_path: Path, which: str) -> dict:
+    _prep(tmp_path)
+    cfg = _cfg(tmp_path)
+    captured: dict = {}
+
+    def fake_popen_factory(cmd, *, cwd, **kwargs):
+        captured.update(kwargs)
+        captured["cmd"] = cmd
+        return _FakePopen(cmd, cwd=cwd, **kwargs)
+
+    mgr = ProcessManager(is_windows=False, popen_factory=fake_popen_factory)
+    if which == "backend":
+        captured["managed"] = mgr.launch_backend(cfg, database_password="")
+    else:
+        captured["managed"] = mgr.launch_frontend(cfg)
+    captured["mgr"] = mgr
+    return captured
+
+
+@pytest.mark.parametrize("which", ["backend", "frontend"])
+def test_child_stdout_is_never_inherited_from_the_terminal(tmp_path: Path, which: str):
+    """The bug this fixes: backend stdout (and the frontend's whole stdio)
+    used to be inherited, so Spring Boot / Vite banners painted straight
+    over the Textual frame."""
+    captured = _capture_launch(tmp_path, which)
+    stdout = captured.get("stdout")
+    assert stdout is not None, f"{which} stdout was inherited from the parent terminal"
+    assert stdout is not subprocess.PIPE, "an unread PIPE deadlocks once the child fills it"
+
+
+@pytest.mark.parametrize("which", ["backend", "frontend"])
+def test_child_stderr_is_never_inherited_from_the_terminal(tmp_path: Path, which: str):
+    captured = _capture_launch(tmp_path, which)
+    stderr = captured.get("stderr")
+    assert stderr is not None, f"{which} stderr was inherited from the parent terminal"
+    assert stderr is not subprocess.PIPE
+
+
+@pytest.mark.parametrize("which", ["backend", "frontend"])
+def test_child_stdin_is_devnull_so_it_can_never_steal_our_keystrokes(
+    tmp_path: Path, which: str
+):
+    captured = _capture_launch(tmp_path, which)
+    assert captured.get("stdin") == subprocess.DEVNULL
+
+
+@pytest.mark.parametrize("which", ["backend", "frontend"])
+def test_child_output_lands_in_its_own_service_log_file(tmp_path: Path, which: str):
+    from cli.core.logs import service_log_path
+
+    captured = _capture_launch(tmp_path, which)
+    expected = service_log_path(_cfg(tmp_path), which)
+    assert captured["managed"].log_path == expected
+    assert expected.is_file(), "the log file should exist as soon as the child is launched"
+
+
+@pytest.mark.parametrize("which", ["backend", "frontend"])
+def test_teardown_closes_the_log_file_handle(tmp_path: Path, which: str):
+    """The old code opened the stderr log and never closed it — one fd
+    leaked per launch. Teardown owns the handle now."""
+    captured = _capture_launch(tmp_path, which)
+    handle = captured["stdout"]
+    assert not handle.closed
+    captured["mgr"].shutdown_all(killpg=lambda pid, sig: None)
+    assert handle.closed
+
+
+def test_frontend_preview_runs_without_a_tty_dependent_clear(tmp_path: Path):
+    """`npm run preview` re-renders and clears the screen when it thinks it
+    owns a TTY. `--clearScreen false` keeps it from trying even if a future
+    change ever hands it one."""
+    captured = _capture_launch(tmp_path, "frontend")
+    assert "--clearScreen" in captured["cmd"]
+    assert captured["cmd"][captured["cmd"].index("--clearScreen") + 1] == "false"
+
+
 # -- env export + vendored toolchain + build pre-checks -----------------
 # (the "Start doesn't bring the backend up" fix)
 
@@ -253,3 +337,48 @@ def test_frontend_launch_raises_when_dist_missing(tmp_path: Path):
 
     with pytest.raises(ProcessError):
         mgr.launch_frontend(cfg)
+
+
+def test_a_real_child_writes_to_its_log_and_never_to_our_stdout(tmp_path: Path, capfd):
+    """End-to-end regression for the bug this fixes.
+
+    Everything above asserts on the kwargs handed to `Popen`. This one
+    spawns a REAL process that spams stdout and stderr — exactly what
+    Spring Boot and Vite do — and proves the output lands in the service
+    log with not one byte reaching the terminal the console is drawing on.
+
+    The popen_factory rewrites only the command; the stdio kwargs are the
+    ones `launch_backend` actually produced, and `subprocess.Popen` is the
+    real one.
+    """
+    import sys
+
+    from cli.core.logs import service_log_path
+
+    _prep(tmp_path)
+    cfg = _cfg(tmp_path)
+    spam = (
+        "import sys;"
+        "sys.stdout.write('BANNER-ON-STDOUT\\n');"
+        "sys.stderr.write('WARN-ON-STDERR\\n');"
+        "sys.stdout.flush();sys.stderr.flush()"
+    )
+
+    def rewriting_factory(cmd, *, cwd, **kwargs):
+        kwargs.pop("env", None)  # keep the child minimal; stdio is the subject
+        return subprocess.Popen([sys.executable, "-c", spam], cwd=str(cwd), **kwargs)
+
+    mgr = ProcessManager(is_windows=False, popen_factory=rewriting_factory)
+    managed = mgr.launch_backend(cfg, database_password="")
+    managed.popen.wait(timeout=30)
+    mgr.shutdown_all(killpg=lambda pid, sig: None)
+
+    written = service_log_path(cfg, "backend").read_text(encoding="utf-8")
+    assert "BANNER-ON-STDOUT" in written
+    assert "WARN-ON-STDERR" in written, "stderr must be merged into the same log"
+
+    captured = capfd.readouterr()
+    assert "BANNER-ON-STDOUT" not in captured.out
+    assert "BANNER-ON-STDOUT" not in captured.err
+    assert "WARN-ON-STDERR" not in captured.out
+    assert "WARN-ON-STDERR" not in captured.err
