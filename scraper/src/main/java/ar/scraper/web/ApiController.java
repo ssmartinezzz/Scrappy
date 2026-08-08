@@ -25,25 +25,6 @@ import java.util.stream.Collectors;
 public class ApiController {
 
 
-    // ─── Cache para endpoints costosos ───────────────────────────────────────────
-    private final java.util.concurrent.ConcurrentHashMap<String, Object> endpointCache
-        = new java.util.concurrent.ConcurrentHashMap<>();
-    private volatile long lastScrapeTs = 0;
-
-    private <T> T cached(String key, java.util.function.Supplier<T> fn) {
-        long now = System.currentTimeMillis();
-        // Invalidar si pasaron más de 3 minutos o hubo un nuevo scraping
-        long scrapeTs = service.getLastResult() != null
-            ? service.getLastResult().hashCode() : 0;
-        String fullKey = key + "|" + scrapeTs;
-        if (!endpointCache.containsKey(fullKey)) {
-            endpointCache.clear(); // limpiar entradas viejas
-            endpointCache.put(fullKey, fn.get());
-        }
-        @SuppressWarnings("unchecked") T val = (T) endpointCache.get(fullKey);
-        return val;
-    }
-
     private static final org.slf4j.Logger LOG =
         org.slf4j.LoggerFactory.getLogger(ApiController.class);
 
