@@ -88,6 +88,12 @@ public class ApiController {
     private final RecomendadosEndpoints recomendadosEndpoints;
 
     /**
+     * Favoritos endpoints, extracted to their own class (backlog A3) — same
+     * delegation shape as {@link #agentEndpoints}.
+     */
+    private final FavoritosEndpoints favoritosEndpoints;
+
+    /**
      * Primary constructor (manual-classification-lock Phase 7) — adds the
      * {@link ActorResolver} seam (architecture/session-readiness, obs #773):
      * {@code agentApply} resolves the acting identity through this ONE seam,
@@ -125,6 +131,7 @@ public class ApiController {
                                                                db, aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService);
+        this.favoritosEndpoints = new FavoritosEndpoints(service, db);
     }
 
     /**
@@ -908,56 +915,24 @@ public class ApiController {
         return recomendadosEndpoints.undismissCategoria(categoria);
     }
 
-    // ─── Favoritos ──────────────────────────────────────────────────────────────
+    // ─── Favoritos. Bodies in FavoritosEndpoints (backlog A3); the mappings
+    // stay here. DELETE /api/data is NOT part of that group -- it is written
+    // in this region but soft-deletes a catalog product.
+    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/favoritos")
     public ResponseEntity<ArrayNode> getFavoritos() {
-        ArrayNode arr = JsonNodeFactory.instance.arrayNode();
-        for (var f : db.listarFavoritos()) {
-            String url = f.get("url");
-            ObjectNode n = arr.addObject();
-            // Si tenemos el producto en la DB, volcamos sus campos con la misma
-            // forma que /api/data (precio, img, ml, etc.) para que DetailPanel
-            // pueda mostrarlo sin pedir nada extra.
-            db.obtenerProducto(url).ifPresent(p -> escribirProducto(n, p));
-            n.put("url",    url);
-            n.put("sitio",  safe(f.get("sitio")));
-            n.put("nombre", n.has("nombre") && !n.get("nombre").asText().isBlank()
-                    ? n.get("nombre").asText() : safe(f.get("nombre")));
-            n.put("addedAt",       safe(f.get("added_at")));
-            n.put("lastCheckedAt", safe(f.get("last_checked_at")));
-            n.put("descontinuado", !db.esProductoActivo(url));
-        }
-        return ResponseEntity.ok(arr);
-    }
-
-    /** Mismo formato que la lista de /api/data, para reuso en DetailPanel. */
-    private void escribirProducto(ObjectNode n, Product p) {
-        ProductJson.escribir(n, p);
+        return favoritosEndpoints.getFavoritos();
     }
 
     @PostMapping("/favoritos")
     public ResponseEntity<ObjectNode> addFavorito(@RequestBody Map<String, String> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        String url    = body.getOrDefault("url", "").trim();
-        String sitio  = body.getOrDefault("sitio", "").trim();
-        String nombre = body.getOrDefault("nombre", "").trim();
-        if (url.isBlank() || sitio.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "url y sitio obligatorios");
-            return ResponseEntity.badRequest().body(resp);
-        }
-        db.guardarFavorito(url, sitio, nombre);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return favoritosEndpoints.addFavorito(body);
     }
 
     @DeleteMapping("/favoritos")
     public ResponseEntity<ObjectNode> deleteFavorito(@RequestParam String url) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.eliminarFavorito(url);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return favoritosEndpoints.deleteFavorito(url);
     }
 
     @DeleteMapping("/data")
@@ -971,12 +946,7 @@ public class ApiController {
 
     @PostMapping("/favoritos/rescrape")
     public ResponseEntity<ObjectNode> rescrapeFavoritos() {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        boolean ok = service.rescrapearFavoritos();
-        resp.put("iniciado", ok);
-        resp.put("mensaje", ok ? "Rescrape de favoritos iniciado"
-                               : "Ya hay un scraping en curso");
-        return ResponseEntity.ok(resp);
+        return favoritosEndpoints.rescrapeFavoritos();
     }
 
     // ─── ML Training ─────────────────────────────────────────────────────────────
