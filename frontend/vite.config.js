@@ -53,6 +53,23 @@ export default defineConfig(({ command, mode }) => {
     proxy: {
       '/api': 'http://localhost:3000'
     }
+  },
+  // Tests live in this file rather than a separate vitest.config.js on purpose:
+  // the `@` alias above is resolved from one definition. A separate Jest-style
+  // moduleNameMapper would be a second copy of the same rule, free to drift.
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/test/setup.js',
+    css: false,
+    include: ['src/**/*.test.{js,jsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      // Entry points and generated shadcn-style primitives carry no logic of
+      // ours; counting them would only dilute the signal.
+      exclude: ['src/main.jsx', 'src/components/ui/**', 'src/test/**'],
+    },
   }
   };
 });
