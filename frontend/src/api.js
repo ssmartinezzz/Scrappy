@@ -67,6 +67,16 @@ export async function fetchHistorial(url) {
   return r.ok ? r.json() : null;
 }
 
+export async function fetchInflacion() {
+  const r = await fetch(`${BASE}/api/inflacion`);
+  return r.ok ? r.json() : null;
+}
+
+export async function fetchRecomendacion(url) {
+  const r = await fetch(`${BASE}/api/recomendacion?url=${encodeURIComponent(url)}`);
+  return r.ok ? r.json() : null;
+}
+
 export async function fetchSitios() {
   const r = await fetch(`${BASE}/api/sitios`);
   return r.ok ? r.json() : null;
