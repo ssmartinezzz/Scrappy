@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchMlResultado, fetchMlEstado, fetchStatus } from '../api';
+import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchInflacion } from '../api';
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
 
@@ -40,8 +40,7 @@ export default function Topbar({
   // IPC widget data
   const [ipcData, setIpcData] = useState(null);
   useEffect(() => {
-    fetch('/api/inflacion')
-      .then(r => r.ok ? r.json() : null)
+    fetchInflacion()
       .then(d => setIpcData(d))
       .catch(() => {});
   }, []);

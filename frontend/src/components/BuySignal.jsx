@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { SEÑAL_CONFIG, scoreColor, SEMANTIC } from '../lib/colors';
+import { fetchHistorial, fetchInflacion, fetchRecomendacion } from '../api';
 
 function MiniSparkline({ url }) {
   const [hist, setHist] = useState([]);
   useEffect(() => {
     if (!url) return;
-    fetch(`/api/historial?url=${encodeURIComponent(url)}`)
-      .then(r => r.ok ? r.json() : null)
+    fetchHistorial(url)
       .then(d => { if (d?.historial?.length) setHist(d.historial.slice(-16)); })
       .catch(() => {});
   }, [url]);
@@ -46,8 +46,8 @@ export default function BuySignal({ url }) {
     if (!url) { setLoading(false); return; }
     setLoading(true); setError(false);
     Promise.all([
-      fetch(`/api/recomendacion?url=${encodeURIComponent(url)}`).then(r => r.ok ? r.json() : null),
-      fetch('/api/inflacion').then(r => r.ok ? r.json() : null),
+      fetchRecomendacion(url),
+      fetchInflacion(),
     ])
     .then(([rec, inf]) => { setData(rec); setInflacion(inf); })
     .catch(() => setError(true))

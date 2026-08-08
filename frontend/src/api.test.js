@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchData, fetchTendencias, startScrape } from '@/api';
+import {
+  fetchData,
+  fetchInflacion,
+  fetchRecomendacion,
+  fetchTendencias,
+  startScrape,
+} from '@/api';
 
 /** Last URL that was passed to fetch(). */
 function calledUrl() {
@@ -94,6 +100,21 @@ describe('fetchTendencias status mapping', () => {
     global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
     await expect(fetchTendencias()).resolves.toEqual({ state: 'error', data: null });
+  });
+});
+
+describe('fetchInflacion / fetchRecomendacion', () => {
+  it('encodes the product URL so query strings in it do not corrupt the request', async () => {
+    await fetchRecomendacion('https://tienda.test/p?id=1&x=2');
+
+    expect(calledUrl().searchParams.get('url')).toBe('https://tienda.test/p?id=1&x=2');
+  });
+
+  it('returns null on a not-ok response rather than surfacing a rejected promise', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 500 });
+
+    await expect(fetchInflacion()).resolves.toBeNull();
+    await expect(fetchRecomendacion('https://tienda.test/p')).resolves.toBeNull();
   });
 });
 
