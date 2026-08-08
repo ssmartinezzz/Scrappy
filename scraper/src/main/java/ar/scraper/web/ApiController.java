@@ -105,6 +105,13 @@ public class ApiController {
     private final CatalogoEndpoints catalogoEndpoints;
 
     /**
+     * Run control (status / scrape) and site+config management, extracted to
+     * their own class (backlog A3) — same delegation shape as
+     * {@link #agentEndpoints}.
+     */
+    private final ScrapeControlEndpoints scrapeControlEndpoints;
+
+    /**
      * Primary constructor (manual-classification-lock Phase 7) — adds the
      * {@link ActorResolver} seam (architecture/session-readiness, obs #773):
      * {@code agentApply} resolves the acting identity through this ONE seam,
@@ -148,6 +155,7 @@ public class ApiController {
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);
         this.dbAdminEndpoints   = new DbAdminEndpoints(service, db, aggregator);
         this.catalogoEndpoints  = new CatalogoEndpoints(service, db, config);
+        this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
     }
 
     /**
@@ -183,59 +191,15 @@ public class ApiController {
              outfitService, recommendationService, null, null);
     }
 
-    // ---------------------------------------------------------------
-    // Status
-    // ---------------------------------------------------------------
+    // ─── Run control: status/progreso y lanzar scraping. Bodies in
+    // ScrapeControlEndpoints (backlog A3); the mappings stay here.
+    // ─────────────────────────────────────────────────────────────────────
+
     @GetMapping("/status")
     public ResponseEntity<ObjectNode> status() {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
-        b.put("status",    service.getStatus().name());
-        b.put("mensaje",   service.getStatusMsg());
-        var lr = service.getLastResult();
-        b.put("tieneData", lr != null);
-        if (lr != null) {
-            b.put("total", lr.productos().size());
-            // Stats ML del último scraping
-            b.put("mlRefinadas", service.getUltimasCategoriasRefinadas());
-            b.put("mlModeloActivo", new java.io.File("_models/text_classifier.pkl").exists());
-            // Extraction quality stats — additive, does not change existing keys
-            var st = lr.statsPorSitio();
-            if (st != null && !st.isEmpty()) {
-                ObjectNode sNode = b.putObject("extractionStats");
-                st.forEach((sitio, s) -> {
-                    ObjectNode sn = sNode.putObject(sitio);
-                    sn.put("total",  s.total());
-                    sn.put("valid",  s.valid());
-                    sn.put("misses", s.misses());
-                });
-            }
-        }
-
-        // Progreso en tiempo real
-        ScraperService.ProgressData pd = service.getProgressData();
-        if (pd != null) {
-            ObjectNode prog = b.putObject("progreso");
-            prog.put("total",       pd.total());
-            prog.put("completados", pd.completados());
-            prog.put("productos",   pd.productosAcumulados());
-            ArrayNode sitiosArr = prog.putArray("sitios");
-            for (var sp : pd.sitios()) {
-                ObjectNode sn = sitiosArr.addObject();
-                sn.put("nombre",  sp.nombre());
-                sn.put("estado",  sp.estado().name().toLowerCase());
-                sn.put("count",   sp.productos());
-                sn.put("durMs",   sp.duracionMs());
-                if (sp.error() != null && !sp.error().isBlank())
-                    sn.put("error", sp.error().length() > 60
-                            ? sp.error().substring(0, 60) + "..." : sp.error());
-            }
-        }
-        return ResponseEntity.ok(b);
+        return scrapeControlEndpoints.status();
     }
 
-    // ---------------------------------------------------------------
-    // Lanzar scraping
-    // ---------------------------------------------------------------
     @PostMapping("/scrape")
     public ResponseEntity<ObjectNode> scrape(
             @RequestParam(required=false) Double precioMin,
@@ -243,18 +207,7 @@ public class ApiController {
             @RequestParam(required=false) Double precio,          // legado
             @RequestParam(required=false) List<String> sitios,   // seleccion opcional
             @RequestParam(defaultValue="false") boolean forceRetrain) {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
-        if (precioMin != null) config.setPrecioMinimo(precioMin);
-        if (precioMax != null) config.setPrecioMaximo(precioMax);
-        if (precio    != null) config.setPrecioMaximo(precio);
-
-        Set<String> seleccion = (sitios != null && !sitios.isEmpty())
-                ? new HashSet<>(sitios) : null;
-
-        boolean ok = service.iniciarScraping(seleccion, forceRetrain);
-        b.put("iniciado", ok);
-        b.put("mensaje", ok ? "Scraping iniciado" : "Ya hay un scraping en curso");
-        return ResponseEntity.ok(b);
+        return scrapeControlEndpoints.scrape(precioMin, precioMax, precio, sitios, forceRetrain);
     }
 
     @DeleteMapping("/db/productos")
@@ -337,76 +290,28 @@ public class ApiController {
         return catalogoEndpoints.csv();
     }
 
-    // ---------------------------------------------------------------
-    // Gestión de sitios
-    // ---------------------------------------------------------------
+    // ─── Gestión de sitios y config. Bodies in ScrapeControlEndpoints
+    // (backlog A3); the mappings stay here.
+    // ─────────────────────────────────────────────────────────────────────
+
     @GetMapping("/sitios")
     public ResponseEntity<ObjectNode> getSitios() {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ArrayNode base = root.putArray("base");
-        for (var s : config.getSitiosActivos()) {
-            ObjectNode n = base.addObject();
-            n.put("nombre", s.nombre());
-            n.put("url", s.url());
-            n.put("tipo", "config");
-            n.put("rubro", s.rubro());
-        }
-        ArrayNode extras = root.putArray("extras");
-        for (var s : service.getSitiosExtras()) {
-            ObjectNode n = extras.addObject();
-            n.put("nombre", s.nombre());
-            n.put("url", s.url());
-            n.put("plataforma", s.plataforma());
-            n.put("tipo", "dinamico");
-        }
-        root.put("precioMinimo", config.getPrecioMinimo());
-        root.put("precioMaximo", config.getPrecioMaximo());
-        root.put("moneda", config.getMoneda());
-        return ResponseEntity.ok(root);
+        return scrapeControlEndpoints.getSitios();
     }
 
     @PostMapping("/sitios")
     public ResponseEntity<ObjectNode> agregarSitio(@RequestBody Map<String, String> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        String nombre     = body.getOrDefault("nombre", "").trim();
-        String url        = body.getOrDefault("url", "").trim();
-        String plataforma = body.getOrDefault("plataforma", "tiendanube").trim();
-        if (nombre.isBlank() || url.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "nombre y url son obligatorios");
-            return ResponseEntity.badRequest().body(resp);
-        }
-        if (!url.startsWith("http")) url = "https://" + url;
-        service.agregarSitio(nombre, url, plataforma);
-        resp.put("ok", true);
-        resp.put("mensaje", "Sitio '" + nombre + "' agregado. Corré el scraper para incluirlo.");
-        return ResponseEntity.ok(resp);
+        return scrapeControlEndpoints.agregarSitio(body);
     }
 
     @DeleteMapping("/sitios/{nombre}")
     public ResponseEntity<ObjectNode> eliminarSitio(@PathVariable String nombre) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        boolean ok = service.eliminarSitio(nombre);
-        resp.put("ok", ok);
-        resp.put("mensaje", ok ? "Sitio eliminado" : "Sitio no encontrado");
-        return ResponseEntity.ok(resp);
+        return scrapeControlEndpoints.eliminarSitio(nombre);
     }
 
     @PutMapping("/config")
     public ResponseEntity<ObjectNode> updateConfig(@RequestBody Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (body.containsKey("precioMinimo")) {
-            double v = Double.parseDouble(body.get("precioMinimo").toString());
-            config.setPrecioMinimo(v);
-            resp.put("precioMinimo", v);
-        }
-        if (body.containsKey("precioMaximo")) {
-            double v = Double.parseDouble(body.get("precioMaximo").toString());
-            config.setPrecioMaximo(v);
-            resp.put("precioMaximo", v);
-        }
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return scrapeControlEndpoints.updateConfig(body);
     }
 
     // ─── ML: tendencias, historial de precios, aplicar/renormalizar y
