@@ -82,6 +82,12 @@ public class ApiController {
     private final OutfitsEndpoints outfitsEndpoints;
 
     /**
+     * "Para ti" feed endpoints, extracted to their own class (backlog A3) —
+     * same delegation shape as {@link #agentEndpoints}.
+     */
+    private final RecomendadosEndpoints recomendadosEndpoints;
+
+    /**
      * Primary constructor (manual-classification-lock Phase 7) — adds the
      * {@link ActorResolver} seam (architecture/session-readiness, obs #773):
      * {@code agentApply} resolves the acting identity through this ONE seam,
@@ -118,6 +124,7 @@ public class ApiController {
         this.financiacionEndpoints = new FinanciacionEndpoints(service, inflacionService,
                                                                db, aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService);
+        this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService);
     }
 
     /**
@@ -873,70 +880,9 @@ public class ApiController {
         return outfitsEndpoints.resetOutfitFeedback(estilo);
     }
 
-    // ─── Recomendados ("Para ti" feed) ──────────────────────────────────────────
-    // design.md (personalized-recommendations-feed) Decision 2: additive endpoints,
-    // /api/outfits/feedback stays untouched. The shared taste signal lives in the
-    // outfit_feedback_item TABLE (slot="catalog" sentinel here), not a shared URL —
-    // FeedbackModels.build() already reads ALL rows regardless of slot, so bidirectional
-    // sharing with the outfit-builder requires no extra wiring here.
-
-    /**
-     * Self-contained duplication of the unisex-bridge + relaxation SHAPE from
-     * OutfitService.armar() (steps 0/2, L397-408) and generoElegible()
-     * (L325-333). OutfitService is intentionally NOT reused/extracted (locked
-     * scope for mejores-picks-fixes). Keep in sync if that pattern changes.
-     *
-     * Relaxation order per categoria (only advances when the prior step
-     * yields zero candidates FOR THAT categoria):
-     *   1. own genero (or blank/unisex) + unisex — always eligible.
-     *   2. unisex-only (own-genero-exact dropped).
-     *   3. opposite-genero (last resort).
-     * Infantil is never re-admitted here — RecommendationService.rank()
-     * vetoes it unconditionally before/after this relaxation runs.
-     */
-    private List<Product> broadenGenero(List<Product> base, String generoSolicitado) {
-        Map<String, List<Product>> byCategoria = base.stream()
-                .collect(Collectors.groupingBy(
-                        p -> p.categoria() == null ? "" : p.categoria(),
-                        LinkedHashMap::new, Collectors.toList()));
-
-        List<Product> result = new ArrayList<>();
-        for (Map.Entry<String, List<Product>> entry : byCategoria.entrySet()) {
-            List<Product> productosCategoria = entry.getValue();
-
-            // Paso 1: propio genero (o sin pedido / unisex) + unisex.
-            List<Product> step1 = productosCategoria.stream()
-                    .filter(p -> generoBridgeMatch(p, generoSolicitado))
-                    .collect(Collectors.toList());
-            if (!step1.isEmpty()) {
-                result.addAll(step1);
-                continue;
-            }
-
-            // Paso 2: relajar a unisex-only.
-            List<Product> step2 = productosCategoria.stream()
-                    .filter(p -> "unisex".equalsIgnoreCase(p.genero() != null ? p.genero().trim() : ""))
-                    .collect(Collectors.toList());
-            if (!step2.isEmpty()) {
-                result.addAll(step2);
-                continue;
-            }
-
-            // Paso 3: relajar a genero opuesto (ultimo recurso).
-            result.addAll(productosCategoria);
-        }
-        return result;
-    }
-
-    /** Step 1 match: blank/null genero, "unisex" genero, blank/null/"unisex" pedido, or exact match. */
-    private boolean generoBridgeMatch(Product p, String generoSolicitado) {
-        String g = p.genero() != null ? p.genero().trim() : "";
-        if (g.isEmpty()) return true;
-        if ("unisex".equalsIgnoreCase(g)) return true;
-        if (generoSolicitado == null || generoSolicitado.isBlank()) return true;
-        if ("unisex".equalsIgnoreCase(generoSolicitado)) return true;
-        return g.equalsIgnoreCase(generoSolicitado);
-    }
+    // ─── Recomendados ("Para ti" feed). Bodies in RecomendadosEndpoints
+    // (backlog A3); the mappings stay here.
+    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/recomendados")
     public ResponseEntity<ObjectNode> recomendados(
@@ -944,83 +890,22 @@ public class ApiController {
             @RequestParam(defaultValue = "24") int size,
             @RequestParam(required = false)    String genero,
             @RequestParam(required = false)    String categoria) {
-        AggregatedResult r = service.getLastResult();
-        if (r == null) return ResponseEntity.noContent().build();
-
-        var feedbackRows = db.obtenerOutfitFeedback();
-        var dismissCats  = db.obtenerCategoriaDismiss();
-        var feedback = FeedbackModels.build(feedbackRows, r.productos(), dismissCats);
-
-        List<Product> candidatos = r.productos();
-        if (categoria != null && !categoria.isBlank()) {
-            String c = categoria;
-            candidatos = candidatos.stream()
-                    .filter(p -> c.equalsIgnoreCase(p.categoria()))
-                    .collect(Collectors.toList());
-        }
-        candidatos = broadenGenero(candidatos, genero);
-
-        List<Product> ranked = recommendationService.rank(candidatos, feedback);
-
-        int total = ranked.size();
-        int desde = Math.min((page - 1) * size, total);
-        int hasta = Math.min(desde + size, total);
-        List<Product> pagina = ranked.subList(desde, hasta);
-
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        root.put("page",  page);
-        root.put("size",  size);
-        root.put("total", total);
-        ArrayNode items = root.putArray("items");
-        for (Product p : pagina) {
-            ObjectNode n = items.addObject();
-            escribirProducto(n, p);
-        }
-        return ResponseEntity.ok(root);
+        return recomendadosEndpoints.recomendados(page, size, genero, categoria);
     }
 
     @PostMapping("/recomendados/feedback")
     public ResponseEntity<ObjectNode> recomendadosFeedback(@RequestBody Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        String genero = String.valueOf(body.getOrDefault("genero", ""));
-
-        Object itemsObj = body.get("items");
-        if (itemsObj instanceof List<?> items) {
-            for (Object o : items) {
-                if (o instanceof Map<?, ?> m) {
-                    Object url   = m.get("url");
-                    Object liked = m.get("liked");
-                    if (url == null || liked == null) continue; // skip silencioso, mirrors outfits/feedback guard style
-                    boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
-                    db.guardarOutfitFeedbackItem(genero, "catalog", String.valueOf(url), likedBool, "catalog");
-                }
-            }
-        }
-
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return recomendadosEndpoints.recomendadosFeedback(body);
     }
 
     @PostMapping("/recomendados/dismiss-categoria")
     public ResponseEntity<ObjectNode> dismissCategoria(@RequestBody Map<String, String> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        String categoria = body.getOrDefault("categoria", "").trim();
-        if (categoria.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "categoria es obligatoria");
-            return ResponseEntity.badRequest().body(resp);
-        }
-        db.guardarCategoriaDismiss(categoria);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return recomendadosEndpoints.dismissCategoria(body);
     }
 
     @DeleteMapping("/recomendados/dismiss-categoria")
     public ResponseEntity<ObjectNode> undismissCategoria(@RequestParam String categoria) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.borrarCategoriaDismiss(categoria);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return recomendadosEndpoints.undismissCategoria(categoria);
     }
 
     // ─── Favoritos ──────────────────────────────────────────────────────────────
@@ -1048,35 +933,7 @@ public class ApiController {
 
     /** Mismo formato que la lista de /api/data, para reuso en DetailPanel. */
     private void escribirProducto(ObjectNode n, Product p) {
-        n.put("sitio",      safe(p.sitio()));
-        n.put("nombre",     safe(p.nombre()));
-        n.put("precio",     p.precio());
-        n.put("precioOrig", safe(p.precioOriginal()));
-        n.put("descuento",  p.tieneDescuento());
-        String img = safe(p.imagenUrl());
-        if (img.startsWith("//")) img = "https:" + img;
-        n.put("img",        img);
-        n.put("categoria",  safe(p.categoria()));
-        n.put("genero",     safe(p.genero()));
-        n.put("marca",      safe(p.marca()));
-        n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
-        n.put("cantidadUnidades", p.cantidadUnidades());
-        n.put("esPack",     p.esPack());
-        n.put("precioUnitario", precioUnitario(p));
-        ArrayNode tallesArr = n.putArray("talles");
-        if (p.talles() != null) p.talles().forEach(tallesArr::add);
-        if (p.ml() != null) {
-            ObjectNode ml = n.putObject("ml");
-            ml.put("badge",      p.ml().badge() != null ? p.ml().badge() : "");
-            ArrayNode badgesArr = ml.putArray("badges");
-            if (p.ml().badges() != null) p.ml().badges().forEach(badgesArr::add);
-            ml.put("scoreP",     p.ml().scoreP());
-            ml.put("ofertaReal", p.ml().ofertaReal());
-            ml.put("tendencia",  p.ml().tendencia() != null ? p.ml().tendencia() : "estable");
-            ml.put("pctil",      p.ml().pctilCategoria());
-            ml.put("zScore",     p.ml().zScore());
-            ml.put("segment",    p.ml().segment() != null ? p.ml().segment() : "standard");
-        }
+        ProductJson.escribir(n, p);
     }
 
     @PostMapping("/favoritos")
@@ -1431,7 +1288,7 @@ public class ApiController {
      * cero: {@code cantidadUnidades <= 0} cae al precio de estantería.
      */
     static double precioUnitario(Product p) {
-        return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
+        return ProductJson.precioUnitario(p);
     }
 
     /** Máximo de productos mostrados por categoría en Mejores Picks. */
@@ -1770,7 +1627,7 @@ public class ApiController {
         };
     }
 
-    private String safe(String s) { return s != null ? s : ""; }
+    private String safe(String s) { return ProductJson.safe(s); }
 
     // ---------------------------------------------------------------
     // LLM Catalog Agent (llm-catalog-nlp) — chat / apply / models, grouped
