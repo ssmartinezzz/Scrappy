@@ -506,8 +506,7 @@ public class ScraperService {
         try (Playwright pw = Playwright.create();
              Browser browser = pw.chromium().launch(new BrowserType.LaunchOptions()
                      .setHeadless(config.isHeadless())
-                     .setArgs(List.of("--no-sandbox", "--disable-dev-shm-usage",
-                             "--disable-blink-features=AutomationControlled")));
+                     .setArgs(BaseScraper.launchArgs()));
              BrowserContext ctx = browser.newContext(new Browser.NewContextOptions()
                      .setViewportSize(1366, 768)
                      .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
@@ -516,10 +515,7 @@ public class ScraperService {
 
             page.addInitScript(BaseScraper.STEALTH_INIT_SCRIPT);
             page.setDefaultTimeout(config.getTimeoutMs());
-            page.route("**/*.{woff,woff2,ttf,otf}", r -> r.abort());
-            page.route("**/analytics**", r -> r.abort());
-            page.route("**/gtag**",       r -> r.abort());
-            page.route("**/hotjar**",     r -> r.abort());
+            BaseScraper.aplicarBloqueosDeRed(page);
 
             List<Product> okPersist = new ArrayList<>();
             for (String url : urls) {
