@@ -20,13 +20,37 @@ public abstract class BasePage {
         this.timeoutMs = timeoutMs;
     }
 
+    /**
+     * Ceiling for the best-effort networkidle settle, deliberately decoupled
+     * from the page timeout.
+     *
+     * <p>Reaching this limit is caught and ignored below — the wait is a
+     * courtesy, not a requirement — yet it used to be handed the full 30 s
+     * page timeout. Sites that never reach network idle (analytics beacons,
+     * polling, open sockets: Playwright discourages the state for exactly this
+     * reason) therefore burned the entire budget, and did so on <em>every</em>
+     * page of pagination.
+     *
+     * <p>Measured on one listing page each: freres and sporting both sat at
+     * 30 011 ms, while midway, tussy, harvey and vcp settled in
+     * 1 963-3 601 ms. Two of six sites paid the ceiling and four never came
+     * close, so 8 s leaves better than twice the headroom of the slowest
+     * healthy site while returning ~22 s per page on the stalled ones.
+     *
+     * <p>Cutting the wait short is safe for listing pages because
+     * {@link #scrollToBottom()} independently waits for the grid to stop
+     * growing before anything is extracted.
+     */
+    static final int NETWORK_IDLE_MAX_MS = 8_000;
+
     protected void navigateTo(String url) {
         page.navigate(url, new Page.NavigateOptions()
                 .setTimeout(timeoutMs)
                 .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.DOMCONTENTLOADED));
         try {
             page.waitForLoadState(LoadState.NETWORKIDLE,
-                    new Page.WaitForLoadStateOptions().setTimeout(timeoutMs));
+                    new Page.WaitForLoadStateOptions()
+                            .setTimeout(Math.min(NETWORK_IDLE_MAX_MS, timeoutMs)));
         } catch (Exception e) {
             log.debug("networkidle timeout: {}", e.getMessage());
         }

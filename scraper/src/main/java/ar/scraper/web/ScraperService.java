@@ -4,6 +4,7 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
+import ar.scraper.health.SiteYieldGuard;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
 import ar.scraper.scrapers.BaseScraper;
@@ -382,7 +383,35 @@ public class ScraperService {
 
         // ── Agregación ───────────────────────────────────────────────────────
         statusMsg.set("Procesando y agregando resultados...");
+        // Baseline for the yield guard, captured before aggregation overwrites
+        // it. No query needed: cargarDesdeBD() rebuilds this from the database
+        // on startup, so it survives restarts.
+        Map<String, Integer> conteoPrevio = lastResult != null
+                ? lastResult.conteoPorSitio() : Map.of();
+        Set<String> sitiosDeEstaCorrida = resultados.stream()
+                .map(ScrapeResult::sitio).collect(Collectors.toSet());
+
         synchronized (catalogLock) { lastResult = aggregator.agregar(resultados, forceRetrain); }
+
+        // ── Guardia de rendimiento por sitio ─────────────────────────────────
+        // A broken scraper returns an empty or truncated list without throwing,
+        // so the run reports success either way. Compare each site against its
+        // own previous yield and surface the collapse.
+        List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
+                conteoPrevio, lastResult.conteoPorSitio(), sitiosDeEstaCorrida);
+        if (!alertas.isEmpty()) {
+            synchronized (catalogLock) {
+                lastResult = new AggregatedResult(
+                        lastResult.productos(), lastResult.conteoPorSitio(),
+                        SiteYieldGuard.fusionarEnErrores(lastResult.erroresPorSitio(), alertas),
+                        lastResult.facets(), lastResult.minPrecio(), lastResult.maxPrecio(),
+                        lastResult.statsPorSitio());
+            }
+            for (SiteYieldGuard.Alerta a : alertas) {
+                LOG.warn("[SALUD] {}", a.mensaje());
+                RUN_LOG.warn("[SALUD]   {}", a.mensaje());
+            }
+        }
         statusMsg.set("Entrenando modelo ML en background...");
         ultimasCategoriasRefinadas = aggregator.getLastCatRefinadas();
         long durMs = System.currentTimeMillis() - runStart;
