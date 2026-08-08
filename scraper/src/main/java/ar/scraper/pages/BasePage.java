@@ -67,20 +67,54 @@ public abstract class BasePage {
      * comes first. Replaces the old fixed Java-side {@code waitForTimeout} loop
      * so timing is driven by actual DOM mutations rather than a fixed delay.
      */
+    /** Gap between polls while the grid settles. */
+    static final int SCROLL_POLL_MS = 250;
+
+    /**
+     * Consecutive quiet polls required before the page is called settled.
+     * {@code 4 x 250 ms = 1 s}, measured as the cheapest sufficient value: 1 s
+     * of quiet finds the same products that 2 s and 3 s do, while a 1.2 s wait
+     * spread over slower polls terminated early on a page that was still
+     * momentarily static at its first render.
+     */
+    static final int SCROLL_STABLE_POLLS = 4;
+
+    /** Hard ceiling, so a genuinely infinite feed cannot stall the whole run. */
+    static final int SCROLL_MAX_MS = 20000;
+
+    /**
+     * Scrolls until the grid stops growing <em>and</em> the viewport has actually
+     * reached the bottom of the document.
+     *
+     * <p>The previous heuristic advanced a fixed 600 px per poll and gave up
+     * after 20 polls, so it could never travel past 12 000 px however long the
+     * page was, and it treated a plateau in the image count as "done" even
+     * while the document was still growing. Measured against a live Tiendanube
+     * listing it halted at 4 378 px of an 8 653 px page after 5.8 s, having seen
+     * 139 images; stepping a full viewport and waiting for the document height
+     * to settle reaches the true bottom in 5.3 s and sees 170. It was dropping
+     * products, not merely running slowly.
+     */
     private static final String SCROLL_JS = """
             () => new Promise(resolve => {
-              let lastCount = 0, checks = 0;
-              const maxChecks = 20;
+              const STEP_MS = %d, STABLE = %d, MAX_MS = %d;
+              const t0 = Date.now();
+              let lastCount = -1, lastHeight = -1, stable = 0;
               const check = () => {
-                const count = document.querySelectorAll('img').length;
-                if (count === lastCount || ++checks >= maxChecks) { resolve(); return; }
-                lastCount = count;
-                window.scrollBy(0, 600);
-                setTimeout(check, 800);
+                const count  = document.querySelectorAll('img').length;
+                const height = document.body.scrollHeight;
+                const atBottom = window.scrollY + window.innerHeight >= height - 2;
+                if (count === lastCount && height === lastHeight && atBottom) {
+                  if (++stable >= STABLE) { resolve(); return; }
+                } else { stable = 0; }
+                lastCount = count; lastHeight = height;
+                if (Date.now() - t0 > MAX_MS) { resolve(); return; }
+                window.scrollBy(0, window.innerHeight);
+                setTimeout(check, STEP_MS);
               };
               check();
             })
-            """;
+            """.formatted(SCROLL_POLL_MS, SCROLL_STABLE_POLLS, SCROLL_MAX_MS);
 
     protected void scrollToBottom() {
         try {
