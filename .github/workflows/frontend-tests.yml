@@ -1,0 +1,72 @@
+name: Frontend Tests
+
+# Runs the frontend's Vitest suite (frontend/src/**/*.test.{js,jsx}). Mirrors
+# the change-detection shape of backend-tests.yml and cli-tests.yml so a PR
+# that touches only one subsystem does not pay for the others, while the check
+# still reports a result instead of going missing.
+#
+# The build step is not redundant with `npm test`: vite.config.js fails a
+# production build outright when VITE_API_BASE_URL is unset (the frontend is
+# its own deployable service and cannot assume same-origin '/api'), and the
+# Vitest config now lives in that same file. A config edit that breaks the
+# build would otherwise pass a green test run.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect frontend changes
+        id: changes
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD \
+              | grep -qE '^frontend/|^\.github/workflows/frontend-tests\.yml'; then
+            echo "frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node
+        if: steps.changes.outputs.frontend == 'true'
+        uses: actions/setup-node@v4
+        with:
+          # Node 20 is not viable: jsdom 30 reaches undici's CacheStorage, which
+          # calls webidl.util.markAsUncloneable — absent on 20.20.2, so every
+          # test file dies at collection with zero tests run. Neither jsdom nor
+          # undici declares an `engines` range, so npm ci installs happily and
+          # the constraint only surfaces at runtime. Verified here: 20 fails,
+          # 22 and 24 pass. Mirrored by "engines" in frontend/package.json.
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Vitest
+        if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        run: npm test
+
+      - name: Build
+        if: steps.changes.outputs.frontend == 'true'
+        working-directory: frontend
+        env:
+          # Any absolute origin satisfies the production-build guard; the value
+          # is baked into the bundle at build time and is never used here.
+          VITE_API_BASE_URL: http://localhost:3000
+        run: npm run build
+
+      - name: No frontend changes
+        if: steps.changes.outputs.frontend == 'false'
+        run: echo "No frontend/ changes — frontend tests skipped."
