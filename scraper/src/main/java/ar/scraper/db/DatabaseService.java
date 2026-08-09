@@ -71,11 +71,17 @@ public class DatabaseService {
      */
     private final CronRepository cronRepository;
     private final PresetRepository presetRepository;
+    private final FavoritosRepository favoritosRepository;
+    private final FeedbackRepository feedbackRepository;
+    private final SavedOutfitsRepository savedOutfitsRepository;
 
     public DatabaseService(DataSource dataSource) {
         this.dataSource = dataSource;
         this.cronRepository = new CronRepository(dataSource);
         this.presetRepository = new PresetRepository(dataSource);
+        this.favoritosRepository = new FavoritosRepository(dataSource);
+        this.feedbackRepository = new FeedbackRepository(dataSource);
+        this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
     }
 
     @PostConstruct
@@ -876,60 +882,29 @@ public class DatabaseService {
     }
 
 
-    // ─── Favoritos ───────────────────────────────────────────────────────────
+    // ─── Favoritos. Bodies in FavoritosRepository (backlog A3).
+    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarFavorito(String url, String sitio, String nombre) {
-        Objects.requireNonNull(url, "url must not be null");
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO favoritos (url, sitio, nombre, added_at, last_checked_at)
-                    VALUES (?, ?, ?, ?, NULL)
-                    ON CONFLICT(url) DO UPDATE SET sitio=excluded.sitio, nombre=excluded.nombre
-                    """)) {
-            ps.setString(1, url);
-            ps.setString(2, sitio);
-            ps.setString(3, nombre);
-            ps.setString(4, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando favorito: {}", e.getMessage());
-        }
+        favoritosRepository.guardarFavorito(url, sitio, nombre);
     }
 
     public void eliminarFavorito(String url) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM favoritos WHERE url=?")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando favorito: {}", e.getMessage());
-        }
+        favoritosRepository.eliminarFavorito(url);
     }
 
     public List<Map<String, String>> listarFavoritos() {
-        List<Map<String, String>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT url, sitio, nombre, added_at, last_checked_at " +
-                "FROM favoritos ORDER BY added_at DESC")) {
-            while (rs.next()) {
-                Map<String, String> row = new LinkedHashMap<>();
-                row.put("url",            rs.getString(1));
-                row.put("sitio",          rs.getString(2));
-                row.put("nombre",         rs.getString(3));
-                row.put("added_at",       rs.getString(4));
-                row.put("last_checked_at", rs.getString(5));
-                result.add(row);
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error listando favoritos: {}", e.getMessage());
-        }
-        return result;
+        return favoritosRepository.listarFavoritos();
     }
 
-    // ─── Outfit feedback ─────────────────────────────────────────────────────
+    public void tocarFavorito(String url) {
+        favoritosRepository.tocarFavorito(url);
+    }
+
+    // ─── Outfit feedback + categoria dismiss. Bodies in FeedbackRepository
+    // (backlog A3). The OutfitItemRow record stays HERE: callers and tests
+    // name it DatabaseService.OutfitItemRow.
+    // ─────────────────────────────────────────────────────────────────────
 
     /** Fila cruda de feedback per-item — el join con el catálogo vivo lo hace el caller. */
     public record OutfitItemRow(String slot, String url, boolean liked, String estilo) {}
@@ -943,97 +918,20 @@ public class DatabaseService {
         guardarOutfitFeedbackItem(genero, slot, url, liked, "gym");
     }
 
-    /**
-     * Persiste un único veredicto (slot, url, liked, estilo) en outfit_feedback_item —
-     * una fila por item calificado (ADR-1 de outfit-per-item-feedback). El estilo
-     * ("gym" | "casual" | "catalog") separa la señal de gusto por superficie: el
-     * builder gym y casual leen buckets distintos, el feed usa "catalog" (ver
-     * ApiController.buildFeedbackModel).
-     */
     public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked, String estilo) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO outfit_feedback_item
-                        (genero, slot, url, liked, estilo, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """)) {
-            ps.setString(1, genero);
-            ps.setString(2, slot);
-            ps.setString(3, url);
-            ps.setInt(4, liked ? 1 : 0);
-            ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
-            ps.setString(6, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
-        }
+        feedbackRepository.guardarOutfitFeedbackItem(genero, slot, url, liked, estilo);
     }
 
-    /**
-     * Lee todas las filas de outfit_feedback_item (con su estilo). Sin filtro por
-     * genero ni estilo — el filtrado por estilo lo hace el caller
-     * (ApiController.buildFeedbackModel) según la superficie. El caller también hace
-     * el join url→Product contra el catálogo vivo, ya que esta clase no conoce el
-     * AggregatedResult en memoria.
-     */
     public List<OutfitItemRow> obtenerOutfitFeedback() {
-        List<OutfitItemRow> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT slot, url, liked, estilo FROM outfit_feedback_item")) {
-            while (rs.next()) {
-                String estilo = rs.getString("estilo");
-                result.add(new OutfitItemRow(
-                        rs.getString("slot"),
-                        rs.getString("url"),
-                        rs.getInt("liked") == 1,
-                        (estilo == null || estilo.isBlank()) ? "gym" : estilo));
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
-        }
-        return result;
+        return feedbackRepository.obtenerOutfitFeedback();
     }
 
-    // ─── Categoria dismiss (feed de recomendados) ────────────────────────────
-
     /**
-     * Marca una categoria como "no me interesa" feed-wide (Decision 1 de
-     * design.md, personalized-recommendations-feed). Idempotente: si la
+     * Marca una categoria como "no me interesa" feed-wide. Idempotente: si la
      * categoria ya está dismissed, no inserta una fila duplicada.
      */
     public void guardarCategoriaDismiss(String categoria) {
-        if (categoria == null || categoria.isBlank()) return;
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                try (PreparedStatement check = c.prepareStatement(
-                        "SELECT 1 FROM categoria_dismiss WHERE categoria=?")) {
-                    check.setString(1, categoria);
-                    try (ResultSet rs = check.executeQuery()) {
-                        if (rs.next()) {
-                            c.rollback(); // ya existe — no-op idempotente
-                            return;
-                        }
-                    }
-                }
-                try (PreparedStatement ps = c.prepareStatement("""
-                        INSERT INTO categoria_dismiss (categoria, created_at)
-                        VALUES (?, ?)
-                        """)) {
-                    ps.setString(1, categoria);
-                    ps.setString(2, LocalDateTime.now().format(DT));
-                    ps.executeUpdate();
-                    c.commit();
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-            }
-        } catch (SQLException e) {
-            LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
-        }
+        feedbackRepository.guardarCategoriaDismiss(categoria);
     }
 
     /**
@@ -1041,66 +939,25 @@ public class DatabaseService {
      * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
      */
     public void limpiarOutfitFeedback() {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (Statement st = c.createStatement()) {
-                st.executeUpdate("DELETE FROM outfit_feedback_item");
-                st.executeUpdate("DELETE FROM outfit_feedback");
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-            }
-        } catch (SQLException e) {
-            LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
-        }
+        feedbackRepository.limpiarOutfitFeedback();
     }
 
     /**
-     * Borra el historial de feedback de UN estilo ("gym" | "casual"). No toca las
-     * filas de otros estilos ni las del feed ("catalog") — el reset de gustos de
-     * cada superficie del builder es independiente. estilo null/blank → no-op
-     * (evita borrar todo por accidente; para eso está el overload sin argumentos).
+     * Borra el historial de feedback de UN estilo ("gym" | "casual"). estilo
+     * null/blank → no-op.
      */
     public void limpiarOutfitFeedback(String estilo) {
-        if (estilo == null || estilo.isBlank()) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM outfit_feedback_item WHERE estilo=?")) {
-            ps.setString(1, estilo);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
-        }
+        feedbackRepository.limpiarOutfitFeedback(estilo);
     }
 
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
     public void borrarCategoriaDismiss(String categoria) {
-        if (categoria == null || categoria.isBlank()) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM categoria_dismiss WHERE categoria=?")) {
-            ps.setString(1, categoria);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
-        }
+        feedbackRepository.borrarCategoriaDismiss(categoria);
     }
 
     /** Lee todas las categorias dismissed feed-wide. */
     public Set<String> obtenerCategoriaDismiss() {
-        Set<String> result = new HashSet<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT categoria FROM categoria_dismiss")) {
-            while (rs.next()) {
-                result.add(rs.getString("categoria"));
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error cargando categoria dismiss: {}", e.getMessage());
-        }
-        return result;
+        return feedbackRepository.obtenerCategoriaDismiss();
     }
 
     public void marcarDescontinuado(String url) {
@@ -1111,18 +968,6 @@ public class DatabaseService {
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error marcando descontinuado: {}", e.getMessage());
-        }
-    }
-
-    public void tocarFavorito(String url) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE favoritos SET last_checked_at=? WHERE url=?")) {
-            ps.setString(1, LocalDateTime.now().format(DT));
-            ps.setString(2, url);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error actualizando last_checked_at: {}", e.getMessage());
         }
     }
 
@@ -1258,87 +1103,30 @@ public class DatabaseService {
         }
     }
 
-    // ─── Saved Outfits ────────────────────────────────────────────────────────────
+    // ─── Saved Outfits. Bodies in SavedOutfitsRepository (backlog A3).
+    // ─────────────────────────────────────────────────────────────────────
 
     /**
      * Persiste un outfit generado con su nombre, slots y suplementos en JSON, y el
      * total estimado. Retorna el id generado, o -1 en error.
      */
     public int guardarOutfit(String nombre, String slotsJson, String suplementosJson, double total) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO saved_outfits (nombre, slots_json, suplementos_json, total_estimado, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, nombre != null ? nombre : "Outfit");
-            ps.setString(2, slotsJson != null ? slotsJson : "[]");
-            ps.setString(3, suplementosJson);
-            ps.setDouble(4, total);
-            ps.setString(5, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                return keys.next() ? keys.getInt(1) : -1;
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
-            return -1;
-        }
+        return savedOutfitsRepository.guardarOutfit(nombre, slotsJson, suplementosJson, total);
     }
 
     /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
     public List<Map<String, Object>> obtenerOutfitsGuardados() {
-        List<Map<String, Object>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             java.sql.Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT id, nombre, slots_json, suplementos_json, total_estimado, created_at " +
-                "FROM saved_outfits ORDER BY created_at DESC")) {
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("id",            rs.getInt("id"));
-                row.put("nombre",        rs.getString("nombre"));
-                row.put("totalEstimado", rs.getDouble("total_estimado"));
-                row.put("createdAt",     rs.getString("created_at"));
-                String slotsJson = rs.getString("slots_json");
-                String suplJson  = rs.getString("suplementos_json");
-                try { row.put("slots",       MAPPER.readValue(slotsJson, List.class)); }
-                catch (Exception e) { row.put("slots", List.of()); }
-                try { row.put("suplementos", suplJson != null ? MAPPER.readValue(suplJson, List.class) : List.of()); }
-                catch (Exception e) { row.put("suplementos", List.of()); }
-                result.add(row);
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
-        }
-        return result;
+        return savedOutfitsRepository.obtenerOutfitsGuardados();
     }
 
     /** Elimina un outfit guardado por id. Retorna true si existía. */
     public boolean eliminarOutfitGuardado(int id) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM saved_outfits WHERE id=?")) {
-            ps.setInt(1, id);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
-            return false;
-        }
+        return savedOutfitsRepository.eliminarOutfitGuardado(id);
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
     public boolean renombrarOutfit(int id, String nombre) {
-        if (nombre == null || nombre.isBlank()) return false;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
-            ps.setString(1, nombre.trim());
-            ps.setInt(2, id);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
-            return false;
-        }
+        return savedOutfitsRepository.renombrarOutfit(id, nombre);
     }
 
     // ─── Cron Jobs + Executions. Bodies in CronRepository (backlog A3);
