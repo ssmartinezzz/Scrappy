@@ -74,6 +74,11 @@ public class DatabaseService {
     private final FavoritosRepository favoritosRepository;
     private final FeedbackRepository feedbackRepository;
     private final SavedOutfitsRepository savedOutfitsRepository;
+    private final MlOutputRepository mlOutputRepository;
+    private final HistorialRepository historialRepository;
+    private final SitiosRepository sitiosRepository;
+    private final CategoriaStatsRepository categoriaStatsRepository;
+    private final PreciosExternosRepository preciosExternosRepository;
 
     public DatabaseService(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -82,6 +87,11 @@ public class DatabaseService {
         this.favoritosRepository = new FavoritosRepository(dataSource);
         this.feedbackRepository = new FeedbackRepository(dataSource);
         this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
+        this.mlOutputRepository = new MlOutputRepository(dataSource);
+        this.historialRepository = new HistorialRepository(dataSource);
+        this.sitiosRepository = new SitiosRepository(dataSource);
+        this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
+        this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
     }
 
     @PostConstruct
@@ -455,243 +465,61 @@ public class DatabaseService {
                 subCategoria != null ? subCategoria : "", visual);
     }
 
-    // ─── ML Output ──────────────────────────────────────────────────────────
+    // ─── ML Output. Bodies in MlOutputRepository (backlog A3).
+    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarMlOutput(JsonNode mlOutput) {
-        if (mlOutput == null) return;
-        if (!esMlOutputValido(mlOutput)) {
-            LOG.debug("[DB] ML output inválido (sin scores/tendencias) — no se persiste");
-            return;
-        }
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                String json = MAPPER.writeValueAsString(mlOutput);
-                String now  = LocalDateTime.now().format(DT);
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
-                    ps.setString(1, json);
-                    ps.setString(2, now);
-                    ps.executeUpdate();
-                }
-                // Mantener solo los últimos 10 outputs
-                try (Statement st = c.createStatement()) {
-                    st.executeUpdate("""
-                        DELETE FROM ml_output WHERE id NOT IN (
-                            SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
-                        )""");
-                }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-            }
-        } catch (SQLException e) {
-            LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * VALID == tiene un nodo {@code scores} objeto no vacío Y un nodo {@code tendencias}
-     * presente como objeto. Mismo criterio usado por {@code ApiController.tendencias()}
-     * (R1/R3) — garantiza que todo lo que se persiste, se puede servir.
-     */
-    private boolean esMlOutputValido(JsonNode ml) {
-        if (ml == null || ml.isNull() || !ml.isObject()) return false;
-        JsonNode scores = ml.path("scores");
-        if (!scores.isObject() || scores.isEmpty()) return false;
-        JsonNode tend = ml.path("tendencias");
-        return tend.isObject();
+        mlOutputRepository.guardarMlOutput(mlOutput);
     }
 
     public JsonNode cargarMlOutput() {
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT payload FROM ml_output ORDER BY id DESC LIMIT 1")) {
-            if (rs.next()) {
-                return MAPPER.readTree(rs.getString(1));
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error cargando ML output: {}", e.getMessage());
-        }
-        return null;
+        return mlOutputRepository.cargarMlOutput();
     }
 
-    // ─── Historial de precios ────────────────────────────────────────────────
+    // ─── Historial de precios (lecturas). Bodies in HistorialRepository
+    // (backlog A3). Las ESCRITURAS viven en el upsert de productos.
+    // ─────────────────────────────────────────────────────────────────────
 
     public List<Map<String, Object>> cargarHistorial(String url) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha ASC")) {
-            ps.setString(1, url);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("fecha",  rs.getString(1));
-                    row.put("precio", rs.getDouble(2));
-                    result.add(row);
-                }
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error historial: {}", e.getMessage());
-        }
-        return result;
+        return historialRepository.cargarHistorial(url);
     }
 
-    // ─── Sitios dinámicos ────────────────────────────────────────────────────
+    // ─── Sitios dinámicos. Bodies in SitiosRepository (backlog A3).
+    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarSitio(String nombre, String url, String plataforma) {
-        Objects.requireNonNull(nombre, "nombre must not be null");
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO sitios_dinamicos (nombre, url, plataforma, created_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(nombre) DO UPDATE SET url=excluded.url, plataforma=excluded.plataforma
-                    """)) {
-            ps.setString(1, nombre);
-            ps.setString(2, url);
-            ps.setString(3, plataforma);
-            ps.setString(4, LocalDateTime.now().format(DT));
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
-        }
+        sitiosRepository.guardarSitio(nombre, url, plataforma);
     }
 
     public void eliminarSitio(String nombre) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
-            ps.setString(1, nombre);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
-        }
+        sitiosRepository.eliminarSitio(nombre);
     }
 
     public List<Map<String, String>> cargarSitiosDinamicos() {
-        List<Map<String, String>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT nombre, url, plataforma FROM sitios_dinamicos ORDER BY created_at")) {
-            while (rs.next()) {
-                Map<String, String> row = new LinkedHashMap<>();
-                row.put("nombre",     rs.getString(1));
-                row.put("url",        rs.getString(2));
-                row.put("plataforma", rs.getString(3));
-                result.add(row);
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] Error cargando sitios: {}", e.getMessage());
-        }
-        return result;
+        return sitiosRepository.cargarSitiosDinamicos();
     }
 
-    // ─── Categoria Stats ─────────────────────────────────────────────────────────
+    // ─── Categoria Stats. Bodies in CategoriaStatsRepository (backlog A3).
+    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode statsNode) {
-        if (statsNode == null) return;
-        String now = LocalDateTime.now().format(DT);
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                var it = statsNode.fields();
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO categoria_stats (categoria, payload, updated_at) VALUES (?,?,?) " +
-                        "ON CONFLICT(categoria) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at")) {
-                    while (it.hasNext()) {
-                        var entry = it.next();
-                        ps.setString(1, entry.getKey());
-                        ps.setString(2, entry.getValue().toString());
-                        ps.setString(3, now);
-                        ps.executeUpdate();
-                    }
-                }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-            }
-        } catch (SQLException e) {
-            LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
-        }
+        categoriaStatsRepository.guardarCategoriaStats(statsNode);
     }
 
     public java.util.Map<String, String> cargarCategoriaStats() {
-        java.util.Map<String, String> result = new java.util.LinkedHashMap<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT categoria, payload FROM categoria_stats ORDER BY categoria")) {
-            while (rs.next()) result.put(rs.getString(1), rs.getString(2));
-        } catch (Exception e) {
-            LOG.warn("[DB] Error cargando categoria_stats: {}", e.getMessage());
-        }
-        return result;
+        return categoriaStatsRepository.cargarCategoriaStats();
     }
 
-    // ─── Precios externos (MercadoLibre, etc.) ───────────────────────────────────
+    // ─── Precios externos. Bodies in PreciosExternosRepository (backlog A3).
+    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
-        if (resultados == null || resultados.isEmpty()) return;
-        String hoy = LocalDate.now().format(DATE);
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                // Borrar los del día para no duplicar
-                try (PreparedStatement del = c.prepareStatement(
-                        "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
-                    del.setString(1, productoUrl); del.setString(2, sitio); del.setString(3, hoy);
-                    del.executeUpdate();
-                }
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO precios_externos (producto_url,sitio,titulo,precio,externo_url,condicion,fecha) VALUES(?,?,?,?,?,?,?)")) {
-                    for (var r : resultados) {
-                        ps.setString(1, productoUrl);
-                        ps.setString(2, sitio);
-                        ps.setString(3, (String) r.getOrDefault("titulo", ""));
-                        ps.setDouble(4, ((Number) r.getOrDefault("precio", 0.0)).doubleValue());
-                        ps.setString(5, (String) r.getOrDefault("url", ""));
-                        ps.setString(6, (String) r.getOrDefault("condicion", "new"));
-                        ps.setString(7, hoy);
-                        ps.executeUpdate();
-                    }
-                }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-            }
-        } catch (SQLException e) {
-            LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
-        }
+        preciosExternosRepository.guardarPreciosExternos(productoUrl, sitio, resultados);
     }
 
     public java.util.List<java.util.Map<String,Object>> cargarPreciosExternos(String productoUrl) {
-        var result = new java.util.ArrayList<java.util.Map<String,Object>>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT sitio,titulo,precio,externo_url,condicion,fecha " +
-                "FROM precios_externos WHERE producto_url=? ORDER BY fecha DESC, precio ASC LIMIT 20")) {
-            ps.setString(1, productoUrl);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    var row = new java.util.LinkedHashMap<String,Object>();
-                    row.put("sitio",     rs.getString("sitio"));
-                    row.put("titulo",    rs.getString("titulo"));
-                    row.put("precio",    rs.getDouble("precio"));
-                    row.put("url",       rs.getString("externo_url"));
-                    row.put("condicion", rs.getString("condicion"));
-                    row.put("fecha",     rs.getString("fecha"));
-                    result.add(row);
-                }
-            }
-        } catch (Exception e) { LOG.warn("[DB] Error cargando precios_externos: {}", e.getMessage()); }
-        return result;
+        return preciosExternosRepository.cargarPreciosExternos(productoUrl);
     }
 
     /**
@@ -1013,62 +841,20 @@ public class DatabaseService {
     public record HistorialEntry(String fecha, double precio) {}
 
     public List<HistorialEntry> getHistorialPrecios(String url) {
-        var result = new java.util.ArrayList<HistorialEntry>();
-        if (url == null) return result;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha")) {
-            ps.setString(1, url);
-            var rs = ps.executeQuery();
-            while (rs.next())
-                result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
-        } catch (Exception e) {
-            LOG.warn("[DB] historial {}: {}", url, e.getMessage());
-        }
-        return result;
+        return historialRepository.getHistorialPrecios(url);
     }
 
     /**
-     * Variante batch de {@link #getHistorialPrecios(String)}: carga el historial de
-     * múltiples URLs en una sola consulta {@code WHERE url IN (...)}, evitando el
-     * patrón N+1 que resultaría de llamar la versión single-URL por producto
-     * (usado por {@code SenalEnricher} para precomputar señal de compra sobre todo
-     * el catálogo en un solo round-trip a la DB).
+     * Variante batch de {@link #getHistorialPrecios(String)}: una sola consulta
+     * {@code WHERE url IN (...)}, evitando el patrón N+1 (usado por
+     * {@code SenalEnricher} sobre todo el catálogo).
      *
      * @param urls URLs de productos a consultar; URLs vacías/blank son ignoradas
      * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
      *         historial no aparecen como key
      */
     public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
-        Map<String, List<HistorialEntry>> result = new HashMap<>();
-        if (urls == null || urls.isEmpty()) return result;
-
-        List<String> validUrls = urls.stream()
-                .filter(u -> u != null && !u.isBlank())
-                .distinct()
-                .toList();
-        if (validUrls.isEmpty()) return result;
-
-        String placeholders = String.join(",", validUrls.stream().map(u -> "?").toList());
-        String sql = "SELECT url, fecha, precio FROM precio_historico WHERE url IN (" +
-                placeholders + ") ORDER BY url, fecha";
-
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            for (int i = 0; i < validUrls.size(); i++) {
-                ps.setString(i + 1, validUrls.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String url = rs.getString("url");
-                    result.computeIfAbsent(url, k -> new ArrayList<>())
-                          .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
-                }
-            }
-        } catch (Exception e) {
-            LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
-        }
-        return result;
+        return historialRepository.getHistorialPrecios(urls);
     }
 
     // ─── Clear methods ───────────────────────────────────────────────────────
@@ -1090,17 +876,7 @@ public class DatabaseService {
     }
 
     public void limpiarMlOutput() throws SQLException {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (var st = c.createStatement()) {
-                st.execute("DELETE FROM ml_output");
-                c.commit();
-                LOG.info("[DB] Datos ML eliminados.");
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            }
-        }
+        mlOutputRepository.limpiarMlOutput();
     }
 
     // ─── Saved Outfits. Bodies in SavedOutfitsRepository (backlog A3).
