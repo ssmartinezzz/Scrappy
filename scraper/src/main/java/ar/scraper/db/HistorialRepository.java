@@ -72,10 +72,22 @@ class HistorialRepository {
 
     /**
      * Variante batch de {@link #getHistorialPrecios(String)}: carga el historial de
-     * múltiples URLs en una sola consulta {@code WHERE url IN (...)}, evitando el
-     * patrón N+1 que resultaría de llamar la versión single-URL por producto
-     * (usado por {@code SenalEnricher} para precomputar señal de compra sobre todo
-     * el catálogo en un solo round-trip a la DB).
+     * múltiples URLs en una sola consulta, evitando el patrón N+1 que resultaría de
+     * llamar la versión single-URL por producto (usado por {@code SenalEnricher}
+     * para precomputar señal de compra sobre todo el catálogo en un solo round-trip
+     * a la DB).
+     *
+     * <p>El filtro va como {@code url = ANY(?)} con UN array bindeado, no como un
+     * {@code IN (?,?,…)} con un placeholder por URL. La diferencia no es cosmética:</p>
+     * <ul>
+     *   <li>El SQL deja de depender del tamaño del lote. Con un placeholder por URL,
+     *       cada tamaño distinto producía un texto de consulta distinto, así que
+     *       Postgres nunca podía reutilizar un plan preparado.</li>
+     *   <li>Desaparece el techo de 65535 parámetros del protocolo. Pasado ese punto
+     *       el driver rechazaba la sentencia entera, y como el {@code catch} de abajo
+     *       se traga la excepción, el catálogo entero quedaba "sin historial de
+     *       precios" en silencio — sin señal de compra para ningún producto.</li>
+     * </ul>
      *
      * @param urls URLs de productos a consultar; URLs vacías/blank son ignoradas
      * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
@@ -91,15 +103,12 @@ class HistorialRepository {
                 .toList();
         if (validUrls.isEmpty()) return result;
 
-        String placeholders = String.join(",", validUrls.stream().map(u -> "?").toList());
-        String sql = "SELECT url, fecha, precio FROM precio_historico WHERE url IN (" +
-                placeholders + ") ORDER BY url, fecha";
+        String sql = "SELECT url, fecha, precio FROM precio_historico " +
+                "WHERE url = ANY(?) ORDER BY url, fecha";
 
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            for (int i = 0; i < validUrls.size(); i++) {
-                ps.setString(i + 1, validUrls.get(i));
-            }
+            ps.setArray(1, c.createArrayOf("text", validUrls.toArray()));
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String url = rs.getString("url");
