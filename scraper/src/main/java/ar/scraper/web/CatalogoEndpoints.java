@@ -14,7 +14,9 @@ import org.springframework.http.ResponseEntity;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -113,21 +115,12 @@ class CatalogoEndpoints {
         facets.escotes().forEach(escotesNode::put);
         ObjectNode colorDominantesNode = facetsNode.putObject("colorDominantes");
         facets.colorDominantes().forEach(colorDominantesNode::put);
-        // Rubros con conteo
+        // Rubros + gymrat + packs: un solo barrido del catálogo (ver ContadoresGlobales)
+        ContadoresGlobales contadores = ContadoresGlobales.de(r.productos());
         ObjectNode rubrosNode = facetsNode.putObject("rubros");
-        r.productos().stream()
-            .filter(p -> p.rubro() != null && !p.rubro().isBlank())
-            .collect(java.util.stream.Collectors.groupingBy(
-                p -> p.rubro().toLowerCase(),
-                java.util.stream.Collectors.counting()))
-            .forEach((rb, cnt) -> rubrosNode.put(rb, cnt.intValue()));
-        // Conteo de productos gymrat
-        long gymratCount = r.productos().stream().filter(Product::gymrat).count();
-        facetsNode.put("gymratCount", (int) gymratCount);
-
-        // Conteo de productos pack/combo (Fase 3/4 — facet "Packs")
-        long packCount = r.productos().stream().filter(Product::esPack).count();
-        facetsNode.put("packCount", (int) packCount);
+        contadores.rubros().forEach(rubrosNode::put);
+        facetsNode.put("gymratCount", contadores.gymrat());
+        facetsNode.put("packCount",   contadores.packs());
 
         // Marcas y errores
         ObjectNode marcas = meta.putObject("marcas");
@@ -228,15 +221,43 @@ class CatalogoEndpoints {
         ObjectNode colorDominantesNode2 = root.putObject("colorDominantes");
         facets.colorDominantes().forEach(colorDominantesNode2::put);
 
-        // Conteo de productos gymrat
-        long gymratCount = r.productos().stream().filter(Product::gymrat).count();
-        root.put("gymratCount", (int) gymratCount);
-
-        // Conteo de productos pack/combo (Fase 3/4 — facet "Packs")
-        long packCount = r.productos().stream().filter(Product::esPack).count();
-        root.put("packCount", (int) packCount);
+        // Mismo barrido único que /api/data. Este endpoint NO publica `rubros`
+        // (solo /api/data lo hace) — se calcula igual porque sale del mismo
+        // recorrido y descartarlo no ahorra nada.
+        ContadoresGlobales contadores = ContadoresGlobales.de(r.productos());
+        root.put("gymratCount", contadores.gymrat());
+        root.put("packCount",   contadores.packs());
 
         return ResponseEntity.ok(root);
+    }
+
+    /**
+     * Los tres contadores que se publican sobre el catálogo COMPLETO, sin
+     * filtrar: el histograma de rubros, los gymrat y los packs.
+     *
+     * <p>Van sin filtrar a propósito — la UI los usa para decidir si ofrecer o
+     * no una pill de filtro, así que contarlos sobre el resultado ya filtrado
+     * haría desaparecer la pill apenas la usás.</p>
+     *
+     * <p>Eran tres barridos separados del catálogo entero, repetidos en los dos
+     * endpoints y en cada request. Los facets de al lado vienen precalculados
+     * del snapshot; estos no pueden, porque {@code eliminarProductoDeMemoria}
+     * reusa los facets del snapshot anterior tal cual, y congelarlos ahí dejaría
+     * los contadores mintiendo después de borrar un producto. Un solo recorrido
+     * los deja al día sin ese riesgo.</p>
+     */
+    private record ContadoresGlobales(Map<String, Integer> rubros, int gymrat, int packs) {
+        static ContadoresGlobales de(List<Product> productos) {
+            Map<String, Integer> rubros = new LinkedHashMap<>();
+            int gymrat = 0, packs = 0;
+            for (Product p : productos) {
+                String rubro = p.rubro();
+                if (rubro != null && !rubro.isBlank()) rubros.merge(rubro.toLowerCase(), 1, Integer::sum);
+                if (p.gymrat()) gymrat++;
+                if (p.esPack()) packs++;
+            }
+            return new ContadoresGlobales(rubros, gymrat, packs);
+        }
     }
 
     // ---------------------------------------------------------------
