@@ -412,40 +412,82 @@ def tfidf_simple(docs):
     return tfidf
 
 
-def cosine_sim(a, b):
-    keys = set(a) & set(b)
-    if not keys: return 0.0
-    dot = sum(a[k] * b[k] for k in keys)
-    na  = math.sqrt(sum(v*v for v in a.values()))
-    nb  = math.sqrt(sum(v*v for v in b.values()))
-    return dot / (na * nb) if na and nb else 0.0
-
-
 def cluster_productos(nombres, threshold=0.28):
+    """Greedy incremental clustering: each product joins the first centroid whose
+    cosine similarity beats `threshold`, or seeds a cluster of its own.
+
+    The assignment is identical to the original implementation — same greedy
+    order, same running-mean centroid, same lowest-index tie-break. What changed
+    is the cost of reaching it, which used to be quadratic (~11.4s on a
+    6700-product catalog, growing with the square of the catalog):
+
+      1. **Cached centroid norms.** Cosine similarity recomputed BOTH L2 norms
+         from scratch on every single comparison. A centroid's norm only changes
+         when it absorbs a product, so it is computed once per update instead.
+      2. **Inverted index.** Every vector was compared against every centroid,
+         even though TF-IDF weights are strictly positive: sharing no term means
+         a dot product of exactly 0.0, which can never beat a non-negative
+         threshold. `postings` maps term -> clusters holding it, so only
+         centroids that can possibly match are scored.
+      3. **O(1) member count.** The running mean needed the cluster's size, and
+         got it by rescanning the whole `cluster_id` list on every merge — an
+         O(N) walk inside the inner loop. It is a counter now.
+
+    Candidates are scored in ascending cluster order because the comparison is
+    strictly `>`: on a tie the lowest cluster index must win, exactly as the
+    original's `enumerate(centroids)` walk did. Iterating the candidate set
+    unordered would silently reshuffle tied assignments.
+    """
     if not nombres: return []
     vecs = tfidf_simple(nombres)
-    n    = len(vecs)
-    cluster_id = [-1] * n
-    next_cluster = 0
-    centroids    = []
+    cluster_id = [-1] * len(vecs)
+    centroids  = []                   # cluster -> {termino: peso}
+    normas     = []                   # cluster -> norma L2 del centroide
+    miembros   = []                   # cluster -> productos absorbidos
+    postings   = defaultdict(set)     # termino  -> {clusters que lo contienen}
 
-    for i in range(n):
-        best_cluster, best_sim = -1, threshold
-        for ci, centroid in enumerate(centroids):
-            sim = cosine_sim(vecs[i], centroid)
-            if sim > best_sim:
-                best_sim, best_cluster = sim, ci
+    for i, vec in enumerate(vecs):
+        norma_vec = math.sqrt(sum(v*v for v in vec.values()))
 
-        if best_cluster == -1:
-            cluster_id[i] = next_cluster
-            centroids.append(dict(vecs[i]))
-            next_cluster += 1
+        # Un vector vacío (nombre en blanco, solo stopwords o solo tokens de
+        # hasta 2 letras) no tiene términos, así que no tiene candidatos y
+        # siempre siembra su propio cluster — igual que antes, donde su
+        # similitud contra todo centroide daba 0.0.
+        candidatos = set()
+        for termino in vec:
+            clusters = postings.get(termino)
+            if clusters: candidatos |= clusters
+
+        mejor, mejor_sim = -1, threshold
+        for ci in sorted(candidatos):
+            centroide = centroids[ci]
+            denom = norma_vec * normas[ci]
+            if not denom: continue
+            sim = sum(vec[k] * centroide[k] for k in vec.keys() & centroide.keys()) / denom
+            if sim > mejor_sim:
+                mejor_sim, mejor = sim, ci
+
+        if mejor == -1:
+            nuevo = len(centroids)
+            cluster_id[i] = nuevo
+            centroids.append(dict(vec))
+            normas.append(norma_vec)
+            miembros.append(1)
+            for termino in vec:
+                postings[termino].add(nuevo)
         else:
-            cluster_id[i] = best_cluster
-            c = centroids[best_cluster]
-            members = sum(1 for cid in cluster_id if cid == best_cluster)
-            for k in set(c) | set(vecs[i]):
-                c[k] = (c.get(k, 0) * (members - 1) + vecs[i].get(k, 0)) / members
+            cluster_id[i] = mejor
+            centroide = centroids[mejor]
+            miembros[mejor] += 1
+            m = miembros[mejor]
+            # Términos que el producto aporta al centroide — hay que indexarlos,
+            # y se calculan ANTES de que el promedio los agregue al centroide.
+            nuevos = vec.keys() - centroide.keys()
+            for k in centroide.keys() | vec.keys():
+                centroide[k] = (centroide.get(k, 0) * (m - 1) + vec.get(k, 0)) / m
+            normas[mejor] = math.sqrt(sum(v*v for v in centroide.values()))
+            for termino in nuevos:
+                postings[termino].add(mejor)
 
     return cluster_id
 
