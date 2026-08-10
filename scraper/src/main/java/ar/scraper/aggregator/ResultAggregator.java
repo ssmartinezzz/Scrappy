@@ -438,12 +438,111 @@ public class ResultAggregator {
     public AggregatedResult fromDB(List<Product> productos) {
         List<Product> conSenal = senalEnricher.enriquecer(productos);
         List<Product> conFinanciacion = financiacionEnricher.enriquecer(conSenal);
+        return snapshot(conFinanciacion);
+    }
 
+    /**
+     * Variante incremental de {@link #fromDB} para el refresco progresivo que
+     * {@code ScraperService.ejecutarScraping} dispara cada vez que termina un
+     * sitio.
+     *
+     * <p>El problema que resuelve es de costo, no de resultado. Ese refresco
+     * llamaba a {@link #fromDB}, que re-enriquece el catálogo ENTERO: {@link
+     * SenalEnricher} carga de una el historial de precios de cada producto
+     * vivo, y eso se repetía una vez por sitio terminado — 23 barridos
+     * completos por corrida cuando, en cada uno, lo único que pudo haber
+     * cambiado son los productos del sitio que acaba de cerrar.</p>
+     *
+     * <p>Acá se re-enriquecen únicamente los productos en {@code
+     * urlsRefrescadas} (más los que no existían en el snapshot anterior), y
+     * para el resto se reusa la señal ya calculada. Reusarla es correcto
+     * porque ambas señales son funciones puras de datos que no se movieron:
+     * la de compra depende del historial del producto — y en esta corrida
+     * solo se insertaron filas de historial para el sitio que terminó — y la
+     * de financiación depende del precio más el preset activo. Un producto
+     * cuyo precio no cambió no puede tener una señal distinta.</p>
+     *
+     * <p><b>Los productos siguen viniendo de la base.</b> Lo único que se
+     * reusa del snapshot anterior son los dos campos derivados
+     * ({@code senal}/{@code finan}); {@code precio}, {@code categoria} y todo
+     * el resto salen de la fila recién leída, así que una reclasificación o un
+     * cambio de precio hecho por fuera de esta corrida se ve igual que antes.</p>
+     *
+     * <p>Degrada a {@link #fromDB} completo si no hay snapshot previo (primer
+     * refresco de la corrida), si {@code urlsRefrescadas} es {@code null} (no
+     * se sabe qué cambió, así que se recalcula todo — {@code null} nunca
+     * significa "nada cambió"), o si algún enricher devuelve una lista de
+     * tamaño distinto al que recibió, que rompería el emparejamiento posicional.</p>
+     *
+     * @param productos       catálogo activo recién leído de la DB, en el mismo
+     *                        orden que devuelve {@code cargarProductos()} (precio ascendente)
+     * @param previo          snapshot en memoria del refresco anterior, o {@code null}
+     * @param urlsRefrescadas URLs que este sitio acaba de escribir, o {@code null} para forzar refresco completo
+     */
+    public AggregatedResult fromDBParcial(List<Product> productos,
+                                          AggregatedResult previo,
+                                          Set<String> urlsRefrescadas) {
+        if (productos == null || productos.isEmpty()) return fromDB(List.of());
+        if (previo == null || previo.productos() == null || urlsRefrescadas == null)
+            return fromDB(productos);
+
+        Map<String, Product> anteriorPorUrl = new HashMap<>();
+        for (Product p : previo.productos())
+            if (p.url() != null && !p.url().isBlank()) anteriorPorUrl.putIfAbsent(p.url(), p);
+
+        // Emparejamiento POSICIONAL, no por URL: un producto sin URL no tiene
+        // clave de reuso y tiene que enriquecerse igual, como haría fromDB.
+        List<Product>  resultado   = new ArrayList<>(Collections.nCopies(productos.size(), null));
+        List<Integer>  posiciones  = new ArrayList<>();
+        List<Product>  aEnriquecer = new ArrayList<>();
+
+        for (int i = 0; i < productos.size(); i++) {
+            Product p = productos.get(i);
+            Product anterior = (p.url() != null && !p.url().isBlank())
+                    ? anteriorPorUrl.get(p.url()) : null;
+            if (anterior == null || urlsRefrescadas.contains(p.url())) {
+                posiciones.add(i);
+                aEnriquecer.add(p);
+            } else {
+                resultado.set(i, conSenales(p, anterior.senal(), anterior.finan()));
+            }
+        }
+
+        List<Product> frescos = financiacionEnricher.enriquecer(senalEnricher.enriquecer(aEnriquecer));
+        if (frescos == null || frescos.size() != aEnriquecer.size()) {
+            LOG.warn("[PARCIAL] El enricher devolvió {} productos para {} pedidos — " +
+                     "refresco completo por seguridad",
+                     frescos == null ? 0 : frescos.size(), aEnriquecer.size());
+            return fromDB(productos);
+        }
+        for (int k = 0; k < posiciones.size(); k++) resultado.set(posiciones.get(k), frescos.get(k));
+
+        LOG.debug("[PARCIAL] {} productos re-enriquecidos de {} en catálogo",
+                aEnriquecer.size(), productos.size());
+        return snapshot(resultado);
+    }
+
+    /**
+     * Arma el {@link AggregatedResult} a partir de la lista ya enriquecida.
+     * Compartido por {@link #fromDB} y {@link #fromDBParcial} para que las dos
+     * no puedan divergir en conteo, facets ni rango de precios. Asume la lista
+     * ordenada por precio ascendente, como la devuelve {@code cargarProductos()}.
+     */
+    private AggregatedResult snapshot(List<Product> conFinanciacion) {
         Map<String, Integer> conteo = new LinkedHashMap<>();
         conFinanciacion.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
         Facets facets = calcularFacets(conFinanciacion);
         double minP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
         double maxP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
         return new AggregatedResult(conFinanciacion, conteo, Map.of(), facets, minP, maxP, Map.of());
+    }
+
+    /** Copia un producto reemplazando solo sus dos señales derivadas. */
+    private static Product conSenales(Product p, Product.SenalCompra senal, Product.SenalFinanciacion finan) {
+        return new Product(
+                p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(), p.imagenUrl(),
+                p.categoria(), p.genero(), p.talles(), p.ml(), p.marca(), p.rubro(),
+                p.gymrat(), p.marcaPremium(), senal, finan,
+                p.cantidadUnidades(), p.subCategoria(), p.visual());
     }
 }
