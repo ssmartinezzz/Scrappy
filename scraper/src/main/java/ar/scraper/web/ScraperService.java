@@ -363,7 +363,17 @@ public class ScraperService {
                         db.upsertParcial(normalizados);
                         var todosActuales = db.cargarProductos();
                         if (!todosActuales.isEmpty()) {
-                            synchronized (catalogLock) { lastResult = aggregator.fromDB(todosActuales); }
+                            // Solo este sitio pudo cambiar algo, así que solo sus URLs
+                            // necesitan re-enriquecerse. Con fromDB completo, cada sitio
+                            // que terminaba volvía a cargar el historial de precios del
+                            // catálogo entero: 23 barridos completos por corrida.
+                            Set<String> urlsDelSitio = normalizados.stream()
+                                    .map(Product::url)
+                                    .filter(u -> u != null && !u.isBlank())
+                                    .collect(Collectors.toSet());
+                            synchronized (catalogLock) {
+                                lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
+                            }
                             LOG.debug("[PARCIAL] {} → {} productos totales",
                                     r.sitio(), todosActuales.size());
                         }
