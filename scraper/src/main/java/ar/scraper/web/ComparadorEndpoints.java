@@ -77,6 +77,20 @@ class ComparadorEndpoints {
 
         var grupos = grouping.agrupar(filtered, minSitios >= 2);
 
+        // Filtro por sitio — POST-agrupado, a diferencia de q/categoria/rubro.
+        // Este endpoint existe para comparar el mismo artículo ENTRE sitios y
+        // arranca en minSitios=2: recortar los productos a un solo sitio antes
+        // de agrupar dejaría todos los grupos con un único sitio y la respuesta
+        // sería siempre vacía. Post-filtrando, "?sitio=freres" responde lo que
+        // el usuario quiere decir — las comparaciones donde freres participa.
+        // Va antes de paginar para que `total` cuente lo filtrado.
+        if (sitio != null && !sitio.isBlank()) {
+            grupos = grupos.stream()
+                .filter(g -> g.getProductos().stream()
+                    .anyMatch(p -> p.sitio() != null && p.sitio().equalsIgnoreCase(sitio)))
+                .collect(java.util.stream.Collectors.toList());
+        }
+
         // Paginación
         int total     = grupos.size();
         int fromIdx   = Math.min(page * size, total);
