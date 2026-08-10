@@ -74,24 +74,36 @@ class ComparadorBuscarExternoTest {
     }
 
     @Test
-    @DisplayName("QUIRK PREEXISTENTE: una letra de talle seguida de vocal acentuada se pierde")
-    void quirkLetraDeTalleAntesDeVocalAcentuada() {
-        // NO es el comportamiento deseado — se documenta porque es el que hay hoy,
-        // y este archivo es la red de seguridad de un cambio de rendimiento, no
-        // el lugar donde arreglarlo.
-        //
-        // Causa: el filtro de talles usa `(?i)\b(xs|xxs|s|m|l|xl|...)\b`, y `\b`
-        // se define sobre \w = [a-zA-Z0-9_], que NO incluye vocales acentuadas.
-        // En "Móvil" hay entonces un borde de palabra entre la M y la ó, así que
-        // la M queda como "palabra suelta" y el filtro se la lleva.
-        //
-        // Alcance real: cualquier nombre que empiece con s/m/l/x seguida de vocal
-        // acentuada — Móvil, Lápiz, Sábana, Máscara, Línea. Afecta la query que
-        // se le manda a MercadoLibre, o sea la calidad de la comparación externa.
-        assertThat(queryUsada("Móvil")).isEqualTo("óvil");
-        assertThat(queryUsada("Lápiz")).isEqualTo("ápiz");
-        assertThat(queryUsada("Sábana")).isEqualTo("ábana");
-        // Sin vocal acentuada detrás, la letra sobrevive como corresponde:
+    @DisplayName("una palabra que empieza con letra de talle seguida de acento queda entera")
+    void noSeComeLaPrimeraLetraDePalabrasAcentuadas() {
+        // Los bordes de palabra tienen que ser conscientes de Unicode. Con el \b
+        // por defecto de Java (\w = [a-zA-Z0-9_]) las vocales acentuadas no son
+        // caracteres de palabra, así que en "Móvil" había un borde entre la M y
+        // la ó: la M pasaba por talle suelto y el filtro se la llevaba.
+        assertThat(queryUsada("Móvil")).isEqualTo("Móvil");
+        assertThat(queryUsada("Lápiz")).isEqualTo("Lápiz");
+        assertThat(queryUsada("Sábana")).isEqualTo("Sábana");
+        assertThat(queryUsada("Máscara Línea Sésamo")).isEqualTo("Máscara Línea Sésamo");
+    }
+
+    @Test
+    @DisplayName("tampoco se come un color que es prefijo de una palabra acentuada")
+    void noSeComeUnColorPrefijoDePalabraAcentuada() {
+        // Mismo defecto en el filtro de colores: "azulón" tenía un borde entre
+        // la l y la ó, así que "azul" matcheaba y quedaba "ón".
+        assertThat(queryUsada("Campera Azulón")).isEqualTo("Campera Azulón");
+    }
+
+    @Test
+    @DisplayName("los talles sueltos de verdad se siguen sacando")
+    void losTallesSueltosDeVerdadSeSiguenSacando() {
+        // El arreglo no puede volver inofensivo al filtro: una letra que SÍ está
+        // suelta tiene que seguir desapareciendo.
+        assertThat(queryUsada("Remera Oversize M")).isEqualTo("Remera Oversize");
+        assertThat(queryUsada("Buzo Frisado S")).isEqualTo("Buzo Frisado");
+        assertThat(queryUsada("Campera Puffer XL")).isEqualTo("Campera Puffer");
+        // Y una palabra que empieza con esa letra pero sigue con ASCII tampoco
+        // se toca, que ya era el comportamiento correcto.
         assertThat(queryUsada("Mochila Urbana")).isEqualTo("Mochila Urbana");
     }
 

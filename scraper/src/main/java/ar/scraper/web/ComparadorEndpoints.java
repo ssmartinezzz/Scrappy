@@ -198,28 +198,52 @@ class ComparadorEndpoints {
      * Elimina: talles, colores, género, códigos SKU, preposiciones.
      * Mantiene: marca + nombre del modelo.
      */
-    // Los once patrones de limpieza, compilados una vez en vez de en cada llamada.
-    // Los literales son idénticos a los que estaban inline — el orden de aplicación
-    // importa (el filtro de talles corre ANTES que el de colores), así que se
-    // conserva tal cual.
+    /**
+     * Flags de los patrones de limpieza.
+     *
+     * <p>{@code UNICODE_CHARACTER_CLASS} es el que arregla un bug real, no un
+     * detalle de estilo. Por defecto el {@code \b} de Java se define sobre
+     * {@code \w = [a-zA-Z0-9_]}, y las vocales acentuadas NO son caracteres de
+     * palabra. En "Móvil" había entonces un borde entre la M y la ó: la M
+     * quedaba como palabra suelta, el filtro de talles la tomaba por un talle y
+     * se la llevaba. Lo mismo con "Azulón", donde el filtro de colores
+     * matcheaba "azul" y dejaba "ón".</p>
+     *
+     * <p>Estos patrones corren sobre el nombre CRUDO del producto — a
+     * diferencia de {@code PackQuantityDetector}, que normaliza acentos antes
+     * de matchear y por eso nunca tuvo el problema. El catálogo es en español,
+     * así que acá los bordes de palabra tienen que ser conscientes de Unicode.</p>
+     *
+     * <p>{@code UNICODE_CHARACTER_CLASS} ya implica {@code UNICODE_CASE}; se
+     * nombra igual para que no haya que saberlo de memoria. Sobre los patrones
+     * numéricos amplía {@code \d} a cualquier dígito decimal Unicode, que es
+     * justo lo que un filtro de "sacar números" quiere decir.</p>
+     */
+    private static final int FLAGS_LIMPIEZA =
+        java.util.regex.Pattern.CASE_INSENSITIVE
+        | java.util.regex.Pattern.UNICODE_CASE
+        | java.util.regex.Pattern.UNICODE_CHARACTER_CLASS;
+
+    // Los patrones de limpieza, compilados una vez en vez de en cada llamada.
+    // El orden de aplicación importa (talles ANTES que colores) y se conserva.
     private static final java.util.regex.Pattern Q_TALLE_ETIQUETADO =
-        java.util.regex.Pattern.compile("(?i)\\b(talle|talla|size)[:\\s]*\\S+");
+        java.util.regex.Pattern.compile("\\b(talle|talla|size)[:\\s]*\\S+", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_TALLE_SUELTO =
-        java.util.regex.Pattern.compile("(?i)\\b(xs|xxs|s|m|l|xl|xxl|xxxl|3xl)\\b");
+        java.util.regex.Pattern.compile("\\b(xs|xxs|s|m|l|xl|xxl|xxxl|3xl)\\b", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_NUMERO_CORTO =
-        java.util.regex.Pattern.compile("\\b\\d{1,2}([,.]5)?\\b");
+        java.util.regex.Pattern.compile("\\b\\d{1,2}([,.]5)?\\b", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_COLOR =
-        java.util.regex.Pattern.compile("(?i)\\b(negro|negra|blanco|blanca|azul|rojo|roja|verde|gris|beige"
+        java.util.regex.Pattern.compile("\\b(negro|negra|blanco|blanca|azul|rojo|roja|verde|gris|beige"
             + "|naranja|amarillo|violeta|marron|celeste|rosa|plateado|dorado"
-            + "|tostado|crudo|ivory|navy|khaki|oliva|militar)\\b");
+            + "|tostado|crudo|ivory|navy|khaki|oliva|militar)\\b", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_GENERO =
-        java.util.regex.Pattern.compile("(?i)\\b(de hombre|de mujer|para hombre|para mujer"
-            + "|masculino|femenino|unisex|hombre|mujer)\\b");
+        java.util.regex.Pattern.compile("\\b(de hombre|de mujer|para hombre|para mujer"
+            + "|masculino|femenino|unisex|hombre|mujer)\\b", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_DESCRIPTOR =
-        java.util.regex.Pattern.compile("(?i)\\b(original|importado|nuevo|nueva|edicion"
-            + "|coleccion|temporada|primavera|verano|invierno|fw|ss)\\b");
+        java.util.regex.Pattern.compile("\\b(original|importado|nuevo|nueva|edicion"
+            + "|coleccion|temporada|primavera|verano|invierno|fw|ss)\\b", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_SKU_LARGO =
-        java.util.regex.Pattern.compile("\\b\\d{5,}\\b");
+        java.util.regex.Pattern.compile("\\b\\d{5,}\\b", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_PUNTUACION =
         java.util.regex.Pattern.compile("[,/|()\\[\\]]+");
     private static final java.util.regex.Pattern Q_ESPACIOS =
