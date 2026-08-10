@@ -141,70 +141,21 @@ public class PythonRunner {
 
     public BackfillStatus getBackfillStatus()  { return backfillStatus.get(); }
 
+    // ─── Extracción de los scripts Python del jar. Bodies in
+    // MlScriptExtractor (backlog A3). extraerEmbeddingsScript stays here as a
+    // package-private seam: the tests call it through this class.
+    // ─────────────────────────────────────────────────────────────────────
+
     private Path extraerScript(Path workDir) throws Exception {
-        Path dest = workDir.resolve("ml_pipeline.py");
-        try (InputStream is = getClass().getResourceAsStream("/ml/ml_pipeline.py")) {
-            if (is == null) throw new FileNotFoundException("/ml/ml_pipeline.py no en classpath");
-            Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
-        }
-        return dest;
+        return MlScriptExtractor.extraerPipeline(workDir);
     }
 
-    /** Extrae ml_train.py al directorio de trabajo */
     private Path extraerTrainScript(Path workDir) throws Exception {
-        Path dest = workDir.resolve("ml_train.py");
-        try (InputStream is = getClass().getResourceAsStream("/ml/ml_train.py")) {
-            if (is != null) {
-                Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
-            } else if (!Files.exists(dest)) {
-                throw new java.io.FileNotFoundException("ml_train.py no encontrado en classpath ni en " + dest);
-            }
-        }
-        return dest;
+        return MlScriptExtractor.extraerTrain(workDir);
     }
 
-    /** Serializes concurrent extractions of ml_embeddings.py (see {@link #extraerEmbeddingsScript}). */
-    private static final Object EMBEDDINGS_EXTRACT_LOCK = new Object();
-
-    /**
-     * Extrae ml_embeddings.py al directorio de trabajo, junto a ml_pipeline.py.
-     * Requerido tanto por el stage-1b de refinamiento de imagen del pipeline
-     * de scoring ({@code import ml_embeddings}) como por el launcher de
-     * backfill ({@link #backfillEmbeddingsEnBackground}) — sin este archivo
-     * ambos degradan silenciosamente a solo-texto. Mirror de
-     * {@link #extraerTrainScript}: tolera que el archivo ya exista.
-     *
-     * <p>Called from two independently-schedulable sites ({@link #ejecutar}'s
-     * synchronous path and {@link #backfillEmbeddingsEnBackground}'s virtual
-     * thread), both writing the same {@code dest}. Publishes the destination
-     * ATOMICALLY (write to a unique temp file, then {@code ATOMIC_MOVE} it into
-     * place, falling back to {@code REPLACE_EXISTING} if the filesystem doesn't
-     * support atomic moves) and serializes the write+move with a private static
-     * lock, so a concurrent reader (Python subprocess importing the module)
-     * never observes a torn/partial file.</p>
-     */
     Path extraerEmbeddingsScript(Path workDir) throws Exception {
-        Path dest = workDir.resolve("ml_embeddings.py");
-        synchronized (EMBEDDINGS_EXTRACT_LOCK) {
-            try (InputStream is = getClass().getResourceAsStream("/ml/ml_embeddings.py")) {
-                if (is != null) {
-                    Path tmp = Files.createTempFile(workDir, "ml_embeddings", ".py.tmp");
-                    try {
-                        Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
-                        try {
-                            Files.move(tmp, dest, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                        } catch (AtomicMoveNotSupportedException amnse) {
-                            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
-                        }
-                    } finally {
-                        Files.deleteIfExists(tmp);
-                    }
-                } else if (!Files.exists(dest)) {
-                    throw new java.io.FileNotFoundException("ml_embeddings.py no encontrado en classpath ni en " + dest);
-                }
-            }
-        }
-        return dest;
+        return MlScriptExtractor.extraerEmbeddings(workDir);
     }
 
     /**
@@ -1120,90 +1071,40 @@ public class PythonRunner {
      * default, but setting it explicitly keeps the contract visible and
      * directly testable here rather than implicit.
      */
+    // ─── Entorno de los subprocesos Python. Bodies in PythonEnv (backlog
+    // A3). The three statics stay here as package-private seams: the tests
+    // call them as PythonRunner.toPsycopgDsn / PythonRunner.resolveModelsRoot.
+    // ─────────────────────────────────────────────────────────────────────
+
     void aplicarEnvBaseDatosYModelos(ProcessBuilder pb, Path workDir) {
-        String databaseUrl = System.getenv("DATABASE_URL");
-        if (databaseUrl != null) {
-            String psycopgDsn = toPsycopgDsn(databaseUrl,
-                    System.getenv("DATABASE_USERNAME"), System.getenv("DATABASE_PASSWORD"));
-            pb.environment().put("DATABASE_URL", psycopgDsn);
-        }
-        String modelsRoot = resolveModelsRoot(System.getenv("SCRAPER_MODELS_ROOT"), workDir);
-        pb.environment().put("SCRAPER_MODELS_ROOT", modelsRoot);
-        pb.environment().put("HF_HOME", hfHomeParaModelsRoot(modelsRoot));
+        PythonEnv.aplicar(pb, workDir);
     }
 
     /**
      * Test seam (package-private, pure): translates the JVM's own
-     * {@code DATABASE_URL} (JDBC format — {@code jdbc:postgresql://host:port
-     * /db}, required by Spring's {@code spring.datasource.url}/HikariCP) into
-     * a libpq/psycopg2-compatible DSN ({@code postgresql://host:port/db
-     * [?user=...&password=...]}) for the Python subprocess env.
-     *
-     * <p>Batch 2 forwarded {@code DATABASE_URL} to Python verbatim, which
-     * silently breaks {@code psycopg2.connect(dsn)} the moment the value is
-     * a real {@code jdbc:} URL (as opposed to unset in a test): libpq only
-     * recognizes the {@code postgresql://}/{@code postgres://} schemes, not
-     * {@code jdbc:}. Discovered in Batch 4 while wiring the installer's
-     * generated {@code .env} — this is the first place a real
-     * {@code DATABASE_URL} flows through both Java and Python at once.</p>
-     *
-     * <p>{@code username}/{@code password} are appended as libpq URI query
-     * parameters (the standard PostgreSQL URI extension point for keywords
-     * not in the userinfo section) only when non-blank — local dev's trust
-     * auth (the installer's {@code initdb -A trust}) needs at least a
-     * {@code user} param since psycopg2 otherwise defaults to the OS
-     * username, which does not match the {@code postgres} role.</p>
+     * {@code DATABASE_URL} (JDBC format) into a libpq/psycopg2-compatible DSN
+     * for the Python subprocess env — libpq only recognizes the
+     * {@code postgresql://}/{@code postgres://} schemes, not {@code jdbc:}.
      */
     static String toPsycopgDsn(String jdbcOrPlainUrl, String username, String password) {
-        if (jdbcOrPlainUrl == null) {
-            return null;
-        }
-        String plain = jdbcOrPlainUrl.startsWith("jdbc:")
-                ? jdbcOrPlainUrl.substring("jdbc:".length())
-                : jdbcOrPlainUrl;
-        StringBuilder query = new StringBuilder();
-        if (username != null && !username.isBlank()) {
-            query.append("user=").append(username);
-        }
-        if (password != null && !password.isBlank()) {
-            if (query.length() > 0) query.append('&');
-            query.append("password=").append(password);
-        }
-        if (query.length() == 0) {
-            return plain;
-        }
-        return plain + (plain.contains("?") ? "&" : "?") + query;
+        return PythonEnv.toPsycopgDsn(jdbcOrPlainUrl, username, password);
     }
 
     /**
      * Test seam (package-private, pure): resolves {@code SCRAPER_MODELS_ROOT}
-     * for a Python subprocess env. {@code envModelsRoot} is an explicit
-     * parameter (rather than reading {@code System.getenv} directly) so a
-     * test can inject a fake value without mutating the JVM's real
-     * environment. Falls back to {@code workDir.resolve("_models")} — the
-     * SAME models dir Java itself already resolves for the training-model
-     * freshness check (see {@link #entrenarEnBackground}/
-     * {@link #ejecutarFaseEntrenamientoSecuenciada}: {@code
-     * workDir.resolve("_models")}), so scoring/training/backfill subprocesses
-     * and the JVM always agree on one models directory even when the env var
-     * isn't set (manual/standalone runs).
+     * for a Python subprocess env, falling back to {@code workDir/_models} —
+     * the SAME dir the JVM resolves for the model freshness check.
      */
     static String resolveModelsRoot(String envModelsRoot, Path workDir) {
-        if (envModelsRoot != null && !envModelsRoot.isBlank()) return envModelsRoot;
-        return workDir.resolve("_models").toString();
+        return PythonEnv.resolveModelsRoot(envModelsRoot, workDir);
     }
 
     /**
      * Test seam (package-private, pure): {@code <modelsRoot>/marqo} — same
-     * shape the installer pins ({@code INSTALAR_Y_CORRER.bat} step 3g:
-     * {@code HF_HOME=%ROOT%\_models\marqo}) and {@code ml_embeddings.py}'s
-     * own fallback ({@code _default_hf_home()}: {@code <SCRAPER_MODELS_ROOT
-     * or _models>/marqo}), now derived from {@code SCRAPER_MODELS_ROOT}
-     * instead of a DB file path (design D5 — replaces the removed
-     * {@code hfHomeParaDb(String dbPath)}).
+     * shape the installer pins and {@code ml_embeddings.py}'s own fallback.
      */
     static String hfHomeParaModelsRoot(String modelsRoot) {
-        return Paths.get(modelsRoot).resolve("marqo").toString();
+        return PythonEnv.hfHomeParaModelsRoot(modelsRoot);
     }
 
     /** ProcessBuilder de los probes {@code tieneCuda}/{@code tienePytorch}. */
