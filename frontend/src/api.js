@@ -386,6 +386,17 @@ export async function undismissCategoria(categoria) {
 
 // ─── Supplement Builder ───────────────────────────────────────────────────────
 
+/**
+ * Supplement subtypes the builder can offer, in combo-assembly order.
+ * Returns [] on failure so the caller can fall back rather than crash the panel.
+ */
+export async function fetchSuplementosTipos() {
+  const r = await fetch(`${BASE}/api/suplementos/tipos`);
+  if (!r.ok) return [];
+  const body = await r.json();
+  return Array.isArray(body?.tipos) ? body.tipos : [];
+}
+
 export async function fetchSuplementosBuilder({ tipos, presupuesto = 0 }) {
   const p = new URLSearchParams();
   p.set('tipos', tipos.join(','));

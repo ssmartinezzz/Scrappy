@@ -248,6 +248,33 @@ class OutfitsEndpoints {
     // ─── Supplement Builder ──────────────────────────────────────────────────────
 
     /**
+     * The supplement subtypes the builder can offer, in combo-assembly order.
+     *
+     * <p>Pure taxonomy — needs no catalog, so unlike the builder it answers before the
+     * first scrape has ever run. The frontend selector used to hard-code this list and
+     * its group headings, which meant a new subtype had to be added in two places and a
+     * forgotten edit left a type the builder returns and the UI cannot select.</p>
+     *
+     * <p>Va directo a {@link SupplementCombo} y no vía {@code outfitService}: la lista no
+     * depende de ningún estado de instancia, así que ruteársela por un servicio sólo
+     * agregaría un colaborador que este endpoint no necesita.</p>
+     */
+    ResponseEntity<ObjectNode> suplementosTipos() {
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ArrayNode arr = root.putArray("tipos");
+        for (var t : SupplementCombo.tiposDisponibles()) {
+            ObjectNode n = arr.addObject();
+            n.put("tipo", t.tipo());
+            // grupo nullable = "Otros" del lado del cliente. Se manda explícito como null
+            // en vez de omitirlo, para que el cliente no tenga que distinguir "sin grupo"
+            // de "campo que no vino".
+            if (t.grupo() != null) n.put("grupo", t.grupo());
+            else n.putNull("grupo");
+        }
+        return ResponseEntity.ok(root);
+    }
+
+    /**
      * Picks one product per requested supplement type from the in-memory catalog.
      *
      * <p>GET /api/suplementos/builder?tipos=Proteína,Creatina&presupuesto=50000
