@@ -28,9 +28,11 @@ public class OutfitService {
     /**
      * Supplement-combo bodies, extracted to their own class (backlog A3).
      * Built here rather than injected so this constructor's shape stays
-     * unchanged for the existing test call sites.
+     * unchanged for the existing test call sites — it takes the same
+     * RecommendationService this class already receives, for the score tiebreak
+     * in its pick ranking.
      */
-    private final SupplementCombo supplementCombo = new SupplementCombo();
+    private final SupplementCombo supplementCombo;
 
     /**
      * Budget-builder bodies, extracted to their own class (backlog A3).
@@ -42,6 +44,7 @@ public class OutfitService {
     public OutfitService(RecommendationService recommendationService) {
         this.recommendationService = recommendationService;
         this.budgetBuilder = new OutfitBudgetBuilder(recommendationService);
+        this.supplementCombo = new SupplementCombo(recommendationService);
     }
 
     /** Slots requeridos para un outfit completo. */

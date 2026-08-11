@@ -1,12 +1,17 @@
 package ar.scraper.web;
 
+import ar.scraper.aggregator.text.AccentStripper;
 import ar.scraper.model.Product;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -23,10 +28,24 @@ import java.util.stream.Collectors;
  */
 class SupplementCombo {
 
+    /**
+     * Only used for {@code baseMlScore}, the tiebreak for candidates whose package
+     * size cannot be read off the name — the same ranking the "Para ti" feed and the
+     * budget builder already use, rather than a third opinion invented here.
+     */
+    private final RecommendationService recommendationService;
+
+    SupplementCombo(RecommendationService recommendationService) {
+        this.recommendationService = recommendationService;
+    }
+
     private record SubtipoSuplemento(String tipo, String[] keywords) { }
 
     /**
-     * Subtipos del combo de suplementos, en el orden en que se arma el combo.
+     * Subtipos del combo de suplementos, en el orden en que se arma el combo —
+     * que es también el orden en que se consume el presupuesto. NO es el orden de
+     * clasificación: para eso está {@link #PRECEDENCIA_CLASIFICACION}, donde los
+     * subtipos específicos corren antes que el bucket genérico de proteína.
      * Cada producto con categoria=="Suplemento" se reclasifica por nombre (no
      * toca el campo categoria canónico — evita romper el whitelist de accesorio
      * Gym ni los facets del dashboard, que dependen del string "Suplemento").
@@ -52,7 +71,9 @@ class SupplementCombo {
                     "tortita proteica", "galleta proteica",
                     // GRANGER-style protein snacks (product-owner request): match the
                     // bare noun so branded food (categoria "Alimentos") surfaces here.
-                    // Accented + unaccented forms — matchesSubtipo does not strip accents.
+                    // Accented forms are redundant now that keywords are normalized
+                    // like the names they match, but harmless — both fold to the same
+                    // token, so the duplicate is a no-op rather than a second rule.
                     "cupcake", "pudding", "budin", "budín", "omelette", "omelet"
             }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
@@ -102,6 +123,96 @@ class SupplementCombo {
     );
 
     /**
+     * Orden de clasificación — de específico a genérico, y deliberadamente distinto
+     * al de {@link #SUPLEMENTO_SUBTIPOS} (que es el orden de salida del combo).
+     *
+     * <p>Una barra de proteína es una barra, no un polvo. Antes cada subtipo filtraba
+     * el pool completo por su cuenta, así que un nombre que traía tokens de dos
+     * subtipos ("Barra de Proteína Whey") se emitía DOS veces: el mismo URL como
+     * polvo y como barra. Con asignación única el orden pasa a ser semántico —
+     * quien corre primero se lo lleva — y por eso los subtipos específicos van
+     * antes que "Proteína en Polvo", y "Multivitamínico" antes que las vitaminas
+     * individuales que un multivitamínico nombra de paso.</p>
+     */
+    private static final List<String> PRECEDENCIA_CLASIFICACION = List.of(
+            "Barra Proteica", "Pancake / Waffle", "Snack Proteico",
+            "Creatina", "Quemador",
+            "Multivitamínico", "Vitamina C", "Vitamina D", "Complejo B",
+            "Omega 3", "Zinc", "Magnesio",
+            "Mayonesa", "Ketchup / Salsa", "Mostaza", "Maple / Sirope",
+            "Proteína en Polvo");
+
+    /**
+     * Un subtipo con sus keywords ya normalizadas y ya padeadas, para que un request
+     * no las re-derive ni concatene un pad por comparación.
+     *
+     * <p>{@code prefijos} ancla al ARRANQUE de una palabra y admite sufijo, que es lo
+     * que mantiene viva la flexión del castellano ("barrita" sigue matcheando
+     * "Barritas"). {@code exactos} sale de las keywords DECLARADAS con espacio final
+     * — la convención que ya usaban este archivo y {@code GarmentTaxonomy} para decir
+     * "palabra completa, sin sufijo": "cla " no debe convertir "Clásico" en un
+     * quemador.</p>
+     */
+    private record SubtipoCompilado(String tipo, List<String> prefijos, List<String> exactos) {
+        boolean matches(String nombreNormalizado) {
+            for (String kw : prefijos) if (nombreNormalizado.contains(kw)) return true;
+            for (String kw : exactos)  if (nombreNormalizado.contains(kw)) return true;
+            return false;
+        }
+    }
+
+    // Declarado ANTES de SUBTIPOS_POR_PRECEDENCIA a propósito: los campos estáticos se
+    // inicializan en orden de declaración y compilarPorPrecedencia() normaliza keywords,
+    // así que un Pattern declarado más abajo llegaría null a su propio uso.
+    private static final Pattern NO_ALFANUMERICO = Pattern.compile("[^a-z0-9]+");
+
+    private static final List<SubtipoCompilado> SUBTIPOS_POR_PRECEDENCIA = compilarPorPrecedencia();
+
+    private static List<SubtipoCompilado> compilarPorPrecedencia() {
+        Map<String, SubtipoSuplemento> porTipo = new LinkedHashMap<>();
+        for (SubtipoSuplemento s : SUPLEMENTO_SUBTIPOS) porTipo.put(s.tipo(), s);
+
+        // Fail-fast en class-init si las dos listas divergen: un subtipo agregado a
+        // SUPLEMENTO_SUBTIPOS sin lugar en la precedencia nunca se clasificaría, que
+        // es exactamente la clase de bug silencioso que este orden viene a cerrar.
+        if (!porTipo.keySet().equals(new LinkedHashSet<>(PRECEDENCIA_CLASIFICACION))) {
+            throw new IllegalStateException(
+                    "PRECEDENCIA_CLASIFICACION y SUPLEMENTO_SUBTIPOS deben listar los mismos subtipos");
+        }
+
+        List<SubtipoCompilado> out = new ArrayList<>(PRECEDENCIA_CLASIFICACION.size());
+        for (String tipo : PRECEDENCIA_CLASIFICACION) {
+            List<String> prefijos = new ArrayList<>();
+            List<String> exactos  = new ArrayList<>();
+            for (String kw : porTipo.get(tipo).keywords()) {
+                boolean palabraCompleta = kw.endsWith(" ");
+                String norm = normalizar(kw); // viene padeado a ambos lados
+                if (norm.isBlank()) continue;
+                // Palabra completa conserva el pad derecho; el prefijo lo suelta.
+                if (palabraCompleta) exactos.add(norm);
+                else prefijos.add(norm.substring(0, norm.length() - 1));
+            }
+            out.add(new SubtipoCompilado(tipo, List.copyOf(prefijos), List.copyOf(exactos)));
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * minúsculas → acentos removidos → toda corrida de no-alfanuméricos colapsada a
+     * un espacio → padeado con espacios.
+     *
+     * <p>Que la puntuación se vuelva límite de palabra es a propósito: "Proteína/Whey"
+     * y "OMEGA-3" tokenizan igual que sus formas con espacio, algo que un
+     * {@code contains()} pelado sobre el nombre crudo no podía hacer. Se aplica a las
+     * keywords Y a los nombres, así que ambos lados de la comparación viven en el
+     * mismo alfabeto — el bug de fondo era justamente que no.</p>
+     */
+    private static String normalizar(String s) {
+        String base = AccentStripper.strip(s.toLowerCase());
+        return " " + NO_ALFANUMERICO.matcher(base).replaceAll(" ").trim() + " ";
+    }
+
+    /**
      * Orden de preferencia de marca para el combo de suplementos (confirmado por
      * el usuario): ENA y STAR ya tienen stock real en el catálogo; BCC ("La Roja")
      * no tiene productos hoy, pero queda en la lista para entrar sola el día que
@@ -137,40 +248,7 @@ class SupplementCombo {
      * el slot — combo completo > slot vacío).
      */
     List<OutfitService.SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto) {
-        if (productos == null) productos = List.of();
-        List<Product> suplementos = productos.stream()
-                .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
-                .collect(Collectors.toList());
-
-        List<OutfitService.SupplementPick> combo = new ArrayList<>();
-        double remainingBudget = presupuesto;
-        for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
-            List<Product> candidatos = suplementos.stream()
-                    .filter(p -> matchesSubtipo(p.nombre(), subtipo.keywords()))
-                    .collect(Collectors.toList());
-            if (candidatos.isEmpty()) continue;
-
-            Product elegido;
-            if (presupuesto > 0) {
-                final double rem = remainingBudget;
-                List<Product> affordable = candidatos.stream()
-                        .filter(p -> p.precio() <= rem)
-                        .collect(Collectors.toList());
-                if (!affordable.isEmpty()) {
-                    elegido = elegirPorMarcaPrioridad(affordable);
-                } else {
-                    // Ningún candidato cabe — elige el más barato (no bloquea el slot)
-                    elegido = candidatos.stream()
-                            .min(Comparator.comparingDouble(Product::precio))
-                            .orElse(candidatos.get(0));
-                }
-                remainingBudget = Math.max(0, remainingBudget - elegido.precio());
-            } else {
-                elegido = elegirPorMarcaPrioridad(candidatos);
-            }
-            combo.add(toSupplementPick(subtipo.tipo(), elegido));
-        }
-        return combo;
+        return armarComboSuplementos(productos, presupuesto, null);
     }
 
     /**
@@ -183,13 +261,17 @@ class SupplementCombo {
                 .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
 
+        // Se clasifica el pool ENTERO, no sólo los tipos pedidos: la asignación tiene
+        // que ser la misma trate el request de un subtipo o de todos. Si se filtrara
+        // antes, pedir sólo "Proteína en Polvo" volvería a mostrar barras como polvo —
+        // el bug de doble asignación, disfrazado de filtro.
+        Map<String, List<Product>> porTipo = clasificarPorSubtipo(suplementos);
+
         List<OutfitService.SupplementPick> combo = new ArrayList<>();
         double remainingBudget = presupuesto;
         for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
             if (tipos != null && !tipos.isEmpty() && !tipos.contains(subtipo.tipo())) continue;
-            List<Product> candidatos = suplementos.stream()
-                    .filter(p -> matchesSubtipo(p.nombre(), subtipo.keywords()))
-                    .collect(Collectors.toList());
+            List<Product> candidatos = porTipo.getOrDefault(subtipo.tipo(), List.of());
             if (candidatos.isEmpty()) continue;
 
             Product elegido;
@@ -199,37 +281,145 @@ class SupplementCombo {
                         .filter(p -> p.precio() <= rem)
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) {
-                    elegido = elegirPorMarcaPrioridad(affordable);
+                    elegido = elegirPick(affordable);
                 } else {
+                    // Nada entra en el presupuesto restante: acá lo que importa es gastar
+                    // lo mínimo posible, no el mejor $/kg — de ahí el precio absoluto.
                     elegido = candidatos.stream()
                             .min(Comparator.comparingDouble(Product::precio))
                             .orElse(candidatos.get(0));
                 }
                 remainingBudget = Math.max(0, remainingBudget - elegido.precio());
             } else {
-                elegido = elegirPorMarcaPrioridad(candidatos);
+                elegido = elegirPick(candidatos);
             }
             combo.add(toSupplementPick(subtipo.tipo(), elegido));
         }
         return combo;
     }
 
-    private boolean matchesSubtipo(String nombre, String[] keywords) {
-        if (nombre == null || nombre.isBlank()) return false;
-        String t = nombre.toLowerCase();
-        for (String kw : keywords) {
-            if (t.contains(kw)) return true;
-        }
-        return false;
-    }
-
-    private Product elegirPorMarcaPrioridad(List<Product> candidatos) {
-        for (String marca : SUPLEMENTO_MARCA_PRIORIDAD) {
-            for (Product p : candidatos) {
-                if (marca.equalsIgnoreCase(p.marca())) return p;
+    /**
+     * Asigna cada producto a EXACTAMENTE UN subtipo — el primero que matchea en orden
+     * de precedencia — en una sola pasada.
+     *
+     * <p>Reemplaza un stream completo por subtipo (17 pasadas sobre el pool, con un
+     * {@code toLowerCase()} nuevo de cada nombre en cada una) por una pasada que
+     * normaliza cada nombre una única vez. Un producto sin subtipo simplemente no
+     * entra al mapa: el combo lo omite, igual que antes.</p>
+     */
+    private Map<String, List<Product>> clasificarPorSubtipo(List<Product> suplementos) {
+        Map<String, List<Product>> porTipo = new HashMap<>();
+        for (Product p : suplementos) {
+            if (p.nombre() == null || p.nombre().isBlank()) continue;
+            String nombreNormalizado = normalizar(p.nombre());
+            for (SubtipoCompilado subtipo : SUBTIPOS_POR_PRECEDENCIA) {
+                if (subtipo.matches(nombreNormalizado)) {
+                    porTipo.computeIfAbsent(subtipo.tipo(), k -> new ArrayList<>()).add(p);
+                    break;
+                }
             }
         }
-        return candidatos.get(ThreadLocalRandom.current().nextInt(candidatos.size()));
+        return porTipo;
+    }
+
+    /**
+     * Elige el pick de un subtipo. Antes era "el primer producto de la marca preferida
+     * que aparezca, y si no hay ninguno, uno AL AZAR" — o sea que el mismo catálogo
+     * devolvía otro suplemento en cada request, y entre dos potes de la misma marca
+     * ganaba el que la lista trajera primero.
+     *
+     * <p>Claves de orden, de mayor a menor peso:</p>
+     * <ol>
+     *   <li>marca preferida ({@link #SUPLEMENTO_MARCA_PRIORIDAD}) — es una preferencia
+     *       confirmada por el usuario, así que sigue mandando sobre el valor;</li>
+     *   <li>precio por unidad de medida ($/g, $/ml, $/cápsula) ascendente, entre los
+     *       candidatos de unidad comparable;</li>
+     *   <li>{@code baseMlScore} descendente, para los que no declaran tamaño;</li>
+     *   <li>url ascendente, para que el pick sea estable entre requests.</li>
+     * </ol>
+     *
+     * <p>Que la marca gane sobre el valor es deliberado, no un descuido: invertir las
+     * dos primeras claves es mover una línea, el día que se prefiera el mejor $/kg del
+     * catálogo por encima de la marca de confianza.</p>
+     */
+    private Product elegirPick(List<Product> candidatos) {
+        return mejorValor(mejorGrupoDeMarca(candidatos));
+    }
+
+    /** Candidatos de la marca preferida de mayor prioridad presente; si no hay, todos. */
+    private List<Product> mejorGrupoDeMarca(List<Product> candidatos) {
+        for (String marca : SUPLEMENTO_MARCA_PRIORIDAD) {
+            List<Product> delGrupo = candidatos.stream()
+                    .filter(p -> marca.equalsIgnoreCase(p.marca()))
+                    .collect(Collectors.toList());
+            if (!delGrupo.isEmpty()) return delGrupo;
+        }
+        return candidatos;
+    }
+
+    /**
+     * Mejor relación precio/tamaño del grupo. Sólo se dividen precios por magnitudes de
+     * la MISMA familia de unidad: $/gramo contra $/cápsula no es un número que signifique
+     * algo. Se toma la familia mayoritaria del grupo y los que quedan afuera (otra familia,
+     * o sin tamaño legible) caen al desempate por score.
+     */
+    private Product mejorValor(List<Product> candidatos) {
+        List<Medido> medidos = candidatos.stream()
+                .map(p -> new Medido(p, SupplementSizeParser.parse(p.nombre())))
+                .collect(Collectors.toList());
+
+        SupplementSizeParser.Familia dominante = familiaDominante(medidos);
+        List<Medido> comparables = medidos.stream()
+                .filter(m -> m.tamano().familia() == dominante)
+                .collect(Collectors.toList());
+
+        if (!comparables.isEmpty()) {
+            return comparables.stream()
+                    .min(Comparator
+                            .comparingDouble((Medido m) -> m.producto().precio() / m.tamano().magnitud())
+                            .thenComparingDouble(m -> -recommendationService.baseMlScore(m.producto()))
+                            .thenComparing(m -> urlDe(m.producto())))
+                    .map(Medido::producto)
+                    .orElseThrow();
+        }
+
+        return candidatos.stream()
+                .min(Comparator
+                        .comparingDouble((Product p) -> -recommendationService.baseMlScore(p))
+                        .thenComparingDouble(Product::precio)
+                        .thenComparing(SupplementCombo::urlDe))
+                .orElseThrow();
+    }
+
+    /** Un candidato con su tamaño ya parseado, para no re-parsear el nombre por comparación. */
+    private record Medido(Product producto, SupplementSizeParser.Tamano tamano) { }
+
+    /**
+     * Familia de unidad mayoritaria entre los candidatos con tamaño legible.
+     * Empate → MASA, VOLUMEN, CONTEO en ese orden, para que el resultado no dependa
+     * del orden de llegada del catálogo. Ninguno legible → DESCONOCIDA, que no
+     * matchea a nadie y manda todo el grupo al desempate por score.
+     */
+    private static SupplementSizeParser.Familia familiaDominante(List<Medido> medidos) {
+        Map<SupplementSizeParser.Familia, Integer> conteo = new HashMap<>();
+        for (Medido m : medidos) {
+            if (m.tamano().conocido()) conteo.merge(m.tamano().familia(), 1, Integer::sum);
+        }
+        SupplementSizeParser.Familia mejor = SupplementSizeParser.Familia.DESCONOCIDA;
+        int mejorConteo = 0;
+        for (SupplementSizeParser.Familia f : List.of(SupplementSizeParser.Familia.MASA,
+                SupplementSizeParser.Familia.VOLUMEN, SupplementSizeParser.Familia.CONTEO)) {
+            int c = conteo.getOrDefault(f, 0);
+            if (c > mejorConteo) {
+                mejor = f;
+                mejorConteo = c;
+            }
+        }
+        return mejor;
+    }
+
+    private static String urlDe(Product p) {
+        return p.url() != null ? p.url() : "";
     }
 
     private OutfitService.SupplementPick toSupplementPick(String tipo, Product p) {
