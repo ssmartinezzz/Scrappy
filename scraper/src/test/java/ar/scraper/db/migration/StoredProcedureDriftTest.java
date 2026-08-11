@@ -15,29 +15,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * manual-classification-lock, Phase 2 (task 2.1) — generalized by
- * normalize-db-schema-fks-1nf, slice A.2 (task 2.8, design D1).
+ * normalize-db-schema-fks-1nf, slice A.2 (task 2.8, design D1), then
+ * generalized a second time (verify-report #847 WARNING 1) to also cover
+ * {@code sp_soft_delete_ausentes} — renamed from {@code SpUpsertRunDriftTest}
+ * because it no longer describes only one function.
  *
- * <p>{@code sp_upsert_run} has no partial redefinition in Postgres, and
- * {@code V1__baseline.sql} is never edited (Flyway validates checksums), so
- * every migration that touches this function MUST carry the entire previous
- * body forward verbatim, with only its own change applied. This is a
- * mechanical, no-DB guard against copy-paste drift: for each hop in the
- * {@code V1 -> V3 -> V5} chain, it undoes that hop's own declared
+ * <p>Neither {@code sp_upsert_run} nor {@code sp_soft_delete_ausentes} has a
+ * partial redefinition in Postgres, and {@code V1__baseline.sql}/
+ * {@code V3__manual_classification_lock.sql} are never edited (Flyway
+ * validates checksums), so every migration that touches either function MUST
+ * carry the entire previous body forward verbatim, with only its own change
+ * applied. This is a mechanical, no-DB guard against copy-paste drift: for
+ * each {@link Hop} in a function's chain, it undoes that hop's own declared
  * {@link Substitution}s on the CURRENT body and asserts the result is
  * byte-identical (modulo whitespace) to the PREVIOUS body — proving nothing
  * <em>else</em> changed relative to the real previous migration.</p>
+ *
+ * <p>{@code sp_upsert_run}'s chain is {@code V1 -> V3 -> V5} (V3 redefines
+ * it for the manual-classification lock). {@code sp_soft_delete_ausentes} is
+ * NOT redefined by V3 — confirmed by reading V3__manual_classification_lock.sql,
+ * which touches only {@code sp_upsert_run} — so its chain is the single hop
+ * {@code V1 -> V5}.</p>
  *
  * <p>Rejected (design D1): freezing a golden text file of the expected body
  * — it creates a second copy of the same ~90 lines to maintain and drops the
  * property this test exists for.</p>
  */
-class SpUpsertRunDriftTest {
+class StoredProcedureDriftTest {
 
     private static final String V1 = "/db/migration/V1__baseline.sql";
     private static final String V3 = "/db/migration/V3__manual_classification_lock.sql";
     private static final String V5 = "/db/migration/V5__boolean_and_date_column_types.sql";
 
-    private static final String FUNCTION_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
+    private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
+    private static final String SP_SOFT_DELETE_AUSENTES_START =
+            "CREATE OR REPLACE FUNCTION sp_soft_delete_ausentes";
     private static final String FUNCTION_END = "$$ LANGUAGE plpgsql;";
     private static final String SET_MARKER = "ON CONFLICT (url) DO UPDATE SET";
 
@@ -45,7 +57,8 @@ class SpUpsertRunDriftTest {
     private record Substitution(String description, Pattern pattern, String replacement) {
     }
 
-    private record Hop(String previous, String current, List<Substitution> substitutions) {
+    /** {@code functionStart} scopes body extraction to one function when a file defines several. */
+    private record Hop(String functionStart, String previous, String current, List<Substitution> substitutions) {
     }
 
     /** Decision D3 (manual-classification-lock): the 5 columns V3 locks behind bloqueado_por. */
@@ -56,7 +69,7 @@ class SpUpsertRunDriftTest {
             "EXCLUDED.$1");
 
     /** Design D2/D6 (normalize-db-schema-fks-1nf slice A.2): boolean + date/timestamptz casts introduced by V5. */
-    private static final List<Substitution> V5_CASTS = List.of(
+    private static final List<Substitution> SP_UPSERT_RUN_V5_CASTS = List.of(
             new Substitution(
                     "activo boolean predicate -> activo = 1 (productos.activo INTEGER pre-V5)",
                     Pattern.compile("WHERE url = r->>'url' AND activo;"),
@@ -88,16 +101,37 @@ class SpUpsertRunDriftTest {
                     "VALUES (r->>'url', v_new_precio, r->>'fecha')")
     );
 
+    /**
+     * Design D2/D6, task 2.5: {@code sp_soft_delete_ausentes} gains the same
+     * boolean/timestamptz casts as {@code sp_upsert_run}, in its own single
+     * V1 -> V5 hop (V3 never touches this function).
+     */
+    private static final List<Substitution> SP_SOFT_DELETE_AUSENTES_V5_CASTS = List.of(
+            new Substitution(
+                    "SET activo boolean literal -> INTEGER literal",
+                    Pattern.compile("SET activo = false,"),
+                    "SET activo = 0,"),
+            new Substitution(
+                    "touched_at timestamptz cast on p_now -> plain text param",
+                    Pattern.compile("touched_at = p_now::timestamptz"),
+                    "touched_at = p_now"),
+            new Substitution(
+                    "WHERE activo boolean predicate -> activo = 1",
+                    Pattern.compile("WHERE activo AND NOT"),
+                    "WHERE activo = 1 AND NOT")
+    );
+
     private static final List<Hop> CHAIN = List.of(
-            new Hop(V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
-            new Hop(V3, V5, V5_CASTS)
+            new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
+            new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
+            new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
     );
 
     @Test
     void everyHopInTheChainIsIdenticalModuloItsDeclaredSubstitutions() {
         for (Hop hop : CHAIN) {
-            String previousBody = normalizeWhitespace(readFunctionBody(hop.previous()));
-            String currentBody = normalizeWhitespace(readFunctionBody(hop.current()));
+            String previousBody = normalizeWhitespace(readFunctionBody(hop.previous(), hop.functionStart()));
+            String currentBody = normalizeWhitespace(readFunctionBody(hop.current(), hop.functionStart()));
 
             String undone = currentBody;
             for (Substitution s : hop.substitutions()) {
@@ -110,15 +144,15 @@ class SpUpsertRunDriftTest {
             }
 
             assertThat(undone)
-                    .as("%s's body, with its declared substitutions undone, must equal %s's body exactly",
-                            hop.current(), hop.previous())
+                    .as("%s's body, with its declared substitutions undone, must equal %s's body exactly (function %s)",
+                            hop.current(), hop.previous(), hop.functionStart())
                     .isEqualTo(previousBody);
         }
     }
 
     @Test
     void v3GuardsExactlyTheFiveDecisionD3Columns() {
-        String v3Body = readFunctionBody(V3);
+        String v3Body = readFunctionBody(V3, SP_UPSERT_RUN_START);
         List<ColumnAssignment> v3Pairs = parseSetClause(v3Body);
 
         Pattern lockGuard = Pattern.compile(
@@ -140,17 +174,17 @@ class SpUpsertRunDriftTest {
     private record ColumnAssignment(String column, String expression) {
     }
 
-    private static String readFunctionBody(String classpathResource) {
+    private static String readFunctionBody(String classpathResource, String functionStart) {
         String full = readClasspathResource(classpathResource);
-        int start = full.indexOf(FUNCTION_START);
-        assertThat(start).as("sp_upsert_run definition present in " + classpathResource).isNotEqualTo(-1);
+        int start = full.indexOf(functionStart);
+        assertThat(start).as(functionStart + " definition present in " + classpathResource).isNotEqualTo(-1);
         int end = full.indexOf(FUNCTION_END, start);
-        assertThat(end).as("sp_upsert_run terminator present in " + classpathResource).isNotEqualTo(-1);
+        assertThat(end).as(functionStart + " terminator present in " + classpathResource).isNotEqualTo(-1);
         return full.substring(start, end + FUNCTION_END.length());
     }
 
     private static String readClasspathResource(String path) {
-        try (InputStream in = SpUpsertRunDriftTest.class.getResourceAsStream(path)) {
+        try (InputStream in = StoredProcedureDriftTest.class.getResourceAsStream(path)) {
             Objects.requireNonNull(in, "Missing classpath resource: " + path);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
