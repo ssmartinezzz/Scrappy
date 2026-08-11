@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * {@code propose_reclassify(url, categoria, subCategoria?, marca?, genero?)}
@@ -26,6 +27,17 @@ public class ProposeReclassifyTool implements CatalogTool {
 
     public static final String NAME = "propose_reclassify";
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /**
+     * normalize-db-schema-fks-1nf, slice A.3, design D7. Same five-value
+     * domain the V6 {@code chk_productos_genero_domain} CHECK enforces —
+     * {@code ""} is {@link ar.scraper.aggregator.normalize.GenderResolver}'s
+     * abstention sentinel, never "invalid". Kept in sync with V6's literal
+     * list by construction: both trace to the same live-data verification
+     * (obs #839).
+     */
+    private static final Set<String> VALID_GENEROS =
+            Set.of("hombre", "mujer", "unisex", "infantil", "");
 
     private final ScraperService scraperService;
 
@@ -87,6 +99,19 @@ public class ProposeReclassifyTool implements CatalogTool {
         String subCategoria = optionalText(args, "subCategoria", current.subCategoria());
         String marca        = optionalText(args, "marca", current.marca());
         String genero        = optionalText(args, "genero", current.genero());
+
+        // design D7: genero validated against the same five-value domain the
+        // V6 CHECK enforces at the DB. Decision: REJECT (mirrors the
+        // categoria idiom above, CODE-6) rather than normalise-then-accept —
+        // the tool must report honestly what the LLM actually asked for, not
+        // silently rewrite it. Without this, an out-of-domain/miscased value
+        // (e.g. 'Mujer') would flow through this diff, get confirmed, and
+        // turn a data anomaly into a 500 at apply time once the CHECK exists.
+        if (!VALID_GENEROS.contains(genero)) {
+            return ToolResult.error("",
+                    "Género inválido: '" + genero + "'. Valores válidos: "
+                            + String.join(", ", VALID_GENEROS.stream().sorted().toList()) + ".");
+        }
 
         ReclassifyProposal proposal = new ReclassifyProposal(
                 url, current.nombre(), current.categoria(), categoriaPropuesta,
