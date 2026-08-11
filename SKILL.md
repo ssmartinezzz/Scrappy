@@ -1,46 +1,74 @@
 # Fashion Scraper — Índice de Documentación Técnica
 
-Este índice referencia todos los documentos técnicos del proyecto. Cada doc es independiente y cubre un área específica.
+Índice de todo lo que se puede leer en este repo: docs, suites de test y
+directorios con identidad propia. Cada entrada es independiente.
 
 ---
 
-## Documentos disponibles
+## Empezar acá
 
 | Doc | Qué cubre | Cuándo leerlo |
 |-----|-----------|---------------|
-| [`CLAUDE.md`](./CLAUDE.md) | Estado completo del proyecto, stack, sitios, API, problemas conocidos | Siempre — inicio de sesión |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Decisiones de arquitectura y por qué se tomaron | Antes de proponer cambios estructurales |
-| [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md) | Paso a paso para agregar un sitio nuevo | Al agregar soporte para una tienda nueva |
-| [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Cómo funciona el pipeline ML y cómo extenderlo | Al modificar scoring, badges o clustering |
+| [`CLAUDE.md`](./CLAUDE.md) | **Estado** del proyecto: stack, sitios, API, base de datos, problemas conocidos | Siempre — inicio de sesión |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | **Proceso**: commits, PRs, TDD, contrato de refactor, qué doc actualizar con cada cambio. Reglas con **ID citable** (`COMMIT-2`, `CODE-3`…) para referenciarlas en un review | Antes de escribir código o abrir un PR |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | **Por qué**: decisiones estructurales y su justificación | Antes de proponer cambios estructurales |
+
+El reparto entre los tres es deliberado: estado / proceso / por qué. Si un dato
+responde "¿qué hay hoy?" va al primero, "¿cómo se trabaja?" al segundo, "¿por
+qué así?" al tercero.
+
+## Referencia por área
+
+| Doc | Qué cubre | Cuándo leerlo |
+|-----|-----------|---------------|
 | [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) | Todos los endpoints REST con params y responses | Al modificar la API o integrar con externos |
-| [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | Cómo se conecta el LLM desde Java (costura `ChatProvider`, loop acotado, tools) y las 8 reglas que gobiernan al agente | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |
+| [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md) | Paso a paso para agregar un sitio nuevo | Al agregar soporte para una tienda nueva |
+| [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Pipeline ML: scoring, badges, clustering, stage 1b visual | Al modificar scoring, badges o atributos visuales |
+| [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | El agente desde Java: costura `ChatProvider`, loop acotado, tools, y las 8 reglas que lo gobiernan | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |
 | [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) | Instalar Ollama y configurar las variables `LLM_*` | Al levantar el agente por primera vez o cambiar de proveedor |
-| [`docs/migration/aggregator-solid-modularization.md`](./docs/migration/aggregator-solid-modularization.md) | Historial slice por slice de la modularización SOLID de `ar.scraper.aggregator` (NormalizerService/GroupingService/ResultAggregator → orquestadores + collaborators) | Al tocar código en `aggregator/` y necesitar entender por qué una clase quedó donde quedó |
-| [`docker-compose.yml`](./docker-compose.yml) + [`docker.env.example`](./docker.env.example) | Vía de instalación **aditiva** por Docker (`docker compose up`): 3 servicios (postgres + backend Java/Python/Playwright + frontend nginx). No reemplaza el `.bat`/`.sh`. | Al correr el proyecto con Docker o tocar la config de contenedores (ver también la topología en `ARCHITECTURE.md`) |
-| [`cli/`](./cli/) | CLI nativo (Python): reemplaza a `menu.ps1`/`menu.sh` (retirados, `native-cli-installer` 2026-07-25) — headless `core/` (build/`.env`/REST/procesos) + presentador Textual + fallback texto plano. Arranca backend + frontend, ofrece build/scrape/retrain/status/CRUD de sitios, teardown limpio. Tests en `tests/cli/` (pytest) | Al modificar el launcher interactivo, el build, la generación de `.env`, o el arranque de servicios del flujo portable |
+
+## Código con identidad propia
+
+| Dónde | Qué es | Cuándo entrar |
+|-------|--------|---------------|
+| [`cli/`](./cli/) | CLI nativo en Python: consola por comandos (Textual) + fallback texto plano + `core/` headless (build, `.env`, REST, procesos, logs). Arranca backend y frontend. Reemplazó a `menu.ps1`/`menu.sh` | Al modificar el launcher, el build, la generación de `.env` o el arranque de servicios |
+| [`openspec/`](./openspec/) | Artefactos SDD: `changes/<nombre>/` los activos, `changes/archive/<fecha>-<nombre>/` los cerrados, `specs/` las specs vigentes | Al retomar un cambio en curso o buscar por qué se especificó algo así |
+| [`scripts/dev-db.sh`](./scripts/dev-db.sh) | Launcher on-demand del Postgres de desarrollo (`up`/`down`/`status`) | Al levantar la DB local sin el instalador completo |
+| [`scripts/hooks/`](./scripts/hooks/) | Hook `commit-msg` que bloquea `COMMIT-1` y `COMMIT-3`. Se activa una vez por clon: `git config core.hooksPath scripts/hooks` | Al clonar el repo, o si un commit te rebota |
+
+## Suites de test
+
+| Suite | Qué cubre | Cómo se corre |
+|-------|-----------|---------------|
+| `scraper/src/test/` | Backend Java: normalización, aggregator, DB (Postgres real), API, agente, armadores | `mvn -f scraper/pom.xml clean test` — ver `CONTRIBUTING.md` para el `JAVA_HOME` de esta máquina |
+| [`ml-tests/`](./ml-tests/) | Pipeline Python: clustering, embeddings, clasificación zero-shot, cache Postgres | `pytest ml-tests` |
+| [`tests/cli/`](./tests/cli/) | CLI nativo: `core/` headless, Textual vía `Pilot`, routing de degradación, injection-safety | `pytest tests/cli` |
+| `frontend/src/**/*.test.jsx` | Componentes React (Vitest) | `cd frontend && npm test` |
+
+## Instalación y despliegue
+
+| Dónde | Qué es |
+|-------|--------|
+| [`INSTALAR_Y_CORRER.bat`](./INSTALAR_Y_CORRER.bat) | Windows: aprovisiona el toolchain completo en `_tools/` (JDK, Maven, Node, Python, Postgres portable, `uv` + `cli-venv`) e invoca el CLI nativo |
+| [`Ejecutar_instalar.sh`](./Ejecutar_instalar.sh) | Mirror POSIX. Asume java/mvn/node/python3 del sistema; sí vendoriza `uv` + `cli-venv` |
+| [`docker-compose.yml`](./docker-compose.yml) + [`docker.env.example`](./docker.env.example) | Vía **aditiva** por Docker: postgres + backend + frontend. No reemplaza el flujo portable |
 
 ---
 
-## Convenciones del proyecto
+## Convenciones
 
-### Entrega y control de versiones
-El proyecto se entrega por **git**: cada cambio va en una feature branch → PR a
-`master` (squash merge), con **conventional commits** (`feat:`, `fix:`, `chore:`,
-`docs:`, `ci:`…). Sin "Co-Authored-By" ni atribución de IA en los commits.
+Viven en [`CONTRIBUTING.md`](./CONTRIBUTING.md), con ID citable cada una —
+commits, tamaño de PR, TDD, contrato de refactor, "medir no estimar",
+abstención, y la tabla de qué doc actualizar con cada tipo de cambio.
 
-### Spec Driven Development (SDD)
-Los cambios sustanciales pasan por el ciclo SDD, con los artefactos **persistidos
-en engram** (no en chat): `explore → proposal → spec → design → tasks → apply →
-verify → archive`. Cada fase la corre un sub-agente que lee/escribe su artefacto
-en engram (topic keys `sdd/{change}/{fase}`). El orden de implementación dentro de
-`apply` sigue siendo model → service → api → frontend.
+**Al clonar**: `git config core.hooksPath scripts/hooks`.
 
-### Escaping en Java strings con JS embebido
-**Regla crítica**: dentro de strings Java que contienen código JavaScript:
-- Regex con `\d`, `\s`, etc. → usar `\\d`, `\\s` (un nivel más de escape)
-- Comillas dobles en JS → usar `'` (single quotes) siempre que sea posible
-- NO usar `\?`, `\$`, `\,`, `\.` como escapes en Java — son ilegales
-- Verificar siempre con el script Python de validación antes de empaquetar
+Dos que conviene tener presentes al leer código de este repo:
 
-### Patrón de adición de sitio nuevo
-Ver `docs/ADD_SCRAPER.md`. Para una plataforma ya soportada (Shopify/TN/VTEX/Vaypol/Woo) alcanza con **2 archivos**: `config.properties` + el name-set en `ScraperFactory`. Una plataforma totalmente custom suma hasta **2 más**: un nuevo `*Page.java` + `*Scraper.java`.
+- **Escaping en strings Java con JS embebido**: regex `\d`/`\s` van como
+  `\\d`/`\\s`; comillas simples en el JS; `\?`, `\$`, `\,`, `\.` son escapes
+  ilegales en Java.
+- **Agregar un sitio de una plataforma ya soportada** (Shopify/TN/VTEX/Vaypol/
+  Woo) son **2 archivos**: `config.properties` + el name-set en
+  `ScraperFactory`. Una plataforma custom suma hasta 2 más: `*Page.java` +
+  `*Scraper.java`. Detalle en `docs/ADD_SCRAPER.md`.
