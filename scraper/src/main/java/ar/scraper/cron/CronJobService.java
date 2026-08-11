@@ -9,9 +9,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -187,7 +189,27 @@ public class CronJobService {
         return due;
     }
 
+    /**
+     * {@code nextRunAt} llega en DOS formas legítimas y el poller tiene que
+     * aceptar las dos (normalize-db-schema-fks-1nf, slice A.4):
+     *
+     * <ul>
+     *   <li>Con offset ({@code 2026-07-05T06:00:00Z}) cuando viene de la DB:
+     *       desde V8 {@code cron_jobs.next_run_at} es {@code TIMESTAMPTZ} y el
+     *       repositorio lo devuelve como instante, no como hora local suelta.</li>
+     *   <li>Sin offset ({@code 2026-07-05T03:00:00}) cuando viene recién salido
+     *       de {@link #computeNextRun}, que nombra una hora LOCAL — es la forma
+     *       que además se persiste y se expone en la API.</li>
+     * </ul>
+     *
+     * <p>Un {@code LocalDateTime.parse} pelado explotaba con la primera y
+     * dejaba el poller sin disparar un solo job.</p>
+     */
     private ZonedDateTime parseAsZoned(String iso, ZoneId zone) {
-        return LocalDateTime.parse(iso).atZone(zone);
+        try {
+            return OffsetDateTime.parse(iso).atZoneSameInstant(zone);
+        } catch (DateTimeParseException sinOffset) {
+            return LocalDateTime.parse(iso).atZone(zone);
+        }
     }
 }

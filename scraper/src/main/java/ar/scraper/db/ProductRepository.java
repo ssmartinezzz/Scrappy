@@ -547,7 +547,7 @@ class ProductRepository {
         String sitioKey = SiteClassification.sitioKey(previo != null ? previo.sitio() : "");
         String rubroPrevio = previo != null ? previo.rubro() : null;
         String rubro = rubroResolver.resolver(sitioKey, categoria, rubroPrevio);
-        String ahora = LocalDateTime.now().format(DT);
+        java.time.OffsetDateTime ahora = Timestamps.now();
 
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
@@ -561,7 +561,7 @@ class ProductRepository {
                         "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
                     ps.setString(1, rubro != null ? rubro : "indumentaria");
                     ps.setString(2, actor != null && !actor.isBlank() ? actor : "local");
-                    ps.setString(3, ahora);
+                    ps.setObject(3, ahora);
                     ps.setString(4, url);
                     ps.executeUpdate();
                 }
@@ -580,7 +580,7 @@ class ProductRepository {
                     ps.setString(7, genero != null ? genero : "");
                     ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
                     ps.setString(9, subCategoria != null ? subCategoria : "");
-                    ps.setString(10, ahora);
+                    ps.setObject(10, ahora);
                     ps.setString(11, actor != null && !actor.isBlank() ? actor : "local");
                     ps.executeUpdate();
                 }

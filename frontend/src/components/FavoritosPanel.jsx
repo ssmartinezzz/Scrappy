@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LayoutGrid, List, ShoppingBag } from 'lucide-react';
 import BuySignal from './BuySignal';
+import { formatFecha } from '../lib/fechas';
 import { TiltCarousel } from './ui/tilt-carousel';
 import { ImageWithFallback } from './ui/image-with-fallback';
 import { rescrapeFavoritos, fmt } from '../api';
@@ -41,11 +42,7 @@ function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDetail }) {
   }
 
   const slots = outfit.slots || [];
-  const dateStr = outfit.createdAt
-    ? new Date(outfit.createdAt.replace(' ', 'T')).toLocaleDateString('es-AR', {
-        day:'2-digit', month:'2-digit', year:'numeric',
-      })
-    : '';
+  const dateStr = outfit.createdAt ? formatFecha(outfit.createdAt) : '';
 
   return (
     <div style={{

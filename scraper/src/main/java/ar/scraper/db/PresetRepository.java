@@ -9,8 +9,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -25,7 +23,6 @@ import java.util.Optional;
 class PresetRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(PresetRepository.class);
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final String PRESET_ILUSTRATIVO_LABEL =
             "Ejemplo — 12 cuotas / 40% recargo (editá este valor)";
@@ -66,7 +63,7 @@ class PresetRepository {
             ps.setDouble(2, recargoPct);
             ps.setInt(3, cuotas);
             ps.setBoolean(4, activo);
-            ps.setString(5, LocalDateTime.now().format(DT));
+            ps.setObject(5, Timestamps.now());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : -1;

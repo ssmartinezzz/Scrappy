@@ -11,8 +11,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Persistence for the {@code ml_output} aggregate (last pipeline payload).
@@ -23,7 +21,6 @@ class MlOutputRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(MlOutputRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -41,11 +38,11 @@ class MlOutputRepository {
             c.setAutoCommit(false);
             try {
                 String json = MAPPER.writeValueAsString(mlOutput);
-                String now  = LocalDateTime.now().format(DT);
+                java.time.OffsetDateTime now = Timestamps.now();
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
                     ps.setString(1, json);
-                    ps.setString(2, now);
+                    ps.setObject(2, now);
                     ps.executeUpdate();
                 }
                 // Mantener solo los últimos 10 outputs
