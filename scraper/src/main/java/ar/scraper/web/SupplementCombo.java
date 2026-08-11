@@ -371,12 +371,18 @@ class SupplementCombo {
     }
 
     /**
-     * Orden de preferencia de marca para el combo de suplementos (confirmado por
-     * el usuario): ENA y STAR ya tienen stock real en el catálogo; BCC ("La Roja")
-     * no tiene productos hoy, pero queda en la lista para entrar sola el día que
-     * se scrapee esa marca, sin tocar este código de nuevo.
+     * Orden de preferencia de marca para el combo de suplementos, confirmado por el
+     * usuario. Es un ORDEN, no un conjunto: {@link #mejorGrupoDeMarca} se queda con
+     * el primero que tenga stock, y recién ahí el valor desempata.
+     *
+     * <p>Los strings tienen que coincidir con los que emite
+     * {@code BrandExtractor.MARCAS} — es de donde sale {@code Product.marca()}. La
+     * versión anterior de esta lista ("ENA", "STAR", "BCC") no matcheaba nada porque
+     * esa lista curada no conocía ni una marca de suplementos, así que toda marca
+     * caía al nombre del sitio y esta preferencia era código muerto.</p>
      */
-    private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD = List.of("ENA", "STAR", "BCC");
+    private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD =
+            List.of("ENA", "Gold Nutrition", "Star Nutrition", "BSA", "Xtrenght");
 
     /**
      * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice

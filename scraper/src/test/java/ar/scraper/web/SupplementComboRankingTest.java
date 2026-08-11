@@ -71,6 +71,24 @@ class SupplementComboRankingTest {
     }
 
     @Test
+    void preferredBrandsAreRankedAmongThemselves() {
+        // The list is an ORDER, not a set: ENA over Gold Nutrition over Star Nutrition
+        // over BSA over Xtrenght. Value only breaks ties inside the winning brand, so
+        // the cheapest-per-gram jar here still loses for being the last brand listed.
+        var xtrenght = suplemento("Whey Xtrenght 2kg", 10000, "Xtrenght");
+        var bsa      = suplemento("Whey BSA 1kg", 20000, "BSA");
+        var star     = suplemento("Whey Star 1kg", 20000, "Star Nutrition");
+        var gold     = suplemento("Whey Gold 1kg", 20000, "Gold Nutrition");
+        var ena      = suplemento("Whey ENA 1kg", 20000, "ENA");
+
+        assertThat(pick(List.of(xtrenght, bsa, star, gold, ena)).marca()).isEqualTo("ENA");
+        assertThat(pick(List.of(xtrenght, bsa, star, gold)).marca()).isEqualTo("Gold Nutrition");
+        assertThat(pick(List.of(xtrenght, bsa, star)).marca()).isEqualTo("Star Nutrition");
+        assertThat(pick(List.of(xtrenght, bsa)).marca()).isEqualTo("BSA");
+        assertThat(pick(List.of(xtrenght)).marca()).isEqualTo("Xtrenght");
+    }
+
+    @Test
     void ranksByValueWithinThePreferredBrand() {
         var enaCara   = suplemento("Whey ENA Chica 1kg", 20000, "ENA");
         var enaBarata = suplemento("Whey ENA Grande 2kg", 30000, "ENA");
