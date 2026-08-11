@@ -129,6 +129,90 @@ para borrar datos de usuario para satisfacerse a sí misma.
 
 ---
 
+### ¿Cómo se revierte `V5` (booleans + fechas) si hace falta?
+
+**Por qué esto no vive dentro de `V5__boolean_and_date_column_types.sql`**:
+cualquier byte agregado a una migración de Flyway ya aplicada rompe la
+validación de checksum (`flyway_schema_history.checksum` queda desactualizado)
+la próxima vez que esa base arranque — el backend directamente no bootea
+(`FlywayValidateException`, "Migration checksum mismatch"). Verificado de
+forma empírica, no asumido: se aplicó la cadena `V1..V5` completa contra un
+`postgres:16-alpine` descartable vía el CLI oficial de Flyway, se le agregó
+una sola línea de comentario a `V5` en disco, y tanto `flyway validate` como
+`flyway migrate` fallaron con exactamente ese error. `V5` ya está commiteada;
+agregarle un bloque de rollback ahí adentro reabre ese riesgo para cualquier
+instalación que ya la haya corrido. La documentación del rollback vive acá en
+cambio — este documento explica decisiones, no ejecuta SQL, así que no tiene
+checksum que romper.
+
+**La secuencia ingenua no alcanza.** `ALTER COLUMN col TYPE integer USING
+col::int` falla con el mismo error que `V5` tuvo que sortear en el sentido
+forward ("default for column ... cannot be cast automatically to type
+integer") en cualquier columna booleana que conserve su `DEFAULT`. Hace falta
+el mismo baile de tres pasos que `V5` ya usa, en reversa: `DROP DEFAULT` ->
+`TYPE ... USING ...` -> `SET DEFAULT <literal original de V1>`.
+
+```sql
+-- 9 columnas booleanas -> INTEGER, con el DEFAULT original de V1 restaurado
+ALTER TABLE productos ALTER COLUMN activo DROP DEFAULT;
+ALTER TABLE productos ALTER COLUMN activo TYPE integer USING (activo::int);
+ALTER TABLE productos ALTER COLUMN activo SET DEFAULT 1;
+
+ALTER TABLE productos ALTER COLUMN gymrat DROP DEFAULT;
+ALTER TABLE productos ALTER COLUMN gymrat TYPE integer USING (gymrat::int);
+ALTER TABLE productos ALTER COLUMN gymrat SET DEFAULT 0;
+
+ALTER TABLE productos ALTER COLUMN marca_premium DROP DEFAULT;
+ALTER TABLE productos ALTER COLUMN marca_premium TYPE integer USING (marca_premium::int);
+ALTER TABLE productos ALTER COLUMN marca_premium SET DEFAULT 0;
+
+ALTER TABLE productos ALTER COLUMN ml_oferta DROP DEFAULT;
+ALTER TABLE productos ALTER COLUMN ml_oferta TYPE integer USING (ml_oferta::int);
+ALTER TABLE productos ALTER COLUMN ml_oferta SET DEFAULT 0;
+
+ALTER TABLE cron_jobs ALTER COLUMN force_retrain DROP DEFAULT;
+ALTER TABLE cron_jobs ALTER COLUMN force_retrain TYPE integer USING (force_retrain::int);
+ALTER TABLE cron_jobs ALTER COLUMN force_retrain SET DEFAULT 0;
+
+ALTER TABLE cron_jobs ALTER COLUMN use_gpu DROP DEFAULT;
+ALTER TABLE cron_jobs ALTER COLUMN use_gpu TYPE integer USING (use_gpu::int);
+ALTER TABLE cron_jobs ALTER COLUMN use_gpu SET DEFAULT 1;
+
+ALTER TABLE cron_jobs ALTER COLUMN enabled DROP DEFAULT;
+ALTER TABLE cron_jobs ALTER COLUMN enabled TYPE integer USING (enabled::int);
+ALTER TABLE cron_jobs ALTER COLUMN enabled SET DEFAULT 1;
+
+ALTER TABLE outfit_feedback_item ALTER COLUMN liked DROP DEFAULT;
+ALTER TABLE outfit_feedback_item ALTER COLUMN liked TYPE integer USING (liked::int);
+ALTER TABLE outfit_feedback_item ALTER COLUMN liked SET DEFAULT 0;
+
+ALTER TABLE financiacion_presets ALTER COLUMN activo DROP DEFAULT;
+ALTER TABLE financiacion_presets ALTER COLUMN activo TYPE integer USING (activo::int);
+ALTER TABLE financiacion_presets ALTER COLUMN activo SET DEFAULT 0;
+
+-- 2 columnas DATE -> TEXT (sin DEFAULT que restaurar, igual que en V1)
+ALTER TABLE precio_historico ALTER COLUMN fecha TYPE text USING fecha::text;
+ALTER TABLE precios_externos ALTER COLUMN fecha TYPE text USING fecha::text;
+
+-- 2 columnas TIMESTAMPTZ -> TEXT (sin DEFAULT que restaurar, igual que en V1)
+ALTER TABLE productos ALTER COLUMN touched_at TYPE text USING touched_at::text;
+ALTER TABLE productos ALTER COLUMN created_at TYPE text USING created_at::text;
+
+-- + restaurar sp_upsert_run (cuerpo de V3__manual_classification_lock.sql,
+--   verbatim) y sp_soft_delete_ausentes (cuerpo de V1__baseline.sql, verbatim)
+-- vía dos CREATE OR REPLACE FUNCTION, en su propia migración forward.
+```
+
+Verificado extremo a extremo contra un `postgres:16-alpine` descartable: se
+aplicó `V1..V5` real vía Flyway, se corrió esta secuencia completa (los 13
+`ALTER COLUMN` más las dos `CREATE OR REPLACE FUNCTION`), y `information_schema.columns`
+confirmó que las 13 columnas volvieron exactamente al `data_type` y
+`column_default` que `V1__baseline.sql` declara — no una aproximación, los
+mismos literales (`1`, `0`, sin default en los 6 columns que nunca lo
+tuvieron).
+
+---
+
 ### ¿Por qué el aggregator está modularizado en collaborators de responsabilidad única?
 
 **Decisión**: `ar.scraper.aggregator` se organiza como orquestadores delgados (`NormalizerService`, `GroupingService`, `ResultAggregator`) que secuencian collaborators de responsabilidad única, agrupados en subpaquetes por tema (`normalize/`, `grouping/`, `text/`), más `FacetCalculator` como utility estática en la raíz del paquete.

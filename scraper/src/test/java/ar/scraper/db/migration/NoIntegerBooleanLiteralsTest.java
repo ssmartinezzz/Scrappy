@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Covers spec "db-column-domains" (design D2) — no integer-boolean idiom
  * may survive the 8-column BOOLEAN cutover. Mechanical, no-DB, same family
- * as {@link SpUpsertRunDriftTest}: reads {@code src/main/java/ar/scraper/db/*.java}
+ * as {@link StoredProcedureDriftTest}: reads {@code src/main/java/ar/scraper/db/*.java}
  * and {@code src/main/resources/ml/*.py} from disk (not the classpath — the
  * Java sources are not packaged resources) and fails on any of the three
  * idioms design D2 identifies:</p>
