@@ -61,6 +61,54 @@ class ApiControllerSuplementosBuilderTest {
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
+    // ── GET /suplementos/tipos ────────────────────────────────────────────
+    // The frontend kept its own hand-written copy of the subtype list, so every new
+    // subtype had to be added twice and a forgotten edit left a type that exists in
+    // the backend and cannot be selected in the UI.
+
+    @Test
+    void suplementosTipos_listsEverySubtypeWithItsGroup() {
+        var resp = controller.suplementosTipos();
+        JsonNode body = AllureSteps.toJson(resp.getBody());
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("tipos").isArray()).isTrue();
+        assertThat(body.get("tipos").size()).isGreaterThan(0);
+        body.get("tipos").forEach(t -> {
+            assertThat(t.get("tipo").asText()).isNotBlank();
+            assertThat(t.has("grupo")).isTrue();
+        });
+    }
+
+    @Test
+    void suplementosTipos_preservesComboOrder() {
+        // The order is the order the combo is assembled in, which is also the order the
+        // budget is consumed in — the UI must not reshuffle it.
+        var resp = controller.suplementosTipos();
+        JsonNode tipos = AllureSteps.toJson(resp.getBody()).get("tipos");
+
+        assertThat(tipos.get(0).get("tipo").asText()).isEqualTo("Proteína en Polvo");
+    }
+
+    @Test
+    void suplementosTipos_needsNoCatalog() {
+        // Pure taxonomy: it must answer before the first scrape, unlike the builder.
+        when(service.getLastResult()).thenReturn(null);
+
+        assertThat(controller.suplementosTipos().getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    void suplementosTipos_coversEveryTypeTheBuilderCanReturn() {
+        // The guard that makes this endpoint worth having: a subtype the builder can pick
+        // but the list never advertises is unselectable in the UI.
+        JsonNode tipos = AllureSteps.toJson(controller.suplementosTipos().getBody()).get("tipos");
+        Set<String> expuestos = new java.util.HashSet<>();
+        tipos.forEach(t -> expuestos.add(t.get("tipo").asText()));
+
+        assertThat(expuestos).containsAll(OutfitService.TIPOS_SUPLEMENTO);
+    }
+
     @Test
     void suplementosBuilder_returns204WhenNoCatalog() {
         when(service.getLastResult()).thenReturn(null);

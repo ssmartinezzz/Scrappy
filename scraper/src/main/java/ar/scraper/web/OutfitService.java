@@ -28,9 +28,11 @@ public class OutfitService {
     /**
      * Supplement-combo bodies, extracted to their own class (backlog A3).
      * Built here rather than injected so this constructor's shape stays
-     * unchanged for the existing test call sites.
+     * unchanged for the existing test call sites — it takes the same
+     * RecommendationService this class already receives, for the score tiebreak
+     * in its pick ranking.
      */
-    private final SupplementCombo supplementCombo = new SupplementCombo();
+    private final SupplementCombo supplementCombo;
 
     /**
      * Budget-builder bodies, extracted to their own class (backlog A3).
@@ -42,6 +44,7 @@ public class OutfitService {
     public OutfitService(RecommendationService recommendationService) {
         this.recommendationService = recommendationService;
         this.budgetBuilder = new OutfitBudgetBuilder(recommendationService);
+        this.supplementCombo = new SupplementCombo(recommendationService);
     }
 
     /** Slots requeridos para un outfit completo. */
@@ -241,6 +244,21 @@ public class OutfitService {
             List<String> categoriasSinPresupuesto,
             Double minimoBudgetNecesario) {
     }
+
+    /**
+     * Un subtipo ofrecible del combo de suplementos, con su grupo de selector
+     * ({@code null} = "Otros"). Sirve al selector del frontend, que mantenía su propia
+     * copia a mano de esta lista.
+     */
+    public record SupplementTipo(String tipo, String grupo) { }
+
+    /**
+     * Nombres de los subtipos. Existe para que un test pueda afirmar que el endpoint no
+     * se queda corto respecto de lo que el builder puede devolver — un subtipo que el
+     * builder elige pero la lista no anuncia es inseleccionable en la UI.
+     */
+    public static final List<String> TIPOS_SUPLEMENTO = SupplementCombo.tiposDisponibles()
+            .stream().map(SupplementTipo::tipo).toList();
 
     /** Resultado de un ítem del combo de suplementos (independiente de los slots del outfit). */
     public record SupplementPick(

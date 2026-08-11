@@ -420,6 +420,11 @@ public class ApiController {
         return outfitsEndpoints.outfitsBuilder(categorias, presupuesto, genero, excluir, pin, greedy, estilo);
     }
 
+    @GetMapping("/suplementos/tipos")
+    public ResponseEntity<ObjectNode> suplementosTipos() {
+        return outfitsEndpoints.suplementosTipos();
+    }
+
     @GetMapping("/suplementos/builder")
     public ResponseEntity<Object> suplementosBuilder(
             @RequestParam(required = false) String tipos,

@@ -164,6 +164,264 @@ class OutfitServiceSuplementosBuilderTest {
         assertThat(result.get(0).tipo()).isEqualTo("Snack Proteico");
     }
 
+    // ── matcher: accents, word boundaries, single assignment ─────────────
+
+    @Test
+    void accentedNameMatchesUnaccentedKeyword() {
+        // The classifier already strips accents before assigning categoria, so this
+        // product is canonically "Proteína". The builder re-derived the subtype from
+        // the raw name with a plain contains(), where the keyword "proteina" could
+        // never match "proteína" — the product carries no whey/isolate token either,
+        // so it fell out of the combo entirely.
+        var proteina = suplemento("Proteína Isolada 1kg", 5000);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(proteina), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).nombre()).isEqualTo("Proteína Isolada 1kg");
+    }
+
+    @Test
+    void keywordDoesNotMatchMidWord() {
+        // "epa" (Omega 3) is a substring of "Preparado". Keywords must anchor at a
+        // word boundary, the way SubcategoryResolver already space-pads its own.
+        var batido = suplemento("Batido Preparado 500g", 4000);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(batido), 0, Set.of("Omega 3"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void keywordWithTrailingSpaceStaysWholeWord() {
+        // "cla " is declared with a trailing space: whole word, not a prefix. It must
+        // not turn "Clásico" into a fat burner.
+        var clasico = suplemento("Ena Clásico 500g", 4000);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(clasico), 0, Set.of("Quemador"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void keywordStillMatchesSpanishPlural() {
+        // Word-boundary anchoring must not cost recall: the keyword is "barrita" and
+        // real listings say "Barritas". Anchoring is at the START of the token only.
+        var barritas = suplemento("Barritas Proteicas x6", 4500);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(barritas), 0, Set.of("Barra Proteica"));
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void productIsAssignedToExactlyOneSubtype() {
+        // Each subtype used to filter the whole pool independently, so a name carrying
+        // tokens of two subtypes was emitted twice — the same URL as both a powder and
+        // a bar. The specific subtype must win and the generic one must not see it.
+        var barra = suplemento("Barra de Proteína Whey", 2500);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(barra), 0, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Barra Proteica");
+    }
+
+    // ── the canonical categoria as a fallback signal ──────────────────────
+    // The builder re-derived every subtype from the raw name, so a product whose
+    // protein signal came from the SITE's category rather than its title was invisible:
+    // the classifier had already resolved categoria="Proteína" and the builder ignored it.
+
+    @Test
+    void classifiedByCanonicalCategoryWhenTheNameCarriesNoKeyword() {
+        // Brand-name products are the common shape here — nothing in "Nitro Tech 908g"
+        // says protein, but the site filed it under a protein collection and the
+        // classifier resolved it correctly.
+        var whey = producto("Nitro Tech 908g", 21000, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(whey), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).nombre()).isEqualTo("Nitro Tech 908g");
+    }
+
+    @Test
+    void keywordsWinOverTheCanonicalCategory() {
+        // The category is the FALLBACK, not the primary key: a name keyword is strictly
+        // more specific. This product is canonically "Proteína" and is still a bar.
+        var barra = producto("Barra de Proteína Whey", 2500, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(barra), 0, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Barra Proteica");
+    }
+
+    @Test
+    void ambiguousCategoriesAreNotMapped() {
+        // "Vitaminas" cannot pick between Vitamina C / D / Complejo B, and "Suplemento"
+        // says nothing at all. Guessing would be worse than omitting.
+        var vitamina   = producto("Complejo Nutricional Diario", 4000, "Vitaminas");
+        var suplemento = producto("Formula Avanzada X", 4000, "Suplemento");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(vitamina, suplemento), 0, null))
+                .isEmpty();
+    }
+
+    // ── BCAA / Pre-Workout coverage ───────────────────────────────────────
+    // Both categories were already in the supplement whitelist, so these products
+    // reached the builder and then matched no subtype at all — permanently unpickable.
+
+    @Test
+    void bcaaIsPickable() {
+        var bcaa = producto("BCAA 2:1:1 300g Limón", 8000, "BCAA");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(bcaa), 0, Set.of("BCAA"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("BCAA");
+    }
+
+    @Test
+    void glutaminaCountsAsBcaa() {
+        var glutamina = producto("Glutamina Micronizada 500g", 9000, "Suplemento");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(glutamina), 0, Set.of("BCAA"));
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void preWorkoutIsPickable() {
+        var pre = producto("Pre Workout Explosivo 300g", 12000, "Pre-Workout");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Pre-Workout"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Pre-Workout");
+    }
+
+    @Test
+    void gainerIsPickable() {
+        // A gainer is now kept out of the protein pick by precedence rather than by a
+        // veto, which also means it can be offered as what it actually is.
+        var gainer = producto("Mass Gainer 3kg con 50g de proteína", 30000, "Gainer");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(gainer), 0, Set.of("Gainer"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Gainer");
+    }
+
+    @Test
+    void colagenoIsPickable() {
+        var colageno = producto("Colágeno Hidrolizado 300g", 11000, "Colágeno");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(colageno), 0, Set.of("Colágeno"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Colágeno");
+    }
+
+    @Test
+    void wheyFortifiedWithCollagenIsStillProteinPowder() {
+        // Colágeno sits BELOW "Proteína en Polvo" in precedence, unlike Gainer and
+        // Pre-Workout: collagen-fortified whey exists and is a whey. Same reasoning that
+        // kept KW_COLAGENO below KW_PROTEINA in the classifier.
+        var whey = producto("Whey Protein con Colágeno 1kg", 24000, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(whey), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).hasSize(1);
+    }
+
+    // ── "tiene proteína" ≠ "es proteína en polvo" ─────────────────────────
+
+    @Test
+    void massGainerIsNotOfferedAsProteinPowder() {
+        // The one that hurts most: a gainer is mostly maltodextrin, so its price per
+        // kilo is far below any whey — with value ranking it would win the protein
+        // pick nearly every time.
+        var gainer = producto("Mass Gainer 3kg con 50g de proteína", 30000, "Gainer");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(gainer), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void readyToDrinkProteinIsNotOfferedAsProteinPowder() {
+        // Note the wording: "con Proteína" DOES hit the powder keyword, where "Proteica"
+        // does not. A test using the latter would pass without exercising anything.
+        var leche = producto("Leche con Proteína Vainilla 1L", 2500, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(leche), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void proteinYoghurtIsNotOfferedAsProteinPowder() {
+        var yogur = producto("Yogur con Proteína Frutilla 200g", 1800, "Alimentos");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(yogur), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void preWorkoutMentioningProteinIsNotOfferedAsProteinPowder() {
+        var pre = producto("Pre Workout con proteína 300g", 12000, "Pre-Workout");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Proteína en Polvo")))
+                .isEmpty();
+        assertThat(outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Pre-Workout")))
+                .hasSize(1);
+    }
+
+    @Test
+    void proteinFortifiedFoodIsNotProteinPowder() {
+        // Generative form: enumerating "<food> con proteína" phrase by phrase leaks
+        // forever, so the rule is compound — "con proteína" plus a food format noun.
+        var avena    = producto("Avena Instantánea con Proteína 1kg", 6000, "Alimentos");
+        var galletas = producto("Galletitas con Proteína x 6", 3000, "Alimentos");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(avena), 0, Set.of("Proteína en Polvo")))
+                .isEmpty();
+        assertThat(outfitService.armarComboSuplementos(List.of(galletas), 0, Set.of("Proteína en Polvo")))
+                .isEmpty();
+    }
+
+    @Test
+    void flavourNamesDoNotTripTheFormatVeto() {
+        // The non-regression that constrains the veto list: flavour names borrow exactly
+        // the nouns a format veto would reach for. This is why the veto is phrase-based
+        // ("leche con proteina", "yogur proteico") and never a bare "leche" or "yogur".
+        var chocolatada = producto("Whey Protein Sabor Leche Chocolatada 1kg", 22000, "Proteína");
+        var yogurGriego = producto("Whey Protein Sabor Yogur Griego 1kg", 21000, "Proteína");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(chocolatada), 0, Set.of("Proteína en Polvo")))
+                .hasSize(1);
+        assertThat(outfitService.armarComboSuplementos(List.of(yogurGriego), 0, Set.of("Proteína en Polvo")))
+                .hasSize(1);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private Product suplemento(String nombre, double precio) {
