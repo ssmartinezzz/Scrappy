@@ -275,6 +275,89 @@ tuvieron).
 
 ---
 
+### ¿Por qué `talles` y `ml_badge` se fueron a tablas hijas con `posicion`?
+
+**Decisión** (`normalize-db-schema-fks-1nf`, V7): `productos.talles` (un array
+JSON serializado dentro de un `TEXT`) y `productos.ml_badge` (un string separado
+por comas) se convirtieron en `producto_talle` y `producto_badge`, ambas con la
+misma forma: `(url, posicion)` como PK, FK a `productos(url)` con `ON DELETE
+CASCADE`, y una sola columna de valor. Las dos columnas viejas se **borraron**.
+
+**Por qué `posicion` y no `PRIMARY KEY (url, badge)`**: `ml_badge` siempre fue
+"comma-delimited, principal-first" y `badges().get(0)` **es** el badge principal
+—`all_time_low` antes que `below_market`, y así hasta `fake_discount`. Una PK
+sin ordinal deduplica en silencio y deja el orden de la lista a merced del plan
+de ejecución: la misma consulta puede devolver otro badge principal mañana. Los
+talles no tienen una semántica de orden demostrable, pero usar una sola forma
+para las dos tablas no cuesta nada (`CODE-6`) y evita dos idiomas de lectura.
+
+**Por qué DELETE + INSERT y no `ON CONFLICT`**: una lista que se **achica** es
+el caso que importa. `ON CONFLICT` actualiza las posiciones que llegan y deja
+vivas las que sobran — un producto que pasa de `S,M,L` a `S` seguiría ofreciendo
+talle L. Que `talles` fuera OVERWRITTEN y no fill-only siempre significó eso;
+ahora está escrito como tal en `sp_upsert_run` y en `ProductRepository`.
+
+**Por qué las escrituras van adentro del loop de `sp_upsert_run`**: un rewrite
+set-based sobre todo el array `p_rows` es medible­mente más barato, pero
+reestructura la función lo suficiente como para que el test de drift
+(`StoredProcedureDriftTest`) pierda su propiedad — "todo lo demás es idéntico a
+la migración anterior" — justo en la migración más riesgosa del cambio. Ese
+rewrite es un follow-up **cerrado sobre un número, no sobre una opinión**
+(`CODE-3`): medir el upsert de una corrida completa y abrirlo solo si el costo
+agregado supera ~15% del tiempo de DB de la corrida.
+
+**Por qué el backfill incluye los productos inactivos**: `obtenerProducto()`
+nunca filtró por `activo`, así que un backfill "solo lo vivo" vaciaba los talles
+de todos los descontinuados — 6914 de 13543 filas en la base de desarrollo. La
+lectura del catálogo (`cargarProductos`) sigue siendo de **3 sentencias
+constantes**: las dos tablas hijas se leen enteras, planas y ordenadas antes del
+loop y se mergean por url. Un lookup por producto serían 27086 round trips.
+
+**Riesgo residual asumido**: el guard `talles ~ '^\s*\['` del backfill es un
+filtro, no una prueba de validez. Un valor como `[oops` sigue abortando la
+migración. Postgres no tiene try-cast, y manejar la excepción fila por fila
+cambia una falla ruidosa por un backfill parcial silencioso.
+
+---
+
+### ¿Cómo se revierte `V7` (tablas hijas) si hace falta?
+
+Mismo motivo que con `V5` para que esto viva acá y no dentro del `.sql`: una
+migración ya aplicada es **byte-frozen** (Flyway valida checksums; agregarle un
+comentario rompe el arranque). La reversión es **lossless justamente porque
+existe `posicion`** — sin ordinal habría que inventar un orden al re-agregar.
+
+El bloque de abajo no es prosa: `V7RollbackRoundTripTest` lo lee de este archivo
+entre los marcadores `rollback:V7` y lo ejecuta contra el esquema real dentro de
+una transacción que siempre se revierte. Si alguien lo edita mal, el test falla.
+
+```sql
+-- >>> rollback:V7
+ALTER TABLE productos ADD COLUMN talles TEXT;
+ALTER TABLE productos ADD COLUMN ml_badge TEXT DEFAULT '';
+
+UPDATE productos p SET talles = COALESCE((
+    SELECT json_agg(t.talle ORDER BY t.posicion)::text
+    FROM producto_talle t WHERE t.url = p.url
+), '[]');
+
+UPDATE productos p SET ml_badge = COALESCE((
+    SELECT string_agg(b.badge, ',' ORDER BY b.posicion)
+    FROM producto_badge b WHERE b.url = p.url
+), '');
+
+DROP TABLE producto_badge;
+DROP TABLE producto_talle;
+-- <<< rollback:V7
+```
+
+Falta, fuera del bloque porque no se puede ejecutar dos veces contra el mismo
+esquema de prueba: restaurar `sp_upsert_run` con el cuerpo de
+`V5__boolean_and_date_column_types.sql` **verbatim**, vía un `CREATE OR REPLACE
+FUNCTION` en su propia migración forward.
+
+---
+
 ### ¿Por qué el aggregator está modularizado en collaborators de responsabilidad única?
 
 **Decisión**: `ar.scraper.aggregator` se organiza como orquestadores delgados (`NormalizerService`, `GroupingService`, `ResultAggregator`) que secuencian collaborators de responsabilidad única, agrupados en subpaquetes por tema (`normalize/`, `grouping/`, `text/`), más `FacetCalculator` como utility estática en la raíz del paquete.
