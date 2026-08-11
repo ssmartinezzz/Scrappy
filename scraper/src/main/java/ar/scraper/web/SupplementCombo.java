@@ -336,6 +336,36 @@ class SupplementCombo {
      */
     private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD = List.of("ENA", "STAR", "BCC");
 
+    /**
+     * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice
+     * nada (ver {@link #clasificarPorSubtipo}).
+     *
+     * <p>Cierra el agujero de fondo: el builder re-derivaba el subtipo del nombre crudo
+     * e ignoraba la categoría que el clasificador YA había resuelto. Un producto cuya
+     * señal de proteína venía de la colección del sitio y no de su título — "Nitro Tech
+     * 908g" — quedaba invisible, aunque su {@code categoria} dijera "Proteína".</p>
+     *
+     * <p>Es fallback y no clave primaria porque una keyword del nombre es estrictamente
+     * más específica: "Barra de Proteína Whey" tiene categoria "Proteína" y es una barra.
+     * Las keywords deciden primero; esto sólo habla cuando se quedaron calladas.</p>
+     *
+     * <p>Deliberadamente NO mapea "Vitaminas", "Suplemento" ni "Alimentos": la primera no
+     * permite elegir entre Vitamina C / D / Complejo B, y las otras dos no dicen nada.
+     * Adivinar sería peor que omitir, que es lo que ya pasa hoy con esos productos.</p>
+     */
+    private static final Map<String, String> SUBTIPO_POR_CATEGORIA = Map.ofEntries(
+            Map.entry("Proteína",         "Proteína en Polvo"),
+            Map.entry("Barra Proteica",   "Barra Proteica"),
+            Map.entry("Pancake Proteico", "Pancake / Waffle"),
+            Map.entry("Snack Proteico",   "Snack Proteico"),
+            Map.entry("Creatina",         "Creatina"),
+            Map.entry("Pre-Workout",      "Pre-Workout"),
+            Map.entry("BCAA",             "BCAA"),
+            Map.entry("Gainer",           "Gainer"),
+            Map.entry("Colágeno",         "Colágeno"),
+            Map.entry("Magnesio",         "Magnesio"),
+            Map.entry("Quemadores",       "Quemador"));
+
     /** All canonical supplement categories assigned by NormalizerService. */
     private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(
             "Suplemento", "Proteína", "Creatina", "Colágeno", "Magnesio",
@@ -344,6 +374,25 @@ class SupplementCombo {
             // whitelisted here or the product is filtered out before subtype matching.
             "Snack Proteico", "Pancake Proteico", "Barra Proteica"
     );
+
+    static {
+        // Fail-fast en class-init, mismo criterio que el guard de PRECEDENCIA_CLASIFICACION:
+        // una clave que no esté en el whitelist deja el mapeo MUERTO (el producto se filtra
+        // antes de clasificar), y un valor que no sea un subtipo real mete productos bajo un
+        // tipo que SUPLEMENTO_SUBTIPOS nunca recorre — se pierden sin un solo error.
+        Set<String> subtiposValidos = SUPLEMENTO_SUBTIPOS.stream()
+                .map(SubtipoSuplemento::tipo).collect(Collectors.toSet());
+        SUBTIPO_POR_CATEGORIA.forEach((categoria, tipo) -> {
+            if (!CATEGORIAS_SUPLEMENTO.contains(categoria)) {
+                throw new IllegalStateException(
+                        "SUBTIPO_POR_CATEGORIA mapea una categoría ausente de CATEGORIAS_SUPLEMENTO: " + categoria);
+            }
+            if (!subtiposValidos.contains(tipo)) {
+                throw new IllegalStateException(
+                        "SUBTIPO_POR_CATEGORIA apunta a un subtipo inexistente: " + tipo);
+            }
+        });
+    }
 
     /**
      * Combo de suplementos (Proteína/Creatina/Quemador/Magnesio) a mostrar siempre
@@ -426,16 +475,40 @@ class SupplementCombo {
     private Map<String, List<Product>> clasificarPorSubtipo(List<Product> suplementos) {
         Map<String, List<Product>> porTipo = new HashMap<>();
         for (Product p : suplementos) {
+            // Un producto sin nombre se omite: el pick se muestra por nombre, así que
+            // colarlo por su categoría dejaría una fila vacía en la UI.
             if (p.nombre() == null || p.nombre().isBlank()) continue;
             String nombreNormalizado = normalizar(p.nombre());
-            for (SubtipoCompilado subtipo : SUBTIPOS_POR_PRECEDENCIA) {
-                if (subtipo.matches(nombreNormalizado)) {
-                    porTipo.computeIfAbsent(subtipo.tipo(), k -> new ArrayList<>()).add(p);
-                    break;
-                }
-            }
+
+            String tipo = porKeyword(nombreNormalizado);
+            if (tipo == null) tipo = porCategoriaCanonica(p.categoria(), nombreNormalizado);
+            if (tipo != null) porTipo.computeIfAbsent(tipo, k -> new ArrayList<>()).add(p);
         }
         return porTipo;
+    }
+
+    /** Primer subtipo cuyas keywords matchean, en orden de precedencia. null si ninguno. */
+    private String porKeyword(String nombreNormalizado) {
+        for (SubtipoCompilado subtipo : SUBTIPOS_POR_PRECEDENCIA) {
+            if (subtipo.matches(nombreNormalizado)) return subtipo.tipo();
+        }
+        return null;
+    }
+
+    /**
+     * Subtipo derivado de la categoría canónica, cuando el nombre no alcanzó.
+     *
+     * <p>El veto del subtipo destino se sigue chequeando: si no, esta ruta sería una
+     * puerta trasera que lo saltea. Una "Leche con Proteína" tiene categoria "Proteína",
+     * así que sin este chequeo el fallback la reinsertaría como proteína en polvo justo
+     * después de que el veto la hubiera descartado.</p>
+     */
+    private String porCategoriaCanonica(String categoria, String nombreNormalizado) {
+        if (categoria == null) return null;
+        String tipo = SUBTIPO_POR_CATEGORIA.get(categoria);
+        if (tipo == null) return null;
+        Predicate<String> veto = VETO_POR_SUBTIPO.getOrDefault(tipo, SIN_VETO);
+        return veto.test(nombreNormalizado) ? null : tipo;
     }
 
     /**

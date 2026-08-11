@@ -232,6 +232,49 @@ class OutfitServiceSuplementosBuilderTest {
         assertThat(result.get(0).tipo()).isEqualTo("Barra Proteica");
     }
 
+    // ── the canonical categoria as a fallback signal ──────────────────────
+    // The builder re-derived every subtype from the raw name, so a product whose
+    // protein signal came from the SITE's category rather than its title was invisible:
+    // the classifier had already resolved categoria="Proteína" and the builder ignored it.
+
+    @Test
+    void classifiedByCanonicalCategoryWhenTheNameCarriesNoKeyword() {
+        // Brand-name products are the common shape here — nothing in "Nitro Tech 908g"
+        // says protein, but the site filed it under a protein collection and the
+        // classifier resolved it correctly.
+        var whey = producto("Nitro Tech 908g", 21000, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(whey), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).nombre()).isEqualTo("Nitro Tech 908g");
+    }
+
+    @Test
+    void keywordsWinOverTheCanonicalCategory() {
+        // The category is the FALLBACK, not the primary key: a name keyword is strictly
+        // more specific. This product is canonically "Proteína" and is still a bar.
+        var barra = producto("Barra de Proteína Whey", 2500, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(barra), 0, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Barra Proteica");
+    }
+
+    @Test
+    void ambiguousCategoriesAreNotMapped() {
+        // "Vitaminas" cannot pick between Vitamina C / D / Complejo B, and "Suplemento"
+        // says nothing at all. Guessing would be worse than omitting.
+        var vitamina   = producto("Complejo Nutricional Diario", 4000, "Vitaminas");
+        var suplemento = producto("Formula Avanzada X", 4000, "Suplemento");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(vitamina, suplemento), 0, null))
+                .isEmpty();
+    }
+
     // ── BCAA / Pre-Workout coverage ───────────────────────────────────────
     // Both categories were already in the supplement whitelist, so these products
     // reached the builder and then matched no subtype at all — permanently unpickable.
