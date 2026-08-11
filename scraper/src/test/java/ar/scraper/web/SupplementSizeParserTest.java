@@ -74,6 +74,24 @@ class SupplementSizeParserTest {
     }
 
     @Test
+    void milligramsAreADoseNotAPackageSize() {
+        // No supplement is SOLD in milligrams — mg on a label is the dose per capsule.
+        // Reading it as the package size made a vitamin jar look like a 1-gram product,
+        // and then $/g compared a dose against other products' actual package sizes.
+        var t = SupplementSizeParser.parse("Vitamina C 1000mg");
+
+        assertThat(t.conocido()).isFalse();
+    }
+
+    @Test
+    void milligramDoseDoesNotHideARealPackageSize() {
+        var t = SupplementSizeParser.parse("Magnesio 500mg - envase 250 g");
+
+        assertThat(t.familia()).isEqualTo(SupplementSizeParser.Familia.MASA);
+        assertThat(t.magnitud()).isEqualTo(250.0);
+    }
+
+    @Test
     void parsesVolume() {
         var t = SupplementSizeParser.parse("Aderezo Fit 500 ml");
 
