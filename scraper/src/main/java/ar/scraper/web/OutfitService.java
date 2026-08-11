@@ -69,6 +69,21 @@ public class OutfitService {
     private static final double FEEDBACK_BOOST_STEP = 1.0;
     private static final int    FEEDBACK_BOOST_CAP   = 3;
 
+    // Factor de oportunidad ML en weightedRandomPick. El armador aleatorio pesaba
+    // solo por distancia de precio y likes: dentro de una misma banda, un
+    // fake_discount y un all_time_low eran igual de probables — mientras el budget
+    // builder maximiza exactamente esa señal y el feed "Para ti" ordena por ella.
+    //
+    // ML_SCORE_NEUTRO es baseMlScore(MlScore.EMPTY) = 100 - 50. Normalizar contra ese
+    // punto hace que un producto sin datos de ML dé factor 1.0 exacto, así que un
+    // catálogo que nunca pasó por el pipeline conserva los pesos previos.
+    //
+    // El techo queda POR DEBAJO del de FEEDBACK_BOOST (4.0) a propósito: un like es
+    // una declaración de gusto, un badge es una observación de precio.
+    private static final double ML_SCORE_NEUTRO = 50.0;
+    private static final double ML_FACTOR_MIN   = 0.5;
+    private static final double ML_FACTOR_MAX   = 2.5;
+
     /** categoria → slot, por taxonomía de design.md / spec.md. */
     private static final Map<String, String> CATEGORIA_SLOT = buildCategoriaSlotMap();
 
@@ -480,6 +495,10 @@ public class OutfitService {
 
         boolean partial = false;
         Map<String, SlotPick> picks = new LinkedHashMap<>();
+        // Los Product elegidos, en paralelo a picks: SlotPick no lleva los atributos
+        // visuales, y VisualCoherence necesita el producto entero para comparar contra
+        // lo que ya está puesto.
+        Map<String, Product> elegidos = new LinkedHashMap<>();
         double runningTotal = 0.0;
 
         for (String slot : SLOTS_REQUERIDOS) {
@@ -523,8 +542,10 @@ public class OutfitService {
                 continue;
             }
 
-            Product elegido = weightedRandomPick(cands, band, feedback.boostLikeCount());
+            Product elegido = weightedRandomPick(cands, band, feedback.boostLikeCount(),
+                    slot, elegidos);
             picks.put(slot, toSlotPick(slot, elegido));
+            elegidos.put(slot, elegido);
             runningTotal += elegido.precio();
         }
 
@@ -542,7 +563,8 @@ public class OutfitService {
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) accesorioPool = affordable;
             }
-            Product accesorio = weightedRandomPick(accesorioPool, band, feedback.boostLikeCount());
+            Product accesorio = weightedRandomPick(accesorioPool, band, feedback.boostLikeCount(),
+                    SLOT_ACCESORIO, elegidos);
             picks.put(SLOT_ACCESORIO, toSlotPick(SLOT_ACCESORIO, accesorio));
         }
 
@@ -604,7 +626,14 @@ public class OutfitService {
      * FEEDBACK_BOOST_CAP) ganan más peso, sin volverse unbounded. El early-return
      * de candidatos.size()==1 se mantiene — es seguro porque el exclude ya corrió
      * upstream en armar(), así que un único candidato no puede ser un par excluido,
-     * y el boost es irrelevante para una elección forzada.
+     * y ni el boost ni el resto de los factores cambian una elección forzada.
+     *
+     * El peso final es el producto de cuatro términos, todos multiplicativos y todos
+     * neutros en 1.0 cuando no hay señal: cercanía de precio × boost de likes ×
+     * {@link #mlFactor} (oportunidad ML) × {@link VisualCoherence#coherencia}
+     * (estampado/fit/color contra lo que ya está puesto). Ninguno es un filtro —
+     * un candidato malo en los cuatro ejes baja de probabilidad pero sigue siendo
+     * alcanzable, que es lo que evita que un catálogo chico devuelva un slot vacío.
      *
      * distancia se normaliza por la mitad del ancho de banda (escala relativa,
      * no pesos absolutos) — bug encontrado en vivo: con distancia en pesos
@@ -615,7 +644,8 @@ public class OutfitService {
      * de precios del catálogo.
      */
     private Product weightedRandomPick(List<Product> candidatos, double[] band,
-                                        Map<String, Integer> boostLikeCount) {
+                                        Map<String, Integer> boostLikeCount,
+                                        String slot, Map<String, Product> yaElegidos) {
         if (candidatos.size() == 1) return candidatos.get(0);
 
         double centro = (Double.isFinite(band[0]) && Double.isFinite(band[1]))
@@ -633,7 +663,8 @@ public class OutfitService {
             double distancia = Math.abs(c.precio() - centro) / mitadBanda;
             double likeCount = boostLikeCount.getOrDefault(FeedbackModel.keyOf(c), 0);
             double boostFactor = 1.0 + Math.min(likeCount, FEEDBACK_BOOST_CAP) * FEEDBACK_BOOST_STEP;
-            double peso = (1.0 / (1.0 + distancia)) * boostFactor;
+            double peso = (1.0 / (1.0 + distancia)) * boostFactor * mlFactor(c)
+                    * VisualCoherence.coherencia(slot, c, yaElegidos);
             pesos[i] = peso;
             totalPeso += peso;
         }
@@ -645,6 +676,20 @@ public class OutfitService {
             if (r <= acumulado) return candidatos.get(i);
         }
         return candidatos.get(candidatos.size() - 1);
+    }
+
+    /**
+     * Factor de oportunidad ML de un candidato, normalizado contra el score neutro
+     * (scoreP=50, sin badges) y acotado a [{@value #ML_FACTOR_MIN}, {@value #ML_FACTOR_MAX}].
+     *
+     * <p>Usa {@link RecommendationService#baseMlScore} — la misma señal que maximiza
+     * el budget builder y por la que ordena el feed "Para ti" — en vez de una tercera
+     * opinión inventada acá. Es un peso, no un filtro: un producto con mala señal baja
+     * de probabilidad pero nunca queda excluido, que es lo que mantiene la variedad.</p>
+     */
+    private double mlFactor(Product p) {
+        double base = recommendationService.baseMlScore(p);
+        return Math.clamp(base / ML_SCORE_NEUTRO, ML_FACTOR_MIN, ML_FACTOR_MAX);
     }
 
     // ─── Budget Builder (MCKP). Bodies in OutfitBudgetBuilder (backlog A3);

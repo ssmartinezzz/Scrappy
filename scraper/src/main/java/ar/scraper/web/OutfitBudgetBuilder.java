@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.model.Product;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -50,10 +51,11 @@ class OutfitBudgetBuilder {
      *
      * <p>Algorithm phases (MCKP):
      * <ol>
-     *   <li>Build per-category raw pools: filter by categoria, gender, feedback
-     *       exclusions, gymrat gate (torso/piernas only), and excluirUrls.</li>
-     *   <li>Shuffle for variety: sort desc, take top-30, random-sample 20,
-     *       re-sort desc (INVARIANT: pool.get(0) must be max score for B&B).</li>
+     *   <li>Build per-sub-slot raw pools in ONE catalog pass ({@link #poolsPorSlot}):
+     *       filter by categoria, gender, feedback exclusions, style gate
+     *       (torso/piernas only), and excluirUrls.</li>
+     *   <li>Score each candidate once, sort desc, take the top 60 and shuffle them
+     *       so each regen sees a different candidate set (variety).</li>
      *   <li>Apply price filter (≤ presupuesto), cap at K=20.</li>
      *   <li>Recursive branch-and-bound enumeration.</li>
      *   <li>Build result; on no-fit, compute minimoBudgetNecesario.</li>
@@ -98,7 +100,7 @@ class OutfitBudgetBuilder {
     /**
      * Style-aware outfit assembler. Like the 8-arg overload but accepts the active
      * {@code estilo} ("gym" | "casual"), which selects the torso/piernas eligibility
-     * gate via {@link #pasaEstiloGate}. Calzado and accesorio are unaffected by estilo
+     * gate via {@link OutfitRules#pasaEstiloGate}. Calzado and accesorio are unaffected by estilo
      * (category-driven eligibility). All other behavior (MCKP/greedy, budget invariant,
      * pinning, feedback vetoes) is identical to the 8-arg path.
      */
@@ -163,29 +165,26 @@ class OutfitBudgetBuilder {
                     false, List.of(), List.of(), null);
         }
 
+        // ONE pass over the catalog for all open sub-slots. The three consumers
+        // (MCKP, greedy, calcularMinimoBudget) apply identical eligibility rules,
+        // and each of them used to re-scan the whole catalog once per sub-slot —
+        // up to seven full scans per path, three paths, on every regen click.
+        Map<String, List<Product>> pools =
+                poolsPorSlot(productos, openSlotOrder, openCatsBySlot, genero, feedback,
+                        excluirFinal, estilo);
+
         if (greedy) {
-            OutfitService.OutfitBuilderResult open = armarGreedy(productos, openSlotOrder, openCatsBySlot,
-                    reducedBudget, genero, feedback, excluirFinal, estilo);
+            OutfitService.OutfitBuilderResult open =
+                    armarGreedy(pools, openSlotOrder, reducedBudget, genero);
             return mergePinned(open, pinnedBySlot, slotOrder, presupuesto);
         }
 
-        Set<String> exclude          = feedback.exclude();
-        Set<String> excludeCategoria = feedback.excludeCategoria();
-
-        List<String>        slotsVacios = new ArrayList<>();
-        List<List<Product>> allPools    = new ArrayList<>();
-        List<Boolean>       rawNonEmpty = new ArrayList<>();
+        List<String>       slotsVacios = new ArrayList<>();
+        List<List<Scored>> allPools    = new ArrayList<>();
+        List<Boolean>      rawNonEmpty = new ArrayList<>();
 
         for (String slot : openSlotOrder) {
-            Set<String> slotCats = openCatsBySlot.get(slot);
-            List<Product> rawPool = productos.stream()
-                    .filter(p -> slotCats.contains(p.categoria()))
-                    .filter(p -> OutfitRules.generoElegible(p, genero))
-                    .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
-                    .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
-                    .filter(p -> !excluirFinal.contains(p.url()))
-                    .filter(p -> OutfitRules.pasaEstiloGate(p, slot, estilo))
-                    .collect(Collectors.toList());
+            List<Product> rawPool = pools.get(slot);
 
             if (rawPool.isEmpty()) {
                 slotsVacios.addAll(openCatsBySlot.get(slot));
@@ -196,33 +195,33 @@ class OutfitBudgetBuilder {
 
             rawNonEmpty.add(true);
 
-            List<Product> sortedRaw = rawPool.stream()
-                    .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
-                    .collect(Collectors.toList());
+            List<Scored> sortedRaw = puntuarYOrdenar(rawPool);
 
             // Take top-60 by score, shuffle to 30, filter by price — no re-sort after
             // shuffle so each regen sees a different candidate set (variety).
-            List<Product> top60 = new ArrayList<>(sortedRaw.subList(0, Math.min(60, sortedRaw.size())));
-            Collections.shuffle(top60, new Random());
-            List<Product> filteredPool = top60.stream()
-                    .filter(p -> p.precio() <= reducedBudget)
-                    .limit(BUILDER_POOL_K)
-                    .collect(Collectors.toList());
+            List<Scored> top60 = new ArrayList<>(sortedRaw.subList(0, Math.min(60, sortedRaw.size())));
+            Collections.shuffle(top60, ThreadLocalRandom.current());
+            List<Scored> filteredPool = new ArrayList<>(BUILDER_POOL_K);
+            for (Scored s : top60) {
+                if (s.producto().precio() > reducedBudget) continue;
+                filteredPool.add(s);
+                if (filteredPool.size() == BUILDER_POOL_K) break;
+            }
 
             allPools.add(filteredPool);
         }
 
-        MckpSolver solver = new MckpSolver(recommendationService, allPools, reducedBudget);
-        solver.solve(0, 0.0, 0.0, new Product[openSlotOrder.size()]);
+        MckpSolver solver = new MckpSolver(allPools, openSlotOrder, reducedBudget);
+        solver.solve(0, 0.0, 0.0, new Scored[openSlotOrder.size()]);
 
-        Product[] bestSolution = solver.best;
+        Scored[] bestSolution = solver.best;
         Set<String> slotsInSolution = new HashSet<>();
         List<OutfitService.SlotPick> slots = new ArrayList<>();
 
         for (int i = 0; i < openSlotOrder.size(); i++) {
-            Product p = bestSolution[i];
-            if (p != null) {
-                slots.add(OutfitRules.toSlotPick(openSlotOrder.get(i), p));
+            Scored s = bestSolution[i];
+            if (s != null) {
+                slots.add(OutfitRules.toSlotPick(openSlotOrder.get(i), s.producto()));
                 slotsInSolution.add(openSlotOrder.get(i));
             }
         }
@@ -241,8 +240,7 @@ class OutfitBudgetBuilder {
 
         Double minimoBudgetNecesario = null;
         if (slots.isEmpty()) {
-            minimoBudgetNecesario = calcularMinimoBudget(
-                    productos, openSlotOrder, openCatsBySlot, genero, feedback, excluirFinal, estilo);
+            minimoBudgetNecesario = calcularMinimoBudget(pools, openSlotOrder);
         }
 
         OutfitService.OutfitBuilderResult open = new OutfitService.OutfitBuilderResult(slots, generoResultado, reducedBudget,
@@ -289,52 +287,110 @@ class OutfitBudgetBuilder {
     }
 
     /**
+     * A candidate with its {@code baseMlScore} already computed.
+     *
+     * <p>The score used to be recomputed inside a sort comparator (O(n log n)
+     * evaluations per sub-slot), then again to seed the branch-and-bound upper
+     * bound, then once more at every node of the recursion. It is a pure function
+     * of the product, so computing it once per candidate and carrying it is both
+     * cheaper and impossible to get inconsistent.</p>
+     */
+    private record Scored(Product producto, double score) { }
+
+    /**
+     * Partitions the catalog into per-sub-slot candidate pools in a single pass.
+     *
+     * <p>A product's categoria resolves to exactly one sub-slot, so one pass yields
+     * the same lists — in the same catalog order — that a per-sub-slot stream did,
+     * without walking the catalog again for every slot. The eligibility rules are
+     * applied here once and shared by all three paths (MCKP, greedy,
+     * {@link #calcularMinimoBudget}), which is also what keeps them from drifting
+     * apart: they used to be three hand-copied filter chains.</p>
+     */
+    private Map<String, List<Product>> poolsPorSlot(
+            List<Product> productos, List<String> slotOrder,
+            Map<String, Set<String>> catsBySlot, String genero,
+            OutfitService.FeedbackModel feedback, Set<String> excluirUrls, String estilo) {
+
+        Set<String> exclude          = feedback.exclude();
+        Set<String> excludeCategoria = feedback.excludeCategoria();
+
+        Map<String, String> slotDeCategoria = new HashMap<>();
+        Map<String, List<Product>> pools = new LinkedHashMap<>();
+        for (String slot : slotOrder) {
+            pools.put(slot, new ArrayList<>());
+            for (String cat : catsBySlot.get(slot)) slotDeCategoria.put(cat, slot);
+        }
+
+        for (Product p : productos) {
+            // A null categoria simply never resolves — same outcome as the old
+            // slotCats.contains(null), which was always false.
+            String slot = slotDeCategoria.get(p.categoria());
+            if (slot == null) continue;
+            if (!OutfitRules.generoElegible(p, genero)) continue;
+            if (exclude.contains(OutfitService.FeedbackModel.keyOf(p))) continue;
+            if (excludeCategoria.contains(p.categoria())) continue;
+            if (excluirUrls.contains(p.url())) continue;
+            if (!OutfitRules.pasaEstiloGate(p, slot, estilo)) continue;
+            pools.get(slot).add(p);
+        }
+        return pools;
+    }
+
+    /** Scores each candidate once, then sorts descending — stable, so ties keep catalog order. */
+    private List<Scored> puntuarYOrdenar(List<Product> pool) {
+        List<Scored> scored = new ArrayList<>(pool.size());
+        for (Product p : pool) scored.add(new Scored(p, recommendationService.baseMlScore(p)));
+        scored.sort(Comparator.comparingDouble((Scored s) -> -s.score()));
+        return scored;
+    }
+
+    /**
      * Greedy outfit assembler: for each category in order, picks the highest
      * baseMlScore candidate where {@code precio ≤ remainingBudget}. Hard budget
      * is always enforced (never exceeded). Categories with no affordable candidate
      * are skipped.
      *
-     * <p>Applies the same gymrat gate as the MCKP path so all three paths
-     * (MCKP, greedy, calcularMinimoBudget) use identical eligibility rules.
+     * <p>Reads the pools built by {@link #poolsPorSlot}, so it applies exactly the
+     * same eligibility rules as the MCKP path rather than a second copy of them.
      */
     private OutfitService.OutfitBuilderResult armarGreedy(
-            List<Product> productos, List<String> slotOrder,
-            Map<String, Set<String>> catsBySlot, double presupuesto,
-            String genero, OutfitService.FeedbackModel feedback, Set<String> excluirUrls, String estilo) {
-        if (productos == null) productos = List.of();
-
-        Set<String> exclude          = feedback.exclude();
-        Set<String> excludeCategoria = feedback.excludeCategoria();
+            Map<String, List<Product>> pools, List<String> slotOrder, double presupuesto,
+            String genero) {
 
         List<OutfitService.SlotPick> slots = new ArrayList<>();
+        Map<String, Product> elegidos = new LinkedHashMap<>();
         double runningTotal  = 0.0;
 
         for (String slot : slotOrder) {
-            Set<String> slotCats = catsBySlot.get(slot);
-            List<Product> sorted = productos.stream()
-                    .filter(p -> slotCats.contains(p.categoria()))
-                    .filter(p -> OutfitRules.generoElegible(p, genero))
-                    .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
-                    .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
-                    .filter(p -> !excluirUrls.contains(p.url()))
-                    .filter(p -> OutfitRules.pasaEstiloGate(p, slot, estilo))
-                    .sorted(Comparator.comparingDouble((Product p) -> -recommendationService.baseMlScore(p)))
-                    .collect(Collectors.toList());
+            List<Scored> sorted = puntuarYOrdenar(pools.get(slot));
 
             // Shuffle top-30 by score for variety across re-rolls (same pattern as MCKP pool).
             // Without this the greedy is deterministic and always returns the identical outfit.
-            List<Product> pool = new ArrayList<>(sorted.subList(0, Math.min(30, sorted.size())));
-            Collections.shuffle(pool, new Random());
+            List<Scored> pool = new ArrayList<>(sorted.subList(0, Math.min(30, sorted.size())));
+            Collections.shuffle(pool, ThreadLocalRandom.current());
 
+            // Among the affordable candidates, the most visually coherent one; ties go
+            // to the earliest in the shuffled pool, which is exactly the "first
+            // affordable" rule this used to be. Budget stays the hard constraint —
+            // coherence only reorders what already fits.
             final double remaining = presupuesto - runningTotal;
-            Optional<Product> pick = pool.stream()
-                    .filter(p -> p.precio() <= remaining)
-                    .findFirst();
+            Product mejor = null;
+            double mejorCoherencia = -1.0;
+            for (Scored s : pool) {
+                if (s.producto().precio() > remaining) continue;
+                double coh = VisualCoherence.coherencia(slot, s.producto(), elegidos);
+                if (coh > mejorCoherencia) {
+                    mejor = s.producto();
+                    mejorCoherencia = coh;
+                    if (coh >= 1.0) break; // nothing can beat a fully coherent candidate
+                }
+            }
 
-            if (pick.isPresent()) {
-                Product chosen = pick.get();
-                slots.add(OutfitRules.toSlotPick(slot, chosen));
-                runningTotal += chosen.precio();
+            if (mejor != null) {
+                slots.add(OutfitRules.toSlotPick(slot, mejor));
+                elegidos.put(slot, mejor);
+                runningTotal += mejor.precio();
             }
         }
 
@@ -346,39 +402,22 @@ class OutfitBudgetBuilder {
 
     /**
      * Returns the minimum budget needed to assemble one product per category,
-     * using the same eligibility filters as the MCKP pool (gymrat gate, gender,
-     * feedback, excluirUrls) but ignoring price. Returns null if any category
-     * has zero eligible products (catalog gap).
+     * reading the pools already built by {@link #poolsPorSlot} and ignoring price.
+     * Returns null if any category has zero eligible products (catalog gap).
      *
      * <p>Used to populate {@link OutfitService.OutfitBuilderResult#minimoBudgetNecesario()} on
      * no-fit responses so the frontend can show "Necesitás al menos $X más".
      */
-    private Double calcularMinimoBudget(
-            List<Product> productos, List<String> slotOrder,
-            Map<String, Set<String>> catsBySlot, String genero,
-            OutfitService.FeedbackModel feedback, Set<String> excluirUrls, String estilo) {
-        if (productos == null) return null;
-
-        Set<String> exclude          = feedback.exclude();
-        Set<String> excludeCategoria = feedback.excludeCategoria();
-
+    private Double calcularMinimoBudget(Map<String, List<Product>> pools, List<String> slotOrder) {
         double total = 0.0;
         for (String slot : slotOrder) {
-            Set<String> slotCats = catsBySlot.get(slot);
-            OptionalDouble minPrecio = productos.stream()
-                    .filter(p -> slotCats.contains(p.categoria()))
-                    .filter(p -> OutfitRules.generoElegible(p, genero))
-                    .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
-                    .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
-                    .filter(p -> !excluirUrls.contains(p.url()))
-                    .filter(p -> OutfitRules.pasaEstiloGate(p, slot, estilo))
-                    .mapToDouble(Product::precio)
-                    .min();
-
-            if (minPrecio.isEmpty()) {
+            List<Product> pool = pools.get(slot);
+            if (pool.isEmpty()) {
                 return null; // catalog gap — no eligible product for this slot
             }
-            total += minPrecio.getAsDouble();
+            double min = Double.POSITIVE_INFINITY;
+            for (Product p : pool) min = Math.min(min, p.precio());
+            total += min;
         }
         return total;
     }
@@ -395,33 +434,42 @@ class OutfitBudgetBuilder {
      * current best solution, the branch is pruned.
      */
     private static final class MckpSolver {
-        private final RecommendationService recService;
-        private final List<List<Product>>   pools;
-        private final double                presupuesto;
-        private final double[]              maxScorePerCat;
+        private final List<List<Scored>> pools;
+        private final List<String>       slotOrder;
+        private final double             presupuesto;
+        private final double[]           maxScorePerCat;
+        /** Suffix sums of maxScorePerCat, so the upper bound is a lookup, not a loop. */
+        private final double[]           maxScoreDesde;
 
-        Product[] best;
-        double    bestScore = Double.NEGATIVE_INFINITY;
+        /**
+         * The partial assignment, mutated in step with the recursion instead of
+         * rebuilt per node — this map is read on every candidate of every branch,
+         * so allocating one would undo the point of caching the scores.
+         */
+        private final Map<String, Product> elegidos = new LinkedHashMap<>();
 
-        MckpSolver(RecommendationService recService,
-                   List<List<Product>> pools, double presupuesto) {
-            this.recService  = recService;
+        Scored[] best;
+        double   bestScore = Double.NEGATIVE_INFINITY;
+
+        MckpSolver(List<List<Scored>> pools, List<String> slotOrder, double presupuesto) {
             this.pools       = pools;
+            this.slotOrder   = slotOrder;
             this.presupuesto = presupuesto;
             int n = pools.size();
-            this.best           = new Product[n];
+            this.best           = new Scored[n];
             this.maxScorePerCat = new double[n];
+            this.maxScoreDesde  = new double[n + 1];
             for (int i = 0; i < n; i++) {
-                List<Product> pool = pools.get(i);
-                // Pool is sorted desc by baseMlScore; first element is the max
-                maxScorePerCat[i] = pool.isEmpty()
-                        ? 0.0 : pool.stream()
-                            .mapToDouble(recService::baseMlScore)
-                            .max().orElse(0.0);
+                double max = 0.0;
+                for (Scored s : pools.get(i)) max = Math.max(max, s.score());
+                maxScorePerCat[i] = max;
+            }
+            for (int i = n - 1; i >= 0; i--) {
+                maxScoreDesde[i] = maxScoreDesde[i + 1] + maxScorePerCat[i];
             }
         }
 
-        void solve(int idx, double total, double score, Product[] current) {
+        void solve(int idx, double total, double score, Scored[] current) {
             if (idx == pools.size()) {
                 if (score > bestScore) {
                     bestScore = score;
@@ -431,9 +479,7 @@ class OutfitBudgetBuilder {
             }
 
             // Branch-and-bound: if max possible score from here ≤ bestScore, prune
-            double upperBound = score;
-            for (int i = idx; i < pools.size(); i++) upperBound += maxScorePerCat[i];
-            if (upperBound <= bestScore) return;
+            if (score + maxScoreDesde[idx] <= bestScore) return;
 
             // Option A: skip this category (partial outfit)
             current[idx] = null;
@@ -441,13 +487,36 @@ class OutfitBudgetBuilder {
 
             // Option B: pick an affordable candidate
             double remaining = presupuesto - total;
-            for (Product p : pools.get(idx)) {
-                if (p.precio() > remaining) continue;
-                current[idx] = p;
-                solve(idx + 1, total + p.precio(),
-                      score + recService.baseMlScore(p), current);
+            String slot = slotOrder.get(idx);
+            for (Scored s : pools.get(idx)) {
+                if (s.producto().precio() > remaining) continue;
+                // Scored BEFORE the candidate joins the partial assignment — it must
+                // not be compared against itself.
+                double aporte = aporte(s, slot);
+                current[idx] = s;
+                elegidos.put(slot, s.producto());
+                solve(idx + 1, total + s.producto().precio(), score + aporte, current);
+                elegidos.remove(slot);
             }
             current[idx] = null; // backtrack
+        }
+
+        /**
+         * A candidate's contribution to the objective: its ML score, minus a visual
+         * incoherence penalty against the slots already assigned on this branch.
+         *
+         * <p>The penalty is a SUBTRACTION of a non-negative amount, which is what keeps
+         * the branch-and-bound sound: {@code aporte ≤ s.score()} always, so
+         * {@code maxScoreDesde} — built from unpenalized scores — remains a valid upper
+         * bound and no optimal branch is ever pruned.</p>
+         *
+         * <p>Each unordered pair of slots is evaluated exactly once, when the later of
+         * the two is assigned, so the total is independent of the order the solver
+         * happens to walk the slots in.</p>
+         */
+        private double aporte(Scored s, String slot) {
+            double coherencia = VisualCoherence.coherencia(slot, s.producto(), elegidos);
+            return s.score() - Math.max(0.0, s.score()) * (1.0 - coherencia);
         }
     }
 }
