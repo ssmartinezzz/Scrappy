@@ -268,6 +268,43 @@ class OutfitServiceSuplementosBuilderTest {
         assertThat(result.get(0).tipo()).isEqualTo("Pre-Workout");
     }
 
+    @Test
+    void gainerIsPickable() {
+        // A gainer is now kept out of the protein pick by precedence rather than by a
+        // veto, which also means it can be offered as what it actually is.
+        var gainer = producto("Mass Gainer 3kg con 50g de proteína", 30000, "Gainer");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(gainer), 0, Set.of("Gainer"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Gainer");
+    }
+
+    @Test
+    void colagenoIsPickable() {
+        var colageno = producto("Colágeno Hidrolizado 300g", 11000, "Colágeno");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(colageno), 0, Set.of("Colágeno"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Colágeno");
+    }
+
+    @Test
+    void wheyFortifiedWithCollagenIsStillProteinPowder() {
+        // Colágeno sits BELOW "Proteína en Polvo" in precedence, unlike Gainer and
+        // Pre-Workout: collagen-fortified whey exists and is a whey. Same reasoning that
+        // kept KW_COLAGENO below KW_PROTEINA in the classifier.
+        var whey = producto("Whey Protein con Colágeno 1kg", 24000, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(whey), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).hasSize(1);
+    }
+
     // ── "tiene proteína" ≠ "es proteína en polvo" ─────────────────────────
 
     @Test
@@ -313,6 +350,19 @@ class OutfitServiceSuplementosBuilderTest {
                 .isEmpty();
         assertThat(outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Pre-Workout")))
                 .hasSize(1);
+    }
+
+    @Test
+    void proteinFortifiedFoodIsNotProteinPowder() {
+        // Generative form: enumerating "<food> con proteína" phrase by phrase leaks
+        // forever, so the rule is compound — "con proteína" plus a food format noun.
+        var avena    = producto("Avena Instantánea con Proteína 1kg", 6000, "Alimentos");
+        var galletas = producto("Galletitas con Proteína x 6", 3000, "Alimentos");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(avena), 0, Set.of("Proteína en Polvo")))
+                .isEmpty();
+        assertThat(outfitService.armarComboSuplementos(List.of(galletas), 0, Set.of("Proteína en Polvo")))
+                .isEmpty();
     }
 
     @Test

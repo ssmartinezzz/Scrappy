@@ -24,6 +24,8 @@ const TIPOS_DISPONIBLES = [
   { tipo: 'Creatina',         grupo: null },
   { tipo: 'Pre-Workout',      grupo: null },
   { tipo: 'BCAA',             grupo: null },
+  { tipo: 'Gainer',           grupo: null },
+  { tipo: 'Colágeno',         grupo: null },
   { tipo: 'Magnesio',         grupo: null },
   { tipo: 'Quemador',         grupo: null },
 ];

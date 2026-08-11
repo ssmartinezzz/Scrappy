@@ -54,10 +54,27 @@ final class SupplementSizeParser {
             Map.entry("kilos", 1000.0), Map.entry("kilo", 1000.0), Map.entry("kg", 1000.0),
             Map.entry("gramos", 1.0), Map.entry("gramo", 1.0),
             Map.entry("grs", 1.0), Map.entry("gr", 1.0), Map.entry("g", 1.0),
-            Map.entry("mg", 0.001),
             Map.entry("libras", 453.592), Map.entry("libra", 453.592),
             Map.entry("lbs", 453.592), Map.entry("lb", 453.592),
             Map.entry("onzas", 28.3495), Map.entry("onza", 28.3495), Map.entry("oz", 28.3495));
+
+    /**
+     * Units that state a DOSE, never a package size — matched so they are consumed and
+     * visibly ignored, rather than silently failing to match.
+     *
+     * <p>Nothing is sold by the milligram. "Vitamina C 1000mg" is the amount in each
+     * capsule, and reading it as the package size turned a vitamin jar into a 1-gram
+     * product whose price per gram then got compared against other products' real
+     * package sizes.</p>
+     *
+     * <p>Residual gap, left deliberately: a capsule product stating its dose in GRAMS
+     * ("Colágeno 10 g en cápsulas") still parses as a 10-gram package. The obvious rule
+     * — "a count noun with no number means the mass is a dose" — cannot be used, because
+     * "30g de proteína por porción, pote 1kg" matches it exactly and that name does
+     * state a real package size. Fixing it needs a size threshold, which needs real
+     * catalog data to calibrate rather than a guessed constant.</p>
+     */
+    private static final java.util.Set<String> UNIDADES_DOSIS = java.util.Set.of("mg");
 
     /** Millilitres per unit of volume. */
     private static final Map<String, Double> FACTOR_VOLUMEN = Map.of(
@@ -111,6 +128,7 @@ final class SupplementSizeParser {
             Double valor = parseNumero(m.group(1));
             if (valor == null) continue;
             String unidad = m.group(2);
+            if (UNIDADES_DOSIS.contains(unidad)) continue;
 
             Double factorMasa = FACTOR_MASA.get(unidad);
             if (factorMasa != null) {
