@@ -164,7 +164,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 | Picks/Marcas | GET `/api/mejores?rubro=` · `/api/marcas-browser` |
 | Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
 | Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
-| DB | GET `/api/db/export` · POST `/api/db/import` (**410 Gone**, usar `pg_dump`/`pg_restore`) · DELETE `/api/db/productos` · `/api/db/ml` |
+| DB | GET `/api/db/export` · POST `/api/db/import` (**410 Gone**, usar `pg_dump`/`pg_restore`) · DELETE `/api/db/productos` (**409** si hay favoritos protegidos, sin `?force=`) · `/api/db/ml` |
 | LLM Agent | POST `/api/agent/chat` · `/api/agent/apply` (ambos gateados por scraping) · GET `/api/agent/models` (no gateado) |
 
 ---
@@ -190,6 +190,19 @@ agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
 
 `V3` no agrega tablas: marca en `productos` la clasificación fijada a mano para
 que el pipeline no la pise, y extiende `agent_reclassify_audit`.
+
+`V4` (`normalize-db-schema-fks-1nf`, slice A.1) agrega FKs desde
+`producto_url`/`url` hacia `productos(url)`, con política por tabla decidida
+explícitamente: `precio_historico.url` y `precios_externos.producto_url` en
+`CASCADE` (VALID — cero orfandades verificadas en vivo); `favoritos.url` en
+`RESTRICT` (`NOT VALID` — igual enforcement en inserts/deletes nuevos, pero no
+valida el historial completo de una instalación existente; `VALIDATE
+CONSTRAINT` queda diferido a propósito). `agent_reclassify_audit.url` sigue
+**sin FK** — un audit trail no puede depender de que el dato mutable siga
+existiendo. Por esto, `DELETE /api/db/productos` ahora devuelve **409** (con
+la cantidad bloqueante) y no borra nada si algún favorito referencia un
+producto vivo — sin `?force=`, decisión explícita para no reabrir el camino
+de borrado silencioso.
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=0`).
