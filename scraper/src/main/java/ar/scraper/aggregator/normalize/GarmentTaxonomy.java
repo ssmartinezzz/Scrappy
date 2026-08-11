@@ -592,7 +592,12 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_COMIDA = {
         "yerba","mate","cafe","te verde","infusion","cereal","granola",
-        "frutos secos","almendra","mani","cacao","chocolate proteico",
+        // " mani " padeado, no "mani" pelado: anyMatch es un contains crudo sobre el
+        // título ya padeado, así que la forma corta matcheaba DENTRO de otras palabras
+        // — "Ale(mani)a" y "(Mani)jas" mandaban la camiseta de Alemania y una banda
+        // elástica a "Alimentos". Es la misma convención que ya usa " mani " en
+        // KW_PROTEINA_SNACK más arriba.
+        "frutos secos","almendra"," mani ","cacao","chocolate proteico",
         "avena","harina de avena","pasta","arroz",
         "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
         "maple","jarabe de arce","sirope","topping proteico","topping fit",

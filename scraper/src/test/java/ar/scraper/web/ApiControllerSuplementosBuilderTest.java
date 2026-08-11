@@ -139,7 +139,7 @@ class ApiControllerSuplementosBuilderTest {
     @Test
     void suplementosBuilder_returns200WithEmptyListWhenNoMatches() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
-        when(outfitService.armarComboSuplementos(any(), anyDouble(), any())).thenReturn(List.of());
+        when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
         var resp = controller.suplementosBuilder("Proteína", 0);
         JsonNode body = AllureSteps.toJson(resp.getBody());
@@ -157,7 +157,7 @@ class ApiControllerSuplementosBuilderTest {
                 "Proteína en Polvo", "Sitio1", "Whey 1kg", 5000.0, "https://a.com/p1", "img1.jpg", "ENA");
         var pick2 = new OutfitService.SupplementPick(
                 "Creatina", "Sitio2", "Creatina 300g", 3000.0, "https://a.com/p2", "img2.jpg", "STAR");
-        when(outfitService.armarComboSuplementos(any(), anyDouble(), any()))
+        when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any()))
                 .thenReturn(List.of(pick1, pick2));
 
         var resp = controller.suplementosBuilder("Proteína en Polvo,Creatina", 0);
@@ -175,22 +175,22 @@ class ApiControllerSuplementosBuilderTest {
     @Test
     void suplementosBuilder_passesPresupuestoToService() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
-        when(outfitService.armarComboSuplementos(any(), anyDouble(), any())).thenReturn(List.of());
+        when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
         Allure.parameter("presupuesto", 50000);
         controller.suplementosBuilder("Proteína", 50000);
 
-        verify(outfitService).armarComboSuplementos(any(), eq(50000.0), any());
+        verify(outfitService).armarComboSuplementos(any(), eq(50000.0), any(), any());
     }
 
     @Test
     void suplementosBuilder_passesOnlyRequestedTiposToService() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
-        when(outfitService.armarComboSuplementos(any(), anyDouble(), any())).thenReturn(List.of());
+        when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
         controller.suplementosBuilder("Proteína,Creatina", 0);
 
-        verify(outfitService).armarComboSuplementos(any(), anyDouble(), eq(Set.of("Proteína", "Creatina")));
+        verify(outfitService).armarComboSuplementos(any(), anyDouble(), eq(Set.of("Proteína", "Creatina")), any());
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

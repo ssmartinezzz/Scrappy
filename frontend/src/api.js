@@ -397,10 +397,13 @@ export async function fetchSuplementosTipos() {
   return Array.isArray(body?.tipos) ? body.tipos : [];
 }
 
-export async function fetchSuplementosBuilder({ tipos, presupuesto = 0 }) {
+export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir = [] }) {
   const p = new URLSearchParams();
   p.set('tipos', tipos.join(','));
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
+  // URLs ya mostradas: el pick del servidor es determinístico, así que sin esto
+  // "Regenerar" repite la misma respuesta.
+  if (excluir.length > 0) p.set('excluir', excluir.join(','));
   const r = await fetch(`${BASE}/api/suplementos/builder?${p}`);
   if (r.status === 204) return null;
   if (!r.ok) return null;

@@ -221,21 +221,52 @@ class SupplementCombo {
     };
 
     /**
-     * Regla compuesta: "<alimento> … con proteína" no es proteína en polvo.
+     * Palabras con las que un polvo se anuncia a sí mismo. Se usan para ubicar
+     * DÓNDE aparece la proteína en el nombre, no para decidir si aparece.
+     */
+    private static final String[] CABEZA_PROTEINA = {
+            "proteina", "protein", "whey", "isolate", "caseina", "casein"
+    };
+
+    /**
+     * Regla estructural: si un sustantivo de formato comida aparece ANTES que la
+     * palabra proteína, el producto es un alimento fortificado, no un polvo.
      *
-     * <p>Enumerar esa forma frase por frase pierde para siempre — "avena con proteína",
-     * "galletitas con proteína", "queso con proteína", y la que salga la semana que
-     * viene. La estructura sí es estable: un formato de comida más la proteína
-     * apareciendo como agregado. Un polvo no se anuncia "con proteína", se anuncia
-     * "Proteína Whey" o "Whey Protein" — el "con" es lo que delata al alimento
-     * fortificado.</p>
+     * <p>La versión anterior exigía la frase literal {@code " con proteina"}, y eso
+     * hacía que el conector del envase decidiera el resultado. Dos frascos de pasta de
+     * maní del catálogo real caían de lados distintos:</p>
+     *
+     * <pre>
+     *   "Pasta de Mani con Proteina Power Cookies"   → vetado
+     *   "Pasta De Maní … 370g Alta Proteína"          → NO vetado, se ofrecía como polvo
+     * </pre>
+     *
+     * <p>Enumerar conectores pierde para siempre: "alta proteína", "rica en proteína",
+     * "fuente de proteína", "+ proteína", "20g de proteína". Lo estable es el ORDEN.
+     * Un polvo se nombra por la cabeza — "Proteína Whey", "Whey Protein Isolate" —
+     * mientras que un alimento fortificado arranca por el alimento y menciona la
+     * proteína después, como claim.</p>
+     *
+     * <p>Los sabores quedan a salvo por construcción, que es lo que un veto de
+     * "menciona un sustantivo de comida" no lograba: un sabor SIEMPRE va detrás de la
+     * cabeza ("Proteína Whey sabor Cookies &amp; Cream", "Whey sabor Leche
+     * Chocolatada"), así que la proteína aparece primero y la regla no dispara.</p>
      */
     private static boolean esProteinaAgregadaAUnAlimento(String nombreNormalizado) {
-        if (!nombreNormalizado.contains(" con proteina")) return false;
-        for (String noun : FORMATO_ALIMENTO) {
-            if (nombreNormalizado.contains(" " + noun)) return true;
+        int proteina = primeraAparicion(nombreNormalizado, CABEZA_PROTEINA);
+        if (proteina < 0) return false;
+        int alimento = primeraAparicion(nombreNormalizado, FORMATO_ALIMENTO);
+        return alimento >= 0 && alimento < proteina;
+    }
+
+    /** Índice de la primera de estas palabras en el nombre padeado, o -1. */
+    private static int primeraAparicion(String nombreNormalizado, String[] palabras) {
+        int mejor = -1;
+        for (String palabra : palabras) {
+            int i = nombreNormalizado.indexOf(" " + palabra);
+            if (i >= 0 && (mejor < 0 || i < mejor)) mejor = i;
         }
-        return false;
+        return mejor;
     }
 
     /**
@@ -442,7 +473,27 @@ class SupplementCombo {
      * tipos vacío o null → usa todos los subtipos (backward-compat con el overload de 2 args).
      */
     List<OutfitService.SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
+        return armarComboSuplementos(productos, presupuesto, tipos, null);
+    }
+
+    /**
+     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar"
+     * ofrezca el siguiente en vez de repetir.
+     *
+     * <p>El pick es deterministico a propósito (marca → $/unidad → score → url), así
+     * que un request idéntico devuelve lo mismo: es el arreglo de que el builder
+     * cambiara de suplemento solo por volver a preguntar. Por eso la variedad viene
+     * del cliente diciendo qué ya se le mostró, y no de volver a meter azar.</p>
+     *
+     * <p>Si un subtipo se queda sin candidatos tras excluir, la exclusión se ignora
+     * <em>para ese subtipo</em> y el ciclo vuelve a empezar por el mejor. Una fila
+     * vacía es peor producto que una repetida: el usuario pidió un stack, no que el
+     * panel se encoja a medida que clickea.</p>
+     */
+    List<OutfitService.SupplementPick> armarComboSuplementos(
+            List<Product> productos, double presupuesto, Set<String> tipos, Set<String> excluirUrls) {
         if (productos == null) productos = List.of();
+        final Set<String> excluir = excluirUrls != null ? excluirUrls : Set.of();
         List<Product> suplementos = productos.stream()
                 .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
@@ -459,6 +510,15 @@ class SupplementCombo {
             if (tipos != null && !tipos.isEmpty() && !tipos.contains(subtipo.tipo())) continue;
             List<Product> candidatos = porTipo.getOrDefault(subtipo.tipo(), List.of());
             if (candidatos.isEmpty()) continue;
+
+            // Lo ya mostrado sale del pool, salvo que no quede nada: ahí el ciclo
+            // vuelve a empezar en vez de dejar la fila vacía.
+            if (!excluir.isEmpty()) {
+                List<Product> frescos = candidatos.stream()
+                        .filter(p -> !excluir.contains(p.url()))
+                        .collect(Collectors.toList());
+                if (!frescos.isEmpty()) candidatos = frescos;
+            }
 
             Product elegido;
             if (presupuesto > 0) {
