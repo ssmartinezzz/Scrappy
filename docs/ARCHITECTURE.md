@@ -99,7 +99,7 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 
 **Decisión**: `ar.scraper.aggregator` se organiza como orquestadores delgados (`NormalizerService`, `GroupingService`, `ResultAggregator`) que secuencian collaborators de responsabilidad única, agrupados en subpaquetes por tema (`normalize/`, `grouping/`, `text/`), más `FacetCalculator` como utility estática en la raíz del paquete.
 
-**Razón**: antes de esta modularización, `NormalizerService` (categoría, talles, género, marca, pack/combo, subcategoría, rubro, gymrat) y `ResultAggregator` (validación, dedup, pipeline ML, persistencia, facets) eran clases monolíticas: cada regla de negocio nueva crecía el mismo archivo y era imposible testear una regla sin arrastrar todas las demás. La modularización es **behavior-preserving** — cero cambios observables end-to-end; el historial slice por slice, con los riesgos mitigados y las decisiones "diseño vs. código real", vive en [`docs/migration/aggregator-solid-modularization.md`](./migration/aggregator-solid-modularization.md).
+**Razón**: antes de esta modularización, `NormalizerService` (categoría, talles, género, marca, pack/combo, subcategoría, rubro, gymrat) y `ResultAggregator` (validación, dedup, pipeline ML, persistencia, facets) eran clases monolíticas: cada regla de negocio nueva crecía el mismo archivo y era imposible testear una regla sin arrastrar todas las demás. La modularización es **behavior-preserving** — cero cambios observables end-to-end, con la suite existente pasando sin editar un solo test. El historial slice por slice se retiró de `docs/` una vez completada; queda en el historial de git.
 
 **Estructura resultante**:
 
@@ -133,6 +133,24 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 **Por qué**: embeber un runtime de inferencia en el JAR ataría el proyecto a un modelo y a un backend de hardware. Como proceso externo, el LLM es una dependencia **opcional**: si no responde, solo falla el chat del agente. Y como el loop autónomo no puede escribir, el tool-calling poco confiable de un modelo local de 14B degrada, en el peor caso, a *una propuesta rechazable* — nunca a una escritura corrupta.
 
 📄 **Detalle completo en [`LLM_EMBED.md`](./LLM_EMBED.md)**: topología de la integración, la costura `ChatProvider` y su único adapter, el loop acotado (`MAX_ITERATIONS`), las tres herramientas, y las **ocho reglas** que gobiernan al agente — empezando por la Regla 0, que el system prompt es guía y no un control de seguridad. Para instalar y configurar, ver [`LLM_AGENT_SETUP.md`](./LLM_AGENT_SETUP.md).
+
+---
+
+### ¿Por qué los armadores de outfits puntúan con pesos y nunca con filtros?
+
+**Decisión**: hay dos armadores con objetivos distintos —`OutfitService.armar` (aleatorio ponderado, superficie Gym) y `OutfitBudgetBuilder` (MCKP con branch-and-bound, superficie de presupuesto)— y **toda** señal que incorporan (oportunidad ML, likes del usuario, coherencia visual) entra como multiplicador acotado, nunca como descarte.
+
+**Por qué dos armadores**: son dos preguntas distintas. "Mostrame un outfit" quiere variedad entre recargas, así que muestrea; "armame el mejor outfit con $X" quiere el óptimo global bajo una restricción dura, que es literalmente un Multi-Choice Knapsack. Un solo algoritmo haría mal las dos.
+
+**Por qué pesos y no filtros**: el catálogo argentino es chico y desparejo por categoría. Un filtro convierte "este short combina mal" en un **slot vacío**, y un outfit incompleto es peor producto que uno un poco ruidoso. Un peso degrada el candidato malo y lo deja alcanzable.
+
+**Por qué el neutro se ancla en 1.0**: cada factor se normaliza contra el valor que produce una señal ausente — `mlFactor` divide por `baseMlScore(MlScore.EMPTY)`, la coherencia devuelve 1.0 cuando no hay atributos. Así, un catálogo sin datos de ML o sin clasificación visual produce **exactamente** los pesos previos. Es lo que permite agregar una señal nueva sin invalidar la suite existente como red de regresión.
+
+**Por qué la coherencia visual no rompe el óptimo del MCKP**: la penalización se aplica como **resta de un monto no-negativo** al score del candidato, así que `aporte ≤ score` siempre y la cota superior del branch-and-bound —construida con scores sin penalizar— sigue siendo válida. Ninguna rama óptima se poda. Además cada par de slots se evalúa exactamente una vez, cuando se asigna el segundo de los dos, así que el total no depende del orden en que el solver recorre los slots.
+
+**Por qué la regla de color es una rueda de tonos y no una tabla de pares**: una lista escrita a mano de "estos colores combinan" es un conjunto de opiniones que nadie puede revisar y que crece cada vez que alguien discrepa con una entrada. Un orden circular de tonos con un umbral de distancia es una estructura chequeable y un solo parámetro que tunear. Los neutros no tienen posición en la rueda — por eso combinan con todo, sin necesidad de enumerarlo.
+
+**Por qué un atributo visual vacío no penaliza**: vienen de un clasificador zero-shot que se abstiene cuando duda, así que buena parte del catálogo no los tiene. Una regla que castigara el dato faltante no estaría coordinando outfits: estaría degradando en silencio a todo producto que el clasificador salteó.
 
 ---
 
@@ -184,7 +202,7 @@ Capas internas del backend (sin cambios de forma, solo el datasource):
 
 ---
 
-### Launcher: CLI nativo (`native-cli-installer`, 2026-07-25)
+### Launcher: CLI nativo (`native-cli-installer` 2026-07-25 + `cli-command-console` 2026-08-05)
 
 Supersede el launcher `menu.ps1`/`menu.sh` (`interactive-cli-launcher`, PR
 #108) — ambos scripts, y sus tests (`tests/menu.Tests.ps1`/
@@ -222,6 +240,8 @@ cli/
 │   ├── builder.py        #   npm+mvn, ordenamiento de VITE_API_BASE_URL
 │   ├── rest.py            #   cliente REST de la API existente (json.dumps, sin shell)
 │   ├── processes.py       #   lifecycle backend+frontend + teardown funnel
+│   ├── commands.py        #   registro ÚNICO de verbos (autocompletado + help + menú plano)
+│   ├── logs.py            #   archivos de log de servicios + tail acotado + scrub de ANSI
 │   └── errors.py          #   excepciones tipadas con mensaje accionable
 ├── tui/                 # PRESENTADOR — Textual App, solo presentación
 └── plain/                # FALLBACK — driver de texto plano sobre el MISMO core
@@ -231,6 +251,24 @@ cli/
 la terminal soporta la TUI interactiva (`isatty`, `NO_COLOR`, `TERM=dumb`,
 `--plain`, `cmd.exe` legacy sin ANSI, o Textual no instalable) — si no,
 degrada al runner de texto plano sobre el mismo `core/`. Nunca crashea.
+
+**Consola por comandos, no menú (`cli-command-console`, 2026-08-05):** la TUI
+es una franja de health de una línea + consola + prompt — tres filas de chrome,
+corre en 60×18 sin maximizar. Las operaciones se tipean; el vocabulario vive
+en `core/commands.py`, del que salen el autocompletado, el `help` y el menú del
+runner plano, así que no pueden divergir. Se eliminaron los bindings de una
+sola letra (se comían caracteres tipeables); quedan `ctrl+c` y `ctrl+l`.
+
+**Por qué el stdio de los hijos está atado (el bug de fondo):** Spring Boot y
+Vite escribían ANSI crudo sobre el mismo TTY que Textual estaba pintando, y el
+frame quedaba destruido — Textual no se entera, así que ningún repaint lo
+arregla. Parecía un problema de layout y era de stdio. Hoy los **tres** streams
+de todo hijo están atados: stdout+stderr a `scraper/logs/{backend,frontend}.log`,
+stdin a `DEVNULL` (si no, el hijo compite por las teclas del prompt). `PIPE` no
+es opción: nadie lo drena y el hijo se cuelga cuando se llena el buffer. La
+salida se lee con el comando `logs`, cuyo tail **escapa las secuencias de
+control** antes de renderizarlas — una línea de log de un sitio scrapeado es
+input no confiable y podría inyectar escapes en la terminal.
 
 **Aislamiento del venv del CLI (`_tools/cli-venv`):** construido por `uv`
 sobre un **CPython 3.11.9 administrado por uv** (`uv python install` +
@@ -253,11 +291,12 @@ cuando la raíz del repo está en `sys.path` (el caso de `-m cli`, no el de
 invocar el archivo directamente).
 
 **Tests:** `tests/cli/` (pytest) — unit tests del `core/` headless, tests
-`Pilot` de Textual para el `tui/`, tests de degradación del routing, y un
+`Pilot` de Textual para el `tui/`, tests de degradación del routing, un
 test de **injection-safety** (`json.dumps` con input hostil `a"b;$(x)`
 round-tripea como un único campo JSON bien formado, sin invocar shell) que
 reemplaza estructuralmente a los viejos `tests/menu.Tests.ps1`/
-`tests/menu_test.sh`.
+`tests/menu_test.sh`, y un test con un **subproceso real** que escupe
+stdout/stderr y verifica vía `capfd` que ni un byte llega a nuestra terminal.
 
 ---
 
