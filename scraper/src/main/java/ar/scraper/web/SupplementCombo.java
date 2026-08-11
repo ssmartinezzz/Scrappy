@@ -473,7 +473,27 @@ class SupplementCombo {
      * tipos vacío o null → usa todos los subtipos (backward-compat con el overload de 2 args).
      */
     List<OutfitService.SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
+        return armarComboSuplementos(productos, presupuesto, tipos, null);
+    }
+
+    /**
+     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar"
+     * ofrezca el siguiente en vez de repetir.
+     *
+     * <p>El pick es deterministico a propósito (marca → $/unidad → score → url), así
+     * que un request idéntico devuelve lo mismo: es el arreglo de que el builder
+     * cambiara de suplemento solo por volver a preguntar. Por eso la variedad viene
+     * del cliente diciendo qué ya se le mostró, y no de volver a meter azar.</p>
+     *
+     * <p>Si un subtipo se queda sin candidatos tras excluir, la exclusión se ignora
+     * <em>para ese subtipo</em> y el ciclo vuelve a empezar por el mejor. Una fila
+     * vacía es peor producto que una repetida: el usuario pidió un stack, no que el
+     * panel se encoja a medida que clickea.</p>
+     */
+    List<OutfitService.SupplementPick> armarComboSuplementos(
+            List<Product> productos, double presupuesto, Set<String> tipos, Set<String> excluirUrls) {
         if (productos == null) productos = List.of();
+        final Set<String> excluir = excluirUrls != null ? excluirUrls : Set.of();
         List<Product> suplementos = productos.stream()
                 .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
@@ -490,6 +510,15 @@ class SupplementCombo {
             if (tipos != null && !tipos.isEmpty() && !tipos.contains(subtipo.tipo())) continue;
             List<Product> candidatos = porTipo.getOrDefault(subtipo.tipo(), List.of());
             if (candidatos.isEmpty()) continue;
+
+            // Lo ya mostrado sale del pool, salvo que no quede nada: ahí el ciclo
+            // vuelve a empezar en vez de dejar la fila vacía.
+            if (!excluir.isEmpty()) {
+                List<Product> frescos = candidatos.stream()
+                        .filter(p -> !excluir.contains(p.url()))
+                        .collect(Collectors.toList());
+                if (!frescos.isEmpty()) candidatos = frescos;
+            }
 
             Product elegido;
             if (presupuesto > 0) {

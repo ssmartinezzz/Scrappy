@@ -289,9 +289,11 @@ class OutfitsEndpoints {
      *
      * @param tipos       comma-separated supplement type names (required; 400 if blank)
      * @param presupuesto optional budget ceiling; 0 = no limit (default)
+     * @param excluir     comma-separated URLs already shown, so "Regenerar" offers the
+     *                    next candidate instead of repeating the same deterministic pick
      * @return 200 with JSON array, 204 when no scrape data exists, 400 when tipos is blank
      */
-    ResponseEntity<Object> suplementosBuilder(String tipos, double presupuesto) {
+    ResponseEntity<Object> suplementosBuilder(String tipos, double presupuesto, String excluir) {
 
         if (tipos == null || tipos.isBlank()) {
             ObjectNode err = JsonNodeFactory.instance.objectNode();
@@ -313,8 +315,15 @@ class OutfitsEndpoints {
             return ResponseEntity.badRequest().body(err);
         }
 
+        Set<String> excluirUrls = (excluir == null || excluir.isBlank())
+                ? Set.of()
+                : Arrays.stream(excluir.split(","))
+                        .map(String::strip)
+                        .filter(s -> !s.isBlank())
+                        .collect(Collectors.toSet());
+
         List<OutfitService.SupplementPick> picks =
-                outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet);
+                outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet, excluirUrls);
 
         Set<String> foundTipos = picks.stream()
                 .map(OutfitService.SupplementPick::tipo)

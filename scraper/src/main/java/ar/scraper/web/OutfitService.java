@@ -313,6 +313,15 @@ public class OutfitService {
     }
 
     /**
+     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar"
+     * ofrezca el siguiente en vez de repetir. Ver {@link SupplementCombo}.
+     */
+    public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto,
+                                                      Set<String> tipos, Set<String> excluirUrls) {
+        return supplementCombo.armarComboSuplementos(productos, presupuesto, tipos, excluirUrls);
+    }
+
+    /**
      * Modelo de feedback (ADR-1/ADR-2 en design.md de outfit-recommendation-quality):
      * exclude = pares marca|categoria con al menos un dislike (veto duro, permanente);
      * boostLikeCount = cantidad de likes por par marca|categoria (folding en
