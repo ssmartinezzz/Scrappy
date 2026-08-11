@@ -119,4 +119,33 @@ describe('SuplementosPanel — Regenerar', () => {
     // llamada no debe arrastrar un historial que crece sin excluir nada.
     expect(excluirDeLaLlamada(2)).toEqual(['https://test/Whey A']);
   });
+
+  it('un subtipo con un solo candidato no borra el historial de los demás', async () => {
+    // El reinicio del pool es por subtipo, no global. La creatina de este catálogo
+    // tiene un único candidato, así que se repite en cada respuesta; si esa
+    // repetición reiniciara la lista entera, la proteína alternaría para siempre
+    // entre sus dos primeros candidatos y nunca llegaría al tercero.
+    const user = userEvent.setup();
+    render(<SuplementosPanel />);
+
+    fetchSuplementosBuilder.mockResolvedValue({
+      picks: [pick('Proteína en Polvo', 'Whey A'), pick('Creatina', 'Crea Única')],
+      sinStock: [],
+    });
+    await armar(user);
+
+    fetchSuplementosBuilder.mockResolvedValue({
+      picks: [pick('Proteína en Polvo', 'Whey B'), pick('Creatina', 'Crea Única')],
+      sinStock: [],
+    });
+    await user.click(screen.getByRole('button', { name: 'Regenerar' }));
+    await waitFor(() => expect(fetchSuplementosBuilder).toHaveBeenCalledTimes(2));
+
+    await user.click(screen.getByRole('button', { name: 'Regenerar' }));
+    await waitFor(() => expect(fetchSuplementosBuilder).toHaveBeenCalledTimes(3));
+
+    expect(excluirDeLaLlamada(2)).toEqual(expect.arrayContaining([
+      'https://test/Whey A', 'https://test/Whey B',
+    ]));
+  });
 });

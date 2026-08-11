@@ -75,4 +75,28 @@ class BrandExtractorTest {
         assertThat(extractor.extraer("Zapatillas Dc Court Graffik Ss", "City")).isEqualTo("DC");
         assertThat(extractor.extraer("Botas de Invierno Dc Shoes Crisis 2 Hi", "Dcshoes")).isEqualTo("DC");
     }
+
+    // ── Supplement brands ────────────────────────────────────────────────
+    // The curated list held apparel and footwear brands only, so every supplement
+    // fell through to the site name: a whey by ENA came back branded "Entreno".
+    // SupplementCombo's brand preference could therefore never match anything.
+
+    @Test
+    void extraerMarcaReconoceMarcasDeSuplementos() {
+        Allure.parameter("sitio", "Entreno");
+        assertThat(extractor.extraer("Proteina Whey ENA Sport 1kg", "Entreno")).isEqualTo("ENA");
+        assertThat(extractor.extraer("Whey Protein Gold Nutrition 908g", "Entreno")).isEqualTo("Gold Nutrition");
+        assertThat(extractor.extraer("Creatina Star Nutrition 300 gr", "Entreno")).isEqualTo("Star Nutrition");
+        assertThat(extractor.extraer("Proteina BSA 1 kg", "Entreno")).isEqualTo("BSA");
+        assertThat(extractor.extraer("Creatina Monohidrato Xtrenght 300g", "Entreno")).isEqualTo("Xtrenght");
+    }
+
+    @Test
+    void extraerMarcaNoMatcheaEnaDentroDeOtraPalabra() {
+        // Same class of bug as DC inside "Hardcore": a 3-letter brand is only a brand
+        // when it stands alone. "Cadena" and "Buena" must not become ENA products.
+        Allure.parameter("nombre", "Cadena Buena Onda Acero");
+        Allure.parameter("sitio", "Bullbenny");
+        assertThat(extractor.extraer("Cadena Buena Onda Acero", "Bullbenny")).isEqualTo("Bullbenny");
+    }
 }

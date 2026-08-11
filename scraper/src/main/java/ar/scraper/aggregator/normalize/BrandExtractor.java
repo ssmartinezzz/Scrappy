@@ -33,7 +33,14 @@ public class BrandExtractor {
         "Lacoste","Tommy","Calvin Klein","Levi's","Levis","Wrangler",
         "Champion","Kappa","Ellesse","Le Coq Sportif","Fred Perry",
         "Caterpillar","Keen","Palladium","Crocs","Birkenstock",
-        "Bulks","Fuark","Harvey Willys","Harvey"
+        "Bulks","Fuark","Harvey Willys","Harvey",
+        // Suplementos. Sin estas entradas la lista era 100% indumentaria y calzado,
+        // así que TODO suplemento caía al fallback por sitio: una whey de ENA vendida
+        // por Entreno quedaba con marca "Entreno". Eso dejaba muerta la preferencia de
+        // marca de SupplementCombo, que compara contra el nombre de la marca real.
+        // Sólo formas que se sostienen solas: "Star"/"Gold" pelados matchearían
+        // "All Star" y "Gold Standard", el mismo falso positivo que el de DC.
+        "Gold Nutrition","Star Nutrition","Xtrenght","ENA","BSA"
     );
 
     // Word-boundary patterns (no substring matches) — evita falsos positivos
