@@ -1,7 +1,6 @@
 package ar.scraper.web;
 
 import ar.scraper.model.Product;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -26,7 +25,6 @@ public class OutfitService {
 
     private final RecommendationService recommendationService;
 
-    @Autowired
     /**
      * Supplement-combo bodies, extracted to their own class (backlog A3).
      * Built here rather than injected so this constructor's shape stays
