@@ -286,6 +286,15 @@ genérico — una barra de proteína es una barra, no un polvo). El nombre manda
 `p.categoria()` es fallback. Ranking del pick: marca preferida → precio por
 unidad de medida → `baseMlScore` → url.
 
+La **marca preferida** es un orden, no un conjunto: ENA → Gold Nutrition →
+Star Nutrition → BSA → Xtrenght. Compara contra `Product.marca()`, que sale de
+`BrandExtractor` — así que una marca sólo puede ganar acá si además está en
+`BrandExtractor.MARCAS`. Las dos listas viajan juntas o la preferencia es código
+muerto (lo fue: hasta 2026-08-11 la lista curada no tenía ni una marca de
+suplementos, y todos caían al fallback por sitio). Ahí van sólo formas que se
+sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
+"Gold Standard".
+
 > ⚠️ `NO_ALFANUMERICO` tiene que seguir siendo el **primer** campo estático de
 > `SupplementCombo`: varios inicializadores debajo normalizan keywords al
 > construirse, y un `Pattern` declarado después llega null a su propio uso.
