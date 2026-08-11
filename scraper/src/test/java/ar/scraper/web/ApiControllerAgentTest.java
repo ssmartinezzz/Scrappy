@@ -471,6 +471,68 @@ class ApiControllerAgentTest {
         verifyNoInteractions(db);
     }
 
+    // ── normalize-db-schema-fks-1nf A.3: genero domain on the WRITE path ──
+    // ProposeReclassifyTool validates genero too, but it only ever returns a
+    // proposal diff — it writes nothing. THIS endpoint is the write path, and
+    // it is reachable without going through the tool at all. Without the check
+    // below, an out-of-domain genero reaches updateNormalizacion and now
+    // violates V6's chk_productos_genero_domain, surfacing as an opaque 500
+    // instead of the actionable 400 the caller can act on.
+
+    @Test
+    @DisplayName("A.3 apply re-validates server-side: out-of-domain genero → 400, no write")
+    void applyRejectsOutOfDomainGeneroNoWrite() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of());
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+
+        ReclassifyProposal body = new ReclassifyProposal(
+                "https://a.com/1", "Producto", "Zapatilla Running", "Buzo", "", "", "Mujer");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().toString()).contains("Mujer");
+        verifyNoInteractions(db);
+    }
+
+    @Test
+    @DisplayName("A.3 apply accepts an in-domain genero and writes it")
+    void applyAcceptsInDomainGenero() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+
+        ReclassifyProposal body = new ReclassifyProposal(
+                "https://a.com/1", "Producto", "Zapatilla Running", "Buzo", "", "", "mujer");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        verify(db).aplicarReclasificacionAuditada(
+                "https://a.com/1", "Buzo", "Adidas", "mujer", List.of("42"), "", current, "local");
+    }
+
+    @Test
+    @DisplayName("A.3 a blank genero is 'no override', not a value to validate — the previous one survives")
+    void applyTreatsBlankGeneroAsNoOverrideNotAsInvalid() {
+        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42"));
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+
+        ReclassifyProposal body = new ReclassifyProposal(
+                "https://a.com/1", "Producto", "Zapatilla Running", "Buzo", "", "", "");
+        var resp = controller.agentApply(body);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        verify(db).aplicarReclasificacionAuditada(
+                "https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42"), "", current, "local");
+    }
+
     @Test
     @DisplayName("T3.1 apply → the write failing (aplicarReclasificacionAuditada=false) is NEVER reported as applied")
     void applyReturns500WhenWriteFails() {

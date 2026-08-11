@@ -7,6 +7,7 @@ import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ConversationTurn;
+import ar.scraper.agent.ProposeReclassifyTool;
 import ar.scraper.agent.ProviderUnavailableException;
 import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
@@ -165,6 +166,21 @@ class AgentEndpoints {
         if (!CategoryGroups.canonicalCategories().contains(body.categoriaPropuesta())) {
             return ResponseEntity.badRequest()
                     .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + body.categoriaPropuesta() + "'."));
+        }
+        // normalize-db-schema-fks-1nf A.3: genero gets the same treatment
+        // categoria already got, because THIS is the write path — the
+        // ProposeReclassifyTool check is on the proposal, and this endpoint is
+        // reachable without it. Blank/null is skipped deliberately: below,
+        // a blank genero means "don't override", falling back to previo.genero()
+        // — it is not a value being written, so validating it as one would
+        // reject a legitimate no-op. Without this, an out-of-domain value
+        // violates V6's chk_productos_genero_domain and the caller gets an
+        // opaque 500 instead of a 400 naming what was wrong.
+        String generoPropuesto = body.generoPropuesto();
+        if (generoPropuesto != null && !generoPropuesto.isBlank()
+                && !ProposeReclassifyTool.VALID_GENEROS.contains(generoPropuesto)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("ok", false, "mensaje", "Género inválido: '" + generoPropuesto + "'."));
         }
 
         // Server-side re-validation — the client is NEVER trusted to have
