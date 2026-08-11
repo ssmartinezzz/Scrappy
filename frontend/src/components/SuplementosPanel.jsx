@@ -37,10 +37,12 @@ export default function SuplementosPanel() {
   const [error, setError] = useState(null);
   const [picks, setPicks] = useState(null);
   const [sinStock, setSinStock] = useState([]);
-  // URLs ya mostradas. El pick del servidor es determinístico a propósito, así que
-  // "Regenerar" tiene que decir qué vio para recibir el siguiente — sin esto la
-  // petición es idéntica y la respuesta también, que era el bug.
-  const [vistos, setVistos] = useState([]);
+  // URLs ya mostradas, AGRUPADAS POR SUBTIPO. El pick del servidor es determinístico
+  // a propósito, así que "Regenerar" tiene que decir qué vio para recibir el
+  // siguiente — sin esto la petición es idéntica y la respuesta también.
+  // El agrupado importa porque el servidor recicla el pool de a un subtipo: ver
+  // el reinicio en `generar`.
+  const [vistos, setVistos] = useState({});
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -81,7 +83,8 @@ export default function SuplementosPanel() {
     }
     setLoading(true);
     setError(null);
-    const excluir = acumulando ? vistos : [];
+    const previos = acumulando ? vistos : {};
+    const excluir = Object.values(previos).flat();
     try {
       const data = await fetchSuplementosBuilder({
         tipos: Array.from(tipos),
@@ -91,12 +94,18 @@ export default function SuplementosPanel() {
       const nuevos = data?.picks ?? [];
       setPicks(nuevos);
       setSinStock(data?.sinStock ?? []);
-      // El servidor recicla el pool cuando se agota, así que la lista de vistos se
-      // reinicia junto con él: si no, crecería para siempre mandando URLs que ya no
-      // excluyen nada.
-      const urls = nuevos.map(p => p.url).filter(Boolean);
-      const repetido = urls.some(u => excluir.includes(u));
-      setVistos(repetido ? urls : [...excluir, ...urls]);
+      // El servidor recicla el pool de UN subtipo cuando ese subtipo se queda sin
+      // candidatos frescos, así que el reinicio es por subtipo. Reiniciar todo ante
+      // cualquier repetición era el bug: un subtipo con un único candidato se repite
+      // en cada respuesta y borraba el historial de los demás, dejando a la proteína
+      // alternando para siempre entre sus dos primeros candidatos.
+      const siguientes = { ...previos };
+      for (const p of nuevos) {
+        if (!p.url) continue;
+        const yaVistos = siguientes[p.tipo] ?? [];
+        siguientes[p.tipo] = yaVistos.includes(p.url) ? [p.url] : [...yaVistos, p.url];
+      }
+      setVistos(siguientes);
     } catch {
       setError('Error al conectar con el servidor.');
     } finally {
