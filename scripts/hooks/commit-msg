@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# commit-msg — enforces COMMIT-1 (conventional format) and COMMIT-3 (no AI
+# attribution) from CONTRIBUTING.md, before the commit exists.
+#
+# Activar (una vez por clon):   git config core.hooksPath scripts/hooks
+# Saltear un caso puntual:      git commit --no-verify
+#
+# Deliberately does NOT check subject length or punctuation: those are judgment,
+# and several of this repo's best subjects run past 72 chars for good reason.
+set -euo pipefail
+
+MSG_FILE="$1"
+
+# The full message minus comment lines, which git strips anyway.
+BODY="$(grep -v '^#' "$MSG_FILE" || true)"
+# First non-empty, non-comment line.
+SUBJECT="$(printf '%s\n' "$BODY" | grep -v '^[[:space:]]*$' | head -1 || true)"
+
+fail() {
+  echo "" >&2
+  echo "  ✖ commit rechazado — $1" >&2
+  shift
+  for line in "$@"; do echo "    $line" >&2; done
+  echo "" >&2
+  echo "    Detalle en CONTRIBUTING.md. Para saltear: git commit --no-verify" >&2
+  echo "" >&2
+  exit 1
+}
+
+# ─── Exenciones ──────────────────────────────────────────────────────────────
+# Merges, reverts y los squash/fixup autogenerados no siguen el formato y no los
+# escribe una persona. Un mensaje vacío lo aborta git solo.
+case "$SUBJECT" in
+  "")                       exit 0 ;;
+  Merge\ *|Revert\ *)       exit 0 ;;
+  fixup!\ *|squash!\ *|amend!\ *) exit 0 ;;
+esac
+
+# ─── COMMIT-3 · Atribución de IA ─────────────────────────────────────────────
+# Se chequea sobre el mensaje ENTERO, no solo el subject: los trailers de las
+# herramientas van al final. Case-insensitive porque cada herramienta lo
+# capitaliza distinto.
+if printf '%s' "$BODY" | grep -qiE 'co-authored-by|generated with|claude-session|claude\.ai/code|🤖'; then
+  OFENSOR="$(printf '%s\n' "$BODY" | grep -inE 'co-authored-by|generated with|claude-session|claude\.ai/code|🤖' | head -3)"
+  fail "COMMIT-3: atribución de IA en el mensaje" \
+       "$OFENSOR" \
+       "" \
+       "Sin excepciones: ni Co-Authored-By, ni 'Generated with', ni Claude-Session."
+fi
+
+# ─── COMMIT-1 · Conventional commits ─────────────────────────────────────────
+TIPOS='feat|fix|perf|refactor|chore|ci|docs|test|style|build'
+
+# El scope admite '/' para cubrir un cambio que abarca dos áreas
+# (`fix(favoritos/outfits)`), pero no espacios ni '+': eso es un commit que
+# quiere ser dos.
+if ! printf '%s' "$SUBJECT" | grep -qE "^(${TIPOS})(\([a-z0-9._/-]+\))?!?: .+"; then
+  fail "COMMIT-1: el subject no es un conventional commit" \
+       "recibido:  $SUBJECT" \
+       "" \
+       "formato:   tipo(scope): descripción" \
+       "tipos:     ${TIPOS//|/ }" \
+       "" \
+       "ejemplo:   fix(api): stop the supplement builder from guessing the pick"
+fi
+
+# Minúscula inicial, sin punto final e imperativo también son COMMIT-1, pero NO
+# se validan acá: son criterio, y un hook que rechaza por cosmética se termina
+# esquivando con --no-verify, que también apaga el check de COMMIT-3.
+exit 0
