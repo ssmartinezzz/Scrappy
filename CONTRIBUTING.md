@@ -27,7 +27,7 @@ justifica en el PR, no se hace en silencio.
 | `COMMIT-4` | Un commit = una unidad revisable | SHOULD |
 | `COMMIT-5` | El test y el doc viajan con su código | SHOULD |
 | **Pull requests** | | |
-| `PR-1` | Rama por cambio, squash merge, nunca directo a `master` | MUST |
+| `PR-1` | Rama por cambio, merge commit, nunca directo a `master` | MUST |
 | `PR-2` | Arriba de ~400 líneas, evaluar partir en cadena | SHOULD |
 | `PR-3` | El body responde cuatro preguntas | MUST |
 | `PR-4` | Sin secciones vacías ni firma de herramienta | MUST |
@@ -111,10 +111,14 @@ cambio de comportamiento va en el mismo commit que ese cambio. Un commit
 
 # Pull requests
 
-### `PR-1` · Rama por cambio, squash merge, nunca directo a `master` — MUST
+### `PR-1` · Rama por cambio, merge commit, nunca directo a `master` — MUST
 
 Nombre de rama: `<tipo>/<kebab-descripción>` — `fix/supplement-pick-quality`,
 `perf/scrape-page-load-budget`, `feat/cli-command-console`.
+
+**Merge commit, no squash.** Los commits individuales sobreviven en `master`, que
+es lo que hace que `TEST-1` sirva para algo: squashear tira los puntos de bisect
+que costó mantener verdes uno por uno. La rama se borra local y remota al mergear.
 
 ### `PR-2` · Arriba de ~400 líneas, evaluar partir en cadena — SHOULD
 
