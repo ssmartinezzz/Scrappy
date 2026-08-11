@@ -4,7 +4,7 @@
 ml_embeddings.py — Zero-shot fashion image embeddings (Marqo-FashionSigLIP)
 ============================================================================
 
-Owns model load, the SQLite embedding cache, prompt-based zero-shot
+Owns model load, the Postgres embedding cache, prompt-based zero-shot
 classification, and the full-catalog backfill CLI for the
 fashion-image-classification feature.
 
@@ -14,7 +14,8 @@ review):
     ``open_clip``, honoring the project's existing GPU pattern
     (``torch.cuda.is_available()`` device selection + ``_CUDA_LOCK``
     serialization, same as ``ml_pipeline.py``);
-  - the ``image_embeddings`` SQLite cache (schema shipped in PR1);
+  - the ``image_embeddings`` cache (schema shipped in PR1; moved from
+    SQLite to Postgres by decouple-services-postgres, design D4);
   - ``embed_images()``, a cache-first embedding pipeline used by both the
     full-catalog backfill (this slice) and the incremental scrape path
     (PR4).
@@ -764,9 +765,10 @@ def _emit_progress(pct, msg):
 
 
 # Batches `embed_images()` calls in the backfill loop below so its internal
-# SQLite connection is opened/closed once per chunk instead of once per
-# product (deferred from PR3b1 judgment-day review: "thousands of SQLite
-# connection open/close cycles"). Not tuned; a reasonable middle ground
+# DB connection is opened/closed once per chunk instead of once per product
+# (deferred from PR3b1 judgment-day review: "thousands of connection
+# open/close cycles" — the cache was SQLite then, it is Postgres now, and
+# the per-product cycle was the problem either way). Not tuned; a middle ground
 # between fewer connection cycles and not holding too many downloaded
 # images in memory at once.
 _BACKFILL_CHUNK_SIZE = 20
