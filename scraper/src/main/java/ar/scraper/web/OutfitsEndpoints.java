@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -190,14 +191,21 @@ class OutfitsEndpoints {
         var feedback     = FeedbackModels.build(feedbackRows, r.productos(), dismissCats,
                 Set.of(estilo, "catalog"));
 
-        // Resolve pin URLs → Product objects; unresolved URLs are silently dropped
-        List<Product> pinned = pinUrls.stream()
-                .map(u -> r.productos().stream()
-                        .filter(p -> u.equals(p.url()))
-                        .findFirst()
-                        .orElse(null))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        // Resolve pin URLs → Product objects; unresolved URLs are silently dropped.
+        // One index instead of one full catalog scan per pinned URL: with a 6700-product
+        // catalog and a pinned outfit, that inner stream was re-walking the whole thing
+        // on every regen click. putIfAbsent keeps first-wins, matching the old findFirst.
+        List<Product> pinned = List.of();
+        if (!pinUrls.isEmpty()) {
+            Map<String, Product> porUrl = new HashMap<>();
+            for (Product p : r.productos()) {
+                if (p.url() != null) porUrl.putIfAbsent(p.url(), p);
+            }
+            pinned = pinUrls.stream()
+                    .map(porUrl::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
                 r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned, estilo);
