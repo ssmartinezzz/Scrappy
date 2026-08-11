@@ -170,14 +170,24 @@ class DatabaseServiceHistorialBatchTest extends PostgresTestBase {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    /** Inserts a history row directly — upsert only records one row per day. */
+    /**
+     * Inserts a history row directly — upsert only records one row per day.
+     *
+     * <p>normalize-db-schema-fks-1nf, slice A.2 (V5): {@code fecha} is bound as
+     * {@link java.time.LocalDate}, not {@link String} — the column is
+     * {@code DATE} as of V5, and {@code ps.setString} binds a varchar-typed
+     * parameter Postgres refuses to assign into a {@code date} column
+     * ("column is of type date but expression is of type character
+     * varying"). A schema-driven fixture adjustment, not an assertion
+     * change — same accepted pattern as A.1's collateral fixture fix.</p>
+     */
     private void insertarHistorial(String url, String fecha, double precio) {
         try (var c = dataSource().getConnection();
              var ps = c.prepareStatement(
                      "INSERT INTO precio_historico(url, fecha, precio) VALUES (?,?,?) " +
                      "ON CONFLICT (url, fecha) DO NOTHING")) {
             ps.setString(1, url);
-            ps.setString(2, fecha);
+            ps.setObject(2, java.time.LocalDate.parse(fecha));
             ps.setDouble(3, precio);
             ps.executeUpdate();
         } catch (Exception e) {

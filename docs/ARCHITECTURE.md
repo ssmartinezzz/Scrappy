@@ -91,7 +91,7 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 **Razones**:
 1. **Historial de precios**: si truncamos, perdemos la historia. El upsert solo registra en `precio_historico` cuando el precio cambia.
 2. **Memoria estable**: la tabla `productos` nunca crece más allá del catálogo real (~5k-10k filas). Sin upsert, cada run duplicaría los datos.
-3. **Soft delete**: un producto que desaparece temporalmente (stock agotado, sitio caído) se marca `activo=0` pero mantiene su historial. Si vuelve, se reactiva.
+3. **Soft delete**: un producto que desaparece temporalmente (stock agotado, sitio caído) se marca `activo=false` (columna `BOOLEAN` desde `V5`, `normalize-db-schema-fks-1nf`) pero mantiene su historial. Si vuelve, se reactiva.
 
 ---
 

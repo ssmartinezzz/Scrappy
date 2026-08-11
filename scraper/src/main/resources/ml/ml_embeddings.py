@@ -694,7 +694,7 @@ def _pending_urls(conn, force, model_version):
     try:
         cur.execute(
             "SELECT url, imagen_url FROM productos "
-            "WHERE activo = 1 AND imagen_url IS NOT NULL AND imagen_url != ''"
+            "WHERE activo AND imagen_url IS NOT NULL AND imagen_url != ''"
         )
         rows = cur.fetchall()
     finally:

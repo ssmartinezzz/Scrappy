@@ -9,69 +9,124 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * manual-classification-lock, Phase 2 (task 2.1).
+ * manual-classification-lock, Phase 2 (task 2.1) — generalized by
+ * normalize-db-schema-fks-1nf, slice A.2 (task 2.8, design D1).
  *
- * <p>{@code sp_upsert_run} in {@code V3__manual_classification_lock.sql} MUST
- * carry V1's ENTIRE function body verbatim — Postgres has no partial function
- * redefinition, and {@code V1__baseline.sql} itself must never be edited
- * (Flyway validates checksums). This is a mechanical, no-DB guard against
- * copy-paste drift: it un-substitutes V3's 5 lock-guard {@code CASE}
- * expressions back to plain {@code EXCLUDED.<col>} and asserts the resulting
- * {@code DO UPDATE SET} column list is identical to V1's, then asserts every
- * other part of the function body (DECLARE block, loop, INSERT column/VALUES
- * lists, precio_historico branches, RETURN) is unchanged.</p>
+ * <p>{@code sp_upsert_run} has no partial redefinition in Postgres, and
+ * {@code V1__baseline.sql} is never edited (Flyway validates checksums), so
+ * every migration that touches this function MUST carry the entire previous
+ * body forward verbatim, with only its own change applied. This is a
+ * mechanical, no-DB guard against copy-paste drift: for each hop in the
+ * {@code V1 -> V3 -> V5} chain, it undoes that hop's own declared
+ * {@link Substitution}s on the CURRENT body and asserts the result is
+ * byte-identical (modulo whitespace) to the PREVIOUS body — proving nothing
+ * <em>else</em> changed relative to the real previous migration.</p>
+ *
+ * <p>Rejected (design D1): freezing a golden text file of the expected body
+ * — it creates a second copy of the same ~90 lines to maintain and drops the
+ * property this test exists for.</p>
  */
 class SpUpsertRunDriftTest {
+
+    private static final String V1 = "/db/migration/V1__baseline.sql";
+    private static final String V3 = "/db/migration/V3__manual_classification_lock.sql";
+    private static final String V5 = "/db/migration/V5__boolean_and_date_column_types.sql";
 
     private static final String FUNCTION_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String FUNCTION_END = "$$ LANGUAGE plpgsql;";
     private static final String SET_MARKER = "ON CONFLICT (url) DO UPDATE SET";
 
-    /** The 5 columns Decision D3 locks: categoria, sub_categoria, marca, genero, rubro. */
-    private static final Pattern LOCK_GUARD = Pattern.compile(
-            "CASE WHEN productos\\.bloqueado_por IS NULL THEN EXCLUDED\\.(\\w+) ELSE productos\\.(\\w+) END",
-            Pattern.CASE_INSENSITIVE);
-
-    private record ColumnAssignment(String column, String expression) {
+    /** One declared, named transformation applied to CURRENT's body before comparing to PREVIOUS's. */
+    private record Substitution(String description, Pattern pattern, String replacement) {
     }
 
-    @Test
-    void v3SetClauseUnGuardedEqualsV1SetClauseExactly() {
-        String v1Body = readFunctionBody("/db/migration/V1__baseline.sql");
-        String v3Body = readFunctionBody("/db/migration/V3__manual_classification_lock.sql");
-
-        List<ColumnAssignment> v1Pairs = parseSetClause(v1Body);
-        List<ColumnAssignment> v3Pairs = unguard(parseSetClause(v3Body));
-
-        assertThat(v3Pairs).as("V3's DO UPDATE SET column list, un-guarded, must equal V1's exactly (order + content)")
-                .containsExactlyElementsOf(v1Pairs);
+    private record Hop(String previous, String current, List<Substitution> substitutions) {
     }
 
+    /** Decision D3 (manual-classification-lock): the 5 columns V3 locks behind bloqueado_por. */
+    private static final Substitution UNGUARD_LOCKED_COLUMNS = new Substitution(
+            "V3 lock-guard CASE -> plain EXCLUDED.<col> (Decision D3, 5 locked columns)",
+            Pattern.compile(
+                    "CASE WHEN productos\\.bloqueado_por IS NULL THEN EXCLUDED\\.(\\w+) ELSE productos\\.\\1 END"),
+            "EXCLUDED.$1");
+
+    /** Design D2/D6 (normalize-db-schema-fks-1nf slice A.2): boolean + date/timestamptz casts introduced by V5. */
+    private static final List<Substitution> V5_CASTS = List.of(
+            new Substitution(
+                    "activo boolean predicate -> activo = 1 (productos.activo INTEGER pre-V5)",
+                    Pattern.compile("WHERE url = r->>'url' AND activo;"),
+                    "WHERE url = r->>'url' AND activo = 1;"),
+            new Substitution(
+                    "mlOferta boolean cast -> INTEGER cast",
+                    Pattern.compile("COALESCE\\(\\(r->>'mlOferta'\\)::boolean, false\\)"),
+                    "COALESCE((r->>'mlOferta')::INTEGER, 0)"),
+            new Substitution(
+                    "gymrat boolean cast -> INTEGER cast",
+                    Pattern.compile("COALESCE\\(\\(r->>'gymrat'\\)::boolean, false\\)"),
+                    "COALESCE((r->>'gymrat')::INTEGER, 0)"),
+            new Substitution(
+                    "marcaPremium boolean cast -> INTEGER cast",
+                    Pattern.compile("COALESCE\\(\\(r->>'marcaPremium'\\)::boolean, false\\)"),
+                    "COALESCE((r->>'marcaPremium')::INTEGER, 0)"),
+            new Substitution(
+                    "INSERT VALUES tail: activo literal + touched_at/created_at timestamptz casts -> plain text",
+                    Pattern.compile(
+                            "v_fit, v_estampado, v_escote, v_color, true, \\(r->>'now'\\)::timestamptz, \\(r->>'now'\\)::timestamptz"),
+                    "v_fit, v_estampado, v_escote, v_color, 1, r->>'now', r->>'now'"),
+            new Substitution(
+                    "DO UPDATE SET activo = true -> activo = 1",
+                    Pattern.compile("activo = true,"),
+                    "activo = 1,"),
+            new Substitution(
+                    "precio_historico.fecha date cast -> plain text (2 occurrences: nuevos/actualizados branches)",
+                    Pattern.compile("VALUES \\(r->>'url', v_new_precio, \\(r->>'fecha'\\)::date\\)"),
+                    "VALUES (r->>'url', v_new_precio, r->>'fecha')")
+    );
+
+    private static final List<Hop> CHAIN = List.of(
+            new Hop(V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
+            new Hop(V3, V5, V5_CASTS)
+    );
+
     @Test
-    void v3FunctionBodyOutsideTheSetClauseIsByteIdenticalToV1() {
-        String v1Body = readFunctionBody("/db/migration/V1__baseline.sql");
-        String v3Body = readFunctionBody("/db/migration/V3__manual_classification_lock.sql");
+    void everyHopInTheChainIsIdenticalModuloItsDeclaredSubstitutions() {
+        for (Hop hop : CHAIN) {
+            String previousBody = normalizeWhitespace(readFunctionBody(hop.previous()));
+            String currentBody = normalizeWhitespace(readFunctionBody(hop.current()));
 
-        String v1Remainder = normalizeWhitespace(removeSetClause(v1Body));
-        String v3Remainder = normalizeWhitespace(removeSetClause(v3Body));
+            String undone = currentBody;
+            for (Substitution s : hop.substitutions()) {
+                String before = undone;
+                // Not quoted: UNGUARD_LOCKED_COLUMNS relies on the $1 backreference.
+                undone = s.pattern().matcher(undone).replaceAll(s.replacement());
+                assertThat(undone).as("substitution '%s' (%s -> %s) must actually match something",
+                                s.description(), hop.current(), hop.previous())
+                        .isNotEqualTo(before);
+            }
 
-        assertThat(v3Remainder).isEqualTo(v1Remainder);
+            assertThat(undone)
+                    .as("%s's body, with its declared substitutions undone, must equal %s's body exactly",
+                            hop.current(), hop.previous())
+                    .isEqualTo(previousBody);
+        }
     }
 
     @Test
     void v3GuardsExactlyTheFiveDecisionD3Columns() {
-        String v3Body = readFunctionBody("/db/migration/V3__manual_classification_lock.sql");
+        String v3Body = readFunctionBody(V3);
         List<ColumnAssignment> v3Pairs = parseSetClause(v3Body);
 
+        Pattern lockGuard = Pattern.compile(
+                "CASE WHEN productos\\.bloqueado_por IS NULL THEN EXCLUDED\\.(\\w+) ELSE productos\\.(\\w+) END",
+                Pattern.CASE_INSENSITIVE);
         List<String> guardedColumns = new ArrayList<>();
         for (ColumnAssignment pair : v3Pairs) {
-            if (LOCK_GUARD.matcher(pair.expression()).matches()) {
+            if (lockGuard.matcher(pair.expression()).matches()) {
                 guardedColumns.add(pair.column());
             }
         }
@@ -81,6 +136,9 @@ class SpUpsertRunDriftTest {
     }
 
     // ─── helpers ───────────────────────────────────────────────────────────
+
+    private record ColumnAssignment(String column, String expression) {
+    }
 
     private static String readFunctionBody(String classpathResource) {
         String full = readClasspathResource(classpathResource);
@@ -121,13 +179,6 @@ class SpUpsertRunDriftTest {
         return pairs;
     }
 
-    private static String removeSetClause(String functionBody) {
-        int setStart = functionBody.indexOf(SET_MARKER);
-        int contentStart = setStart + SET_MARKER.length();
-        int terminator = findTopLevelSemicolon(functionBody, contentStart);
-        return functionBody.substring(0, setStart) + functionBody.substring(terminator + 1);
-    }
-
     private static int findTopLevelSemicolon(String text, int from) {
         int depth = 0;
         for (int i = from; i < text.length(); i++) {
@@ -154,21 +205,6 @@ class SpUpsertRunDriftTest {
         }
         parts.add(text.substring(last));
         return parts;
-    }
-
-    private static List<ColumnAssignment> unguard(List<ColumnAssignment> pairs) {
-        List<ColumnAssignment> result = new ArrayList<>();
-        for (ColumnAssignment pair : pairs) {
-            Matcher m = LOCK_GUARD.matcher(pair.expression());
-            if (m.matches()) {
-                assertThat(m.group(1)).as("CASE THEN/ELSE column must match the guarded column itself")
-                        .isEqualTo(m.group(2));
-                result.add(new ColumnAssignment(pair.column(), "EXCLUDED." + pair.column()));
-            } else {
-                result.add(pair);
-            }
-        }
-        return result;
     }
 
     private static String normalizeWhitespace(String text) {

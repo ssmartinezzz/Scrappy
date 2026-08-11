@@ -133,14 +133,14 @@ class ProductRepository {
                     ? String.join(",", p.ml().badges()) : "";
             row.put("mlBadge", badge);
             row.put("mlScore", p.ml() != null ? p.ml().scoreP() : 50);
-            row.put("mlOferta", (p.ml() != null && p.ml().ofertaReal()) ? 1 : 0);
+            row.put("mlOferta", p.ml() != null && p.ml().ofertaReal());
             row.put("mlTendencia", p.ml() != null ? p.ml().tendencia() : "");
             row.put("mlSegment", p.ml() != null ? p.ml().segment() : "standard");
             row.put("mlZscore", p.ml() != null ? p.ml().zScore() : 0.0);
             row.put("rubro", p.rubro() != null ? p.rubro() : "indumentaria");
             row.put("marca", p.marca() != null ? p.marca() : "");
-            row.put("gymrat", p.gymrat() ? 1 : 0);
-            row.put("marcaPremium", p.marcaPremium() ? 1 : 0);
+            row.put("gymrat", p.gymrat());
+            row.put("marcaPremium", p.marcaPremium());
             row.put("cantidadUnidades", p.cantidadUnidades());
             row.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
 
@@ -170,11 +170,14 @@ class ProductRepository {
     }
 
     private void purgarHistorialViejo(Connection c) throws SQLException {
-        String cutoff = LocalDate.now().minusDays(MAX_HIST_DAYS).format(DATE);
+        LocalDate cutoff = LocalDate.now().minusDays(MAX_HIST_DAYS);
         try (PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM precio_historico WHERE fecha < ? " +
                 "AND url NOT IN (SELECT url FROM favoritos)")) {
-            ps.setString(1, cutoff);
+            // fecha is DATE (design D6) — ps.setString binds a varchar-typed
+            // parameter and "date < character varying" has no operator;
+            // ps.setObject(LocalDate) binds it as a real date parameter.
+            ps.setObject(1, cutoff);
             int deleted = ps.executeUpdate();
             if (deleted > 0) LOG.debug("[DB] Purged {} entradas historial > 90 dias", deleted);
         }
@@ -221,7 +224,7 @@ class ProductRepository {
                 "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
                 "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
                 "fit,estampado,escote,color_dominante " +
-                "FROM productos WHERE activo=1 ORDER BY precio ASC")) {
+                "FROM productos WHERE activo ORDER BY precio ASC")) {
             while (rs.next()) {
                 result.add(productoDesdeFila(rs));
             }
@@ -300,7 +303,7 @@ class ProductRepository {
         Product.MlScore ml = new Product.MlScore(
                 rs.getInt("ml_score"),
                 badges,
-                rs.getInt("ml_oferta") == 1,
+                rs.getBoolean("ml_oferta"),
                 rs.getString("ml_tendencia") != null ? rs.getString("ml_tendencia") : "",
                 rs.getInt("ml_score"),
                 rs.getDouble("ml_zscore"),
@@ -309,8 +312,8 @@ class ProductRepository {
 
         String marca   = rs.getString("marca");
         String rubro   = rs.getString("rubro");
-        boolean gymrat = rs.getInt("gymrat") == 1;
-        boolean marcaPremium = rs.getInt("marca_premium") == 1;
+        boolean gymrat = rs.getBoolean("gymrat");
+        boolean marcaPremium = rs.getBoolean("marca_premium");
         int cantidadUnidades = rs.getInt("cantidad_unidades");
         if (cantidadUnidades < 1) cantidadUnidades = 1;
         String subCategoria = rs.getString("sub_categoria");
@@ -540,7 +543,7 @@ class ProductRepository {
     void marcarDescontinuado(String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET activo=0 WHERE url=?")) {
+                "UPDATE productos SET activo=false WHERE url=?")) {
             ps.setString(1, url);
             ps.executeUpdate();
         } catch (Exception e) {
@@ -568,7 +571,7 @@ class ProductRepository {
                 "SELECT activo FROM productos WHERE url=?")) {
             ps.setString(1, url);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt(1) == 1;
+                return rs.next() && rs.getBoolean(1);
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error consultando activo: {}", e.getMessage());
