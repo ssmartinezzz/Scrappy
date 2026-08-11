@@ -14,8 +14,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +33,6 @@ class CronRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(CronRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -52,9 +49,9 @@ class CronRepository {
                     INSERT INTO cron_jobs
                         (name, precio_min, precio_max, sitios_json, force_retrain, use_gpu,
                          cron_expr, enabled, created_at, updated_at, next_run_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?::timestamptz)
                     """, Statement.RETURN_GENERATED_KEYS)) {
-            String now = LocalDateTime.now().format(DT);
+            java.time.OffsetDateTime now = Timestamps.now();
             ps.setString(1, name);
             ps.setDouble(2, precioMin);
             ps.setDouble(3, precioMax);
@@ -63,8 +60,8 @@ class CronRepository {
             ps.setBoolean(6, useGpu);
             ps.setString(7, cronExpr);
             ps.setBoolean(8, enabled);
-            ps.setString(9, now);
-            ps.setString(10, now);
+            ps.setObject(9, now);
+            ps.setObject(10, now);
             ps.setString(11, nextRunAt);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -82,7 +79,7 @@ class CronRepository {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     UPDATE cron_jobs SET name=?, precio_min=?, precio_max=?, sitios_json=?,
-                        force_retrain=?, use_gpu=?, cron_expr=?, enabled=?, updated_at=?, next_run_at=?
+                        force_retrain=?, use_gpu=?, cron_expr=?, enabled=?, updated_at=?, next_run_at=?::timestamptz
                     WHERE id=?
                     """)) {
             ps.setString(1, name);
@@ -93,7 +90,7 @@ class CronRepository {
             ps.setBoolean(6, useGpu);
             ps.setString(7, cronExpr);
             ps.setBoolean(8, enabled);
-            ps.setString(9, LocalDateTime.now().format(DT));
+            ps.setObject(9, Timestamps.now());
             ps.setString(10, nextRunAt);
             ps.setLong(11, id);
             return ps.executeUpdate() > 0;
@@ -171,15 +168,15 @@ class CronRepository {
                 rs.getDouble("precio_min"), rs.getDouble("precio_max"), sitios,
                 rs.getBoolean("force_retrain"), rs.getBoolean("use_gpu"),
                 rs.getString("cron_expr"), rs.getBoolean("enabled"),
-                rs.getString("created_at"), rs.getString("updated_at"),
-                rs.getString("last_run_at"), rs.getString("next_run_at"));
+                Timestamps.iso(rs, "created_at"), Timestamps.iso(rs, "updated_at"),
+                Timestamps.iso(rs, "last_run_at"), Timestamps.iso(rs, "next_run_at"));
     }
 
     /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
     boolean touchLastRunAt(long jobId, String lastRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "UPDATE cron_jobs SET last_run_at=? WHERE id=?")) {
+                "UPDATE cron_jobs SET last_run_at=?::timestamptz WHERE id=?")) {
             ps.setString(1, lastRunAt);
             ps.setLong(2, jobId);
             return ps.executeUpdate() > 0;
@@ -193,7 +190,7 @@ class CronRepository {
     boolean updateNextRunAt(long jobId, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "UPDATE cron_jobs SET next_run_at=? WHERE id=?")) {
+                "UPDATE cron_jobs SET next_run_at=?::timestamptz WHERE id=?")) {
             ps.setString(1, nextRunAt);
             ps.setLong(2, jobId);
             return ps.executeUpdate() > 0;
@@ -209,7 +206,7 @@ class CronRepository {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO cron_executions (job_id, started_at, status, skipped_reason)
-                    VALUES (?,?,?,?)
+                    VALUES (?,?::timestamptz,?,?)
                     """, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, jobId);
             ps.setString(2, startedAt);
@@ -230,7 +227,7 @@ class CronRepository {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     UPDATE cron_executions
-                    SET finished_at=?, status=?, skipped_reason=?, log_output=?, duration_ms=?
+                    SET finished_at=?::timestamptz, status=?, skipped_reason=?, log_output=?, duration_ms=?
                     WHERE id=?
                     """)) {
             ps.setString(1, finishedAt);
@@ -283,7 +280,7 @@ class CronRepository {
         Integer duration = rs.wasNull() ? null : durMs;
         return new CronExecution(
                 rs.getLong("id"), rs.getLong("job_id"),
-                rs.getString("started_at"), rs.getString("finished_at"),
+                Timestamps.iso(rs, "started_at"), Timestamps.iso(rs, "finished_at"),
                 rs.getString("status"), rs.getString("skipped_reason"),
                 rs.getString("log_output"), duration);
     }

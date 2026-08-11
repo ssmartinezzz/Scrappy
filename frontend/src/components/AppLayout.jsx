@@ -337,7 +337,7 @@ function OutfitsRoute() {
             totalEstimado: result.totalEstimado,
             slots: payload.slots || [],
             suplementos: payload.suplementos || [],
-            createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            createdAt: new Date().toISOString(),
           }});
         }
       }}

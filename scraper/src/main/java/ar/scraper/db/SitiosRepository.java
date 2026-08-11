@@ -8,8 +8,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,7 +23,6 @@ import java.util.Objects;
 class SitiosRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(SitiosRepository.class);
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -44,7 +41,7 @@ class SitiosRepository {
             ps.setString(1, nombre);
             ps.setString(2, url);
             ps.setString(3, plataforma);
-            ps.setString(4, LocalDateTime.now().format(DT));
+            ps.setObject(4, Timestamps.now());
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());

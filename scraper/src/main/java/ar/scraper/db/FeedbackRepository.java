@@ -9,8 +9,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -28,7 +26,6 @@ import java.util.Set;
 class FeedbackRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(FeedbackRepository.class);
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -55,7 +52,7 @@ class FeedbackRepository {
             ps.setString(3, url);
             ps.setBoolean(4, liked);
             ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
-            ps.setString(6, LocalDateTime.now().format(DT));
+            ps.setObject(6, Timestamps.now());
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
@@ -152,7 +149,7 @@ class FeedbackRepository {
                         VALUES (?, ?)
                         """)) {
                     ps.setString(1, categoria);
-                    ps.setString(2, LocalDateTime.now().format(DT));
+                    ps.setObject(2, Timestamps.now());
                     ps.executeUpdate();
                     c.commit();
                 }

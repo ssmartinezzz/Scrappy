@@ -29,6 +29,8 @@ see `py-batch4-pending/README.md` for the Batch 4 follow-up that owns that.
 import numpy as np
 import pytest
 
+from datetime import datetime
+
 import ml_embeddings
 
 
@@ -44,6 +46,7 @@ class _FakeCursor:
     def __init__(self, store):
         self._store = store
         self._result = None
+        self.last_computed_at = None
 
     def execute(self, sql, params=()):
         normalized = " ".join(sql.split())
@@ -63,6 +66,7 @@ class _FakeCursor:
             # would receive and round-trip.
             raw = embedding.adapted if hasattr(embedding, "adapted") else embedding
             self._store[url] = (bytes(raw), dim, model_version)
+            self.last_computed_at = computed_at
             self._result = None
         else:
             raise AssertionError(f"unexpected SQL issued against fake cursor: {normalized!r}")
@@ -80,7 +84,8 @@ class _FakeConnection:
         self.commit_count = 0
 
     def cursor(self):
-        return _FakeCursor(self._store)
+        self.last_cursor = _FakeCursor(self._store)
+        return self.last_cursor
 
     def commit(self):
         self.commit_count += 1
@@ -170,3 +175,23 @@ def test_get_connection_raises_when_database_url_unset(monkeypatch):
 
     with pytest.raises(RuntimeError):
         ml_embeddings._get_connection()
+
+
+# ─── computed_at is a real instant, not a formatted string (slice A.4) ──────
+
+
+def test_insert_cache_binds_computed_at_as_an_aware_datetime():
+    """`image_embeddings.computed_at` is TIMESTAMPTZ since V8. psycopg2 adapts
+    a datetime to a real timestamp parameter; an ISO string only survives
+    because Postgres coerces an untyped literal — the same shortcut that made
+    the Java side fail outright once its columns got real types."""
+    conn = _FakeConnection()
+    embedding = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+
+    ml_embeddings.insert_cache(conn, "http://x/ts.jpg", embedding, 3, "v1")
+
+    computed_at = conn.last_cursor.last_computed_at
+    assert isinstance(computed_at, datetime), (
+        f"computed_at must be a datetime, got {type(computed_at).__name__}"
+    )
+    assert computed_at.tzinfo is not None, "computed_at must be timezone-aware"

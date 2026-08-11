@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { fetchSitios, createCronJob, updateCronJob, fetchCronExecutions } from '../../api';
 import { SEMANTIC } from '../../lib/colors';
+import { formatFechaHora } from '../../lib/fechas';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
@@ -157,7 +158,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
               <div className="flex flex-col items-end">
                 <span className="text-[.6rem] font-bold uppercase tracking-wide text-t4">Próxima</span>
                 <span className="tabular-nums text-xs font-semibold text-success sm:text-sm">
-                  {isNew ? 'Al guardar' : (job.nextRunAt ? job.nextRunAt.replace('T', ' ') : '—')}
+                  {isNew ? 'Al guardar' : formatFechaHora(job.nextRunAt)}
                 </span>
               </div>
               <button type="button" onClick={() => onClose?.()} aria-label="Cerrar"
@@ -260,7 +261,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
                             className="flex items-center gap-2 rounded-btn px-2 py-1.5 text-left text-xs transition-colors hover:bg-s3">
                             <m.Icon aria-hidden="true" className={cn('h-3.5 w-3.5 shrink-0', m.tone, m.spin && 'animate-spin')} strokeWidth={2} />
                             <span className={cn('font-semibold', m.tone)}>{m.label}</span>
-                            <span className="flex-1 truncate tabular-nums text-t4">{(ex.startedAt || '—').replace('T', ' ')}</span>
+                            <span className="flex-1 truncate tabular-nums text-t4">{formatFechaHora(ex.startedAt)}</span>
                             <span className="tabular-nums text-t4">{ex.durationMs != null ? `${Math.round(ex.durationMs / 1000)}s` : ''}</span>
                           </button>
                         );
@@ -348,8 +349,8 @@ function ExecStat({ exec }) {
       <span className={cn('flex items-center gap-1.5 font-semibold', m.tone)}>
         <m.Icon aria-hidden="true" className={cn('h-4 w-4', m.spin && 'animate-spin')} strokeWidth={2} /> {m.label}
       </span>
-      <span className="text-xs text-t4">Inicio: <span className="tabular-nums text-t2">{(exec.startedAt || '—').replace('T', ' ')}</span></span>
-      <span className="text-xs text-t4">Fin: <span className="tabular-nums text-t2">{(exec.finishedAt || '—').replace('T', ' ')}</span></span>
+      <span className="text-xs text-t4">Inicio: <span className="tabular-nums text-t2">{formatFechaHora(exec.startedAt)}</span></span>
+      <span className="text-xs text-t4">Fin: <span className="tabular-nums text-t2">{formatFechaHora(exec.finishedAt)}</span></span>
       <span className="text-xs text-t4">Duración: <span className="tabular-nums text-t2">{dur}</span></span>
     </div>
   );
