@@ -230,22 +230,34 @@ public class CategoryClassifier {
      * ESPECÍFICO a GENÉRICO. Devuelve la categoría canónica o {@code ""} si el
      * texto no matchea ningún token de nutrición. Compartido por las dos rutas
      * de {@link #clasificar(String)}: el portón temprano (gateado por
-     * {@link #esContextoNutricion(String)}) y el bloque post-ropa. Mantiene el
-     * MISMO orden de evaluación que tenía el bloque inline original.
+     * {@link #esContextoNutricion(String)}) y el bloque post-ropa.
+     *
+     * <p><b>Gainer y Pre-Workout corren ANTES de KW_PROTEINA</b> (cambio deliberado
+     * sobre el orden del bloque inline original). Los dos publicitan su contenido de
+     * proteína en el título — un mass gainer dice "50g de proteína por porción" — así
+     * que el token genérico les ganaba y quedaban archivados como "Proteína". Tener
+     * proteína no es ser proteína: cuando la identidad del producto es inequívoca,
+     * gana la identidad.</p>
+     *
+     * <p>BCAA y Colágeno NO se promovieron, y no por olvido: {@code KW_BCAA_SUP} trae
+     * "aminoacido", que las etiquetas de whey usan todo el tiempo ("aminoácidos
+     * esenciales"), y hay whey fortificada con colágeno. Promoverlos convertiría cada
+     * proteína en un BCAA. Un BCAA o un colágeno que NO nombra proteína ya clasificaba
+     * bien desde acá abajo.</p>
      */
     private String clasificarNutricion(String t) {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CREATINA))         return "Creatina";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_BARRA))  return "Barra Proteica";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_PANCAKE)) return "Pancake Proteico";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_SNACK))  return "Snack Proteico";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GAINERS))         return "Gainer";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PRE_WORKOUT_SUP)) return "Pre-Workout";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA))        return "Proteína";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COLAGENO))        return "Colágeno";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MAGNESIO))        return "Magnesio";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PRE_WORKOUT_SUP)) return "Pre-Workout";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_BCAA_SUP))        return "BCAA";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_VITAMINAS))       return "Vitaminas";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_QUEMADORES))      return "Quemadores";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GAINERS))         return "Gainer";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO))      return "Suplemento";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA))          return "Alimentos";
         return "";

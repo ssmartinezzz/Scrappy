@@ -22,6 +22,8 @@ const TIPOS_DISPONIBLES = [
   { tipo: 'Mostaza',          grupo: 'Aderezos' },
   { tipo: 'Maple / Sirope',   grupo: 'Aderezos' },
   { tipo: 'Creatina',         grupo: null },
+  { tipo: 'Pre-Workout',      grupo: null },
+  { tipo: 'BCAA',             grupo: null },
   { tipo: 'Magnesio',         grupo: null },
   { tipo: 'Quemador',         grupo: null },
 ];

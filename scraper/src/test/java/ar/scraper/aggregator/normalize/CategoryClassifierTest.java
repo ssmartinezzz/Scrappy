@@ -332,6 +332,41 @@ class CategoryClassifierTest {
         assertThat(classifier.normalizarCategoria(null, "Whey Protein Isolate 2kg Vanilla")).isEqualTo("Proteína");
     }
 
+    // ── "tiene proteína" ≠ "es proteína" ──────────────────────────────
+    // KW_PROTEINA used to run before Gainer and Pre-Workout, and both of those
+    // advertise their protein content on the label. The generic protein token won,
+    // so a product whose identity was unambiguous got filed as "Proteína".
+
+    @Test
+    void massGainerEsGainerAunqueDeclareProteina() {
+        Allure.parameter("nombre", "Mass Gainer 3kg con 50g de proteína por porción");
+        assertThat(classifier.normalizarCategoria(null, "Mass Gainer 3kg con 50g de proteína por porción"))
+                .isEqualTo("Gainer");
+    }
+
+    @Test
+    void hipercaloricoEsGainerAunqueDeclareProteina() {
+        Allure.parameter("nombre", "Hipercalorico Whey 1.5kg");
+        assertThat(classifier.normalizarCategoria(null, "Hipercalorico Whey 1.5kg")).isEqualTo("Gainer");
+    }
+
+    @Test
+    void preWorkoutEsPreWorkoutAunqueDeclareProteina() {
+        Allure.parameter("nombre", "Pre Workout con proteína 300g");
+        assertThat(classifier.normalizarCategoria(null, "Pre Workout con proteína 300g"))
+                .isEqualTo("Pre-Workout");
+    }
+
+    @Test
+    void wheyConAminoacidosSigueSiendoProteina() {
+        // BCAA deliberately still runs AFTER KW_PROTEINA: "aminoacido" is a token whey
+        // labels use constantly ("aminoácidos esenciales"), so promoting BCAA the way
+        // Gainer and Pre-Workout were promoted would turn every whey into a BCAA.
+        Allure.parameter("nombre", "Whey Protein con aminoácidos esenciales 1kg");
+        assertThat(classifier.normalizarCategoria(null, "Whey Protein con aminoácidos esenciales 1kg"))
+                .isEqualTo("Proteína");
+    }
+
     @Test
     void magnesioEsMagnesio() {
         Allure.parameter("raw", (String) null);
