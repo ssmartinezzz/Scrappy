@@ -428,8 +428,18 @@ public class ApiController {
     @GetMapping("/suplementos/builder")
     public ResponseEntity<Object> suplementosBuilder(
             @RequestParam(required = false) String tipos,
-            @RequestParam(defaultValue = "0") double presupuesto) {
-        return outfitsEndpoints.suplementosBuilder(tipos, presupuesto);
+            @RequestParam(defaultValue = "0") double presupuesto,
+            @RequestParam(defaultValue = "") String excluir) {
+        return outfitsEndpoints.suplementosBuilder(tipos, presupuesto, excluir);
+    }
+
+    /**
+     * Backward-compatible 2-arg overload, sin mapping propio — la ruta la sigue
+     * sirviendo el método de arriba. Existe para que los call sites previos a
+     * {@code excluir} sigan compilando sin editarlos.
+     */
+    public ResponseEntity<Object> suplementosBuilder(String tipos, double presupuesto) {
+        return outfitsEndpoints.suplementosBuilder(tipos, presupuesto, "");
     }
 
     @PostMapping("/outfits/feedback")
