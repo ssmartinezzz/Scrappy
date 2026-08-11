@@ -164,6 +164,74 @@ class OutfitServiceSuplementosBuilderTest {
         assertThat(result.get(0).tipo()).isEqualTo("Snack Proteico");
     }
 
+    // ── matcher: accents, word boundaries, single assignment ─────────────
+
+    @Test
+    void accentedNameMatchesUnaccentedKeyword() {
+        // The classifier already strips accents before assigning categoria, so this
+        // product is canonically "Proteína". The builder re-derived the subtype from
+        // the raw name with a plain contains(), where the keyword "proteina" could
+        // never match "proteína" — the product carries no whey/isolate token either,
+        // so it fell out of the combo entirely.
+        var proteina = suplemento("Proteína Isolada 1kg", 5000);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(proteina), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).nombre()).isEqualTo("Proteína Isolada 1kg");
+    }
+
+    @Test
+    void keywordDoesNotMatchMidWord() {
+        // "epa" (Omega 3) is a substring of "Preparado". Keywords must anchor at a
+        // word boundary, the way SubcategoryResolver already space-pads its own.
+        var batido = suplemento("Batido Preparado 500g", 4000);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(batido), 0, Set.of("Omega 3"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void keywordWithTrailingSpaceStaysWholeWord() {
+        // "cla " is declared with a trailing space: whole word, not a prefix. It must
+        // not turn "Clásico" into a fat burner.
+        var clasico = suplemento("Ena Clásico 500g", 4000);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(clasico), 0, Set.of("Quemador"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void keywordStillMatchesSpanishPlural() {
+        // Word-boundary anchoring must not cost recall: the keyword is "barrita" and
+        // real listings say "Barritas". Anchoring is at the START of the token only.
+        var barritas = suplemento("Barritas Proteicas x6", 4500);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(barritas), 0, Set.of("Barra Proteica"));
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void productIsAssignedToExactlyOneSubtype() {
+        // Each subtype used to filter the whole pool independently, so a name carrying
+        // tokens of two subtypes was emitted twice — the same URL as both a powder and
+        // a bar. The specific subtype must win and the generic one must not see it.
+        var barra = suplemento("Barra de Proteína Whey", 2500);
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(barra), 0, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Barra Proteica");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private Product suplemento(String nombre, double precio) {
