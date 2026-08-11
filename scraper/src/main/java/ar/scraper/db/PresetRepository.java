@@ -65,7 +65,7 @@ class PresetRepository {
             ps.setString(1, label);
             ps.setDouble(2, recargoPct);
             ps.setInt(3, cuotas);
-            ps.setInt(4, activo ? 1 : 0);
+            ps.setBoolean(4, activo);
             ps.setString(5, LocalDateTime.now().format(DT));
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -84,7 +84,7 @@ class PresetRepository {
                 result.add(new DatabaseService.Preset(
                         rs.getInt("id"), rs.getString("label"),
                         rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
-                        rs.getInt("activo") == 1));
+                        rs.getBoolean("activo")));
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error listando presets: {}", e.getMessage());
@@ -96,7 +96,7 @@ class PresetRepository {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
-                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo=1 LIMIT 1")) {
+                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo LIMIT 1")) {
             if (rs.next()) {
                 return Optional.of(new DatabaseService.Preset(
                         rs.getInt("id"), rs.getString("label"),
@@ -166,9 +166,9 @@ class PresetRepository {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement psOff = c.prepareStatement(
-                    "UPDATE financiacion_presets SET activo=0 WHERE activo=1");
+                    "UPDATE financiacion_presets SET activo=false WHERE activo");
                  PreparedStatement psOn = c.prepareStatement(
-                    "UPDATE financiacion_presets SET activo=1 WHERE id=?")) {
+                    "UPDATE financiacion_presets SET activo=true WHERE id=?")) {
                 psOff.executeUpdate();
                 psOn.setInt(1, id);
                 int filasActivadas = psOn.executeUpdate();

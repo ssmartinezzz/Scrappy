@@ -204,8 +204,25 @@ la cantidad bloqueante) y no borra nada si algún favorito referencia un
 producto vivo — sin `?force=`, decisión explícita para no reabrir el camino
 de borrado silencioso.
 
+`V5` (`normalize-db-schema-fks-1nf`, slice A.2) retipa las 8 columnas
+INTEGER-boolean a `BOOLEAN` nativo — `productos.activo`/`gymrat`/
+`marca_premium`/`ml_oferta`, `cron_jobs.enabled`/`force_retrain`/`use_gpu`,
+`outfit_feedback_item.liked`, `financiacion_presets.activo` (9 columnas
+físicas: `activo` existe en dos tablas) — y 2 columnas `TEXT` de fecha a tipos
+nativos: `precio_historico.fecha`/`precios_externos.fecha` → `DATE`.
+`productos.touched_at`/`created_at` retipan a `TIMESTAMPTZ` en esta MISMA
+migración (no en la fecha "genérica" que le tocaría por criterio) únicamente
+porque `sp_upsert_run`/`sp_soft_delete_ausentes` los escriben y Postgres no
+tiene redefinición parcial de función — el resto de las ~20 columnas `TEXT`
+`*_at` del esquema queda sin tocar, es un cambio de puro tipo sin costo de
+recopia de función, y viaja en su propio slice. `ps.setString()` en un
+parámetro bindeado contra una columna `DATE` ya no compila contra el tipo en
+runtime — `date < character varying` no tiene operador — por eso
+`ProductRepository.purgarHistorialViejo()` y `PreciosExternosRepository`
+bindean `fecha` como `LocalDate` (`ps.setObject`), no como `String`.
+
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
-precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=0`).
+precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).
 Corre **server-side** en las funciones plpgsql `sp_upsert_run`/
 `sp_soft_delete_ausentes`. La concurrencia la resuelve Postgres MVCC: no hay
 locks de aplicación (la vieja lock-dance de SQLite fue removida por completo).
