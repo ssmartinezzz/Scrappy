@@ -232,6 +232,103 @@ class OutfitServiceSuplementosBuilderTest {
         assertThat(result.get(0).tipo()).isEqualTo("Barra Proteica");
     }
 
+    // ── BCAA / Pre-Workout coverage ───────────────────────────────────────
+    // Both categories were already in the supplement whitelist, so these products
+    // reached the builder and then matched no subtype at all — permanently unpickable.
+
+    @Test
+    void bcaaIsPickable() {
+        var bcaa = producto("BCAA 2:1:1 300g Limón", 8000, "BCAA");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(bcaa), 0, Set.of("BCAA"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("BCAA");
+    }
+
+    @Test
+    void glutaminaCountsAsBcaa() {
+        var glutamina = producto("Glutamina Micronizada 500g", 9000, "Suplemento");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(glutamina), 0, Set.of("BCAA"));
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void preWorkoutIsPickable() {
+        var pre = producto("Pre Workout Explosivo 300g", 12000, "Pre-Workout");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Pre-Workout"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).tipo()).isEqualTo("Pre-Workout");
+    }
+
+    // ── "tiene proteína" ≠ "es proteína en polvo" ─────────────────────────
+
+    @Test
+    void massGainerIsNotOfferedAsProteinPowder() {
+        // The one that hurts most: a gainer is mostly maltodextrin, so its price per
+        // kilo is far below any whey — with value ranking it would win the protein
+        // pick nearly every time.
+        var gainer = producto("Mass Gainer 3kg con 50g de proteína", 30000, "Gainer");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(gainer), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void readyToDrinkProteinIsNotOfferedAsProteinPowder() {
+        // Note the wording: "con Proteína" DOES hit the powder keyword, where "Proteica"
+        // does not. A test using the latter would pass without exercising anything.
+        var leche = producto("Leche con Proteína Vainilla 1L", 2500, "Proteína");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(leche), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void proteinYoghurtIsNotOfferedAsProteinPowder() {
+        var yogur = producto("Yogur con Proteína Frutilla 200g", 1800, "Alimentos");
+
+        List<OutfitService.SupplementPick> result =
+                outfitService.armarComboSuplementos(List.of(yogur), 0, Set.of("Proteína en Polvo"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void preWorkoutMentioningProteinIsNotOfferedAsProteinPowder() {
+        var pre = producto("Pre Workout con proteína 300g", 12000, "Pre-Workout");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Proteína en Polvo")))
+                .isEmpty();
+        assertThat(outfitService.armarComboSuplementos(List.of(pre), 0, Set.of("Pre-Workout")))
+                .hasSize(1);
+    }
+
+    @Test
+    void flavourNamesDoNotTripTheFormatVeto() {
+        // The non-regression that constrains the veto list: flavour names borrow exactly
+        // the nouns a format veto would reach for. This is why the veto is phrase-based
+        // ("leche con proteina", "yogur proteico") and never a bare "leche" or "yogur".
+        var chocolatada = producto("Whey Protein Sabor Leche Chocolatada 1kg", 22000, "Proteína");
+        var yogurGriego = producto("Whey Protein Sabor Yogur Griego 1kg", 21000, "Proteína");
+
+        assertThat(outfitService.armarComboSuplementos(List.of(chocolatada), 0, Set.of("Proteína en Polvo")))
+                .hasSize(1);
+        assertThat(outfitService.armarComboSuplementos(List.of(yogurGriego), 0, Set.of("Proteína en Polvo")))
+                .hasSize(1);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private Product suplemento(String nombre, double precio) {

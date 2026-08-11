@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.aggregator.normalize.GarmentTaxonomy;
 import ar.scraper.aggregator.text.AccentStripper;
 import ar.scraper.model.Product;
 
@@ -77,6 +78,11 @@ class SupplementCombo {
                     "cupcake", "pudding", "budin", "budín", "omelette", "omelet"
             }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
+            // BCAA y Pre-Workout leen las keywords CANÓNICAS de GarmentTaxonomy en vez de
+            // una cuarta copia acá: son las mismas con las que el clasificador asigna las
+            // categorías "BCAA" y "Pre-Workout", así que las dos capas no pueden divergir.
+            new SubtipoSuplemento("BCAA", GarmentTaxonomy.KW_BCAA_SUP),
+            new SubtipoSuplemento("Pre-Workout", GarmentTaxonomy.KW_PRE_WORKOUT_SUP),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
             new SubtipoSuplemento("Vitamina C", new String[]{
                     "vitamina c", "vitamin c", "acido ascorbico", "ascórbico", "ascorbico"
@@ -136,11 +142,47 @@ class SupplementCombo {
      */
     private static final List<String> PRECEDENCIA_CLASIFICACION = List.of(
             "Barra Proteica", "Pancake / Waffle", "Snack Proteico",
-            "Creatina", "Quemador",
+            "Creatina", "Pre-Workout", "BCAA", "Quemador",
             "Multivitamínico", "Vitamina C", "Vitamina D", "Complejo B",
             "Omega 3", "Zinc", "Magnesio",
             "Mayonesa", "Ketchup / Salsa", "Mostaza", "Maple / Sirope",
             "Proteína en Polvo");
+
+    /**
+     * Formatos que descalifican a un candidato del subtipo "Proteína en Polvo": tiene
+     * proteína, pero no es un pote de polvo. Sin esto la leche proteica, el postre y —
+     * lo que más duele — el mass gainer competían por el pick de proteína. El gainer es
+     * mayormente maltodextrina, así que su $/kg está muy por debajo de cualquier whey y
+     * con el ranking por valor se lo llevaba casi siempre.
+     *
+     * <p>Son FRASES, no sustantivos pelados, y eso es la restricción central: los
+     * nombres de sabor usan exactamente los mismos sustantivos que un veto de formato
+     * querría atrapar. "Whey sabor Leche Chocolatada" y "sabor Yogur Griego" son whey.
+     * Vetar " leche " o " yogur " mataría productos legítimos, así que el veto sólo
+     * dispara cuando el sustantivo viene junto a la proteína, que es cuando nombra al
+     * producto en vez de a su gusto. Excepción: los tokens de identidad ("gainer",
+     * "hipercalorico") no son ambiguos y van solos.</p>
+     *
+     * <p>Primera pasada, hecha sin catálogo real a mano: hay que ampliarla contra
+     * nombres de verdad. Errar por defecto acá es lo correcto — un veto de más borra
+     * un producto legítimo del armador, uno de menos sólo deja pasar el bug conocido.</p>
+     */
+    private static final String[] FORMATO_NO_POLVO = {
+            "gainer", "hipercalorico",
+            "leche proteica", "leche con proteina", "leche saborizada",
+            "yogur proteico", "yogur con proteina", "yoghurt proteico",
+            "helado proteico", "flan proteico", "postre proteico",
+            "pan proteico", "galletita proteica",
+            "bebida proteica", "listo para tomar", "listo para beber",
+    };
+
+    /**
+     * Vetos por subtipo. El mecanismo es general; hoy sólo lo usa "Proteína en Polvo",
+     * que es el único bucket cuyas keywords ("proteina", "protein") aparecen en
+     * productos de otro formato por el simple hecho de declarar su composición.
+     */
+    private static final Map<String, String[]> VETO_POR_SUBTIPO = Map.of(
+            "Proteína en Polvo", FORMATO_NO_POLVO);
 
     /**
      * Un subtipo con sus keywords ya normalizadas y ya padeadas, para que un request
@@ -152,9 +194,14 @@ class SupplementCombo {
      * — la convención que ya usaban este archivo y {@code GarmentTaxonomy} para decir
      * "palabra completa, sin sufijo": "cla " no debe convertir "Clásico" en un
      * quemador.</p>
+     *
+     * <p>{@code vetos} se chequea PRIMERO y descalifica: un veto que matchea gana sobre
+     * cualquier keyword que también matchee (ver {@link #FORMATO_NO_POLVO}).</p>
      */
-    private record SubtipoCompilado(String tipo, List<String> prefijos, List<String> exactos) {
+    private record SubtipoCompilado(String tipo, List<String> prefijos, List<String> exactos,
+                                    List<String> vetos) {
         boolean matches(String nombreNormalizado) {
+            for (String kw : vetos) if (nombreNormalizado.contains(kw)) return false;
             for (String kw : prefijos) if (nombreNormalizado.contains(kw)) return true;
             for (String kw : exactos)  if (nombreNormalizado.contains(kw)) return true;
             return false;
@@ -192,7 +239,16 @@ class SupplementCombo {
                 if (palabraCompleta) exactos.add(norm);
                 else prefijos.add(norm.substring(0, norm.length() - 1));
             }
-            out.add(new SubtipoCompilado(tipo, List.copyOf(prefijos), List.copyOf(exactos)));
+            List<String> vetos = new ArrayList<>();
+            for (String kw : VETO_POR_SUBTIPO.getOrDefault(tipo, new String[0])) {
+                String norm = normalizar(kw);
+                if (norm.isBlank()) continue;
+                // Los vetos se anclan como prefijo, igual que las keywords: "gainer"
+                // tiene que atrapar "gainers" y "leche con proteina" a "…proteinas".
+                vetos.add(norm.substring(0, norm.length() - 1));
+            }
+            out.add(new SubtipoCompilado(tipo, List.copyOf(prefijos), List.copyOf(exactos),
+                    List.copyOf(vetos)));
         }
         return List.copyOf(out);
     }
