@@ -37,6 +37,10 @@ export default function SuplementosPanel() {
   const [error, setError] = useState(null);
   const [picks, setPicks] = useState(null);
   const [sinStock, setSinStock] = useState([]);
+  // URLs ya mostradas. El pick del servidor es determinístico a propósito, así que
+  // "Regenerar" tiene que decir qué vio para recibir el siguiente — sin esto la
+  // petición es idéntica y la respuesta también, que era el bug.
+  const [vistos, setVistos] = useState([]);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -65,20 +69,34 @@ export default function SuplementosPanel() {
     });
   }
 
-  async function generar() {
+  /**
+   * @param {boolean} acumulando  true desde "Regenerar": arrastra lo ya visto para
+   *   pedir el siguiente candidato. false desde "Armar": consulta nueva, se empieza
+   *   de cero para que el primer resultado sea siempre el mejor del catálogo.
+   */
+  async function generar(acumulando = false) {
     if (tipos.size === 0) {
       setError('Seleccioná al menos un tipo de suplemento.');
       return;
     }
     setLoading(true);
     setError(null);
+    const excluir = acumulando ? vistos : [];
     try {
       const data = await fetchSuplementosBuilder({
         tipos: Array.from(tipos),
         presupuesto: presupuesto ? Number(presupuesto) : 0,
+        excluir,
       });
-      setPicks(data?.picks ?? []);
+      const nuevos = data?.picks ?? [];
+      setPicks(nuevos);
       setSinStock(data?.sinStock ?? []);
+      // El servidor recicla el pool cuando se agota, así que la lista de vistos se
+      // reinicia junto con él: si no, crecería para siempre mandando URLs que ya no
+      // excluyen nada.
+      const urls = nuevos.map(p => p.url).filter(Boolean);
+      const repetido = urls.some(u => excluir.includes(u));
+      setVistos(repetido ? urls : [...excluir, ...urls]);
     } catch {
       setError('Error al conectar con el servidor.');
     } finally {
@@ -119,7 +137,7 @@ export default function SuplementosPanel() {
             />
           </div>
           <button
-            onClick={generar}
+            onClick={() => generar(false)}
             disabled={disabled}
             className={cn(
               'inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-btn px-[28px]',
@@ -233,7 +251,7 @@ export default function SuplementosPanel() {
             {/* Regenerate */}
             <div className="text-center">
               <button
-                onClick={generar}
+                onClick={() => generar(true)}
                 disabled={loading}
                 className={cn(
                   'inline-flex min-h-[44px] items-center rounded-btn border-[1.5px] border-primary bg-transparent px-[26px]',
