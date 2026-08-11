@@ -98,3 +98,48 @@ Extend the Python pipeline to score torso/piernas/calzado combos (e.g. by brand 
 ---
 
 ## "Learning" mechanism approaches
+
+### 1 — Collection-only in slice 1 (recommended for this change)
+
+Add a "👍 / 👎" or "me gusta este outfit" action on each generated outfit. Persist to a new `outfit_feedback` SQLite table (`outfit_id`/slot product URLs, genero, liked boolean, timestamp). **Do not** wire this into outfit generation yet — there's no signal volume on day one. This is explicitly a placeholder for future learning, scoped honestly instead of faking it.
+
+### 2 — Counter-based co-occurrence boost (fast-follow)
+
+Once table 1 has data, weight slot-sampling (approach A) by how often a `marca`/`categoria` pair appears together in liked outfits, recomputed periodically (could piggyback on the existing scrape-triggered ML run via `PythonRunner`).
+
+### 3 — Defer entirely, no feedback UI at all
+
+Simplest, but the user explicitly asked for the system to "learn" — shipping zero feedback mechanism means there's never a path to that without a second proposal round.
+
+**Recommendation: 1 now, 2 as documented fast-follow.** This matches reality: there is no training data today, so promising real ML-driven learning in slice 1 would be overengineering on a guess. Collecting the signal is the honest first step.
+
+---
+
+## Placeholder categories (casual, formal, etc.)
+
+Nest sub-tabs inside a single `/outfits` route (e.g. `OutfitsPanel.jsx` renders an internal tab strip: Gym | Casual | Formal | ...), rather than adding new top-level routes per category. Non-gym tabs render a simple "Próximamente" placeholder. This mirrors how `TrendsPanel.jsx` already nests sub-views (Mercado / etc.) inside one route, and avoids polluting `Sidebar.jsx`'s top-level nav with empty stubs.
+
+---
+
+## Affected Areas
+
+| Area | Approach A (assembly) | Approach 1 (feedback collection) |
+|---|---|---|
+| `NormalizerService.java` | No change (reuse `categoria`/`genero`/`gymrat`) | — |
+| New: `OutfitService.java` (or similar) | Slot-lookup map + sampling logic | — |
+| `ApiController.java` | New `GET /api/outfits?genero=X` (re-roll), reuses `DatabaseService` query patterns | New `POST /api/outfits/feedback` |
+| `DatabaseService.java` | Read-only queries per slot | New `outfit_feedback` table (additive `CREATE TABLE IF NOT EXISTS`) |
+| `frontend/src/components/` | New `OutfitsPanel.jsx` + outfit card sub-component, sub-tab strip for placeholders | Like/dislike buttons on outfit card |
+| `Sidebar.jsx` / `App.jsx` | One new top-level route/nav entry: "Outfits" | — |
+
+---
+
+## Risks
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| Gym footwear excluded from `gymrat` by design — must use separate `categoria` whitelist for calzado slot | Medium | Document explicitly in spec/design; do not try to make `esCalzado()` gymrat-aware (would break existing GYMRAT badge semantics) |
+| Sparse inventory per slot+`genero`+price-band may return empty outfits | High | Fallback: relax price band, then relax `genero` to unisex, before giving up and showing "no hay suficientes productos" |
+| `genero` frequently empty in real data | Medium | Treat empty `genero` as unisex-eligible for all gendered outfit requests |
+| Promising real "learning" with zero training data | Medium | Scope honestly as collection-only (approach 1); document approach 2 as fast-follow, not part of this change |
+| `openspec/config.yaml` / skill registry stale frontend description ("vanilla JS") | Low | Already corrected here; design/tasks phases must reference `frontend/src/`, not `resources/static/` |
