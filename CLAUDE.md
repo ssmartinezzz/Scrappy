@@ -224,7 +224,7 @@ default     → TiendanubeScraper (JS heurístico)
 | ML | GET `/api/tendencias` · GET `/api/historial?url=` · POST `/api/ml/aplicar` · POST `/api/ml/renormalizar` · GET `/api/ml/estado` · POST `/api/ml/entrenar` (train texto + backfill embeddings) · GET `/api/ml/resultado` |
 | Comparador | GET `/api/grupos` · GET `/api/buscar-externo` (MercadoLibre) |
 | Financiación | CRUD `/api/financiacion/presets` · GET `/api/recomendacion?url=` · GET `/api/inflacion` (INDEC) |
-| Outfits | GET `/api/outfits` · GET `/api/outfits/builder` · GET `/api/suplementos/builder` · POST `/api/outfits/feedback` · CRUD `/api/outfits/saved` |
+| Outfits | GET `/api/outfits` · GET `/api/outfits/builder` · GET `/api/suplementos/builder` · GET `/api/suplementos/tipos` · POST `/api/outfits/feedback` · CRUD `/api/outfits/saved` |
 | Para ti | GET `/api/recomendados` · POST `/api/recomendados/feedback` · POST/DELETE `/api/recomendados/dismiss-categoria` |
 | Favoritos | GET/POST/DELETE `/api/favoritos` · POST `/api/favoritos/rescrape` |
 | Picks/Marcas | GET `/api/mejores?rubro=` · GET `/api/marcas-browser` |

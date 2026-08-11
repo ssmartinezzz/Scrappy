@@ -33,7 +33,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | ML | `GET /tendencias` · `GET /historial?url=` · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
 | Comparador | `GET /grupos` · `GET /buscar-externo` (MercadoLibre) |
 | Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
-| Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `POST /outfits/feedback` · CRUD `/outfits/saved` |
+| Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `GET /suplementos/tipos` (subtipos ofrecibles + grupo de selector; taxonomía pura, responde sin catálogo) · `POST /outfits/feedback` · CRUD `/outfits/saved` |
 | Para ti | `GET /recomendados` · `POST /recomendados/feedback` · `POST`/`DELETE /recomendados/dismiss-categoria` |
 | Favoritos | `GET`/`POST`/`DELETE /favoritos` · `POST /favoritos/rescrape` |
 | Picks/Marcas | `GET /mejores?rubro=` · `GET /marcas-browser` |
