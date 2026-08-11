@@ -50,7 +50,18 @@ class SupplementCombo {
      */
     private static final Pattern NO_ALFANUMERICO = Pattern.compile("[^a-z0-9]+");
 
-    private record SubtipoSuplemento(String tipo, String[] keywords) { }
+    /**
+     * Un subtipo del combo.
+     *
+     * <p>{@code grupo} es el encabezado bajo el que el selector agrupa el tipo
+     * ({@code null} = "Otros"). Es metadata de taxonomía, no de presentación, y vive acá
+     * por la misma razón que el resto: el frontend mantenía su propia copia de la lista
+     * Y de los grupos, así que cada subtipo nuevo había que agregarlo dos veces — y un
+     * olvido dejaba un tipo que el builder devuelve y la UI no puede seleccionar.</p>
+     */
+    private record SubtipoSuplemento(String tipo, String grupo, String[] keywords) {
+        SubtipoSuplemento(String tipo, String[] keywords) { this(tipo, null, keywords); }
+    }
 
     /**
      * Subtipos del combo de suplementos, en el orden en que se arma el combo —
@@ -62,19 +73,19 @@ class SupplementCombo {
      * Gym ni los facets del dashboard, que dependen del string "Suplemento").
      */
     private static final List<SubtipoSuplemento> SUPLEMENTO_SUBTIPOS = List.of(
-            new SubtipoSuplemento("Proteína en Polvo", new String[]{
+            new SubtipoSuplemento("Proteína en Polvo", "Proteína", new String[]{
                     "proteina", "protein", "whey", "isolate", "concentrate",
                     "caseina", "casein", "proteina isolada", "proteina hidrolizada"
             }),
-            new SubtipoSuplemento("Barra Proteica", new String[]{
+            new SubtipoSuplemento("Barra Proteica", "Proteína", new String[]{
                     "barra proteica", "barra protein", "barra de proteina", "bar proteica",
                     "barra energetica", "barrita proteica", "barrita protein", "barrita"
             }),
-            new SubtipoSuplemento("Pancake / Waffle", new String[]{
+            new SubtipoSuplemento("Pancake / Waffle", "Proteína", new String[]{
                     "pancake", "panqueque", "waffle", "hotcake proteico",
                     "preparo pancake", "mezcla pancake", "mix pancake"
             }),
-            new SubtipoSuplemento("Snack Proteico", new String[]{
+            new SubtipoSuplemento("Snack Proteico", "Proteína", new String[]{
                     "snack proteico", "snack proteica",
                     "cookie proteica", "cookie protein",
                     "budín proteico", "budin proteico",
@@ -102,44 +113,44 @@ class SupplementCombo {
             }),
             new SubtipoSuplemento("Colágeno", GarmentTaxonomy.KW_COLAGENO),
             new SubtipoSuplemento("Quemador", new String[]{"quemador", "fat burner", "termogenico", "carnitina", "cla "}),
-            new SubtipoSuplemento("Vitamina C", new String[]{
+            new SubtipoSuplemento("Vitamina C", "Vitaminas", new String[]{
                     "vitamina c", "vitamin c", "acido ascorbico", "ascórbico", "ascorbico"
             }),
-            new SubtipoSuplemento("Multivitamínico", new String[]{
+            new SubtipoSuplemento("Multivitamínico", "Vitaminas", new String[]{
                     "multivitaminico", "multivitamin", "polivitaminico", "complejo vitaminico",
                     "complejo vitamínico", "multivit"
             }),
-            new SubtipoSuplemento("Vitamina D", new String[]{
+            new SubtipoSuplemento("Vitamina D", "Vitaminas", new String[]{
                     "vitamina d", "vitamin d", "colecalciferol", "vitamina d3", "vit d"
             }),
-            new SubtipoSuplemento("Omega 3", new String[]{
+            new SubtipoSuplemento("Omega 3", "Vitaminas", new String[]{
                     "omega 3", "omega3", "omega-3", "aceite de pescado", "fish oil", "dha", "epa"
             }),
-            new SubtipoSuplemento("Complejo B", new String[]{
+            new SubtipoSuplemento("Complejo B", "Vitaminas", new String[]{
                     "complejo b", "vitamina b", "vitaminas b", "b12", "b6", "b complex",
                     "cianocobalamina", "metilcobalamina"
             }),
-            new SubtipoSuplemento("Zinc", new String[]{
+            new SubtipoSuplemento("Zinc", "Vitaminas", new String[]{
                     "zinc", "gluconato de zinc", "picolinato de zinc", "citrato de zinc"
             }),
             new SubtipoSuplemento("Magnesio", new String[]{"magnesio", "magnesium", "citrato de magnesio"}),
-            new SubtipoSuplemento("Mayonesa", new String[]{
+            new SubtipoSuplemento("Mayonesa", "Aderezos", new String[]{
                     "mayonesa fit", "mayonesa light", "mayonesa proteica", "mayonesa zero",
                     "mayo fit", "mayo proteica", "mayo light",
                     "mayonesa"
             }),
-            new SubtipoSuplemento("Ketchup / Salsa", new String[]{
+            new SubtipoSuplemento("Ketchup / Salsa", "Aderezos", new String[]{
                     "ketchup", "ketchup fit", "ketchup zero", "ketchup sin azucar",
                     "salsa fit", "salsa zero", "salsa de tomate fit",
                     "topping proteico", "topping fit",
                     "aderezo fit", "aderezo proteico"
             }),
-            new SubtipoSuplemento("Mostaza", new String[]{
+            new SubtipoSuplemento("Mostaza", "Aderezos", new String[]{
                     "mostaza fit", "mostaza light", "mostaza zero", "mostaza dijón",
                     "mostaza dijon", "mostaza americana", "mostaza de grano",
                     "salsa mostaza"
             }),
-            new SubtipoSuplemento("Maple / Sirope", new String[]{
+            new SubtipoSuplemento("Maple / Sirope", "Aderezos", new String[]{
                     "maple", "maple fit", "maple sin azucar", "maple zero",
                     "jarabe de arce", "sirope", "sirope fit", "sirope zero",
                     "sirope sin azucar"
@@ -365,6 +376,16 @@ class SupplementCombo {
             Map.entry("Colágeno",         "Colágeno"),
             Map.entry("Magnesio",         "Magnesio"),
             Map.entry("Quemadores",       "Quemador"));
+
+    /**
+     * Los subtipos del combo, en orden de armado, para que el selector del frontend deje
+     * de mantener su propia copia. Expuesto vía {@code GET /api/suplementos/tipos}.
+     */
+    static List<OutfitService.SupplementTipo> tiposDisponibles() {
+        return SUPLEMENTO_SUBTIPOS.stream()
+                .map(s -> new OutfitService.SupplementTipo(s.tipo(), s.grupo()))
+                .collect(Collectors.toList());
+    }
 
     /** All canonical supplement categories assigned by NormalizerService. */
     private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(

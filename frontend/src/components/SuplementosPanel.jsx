@@ -1,44 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Pill, PackageSearch } from 'lucide-react';
-import { fetchSuplementosBuilder, fmt } from '../api';
+import { fetchSuplementosBuilder, fetchSuplementosTipos, fmt } from '../api';
 import { MultiSelectTags } from './ui/multi-select-tags';
 import { MoneyInput } from './ui/money-input';
 import { cn } from '@/lib/utils';
 
-const TIPOS_DISPONIBLES = [
-  { tipo: 'Proteína en Polvo', grupo: 'Proteína' },
-  { tipo: 'Barra Proteica',    grupo: 'Proteína' },
-  { tipo: 'Pancake / Waffle',  grupo: 'Proteína' },
-  { tipo: 'Snack Proteico',    grupo: 'Proteína' },
-  { tipo: 'Vitamina C',        grupo: 'Vitaminas' },
-  { tipo: 'Multivitamínico',   grupo: 'Vitaminas' },
-  { tipo: 'Vitamina D',        grupo: 'Vitaminas' },
-  { tipo: 'Omega 3',           grupo: 'Vitaminas' },
-  { tipo: 'Complejo B',        grupo: 'Vitaminas' },
-  { tipo: 'Zinc',              grupo: 'Vitaminas' },
-  { tipo: 'Mayonesa',          grupo: 'Aderezos' },
-  { tipo: 'Ketchup / Salsa',  grupo: 'Aderezos' },
-  { tipo: 'Mostaza',          grupo: 'Aderezos' },
-  { tipo: 'Maple / Sirope',   grupo: 'Aderezos' },
-  { tipo: 'Creatina',         grupo: null },
-  { tipo: 'Pre-Workout',      grupo: null },
-  { tipo: 'BCAA',             grupo: null },
-  { tipo: 'Gainer',           grupo: null },
-  { tipo: 'Colágeno',         grupo: null },
-  { tipo: 'Magnesio',         grupo: null },
-  { tipo: 'Quemador',         grupo: null },
-];
+// The type list comes from GET /api/suplementos/tipos. It used to be hard-coded here,
+// which meant every new backend subtype had to be added in two places — and a forgotten
+// edit left a type the builder returns and this selector could not offer.
 const DEFAULT_TIPOS = new Set(['Proteína en Polvo', 'Creatina', 'Magnesio']);
 
-// Grouped tag data for MultiSelectTags, derived from TIPOS_DISPONIBLES —
-// preserves order and maps the `grupo: null` bucket to "Otros".
-const GROUPS = ['Proteína', 'Vitaminas', 'Aderezos', null].map(grupo => ({
-  label: grupo ?? 'Otros',
-  tags: TIPOS_DISPONIBLES.filter(t => t.grupo === grupo).map(t => t.tipo),
-}));
+/**
+ * Groups the fetched types for MultiSelectTags, preserving server order and mapping the
+ * `grupo: null` bucket to "Otros". Group headings are discovered from the data rather
+ * than listed here, so a new backend group needs no change in this file.
+ */
+function buildGroups(tipos) {
+  const orden = [];
+  for (const t of tipos) {
+    const grupo = t.grupo ?? null;
+    if (!orden.some(g => g.grupo === grupo)) orden.push({ grupo, tags: [] });
+    orden.find(g => g.grupo === grupo).tags.push(t.tipo);
+  }
+  // "Otros" last: it is the catch-all, so it reads as the tail of the list even when the
+  // first ungrouped type happens to arrive early in combo order.
+  orden.sort((a, b) => (a.grupo === null ? 1 : 0) - (b.grupo === null ? 1 : 0));
+  return orden.map(g => ({ label: g.grupo ?? 'Otros', tags: g.tags }));
+}
 
 export default function SuplementosPanel() {
+  const [tiposDisponibles, setTiposDisponibles] = useState([]);
   const [tipos, setTipos] = useState(DEFAULT_TIPOS);
   const [presupuesto, setPresupuesto] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,6 +38,23 @@ export default function SuplementosPanel() {
   const [picks, setPicks] = useState(null);
   const [sinStock, setSinStock] = useState([]);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    let vigente = true;
+    fetchSuplementosTipos()
+      .then(lista => {
+        if (!vigente) return;
+        setTiposDisponibles(lista);
+        // Keep only defaults the server actually offers, so a renamed or retired subtype
+        // cannot leave a selection that the builder would then report as "sin stock".
+        const ofrecidos = new Set(lista.map(t => t.tipo));
+        setTipos(prev => new Set([...prev].filter(t => ofrecidos.has(t))));
+      })
+      .catch(() => { /* fetchSuplementosTipos ya devuelve [] ante error */ });
+    return () => { vigente = false; };
+  }, []);
+
+  const groups = useMemo(() => buildGroups(tiposDisponibles), [tiposDisponibles]);
 
   function toggleTipo(tipo) {
     setTipos(prev => {
@@ -90,7 +99,7 @@ export default function SuplementosPanel() {
           <p className="mb-[14px] text-[.85rem] font-semibold text-t2">
             ¿Qué suplementos necesitás?
           </p>
-          <MultiSelectTags groups={GROUPS} selected={tipos} onToggle={toggleTipo} />
+          <MultiSelectTags groups={groups} selected={tipos} onToggle={toggleTipo} />
         </div>
 
         {/* Budget + generate */}

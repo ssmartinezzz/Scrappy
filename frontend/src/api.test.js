@@ -4,6 +4,7 @@ import {
   fetchData,
   fetchInflacion,
   fetchRecomendacion,
+  fetchSuplementosTipos,
   fetchTendencias,
   startScrape,
 } from '@/api';
@@ -79,6 +80,31 @@ describe('fetchData query serialisation', () => {
     global.fetch.mockResolvedValue({ ok: false, status: 500 });
 
     await expect(fetchData({})).resolves.toBeNull();
+  });
+});
+
+describe('fetchSuplementosTipos', () => {
+  it('returns the server list', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ tipos: [{ tipo: 'Proteína en Polvo', grupo: 'Proteína' }] }),
+    );
+
+    await expect(fetchSuplementosTipos()).resolves.toEqual([
+      { tipo: 'Proteína en Polvo', grupo: 'Proteína' },
+    ]);
+    expect(calledUrl().pathname).toBe('/api/suplementos/tipos');
+  });
+
+  it.each([
+    ['a non-ok response', { ok: false, status: 500, json: async () => ({}) }],
+    ['a body with no tipos array', jsonResponse({})],
+    ['a tipos field that is not an array', jsonResponse({ tipos: 'Proteína' })],
+  ])('returns [] for %s rather than throwing', async (_label, response) => {
+    // The selector renders from this list, so a malformed body must degrade to an empty
+    // selector instead of taking the whole panel down.
+    global.fetch = vi.fn().mockResolvedValue(response);
+
+    await expect(fetchSuplementosTipos()).resolves.toEqual([]);
   });
 });
 
