@@ -672,12 +672,21 @@ def main():
             key = f"{key}|{genero}"
         grupos_precios[key].append(precio_unitario(p))
 
-    # Categoría normalizada sola (para stats de scoring por producto — distinta de
-    # cat_prices/cat_stats_output más abajo, que es SOLO para el panel de tendencias y
-    # se mantiene en precio de estantería)
+    # Clave del output 'categoriaStats' persistido en categoria_stats (V16,
+    # close-1nf-and-3nf-foundation design DD6): la categoria CANÓNICA (V13),
+    # no norm_cat — categoria_stats.categoria ahora tiene FK a categoria(nombre)
+    # y norm_cat produce claves en minúscula que esa tabla nunca tuvo ("medias",
+    # no "Medias"). Vacío cae en 'Otros', el bucket de abstención de V12, que sí
+    # está en el canon — 'general' nunca estuvo.
+    #
+    # Distinta de cat_prices/cat_stats_output más abajo, que es SOLO para
+    # tendencias.categoriaStats (no se persiste) y se mantiene en precio de
+    # estantería. El fallback de scoring por producto (stats_cats.get(cat_nc),
+    # más abajo) es en la práctica inalcanzable: stats_grupos ya cubre a todo
+    # producto con la misma clave que él mismo aportó al construir grupos_precios.
     cats_precios = defaultdict(list)
     for p in productos:
-        cat = norm_cat((p.get('categoria') or 'General').strip() or 'General')
+        cat = (p.get('categoria') or '').strip() or 'Otros'
         cats_precios[cat].append(precio_unitario(p))
 
     # Construir objetos PriceStats
