@@ -47,25 +47,27 @@ class CronRepository {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO cron_jobs
-                        (name, precio_min, precio_max, sitios_json, force_retrain, use_gpu,
+                        (name, precio_min, precio_max, force_retrain, use_gpu,
                          cron_expr, enabled, created_at, updated_at, next_run_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?::timestamptz)
+                    VALUES (?,?,?,?,?,?,?,?,?,?::timestamptz)
                     """, Statement.RETURN_GENERATED_KEYS)) {
             java.time.OffsetDateTime now = Timestamps.now();
             ps.setString(1, name);
             ps.setDouble(2, precioMin);
             ps.setDouble(3, precioMax);
-            ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
-            ps.setBoolean(5, forceRetrain);
-            ps.setBoolean(6, useGpu);
-            ps.setString(7, cronExpr);
-            ps.setBoolean(8, enabled);
+            ps.setBoolean(4, forceRetrain);
+            ps.setBoolean(5, useGpu);
+            ps.setString(6, cronExpr);
+            ps.setBoolean(7, enabled);
+            ps.setObject(8, now);
             ps.setObject(9, now);
-            ps.setObject(10, now);
-            ps.setString(11, nextRunAt);
+            ps.setString(10, nextRunAt);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
-                return keys.next() ? keys.getLong(1) : -1;
+                if (!keys.next()) return -1;
+                long id = keys.getLong(1);
+                reemplazarSitios(c, id, sitios);
+                return id;
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error creando cron job: {}", e.getMessage());
@@ -78,22 +80,23 @@ class CronRepository {
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
-                    UPDATE cron_jobs SET name=?, precio_min=?, precio_max=?, sitios_json=?,
+                    UPDATE cron_jobs SET name=?, precio_min=?, precio_max=?,
                         force_retrain=?, use_gpu=?, cron_expr=?, enabled=?, updated_at=?, next_run_at=?::timestamptz
                     WHERE id=?
                     """)) {
             ps.setString(1, name);
             ps.setDouble(2, precioMin);
             ps.setDouble(3, precioMax);
-            ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
-            ps.setBoolean(5, forceRetrain);
-            ps.setBoolean(6, useGpu);
-            ps.setString(7, cronExpr);
-            ps.setBoolean(8, enabled);
-            ps.setObject(9, Timestamps.now());
-            ps.setString(10, nextRunAt);
-            ps.setLong(11, id);
-            return ps.executeUpdate() > 0;
+            ps.setBoolean(4, forceRetrain);
+            ps.setBoolean(5, useGpu);
+            ps.setString(6, cronExpr);
+            ps.setBoolean(7, enabled);
+            ps.setObject(8, Timestamps.now());
+            ps.setString(9, nextRunAt);
+            ps.setLong(10, id);
+            if (ps.executeUpdate() == 0) return false;
+            reemplazarSitios(c, id, sitios);
+            return true;
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando cron job {}: {}", id, e.getMessage());
             return false;
@@ -126,12 +129,27 @@ class CronRepository {
 
     List<CronJob> listCronJobs() {
         List<CronJob> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
-                "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs ORDER BY id")) {
-            while (rs.next()) result.add(cronJobDesdeFila(rs));
+        try (Connection c = dataSource.getConnection()) {
+            // Los sitios de TODOS los jobs en una sola query plana y ordenada,
+            // mergeada por job_id — nunca una consulta por job (V9, mismo
+            // criterio que cargarProductos con producto_talle).
+            java.util.Map<Long, List<String>> sitiosPorJob = new java.util.HashMap<>();
+            try (Statement st = c.createStatement();
+                 ResultSet rs = st.executeQuery(
+                         "SELECT job_id, sitio FROM cron_job_sitio ORDER BY job_id, posicion")) {
+                while (rs.next()) {
+                    sitiosPorJob.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>()).add(rs.getString(2));
+                }
+            }
+            try (Statement st = c.createStatement();
+                 ResultSet rs = st.executeQuery(
+                         "SELECT id,name,precio_min,precio_max,force_retrain,use_gpu,cron_expr," +
+                         "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs ORDER BY id")) {
+                while (rs.next()) {
+                    result.add(cronJobDesdeFila(rs,
+                            sitiosPorJob.getOrDefault(rs.getLong("id"), List.of())));
+                }
+            }
         } catch (Exception e) {
             LOG.warn("[DB] Error listando cron jobs: {}", e.getMessage());
         }
@@ -141,11 +159,11 @@ class CronRepository {
     Optional<CronJob> getCronJob(long id) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "SELECT id,name,precio_min,precio_max,sitios_json,force_retrain,use_gpu,cron_expr," +
+                "SELECT id,name,precio_min,precio_max,force_retrain,use_gpu,cron_expr," +
                 "enabled,created_at,updated_at,last_run_at,next_run_at FROM cron_jobs WHERE id=?")) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? Optional.of(cronJobDesdeFila(rs)) : Optional.empty();
+                return rs.next() ? Optional.of(cronJobDesdeFila(rs, sitiosDe(c, id))) : Optional.empty();
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error obteniendo cron job {}: {}", id, e.getMessage());
@@ -153,16 +171,46 @@ class CronRepository {
         }
     }
 
-    private CronJob cronJobDesdeFila(ResultSet rs) throws SQLException {
-        List<String> sitios = List.of();
-        try {
-            JsonNode arr = MAPPER.readTree(rs.getString("sitios_json"));
-            if (arr.isArray()) {
-                List<String> s = new ArrayList<>();
-                arr.forEach(n -> s.add(n.asText()));
-                sitios = s;
+    /** Los sitios llegan ya leídos de {@code cron_job_sitio}, ordenados por posicion (V9). */
+    /** Los sitios de UN job, en orden. */
+    private List<String> sitiosDe(Connection c, long jobId) throws SQLException {
+        List<String> sitios = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT sitio FROM cron_job_sitio WHERE job_id=? ORDER BY posicion")) {
+            ps.setLong(1, jobId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) sitios.add(rs.getString(1));
             }
-        } catch (Exception ignored) {}
+        }
+        return sitios;
+    }
+
+    /**
+     * DELETE + INSERT, nunca ON CONFLICT: una lista de sitios que se ACHICA no
+     * puede dejar sitios viejos que el job siga scrapeando (mismo criterio que
+     * producto_talle en V7). Las posiciones arrancan en 1 y son contiguas.
+     */
+    private void reemplazarSitios(Connection c, long jobId, List<String> sitios) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("DELETE FROM cron_job_sitio WHERE job_id=?")) {
+            ps.setLong(1, jobId);
+            ps.executeUpdate();
+        }
+        if (sitios == null || sitios.isEmpty()) return;
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO cron_job_sitio (job_id, posicion, sitio) VALUES (?,?,?)")) {
+            short posicion = 1;
+            for (String sitio : sitios) {
+                if (sitio == null || sitio.isBlank()) continue;
+                ps.setLong(1, jobId);
+                ps.setShort(2, posicion++);
+                ps.setString(3, sitio);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    private CronJob cronJobDesdeFila(ResultSet rs, List<String> sitios) throws SQLException {
         return new CronJob(
                 rs.getLong("id"), rs.getString("name"),
                 rs.getDouble("precio_min"), rs.getDouble("precio_max"), sitios,
