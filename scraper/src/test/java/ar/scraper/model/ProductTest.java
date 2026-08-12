@@ -106,4 +106,28 @@ class ProductTest {
         assertThat(pack.esPack()).isTrue();
         assertThat(single.esPack()).isFalse();
     }
+
+    // ── precioOriginal is a Double: NULL is "no opinion", not a sentinel
+    //    string (D1/DD1). tieneDescuento() reflects that directly: a non-null
+    //    value means the original price parsed, nothing more. ────────────────
+
+    @Test
+    @DisplayName("tieneDescuento() es true cuando precioOriginal parseó a un Double")
+    void tieneDescuentoEsTrueConPrecioOriginalNoNulo() {
+        Product p = new Product("Sitio", "Remera", 5000, 8000.0,
+                "http://x", "http://img", "Remera", "hombre", TALLES);
+
+        assertThat(p.tieneDescuento()).isTrue();
+        assertThat(p.precioOriginal()).isEqualTo(8000.0);
+    }
+
+    @Test
+    @DisplayName("tieneDescuento() es false cuando precioOriginal es null (no parseó / no había)")
+    void tieneDescuentoEsFalseConPrecioOriginalNulo() {
+        Product p = new Product("Sitio", "Remera", 5000, null,
+                "http://x", "http://img", "Remera", "hombre", TALLES);
+
+        assertThat(p.tieneDescuento()).isFalse();
+        assertThat(p.precioOriginal()).isNull();
+    }
 }

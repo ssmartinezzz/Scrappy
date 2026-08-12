@@ -138,7 +138,7 @@ class CatalogoEndpoints {
             n.put("sitio",      safe(p.sitio()));
             n.put("nombre",     safe(p.nombre()));
             n.put("precio",     p.precio());
-            n.put("precioOrig", safe(p.precioOriginal()));
+            n.put("precioOrig", p.precioOriginal());
             n.put("descuento",  p.tieneDescuento());
             n.put("url",        safe(p.url()));
             String img = safe(p.imagenUrl());

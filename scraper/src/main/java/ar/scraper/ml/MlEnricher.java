@@ -152,7 +152,7 @@ public class MlEnricher {
                 n.put("url",            p.url()            != null ? p.url()            : "");
                 n.put("nombre",         p.nombre());
                 n.put("precio",         p.precio());
-                n.put("precioOriginal", p.precioOriginal() != null ? p.precioOriginal() : "");
+                n.put("precioOriginal", p.precioOriginal());
                 n.put("categoria",      p.categoria()      != null ? p.categoria()      : "");
                 n.put("genero",         p.genero()         != null ? p.genero()         : "");
                 n.put("sitio",          p.sitio());
