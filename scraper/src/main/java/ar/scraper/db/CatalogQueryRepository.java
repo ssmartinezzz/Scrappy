@@ -41,17 +41,13 @@ class CatalogQueryRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(CatalogQueryRepository.class);
 
-    /** A page of results plus the total the filter matched (not the page size). */
-    record Pagina(List<Product> productos, int total) {
-    }
-
     private final DataSource dataSource;
 
     CatalogQueryRepository(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
-    Pagina buscar(CatalogFilter filtro, String orden, int page, int size) {
+    CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size) {
         Where where = construirWhere(filtro);
         try (Connection c = dataSource.getConnection()) {
             int total = contar(c, where);
@@ -59,10 +55,10 @@ class CatalogQueryRepository {
             int offset = (int) Math.min((long) (paginaClamped - 1) * size, Math.max(total, 0));
 
             List<Product> productos = leerPagina(c, where, orden, size, offset);
-            return new Pagina(productos, total);
+            return new CatalogPage(productos, total);
         } catch (Exception e) {
             LOG.error("[DB] Error consultando el catálogo: {}", e.getMessage(), e);
-            return new Pagina(List.of(), 0);
+            return new CatalogPage(List.of(), 0);
         }
     }
 
@@ -110,27 +106,32 @@ class CatalogQueryRepository {
         }
     }
 
-    /** Rango de precios y conteo por sitio del catálogo persistido (metadata que antes solo existía por corrida). */
-    record Resumen(double minPrecio, double maxPrecio, Map<String, Long> porSitio) {
-    }
-
-    Resumen resumen() {
+    CatalogResumen resumen() {
         double min = 0, max = 0;
+        long conteoGymrat = 0, conteoPacks = 0;
+        int total = 0;
         Map<String, Long> porSitio = new java.util.LinkedHashMap<>();
+        Map<String, Long> rubros = new java.util.LinkedHashMap<>();
         try (Connection c = dataSource.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement(
-                    "SELECT coalesce(min(precio),0), coalesce(max(precio),0) FROM productos WHERE activo");
+                    "SELECT coalesce(min(precio),0), coalesce(max(precio),0), COUNT(*), "
+                            + "count(*) FILTER (WHERE gymrat), count(*) FILTER (WHERE cantidad_unidades > 1) "
+                            + "FROM productos WHERE activo");
                  ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     min = rs.getDouble(1);
                     max = rs.getDouble(2);
+                    total = rs.getInt(3);
+                    conteoGymrat = rs.getLong(4);
+                    conteoPacks = rs.getLong(5);
                 }
             }
             porSitio = contar(c, "sitio");
+            rubros = contar(c, "coalesce(nullif(btrim(rubro),''),'indumentaria')");
         } catch (Exception e) {
             LOG.error("[DB] Error calculando el resumen del catálogo: {}", e.getMessage(), e);
         }
-        return new Resumen(min, max, porSitio);
+        return new CatalogResumen(min, max, porSitio, rubros, conteoGymrat, conteoPacks, total);
     }
 
     /** GROUP BY sobre una expresión de `productos`, descartando el blanco, por conteo descendente. */

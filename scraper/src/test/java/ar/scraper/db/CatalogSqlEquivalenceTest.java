@@ -119,7 +119,7 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
     void paginacionCubreTodoUnaSolaVez() {
         List<String> vistas = new ArrayList<>();
         for (int page = 1; page <= 10; page++) {
-            CatalogQueryRepository.Pagina p = repo.buscar(CatalogFilter.todo(), "precio_asc", page, 2);
+            CatalogPage p = repo.buscar(CatalogFilter.todo(), "precio_asc", page, 2);
             p.productos().forEach(prod -> vistas.add(prod.url()));
         }
         assertThat(vistas).doesNotHaveDuplicates();
@@ -130,7 +130,7 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
     @Test
     @DisplayName("El total es el del filtro, no el de la página")
     void totalEsElDelFiltro() {
-        CatalogQueryRepository.Pagina p = repo.buscar(CatalogFilter.todo(), "precio_asc", 1, 2);
+        CatalogPage p = repo.buscar(CatalogFilter.todo(), "precio_asc", 1, 2);
         assertThat(p.productos()).hasSize(2);
         assertThat(p.total()).isEqualTo(dataset.size());
     }
@@ -138,7 +138,7 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
     @Test
     @DisplayName("Los talles vuelven ordenados, y el badge principal sigue primero")
     void hidratacionDeTablasHijas() {
-        CatalogQueryRepository.Pagina p = repo.buscar(
+        CatalogPage p = repo.buscar(
                 CatalogFilter.todo().conQ("multi-talle"), "precio_asc", 1, 10);
 
         assertThat(p.productos()).hasSize(1);
@@ -152,7 +152,7 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
     private void verificarEquivalencia(CatalogFilter f) {
         List<String> esperadas = referencia(f).stream().map(Product::url).sorted().toList();
 
-        CatalogQueryRepository.Pagina pagina = repo.buscar(f, "precio_asc", 1, 500);
+        CatalogPage pagina = repo.buscar(f, "precio_asc", 1, 500);
         List<String> obtenidas = pagina.productos().stream().map(Product::url).sorted().toList();
 
         assertThat(obtenidas)

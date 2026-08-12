@@ -90,11 +90,15 @@ class CatalogFacetsSqlEquivalenceTest extends PostgresTestBase {
     @Test
     @DisplayName("El resumen da el rango de precios y el conteo por sitio del catálogo persistido")
     void resumen() {
-        CatalogQueryRepository.Resumen r = repo.resumen();
+        CatalogResumen r = repo.resumen();
 
         assertThat(r.minPrecio()).isEqualTo(1500.0);
         assertThat(r.maxPrecio()).isEqualTo(45000.0);
         assertThat(r.porSitio()).containsEntry("Freres", 2L).containsEntry("VCP", 1L);
+        assertThat(r.total()).isEqualTo(3);
+        assertThat(r.rubros()).containsEntry("indumentaria", 3L);
+        assertThat(r.gymrat()).isZero();
+        assertThat(r.packs()).isZero();
     }
 
     // ─── dataset ────────────────────────────────────────────────────────────

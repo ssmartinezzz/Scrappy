@@ -60,7 +60,7 @@ class CatalogOrdenTest extends PostgresTestBase {
     @Test
     @DisplayName("% Oferta ordena por descuento pero NO descarta lo que no tiene")
     void ofertaOrdenaSinFiltrar() {
-        CatalogQueryRepository.Pagina p = repo.buscar(CatalogFilter.todo(), "desc_pct", 1, 50);
+        CatalogPage p = repo.buscar(CatalogFilter.todo(), "desc_pct", 1, 50);
 
         // 75% (2800 -> 700) antes que 50% (1000 -> 500); los sin descuento quedan
         // al final, pero SIGUEN estando.

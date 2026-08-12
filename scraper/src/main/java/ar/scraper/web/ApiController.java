@@ -154,7 +154,7 @@ public class ApiController {
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);
         this.dbAdminEndpoints   = new DbAdminEndpoints(service, db, aggregator);
-        this.catalogoEndpoints  = new CatalogoEndpoints(service, db, config);
+        this.catalogoEndpoints  = new CatalogoEndpoints(service, db, config, inflacionService);
         this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
     }
 

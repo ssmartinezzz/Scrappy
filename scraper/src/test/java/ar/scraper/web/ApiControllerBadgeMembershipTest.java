@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 @Feature("Filtros / Facets")
 @Story("Multi-badge membership")
 @DisplayName("ApiController — badge set membership filter + per-badge facet counts")
-class ApiControllerBadgeMembershipTest {
+class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ScraperService service;
     private InflacionService inflacionService;
@@ -58,7 +58,7 @@ class ApiControllerBadgeMembershipTest {
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);
         aggregator        = mock(ResultAggregator.class);
-        db                = mock(DatabaseService.class);
+        db                = new DatabaseService(dataSource());
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
@@ -67,7 +67,6 @@ class ApiControllerBadgeMembershipTest {
                 db, grouping, pythonRunner, outfitService, recommendationService);
 
         when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     private Product productoConBadges(String url, double precio, List<String> badges) {
@@ -78,14 +77,16 @@ class ApiControllerBadgeMembershipTest {
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
-    @Step("Wire ScraperService to return an AggregatedResult for the given products")
+    private final java.util.List<Product> sembrados = new java.util.ArrayList<>();
+
+    /**
+     * `/api/data` lee de la BASE desde `sql-catalog-filtering`. Acumulativo
+     * porque upsertProductos hace soft-delete de lo que no viene en el batch.
+     */
+    @Step("Seed the catalog with the given products")
     private void resultFor(Product... productos) {
-        List<Product> lista = List.of(productos);
-        double min = lista.stream().mapToDouble(Product::precio).min().orElse(0);
-        double max = lista.stream().mapToDouble(Product::precio).max().orElse(0);
-        AggregatedResult r = new AggregatedResult(lista, Map.of("Sitio", lista.size()), Map.of(),
-                ResultAggregator.calcularFacets(lista), min, max);
-        when(service.getLastResult()).thenReturn(r);
+        sembrados.addAll(List.of(productos));
+        db.upsertProductos(List.copyOf(sembrados));
     }
 
     @Test
