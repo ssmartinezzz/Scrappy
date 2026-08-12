@@ -52,7 +52,7 @@ class CatalogQueryRepository {
     }
 
     Pagina buscar(CatalogFilter filtro, String orden, int page, int size) {
-        Where where = construirWhere(filtro, orden);
+        Where where = construirWhere(filtro);
         try (Connection c = dataSource.getConnection()) {
             int total = contar(c, where);
             int paginaClamped = Math.max(page, 1);
@@ -66,13 +66,122 @@ class CatalogQueryRepository {
         }
     }
 
+    /**
+     * Las facetas del catálogo activo, con un GROUP BY por faceta en vez de un
+     * barrido en memoria de las 13543 filas.
+     *
+     * <p>Cada consulta aplica en SQL la MISMA normalización de clave que hacía
+     * {@code FacetCalculator} (trim, lower para género, capitalizar la primera
+     * letra en categoría) para que las claves salgan idénticas. El orden
+     * también se replica: categorías y marcas por conteo descendente, marcas
+     * limitadas a 30, subcategorías por clave, y los talles por
+     * {@link ar.scraper.aggregator.FacetCalculator#sortTalles} — que se reusa,
+     * no se reimplementa.</p>
+     *
+     * <p>Un cambio visible y deliberado: género, badges y los cuatro atributos
+     * visuales salían en "orden de primera aparición" dentro de un catálogo
+     * ordenado por precio, que no es un orden sino un accidente. Ahora salen
+     * por conteo descendente.</p>
+     */
+    ar.scraper.aggregator.ResultAggregator.Facets facetas() {
+        try (Connection c = dataSource.getConnection()) {
+            Map<String, Long> talles = ar.scraper.aggregator.FacetCalculator.sortTalles(
+                    contarHija(c, "producto_talle", "talle"));
+            Map<String, Long> badges = contarHija(c, "producto_badge", "badge");
+
+            Map<String, Long> generos = contar(c, "lower(btrim(genero))");
+            Map<String, Long> categorias = contar(c,
+                    "upper(left(btrim(categoria),1)) || lower(substr(btrim(categoria),2))");
+            Map<String, Long> marcas = limitar(contar(c, "btrim(marca)"), 30);
+            Map<String, Long> subCategorias = ordenarPorClave(contar(c, "btrim(sub_categoria)"));
+            Map<String, Long> fits = contar(c, "btrim(fit)");
+            Map<String, Long> estampados = contar(c, "btrim(estampado)");
+            Map<String, Long> escotes = contar(c, "btrim(escote)");
+            Map<String, Long> colores = contar(c, "btrim(color_dominante)");
+
+            return new ar.scraper.aggregator.ResultAggregator.Facets(
+                    talles, generos, categorias, marcas, badges, subCategorias,
+                    fits, estampados, escotes, colores);
+        } catch (Exception e) {
+            LOG.error("[DB] Error calculando facetas: {}", e.getMessage(), e);
+            return new ar.scraper.aggregator.ResultAggregator.Facets(
+                    Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
+                    Map.of(), Map.of(), Map.of(), Map.of());
+        }
+    }
+
+    /** Rango de precios y conteo por sitio del catálogo persistido (metadata que antes solo existía por corrida). */
+    record Resumen(double minPrecio, double maxPrecio, Map<String, Long> porSitio) {
+    }
+
+    Resumen resumen() {
+        double min = 0, max = 0;
+        Map<String, Long> porSitio = new java.util.LinkedHashMap<>();
+        try (Connection c = dataSource.getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT coalesce(min(precio),0), coalesce(max(precio),0) FROM productos WHERE activo");
+                 ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    min = rs.getDouble(1);
+                    max = rs.getDouble(2);
+                }
+            }
+            porSitio = contar(c, "sitio");
+        } catch (Exception e) {
+            LOG.error("[DB] Error calculando el resumen del catálogo: {}", e.getMessage(), e);
+        }
+        return new Resumen(min, max, porSitio);
+    }
+
+    /** GROUP BY sobre una expresión de `productos`, descartando el blanco, por conteo descendente. */
+    private Map<String, Long> contar(Connection c, String expresion) throws SQLException {
+        Map<String, Long> conteo = new java.util.LinkedHashMap<>();
+        String sql = "SELECT " + expresion + " AS clave, COUNT(*) FROM productos "
+                + "WHERE activo AND coalesce(btrim(" + expresion + "), '') <> '' "
+                + "GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
+        }
+        return conteo;
+    }
+
+    /**
+     * Igual pero sobre una tabla hija: un producto cuenta UNA VEZ POR VALOR que
+     * tiene, no una sola vez — es la semántica multi-badge que la spec pide.
+     */
+    private Map<String, Long> contarHija(Connection c, String tabla, String columna) throws SQLException {
+        Map<String, Long> conteo = new java.util.LinkedHashMap<>();
+        String sql = "SELECT btrim(h." + columna + ") AS clave, COUNT(*) FROM " + tabla + " h "
+                + "JOIN productos p ON p.url = h.url "
+                + "WHERE p.activo AND btrim(h." + columna + ") <> '' "
+                + "GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
+        }
+        return conteo;
+    }
+
+    private static Map<String, Long> limitar(Map<String, Long> conteo, int max) {
+        Map<String, Long> out = new java.util.LinkedHashMap<>();
+        conteo.entrySet().stream().limit(max).forEach(e -> out.put(e.getKey(), e.getValue()));
+        return out;
+    }
+
+    private static Map<String, Long> ordenarPorClave(Map<String, Long> conteo) {
+        Map<String, Long> out = new java.util.LinkedHashMap<>();
+        conteo.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(e -> out.put(e.getKey(), e.getValue()));
+        return out;
+    }
+
     // ─── WHERE ──────────────────────────────────────────────────────────────
 
     /** SQL fragment plus its bound parameters, in order. */
     private record Where(String sql, List<Object> params) {
     }
 
-    private Where construirWhere(CatalogFilter f, String orden) {
+    private Where construirWhere(CatalogFilter f) {
         List<String> cond = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
@@ -147,12 +256,6 @@ class CatalogQueryRepository {
             cond.add("p.nombre ILIKE '%' || ? || '%'");
             params.add(escaparLike(f.q()));
         }
-        if ("desc_pct".equals(orden)) {
-            // No es cosmético: el orden por descuento DESCARTA lo que no tiene
-            // descuento, igual que el `.filter(tieneDescuento)` del comparador Java.
-            cond.add("p.precio_orig IS NOT NULL AND btrim(p.precio_orig) <> ''");
-        }
-
         return new Where(String.join("\n  AND ", cond), params);
     }
 
@@ -173,10 +276,14 @@ class CatalogQueryRepository {
         return switch (orden != null ? orden : "precio_asc") {
             case "precio_desc" -> "ORDER BY p.precio DESC, p.url ASC";
             case "nombre_asc", "nombre" -> "ORDER BY lower(coalesce(p.nombre,'')) ASC, p.url ASC";
-            // Ascendente, igual que el comparador Java. Parece un bug (el peor
-            // score primero) pero replicarlo es el punto de este cambio; si se
-            // arregla, se arregla aparte y a la vista.
-            case "composite", "ml_score" -> "ORDER BY p.ml_score ASC, p.url ASC";
+            // DESC, no ASC. El filtro en memoria ordenaba ascendente, o sea que
+            // el selector rotulado "ML Score" en el frontend mostraba PRIMERO los
+            // peores scores. Arreglado acá y no replicado: acarrearlo a SQL era
+            // convertir un bug de UI en un bug de esquema.
+            case "composite", "ml_score" -> "ORDER BY p.ml_score DESC, p.url ASC";
+            // Ordena, no filtra. El comparador en memoria descartaba los productos
+            // sin descuento DENTRO del sort, así que cambiar el orden cambiaba el
+            // total y la paginación. Los sin descuento puntúan 0 y quedan al final.
             case "desc_pct" -> "ORDER BY " + PCT_DESCUENTO + " DESC, p.url ASC";
             default -> "ORDER BY p.precio ASC, p.url ASC";
         };
