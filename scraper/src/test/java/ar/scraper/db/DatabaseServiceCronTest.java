@@ -63,7 +63,7 @@ class DatabaseServiceCronTest extends PostgresTestBase {
         assertThat(job.useGpu()).isFalse();
         assertThat(job.cronExpr()).isEqualTo("0 0 3 * * *");
         assertThat(job.enabled()).isTrue();
-        assertThat(job.nextRunAt()).isEqualTo("2026-07-05T03:00:00");
+        assertThat(job.nextRunAt()).isEqualTo(utc("2026-07-05T03:00:00"));
         assertThat(job.createdAt()).isNotBlank();
         assertThat(job.updatedAt()).isNotBlank();
         assertThat(job.lastRunAt()).isNull();
@@ -114,7 +114,7 @@ class DatabaseServiceCronTest extends PostgresTestBase {
         assertThat(updated.useGpu()).isTrue();
         assertThat(updated.cronExpr()).isEqualTo("0 0 5 * * *");
         assertThat(updated.enabled()).isFalse();
-        assertThat(updated.nextRunAt()).isEqualTo("2026-07-06T05:00:00");
+        assertThat(updated.nextRunAt()).isEqualTo(utc("2026-07-06T05:00:00"));
     }
 
     @Test
@@ -151,8 +151,8 @@ class DatabaseServiceCronTest extends PostgresTestBase {
 
         assertThat(ok).isTrue();
         CronJob job = db.getCronJob(id).orElseThrow();
-        assertThat(job.lastRunAt()).isEqualTo("2026-07-05T03:00:05");
-        assertThat(job.nextRunAt()).isEqualTo("2026-07-05T03:00:00"); // unchanged
+        assertThat(job.lastRunAt()).isEqualTo(utc("2026-07-05T03:00:05"));
+        assertThat(job.nextRunAt()).isEqualTo(utc("2026-07-05T03:00:00")); // unchanged
     }
 
     @Test
@@ -163,7 +163,7 @@ class DatabaseServiceCronTest extends PostgresTestBase {
 
         assertThat(ok).isTrue();
         CronJob job = db.getCronJob(id).orElseThrow();
-        assertThat(job.nextRunAt()).isEqualTo("2026-07-06T03:00:00");
+        assertThat(job.nextRunAt()).isEqualTo(utc("2026-07-06T03:00:00"));
         assertThat(job.lastRunAt()).isNull(); // unchanged
     }
 
@@ -178,7 +178,7 @@ class DatabaseServiceCronTest extends PostgresTestBase {
         assertThat(execId).isPositive();
         CronExecution exec = db.getExecution(execId).orElseThrow();
         assertThat(exec.jobId()).isEqualTo(jobId);
-        assertThat(exec.startedAt()).isEqualTo("2026-07-05T03:00:00");
+        assertThat(exec.startedAt()).isEqualTo(utc("2026-07-05T03:00:00"));
         assertThat(exec.status()).isEqualTo("running");
         assertThat(exec.finishedAt()).isNull();
         assertThat(exec.durationMs()).isNull();
@@ -194,7 +194,7 @@ class DatabaseServiceCronTest extends PostgresTestBase {
 
         assertThat(ok).isTrue();
         CronExecution exec = db.getExecution(execId).orElseThrow();
-        assertThat(exec.finishedAt()).isEqualTo("2026-07-05T03:05:00");
+        assertThat(exec.finishedAt()).isEqualTo(utc("2026-07-05T03:05:00"));
         assertThat(exec.status()).isEqualTo("success");
         assertThat(exec.logOutput()).contains("[INICIO]").contains("[FIN]");
         assertThat(exec.durationMs()).isEqualTo(300000);
@@ -256,7 +256,7 @@ class DatabaseServiceCronTest extends PostgresTestBase {
         assertThat(remaining).hasSize(3);
         // Newest-first: the 3 most recently inserted (highest ids) survive.
         assertThat(remaining).extracting(CronExecution::startedAt)
-                .containsExactly("2026-07-05T03:00:00", "2026-07-04T03:00:00", "2026-07-03T03:00:00");
+                .containsExactly(utc("2026-07-05T03:00:00"), utc("2026-07-04T03:00:00"), utc("2026-07-03T03:00:00"));
     }
 
     @Test
@@ -275,4 +275,19 @@ class DatabaseServiceCronTest extends PostgresTestBase {
         Allure.parameter("execId", 999);
         assertThat(db.getExecution(999)).isEmpty();
     }
+
+    /**
+     * normalize-db-schema-fks-1nf, slice A.4: these columns are TIMESTAMPTZ
+     * since V8, so the API renders them as UTC ISO-8601 instead of echoing back
+     * the offset-less local string that was written. Same instant, new shape —
+     * computed here instead of hardcoded so the assertion does not depend on
+     * the machine's timezone.
+     */
+    private static String utc(String localIso) {
+        return java.time.LocalDateTime.parse(localIso)
+                .atZone(java.time.ZoneId.systemDefault())
+                .withZoneSameInstant(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+    }
+
 }

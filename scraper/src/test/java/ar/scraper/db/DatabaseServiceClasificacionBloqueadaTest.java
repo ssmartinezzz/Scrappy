@@ -51,7 +51,7 @@ class DatabaseServiceClasificacionBloqueadaTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "UPDATE productos SET categoria=?, sub_categoria=?, marca=?, genero=?, rubro=?, "
-                             + "bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                             + "bloqueado_por=?, bloqueado_at=?::timestamptz WHERE url=?")) {
             ps.setString(1, categoria);
             ps.setString(2, subCategoria);
             ps.setString(3, marca);

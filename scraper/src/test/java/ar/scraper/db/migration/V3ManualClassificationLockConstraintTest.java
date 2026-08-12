@@ -59,7 +59,7 @@ class V3ManualClassificationLockConstraintTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             assertThatThrownBy(() -> {
                 try (PreparedStatement ps = c.prepareStatement(
-                        "UPDATE productos SET bloqueado_at=? WHERE url=?")) {
+                        "UPDATE productos SET bloqueado_at=?::timestamptz WHERE url=?")) {
                     ps.setString(1, "2026-07-28 12:00:00");
                     ps.setString(2, url);
                     ps.executeUpdate();
@@ -77,7 +77,7 @@ class V3ManualClassificationLockConstraintTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             assertThatThrownBy(() -> {
                 try (PreparedStatement ps = c.prepareStatement(
-                        "UPDATE productos SET bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                        "UPDATE productos SET bloqueado_por=?, bloqueado_at=?::timestamptz WHERE url=?")) {
                     ps.setString(1, "");
                     ps.setString(2, "2026-07-28 12:00:00");
                     ps.setString(3, url);
@@ -95,7 +95,7 @@ class V3ManualClassificationLockConstraintTest extends PostgresTestBase {
 
         try (Connection c = dataSource().getConnection();
              PreparedStatement ps = c.prepareStatement(
-                     "UPDATE productos SET bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                     "UPDATE productos SET bloqueado_por=?, bloqueado_at=?::timestamptz WHERE url=?")) {
             ps.setString(1, "local");
             ps.setString(2, "2026-07-28 12:00:00");
             ps.setString(3, url);

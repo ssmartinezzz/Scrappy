@@ -8,8 +8,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +22,6 @@ import java.util.Objects;
 class FavoritosRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(FavoritosRepository.class);
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -43,7 +40,7 @@ class FavoritosRepository {
             ps.setString(1, url);
             ps.setString(2, sitio);
             ps.setString(3, nombre);
-            ps.setString(4, LocalDateTime.now().format(DT));
+            ps.setObject(4, Timestamps.now());
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando favorito: {}", e.getMessage());
@@ -73,8 +70,8 @@ class FavoritosRepository {
                 row.put("url",            rs.getString(1));
                 row.put("sitio",          rs.getString(2));
                 row.put("nombre",         rs.getString(3));
-                row.put("added_at",       rs.getString(4));
-                row.put("last_checked_at", rs.getString(5));
+                row.put("added_at",       Timestamps.iso(rs, "added_at"));
+                row.put("last_checked_at", Timestamps.iso(rs, "last_checked_at"));
                 result.add(row);
             }
         } catch (Exception e) {
@@ -87,7 +84,7 @@ class FavoritosRepository {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE favoritos SET last_checked_at=? WHERE url=?")) {
-            ps.setString(1, LocalDateTime.now().format(DT));
+            ps.setObject(1, Timestamps.now());
             ps.setString(2, url);
             ps.executeUpdate();
         } catch (Exception e) {

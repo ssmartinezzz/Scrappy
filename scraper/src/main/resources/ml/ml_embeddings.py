@@ -244,7 +244,10 @@ def insert_cache(conn, url, embedding, dim, model_version):
                 model_version = EXCLUDED.model_version,
                 computed_at = EXCLUDED.computed_at
             """,
-            (url, psycopg2.Binary(blob), dim, model_version, datetime.now(timezone.utc).isoformat()),
+            # computed_at is TIMESTAMPTZ since V8: psycopg2 adapts an aware
+            # datetime to a real timestamp parameter. The old .isoformat()
+            # string only worked because Postgres coerces an untyped literal.
+            (url, psycopg2.Binary(blob), dim, model_version, datetime.now(timezone.utc)),
         )
         conn.commit()
     finally:

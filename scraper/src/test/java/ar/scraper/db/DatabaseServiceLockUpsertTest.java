@@ -63,7 +63,7 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     private void lockProduct(String url, String actor) throws Exception {
         try (Connection c = dataSource().getConnection();
              PreparedStatement ps = c.prepareStatement(
-                     "UPDATE productos SET bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                     "UPDATE productos SET bloqueado_por=?, bloqueado_at=?::timestamptz WHERE url=?")) {
             ps.setString(1, actor);
             ps.setString(2, "2026-07-28 12:00:00");
             ps.setString(3, url);

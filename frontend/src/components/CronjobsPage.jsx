@@ -27,10 +27,7 @@ import {
 } from './ui/pagination';
 import { usePagination } from './hooks/use-pagination';
 import CronJobCard from './cron/CronJobCard';
-
-function fmtFecha(iso) {
-  return iso ? iso.replace('T', ' ') : '—';
-}
+import { formatFechaHora as fmtFecha } from '../lib/fechas';
 
 // Accessible on/off switch with a comfortable hit area.
 function EnabledSwitch({ checked, onChange, label }) {
