@@ -451,6 +451,14 @@ class ProductRepository {
      *
      * <p>Las posiciones son contiguas y arrancan en 1 — un talle en blanco se
      * descarta sin consumir posición, igual que hace el backfill de V7.</p>
+     *
+     * <p>Sobre una url INEXISTENTE con lista no vacía, el INSERT viola la FK a
+     * {@code productos(url)} en vez de ser un UPDATE de 0 filas silencioso como
+     * antes. Los dos contratos publicados se mantienen igual —
+     * {@link #actualizarNormalizacion} devuelve 0, {@link #aplicarReclasificacionAuditada}
+     * hace rollback y devuelve {@code false}— y ninguna fila huérfana queda:
+     * lo único que cambia es que ahora queda un log del intento
+     * ({@code TallesRoundTripTest}).</p>
      */
     private void reemplazarTalles(Connection c, String url, List<String> talles) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("DELETE FROM producto_talle WHERE url=?")) {
