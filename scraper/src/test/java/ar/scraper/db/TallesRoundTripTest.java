@@ -108,6 +108,39 @@ class TallesRoundTripTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("Writing sizes for a URL that does not exist writes nothing and reports it")
+    void writingTallesForAnUnknownUrlIsRejectedByTheForeignKey() throws Exception {
+        // producto_talle.url is FK-bound to productos(url), so a size list for
+        // an unknown product now fails at the INSERT instead of being a silent
+        // no-op UPDATE. Both callers must still honour their documented
+        // contracts: 0 rows for the machine path, false for the human one, and
+        // no orphan rows either way. The pre-existing nonexistent-url test
+        // passes an EMPTY list, which never reaches the INSERT at all.
+        String url = "https://site.com/talles-url-inexistente";
+
+        int filas = db.actualizarNormalizacion(url, "Buzos", "Nike", "hombre", List.of("M", "L"), "Canguro");
+        assertThat(filas).isZero();
+
+        boolean aplicado = db.aplicarReclasificacionAuditada(url, "Buzos", "Nike", "hombre",
+                List.of("M", "L"), "Canguro", producto(url, List.of("M", "L")), "santi");
+        assertThat(aplicado).isFalse();
+
+        assertThat(contarTalles(url)).isZero();
+        assertThat(db.obtenerProducto(url)).isEmpty();
+    }
+
+    private int contarTalles(String url) throws Exception {
+        try (var c = dataSource().getConnection();
+             var ps = c.prepareStatement("SELECT COUNT(*) FROM producto_talle WHERE url=?")) {
+            ps.setString(1, url);
+            try (var rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    @Test
     @DisplayName("upsertParcial writes sizes too — the progressive path is not a second contract")
     void upsertParcialWritesTalles() {
         String url = "https://site.com/talles-parcial";
