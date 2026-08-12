@@ -262,7 +262,7 @@ public class DatabaseService {
         categoriaStatsRepository.guardarCategoriaStats(statsNode);
     }
 
-    public java.util.Map<String, String> cargarCategoriaStats() {
+    public java.util.Map<String, CategoriaStats> cargarCategoriaStats() {
         return categoriaStatsRepository.cargarCategoriaStats();
     }
 

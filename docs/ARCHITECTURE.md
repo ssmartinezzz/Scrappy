@@ -479,6 +479,86 @@ destruye historial del usuario: es una decisión de producto, no de esquema.
 
 ---
 
+### `close-1nf-and-3nf-foundation` (V16-V19): cerrar 1FN de una vez
+
+Cuatro migraciones, una por concern, mismo patrón que V4-V8: la más
+riesgosa (V17, re-copia `sp_upsert_run`) queda sola y chica. El orden
+V16→V17→V18→V19 **no es load-bearing** — las cuatro son mutuamente
+independientes, Flyway se detiene en la primera que falla y una migración
+detenida rompe el arranque de Spring de cualquier forma. El orden se
+mantuvo porque es el que la propuesta le hizo esperar a quien revisa el PR,
+no porque exista una dependencia real entre ellas.
+
+#### `categoria_stats`: de blob JSON a 12 columnas tipadas (V16)
+
+**Decisión**: `categoria_stats.payload` (un `TEXT` con un JSON adentro) pasa
+a 12 columnas tipadas — `n` (`INTEGER`, un conteo, nunca redondeado por
+Python) y diez campos de plata en `BIGINT` (`round()` sin `ndigits` en
+Python devuelve un `int` sin límite, y `fence_high` en una categoría tech
+no tiene techo — `INTEGER` no ahorra nada acá) más `cv` en
+`DOUBLE PRECISION` (`round(cv, 1)`). Es la misma clase de violación que
+`talles`/`ml_badge` (V7) y `sitios_json` (V9), un nivel más adentro: en vez
+de una columna con una lista, una columna entera con un registro
+estructurado serializado en un TEXT, sin poder tipar ni un campo.
+
+**Sin backfill, tabla vaciada primero.** Cada clave existente es la salida
+de `norm_cat` (`"medias"`); `categoria(nombre)` (V13) tiene el canon en
+Title Case (`"Medias"`). Una FK sobre las filas actuales rechazaría todas.
+La tabla es upsert-only, tope de 20 categorías por corrida, y se
+regenera entera en el próximo run de ML — traducir las claves es más
+trabajo que borrarlas. **Consecuencia declarada**: `distribucionCategorias`
+sale `{}` hasta el próximo run de ML. Se verificó (no se asumió) que los
+tres call sites del frontend que leen `catStats?.[...]` ya usan optional
+chaining desde antes de este cambio — no hay pantalla que reviente.
+
+**El filtro de claves no canónicas es por-clave, no por-batch.**
+`CategoriaStatsRepository.guardarCategoriaStats` descarta contra
+`CategoryGroups.canonicalCategories()` **antes** de bindear — nunca llega
+a la base una clave inválida — así que una categoría inventada por el
+pipeline no puede volver a tirar abajo el batch entero como el upsert
+principal ya sabe hacer en silencio (`upsert-swallows-sql-errors`, la
+misma clase de bug, una tabla al lado).
+
+**Productor Python** (`ml_pipeline.py`, el loop que arma `cats_precios`):
+la clave pasa de `norm_cat((categoria or 'General').strip() or 'General')`
+a `(categoria or '').strip() or 'Otros'` — la categoría CANÓNICA, no
+`norm_cat`, y el fallback de vacío es `'Otros'` (el bucket de abstención de
+V12, que SÍ está en el canon de V13; `'general'` nunca estuvo). `norm_cat`
+se mantiene intacto para todo lo demás: sigue siendo la clave de
+`grupos_precios`/`elegir_cat`, que es el scoring por producto (percentil,
+z-score, badges), un concern distinto. El fallback de ese scoring hacia
+`stats_cats.get(cat_nc)` es en la práctica inalcanzable — `stats_grupos`
+ya cubre a cualquier producto con la clave que él mismo aportó al
+construir `grupos_precios`, con la misma condición de umbral (`>= 20`)
+evaluada dos veces sobre el mismo `cat_counts` — así que este cambio de
+clave no le pega al scoring, sólo a lo que se persiste.
+
+> El bloque de abajo lo ejecuta `V16RollbackRoundTripTest` contra el
+> esquema real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V16
+ALTER TABLE categoria_stats DROP CONSTRAINT fk_categoria_stats_categoria;
+ALTER TABLE categoria_stats ADD COLUMN payload TEXT;
+UPDATE categoria_stats SET payload = json_build_object(
+    'n', n, 'mean', mean, 'median', median, 'mode', mode, 'std', std, 'cv', cv,
+    'q1', q1, 'q3', q3, 'iqr', iqr, 'mad', mad,
+    'fence_low', fence_low, 'fence_high', fence_high)::text;
+ALTER TABLE categoria_stats ALTER COLUMN payload SET NOT NULL;
+ALTER TABLE categoria_stats
+    DROP COLUMN n,   DROP COLUMN mean, DROP COLUMN median, DROP COLUMN mode,
+    DROP COLUMN std, DROP COLUMN cv,   DROP COLUMN q1,     DROP COLUMN q3,
+    DROP COLUMN iqr, DROP COLUMN mad,  DROP COLUMN fence_low, DROP COLUMN fence_high;
+-- <<< rollback:V16
+```
+
+Lossless en **forma** (los 12 campos vuelven adentro de un blob JSON); NO
+lossless en **vocabulario de clave** — vuelven en canon V13, no en salida
+de `norm_cat`. Inocuo: la tabla se regenera entera en la próxima corrida
+de ML.
+
+---
+
 ### ¿Por qué `/api/data` filtra en SQL y el resto del catálogo no?
 
 **Decisión** (`sql-catalog-filtering`): `/api/data` y `/api/facets` consultan la
