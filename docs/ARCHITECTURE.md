@@ -630,6 +630,61 @@ restaurar `sp_upsert_run` con el cuerpo de V7 **verbatim** vía un
 `CREATE OR REPLACE FUNCTION` en su propia migración hacia adelante — misma
 salvedad que el bloque de rollback de V7.
 
+#### `sitio`: tabla de identidad de sitio, sembrada pero leída por nadie (V18)
+
+**Decisión** (DD3): tabla `sitio` con clave natural `nombre` (forma de
+display, `"Harvey"`) más una columna separada `sitio_key`
+(`SiteClassification.sitioKey()`, `"harvey"`) — son valores genuinamente
+distintos y una sola columna recrearía el mismo mismatch que esta tabla
+existe para dejar de esconder. `plataforma`/`rubro_forzado`/`origen` van por
+`CHECK` (9, 2 y 3 valores — el criterio de V6, no el de V13) en vez de tabla
+de lookup.
+
+**Sembrada pero leída por nadie en este slice.** `es_premium`,
+`rubro_forzado` y la mitad por nombre de `plataforma` siguen viviendo en
+`SiteClassification`/`ScraperFactory` — moverlos es la extracción 3FN que
+sigue, no esta migración. Lo que esta migración compra es que el seed ya NO
+es una cuarta copia sin verificar: `SitioSeedSyncTest` (classpath, sin DB)
+parsea las filas `INSERT` de este archivo y las compara, en las dos
+direcciones, contra `SITIOS_PREMIUM`, `TECH_SITIOS`/`SUPPL_SITIOS` (nombres
+bare — las variantes con dominio como `compragamer.com` colapsan sobre el
+mismo `sitio_key`) y los 8 name-sets de `ScraperFactory.crear` — las cinco
+copias que hoy pueden desalinearse sin que nada avise dejan de poder hacerlo
+sin romper un build.
+
+**Cero FKs hacia `sitio` (DD4), y por razones distintas según la tabla.**
+`productos.sitio`/`favoritos.sitio`/`cron_job_sitio.sitio`: `POST
+/api/sitios` escribe `sitios_dinamicos` y `ScraperConfig` lee
+`config.properties` — ninguno de los dos hace upsert en `sitio` — así que
+una FK acá rompería el primer scrape de un sitio agregado desde el
+dashboard, adentro del path de error silenciado de `ProductRepository`
+(se leería como "0 nuevos", nunca como un error). `saved_outfit_item.sitio`
+no lleva FK **de forma permanente** — mismo criterio que
+`agent_reclassify_audit.url`: una foto histórica no puede depender de que
+el dato mutable siga vivo.
+
+**El fix de rubro de `foreverbstrd` no es cosmético (DD5).** Sacarlo de
+`TECH_SITIOS` no autocura los productos ya persistidos: `RubroResolver.resolver`
+cae a `rubroExistente` cuando ningún sitio/categoría fuerza un rubro, y una
+fila releída del snapshot de DB (`fromDBParcial`) arrastra el `'tecnologia'`
+viejo para siempre. Por eso el `UPDATE` vive en esta misma migración, no
+como una optimización aparte.
+
+> El bloque de abajo lo ejecuta `V18RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V18
+DROP TABLE sitio;
+-- <<< rollback:V18
+```
+
+Trivial: la tabla no tiene FKs entrantes ni salientes y nada la lee en este
+slice, así que soltarla no pierde ningún comportamiento downstream — sólo la
+tabla misma. El `UPDATE` de rubro de `foreverbstrd` NO es reversible desde el
+esquema (el valor previo no se guardó) pero sí es re-derivable
+determinísticamente: revertir el edit de `TECH_SITIOS` y volver a scrapear.
+
 ---
 
 ### ¿Por qué `/api/data` filtra en SQL y el resto del catálogo no?

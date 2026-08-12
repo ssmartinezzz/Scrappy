@@ -10,14 +10,35 @@ public class ScraperFactory {
     // "forever" es Shopify (forever.com.ar/products.json responde 200) pese a no
     // usar dominio myshopify.com; sin esta entrada cae al default Tiendanube y
     // scrapea 0 productos. foreverbstrd y barnes son Tiendanube reales — no agregarlos.
-    private static final Set<String> SHOPIFY_NOMBRES = Set.of("freres", "vcp", "forever");
-    private static final Set<String> VTEX_NOMBRES    = Set.of("sporting");
-    private static final Set<String> VAYPOL_NOMBRES  = Set.of("vaypol", "city");
-    private static final Set<String> WC_NOMBRES       = Set.of("dcshoes", "woocommerce");
-    private static final Set<String> MONKYFORCE_NOMBRES = Set.of("monkyforce");
-    private static final Set<String> MAXIMUS_NOMBRES  = Set.of("maximus");
-    private static final Set<String> FULLH4RD_NOMBRES = Set.of("fullh4rd");
-    private static final Set<String> CG_NOMBRES       = Set.of("compragamer");
+    // Package-visible-turned-public (close-1nf-and-3nf-foundation, design DD3):
+    // SitioSeedSyncTest cross-checks V18's seeded `sitio.plataforma` against
+    // these exact 8 name-sets, bidirectionally — pure relocation of visibility,
+    // no behavior change, same rationale SiteClassification's sets are public.
+    public static final Set<String> SHOPIFY_NOMBRES = Set.of("freres", "vcp", "forever");
+    public static final Set<String> VTEX_NOMBRES    = Set.of("sporting");
+    public static final Set<String> VAYPOL_NOMBRES  = Set.of("vaypol", "city");
+    public static final Set<String> WC_NOMBRES       = Set.of("dcshoes", "woocommerce");
+    public static final Set<String> MONKYFORCE_NOMBRES = Set.of("monkyforce");
+    public static final Set<String> MAXIMUS_NOMBRES  = Set.of("maximus");
+    public static final Set<String> FULLH4RD_NOMBRES = Set.of("fullh4rd");
+    public static final Set<String> CG_NOMBRES       = Set.of("compragamer");
+
+    /**
+     * Single source of truth for the name-based half of {@link #crear}'s
+     * platform detection (the URL-based {@code myshopify.com}/
+     * {@code vtexcommercestable.com.br} fallbacks are not name-based and do
+     * not apply to a static seed table) — platform label to its name-set.
+     */
+    public static final java.util.Map<String, Set<String>> PLATAFORMA_NOMBRES = java.util.Map.of(
+            "shopify", SHOPIFY_NOMBRES,
+            "vtex", VTEX_NOMBRES,
+            "vaypol", VAYPOL_NOMBRES,
+            "woocommerce", WC_NOMBRES,
+            "monkyforce", MONKYFORCE_NOMBRES,
+            "maximus", MAXIMUS_NOMBRES,
+            "fullh4rd", FULLH4RD_NOMBRES,
+            "compragamer", CG_NOMBRES
+    );
 
     public static BaseScraper crear(ScraperConfig config, SiteConfig site) {
         String n       = site.nombre().toLowerCase();

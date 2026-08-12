@@ -16,9 +16,14 @@ public final class SiteClassification {
 
     private SiteClassification() {}
 
-    // Sitios cuyo rubro se fuerza independientemente de lo que traiga el scraper
+    // Sitios cuyo rubro se fuerza independientemente de lo que traiga el scraper.
+    // foreverbstrd salió de acá (close-1nf-and-3nf-foundation, design DD5):
+    // es streetwear real (Tiendanube), no tecnología — estaba clasificado como
+    // tech sin ninguna razón de dominio. V18 reescribe el rubro sticky que
+    // esto deja en productos ya persistidos (no es autocurativo — ver
+    // RubroResolver.resolver's fallthrough a rubroExistente).
     public static final Set<String> TECH_SITIOS = Set.of(
-        "compragamer","fullh4rd","maximus","foreverbstrd",
+        "compragamer","fullh4rd","maximus",
         "compragamer.com","fullh4rd.com.ar","maximus.com.ar"
     );
 
