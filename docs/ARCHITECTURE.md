@@ -685,6 +685,62 @@ tabla misma. El `UPDATE` de rubro de `foreverbstrd` NO es reversible desde el
 esquema (el valor previo no se guardó) pero sí es re-derivable
 determinísticamente: revertir el edit de `TECH_SITIOS` y volver a scrapear.
 
+#### `marca` abstiene en vez de caer al nombre del sitio (V19)
+
+**Decisión** (DD8, declarado como cambio de comportamiento — `CODE-2`):
+`BrandExtractor.extraer` devuelve `""` cuando ninguna marca curada matchea,
+en vez de devolver `sitio`. Un producto sin marca reconocida no es "de la
+tienda que lo vende" — esa era la mentira que `marca="Bullbenny"` en un jean
+sin marca real dejaba escrita en el dato.
+
+**El backfill no puede ser `WHERE marca = sitio` a secas.** Tres marcas
+curadas SON también nombre de sitio: `Bulks`, `Fuark`, `Harvey` están en
+`BrandExtractor.MARCAS` (matcheadas por `\b`, no por igualdad de string) y
+son tiendas configuradas en `sitio`. Un producto "Remera Bulks Oversize"
+vendido por la tienda Bulks tiene `marca='Bulks'` **legítimamente** — un
+`UPDATE` ciego por igualdad la destruiría junto con el fallback real que se
+quiere limpiar. Rechazado: portar el `\b` de Java a `\m`/`\M` de Postgres con
+los literales de marca escapados — reabre el mismo riesgo de drift que
+`PrecioParser`/`sp_parse_precio_ar` existen para cerrar, por un `UPDATE` de
+una sola vez. Elegido: `WHERE marca = sitio AND marca NOT IN ('Bulks','Fuark','Harvey')`.
+El costo es conservador en la dirección segura — un puñado de `marca` con
+nombre de sitio genuino sobrevive en esas tres tiendas y converge en el
+próximo scrape, contra destruir dato de marca real.
+
+`MarcasSiteIntersectionTest` (classpath, sin DB) prueba que la intersección
+de `MARCAS` con `sitio.nombre` es EXACTA y ÚNICAMENTE esos tres literales —
+si una marca nueva o un sitio nuevo agrandara esa intersección, el build se
+pone rojo en vez de que la lista de excepción quede desactualizada en
+silencio. También resuelve, por construcción, la duda que el artefacto de
+tasks había marcado sobre el orden `V18`→`V19`: este test nunca corre Flyway
+ni toca una base viva — parsea `V18__sitio_lookup_table.sql` como texto de
+classpath, igual que `SitioSeedSyncTest` — así que el orden de aplicación de
+las migraciones le es irrelevante.
+
+`MarcasPicksEndpoints`'s tres capas de workaround (`marca==sitio` exacto, un
+set hardcodeado de 18 sitios, un mínimo de 2 caracteres) quedan muertas y se
+borran: con `BrandExtractor` abstiniendo, `marca` sólo puede ser `""`
+(filtrada) o una entrada real de `MARCAS` — nunca un nombre de sitio.
+
+Sin rollback: la regla vieja era literalmente `marca = sitio`, no hay nada
+que reconstruir desde el esquema.
+
+---
+
+## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
+
+| Item | Se queda como está porque |
+|---|---|
+| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; es un log de corrida, no dato de dominio |
+| Tabla de lookup para `marca` | Diferido, mismo patrón de dos pasos que `V12`→`V13`: cerrar el vocabulario primero (`V19`), la tabla en un follow-up con su propio seed/sync test |
+| Mover `marca_premium`/`rubro`/`plataforma` de `productos` a `sitio` | `V18` sólo crea y siembra `sitio` — mover esas columnas es un cambio de comportamiento de clasificación independiente y revisable por separado, no parte de esta migración |
+| `RubroResolver`'s `sitioKey.contains(...)` (substring, no igualdad) | Deliberadamente NO tocado — un lookup contra `sitio.rubro_forzado` sería exacto por naturaleza, y canjear substring por igualdad silenciosamente reclasificaría cualquier sitio cuya clave sea superset de otra. Ese swap es, específicamente, el trabajo del follow-up 3FN, no de esta base |
+| `precios_externos` | Su dependencia transitiva es `externo_url`, un target de normalización distinto y fuera del alcance de este cambio |
+
+Estos cinco puntos son la frontera explícita entre "cerrar 1FN" (lo que este
+cambio hace) y "3FN completo" (lo que sienta las bases pero no completa) —
+`close-1nf-and-3nf-foundation` es una **base**, el nombre lo dice.
+
 ---
 
 ### ¿Por qué `/api/data` filtra en SQL y el resto del catálogo no?
