@@ -230,6 +230,39 @@ Re-calibrar thresholds está **fuera de alcance** de este change — ver
 
 ---
 
+## Parseo de `precioOriginal` — `safe_price` dejó de ser canónico
+
+Desde `close-1nf-and-3nf-foundation` (design DD2), `ar.scraper.aggregator.text.PrecioParser`
+(Java) es el único parser que corre sobre el string crudo que scrapea cada
+sitio — al momento del scrape, no en este pipeline. `precioOriginal` llega
+acá ya resuelto: un número o `None`, nunca el string original.
+
+`safe_price` (`ml_pipeline.py:354`+) **se queda en el código** — no se borra,
+sería un segundo cambio de comportamiento viajando adentro de un PR de
+esquema — pero pasa a tener **cero callers** dentro de este archivo. Es la
+especificación de la que `PrecioParser.java` y `sp_parse_precio_ar` (SQL, la
+migración `V17`) copian su contrato de 8 reglas, no al revés. Los tres se
+prueban contra el mismo fixture
+(`scraper/src/test/resources/price-parser-cases.tsv`) para que no puedan
+divergir en silencio — ni siquiera divergir de forma consistente hacia una
+respuesta incorrecta: un bug real en la regla del punto único (exigir
+parte entera chica para leer un decimal, en vez de bastar con que la parte
+decimal tenga 1-2 dígitos) estaba clonado en las tres implementaciones y
+sólo se detectó corriendo el parser contra el catálogo real. Corregido en
+lockstep en las tres.
+
+**Categoría de `categoriaStats` (`cats_precios`, línea ~680)**: la clave pasa
+de `norm_cat((categoria or 'General').strip() or 'General')` a
+`(categoria or '').strip() or 'Otros'` — la categoria CANÓNICA (V13, Title
+Case), no la salida de `norm_cat`, porque `categoria_stats.categoria` tiene
+FK a `categoria(nombre)` desde `V16` y ese FK nunca aceptó minúsculas.
+`'Otros'` es el bucket de abstención de `V12`, que sí está en el canon —
+`'general'` nunca lo estuvo. `norm_cat` sigue intacto para todo lo demás:
+sigue siendo la clave de `grupos_precios`/`elegir_cat`, el scoring por
+producto, un concern distinto.
+
+---
+
 ## Historial de precios
 
 El archivo `precio_historico.json` acumula cambios de precio por URL. Estructura:

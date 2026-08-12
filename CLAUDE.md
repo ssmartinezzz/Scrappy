@@ -179,8 +179,9 @@ cron_job_sitio       -- Sitios de cada cronjob, ordenados (job_id+posicion PK) (
 precio_historico     -- Precio por fecha (UNIQUE url+fecha)
 ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
-categoria_stats      -- Stats de precio por categoría
+categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)
 sitios_dinamicos     -- Sitios agregados desde el dashboard
+sitio                -- Identidad de sitio, sembrada, leída por nadie todavía (V18)
 favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
 outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
@@ -300,10 +301,14 @@ historial de likes del modelo viejo por-outfit; decisión explícita del usuario
 se reconstruye con el uso. El feedback por ítem, que es el que alimenta a los
 armadores, no se toca.
 
-**Con esto el esquema está en 1FN.** No queda ninguna columna multivaluada ni
-grupo repetitivo: `talles`/`ml_badge` (V7), `sitios_json` (V9) y
-`slots_json`/`suplementos_json` (V14) viven en tablas hijas, y la única tabla
-que quedaba con grupo repetitivo ya no existe.
+**Con V15 no quedaba ninguna columna multivaluada ni grupo repetitivo**:
+`talles`/`ml_badge` (V7), `sitios_json` (V9) y `slots_json`/`suplementos_json`
+(V14) viven en tablas hijas. Pero 1FN pide DOS cosas, no una — sin grupos
+repetitivos, sí, pero también valores **atómicos** por celda — y esa segunda
+mitad seguía rota: `categoria_stats.payload` era un `TEXT` con un registro
+entero serializado adentro, un valor compuesto en una sola celda. `V16`
+(`close-1nf-and-3nf-foundation`, abajo) lo cierra. **Recién ahí el esquema
+está en 1FN de verdad.**
 
 **`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`: los
 18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`, `talle` y
@@ -366,6 +371,49 @@ precio cambió → UPDATE + historial · ausente en el run → soft-delete (`act
 Corre **server-side** en las funciones plpgsql `sp_upsert_run`/
 `sp_soft_delete_ausentes`. La concurrencia la resuelve Postgres MVCC: no hay
 locks de aplicación (la vieja lock-dance de SQLite fue removida por completo).
+
+`V16`-`V19` (`close-1nf-and-3nf-foundation`) cierran 1FN de verdad y sientan
+la base para 3FN — **no** la completan; `RubroResolver`'s `.contains()`
+substring matching y la extracción de `marca_premium`/`rubro`/`plataforma`
+hacia `sitio` quedan como follow-up explícito, no como parte de este cambio.
+
+`V16` aplana `categoria_stats.payload` (un blob JSON) a 12 columnas tipadas
+(`n, mean, median, mode, std, cv, q1, q3, iqr, mad, fence_low, fence_high`,
+espejo exacto de `PriceStats.to_dict()`) con FK **VALID** a `categoria(nombre)`
+(V13). La tabla se vacía y se regenera en el próximo run de ML en vez de
+backfillearse: sus claves eran salida de `norm_cat` (`"medias"`), el canon de
+V13 es Title Case (`"Medias"`) — una FK sobre las filas viejas rechazaría
+todas. `distribucionCategorias` sale `{}` hasta ese próximo run; el frontend
+ya guardaba `catStats?.[...]` con optional chaining en los tres call sites.
+
+`V17` retipa `productos.precio_orig` de `TEXT` crudo a `double precision` — un
+valor no parseable es `NULL`, nunca `0` ni un string centinela. Es la migración
+riesgosa: re-copia `sp_upsert_run` entero con **una sola línea** editada
+(`StoredProcedureDriftTest` lo prueba mecánicamente), y colapsa tres parsers
+que venían desacordando en la misma pregunta (`ar.scraper.aggregator.text.PrecioParser`
+en Java, el regex SQL de `CatalogQueryRepository`, el regex JS de
+`ProductCard.jsx`) en uno solo, corrido en Java al momento del scrape. `%
+Oferta` ahora ordena `NULLS LAST` en vez de tratar "no sé" como "0% de
+descuento" — el bug real que hacía aparecer un `-666x`.
+
+`V18` crea `sitio`, tabla única de identidad de sitio (`nombre` display +
+`sitio_key` normalizado), sembrada desde `config.properties` ∪
+`sitios_dinamicos` ∪ `productos.sitio`, pero **leída por nadie todavía** —
+`es_premium`/`rubro_forzado`/`plataforma` siguen viviendo en
+`SiteClassification`/`ScraperFactory`. Lo que compra esta migración es que el
+seed ya es un espejo verificado (`SitioSeedSyncTest`, sin DB) de esas cinco
+copias que antes podían desalinearse sin que nada avisara. `foreverbstrd`
+sale de `TECH_SITIOS` (es streetwear real) y `V18` reescribe el rubro
+`tecnologia` pegajoso que ya tenían sus productos persistidos.
+
+`V19` hace que `BrandExtractor` **abstenga** (`""`) en vez de devolver el
+nombre del sitio cuando ninguna marca curada matchea — un producto sin marca
+reconocida no es "de la tienda", es simplemente sin marca conocida. El
+backfill NO es `WHERE marca = sitio` a secas: `Bulks`/`Fuark`/`Harvey` son
+simultáneamente nombre de sitio Y marca curada real, y `MarcasSiteIntersectionTest`
+prueba que esa lista de excepción es exactamente esas tres, sin DB. Es la
+única de las cuatro sin rollback — la regla vieja era literalmente
+`marca = sitio`, no hay nada que reconstruir.
 
 ---
 
@@ -506,11 +554,16 @@ opcionales — **no** están en `RequiredEnvVarsGuard`.
 ## Model `Product` (record, 19 campos)
 
 ```java
-sitio, nombre, precio, precioOriginal, url, imagenUrl, categoria, genero,
+sitio, nombre, precio, precioOriginal (Double), url, imagenUrl, categoria, genero,
 talles, ml (MlScore), marca, rubro, gymrat, marcaPremium,
 senal (SenalCompra), finan (SenalFinanciacion),
 cantidadUnidades, subCategoria, visual (VisualAttrs)
 ```
+
+`precioOriginal` es `Double` desde `close-1nf-and-3nf-foundation` (antes
+`String`): `null` es "no parseó / no había" (D1), nunca un sentinel string.
+Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
+momento del scrape — ver `V17` más abajo.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;
@@ -615,7 +668,7 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación de su API |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges, no recalibrar thresholds aún |
-| `safe_price` puede parsear mal ciertos formatos de `precioOriginal` | Heurística interina aceptada (1611/6692 rechazados a 0.0 en el último run) |
+| `precio_orig` sigue teniendo strings genuinamente no parseables en la base histórica | `close-1nf-and-3nf-foundation`/`V17`: 817/3148 filas con texto (25,95%) no parsean ni con el parser AR-locale correcto — quedan `NULL`, no `0`; medido contra datos reales, no estimado |
 | Bare `except:` en `safe_price`/`price_velocity`/carga de historial | Nit no bloqueante — migrar a `except Exception:` |
 | `/api/db/export`/`import` en 410 Gone — sin backup/restore por UI | Aceptado por diseño: usar `pg_dump`/`pg_restore` contra `DATABASE_URL` |
 | `sp_upsert_run` reactivando un producto soft-deleted reinserta `precio_historico` aunque el precio no haya cambiado | Follow-up no bloqueante |
