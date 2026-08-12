@@ -108,7 +108,13 @@ public final class FacetCalculator {
         return conteo;
     }
 
-    private static Map<String, Long> sortTalles(Map<String, Long> talles) {
+    /**
+     * Público desde `sql-catalog-filtering`: el orden de talles no es
+     * alfabético (XS→S→M→L→XL, después los numéricos, después el resto) y la
+     * versión SQL de las facetas tiene que producir EXACTAMENTE el mismo, así
+     * que reusa esta función en vez de reimplementarla en otro idioma.
+     */
+    public static Map<String, Long> sortTalles(Map<String, Long> talles) {
         List<String> orden = List.of("XS","S","M","L","XL","XXL","XXXL","3XL","4XL");
         List<String> conocidos = new ArrayList<>(), numericos = new ArrayList<>(), resto = new ArrayList<>();
         for (String t : talles.keySet()) {
