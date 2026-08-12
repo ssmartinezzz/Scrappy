@@ -173,6 +173,8 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 
 ```
 productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gymrat, pack, visual attrs)
+producto_talle       -- Talles por producto, ordenados (url+posicion PK) (V7)
+producto_badge       -- Badges ML por producto, principal primero (url+posicion PK) (V7)
 precio_historico     -- Precio por fecha (UNIQUE url+fecha)
 ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
@@ -231,6 +233,22 @@ viva con `genero='Mujer'` con mayúscula. `ProposeReclassifyTool` (agente LLM)
 ahora valida `genero` contra ese mismo dominio. Por qué del dominio elegido y
 de dónde salió el dato con mayúscula (y qué camino de escritura sigue sin
 validar): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+`V7` (`normalize-db-schema-fks-1nf`, slice B) saca las dos violaciones de 1FN de
+`productos` a tablas hijas: `talles` (array JSON dentro de un `TEXT`) →
+`producto_talle`, `ml_badge` (CSV) → `producto_badge`. Misma forma en las dos:
+PK `(url, posicion)` + FK `ON DELETE CASCADE`. **Las dos columnas viejas se
+borraron** — no quedan como sombra de solo lectura. `posicion` es lo que
+preserva que `badges().get(0)` siga siendo el badge principal, y lo que hace
+que el rollback (re-agregar con `json_agg`/`string_agg ORDER BY posicion`) sea
+lossless. `sp_upsert_run` escribe las hijas con DELETE + `INSERT … WITH
+ORDINALITY` por producto: una lista de talles que se achica no puede dejar
+filas viejas. `cargarProductos()` sigue siendo de 3 sentencias constantes (las
+dos hijas se leen enteras y se mergean por url, nunca un lookup por producto).
+El `buildRowsJson` manda ahora `talles`/`mlBadges` como arrays JSON reales, no
+como string serializado ni CSV. Por qué de cada una de esas decisiones, el
+riesgo residual del backfill y el SQL de rollback (ejecutable, cubierto por
+`V7RollbackRoundTripTest`): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).

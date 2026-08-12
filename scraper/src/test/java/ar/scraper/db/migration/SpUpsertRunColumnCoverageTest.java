@@ -35,9 +35,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("sp_upsert_run — every productos column falls into exactly one bucket")
 class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
 
+    // talles/ml_badge dejaron de ser columnas de productos en V7 — viven en
+    // producto_talle/producto_badge, que sp_upsert_run reescribe entero por
+    // producto (DELETE + INSERT). Declararlas acá sería declarar columnas que
+    // ya no existen.
     private static final Set<String> OVERWRITTEN = Set.of(
             "sitio", "nombre", "precio", "precio_orig", "imagen_url",
-            "talles", "ml_badge", "ml_score", "ml_oferta", "ml_tendencia", "ml_segment", "ml_zscore",
+            "ml_score", "ml_oferta", "ml_tendencia", "ml_segment", "ml_zscore",
             "gymrat", "marca_premium", "cantidad_unidades", "activo", "touched_at");
 
     private static final Set<String> FILL_ONLY = Set.of(

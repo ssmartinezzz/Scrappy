@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * byte-identical (modulo whitespace) to the PREVIOUS body — proving nothing
  * <em>else</em> changed relative to the real previous migration.</p>
  *
- * <p>{@code sp_upsert_run}'s chain is {@code V1 -> V3 -> V5} (V3 redefines
+ * <p>{@code sp_upsert_run}'s chain is {@code V1 -> V3 -> V5 -> V7} (V3 redefines
  * it for the manual-classification lock). {@code sp_soft_delete_ausentes} is
  * NOT redefined by V3 — confirmed by reading V3__manual_classification_lock.sql,
  * which touches only {@code sp_upsert_run} — so its chain is the single hop
@@ -46,6 +46,7 @@ class StoredProcedureDriftTest {
     private static final String V1 = "/db/migration/V1__baseline.sql";
     private static final String V3 = "/db/migration/V3__manual_classification_lock.sql";
     private static final String V5 = "/db/migration/V5__boolean_and_date_column_types.sql";
+    private static final String V7 = "/db/migration/V7__product_multivalue_child_tables.sql";
 
     private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String SP_SOFT_DELETE_AUSENTES_START =
@@ -121,9 +122,38 @@ class StoredProcedureDriftTest {
                     "WHERE activo = 1 AND NOT")
     );
 
+    /**
+     * Design D3/D4 (slice B): V7 drops {@code talles}/{@code ml_badge} from the
+     * three places the productos upsert names them, and adds one DELETE +
+     * INSERT…WITH ORDINALITY pair per child table inside the loop. Undoing
+     * exactly these four edits must land back on V5's body, byte for byte.
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_V7_CHILD_TABLES = List.of(
+            new Substitution(
+                    "INSERT column list: talles/ml_badge dropped",
+                    Pattern.compile("categoria, genero, ml_score, ml_oferta"),
+                    "categoria, genero, talles, ml_badge, ml_score, ml_oferta"),
+            new Substitution(
+                    "INSERT VALUES: talles/mlBadge expressions dropped",
+                    Pattern.compile("r->>'genero', COALESCE\\(\\(r->>'mlScore'\\)"),
+                    "r->>'genero', COALESCE(r->>'talles', '[]'), COALESCE(r->>'mlBadge', ''), "
+                            + "COALESCE((r->>'mlScore')"),
+            new Substitution(
+                    "DO UPDATE SET: talles/ml_badge assignments dropped",
+                    Pattern.compile("productos\\.genero END, ml_score = EXCLUDED\\.ml_score,"),
+                    "productos.genero END, talles = EXCLUDED.talles, ml_badge = EXCLUDED.ml_badge, "
+                            + "ml_score = EXCLUDED.ml_score,"),
+            new Substitution(
+                    "child-table DELETE + INSERT…WITH ORDINALITY pairs added inside the loop",
+                    Pattern.compile("touched_at = EXCLUDED\\.touched_at; DELETE FROM producto_talle"
+                            + ".*?IF v_prev_precio IS NULL THEN"),
+                    "touched_at = EXCLUDED.touched_at; IF v_prev_precio IS NULL THEN")
+    );
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
+            new Hop(SP_UPSERT_RUN_START, V5, V7, SP_UPSERT_RUN_V7_CHILD_TABLES),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
     );
 

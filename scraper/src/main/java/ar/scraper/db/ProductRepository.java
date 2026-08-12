@@ -128,10 +128,14 @@ class ProductRepository {
             row.put("imagenUrl", p.imagenUrl());
             row.put("categoria", p.categoria());
             row.put("genero", p.genero());
-            row.put("talles", MAPPER.writeValueAsString(p.talles() != null ? p.talles() : List.of()));
-            String badge = (p.ml() != null && p.ml().badges() != null)
-                    ? String.join(",", p.ml().badges()) : "";
-            row.put("mlBadge", badge);
+            // talles/mlBadges travel as real JSON arrays: sp_upsert_run explodes
+            // them into producto_talle/producto_badge with WITH ORDINALITY (V7).
+            // Serializing a list into a string here and splitting it there is what
+            // the child tables exist to stop doing.
+            ArrayNode tallesJson = row.putArray("talles");
+            if (p.talles() != null) p.talles().forEach(tallesJson::add);
+            ArrayNode badgesJson = row.putArray("mlBadges");
+            if (p.ml() != null && p.ml().badges() != null) p.ml().badges().forEach(badgesJson::add);
             row.put("mlScore", p.ml() != null ? p.ml().scoreP() : 50);
             row.put("mlOferta", p.ml() != null && p.ml().ofertaReal());
             row.put("mlTendencia", p.ml() != null ? p.ml().tendencia() : "");
@@ -215,18 +219,33 @@ class ProductRepository {
 
     // ─── Cargar productos ────────────────────────────────────────────────────
 
+    private static final String COLUMNAS_PRODUCTO =
+            "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
+            "categoria,genero,ml_score,ml_oferta,ml_tendencia," +
+            "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
+            "fit,estampado,escote,color_dominante FROM productos";
+
+    /**
+     * Tres sentencias en total, constantes en el tamaño del catálogo (design D3):
+     * las dos tablas hijas se leen enteras, planas y ordenadas ANTES del loop
+     * principal y se mergean por url en memoria. Un lookup por producto serían
+     * 27086 round trips sobre 13543 filas; un {@code LEFT JOIN … array_agg}
+     * obligaría a {@code obtenerProducto()} y a este método a divergir.
+     */
     List<Product> cargarProductos() {
         List<Product> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
-                "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
-                "fit,estampado,escote,color_dominante " +
-                "FROM productos WHERE activo ORDER BY precio ASC")) {
-            while (rs.next()) {
-                result.add(productoDesdeFila(rs));
+        try (Connection c = dataSource.getConnection()) {
+            Map<String, List<String>> tallesPorUrl = cargarMultivalor(c, "producto_talle", "talle");
+            Map<String, List<String>> badgesPorUrl = cargarMultivalor(c, "producto_badge", "badge");
+            try (Statement st = c.createStatement();
+                 ResultSet rs = st.executeQuery(
+                         COLUMNAS_PRODUCTO + " WHERE activo ORDER BY precio ASC")) {
+                while (rs.next()) {
+                    String url = rs.getString("url");
+                    result.add(productoDesdeFila(rs,
+                            tallesPorUrl.getOrDefault(url, List.of()),
+                            badgesPorUrl.getOrDefault(url, List.of())));
+                }
             }
             LOG.info("[DB] Cargados {} productos activos", result.size());
         } catch (Exception e) {
@@ -237,21 +256,48 @@ class ProductRepository {
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
     java.util.Optional<Product> obtenerProducto(String url) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
-                "categoria,genero,talles,ml_badge,ml_score,ml_oferta,ml_tendencia," +
-                "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
-                "fit,estampado,escote,color_dominante FROM productos WHERE url=?")) {
-            ps.setString(1, url);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return java.util.Optional.empty();
-                return java.util.Optional.of(productoDesdeFila(rs));
+        try (Connection c = dataSource.getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement(COLUMNAS_PRODUCTO + " WHERE url=?")) {
+                ps.setString(1, url);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) return java.util.Optional.empty();
+                    return java.util.Optional.of(productoDesdeFila(rs,
+                            cargarMultivalor(c, "producto_talle", "talle", url),
+                            cargarMultivalor(c, "producto_badge", "badge", url)));
+                }
             }
         } catch (Exception e) {
             LOG.error("[DB] Error obteniendo producto {}: {}", url, e.getMessage(), e);
             return java.util.Optional.empty();
         }
+    }
+
+    /** Toda una tabla hija, plana y ordenada por (url, posicion), agrupada por url. */
+    private Map<String, List<String>> cargarMultivalor(Connection c, String tabla, String columna)
+            throws SQLException {
+        Map<String, List<String>> porUrl = new HashMap<>();
+        try (Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                     "SELECT url," + columna + " FROM " + tabla + " ORDER BY url, posicion")) {
+            while (rs.next()) {
+                porUrl.computeIfAbsent(rs.getString(1), k -> new ArrayList<>()).add(rs.getString(2));
+            }
+        }
+        return porUrl;
+    }
+
+    /** Los valores de UN producto, en orden. */
+    private List<String> cargarMultivalor(Connection c, String tabla, String columna, String url)
+            throws SQLException {
+        List<String> valores = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT " + columna + " FROM " + tabla + " WHERE url=? ORDER BY posicion")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) valores.add(rs.getString(1));
+            }
+        }
+        return valores;
     }
 
     /**
@@ -283,23 +329,13 @@ class ProductRepository {
         return result;
     }
 
-    private Product productoDesdeFila(ResultSet rs) throws java.sql.SQLException {
-        List<String> talles = List.of();
-        try {
-            JsonNode arr = MAPPER.readTree(rs.getString("talles"));
-            if (arr.isArray()) {
-                List<String> t = new ArrayList<>();
-                arr.forEach(n -> t.add(n.asText()));
-                talles = t;
-            }
-        } catch (Exception ignored) {}
-
-        // ml_badge: comma-delimited, principal-first (design D1 badges-oportunidades-revamp) ->
-        // split back into an ordered List<String>; "" (or NULL) means no badges.
-        String mlBadgeRaw = rs.getString("ml_badge");
-        List<String> badges = (mlBadgeRaw != null && !mlBadgeRaw.isBlank())
-                ? Arrays.asList(mlBadgeRaw.split(","))
-                : List.of();
+    /**
+     * {@code talles} y {@code badges} llegan ya leídos de sus tablas hijas
+     * (V7) — ordenados por {@code posicion}, que es lo que hace que
+     * {@code badges().get(0)} siga siendo el badge principal.
+     */
+    private Product productoDesdeFila(ResultSet rs, List<String> talles, List<String> badges)
+            throws java.sql.SQLException {
         Product.MlScore ml = new Product.MlScore(
                 rs.getInt("ml_score"),
                 badges,
@@ -393,11 +429,7 @@ class ProductRepository {
     private int updateNormalizacion(Connection c, String url, String categoria, String marca,
                                      String genero, List<String> talles, String subCategoria,
                                      boolean respectLock) throws Exception {
-        try (PreparedStatement ps = c.prepareStatement("UPDATE productos SET talles=? WHERE url=?")) {
-            ps.setString(1, MAPPER.writeValueAsString(talles != null ? talles : List.of()));
-            ps.setString(2, url);
-            ps.executeUpdate();
-        }
+        reemplazarTalles(c, url, talles);
         String sql = "UPDATE productos SET categoria=?, marca=?, genero=?, sub_categoria=? WHERE url=?"
                 + (respectLock ? " AND bloqueado_por IS NULL" : "");
         try (PreparedStatement ps = c.prepareStatement(sql)) {
@@ -407,6 +439,44 @@ class ProductRepository {
             ps.setString(4, subCategoria != null ? subCategoria : "");
             ps.setString(5, url);
             return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * DELETE + INSERT, nunca {@code ON CONFLICT} (design D4): una lista de
+     * talles que se ACHICA no puede dejar filas viejas atrás — es exactamente
+     * lo que significaba que {@code talles} fuera OVERWRITTEN y no fill-only.
+     * Misma semántica que la sentencia propia y sin guard que tenía antes: los
+     * talles se escriben aunque el producto esté bloqueado (review fix F2).
+     *
+     * <p>Las posiciones son contiguas y arrancan en 1 — un talle en blanco se
+     * descarta sin consumir posición, igual que hace el backfill de V7.</p>
+     *
+     * <p>Sobre una url INEXISTENTE con lista no vacía, el INSERT viola la FK a
+     * {@code productos(url)} en vez de ser un UPDATE de 0 filas silencioso como
+     * antes. Los dos contratos publicados se mantienen igual —
+     * {@link #actualizarNormalizacion} devuelve 0, {@link #aplicarReclasificacionAuditada}
+     * hace rollback y devuelve {@code false}— y ninguna fila huérfana queda:
+     * lo único que cambia es que ahora queda un log del intento
+     * ({@code TallesRoundTripTest}).</p>
+     */
+    private void reemplazarTalles(Connection c, String url, List<String> talles) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("DELETE FROM producto_talle WHERE url=?")) {
+            ps.setString(1, url);
+            ps.executeUpdate();
+        }
+        if (talles == null || talles.isEmpty()) return;
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO producto_talle (url, posicion, talle) VALUES (?,?,?)")) {
+            short posicion = 1;
+            for (String talle : talles) {
+                if (talle == null || talle.isBlank()) continue;
+                ps.setString(1, url);
+                ps.setShort(2, posicion++);
+                ps.setString(3, talle);
+                ps.addBatch();
+            }
+            ps.executeBatch();
         }
     }
 
