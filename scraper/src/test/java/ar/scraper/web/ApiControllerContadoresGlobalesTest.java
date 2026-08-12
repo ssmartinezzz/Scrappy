@@ -88,7 +88,7 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
 
     private Product producto(String url, double precio, String rubro, boolean gymrat, int unidades) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remeras", "unisex", List.of("M"), Product.MlScore.EMPTY, "Marca",
+                "Remera", "unisex", List.of("M"), Product.MlScore.EMPTY, "Marca",
                 rubro, gymrat, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, unidades, "", Product.VisualAttrs.EMPTY);
     }

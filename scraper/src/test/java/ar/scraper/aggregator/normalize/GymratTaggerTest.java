@@ -28,8 +28,8 @@ class GymratTaggerTest {
     void ropaDeMonkyforceEsGymrat() {
         Allure.parameter("nombre", "Epic Polo Negro");
         Allure.parameter("sitioKey", "monkyforce");
-        Allure.parameter("cat", "Remeras");
-        assertThat(tagger.esGymrat("Epic Polo Negro", "monkyforce", "Remeras", "", null))
+        Allure.parameter("cat", "Remera");
+        assertThat(tagger.esGymrat("Epic Polo Negro", "monkyforce", "Remera", "", null))
                 .isTrue();
     }
 
@@ -37,8 +37,8 @@ class GymratTaggerTest {
     void ropaDeFurstenEsGymrat() {
         Allure.parameter("nombre", "Benie Basic");
         Allure.parameter("sitioKey", "fursten");
-        Allure.parameter("cat", "Remeras");
-        assertThat(tagger.esGymrat("Benie Basic", "fursten", "Remeras", "", null))
+        Allure.parameter("cat", "Remera");
+        assertThat(tagger.esGymrat("Benie Basic", "fursten", "Remera", "", null))
                 .isTrue();
     }
 
@@ -48,8 +48,8 @@ class GymratTaggerTest {
         // even when the store is in GYM_SITIOS.
         Allure.parameter("nombre", "Urbanas Retro");
         Allure.parameter("sitioKey", "monkyforce");
-        Allure.parameter("cat", "Zapatillas");
-        assertThat(tagger.esGymrat("Urbanas Retro", "monkyforce", "Zapatillas", "", null))
+        Allure.parameter("cat", "Zapatilla");
+        assertThat(tagger.esGymrat("Urbanas Retro", "monkyforce", "Zapatilla", "", null))
                 .isFalse();
     }
 
@@ -57,8 +57,8 @@ class GymratTaggerTest {
     void ropaDeSitioNoGymSinSenalNoEsGymrat() {
         Allure.parameter("nombre", "Remera Basica Lisa");
         Allure.parameter("sitioKey", "tussy");
-        Allure.parameter("cat", "Remeras");
-        assertThat(tagger.esGymrat("Remera Basica Lisa", "tussy", "Remeras", "", null))
+        Allure.parameter("cat", "Remera");
+        assertThat(tagger.esGymrat("Remera Basica Lisa", "tussy", "Remera", "", null))
                 .isFalse();
     }
 }

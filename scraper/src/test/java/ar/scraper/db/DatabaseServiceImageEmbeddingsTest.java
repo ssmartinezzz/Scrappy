@@ -65,7 +65,7 @@ class DatabaseServiceImageEmbeddingsTest extends PostgresTestBase {
     private Product producto(String url, Product.VisualAttrs visual) {
         return new Product(
                 "Sitio", "Remera básica", 15000.0, null, url, "http://img.example/x.jpg",
-                "Remeras", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
+                "Remera", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1, "", visual);
     }

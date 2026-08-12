@@ -94,7 +94,7 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
 
     private Product producto(String url, VisualAttrs visual) {
         return new Product("Sitio", "Producto " + url, 10000.0, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "", visual);
     }
 

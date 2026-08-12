@@ -30,7 +30,7 @@ class MlEnricherTest {
         // 16-arg legacy constructor, silently resetting cantidadUnidades to 1.
         Product pack = new Product(
                 "Sitio", "Pack x3 Remeras", 15000.0, null, "https://site.com/pack",
-                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 3);
 
         JsonNode mlOutput = MAPPER.readTree("""
@@ -57,7 +57,7 @@ class MlEnricherTest {
     @Test
     void singleUnitProductStaysNonPackAfterEnrichment() throws Exception {
         Product single = new Product("Sitio", "Remera básica", 5000.0, null,
-                "https://site.com/single", "", "Remeras", "unisex", List.of());
+                "https://site.com/single", "", "Remera", "unisex", List.of());
 
         JsonNode mlOutput = MAPPER.readTree("""
                 {
@@ -123,7 +123,7 @@ class MlEnricherTest {
     void missingBadgesArrayFallsBackToSingleElementListFromLegacyBadgeString() throws Exception {
         // Old cached ml_output (pre multi-badge) only has 'badge', no 'badges' key.
         Product p = new Product("Sitio", "Remera oferta", 10000.0, null,
-                "https://site.com/badges-b", "", "Remeras", "unisex", List.of());
+                "https://site.com/badges-b", "", "Remera", "unisex", List.of());
         JsonNode mlOutput = MAPPER.readTree("""
                 {
                     "scores": {
@@ -144,7 +144,7 @@ class MlEnricherTest {
     @Test
     void blankBadgeAndMissingBadgesArrayYieldsEmptyBadgeSet() throws Exception {
         Product p = new Product("Sitio", "Remera normal", 10000.0, null,
-                "https://site.com/badges-c", "", "Remeras", "unisex", List.of());
+                "https://site.com/badges-c", "", "Remera", "unisex", List.of());
         JsonNode mlOutput = MAPPER.readTree("""
                 {
                     "scores": {
@@ -165,7 +165,7 @@ class MlEnricherTest {
     // Product with an explicit genero and a given URL for score lookup.
     private static Product productoConGenero(String genero, String url) {
         return new Product("Sitio", "Producto", 10000.0, null, url,
-                "", "Remeras", genero, List.of());
+                "", "Remera", genero, List.of());
     }
 
     @Test
@@ -293,7 +293,7 @@ class MlEnricherTest {
                     "scores": {
                         "https://site.com/g": {
                             "composite": 50, "badge": "", "pctil": 50,
-                            "categoriaML": "Zapatillas", "catMLConf": 0.9,
+                            "categoriaML": "Zapatilla", "catMLConf": 0.9,
                             "generoML": "mujer", "genImgConf": 0.85
                         }
                     }
@@ -303,7 +303,7 @@ class MlEnricherTest {
         MlEnricher enricher = new MlEnricher();
         List<Product> result = enricher.enriquecer(List.of(p), mlOutput);
 
-        assertThat(result.get(0).categoria()).isEqualTo("Zapatillas");
+        assertThat(result.get(0).categoria()).isEqualTo("Zapatilla");
         assertThat(result.get(0).genero()).isEqualTo("mujer");
     }
 
@@ -317,7 +317,7 @@ class MlEnricherTest {
     @Test
     void visualAttrsPopulatedVerbatimFromFitPrintNecklineColorScoreKeys() throws Exception {
         Product p = new Product("Sitio", "Buzo con capucha", 20000.0, null,
-                "https://site.com/visual-h", "", "Buzos", "unisex", List.of());
+                "https://site.com/visual-h", "", "Buzo", "unisex", List.of());
         JsonNode mlOutput = MAPPER.readTree("""
                 {
                     "scores": {
@@ -346,7 +346,7 @@ class MlEnricherTest {
         // the score entry carries no fit/print/neckline/color keys at all —
         // there is no signal anywhere, so the result stays empty.
         Product p = new Product("Sitio", "Remera lisa", 8000.0, null,
-                "https://site.com/visual-i", "", "Remeras", "unisex", List.of());
+                "https://site.com/visual-i", "", "Remera", "unisex", List.of());
         JsonNode mlOutput = MAPPER.readTree("""
                 {
                     "scores": {
@@ -377,7 +377,7 @@ class MlEnricherTest {
         Product.VisualAttrs visualPrevio = new Product.VisualAttrs("oversize", "estampado", "capucha", "gris");
         Product p = new Product(
                 "Sitio", "Remera lisa", 8000.0, null, "https://site.com/visual-i",
-                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "",
                 visualPrevio);
         JsonNode mlOutput = MAPPER.readTree("""
@@ -496,7 +496,7 @@ class MlEnricherTest {
         Product.VisualAttrs visual = new Product.VisualAttrs("regular", "estampado", "capucha", "gris");
         Product conVisual = new Product(
                 "Sitio", "Buzo con visual", 20000.0, null, "https://site.com/visual-ml",
-                "", "Buzos", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Buzo", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
 
         JsonNode mlOutput = MAPPER.readTree("""

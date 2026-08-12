@@ -41,7 +41,7 @@ class TallesRoundTripTest extends PostgresTestBase {
 
     private Product producto(String url, List<String> talles) {
         return new Product("Sitio", "Producto", 1000.0, null, url, "http://img.example/x.jpg",
-                "Remeras", "unisex", talles, Product.MlScore.EMPTY, "Nike",
+                "Remera", "unisex", talles, Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1);
     }
@@ -100,7 +100,7 @@ class TallesRoundTripTest extends PostgresTestBase {
         String url = "https://site.com/talles-normalizacion";
         db.upsertProductos(List.of(producto(url, List.of("UNICO"))));
 
-        db.actualizarNormalizacion(url, "Remeras", "Nike", "unisex", List.of("S", "M"), "Basicas");
+        db.actualizarNormalizacion(url, "Remera", "Nike", "unisex", List.of("S", "M"), "Basicas");
 
         Optional<Product> encontrado = db.obtenerProducto(url);
         assertThat(encontrado).isPresent();
@@ -118,10 +118,10 @@ class TallesRoundTripTest extends PostgresTestBase {
         // passes an EMPTY list, which never reaches the INSERT at all.
         String url = "https://site.com/talles-url-inexistente";
 
-        int filas = db.actualizarNormalizacion(url, "Buzos", "Nike", "hombre", List.of("M", "L"), "Canguro");
+        int filas = db.actualizarNormalizacion(url, "Buzo", "Nike", "hombre", List.of("M", "L"), "Canguro");
         assertThat(filas).isZero();
 
-        boolean aplicado = db.aplicarReclasificacionAuditada(url, "Buzos", "Nike", "hombre",
+        boolean aplicado = db.aplicarReclasificacionAuditada(url, "Buzo", "Nike", "hombre",
                 List.of("M", "L"), "Canguro", producto(url, List.of("M", "L")), "santi");
         assertThat(aplicado).isFalse();
 

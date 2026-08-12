@@ -90,7 +90,7 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
 
     private Product producto(String url, String marca) {
         return new Product("Sitio", "Producto " + url, 10000.0, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, marca, "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, marca, "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 

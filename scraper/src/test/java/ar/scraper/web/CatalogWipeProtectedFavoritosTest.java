@@ -60,7 +60,7 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
 
     private Product producto(String url) {
         return new Product("Sitio", "Producto", 1000.0, null, url, "http://img.example/x.jpg",
-                "Remeras", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
+                "Remera", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1);
     }
