@@ -418,6 +418,12 @@ instante se conserva; la forma no. Por eso revertir el esquema sin revertir
 además el commit de aplicación deja el código viejo parseando algo que no
 espera — el rollback completo son las dos cosas.
 
+> `outfit_feedback` ya no figura en este bloque: `V15` borró esa tabla (estaba
+> muerta y era la última violación de 1FN del esquema). Revertir `V8` en una
+> base que ya pasó por `V15` no puede retipar una columna que no existe —
+> `V8RollbackRoundTripTest` lo cazó apenas se borró la tabla, que es para lo
+> que este bloque es ejecutable y no prosa.
+
 ```sql
 -- >>> rollback:V8
 ALTER TABLE productos              ALTER COLUMN bloqueado_at    TYPE text USING bloqueado_at::text;
@@ -427,7 +433,6 @@ ALTER TABLE sitios_dinamicos       ALTER COLUMN created_at      TYPE text USING 
 ALTER TABLE categoria_stats        ALTER COLUMN updated_at      TYPE text USING updated_at::text;
 ALTER TABLE favoritos              ALTER COLUMN added_at        TYPE text USING added_at::text;
 ALTER TABLE favoritos              ALTER COLUMN last_checked_at TYPE text USING last_checked_at::text;
-ALTER TABLE outfit_feedback        ALTER COLUMN created_at      TYPE text USING created_at::text;
 ALTER TABLE outfit_feedback_item   ALTER COLUMN created_at      TYPE text USING created_at::text;
 ALTER TABLE categoria_dismiss      ALTER COLUMN created_at      TYPE text USING created_at::text;
 ALTER TABLE financiacion_presets   ALTER COLUMN created_at      TYPE text USING created_at::text;

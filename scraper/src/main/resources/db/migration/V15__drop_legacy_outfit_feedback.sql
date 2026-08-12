@@ -1,0 +1,22 @@
+-- V15__drop_legacy_outfit_feedback.sql — normalize-db-schema-fks-1nf, cierre de 1FN
+--
+-- `outfit_feedback` era la última violación de 1FN del esquema, y de la forma
+-- más clásica: un GRUPO REPETITIVO desplegado en columnas
+-- (torso_url / piernas_url / calzado_url / accesorio_url), o sea "la misma cosa
+-- cuatro veces" en vez de cuatro filas.
+--
+-- No se normaliza: se BORRA. La tabla está muerta desde que
+-- `outfit_feedback_item` la reemplazó — esa sí tiene la forma correcta, una
+-- fila por ítem con su slot — y la única referencia viva en todo el código era
+-- un `DELETE FROM` dentro de `limpiarOutfitFeedback()`. Nadie inserta, nadie
+-- lee. Darle estructura a algo que nadie consulta es trabajo tirado.
+--
+-- Destruye el historial de likes viejo (el del modelo por-outfit, previo al
+-- por-ítem). Decisión explícita del usuario: "borrala, el historial se
+-- reconstruye" — se regenera con el uso, y el feedback por ítem, que es el que
+-- alimenta a los armadores, vive en la otra tabla y no se toca.
+--
+-- `idx_outfit_fb_liked` se va con la tabla; V5 había dejado su columna `liked`
+-- como INTEGER a propósito, justamente porque ya no se usaba.
+
+DROP TABLE outfit_feedback;

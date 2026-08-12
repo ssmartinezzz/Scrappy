@@ -183,7 +183,7 @@ categoria_stats      -- Stats de precio por categoría
 sitios_dinamicos     -- Sitios agregados desde el dashboard
 favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
-outfit_feedback / outfit_feedback_item -- Likes/dislikes (legacy + por ítem)
+outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
 saved_outfits        -- Outfits persistidos
 categoria_dismiss    -- Categorías "no me interesa" del feed
 financiacion_presets -- Presets de cuotas/recargo
@@ -290,10 +290,20 @@ dejado `NOT VALID`, pero **sólo si no hay huérfanos**: un `VALIDATE`
 incondicional es justo la migración que `D8` se negó a escribir, la que le
 rompe el arranque a alguien por datos que la migración no puede borrar.
 
-**`outfit_feedback` (legacy) queda como está, a propósito**: sus cuatro
-columnas `*_url` son otra violación de 1FN, pero la tabla está muerta —la única
-referencia en todo el código es un `DELETE FROM`— y borrarla destruye historial
-del usuario. Esa decisión no la toma una migración sola.
+`V15` borra `outfit_feedback` (legacy). Sus cuatro columnas
+`torso_url`/`piernas_url`/`calzado_url`/`accesorio_url` eran la última
+violación de 1FN del esquema, y de la forma más clásica: un grupo repetitivo
+desplegado en columnas. No se normalizó, se borró — la tabla estaba muerta
+desde que `outfit_feedback_item` la reemplazó (una fila por ítem, la forma
+correcta) y la única referencia viva era un `DELETE FROM`. Destruye el
+historial de likes del modelo viejo por-outfit; decisión explícita del usuario,
+se reconstruye con el uso. El feedback por ítem, que es el que alimenta a los
+armadores, no se toca.
+
+**Con esto el esquema está en 1FN.** No queda ninguna columna multivaluada ni
+grupo repetitivo: `talles`/`ml_badge` (V7), `sitios_json` (V9) y
+`slots_json`/`suplementos_json` (V14) viven en tablas hijas, y la única tabla
+que quedaba con grupo repetitivo ya no existe.
 
 **`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`: los
 18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`, `talle` y
