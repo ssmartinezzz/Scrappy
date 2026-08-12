@@ -351,6 +351,16 @@ class HistoricalAnalysis:
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+# DOC-3 (close-1nf-and-3nf-foundation, design DD2): esta función dejó de ser
+# la canónica. ar.scraper.aggregator.text.PrecioParser (Java) y
+# sp_parse_precio_ar (SQL, V17) son ahora el mismo contrato de 8 reglas,
+# portado verbatim de ESTE código — pero PrecioParser corre en Java al
+# momento del scrape, así que precioOriginal ya llega a este pipeline como
+# número o None, nunca como el string crudo que safe_price fue escrita para
+# parsear. safe_price se queda (no se borra: sería un segundo cambio de
+# comportamiento viajando adentro de un PR de esquema) como la especificación
+# de la que las otras dos implementaciones copian, con CERO callers propios
+# dentro de este archivo tras esta migración (measurement 5).
 def safe_price(raw):
     if not raw: return 0.0
     s = str(raw).strip()
@@ -727,8 +737,10 @@ def main():
     descuentos_por_cat = defaultdict(list)
     for p in productos:
         precio = p.get('precio', 0)
-        raw_orig = (p.get('precioOriginal') or '').strip()
-        orig = safe_price(raw_orig) if raw_orig and raw_orig.lower() not in ('nan','null','none','') else 0.0
+        # precioOriginal ya llega como número o None (D1/DD7): PrecioParser
+        # corrió en Java al momento del scrape, así que acá no hay nada que
+        # parsear — safe_price ya no aplica a este campo (DD2, measurement 5).
+        orig = p.get('precioOriginal') or 0.0
         # Hard guard: orig must be at least 20% above precio to be a real discount
         if orig > 0 and orig < precio * 1.20:
             orig = 0.0
@@ -790,8 +802,9 @@ def main():
         hist_min  = hist_anal.min_price()
         hist_max  = hist_anal.max_price()
 
-        # Análisis de descuento
-        orig  = safe_price(p.get('precioOriginal', ''))
+        # Análisis de descuento — precioOriginal ya es número o None (D1/DD7),
+        # PrecioParser corrió en Java; sin safe_price acá (DD2, measurement 5).
+        orig  = p.get('precioOriginal') or 0.0
         ratio = orig / precio if orig > precio > 0 else 1.0
         descuento_pct = (1 - precio / orig) * 100 if orig > precio > 0 else 0
         orig_price = orig
@@ -1234,12 +1247,14 @@ def main():
     print(f"[ML] ofertaReal=True en {n_oferta_real} productos "
           f"(badge verified_deal={badge_counts.get('verified_deal', 0)})", file=sys.stderr)
 
-    # Logging de validación: precios originales no parseables (rechazados a 0.0)
-    n_orig_cero = sum(1 for p in productos
-                       if (p.get('precioOriginal') or '').strip()
-                       and safe_price(p.get('precioOriginal', '')) == 0.0)
-    print(f"[ML] safe_price: {n_orig_cero}/{len(productos)} precioOriginal no parseables "
-          f"(rechazados a 0.0)", file=sys.stderr)
+    # Logging de validación: productos sin precio original. Antes de D1/DD7
+    # esto contaba "precioOriginal no parseó" (safe_price devolviendo 0.0);
+    # ahora precioOriginal ya llega resuelto desde Java (PrecioParser corrió
+    # al scrapear) — "no parseó" y "nunca hubo" son la MISMA cosa acá, así
+    # que la métrica pasa a contar directamente lo que sí se puede observar.
+    n_sin_precio_orig = sum(1 for p in productos if not p.get('precioOriginal'))
+    print(f"[ML] precioOriginal: {n_sin_precio_orig}/{len(productos)} productos sin precio original",
+          file=sys.stderr)
 
     # ─── 7. Tendencias globales ───────────────────────────────────────────────
     cat_counts  = defaultdict(int)

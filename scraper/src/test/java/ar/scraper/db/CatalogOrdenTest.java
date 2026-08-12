@@ -72,6 +72,47 @@ class CatalogOrdenTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("desc_pct: un descuento negativo conocido queda ANTES que un precio_orig NULL, no empatado con él en 0%")
+    void unDescuentoNegativoConocidoVaAntesQueUnPrecioOrigNulo() {
+        // El precio SUBIÓ (precio_orig=400 < precio=500): -25%, un descuento
+        // CONOCIDO aunque negativo. La regresión que esto pin-ea: la vieja
+        // expresión SQL (CASE ... ELSE 0.0 END) trataba "no sé" (precio_orig
+        // NULL) como si fuera "0% de descuento", así que un producto con un
+        // descuento negativo genuino terminaba ordenado DESPUÉS de productos
+        // sin ningún dato — 0.0 > -0.25. Con NULLS LAST, lo desconocido
+        // siempre va al final, incluso detrás de un descuento negativo (D6).
+        //
+        // Un SEGUNDO upsertProductos() no puede usarse acá para agregar un
+        // quinto producto: cada llamada es una corrida completa y soft-elimina
+        // (activo=false) todo lo que no venga en ESA lista (comportamiento
+        // real y correcto de sp_soft_delete_ausentes) — por eso este test arma
+        // su propio dataset de 5 productos en una única llamada, en vez de
+        // apoyarse en el de setUp().
+        db.upsertProductos(List.of(
+                producto("https://s.com/barato", 100, 30, null),
+                producto("https://s.com/caro", 9000, 90, null),
+                producto("https://s.com/medio", 500, 60, 1000.0),
+                producto("https://s.com/oferton", 700, 45, 2800.0),
+                producto("https://s.com/precio-subio", 500, 50, 400.0)
+        ));
+
+        List<String> urls = urls("desc_pct");
+        int idxNegativo = urls.indexOf("https://s.com/precio-subio");
+        int idxBarato = urls.indexOf("https://s.com/barato");
+        int idxCaro = urls.indexOf("https://s.com/caro");
+
+        assertThat(idxNegativo).as("precio-subio (-25%%, conocido)").isGreaterThanOrEqualTo(0);
+        assertThat(idxNegativo)
+                .as("un descuento negativo CONOCIDO va antes que precio_orig NULL")
+                .isLessThan(idxBarato)
+                .isLessThan(idxCaro);
+        assertThat(urls.indexOf("https://s.com/oferton"))
+                .as("los descuentos positivos genuinos siguen primero")
+                .isLessThan(idxNegativo);
+        assertThat(urls.indexOf("https://s.com/medio")).isLessThan(idxNegativo);
+    }
+
+    @Test
     @DisplayName("El total no depende del orden elegido")
     void elTotalEsIndependienteDelOrden() {
         for (String orden : List.of("precio_asc", "precio_desc", "nombre_asc", "composite", "desc_pct")) {

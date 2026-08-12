@@ -557,6 +557,79 @@ lossless en **vocabulario de clave** — vuelven en canon V13, no en salida
 de `norm_cat`. Inocuo: la tabla se regenera entera en la próxima corrida
 de ML.
 
+#### `precio_orig`: de TEXT crudo a `double precision` (V17) — la migración riesgosa
+
+**Decisión**: `productos.precio_orig` pasa de `TEXT` (lo que el sitio haya
+escrito: `"$ 1.249.999,99"`, `"ARS 45.000"`, cualquier cosa) a
+`double precision`. Un valor no interpretable es `NULL`, nunca un string
+centinela ni `0` (D1) — esa era la causa real del bug `-666x` en el orden
+`% Oferta`: un parser regex del lado SQL confundía el separador de miles con
+un decimal (`"$45.000"` → `45.0`) y el `(precio_orig - precio) / precio_orig`
+resultante explotaba a un número absurdo.
+
+**Un solo parser canónico, tres verificaciones cruzadas (DD2).**
+`ar.scraper.aggregator.text.PrecioParser` (Java, corre en el momento del
+scrape — ver el retype de `Product.precioOriginal` más abajo) y
+`sp_parse_precio_ar` (SQL, sólo para el backfill de esta migración) implementan
+el MISMO contrato de 8 reglas, verbatim de `ml_pipeline.py:354-389`
+(`safe_price`, que sigue siendo la spec). Los tres se prueban contra el MISMO
+fixture, `scraper/src/test/resources/price-parser-cases.tsv` — `PrecioParserTest`
+corre el Java, `V17BackfillParityTest` extrae `sp_parse_precio_ar` del archivo
+de migración y lo corre dentro de una transacción que siempre se revierte.
+Ninguno de los dos puede quedar verde si sus semánticas divergen.
+
+**`sp_parse_precio_ar` es de un solo uso.** Existe ÚNICAMENTE para el
+`ALTER COLUMN ... USING sp_parse_precio_ar(precio_orig)` de este archivo, y se
+dropea inmediatamente después. El camino de escritura ONGOING
+(`sp_upsert_run`) NO lo llama — para cuando una fila llega al upsert,
+`PrecioParser` ya corrió en Java al momento del scrape, así que el JSON que
+llega es un número limpio o `null`, y un cast directo alcanza.
+
+**La re-copia de `sp_upsert_run` es de UNA sola línea editada**, no dos como
+suponía la propuesta original: el `INSERT ... VALUES` gana
+`(r->>'precioOrig')::DOUBLE PRECISION` (antes `r->>'precioOrig'`, texto crudo);
+la línea del `ON CONFLICT` (`precio_orig = EXCLUDED.precio_orig`) no necesita
+tocarse — `EXCLUDED` ya lleva el valor tipado en cuanto el `INSERT VALUES`
+lo castea. `StoredProcedureDriftTest` prueba mecánicamente que esa es la
+ÚNICA diferencia entre el cuerpo de V7 y el de V17 (un solo `Substitution`
+declarado, sin DB).
+
+**Verificación en dos capas, porque el modo de falla conocido es el silencio.**
+Un bind mal tipado alguna vez se manifestó como "0 nuevos" y 78 tests
+fallando en otro lado, nunca como un error. Por eso
+`SpUpsertRunPrecioOrigRoundTripTest` asegura primero
+`UpsertStats.nuevos == 3` (la firma exacta de un upsert que rollbackeó
+completo) **antes** de mirar ninguna columna — sólo entonces compara los
+tres valores (número / `NULL` / `NULL`). Invertir el orden dejaría pasar un
+upsert totalmente fallido como "no hay filas, no hay discrepancia".
+
+**`% Oferta` (D6): `NULLS LAST`, no `ELSE 0.0`.** La expresión vieja
+(`CASE ... ELSE 0.0 END`) trataba "no sé" como si fuera "0% de descuento" —
+un producto con un descuento NEGATIVO genuino (el precio subió) terminaba
+ordenado DESPUÉS de un producto sin ningún dato, porque `0.0 > -0.25`. La
+nueva expresión, `(p.precio_orig - p.precio) / p.precio_orig`, propaga `NULL`
+sola cuando no hay precio original — sin `CASE`, sin regex — y
+`ORDER BY ... DESC NULLS LAST` manda lo desconocido al final SIEMPRE, incluso
+detrás de un descuento negativo conocido. `CatalogOrdenTest` lo pinea.
+
+> El bloque de abajo lo ejecuta `V17RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V17
+ALTER TABLE productos ALTER COLUMN precio_orig TYPE text
+    USING CASE WHEN precio_orig IS NULL THEN NULL
+               ELSE to_char(precio_orig, 'FM999999999.99') END;
+-- <<< rollback:V17
+```
+
+**No lossless, y el doc no lo disimula.** Los strings de origen (`"$ 1.249.999,99"`,
+`"ARS 45.000"`) ya no existen — esto devuelve strings numéricos canónicos.
+Fuera del bloque (no puede correr dos veces contra el mismo esquema):
+restaurar `sp_upsert_run` con el cuerpo de V7 **verbatim** vía un
+`CREATE OR REPLACE FUNCTION` en su propia migración hacia adelante — misma
+salvedad que el bloque de rollback de V7.
+
 ---
 
 ### ¿Por qué `/api/data` filtra en SQL y el resto del catálogo no?
