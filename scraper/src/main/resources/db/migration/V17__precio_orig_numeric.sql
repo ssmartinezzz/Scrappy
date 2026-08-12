@@ -16,6 +16,14 @@
 -- upsert, PrecioParser already ran in Java at scrape time, so the JSON value
 -- is already a clean number or null and a direct cast is all that is needed.
 
+-- La rama de "1 punto, 0 comas" tenía un bug real de producción hasta acá:
+-- exigía ADEMÁS que la parte entera fuera chica (<=3 dígitos) para leer el
+-- punto como decimal, así que "$39990.00" (5 dígitos + 2 decimales, 100%
+-- legítimo) se leía como separador de miles: 3999000. Un separador de miles
+-- real SIEMPRE deja exactamente 3 dígitos detrás del punto (la rama de
+-- longitud==3, sin tocar); 1 o 2 dígitos ya prueban que es un decimal real,
+-- sin importar el tamaño de la parte entera. V17 no está en master todavía
+-- — se corrige acá, no en una V18 aparte.
 CREATE FUNCTION sp_parse_precio_ar(raw text)
 RETURNS double precision AS $$
 DECLARE
@@ -23,7 +31,6 @@ DECLARE
     n_puntos   int;
     n_comas    int;
     dot_pos    int;
-    int_part   text;
     frac_part  text;
     v          double precision;
 BEGIN
@@ -48,11 +55,10 @@ BEGIN
         s := replace(s, ',', '.');
     ELSIF n_puntos = 1 AND n_comas = 0 THEN
         dot_pos   := position('.' in s);
-        int_part  := substring(s from 1 for dot_pos - 1);
         frac_part := substring(s from dot_pos + 1);
         IF length(frac_part) = 3 THEN
             s := replace(s, '.', '');
-        ELSIF length(frac_part) <= 2 AND length(int_part) <= 3 THEN
+        ELSIF length(frac_part) <= 2 THEN
             -- se conserva tal cual: decimal real
             NULL;
         ELSE

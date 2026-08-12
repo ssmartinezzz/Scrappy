@@ -354,13 +354,23 @@ class HistoricalAnalysis:
 # DOC-3 (close-1nf-and-3nf-foundation, design DD2): esta función dejó de ser
 # la canónica. ar.scraper.aggregator.text.PrecioParser (Java) y
 # sp_parse_precio_ar (SQL, V17) son ahora el mismo contrato de 8 reglas,
-# portado verbatim de ESTE código — pero PrecioParser corre en Java al
-# momento del scrape, así que precioOriginal ya llega a este pipeline como
-# número o None, nunca como el string crudo que safe_price fue escrita para
-# parsear. safe_price se queda (no se borra: sería un segundo cambio de
-# comportamiento viajando adentro de un PR de esquema) como la especificación
-# de la que las otras dos implementaciones copian, con CERO callers propios
-# dentro de este archivo tras esta migración (measurement 5).
+# portado de ESTE código — pero PrecioParser corre en Java al momento del
+# scrape, así que precioOriginal ya llega a este pipeline como número o None,
+# nunca como el string crudo que safe_price fue escrita para parsear.
+# safe_price se queda (no se borra: sería un segundo cambio de comportamiento
+# viajando adentro de un PR de esquema) como la especificación de la que las
+# otras dos implementaciones copian, con CERO callers propios dentro de este
+# archivo tras esta migración (measurement 5).
+#
+# Bugfix (no solo port): la rama "1 punto, 0 comas" exigía ADEMÁS que la
+# parte entera fuera chica (<=3 dígitos) para leer el punto como decimal —
+# "$39990.00" (5 dígitos + 2 decimales, 100% legítimo) se leía como
+# separador de miles y daba 3999000.0. Un separador de miles real SIEMPRE
+# deja exactamente 3 dígitos detrás del punto (la rama de abajo con
+# len(frac)==3); 1 o 2 dígitos ya prueban que es decimal real, sin importar
+# el tamaño de la parte entera. Corregido acá, en PrecioParser.java y en
+# sp_parse_precio_ar en lockstep — fidelidad al comportamiento viejo perdió
+# contra corrección.
 def safe_price(raw):
     if not raw: return 0.0
     s = str(raw).strip()
@@ -378,16 +388,16 @@ def safe_price(raw):
         # 99,99 → coma decimal AR, sin separador de miles → punto decimal
         s = s.replace(',', '.')
     elif dots == 1 and comas == 0:
-        # Un solo punto: puede ser separador decimal o de miles, según la cantidad
-        # de dígitos después del punto y el tamaño de la parte entera (precios AR
-        # son típicamente enteros en pesos).
-        intpart, frac = s.split('.')
+        # Un solo punto: puede ser separador decimal o de miles. Un separador
+        # de miles real SIEMPRE deja exactamente 3 dígitos detrás del punto —
+        # eso alcanza, no hace falta mirar el tamaño de la parte entera.
+        frac = s.split('.')[1]
         if len(frac) == 3:
             s = s.replace('.', '')                 # 199.500 → 199500 (miles)
-        elif len(frac) <= 2 and len(intpart) <= 3:
-            pass                                    # 199.50 / 12.99 → decimal real (precio < 1000)
+        elif len(frac) <= 2:
+            pass                                    # 39990.00 / 12.99 → decimal real
         else:
-            # 1234.5 / 12345.67 → punto como separador de miles AR (precio entero)
+            # 4+ dígitos decimales no tiene lectura clara → separador de miles
             s = s.replace('.', '')
     else:
         # Sin separadores claros → quitar todo excepto dígitos
