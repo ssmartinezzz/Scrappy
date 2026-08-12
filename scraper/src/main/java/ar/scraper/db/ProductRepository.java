@@ -576,12 +576,27 @@ class ProductRepository {
         }
     }
 
+    /**
+     * normalize-db-schema-fks-1nf, slice A.1 (design D9): the favourite-count
+     * check and the DELETE now share this same transaction — a favourite
+     * added between an endpoint-level pre-check and the delete would
+     * otherwise turn the intended 409 into a raw FK-violation 500 (TOCTOU).
+     * {@code DELETE FROM precio_historico} is gone: V4's {@code ON DELETE
+     * CASCADE} on {@code precio_historico.url} covers it.
+     */
     void limpiarProductos() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {
+                try (ResultSet rs = st.executeQuery(
+                        "SELECT COUNT(*) FROM favoritos f JOIN productos p ON p.url = f.url")) {
+                    rs.next();
+                    long bloqueantes = rs.getLong(1);
+                    if (bloqueantes > 0) {
+                        throw new FavoritosProtegidosException(bloqueantes);
+                    }
+                }
                 st.execute("DELETE FROM productos");
-                st.execute("DELETE FROM precio_historico");
                 st.execute("DELETE FROM categoria_stats");
                 c.commit();
                 LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
