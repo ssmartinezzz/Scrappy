@@ -305,6 +305,20 @@ sobre los ~24 productos de la página en vez de sobre el catálogo entero.
 El resto de las superficies (`/api/grupos`, `/api/mejores`, outfits,
 recomendados, agente) sigue leyendo el snapshot en memoria.
 
+`V12` (`close-category-vocabulary`) **cierra el vocabulario de `categoria`**,
+que era la condición que faltaba para poder pensar 3FN. `CategoryClassifier`
+tenía una rama que devolvía la PRIMERA PALABRA del breadcrumb cuando no
+matcheaba ningún keyword: con eso cada tienda podía inventar una categoría, y
+las que inventó estaban mal (`Mini` para "Mini Morral", `Pc` para una microSD,
+`Cooling` para un adaptador). Ahora esa rama sólo acepta lo que tenga alias
+hacia el canon (`CategoryAliases`), y lo demás cae en **`Otros`**, un bucket
+explícito: un "no sé" visible se mide y se corrige, uno disfrazado de categoría
+real no. `Almacenamiento` se AGREGÓ al canon (era legítima, 57 productos de
+HDDs/SSDs). `Indumentaria` como categoría desapareció: era un *rubro* usado
+como categoría. La migración remapea las 478 filas (7,3%) que ya estaban mal.
+`CategoryVocabularyIsClosedTest` prueba que ninguna entrada, por hostil que
+sea, se sale de `CategoryGroups.canonicalCategories()`.
+
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).
 Corre **server-side** en las funciones plpgsql `sp_upsert_run`/

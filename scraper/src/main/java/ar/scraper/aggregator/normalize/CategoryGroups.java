@@ -46,11 +46,23 @@ public final class CategoryGroups {
 
     /** Tech ("rubro=tecnologia") canonical category names — {@code CategoryClassifier}. */
     private static final Set<String> CATEGORIAS_TECH = Set.of(
-        "Notebook","PC","Monitor","GPU","CPU","RAM","Gabinete","Teclado","Mouse","Auricular","Webcam"
+        "Notebook","PC","Monitor","GPU","CPU","RAM","Gabinete","Teclado","Mouse","Auricular","Webcam",
+        // Almacenamiento faltaba en el canon y sin embargo la base tiene 57
+        // productos ahí (HDDs y SSDs de Fullh4rd): era una categoría REAL que
+        // el vocabulario no reconocía, no basura de breadcrumb.
+        "Almacenamiento"
     );
 
-    /** Standalone canonical categories not covered by the sets above. */
-    private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Perfume");
+    /**
+     * Standalone canonical categories not covered by the sets above.
+     *
+     * <p>{@code Otros} es el bucket EXPLÍCITO de "no sé": desde
+     * `close-category-vocabulary`, un producto que no matchea ninguna
+     * categoría cae acá en vez de inventarse una con la primera palabra del
+     * breadcrumb de la tienda. Es feo a propósito — un "no sé" visible se
+     * puede medir y corregir; uno disfrazado de categoría real, no.</p>
+     */
+    private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Perfume","Otros");
 
     /**
      * Full canonical {@code categoria} vocabulary the agent's
