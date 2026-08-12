@@ -219,11 +219,6 @@ class ProductRepository {
 
     // ─── Cargar productos ────────────────────────────────────────────────────
 
-    private static final String COLUMNAS_PRODUCTO =
-            "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
-            "categoria,genero,ml_score,ml_oferta,ml_tendencia," +
-            "ml_segment,ml_zscore,rubro,marca,gymrat,marca_premium,cantidad_unidades,sub_categoria," +
-            "fit,estampado,escote,color_dominante FROM productos";
 
     /**
      * Tres sentencias en total, constantes en el tamaño del catálogo (design D3):
@@ -239,10 +234,10 @@ class ProductRepository {
             Map<String, List<String>> badgesPorUrl = cargarMultivalor(c, "producto_badge", "badge");
             try (Statement st = c.createStatement();
                  ResultSet rs = st.executeQuery(
-                         COLUMNAS_PRODUCTO + " WHERE activo ORDER BY precio ASC")) {
+                         ProductRowMapper.COLUMNAS + " WHERE activo ORDER BY precio ASC")) {
                 while (rs.next()) {
                     String url = rs.getString("url");
-                    result.add(productoDesdeFila(rs,
+                    result.add(ProductRowMapper.map(rs,
                             tallesPorUrl.getOrDefault(url, List.of()),
                             badgesPorUrl.getOrDefault(url, List.of())));
                 }
@@ -257,11 +252,11 @@ class ProductRepository {
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
     java.util.Optional<Product> obtenerProducto(String url) {
         try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement(COLUMNAS_PRODUCTO + " WHERE url=?")) {
+            try (PreparedStatement ps = c.prepareStatement(ProductRowMapper.COLUMNAS + " WHERE url=?")) {
                 ps.setString(1, url);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) return java.util.Optional.empty();
-                    return java.util.Optional.of(productoDesdeFila(rs,
+                    return java.util.Optional.of(ProductRowMapper.map(rs,
                             cargarMultivalor(c, "producto_talle", "talle", url),
                             cargarMultivalor(c, "producto_badge", "badge", url)));
                 }
@@ -329,52 +324,6 @@ class ProductRepository {
         return result;
     }
 
-    /**
-     * {@code talles} y {@code badges} llegan ya leídos de sus tablas hijas
-     * (V7) — ordenados por {@code posicion}, que es lo que hace que
-     * {@code badges().get(0)} siga siendo el badge principal.
-     */
-    private Product productoDesdeFila(ResultSet rs, List<String> talles, List<String> badges)
-            throws java.sql.SQLException {
-        Product.MlScore ml = new Product.MlScore(
-                rs.getInt("ml_score"),
-                badges,
-                rs.getBoolean("ml_oferta"),
-                rs.getString("ml_tendencia") != null ? rs.getString("ml_tendencia") : "",
-                rs.getInt("ml_score"),
-                rs.getDouble("ml_zscore"),
-                rs.getString("ml_segment")   != null ? rs.getString("ml_segment")   : "standard"
-        );
-
-        String marca   = rs.getString("marca");
-        String rubro   = rs.getString("rubro");
-        boolean gymrat = rs.getBoolean("gymrat");
-        boolean marcaPremium = rs.getBoolean("marca_premium");
-        int cantidadUnidades = rs.getInt("cantidad_unidades");
-        if (cantidadUnidades < 1) cantidadUnidades = 1;
-        String subCategoria = rs.getString("sub_categoria");
-
-        String fit             = rs.getString("fit");
-        String estampado       = rs.getString("estampado");
-        String escote          = rs.getString("escote");
-        String colorDominante  = rs.getString("color_dominante");
-        Product.VisualAttrs visual = new Product.VisualAttrs(
-                fit            != null ? fit            : "",
-                estampado      != null ? estampado      : "",
-                escote         != null ? escote         : "",
-                colorDominante != null ? colorDominante : "");
-
-        return new Product(
-                rs.getString("sitio"), rs.getString("nombre"),
-                rs.getDouble("precio"), rs.getString("precio_orig"),
-                rs.getString("url"), rs.getString("imagen_url"),
-                rs.getString("categoria"), rs.getString("genero"),
-                talles, ml, marca != null ? marca : "",
-                rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
-                gymrat, marcaPremium, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, cantidadUnidades,
-                subCategoria != null ? subCategoria : "", visual);
-    }
 
     /**
      * Actualiza la categoría de un producto (corrección por modelo ML).
