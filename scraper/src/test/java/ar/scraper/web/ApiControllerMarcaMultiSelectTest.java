@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 @Feature("Filtros / Facets")
 @Story("Marca multi-select")
 @DisplayName("ApiController — Marca multi-select filter")
-class ApiControllerMarcaMultiSelectTest {
+class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ScraperService service;
     private InflacionService inflacionService;
@@ -56,7 +56,6 @@ class ApiControllerMarcaMultiSelectTest {
         wireController();
 
         when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     @Step("Wire ApiController with mocked collaborators")
@@ -65,13 +64,28 @@ class ApiControllerMarcaMultiSelectTest {
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);
         aggregator        = mock(ResultAggregator.class);
-        db                = mock(DatabaseService.class);
+        db                = new DatabaseService(dataSource());
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
+    }
+
+    /**
+     * `/api/data` lee de la BASE desde `sql-catalog-filtering`, no del snapshot
+     * en memoria: sembrar es un upsert real. Stubbear el mock en vez de esto
+     * dejaría estos tests verificando que Mockito devuelve lo que se le dijo.
+     */
+    private final java.util.List<Product> sembrados = new java.util.ArrayList<>();
+
+    private void sembrar(Product... productos) {
+        // Acumulativo a propósito: upsertProductos hace soft-delete de todo lo
+        // que NO viene en el batch, así que sembrar dos veces desactivaría lo
+        // anterior. PostgresTestBase trunca entre tests.
+        sembrados.addAll(java.util.List.of(productos));
+        db.upsertProductos(java.util.List.copyOf(sembrados));
     }
 
     private Product producto(String url, String marca) {
@@ -95,7 +109,7 @@ class ApiControllerMarcaMultiSelectTest {
         Product nike   = producto("https://site.com/nike", "Nike");
         Product adidas = producto("https://site.com/adidas", "Adidas");
         Product puma   = producto("https://site.com/puma", "Puma");
-        when(service.getLastResult()).thenReturn(resultFor(nike, adidas, puma));
+        sembrar(nike, adidas, puma);
 
         Allure.parameter("marca", List.of("Nike", "Adidas"));
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
@@ -113,7 +127,7 @@ class ApiControllerMarcaMultiSelectTest {
     void emptyMarcaListAppliesNoFilter() {
         Product nike   = producto("https://site.com/nike2", "Nike");
         Product adidas = producto("https://site.com/adidas2", "Adidas");
-        when(service.getLastResult()).thenReturn(resultFor(nike, adidas));
+        sembrar(nike, adidas);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 List.of(), null, null, null, null, "precio_asc", null, null, null, null);
@@ -126,7 +140,7 @@ class ApiControllerMarcaMultiSelectTest {
     void absentMarcaParamAppliesNoFilter() {
         Product nike   = producto("https://site.com/nike3", "Nike");
         Product adidas = producto("https://site.com/adidas3", "Adidas");
-        when(service.getLastResult()).thenReturn(resultFor(nike, adidas));
+        sembrar(nike, adidas);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null);
@@ -141,7 +155,7 @@ class ApiControllerMarcaMultiSelectTest {
     void singleMarcaValueStillWorks() {
         Product nike   = producto("https://site.com/nike4", "Nike");
         Product adidas = producto("https://site.com/adidas4", "Adidas");
-        when(service.getLastResult()).thenReturn(resultFor(nike, adidas));
+        sembrar(nike, adidas);
 
         Allure.parameter("marca", List.of("Nike"));
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
@@ -157,7 +171,7 @@ class ApiControllerMarcaMultiSelectTest {
     @Test
     void brandMatchIsCaseInsensitive() {
         Product nike = producto("https://site.com/nike5", "Nike");
-        when(service.getLastResult()).thenReturn(resultFor(nike));
+        sembrar(nike);
 
         Allure.parameter("marca", List.of("nike"));
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,

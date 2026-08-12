@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 @Feature("Filtros / Facets")
 @Story("Visual attributes (fit/estampado/escote/color_dominante)")
 @DisplayName("ApiController — visual attribute facets and filters")
-class ApiControllerVisualAttrsTest {
+class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ScraperService service;
     private InflacionService inflacionService;
@@ -60,7 +60,6 @@ class ApiControllerVisualAttrsTest {
         wireController();
 
         when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     @Step("Wire ApiController with mocked collaborators")
@@ -69,13 +68,28 @@ class ApiControllerVisualAttrsTest {
         inflacionService       = mock(InflacionService.class);
         config                 = mock(ScraperConfig.class);
         aggregator             = mock(ResultAggregator.class);
-        db                     = mock(DatabaseService.class);
+        db = new DatabaseService(dataSource());
         grouping               = mock(GroupingService.class);
         pythonRunner           = mock(PythonRunner.class);
         outfitService          = mock(OutfitService.class);
         recommendationService  = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
+    }
+
+    /**
+     * `/api/data` lee de la BASE desde `sql-catalog-filtering`, no del snapshot
+     * en memoria: sembrar es un upsert real. Stubbear el mock en vez de esto
+     * dejaría estos tests verificando que Mockito devuelve lo que se le dijo.
+     */
+    private final java.util.List<Product> sembrados = new java.util.ArrayList<>();
+
+    private void sembrar(Product... productos) {
+        // Acumulativo a propósito: upsertProductos hace soft-delete de todo lo
+        // que NO viene en el batch, así que sembrar dos veces desactivaría lo
+        // anterior. PostgresTestBase trunca entre tests.
+        sembrados.addAll(java.util.List.of(productos));
+        db.upsertProductos(java.util.List.copyOf(sembrados));
     }
 
     private Product producto(String url, VisualAttrs visual) {
@@ -98,7 +112,7 @@ class ApiControllerVisualAttrsTest {
     void facetsIncludesVisualAttributeGroupsAlongsideExisting() {
         Product oversize = producto("https://site.com/a", new VisualAttrs("oversize", "estampado", "cuello redondo", "azul"));
         Product regular   = producto("https://site.com/b", new VisualAttrs("regular", "liso", "en v", "rojo"));
-        when(service.getLastResult()).thenReturn(resultFor(oversize, regular));
+        sembrar(oversize, regular);
 
         ResponseEntity<?> resp = controller.facets();
         JsonNode body = (JsonNode) resp.getBody();
@@ -118,7 +132,7 @@ class ApiControllerVisualAttrsTest {
     @Test
     void dataMetaFacetsIncludesVisualAttributeGroups() {
         Product oversize = producto("https://site.com/c", new VisualAttrs("oversize", "", "", ""));
-        when(service.getLastResult()).thenReturn(resultFor(oversize));
+        sembrar(oversize);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
@@ -134,7 +148,7 @@ class ApiControllerVisualAttrsTest {
     void filtersByEstampado() {
         Product estampado = producto("https://site.com/estampado", new VisualAttrs("", "estampado", "", ""));
         Product liso       = producto("https://site.com/liso", new VisualAttrs("", "liso", "", ""));
-        when(service.getLastResult()).thenReturn(resultFor(estampado, liso));
+        sembrar(estampado, liso);
 
         Allure.parameter("estampado", "estampado");
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
@@ -150,7 +164,7 @@ class ApiControllerVisualAttrsTest {
     void filtersByFit() {
         Product oversize = producto("https://site.com/oversize", new VisualAttrs("oversize", "", "", ""));
         Product regular   = producto("https://site.com/regular", new VisualAttrs("regular", "", "", ""));
-        when(service.getLastResult()).thenReturn(resultFor(oversize, regular));
+        sembrar(oversize, regular);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
@@ -165,7 +179,7 @@ class ApiControllerVisualAttrsTest {
     void filtersByEscote() {
         Product cuelloRedondo = producto("https://site.com/redondo", new VisualAttrs("", "", "cuello redondo", ""));
         Product enV            = producto("https://site.com/v", new VisualAttrs("", "", "en v", ""));
-        when(service.getLastResult()).thenReturn(resultFor(cuelloRedondo, enV));
+        sembrar(cuelloRedondo, enV);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
@@ -180,7 +194,7 @@ class ApiControllerVisualAttrsTest {
     void filtersByColorDominante() {
         Product azul = producto("https://site.com/azul", new VisualAttrs("", "", "", "azul"));
         Product rojo = producto("https://site.com/rojo", new VisualAttrs("", "", "", "rojo"));
-        when(service.getLastResult()).thenReturn(resultFor(azul, rojo));
+        sembrar(azul, rojo);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
@@ -195,7 +209,7 @@ class ApiControllerVisualAttrsTest {
     void absentVisualAttrParamsApplyNoFilter() {
         Product a = producto("https://site.com/x", new VisualAttrs("oversize", "estampado", "cuello redondo", "azul"));
         Product b = producto("https://site.com/y", VisualAttrs.EMPTY);
-        when(service.getLastResult()).thenReturn(resultFor(a, b));
+        sembrar(a, b);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
@@ -208,7 +222,7 @@ class ApiControllerVisualAttrsTest {
     @Test
     void visualAttrFilterIsCaseInsensitive() {
         Product azul = producto("https://site.com/azul2", new VisualAttrs("", "", "", "azul"));
-        when(service.getLastResult()).thenReturn(resultFor(azul));
+        sembrar(azul);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
@@ -223,7 +237,7 @@ class ApiControllerVisualAttrsTest {
     @Test
     void legacySeventeenArgDataCallStillAppliesExistingFiltersUnaffected() {
         Product nike = producto("https://site.com/nike-legacy", VisualAttrs.EMPTY);
-        when(service.getLastResult()).thenReturn(resultFor(nike));
+        sembrar(nike);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
                 List.of("Marca"), null, null, null, null, "precio_asc", null, null, null, null);

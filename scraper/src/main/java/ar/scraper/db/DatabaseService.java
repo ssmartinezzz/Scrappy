@@ -58,9 +58,11 @@ public class DatabaseService {
     private final CategoriaStatsRepository categoriaStatsRepository;
     private final PreciosExternosRepository preciosExternosRepository;
     private final ProductRepository productRepository;
+    private final CatalogQueryRepository catalogQueryRepository;
 
     public DatabaseService(DataSource dataSource) {
         this.dataSource = dataSource;
+        this.catalogQueryRepository = new CatalogQueryRepository(dataSource);
         this.cronRepository = new CronRepository(dataSource);
         this.presetRepository = new PresetRepository(dataSource);
         this.favoritosRepository = new FavoritosRepository(dataSource);
@@ -186,6 +188,26 @@ public class DatabaseService {
     }
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
+    /**
+     * `/api/data` en SQL (`sql-catalog-filtering`): filtra, ordena y pagina en
+     * la base en vez de barrer el catálogo en memoria en cada request. Los
+     * talles y los badges se filtran contra sus tablas hijas — el motivo por el
+     * que V7 las creó.
+     */
+    public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size) {
+        return catalogQueryRepository.buscar(filtro, orden, page, size);
+    }
+
+    /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
+    public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo() {
+        return catalogQueryRepository.facetas();
+    }
+
+    /** Rango de precios, conteo por sitio/rubro, gymrat y packs del catálogo persistido. */
+    public CatalogResumen resumenCatalogo() {
+        return catalogQueryRepository.resumen();
+    }
+
     public java.util.Optional<Product> obtenerProducto(String url) {
         return productRepository.obtenerProducto(url);
     }
