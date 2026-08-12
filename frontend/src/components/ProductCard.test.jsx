@@ -61,3 +61,25 @@ describe('ProductCard — precioOrig numérico', () => {
     expect(origEl.textContent).toBe('ARS $45.000');
   });
 });
+
+describe('ProductCard — catStats se busca por categoria canónica, no por normCat', () => {
+  it('la barra de precio aparece cuando catStats está keyeado con la categoria tal cual llega del backend (V16/DD6)', () => {
+    // Desde V16 /api/tendencias emite distribucionCategorias con la
+    // categoria CANÓNICA (Title Case, "Remera") como clave — no la salida
+    // de norm_cat ("remera"). Buscar con normCat(p.categoria) ya no
+    // matchea nada.
+    render(
+      <ProductCard
+        product={{ ...baseProduct, categoria: 'Remera' }}
+        catStats={{ Remera: { median: 20000, fence_high: 50000 } }}
+        isInComparar={false}
+        isFavorito={false}
+        onOpenDetail={vi.fn()}
+        onToggleComparar={vi.fn()}
+        onToggleFavorito={vi.fn()}
+      />
+    );
+
+    expect(document.querySelector('.card-price-bar')).not.toBeNull();
+  });
+});
