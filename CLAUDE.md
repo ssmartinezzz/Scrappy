@@ -319,6 +319,20 @@ como categoría. La migración remapea las 478 filas (7,3%) que ya estaban mal.
 `CategoryVocabularyIsClosedTest` prueba que ninguna entrada, por hostil que
 sea, se sale de `CategoryGroups.canonicalCategories()`.
 
+`V14` corrige a `V10`: `saved_outfits.slots_json`/`suplementos_json` **sí eran
+dato del dominio**, no documentos opacos. Cada elemento traía la `url` del
+producto —la misma clave que ya lleva FK en tres tablas— más copias congeladas
+de su fila. Pasan a `saved_outfit_item` (una fila por prenda/suplemento, clase
+`slot`/`suplemento`). El argumento que lo decidió: *la estructura de las tablas
+condiciona al frontend, no al revés*, y con un blob no se puede preguntar qué
+outfits contienen un producto ni relacionar prendas con un futuro `user_uuid`.
+Semántica **foto + precio actual**: la fila guarda lo que el producto ERA al
+guardarse y la `url` permite traer el precio de HOY por LEFT JOIN
+(`precioActual`). Por eso `url` **no lleva FK** — mismo criterio que
+`agent_reclassify_audit`: un registro histórico no depende de que el dato
+mutable siga existiendo, y un producto discontinuado no puede borrar un outfit
+del usuario.
+
 `V13` le da a `categoria` **integridad referencial**: tabla `categoria(nombre PK)`
 sembrada con los 81 valores del canon + FK desde `productos.categoria`. Es
 clave **natural**, no un `categoria_id`: el nombre ya es único y estable y es
