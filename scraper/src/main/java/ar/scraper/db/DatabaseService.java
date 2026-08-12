@@ -33,7 +33,7 @@ import java.util.*;
  *   - Producto nuevo  → INSERT + historial
  *   - Precio igual    → UPDATE touched_at solamente
  *   - Precio cambió   → UPDATE precio + INSERT en precio_historico
- *   - No apareció     → soft-delete (activo=0) vía {@code sp_soft_delete_ausentes}
+ *   - No apareció     → soft-delete (activo=false) vía {@code sp_soft_delete_ausentes}
  */
 @Service
 public class DatabaseService {

@@ -72,7 +72,7 @@ def load_dataset():
     cur.execute("""
         SELECT nombre, categoria, rubro, marca
         FROM productos
-        WHERE activo=1 AND nombre IS NOT NULL AND nombre != ''
+        WHERE activo AND nombre IS NOT NULL AND nombre != ''
           AND categoria IS NOT NULL AND categoria != ''
           AND categoria != 'Indumentaria'
           AND categoria != 'Ropa'
