@@ -47,6 +47,7 @@ class StoredProcedureDriftTest {
     private static final String V3 = "/db/migration/V3__manual_classification_lock.sql";
     private static final String V5 = "/db/migration/V5__boolean_and_date_column_types.sql";
     private static final String V7 = "/db/migration/V7__product_multivalue_child_tables.sql";
+    private static final String V17 = "/db/migration/V17__precio_orig_numeric.sql";
 
     private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String SP_SOFT_DELETE_AUSENTES_START =
@@ -150,10 +151,23 @@ class StoredProcedureDriftTest {
                     "touched_at = EXCLUDED.touched_at; IF v_prev_precio IS NULL THEN")
     );
 
+    /**
+     * close-1nf-and-3nf-foundation, design DD7: V17 retypes {@code precio_orig}
+     * to {@code double precision} and the INSERT VALUES expression that used
+     * to hand {@code sp_upsert_run} a raw JSON string now casts it. Exactly
+     * ONE line changes — the {@code ON CONFLICT} line needs no edit, EXCLUDED
+     * already carries the typed value once the INSERT VALUES cast lands.
+     */
+    private static final Substitution SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST = new Substitution(
+            "INSERT VALUES: precioOrig gains a (::DOUBLE PRECISION) cast (D1/DD7 — Double retype)",
+            Pattern.compile(Pattern.quote("(r->>'precioOrig')::DOUBLE PRECISION")),
+            "r->>'precioOrig'");
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
             new Hop(SP_UPSERT_RUN_START, V5, V7, SP_UPSERT_RUN_V7_CHILD_TABLES),
+            new Hop(SP_UPSERT_RUN_START, V7, V17, List.of(SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
     );
 

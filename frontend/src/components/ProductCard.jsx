@@ -209,13 +209,13 @@ const ProductCard = memo(function ProductCard({
         )}
 
         <div className="card-prices">
-          {p.precioOrig && (() => {
-            const raw = String(p.precioOrig).replace(/[^0-9.,]/g,'').replace(/\.(?=\d{3})/g,'').replace(',','.');
-            const val = parseFloat(raw);
-            return !isNaN(val) && val > 0
-              ? <div className="card-price-orig">ARS ${fmt(val)}</div>
-              : null;
-          })()}
+          {/* precioOrig llega del backend como número o null (D1/DD7) — el
+              parser regex que vivía acá era la tercera implementación
+              disagreeing con PrecioParser (Java) y sp_parse_precio_ar (SQL);
+              ya no hace falta ninguna, fmt() alcanza. */}
+          {p.precioOrig != null && (
+            <div className="card-price-orig">ARS ${fmt(p.precioOrig)}</div>
+          )}
           <div className="card-price">ARS ${fmt(p.precio)}</div>
           {p.esPack && (
             <div className="card-price-unit">
