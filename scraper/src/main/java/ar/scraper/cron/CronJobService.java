@@ -198,12 +198,19 @@ public class CronJobService {
      *       desde V8 {@code cron_jobs.next_run_at} es {@code TIMESTAMPTZ} y el
      *       repositorio lo devuelve como instante, no como hora local suelta.</li>
      *   <li>Sin offset ({@code 2026-07-05T03:00:00}) cuando viene recién salido
-     *       de {@link #computeNextRun}, que nombra una hora LOCAL — es la forma
-     *       que además se persiste y se expone en la API.</li>
+     *       de {@link #computeNextRun}, que nombra una hora LOCAL. Es la forma
+     *       que se ESCRIBE, no la que se lee.</li>
      * </ul>
      *
      * <p>Un {@code LocalDateTime.parse} pelado explotaba con la primera y
      * dejaba el poller sin disparar un solo job.</p>
+     *
+     * <p>Precisión, porque el verify la marcó: en producción {@link #dueJobs}
+     * siempre recibe jobs leídos de la DB, así que la segunda rama no se
+     * ejercita ahí — la sostienen los tests unitarios, que construyen
+     * {@code CronJob} a mano con la salida cruda de {@link #computeNextRun}. Se
+     * mantiene igual: la alternativa es que el mismo string que el sistema
+     * produce sea ilegal para el que lo consume.</p>
      */
     private ZonedDateTime parseAsZoned(String iso, ZoneId zone) {
         try {
