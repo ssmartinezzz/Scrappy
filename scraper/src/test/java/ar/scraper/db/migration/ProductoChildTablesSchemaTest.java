@@ -93,7 +93,7 @@ class ProductoChildTablesSchemaTest extends PostgresTestBase {
         ar.scraper.model.Product.MlScore ml = new ar.scraper.model.Product.MlScore(
                 80, badges, true, "estable", 20, 0.5, "standard");
         return new ar.scraper.model.Product("Sitio", "Producto", 1000.0, null, url,
-                "http://img.example/x.jpg", "Remeras", "unisex", talles, ml, "Nike",
+                "http://img.example/x.jpg", "Remera", "unisex", talles, ml, "Nike",
                 "indumentaria", false, false, ar.scraper.model.Product.SenalCompra.EMPTY,
                 ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);
     }

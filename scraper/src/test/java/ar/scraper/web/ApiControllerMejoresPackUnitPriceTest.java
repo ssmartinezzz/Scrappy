@@ -78,14 +78,14 @@ class ApiControllerMejoresPackUnitPriceTest {
     /** Non-pack product (cantidadUnidades = 1). */
     private Product producto(String url, double precio) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Zapatillas", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
+                "Zapatilla", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
     }
 
     /** Product with an explicit cantidadUnidades (pack when > 1). */
     private Product producto(String url, double precio, int cantidadUnidades) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Zapatillas", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
+                "Zapatilla", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY,
                 cantidadUnidades, "");
     }
@@ -93,7 +93,7 @@ class ApiControllerMejoresPackUnitPriceTest {
     /** Product with an explicit MlScore and cantidadUnidades, for slot-winning scenarios. */
     private Product producto(String url, double precio, int cantidadUnidades, MlScore ml) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Zapatillas", "hombre", List.of(), ml, "Marca", "indumentaria",
+                "Zapatilla", "hombre", List.of(), ml, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY,
                 cantidadUnidades, "");
     }
@@ -109,7 +109,7 @@ class ApiControllerMejoresPackUnitPriceTest {
     private JsonNode zapatillasNode(ResponseEntity<Object> resp) {
         JsonNode body = (JsonNode) resp.getBody();
         for (JsonNode node : body) {
-            if ("Zapatillas".equals(node.path("categoria").asText())) return node;
+            if ("Zapatilla".equals(node.path("categoria").asText())) return node;
         }
         return null;
     }

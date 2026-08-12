@@ -41,7 +41,7 @@ class ScraperServiceFinanciacionTest {
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {
         return new Product("Sitio", "p-" + url, precio, null, url, "",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, finan);
     }
 

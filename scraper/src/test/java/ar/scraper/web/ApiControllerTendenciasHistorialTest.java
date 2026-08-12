@@ -109,14 +109,14 @@ class ApiControllerTendenciasHistorialTest {
         ObjectNode scores = ml.putObject("scores");
         scores.put("https://a.com/1", 50);
         ObjectNode tendencias = ml.putObject("tendencias");
-        tendencias.put("topCategoria", "Zapatillas");
+        tendencias.put("topCategoria", "Zapatilla");
         when(aggregator.getLastMlOutput()).thenReturn(ml);
         when(db.cargarCategoriaStats()).thenReturn(Map.of());
 
         var resp = controller.tendencias();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody().get("topCategoria").asText()).isEqualTo("Zapatillas");
+        assertThat(resp.getBody().get("topCategoria").asText()).isEqualTo("Zapatilla");
     }
 
     // ── GET /api/historial ───────────────────────────────────────────────

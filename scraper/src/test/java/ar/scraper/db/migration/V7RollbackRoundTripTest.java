@@ -84,7 +84,7 @@ class V7RollbackRoundTripTest extends PostgresTestBase {
     private Product producto(String url, List<String> talles, List<String> badges) {
         Product.MlScore ml = new Product.MlScore(80, badges, true, "estable", 20, 0.5, "standard");
         return new Product("Sitio", "Producto", 1000.0, null, url, "http://img.example/x.jpg",
-                "Remeras", "unisex", talles, ml, "Nike", "indumentaria", false, false,
+                "Remera", "unisex", talles, ml, "Nike", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
     }
 

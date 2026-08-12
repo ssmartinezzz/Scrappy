@@ -418,6 +418,12 @@ instante se conserva; la forma no. Por eso revertir el esquema sin revertir
 además el commit de aplicación deja el código viejo parseando algo que no
 espera — el rollback completo son las dos cosas.
 
+> `outfit_feedback` ya no figura en este bloque: `V15` borró esa tabla (estaba
+> muerta y era la última violación de 1FN del esquema). Revertir `V8` en una
+> base que ya pasó por `V15` no puede retipar una columna que no existe —
+> `V8RollbackRoundTripTest` lo cazó apenas se borró la tabla, que es para lo
+> que este bloque es ejecutable y no prosa.
+
 ```sql
 -- >>> rollback:V8
 ALTER TABLE productos              ALTER COLUMN bloqueado_at    TYPE text USING bloqueado_at::text;
@@ -427,7 +433,6 @@ ALTER TABLE sitios_dinamicos       ALTER COLUMN created_at      TYPE text USING 
 ALTER TABLE categoria_stats        ALTER COLUMN updated_at      TYPE text USING updated_at::text;
 ALTER TABLE favoritos              ALTER COLUMN added_at        TYPE text USING added_at::text;
 ALTER TABLE favoritos              ALTER COLUMN last_checked_at TYPE text USING last_checked_at::text;
-ALTER TABLE outfit_feedback        ALTER COLUMN created_at      TYPE text USING created_at::text;
 ALTER TABLE outfit_feedback_item   ALTER COLUMN created_at      TYPE text USING created_at::text;
 ALTER TABLE categoria_dismiss      ALTER COLUMN created_at      TYPE text USING created_at::text;
 ALTER TABLE financiacion_presets   ALTER COLUMN created_at      TYPE text USING created_at::text;
@@ -441,6 +446,68 @@ ALTER TABLE cron_executions        ALTER COLUMN finished_at     TYPE text USING 
 ALTER TABLE agent_reclassify_audit ALTER COLUMN applied_at      TYPE text USING applied_at::text;
 -- <<< rollback:V8
 ```
+
+---
+
+### ¿Por qué `cron_jobs.sitios_json` se normalizó y `saved_outfits.slots_json` no?
+
+**Decisión** (`normalize-db-schema-fks-1nf`, V9/V10): las dos eran columnas
+`TEXT` con un JSON adentro, y sin embargo recibieron tratamientos opuestos. La
+diferencia no es la forma del dato: es **quién lo interpreta**.
+
+`sitios_json` lo parsea el backend y de esa lista salen los sitios que el job
+scrapea. Es un grupo repetitivo que el dominio entiende, sobre el que tiene
+sentido preguntar "qué jobs scrapean Freres" — hoy imposible sin un `LIKE`.
+Va a `cron_job_sitio`, con la misma forma que las hijas de V7.
+
+`slots_json`/`suplementos_json` los serializa el backend desde el cuerpo del
+request y los devuelve verbatim; **nunca consulta adentro**. Son documentos del
+cliente. Normalizarlos sería inventarle a la base un esquema que sólo el
+frontend conoce y que puede cambiar sin que la base tenga voz. Lo único
+exigible sin inventar nada es que sean JSON válido: como `TEXT`, un string roto
+se guardaba feliz y explotaba al leerlo; como `jsonb`, la base lo rechaza en el
+INSERT, que es donde todavía se puede hacer algo.
+
+**La regla que queda**: normalizá lo que el dominio consulta. Un documento
+opaco no se normaliza — se valida.
+
+`outfit_feedback` es el tercer caso y tampoco se tocó: sus columnas
+`torso_url`/`piernas_url`/`calzado_url` violan 1FN, pero la tabla está muerta
+desde que `outfit_feedback_item` la reemplazó (la única referencia viva es un
+`DELETE FROM`). Normalizar una tabla muerta es trabajo tirado, y borrarla
+destruye historial del usuario: es una decisión de producto, no de esquema.
+
+---
+
+### ¿Por qué `/api/data` filtra en SQL y el resto del catálogo no?
+
+**Decisión** (`sql-catalog-filtering`): `/api/data` y `/api/facets` consultan la
+base; `/api/grupos`, `/api/mejores`, los armadores de outfits, el feed y el
+agente siguen leyendo el snapshot en memoria.
+
+El corte no es arbitrario. `/api/data` **filtra y pagina**: es exactamente lo
+que un motor relacional hace mejor que un `stream()`, y sus dos filtros más
+caros —`talle` y `badge`— eran justamente los que no se podían expresar en SQL
+hasta que V7 sacó esas listas a tablas hijas. Los otros consumidores hacen otra
+cosa: `/api/grupos` agrupa por similitud Jaccard sobre nombres normalizados
+(no es un `GROUP BY`), y los armadores corren MCKP con branch-and-bound sobre el
+catálogo entero. Esos algoritmos quieren el set completo en memoria por diseño;
+pasarlos por SQL no compra nada y arriesga bastante.
+
+**Lo que sí cambia de contrato**: el dashboard ya no devuelve 204 sobre 13543
+productos sólo porque en esta sesión nadie scrapeó. `senal` y
+`senalFinanciacion` no se persisten —se calculan— y pasaron de calcularse para
+todo el catálogo en la agregación a calcularse para los ~24 productos de la
+página: menos trabajo, no más. Los errores por sitio siguen saliendo del
+snapshot, porque describen la última corrida y no el catálogo.
+
+**Cómo se hizo sin romper nada**: cada filtro corre dos veces sobre el mismo
+dataset —una por los predicados en memoria originales, copiados al test como
+oráculo, y otra por SQL— y se exige el mismo set de URLs. El oráculo cubre los
+FILTROS, no el orden, que es lo que permitió arreglar de paso dos bugs viejos
+sin que el propio oráculo los defendiera: `orden=ml_score` mostraba los peores
+scores primero, y `orden=desc_pct` filtraba adentro del comparador, así que
+cambiar el orden cambiaba el total y la cantidad de páginas.
 
 ---
 

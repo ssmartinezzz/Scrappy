@@ -240,7 +240,7 @@ class ApiControllerStatusScrapeTest {
 
     private Product producto(String url, double precio) {
         return new Product("Sitio", "Producto", precio, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca",
                 "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
     }

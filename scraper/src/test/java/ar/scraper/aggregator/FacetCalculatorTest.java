@@ -30,8 +30,8 @@ class FacetCalculatorTest {
 
     @Test
     void talles_areSortedKnownSizesFirstThenNumericThenAlphabetical() {
-        Product p1 = product("A", 100, "Remeras", "", List.of("L", "10", "S", "XL"), "", Product.MlScore.EMPTY, "");
-        Product p2 = product("B", 200, "Remeras", "", List.of("42", "M"), "", Product.MlScore.EMPTY, "");
+        Product p1 = product("A", 100, "Remera", "", List.of("L", "10", "S", "XL"), "", Product.MlScore.EMPTY, "");
+        Product p2 = product("B", 200, "Remera", "", List.of("42", "M"), "", Product.MlScore.EMPTY, "");
 
         ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(p1, p2));
 
@@ -41,9 +41,9 @@ class FacetCalculatorTest {
 
     @Test
     void generos_countsNonBlankLowercasedValues() {
-        Product hombre1 = product("A", 100, "Remeras", "Hombre", List.of(), "", Product.MlScore.EMPTY, "");
-        Product hombre2 = product("B", 200, "Remeras", "hombre", List.of(), "", Product.MlScore.EMPTY, "");
-        Product sinGenero = product("C", 300, "Remeras", "", List.of(), "", Product.MlScore.EMPTY, "");
+        Product hombre1 = product("A", 100, "Remera", "Hombre", List.of(), "", Product.MlScore.EMPTY, "");
+        Product hombre2 = product("B", 200, "Remera", "hombre", List.of(), "", Product.MlScore.EMPTY, "");
+        Product sinGenero = product("C", 300, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "");
 
         ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(hombre1, hombre2, sinGenero));
 
@@ -58,15 +58,19 @@ class FacetCalculatorTest {
 
         ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(a1, a2, b1));
 
+        // FacetCalculator es puro y en memoria: no lo alcanza la FK de V13, así
+        // que acá el plural en distinta capitalización sigue siendo una entrada
+        // válida y es justo lo que este test cubre — que "remeras" y "REMERAS"
+        // colapsen en una sola clave.
         assertThat(facets.categorias().keySet()).containsExactly("Remeras", "Zapatillas");
         assertThat(facets.categorias().get("Remeras")).isEqualTo(2L);
     }
 
     @Test
     void marcas_sortedByCountDescending() {
-        Product nike1 = product("A", 100, "Remeras", "", List.of(), "Nike", Product.MlScore.EMPTY, "");
-        Product nike2 = product("B", 200, "Remeras", "", List.of(), "Nike", Product.MlScore.EMPTY, "");
-        Product adidas = product("C", 300, "Remeras", "", List.of(), "Adidas", Product.MlScore.EMPTY, "");
+        Product nike1 = product("A", 100, "Remera", "", List.of(), "Nike", Product.MlScore.EMPTY, "");
+        Product nike2 = product("B", 200, "Remera", "", List.of(), "Nike", Product.MlScore.EMPTY, "");
+        Product adidas = product("C", 300, "Remera", "", List.of(), "Adidas", Product.MlScore.EMPTY, "");
 
         ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(nike1, nike2, adidas));
 
@@ -75,9 +79,9 @@ class FacetCalculatorTest {
 
     @Test
     void badges_countedFromMlScoreBadge() {
-        Product oferta = product("A", 100, "Remeras", "", List.of(), "",
+        Product oferta = product("A", 100, "Remera", "", List.of(), "",
                 new Product.MlScore(80, "oferta_real", true, "estable", 20), "");
-        Product sinBadge = product("B", 200, "Remeras", "", List.of(), "", Product.MlScore.EMPTY, "");
+        Product sinBadge = product("B", 200, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "");
 
         ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(oferta, sinBadge));
 
@@ -86,8 +90,8 @@ class FacetCalculatorTest {
 
     @Test
     void subCategorias_sortedAlphabetically() {
-        Product running = product("A", 100, "Remeras", "", List.of(), "", Product.MlScore.EMPTY, "running");
-        Product crossfit = product("B", 200, "Remeras", "", List.of(), "", Product.MlScore.EMPTY, "crossfit");
+        Product running = product("A", 100, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "running");
+        Product crossfit = product("B", 200, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "crossfit");
 
         ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(running, crossfit));
 
@@ -101,7 +105,7 @@ class FacetCalculatorTest {
 
     private Product productoConVisual(String nombre, Product.VisualAttrs visual) {
         return new Product("TestSite", nombre, 100, null, "http://test.com/" + nombre.hashCode(),
-                "", "Remeras", "", List.of(), Product.MlScore.EMPTY, "", "indumentaria", false, false,
+                "", "Remera", "", List.of(), Product.MlScore.EMPTY, "", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
     }
 

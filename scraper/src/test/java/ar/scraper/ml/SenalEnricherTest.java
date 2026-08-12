@@ -37,7 +37,7 @@ class SenalEnricherTest {
     @Step("Build product fixture for url {url}")
     private Product producto(String url) {
         return new Product("Sitio", "Producto " + url, 1000.0, null, url,
-                "", "Remeras", "unisex", List.of());
+                "", "Remera", "unisex", List.of());
     }
 
     @Test
@@ -108,7 +108,7 @@ class SenalEnricherTest {
 
         SenalEnricher enricher = new SenalEnricher(db, inflacion);
         Product sinUrl = new Product("Sitio", "Sin URL", 500.0, null, "",
-                "", "Remeras", "unisex", List.of());
+                "", "Remera", "unisex", List.of());
 
         List<Product> result = enricher.enriquecer(List.of(sinUrl));
 
@@ -128,7 +128,7 @@ class SenalEnricherTest {
 
         Product pack = new Product(
                 "Sitio", "Pack x3 Remeras", 15000.0, null, "https://site.com/pack",
-                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 3);
 
         SenalEnricher enricher = new SenalEnricher(db, inflacion);
@@ -153,7 +153,7 @@ class SenalEnricherTest {
         Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "estampado", "cuello redondo", "azul");
         Product conVisual = new Product(
                 "Sitio", "Remera con visual", 15000.0, null, "https://site.com/visual",
-                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
 
         SenalEnricher enricher = new SenalEnricher(db, inflacion);

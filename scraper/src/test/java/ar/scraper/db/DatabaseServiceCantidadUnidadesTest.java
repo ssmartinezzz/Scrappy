@@ -49,7 +49,7 @@ class DatabaseServiceCantidadUnidadesTest extends PostgresTestBase {
     private Product producto(String url, String nombre, int cantidadUnidades) {
         return new Product(
                 "Sitio", nombre, 15000.0, null, url, "http://img.example/x.jpg",
-                "Remeras", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
+                "Remera", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, cantidadUnidades);
     }

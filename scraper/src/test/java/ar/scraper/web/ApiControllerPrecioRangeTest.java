@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 @Feature("Filtros / Facets")
 @Story("Precio range")
 @DisplayName("ApiController — Precio range filter")
-class ApiControllerPrecioRangeTest {
+class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ScraperService service;
     private InflacionService inflacionService;
@@ -60,7 +60,6 @@ class ApiControllerPrecioRangeTest {
         wireController();
 
         when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     @Step("Wire ApiController with mocked collaborators")
@@ -69,7 +68,7 @@ class ApiControllerPrecioRangeTest {
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);
         aggregator        = mock(ResultAggregator.class);
-        db                = mock(DatabaseService.class);
+        db                = new DatabaseService(dataSource());
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
@@ -78,16 +77,32 @@ class ApiControllerPrecioRangeTest {
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
+    /**
+     * `/api/data` lee de la BASE desde `sql-catalog-filtering`, no del snapshot
+     * en memoria: sembrar es un upsert real. Stubbear el mock en vez de esto
+     * dejaría estos tests verificando que Mockito devuelve lo que se le dijo.
+     */
+    private final java.util.List<Product> sembrados = new java.util.ArrayList<>();
+
+    private void sembrar(Product... productos) {
+        // Acumulativo a propósito: upsertProductos hace soft-delete de todo lo
+        // que NO viene en el batch, así que sembrar dos veces desactivaría lo
+        // sembrado antes. PostgresTestBase trunca entre tests, no hace falta
+        // limpiar la lista a mano.
+        sembrados.addAll(java.util.List.of(productos));
+        db.upsertProductos(java.util.List.copyOf(sembrados));
+    }
+
     private Product producto(String url, double precio) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
     /** Pack/combo product — {@code precioTotal} is the bundle price, not the per-unit price. */
     private Product productoPack(String url, double precioTotal, int cantidadUnidades) {
         return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, cantidadUnidades);
     }
 
@@ -106,7 +121,7 @@ class ApiControllerPrecioRangeTest {
         Product barato = producto("https://site.com/barato", 5000);
         Product medio  = producto("https://site.com/medio", 15000);
         Product caro   = producto("https://site.com/caro", 50000);
-        when(service.getLastResult()).thenReturn(resultFor(barato, medio, caro));
+        sembrar(barato, medio, caro);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null);
@@ -122,7 +137,7 @@ class ApiControllerPrecioRangeTest {
     void precioMinAloneFiltersOutCheaperProducts() {
         Product barato = producto("https://site.com/barato2", 1000);
         Product caro   = producto("https://site.com/caro2", 90000);
-        when(service.getLastResult()).thenReturn(resultFor(barato, caro));
+        sembrar(barato, caro);
 
         Allure.parameter("precioMin", 5000.0);
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
@@ -137,7 +152,7 @@ class ApiControllerPrecioRangeTest {
     void precioMaxAloneFiltersOutMoreExpensiveProducts() {
         Product barato = producto("https://site.com/barato3", 1000);
         Product caro   = producto("https://site.com/caro3", 90000);
-        when(service.getLastResult()).thenReturn(resultFor(barato, caro));
+        sembrar(barato, caro);
 
         Allure.parameter("precioMax", 5000.0);
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
@@ -153,7 +168,7 @@ class ApiControllerPrecioRangeTest {
         Product atMin = producto("https://site.com/atmin", 10000);
         Product atMax = producto("https://site.com/atmax", 20000);
         Product outside = producto("https://site.com/outside", 25000);
-        when(service.getLastResult()).thenReturn(resultFor(atMin, atMax, outside));
+        sembrar(atMin, atMax, outside);
 
         Allure.parameter("precioMin", 10000.0);
         Allure.parameter("precioMax", 20000.0);
@@ -172,7 +187,7 @@ class ApiControllerPrecioRangeTest {
         Product packDentroDelRango = productoPack("https://site.com/pack-in", 36000, 3);
         // single unit at $36000, falls outside [10000, 15000]
         Product unidadFueraDelRango = producto("https://site.com/unidad-out", 36000);
-        when(service.getLastResult()).thenReturn(resultFor(packDentroDelRango, unidadFueraDelRango));
+        sembrar(packDentroDelRango, unidadFueraDelRango);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null);
@@ -187,7 +202,7 @@ class ApiControllerPrecioRangeTest {
         // 5-pack at $12000 total => $2400/unit, total $12000 would match [10000, 15000]
         // but the real per-unit price ($2400) does not — must be excluded.
         Product pack = productoPack("https://site.com/pack-cheap-unit", 12000, 5);
-        when(service.getLastResult()).thenReturn(resultFor(pack));
+        sembrar(pack);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null);
@@ -202,7 +217,7 @@ class ApiControllerPrecioRangeTest {
     void omittingBothParamsPreservesPriorBehaviorExactly() {
         Product a = producto("https://site.com/a", 1000);
         Product b = producto("https://site.com/b", 90000);
-        when(service.getLastResult()).thenReturn(resultFor(a, b));
+        sembrar(a, b);
 
         ResponseEntity<?> respWithoutNewParams = controller.data(1, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null);

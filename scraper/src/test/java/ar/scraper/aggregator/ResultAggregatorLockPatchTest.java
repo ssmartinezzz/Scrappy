@@ -90,7 +90,7 @@ class ResultAggregatorLockPatchTest {
     @Test
     @DisplayName("aplicarBloqueos overrides categoria/subCategoria/marca/genero/rubro for a locked product")
     void aplicarBloqueosOverridesLockedFieldsOnly() {
-        Product locked = producto("http://test.com/locked", "Zapatillas", "running", "Nike", "hombre", "indumentaria");
+        Product locked = producto("http://test.com/locked", "Zapatilla", "running", "Nike", "hombre", "indumentaria");
         ClasificacionBloqueada bloqueo =
                 new ClasificacionBloqueada("Buzo", "urbano", "Adidas", "mujer", "indumentaria");
 
@@ -113,20 +113,20 @@ class ResultAggregatorLockPatchTest {
     @Test
     @DisplayName("aplicarBloqueos leaves an unlocked product's classification unchanged")
     void aplicarBloqueosLeavesUnlockedProductUnchanged() {
-        Product unlocked = producto("http://test.com/unlocked", "Zapatillas", "running", "Nike", "hombre", "indumentaria");
+        Product unlocked = producto("http://test.com/unlocked", "Zapatilla", "running", "Nike", "hombre", "indumentaria");
 
         List<Product> patched = ResultAggregator.aplicarBloqueos(
                 List.of(unlocked), Map.of("http://test.com/other", new ClasificacionBloqueada("Buzo", "urbano", "Adidas", "mujer", "indumentaria")));
 
         assertThat(patched).hasSize(1);
-        assertThat(patched.get(0).categoria()).isEqualTo("Zapatillas");
+        assertThat(patched.get(0).categoria()).isEqualTo("Zapatilla");
         assertThat(patched.get(0).marca()).isEqualTo("Nike");
     }
 
     @Test
     @DisplayName("aplicarBloqueos with a null or empty lock map returns the list unchanged")
     void aplicarBloqueosWithNullOrEmptyMapIsANoOp() {
-        Product p = producto("http://test.com/x", "Zapatillas", "running", "Nike", "hombre", "indumentaria");
+        Product p = producto("http://test.com/x", "Zapatilla", "running", "Nike", "hombre", "indumentaria");
 
         assertThat(ResultAggregator.aplicarBloqueos(List.of(p), null)).containsExactly(p);
         assertThat(ResultAggregator.aplicarBloqueos(List.of(p), Map.of())).containsExactly(p);
@@ -138,7 +138,7 @@ class ResultAggregatorLockPatchTest {
     @DisplayName("locked classification reaches ML input (before scoring) and lands in the returned AggregatedResult")
     void lockedClassificationReachesMlInputAndTheFinalResult() {
         String url = "http://test.com/locked-e2e";
-        Product raw = producto(url, "Zapatillas", "running", "Nike", "hombre", "indumentaria");
+        Product raw = producto(url, "Zapatilla", "running", "Nike", "hombre", "indumentaria");
         ScrapeResult scrapeResult = new ScrapeResult("freres", List.of(raw), null, 10);
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
@@ -152,7 +152,7 @@ class ResultAggregatorLockPatchTest {
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
 
         // Reached ML input: serializarProductos was called with the LOCKED
-        // categoria, not the machine's "Zapatillas" — the peer group ML scores
+        // categoria, not the machine's "Zapatilla" — the peer group ML scores
         // against is truthful.
         ArgumentCaptor<List<Product>> serializados = ArgumentCaptor.forClass(List.class);
         verify(mlEnricher).serializarProductos(serializados.capture());
@@ -169,14 +169,14 @@ class ResultAggregatorLockPatchTest {
 
         // Facets reflect the corrected (locked) categoria.
         assertThat(result.facets().categorias()).containsEntry("Buzo", 1L);
-        assertThat(result.facets().categorias()).doesNotContainKey("Zapatillas");
+        assertThat(result.facets().categorias()).doesNotContainKey("Zapatilla");
     }
 
     @Test
     @DisplayName("locked classification survives a stage-1b visual override (applied AGAIN after enriquecer)")
     void lockedClassificationSurvivesStage1bOverride() {
         String url = "http://test.com/locked-stage1b";
-        Product raw = producto(url, "Zapatillas", "running", "Nike", "hombre", "indumentaria");
+        Product raw = producto(url, "Zapatilla", "running", "Nike", "hombre", "indumentaria");
         ScrapeResult scrapeResult = new ScrapeResult("freres", List.of(raw), null, 10);
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
@@ -185,7 +185,7 @@ class ResultAggregatorLockPatchTest {
 
         // Stage-1b demonstrably overrides categoria on its own (visual
         // classifier gate) — simulate it reverting to the machine's guess.
-        Product overriddenByStage1b = producto(url, "Pantalones", "trekking", "Puma", "unisex", "tecnologia");
+        Product overriddenByStage1b = producto(url, "Pantalón", "trekking", "Puma", "unisex", "tecnologia");
         when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(overriddenByStage1b));
 
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
@@ -203,7 +203,7 @@ class ResultAggregatorLockPatchTest {
     @DisplayName("with no locked products, the pipeline is unaffected (backward compatible when db.cargarClasificacionBloqueada is unstubbed)")
     void withNoLockedProductsPipelineIsUnaffected() {
         String url = "http://test.com/no-lock";
-        Product raw = producto(url, "Zapatillas", "running", "Nike", "hombre", "indumentaria");
+        Product raw = producto(url, "Zapatilla", "running", "Nike", "hombre", "indumentaria");
         ScrapeResult scrapeResult = new ScrapeResult("freres", List.of(raw), null, 10);
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
@@ -213,6 +213,6 @@ class ResultAggregatorLockPatchTest {
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
 
         assertThat(result.productos()).hasSize(1);
-        assertThat(result.productos().get(0).categoria()).isEqualTo("Zapatillas");
+        assertThat(result.productos().get(0).categoria()).isEqualTo("Zapatilla");
     }
 }
