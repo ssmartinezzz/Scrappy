@@ -8,8 +8,6 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +22,6 @@ class SavedOutfitsRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(SavedOutfitsRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -46,7 +43,7 @@ class SavedOutfitsRepository {
             ps.setString(2, slotsJson != null ? slotsJson : "[]");
             ps.setString(3, suplementosJson);
             ps.setDouble(4, total);
-            ps.setString(5, LocalDateTime.now().format(DT));
+            ps.setObject(5, Timestamps.now());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : -1;
@@ -70,7 +67,7 @@ class SavedOutfitsRepository {
                 row.put("id",            rs.getInt("id"));
                 row.put("nombre",        rs.getString("nombre"));
                 row.put("totalEstimado", rs.getDouble("total_estimado"));
-                row.put("createdAt",     rs.getString("created_at"));
+                row.put("createdAt",     Timestamps.iso(rs, "created_at"));
                 String slotsJson = rs.getString("slots_json");
                 String suplJson  = rs.getString("suplementos_json");
                 try { row.put("slots",       MAPPER.readValue(slotsJson, List.class)); }

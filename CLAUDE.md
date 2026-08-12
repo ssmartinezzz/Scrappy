@@ -215,9 +215,9 @@ nativos: `precio_historico.fecha`/`precios_externos.fecha` → `DATE`.
 `productos.touched_at`/`created_at` retipan a `TIMESTAMPTZ` en esta MISMA
 migración (no en la fecha "genérica" que le tocaría por criterio) únicamente
 porque `sp_upsert_run`/`sp_soft_delete_ausentes` los escriben y Postgres no
-tiene redefinición parcial de función — el resto de las ~20 columnas `TEXT`
-`*_at` del esquema queda sin tocar, es un cambio de puro tipo sin costo de
-recopia de función, y viaja en su propio slice. `ps.setString()` en un
+tiene redefinición parcial de función — el resto de las columnas `TEXT` `*_at`
+del esquema queda sin tocar acá, es un cambio de puro tipo sin costo de recopia
+de función, y viaja en su propio slice (`V8`, abajo). `ps.setString()` en un
 parámetro bindeado contra una columna `DATE` ya no compila contra el tipo en
 runtime — `date < character varying` no tiene operador — por eso
 `ProductRepository.purgarHistorialViejo()` y `PreciosExternosRepository`
@@ -249,6 +249,32 @@ El `buildRowsJson` manda ahora `talles`/`mlBadges` como arrays JSON reales, no
 como string serializado ni CSV. Por qué de cada una de esas decisiones, el
 riesgo residual del backfill y el SQL de rollback (ejecutable, cubierto por
 `V7RollbackRoundTripTest`): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+`V8` (`normalize-db-schema-fks-1nf`, slice A.4) retipa las **19 columnas
+`*_at` que quedaban en `TEXT`** a `TIMESTAMPTZ` (todas menos las dos que ya
+había hecho `V5`): `productos.bloqueado_at`, `image_embeddings.computed_at`,
+`ml_output`/`sitios_dinamicos`/`outfit_feedback`/`outfit_feedback_item`/
+`categoria_dismiss`/`financiacion_presets`/`saved_outfits`.`created_at`,
+`categoria_stats.updated_at`, `favoritos.added_at`/`last_checked_at`,
+`cron_jobs.created_at`/`updated_at`/`last_run_at`/`next_run_at`,
+`cron_executions.started_at`/`finished_at`, `agent_reclassify_audit.applied_at`.
+Ninguna cuesta recopia de función, por eso viajan acá y no en `V5`.
+
+⚠️ **Cambio de payload de la API, deliberado:** los timestamps ya no salen como
+`2026-08-11 17:15:00` sino como **ISO-8601 UTC al segundo**
+(`2026-08-11T20:15:00Z`). `ps.setString` contra un `TIMESTAMPTZ` no compila
+contra el tipo en runtime, así que los nueve `DateTimeFormatter` duplicados de
+los repositorios se reemplazaron por un único seam `ar.scraper.db.Timestamps`
+(`setObject(OffsetDateTime)` para escribir, ISO-UTC para leer); donde el valor
+llega como `String` por una API pública (`insertCronExecution`,
+`touchLastRunAt`, `updateNextRunAt`) el cast es explícito en el SQL
+(`?::timestamptz`). En el frontend los seis sitios que hardcodeaban un formato
+—dos supuestos contrarios: unos asumían `T`, otros espacio— ahora usan un solo
+parser, `frontend/src/lib/fechas.js`. El consumidor menos obvio no era del
+frontend: `CronJobService.parseAsZoned` parsea `next_run_at`, y sin arreglarlo
+el poller dejaba de disparar **todos** los cronjobs. Por qué ISO-UTC y no lo que
+devuelve pgjdbc, y el rollback (ejecutable, cubierto por `V8RollbackRoundTripTest`):
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).

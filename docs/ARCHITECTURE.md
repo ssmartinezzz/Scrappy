@@ -358,6 +358,92 @@ FUNCTION` en su propia migración forward.
 
 ---
 
+### ¿Por qué las 19 columnas `*_at` restantes pasaron a `TIMESTAMPTZ`, y por qué eso cambia la API?
+
+**Decisión** (`normalize-db-schema-fks-1nf`, V8): todas las columnas de fecha/hora
+que quedaban en `TEXT` pasaron a `TIMESTAMPTZ`. `V5` había retipado solo las dos
+que escribe `sp_upsert_run`, porque Postgres no tiene redefinición parcial de
+función y cargar el cuerpo entero es la parte cara; estas 19 se escriben desde
+sentencias Java comunes, no cuestan ninguna recopia, y por eso viajaron en su
+propio slice.
+
+**Lo que rompe del lado de la escritura**: `ps.setString()` contra un parámetro
+bindeado a `TIMESTAMPTZ` falla —`column "bloqueado_at" is of type timestamp with
+time zone but expression is of type character varying`—, exactamente la misma
+clase de falla que `date < character varying` en `V5`. Los nueve repositorios
+tenían cada uno su propio `DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")`:
+nueve copias de una decisión que nadie había tomado una sola vez. Ahora hay un
+único seam, `ar.scraper.db.Timestamps`, y los timestamps propios se bindean como
+`OffsetDateTime`. Donde el valor entra como `String` por una API pública que no
+valía la pena romper (`insertCronExecution`, `touchLastRunAt`, `updateNextRunAt`),
+el cast es explícito en el SQL (`?::timestamptz`) — la conversión sigue siendo
+visible en el lugar donde ocurre.
+
+**Lo que cambia del lado de la lectura, a propósito**: la API ya no devuelve
+`2026-08-11 17:15:00`. Devuelve **ISO-8601 UTC al segundo**,
+`2026-08-11T20:15:00Z`. El cambio de payload estaba aceptado; la forma exacta es
+una decisión de este slice, y la alternativa era peor: `rs.getString()` sobre un
+`TIMESTAMPTZ` renderiza en la zona horaria de la JVM con offset de dos dígitos
+(`2026-08-11 17:15:00.936768-03`), o sea filtra la zona del servidor dentro de la
+API y no es ISO 8601 válido — `new Date(...)` devuelve `Invalid Date`. Se
+descartó `OffsetDateTime.toString()` porque **omite los segundos en cero**
+(`2026-08-11T20:15Z`): la forma del payload cambiaría según el dato.
+
+**Consecuencia en el frontend**: había dos supuestos hardcodeados y contrarios
+sobre el formato —los campos de cron asumían que el string CONTIENE una `T`
+(`.replace('T',' ')`), los outfits guardados que contiene un ESPACIO
+(`.replace(' ','T')`)— repartidos en seis lugares. Ahora hay un solo parser,
+`frontend/src/lib/fechas.js`, que acepta la forma nueva y también la vieja: una
+pestaña abierta durante la migración sigue teniendo payloads previos en memoria,
+y "Invalid Date" es peor respuesta que parsear lo que sí se entiende.
+
+**Y un consumidor que el audit de frontend no cubría**: el propio poller.
+`CronJobService.parseAsZoned` hacía `LocalDateTime.parse` sobre `next_run_at`
+—que ahora vuelve con offset—, así que sin ese arreglo el scheduler dejaba de
+disparar todos los jobs. Acepta las dos formas por la misma razón: `computeNextRun`
+sigue produciendo una hora LOCAL sin offset, y esa es la que se persiste.
+
+---
+
+### ¿Cómo se revierte `V8` (los `TIMESTAMPTZ` restantes) si hace falta?
+
+Igual que `V5`/`V7`, vive acá y no dentro del `.sql`, porque una migración
+aplicada es byte-frozen. El bloque de abajo lo ejecuta
+`V8RollbackRoundTripTest` contra el esquema real dentro de una transacción que
+siempre revierte.
+
+**Volver a `TEXT` NO devuelve el string original**: `col::text` sobre un
+`TIMESTAMPTZ` rinde `2026-08-11 20:15:00+00`, no `2026-08-11 20:15:00`. El
+instante se conserva; la forma no. Por eso revertir el esquema sin revertir
+además el commit de aplicación deja el código viejo parseando algo que no
+espera — el rollback completo son las dos cosas.
+
+```sql
+-- >>> rollback:V8
+ALTER TABLE productos              ALTER COLUMN bloqueado_at    TYPE text USING bloqueado_at::text;
+ALTER TABLE image_embeddings       ALTER COLUMN computed_at     TYPE text USING computed_at::text;
+ALTER TABLE ml_output              ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE sitios_dinamicos       ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE categoria_stats        ALTER COLUMN updated_at      TYPE text USING updated_at::text;
+ALTER TABLE favoritos              ALTER COLUMN added_at        TYPE text USING added_at::text;
+ALTER TABLE favoritos              ALTER COLUMN last_checked_at TYPE text USING last_checked_at::text;
+ALTER TABLE outfit_feedback        ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE outfit_feedback_item   ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE categoria_dismiss      ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE financiacion_presets   ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE saved_outfits          ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE cron_jobs              ALTER COLUMN created_at      TYPE text USING created_at::text;
+ALTER TABLE cron_jobs              ALTER COLUMN updated_at      TYPE text USING updated_at::text;
+ALTER TABLE cron_jobs              ALTER COLUMN last_run_at     TYPE text USING last_run_at::text;
+ALTER TABLE cron_jobs              ALTER COLUMN next_run_at     TYPE text USING next_run_at::text;
+ALTER TABLE cron_executions        ALTER COLUMN started_at      TYPE text USING started_at::text;
+ALTER TABLE cron_executions        ALTER COLUMN finished_at     TYPE text USING finished_at::text;
+ALTER TABLE agent_reclassify_audit ALTER COLUMN applied_at      TYPE text USING applied_at::text;
+-- <<< rollback:V8
+```
+
+---
+
 ### ¿Por qué el aggregator está modularizado en collaborators de responsabilidad única?
 
 **Decisión**: `ar.scraper.aggregator` se organiza como orquestadores delgados (`NormalizerService`, `GroupingService`, `ResultAggregator`) que secuencian collaborators de responsabilidad única, agrupados en subpaquetes por tema (`normalize/`, `grouping/`, `text/`), más `FacetCalculator` como utility estática en la raíz del paquete.

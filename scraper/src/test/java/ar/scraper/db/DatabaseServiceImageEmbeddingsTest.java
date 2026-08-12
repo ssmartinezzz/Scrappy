@@ -101,7 +101,7 @@ class DatabaseServiceImageEmbeddingsTest extends PostgresTestBase {
             assertThat(tipoPorColumna.get("model_version")).isEqualTo("text");
             assertThat(notNullPorColumna.get("model_version")).isTrue();
 
-            assertThat(tipoPorColumna.get("computed_at")).isEqualTo("text");
+            assertThat(tipoPorColumna.get("computed_at")).isEqualTo("timestamp with time zone");
             assertThat(notNullPorColumna.get("computed_at")).isTrue();
         }
     }
@@ -192,7 +192,7 @@ class DatabaseServiceImageEmbeddingsTest extends PostgresTestBase {
         try (Connection conn = dataSource().getConnection();
              PreparedStatement ps = conn.prepareStatement(
                      "INSERT INTO image_embeddings (url, embedding, dim, model_version, computed_at) " +
-                     "VALUES (?, ?, ?, ?, ?)")) {
+                     "VALUES (?, ?, ?, ?, ?::timestamptz)")) {
             ps.setString(1, url);
             ps.setBytes(2, new byte[]{1, 2, 3, 4});
             ps.setInt(3, 4);

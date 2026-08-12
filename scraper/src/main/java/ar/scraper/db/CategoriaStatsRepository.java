@@ -9,8 +9,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Persistence for the {@code categoria_stats} aggregate (per-category price
@@ -21,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 class CategoriaStatsRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(CategoriaStatsRepository.class);
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DataSource dataSource;
 
@@ -31,7 +28,7 @@ class CategoriaStatsRepository {
 
     void guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode statsNode) {
         if (statsNode == null) return;
-        String now = LocalDateTime.now().format(DT);
+        java.time.OffsetDateTime now = Timestamps.now();
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -43,7 +40,7 @@ class CategoriaStatsRepository {
                         var entry = it.next();
                         ps.setString(1, entry.getKey());
                         ps.setString(2, entry.getValue().toString());
-                        ps.setString(3, now);
+                        ps.setObject(3, now);
                         ps.executeUpdate();
                     }
                 }
