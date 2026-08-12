@@ -138,9 +138,9 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("produces the same snapshot fromDB would, when the reused signals are still valid")
     void equivaleAFromDbCuandoLasSenalesReutilizadasSiguenVigentes() {
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("freres", "u/2", 2000, "Buzos"),
-                producto("midway", "u/3", 3000, "Remeras"),
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("freres", "u/2", 2000, "Buzo"),
+                producto("midway", "u/3", 3000, "Remera"),
                 producto("midway", "u/4", 4000, "Camperas"));
 
         AggregatedResult previo   = aggregator.fromDB(catalogo);
@@ -161,9 +161,9 @@ class ResultAggregatorRefrescoParcialTest {
     @SuppressWarnings("unchecked")
     void soloLosProductosRefrescadosLleganAlEnricher() {
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("freres", "u/2", 2000, "Buzos"),
-                producto("midway", "u/3", 3000, "Remeras"),
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("freres", "u/2", 2000, "Buzo"),
+                producto("midway", "u/3", 3000, "Remera"),
                 producto("midway", "u/4", 4000, "Camperas"));
         AggregatedResult previo = aggregator.fromDB(catalogo);
 
@@ -183,8 +183,8 @@ class ResultAggregatorRefrescoParcialTest {
     @SuppressWarnings("unchecked")
     void sinUrlsRefrescadasNoSeEnriqueceNada() {
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("freres", "u/2", 2000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("freres", "u/2", 2000, "Buzo"));
         AggregatedResult previo = aggregator.fromDB(catalogo);
 
         ArgumentCaptor<List<Product>> captor = ArgumentCaptor.forClass(List.class);
@@ -209,8 +209,8 @@ class ResultAggregatorRefrescoParcialTest {
                 .thenAnswer(inv -> sellarFinan(inv.getArgument(0), pasada.get()));
 
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/2", 2000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/2", 2000, "Buzo"));
         AggregatedResult previo = aggregator.fromDB(catalogo);
         assertThat(buscar(previo, "u/1").senal().senal()).isEqualTo("senal-p1-u/1");
 
@@ -228,8 +228,8 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("an untouched product still takes its FIELDS from the database row, not from the old snapshot")
     void productoIntactoTomaSusCamposDeLaBaseNoDelSnapshotViejo() {
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/2", 2000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/2", 2000, "Buzo"));
         AggregatedResult previo = aggregator.fromDB(catalogo);
 
         // Same URL, reclassified and repriced in the database by something else
@@ -237,7 +237,7 @@ class ResultAggregatorRefrescoParcialTest {
         // SIGNAL, never the stale product.
         List<Product> catalogoNuevo = catalogoDb(
                 producto("freres", "u/1", 1500, "Camperas"),
-                producto("midway", "u/2", 2000, "Buzos"));
+                producto("midway", "u/2", 2000, "Buzo"));
 
         AggregatedResult parcial = aggregator.fromDBParcial(catalogoNuevo, previo, Set.of("u/2"));
 
@@ -250,14 +250,14 @@ class ResultAggregatorRefrescoParcialTest {
     @Test
     @DisplayName("a product absent from the previous snapshot is enriched even if the site did not list it")
     void productoNuevoParaLaMemoriaSeEnriqueceIgual() {
-        List<Product> catalogoPrevio = catalogoDb(producto("freres", "u/1", 1000, "Remeras"));
+        List<Product> catalogoPrevio = catalogoDb(producto("freres", "u/1", 1000, "Remera"));
         AggregatedResult previo = aggregator.fromDB(catalogoPrevio);
 
         // u/9 was reactivated in the DB by this run's upsert but never lived in
         // memory: there is no signal to carry over, so it has to be computed.
         List<Product> catalogoNuevo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/9", 900, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/9", 900, "Buzo"));
 
         AggregatedResult parcial = aggregator.fromDBParcial(catalogoNuevo, previo, Set.of());
 
@@ -268,11 +268,11 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("a product soft-deleted out of the database disappears from the snapshot")
     void productoDesactivadoDesapareceDelSnapshot() {
         List<Product> catalogoPrevio = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("freres", "u/2", 2000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("freres", "u/2", 2000, "Buzo"));
         AggregatedResult previo = aggregator.fromDB(catalogoPrevio);
 
-        List<Product> catalogoNuevo = catalogoDb(producto("freres", "u/1", 1000, "Remeras"));
+        List<Product> catalogoNuevo = catalogoDb(producto("freres", "u/1", 1000, "Remera"));
         AggregatedResult parcial = aggregator.fromDBParcial(catalogoNuevo, previo, Set.of());
 
         assertThat(parcial.productos()).extracting(Product::url).containsExactly("u/1");
@@ -284,17 +284,17 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("facets, per-site counts and the price range are recomputed over the merged catalog")
     void facetsConteoYRangoSeRecalculanSobreElCatalogoFusionado() {
         AggregatedResult previo = aggregator.fromDB(
-                catalogoDb(producto("freres", "u/1", 1000, "Remeras")));
+                catalogoDb(producto("freres", "u/1", 1000, "Remera")));
 
         List<Product> catalogoNuevo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/2", 5000, "Buzos"),
-                producto("midway", "u/3", 3000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/2", 5000, "Buzo"),
+                producto("midway", "u/3", 3000, "Buzo"));
 
         AggregatedResult parcial = aggregator.fromDBParcial(catalogoNuevo, previo, Set.of("u/2", "u/3"));
 
         assertThat(parcial.conteoPorSitio()).containsEntry("freres", 1).containsEntry("midway", 2);
-        assertThat(parcial.facets().categorias()).containsEntry("Buzos", 2L).containsEntry("Remeras", 1L);
+        assertThat(parcial.facets().categorias()).containsEntry("Buzo", 2L).containsEntry("Remera", 1L);
         assertThat(parcial.minPrecio()).isEqualTo(1000);
         assertThat(parcial.maxPrecio()).isEqualTo(5000);
     }
@@ -303,12 +303,12 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("products stay in the database's price-ascending order")
     void elOrdenPorPrecioDeLaBaseSeRespeta() {
         AggregatedResult previo = aggregator.fromDB(
-                catalogoDb(producto("freres", "u/1", 1000, "Remeras")));
+                catalogoDb(producto("freres", "u/1", 1000, "Remera")));
 
         List<Product> catalogoNuevo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/2", 500, "Buzos"),
-                producto("midway", "u/3", 3000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/2", 500, "Buzo"),
+                producto("midway", "u/3", 3000, "Buzo"));
 
         AggregatedResult parcial = aggregator.fromDBParcial(catalogoNuevo, previo, Set.of("u/2", "u/3"));
 
@@ -321,8 +321,8 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("with no previous snapshot it falls back to a full fromDB")
     void sinSnapshotPrevioCaeAFromDbCompleto() {
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/2", 2000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/2", 2000, "Buzo"));
 
         AggregatedResult parcial  = aggregator.fromDBParcial(catalogo, null, Set.of("u/2"));
         AggregatedResult completo = aggregator.fromDB(catalogo);
@@ -334,8 +334,8 @@ class ResultAggregatorRefrescoParcialTest {
     @DisplayName("a null refreshed-URL set is treated as a full refresh, never as an empty one")
     void urlsRefrescadasNulasEquivalenARefrescoCompleto() {
         List<Product> catalogo = catalogoDb(
-                producto("freres", "u/1", 1000, "Remeras"),
-                producto("midway", "u/2", 2000, "Buzos"));
+                producto("freres", "u/1", 1000, "Remera"),
+                producto("midway", "u/2", 2000, "Buzo"));
         AggregatedResult previo = aggregator.fromDB(catalogo);
 
         AggregatedResult parcial  = aggregator.fromDBParcial(catalogo, previo, null);

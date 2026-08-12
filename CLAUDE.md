@@ -175,6 +175,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gymrat, pack, visual attrs)
 producto_talle       -- Talles por producto, ordenados (url+posicion PK) (V7)
 producto_badge       -- Badges ML por producto, principal primero (url+posicion PK) (V7)
+cron_job_sitio       -- Sitios de cada cronjob, ordenados (job_id+posicion PK) (V9)
 precio_historico     -- Precio por fecha (UNIQUE url+fecha)
 ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
@@ -182,7 +183,7 @@ categoria_stats      -- Stats de precio por categoría
 sitios_dinamicos     -- Sitios agregados desde el dashboard
 favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
-outfit_feedback / outfit_feedback_item -- Likes/dislikes (legacy + por ítem)
+outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
 saved_outfits        -- Outfits persistidos
 categoria_dismiss    -- Categorías "no me interesa" del feed
 financiacion_presets -- Presets de cuotas/recargo
@@ -275,6 +276,90 @@ frontend: `CronJobService.parseAsZoned` parsea `next_run_at`, y sin arreglarlo
 el poller dejaba de disparar **todos** los cronjobs. Por qué ISO-UTC y no lo que
 devuelve pgjdbc, y el rollback (ejecutable, cubierto por `V8RollbackRoundTripTest`):
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+`V9`/`V10`/`V11` cierran la normalización. `V9` saca `cron_jobs.sitios_json`
+a `cron_job_sitio` — era la última violación de 1FN sobre una columna que el
+backend **interpreta** (de ahí salen los sitios que scrapea el job); misma
+forma que V7: PK `(job_id, posicion)`, FK `CASCADE`, DELETE+INSERT al editar.
+`V10` retipa `saved_outfits.slots_json`/`suplementos_json` a `jsonb` **sin
+normalizarlos**: el backend los serializa y los devuelve verbatim, nunca
+consulta adentro, así que son documentos del cliente y no grupos repetitivos —
+lo único exigible sin inventarles un esquema es que sean JSON válido (`?::jsonb`
+en el INSERT). `V11` valida por fin la FK `fk_favoritos_url` que `V4` había
+dejado `NOT VALID`, pero **sólo si no hay huérfanos**: un `VALIDATE`
+incondicional es justo la migración que `D8` se negó a escribir, la que le
+rompe el arranque a alguien por datos que la migración no puede borrar.
+
+`V15` borra `outfit_feedback` (legacy). Sus cuatro columnas
+`torso_url`/`piernas_url`/`calzado_url`/`accesorio_url` eran la última
+violación de 1FN del esquema, y de la forma más clásica: un grupo repetitivo
+desplegado en columnas. No se normalizó, se borró — la tabla estaba muerta
+desde que `outfit_feedback_item` la reemplazó (una fila por ítem, la forma
+correcta) y la única referencia viva era un `DELETE FROM`. Destruye el
+historial de likes del modelo viejo por-outfit; decisión explícita del usuario,
+se reconstruye con el uso. El feedback por ítem, que es el que alimenta a los
+armadores, no se toca.
+
+**Con esto el esquema está en 1FN.** No queda ninguna columna multivaluada ni
+grupo repetitivo: `talles`/`ml_badge` (V7), `sitios_json` (V9) y
+`slots_json`/`suplementos_json` (V14) viven en tablas hijas, y la única tabla
+que quedaba con grupo repetitivo ya no existe.
+
+**`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`: los
+18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`, `talle` y
+`badge` salen por `EXISTS` contra las tablas hijas, y las facetas son un
+`GROUP BY` cada una. El dashboard muestra el catálogo persistido: el 204 quedó
+sólo para un catálogo realmente vacío, no para "todavía nadie scrapeó en esta
+sesión". `senal` y `finan` no se persisten —se calculan— y ahora se calculan
+sobre los ~24 productos de la página en vez de sobre el catálogo entero.
+El resto de las superficies (`/api/grupos`, `/api/mejores`, outfits,
+recomendados, agente) sigue leyendo el snapshot en memoria.
+
+`V12` (`close-category-vocabulary`) **cierra el vocabulario de `categoria`**,
+que era la condición que faltaba para poder pensar 3FN. `CategoryClassifier`
+tenía una rama que devolvía la PRIMERA PALABRA del breadcrumb cuando no
+matcheaba ningún keyword: con eso cada tienda podía inventar una categoría, y
+las que inventó estaban mal (`Mini` para "Mini Morral", `Pc` para una microSD,
+`Cooling` para un adaptador). Ahora esa rama sólo acepta lo que tenga alias
+hacia el canon (`CategoryAliases`), y lo demás cae en **`Otros`**, un bucket
+explícito: un "no sé" visible se mide y se corrige, uno disfrazado de categoría
+real no. `Almacenamiento` se AGREGÓ al canon (era legítima, 57 productos de
+HDDs/SSDs). `Indumentaria` como categoría desapareció: era un *rubro* usado
+como categoría. La migración remapea las 478 filas (7,3%) que ya estaban mal.
+`CategoryVocabularyIsClosedTest` prueba que ninguna entrada, por hostil que
+sea, se sale de `CategoryGroups.canonicalCategories()`.
+
+`V14` corrige a `V10`: `saved_outfits.slots_json`/`suplementos_json` **sí eran
+dato del dominio**, no documentos opacos. Cada elemento traía la `url` del
+producto —la misma clave que ya lleva FK en tres tablas— más copias congeladas
+de su fila. Pasan a `saved_outfit_item` (una fila por prenda/suplemento, clase
+`slot`/`suplemento`). El argumento que lo decidió: *la estructura de las tablas
+condiciona al frontend, no al revés*, y con un blob no se puede preguntar qué
+outfits contienen un producto ni relacionar prendas con un futuro `user_uuid`.
+Semántica **foto + precio actual**: la fila guarda lo que el producto ERA al
+guardarse y la `url` permite traer el precio de HOY por LEFT JOIN
+(`precioActual`). Por eso `url` **no lleva FK** — mismo criterio que
+`agent_reclassify_audit`: un registro histórico no depende de que el dato
+mutable siga existiendo, y un producto discontinuado no puede borrar un outfit
+del usuario.
+
+`V13` le da a `categoria` **integridad referencial**: tabla `categoria(nombre PK)`
+sembrada con los 81 valores del canon + FK desde `productos.categoria`. Es
+clave **natural**, no un `categoria_id`: el nombre ya es único y estable y es
+lo que devuelve la API, así que un id sustituto costaría un JOIN por lectura y
+plomería de ids por toda la API a cambio de nada. Se eligió tabla y no CHECK
+(el criterio de `V6`) porque con 81 valores un CHECK obliga a una **migración
+por categoría nueva**; con tabla, es un INSERT. **No lleva columna `rubro`**:
+`categoria → rubro` NO es una dependencia funcional — `RubroResolver` deriva el
+rubro de (sitio, categoría, rubro previo), y en los datos vivos `Conjunto` es
+`tecnologia` en Fullh4rd e `indumentaria` en Sporting.
+
+⚠️ La FK obligó a corregir **192 literales en 53 archivos de test**: los
+fixtures escribían categorías en plural (`"Remeras"`, `"Buzos"`, `"Shorts"`)
+que producción nunca produce. Dos lugares quedaron a propósito con el plural
+porque ahí SÍ es válido: los nombres de producto de `CategoryClassifierTest`
+("Zapatillas Running Hombre" es un nombre, no una categoría) y
+`FacetCalculatorTest`, que es puro en memoria y no lo alcanza la FK.
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).

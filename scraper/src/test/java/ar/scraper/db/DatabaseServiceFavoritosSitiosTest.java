@@ -68,7 +68,7 @@ class DatabaseServiceFavoritosSitiosTest extends PostgresTestBase {
     @Test
     void guardarFavoritoWithValidParamsInsertsNormally() {
         db.upsertProductos(List.of(new Product("Freres", "Producto de prueba", 1000.0, null,
-                "https://example.com/producto", "http://img.example/x.jpg", "Remeras", "unisex",
+                "https://example.com/producto", "http://img.example/x.jpg", "Remera", "unisex",
                 List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1)));
 

@@ -35,7 +35,7 @@ class FinanciacionEnricherTest {
     @Step("Build product fixture: {nombre} @ {precio}")
     private Product producto(String nombre, double precio) {
         return new Product("Sitio", nombre, precio, null, "https://site.com/" + nombre,
-                "", "Remeras", "unisex", List.of());
+                "", "Remera", "unisex", List.of());
     }
 
     @Test
@@ -104,7 +104,7 @@ class FinanciacionEnricherTest {
         Product.SenalCompra senalOriginal = new Product.SenalCompra("comprar_ahora", 95);
         Product withSenal = new Product(
                 "Sitio", "p6", 100000, null, "https://site.com/p6", "",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, senalOriginal, Product.SenalFinanciacion.EMPTY);
 
         FinanciacionEnricher enricher = new FinanciacionEnricher(db, inflacion);
@@ -164,7 +164,7 @@ class FinanciacionEnricherTest {
         Product.VisualAttrs visual = new Product.VisualAttrs("entallado", "liso", "en v", "negro");
         Product conVisual = new Product(
                 "Sitio", "Remera con visual", 100000.0, null, "https://site.com/visual-finan",
-                "", "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
 
         FinanciacionEnricher enricher = new FinanciacionEnricher(db, inflacion);

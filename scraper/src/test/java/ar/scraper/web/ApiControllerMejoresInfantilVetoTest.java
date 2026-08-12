@@ -76,7 +76,7 @@ class ApiControllerMejoresInfantilVetoTest {
 
     private Product producto(String url, String genero) {
         return new Product("Sitio", "Producto " + url, 10000, null, url, "img",
-                "Zapatillas", genero, List.of(), MlScore.EMPTY, "Marca", "indumentaria",
+                "Zapatilla", genero, List.of(), MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
@@ -98,11 +98,11 @@ class ApiControllerMejoresInfantilVetoTest {
         ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
 
         JsonNode body = (JsonNode) resp.getBody();
-        // No eligible products remain in "Zapatillas" -> no category card at all.
+        // No eligible products remain in "Zapatilla" -> no category card at all.
         boolean tieneZapatillas = false;
         if (body != null) {
             for (JsonNode node : body) {
-                if ("Zapatillas".equals(node.path("categoria").asText())) {
+                if ("Zapatilla".equals(node.path("categoria").asText())) {
                     tieneZapatillas = true;
                 }
             }
@@ -124,7 +124,7 @@ class ApiControllerMejoresInfantilVetoTest {
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode zapatillasNode = null;
         for (JsonNode node : body) {
-            if ("Zapatillas".equals(node.path("categoria").asText())) {
+            if ("Zapatilla".equals(node.path("categoria").asText())) {
                 zapatillasNode = node;
             }
         }
@@ -145,7 +145,7 @@ class ApiControllerMejoresInfantilVetoTest {
         JsonNode body = (JsonNode) resp.getBody();
         JsonNode zapatillasNode = null;
         for (JsonNode node : body) {
-            if ("Zapatillas".equals(node.path("categoria").asText())) {
+            if ("Zapatilla".equals(node.path("categoria").asText())) {
                 zapatillasNode = node;
             }
         }

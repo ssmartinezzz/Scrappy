@@ -46,7 +46,6 @@ class TimestamptzColumnTypeContractTest extends PostgresTestBase {
         EXPECTED.put("sitios_dinamicos", List.of("created_at"));
         EXPECTED.put("categoria_stats", List.of("updated_at"));
         EXPECTED.put("favoritos", List.of("added_at", "last_checked_at"));
-        EXPECTED.put("outfit_feedback", List.of("created_at"));
         EXPECTED.put("outfit_feedback_item", List.of("created_at"));
         EXPECTED.put("categoria_dismiss", List.of("created_at"));
         EXPECTED.put("financiacion_presets", List.of("created_at"));

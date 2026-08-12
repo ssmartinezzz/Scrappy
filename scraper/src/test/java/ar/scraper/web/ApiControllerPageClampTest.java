@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 @Feature("Filtros / Facets")
 @Story("Page clamp")
 @DisplayName("ApiController — page param lower-bound clamp")
-class ApiControllerPageClampTest {
+class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ScraperService service;
     private InflacionService inflacionService;
@@ -55,7 +55,6 @@ class ApiControllerPageClampTest {
         wireController();
 
         when(config.getMoneda()).thenReturn("ARS");
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
     @Step("Wire ApiController with mocked collaborators")
@@ -64,7 +63,7 @@ class ApiControllerPageClampTest {
         inflacionService = mock(InflacionService.class);
         config            = mock(ScraperConfig.class);
         aggregator        = mock(ResultAggregator.class);
-        db                = mock(DatabaseService.class);
+        db                = new DatabaseService(dataSource());
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
@@ -73,9 +72,24 @@ class ApiControllerPageClampTest {
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
+    /**
+     * `/api/data` lee de la BASE desde `sql-catalog-filtering`, no del snapshot
+     * en memoria: sembrar es un upsert real. Stubbear el mock en vez de esto
+     * dejaría estos tests verificando que Mockito devuelve lo que se le dijo.
+     */
+    private final java.util.List<Product> sembrados = new java.util.ArrayList<>();
+
+    private void sembrar(Product... productos) {
+        // Acumulativo a propósito: upsertProductos hace soft-delete de todo lo
+        // que NO viene en el batch, así que sembrar dos veces desactivaría lo
+        // anterior. PostgresTestBase trunca entre tests.
+        sembrados.addAll(java.util.List.of(productos));
+        db.upsertProductos(java.util.List.copyOf(sembrados));
+    }
+
     private Product producto(String url, double precio) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
@@ -91,7 +105,7 @@ class ApiControllerPageClampTest {
     void pageZeroReturnsSameResultAsPageOneWithoutError() {
         Product a = producto("https://site.com/a", 1000);
         Product b = producto("https://site.com/b", 2000);
-        when(service.getLastResult()).thenReturn(resultFor(a, b));
+        sembrar(a, b);
 
         ResponseEntity<?> respZero = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
@@ -110,7 +124,7 @@ class ApiControllerPageClampTest {
     void negativePageReturnsFirstPageWithoutError() {
         Product a = producto("https://site.com/c", 1000);
         Product b = producto("https://site.com/d", 2000);
-        when(service.getLastResult()).thenReturn(resultFor(a, b));
+        sembrar(a, b);
 
         ResponseEntity<?> resp = controller.data(-3, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
@@ -124,7 +138,7 @@ class ApiControllerPageClampTest {
     @Test
     void metaPaginaReflectsClampForPageZeroOrNegative() {
         Product a = producto("https://site.com/e", 1000);
-        when(service.getLastResult()).thenReturn(resultFor(a));
+        sembrar(a);
 
         ResponseEntity<?> respZero = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
@@ -142,7 +156,7 @@ class ApiControllerPageClampTest {
         Product a = producto("https://site.com/p1", 1000);
         Product b = producto("https://site.com/p2", 2000);
         Product c = producto("https://site.com/p3", 3000);
-        when(service.getLastResult()).thenReturn(resultFor(a, b, c));
+        sembrar(a, b, c);
 
         ResponseEntity<?> resp = controller.data(3, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
@@ -160,7 +174,7 @@ class ApiControllerPageClampTest {
     @Test
     void integerMaxValuePageDoesNotOverflowAndReturnsEmptyLastPage() {
         Product a = producto("https://site.com/f", 1000);
-        when(service.getLastResult()).thenReturn(resultFor(a));
+        sembrar(a);
 
         ResponseEntity<?> resp = controller.data(Integer.MAX_VALUE, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,

@@ -51,7 +51,7 @@ class DatabaseServiceConcurrencyTest extends PostgresTestBase {
     private Product producto(String url, String nombre, double precio) {
         return new Product(
                 "Sitio", nombre, precio, null, url, "http://img.example/x.jpg",
-                "Remeras", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
+                "Remera", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1);
     }

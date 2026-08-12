@@ -94,8 +94,9 @@ class FeedbackRepository {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // outfit_feedback (el modelo legacy por-outfit) se borró en V15:
+                // estaba muerta y era la última violación de 1FN del esquema.
                 st.executeUpdate("DELETE FROM outfit_feedback_item");
-                st.executeUpdate("DELETE FROM outfit_feedback");
                 c.commit();
             } catch (Exception e) {
                 LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());

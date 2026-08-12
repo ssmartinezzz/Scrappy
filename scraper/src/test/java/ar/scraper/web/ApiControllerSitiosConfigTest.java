@@ -176,6 +176,6 @@ class ApiControllerSitiosConfigTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(resp.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("ofertas.csv");
-        assertThat(resp.getBody()).contains("Zapatillas");
+        assertThat(resp.getBody()).contains("Zapatilla");
     }
 }

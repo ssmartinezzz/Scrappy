@@ -43,12 +43,20 @@ public class CategoryClassifier {
                            .replaceAll("[>|/\\\\]+", " ")  // quitar separadores
                            .replaceAll("\\s{2,}", " ")
                            .trim();
-            if (!cleaned.isBlank() && cleaned.length() >= 3) {
-                return capitalize(cleaned.split("\\s+")[0]); // Solo primera palabra
-            }
+            // Antes: `capitalize(cleaned.split("\\s+")[0])` — la primera palabra
+            // del breadcrumb. Eso hacía que el vocabulario de `categoria` fuera
+            // ABIERTO: cada tienda nueva podía inventar una categoría, y las que
+            // inventó estaban mal ("Mini" para un morral, "Pc" para una microSD).
+            // Ahora sólo se acepta lo que tenga alias conocido hacia el canon.
+            String alias = CategoryAliases.canonical(cleaned.split("\\s+")[0]);
+            if (alias != null) return alias;
+            String aliasCompleto = CategoryAliases.canonical(cleaned);
+            if (aliasCompleto != null) return aliasCompleto;
         }
         if (tieneIndicadorPeso(nombre)) return "Alimentos";
-        return "Indumentaria";
+        // "Indumentaria" era un RUBRO usado como categoría: un "no sé"
+        // disfrazado de dato, que además mentía sobre un producto tech.
+        return "Otros";
     }
 
     private boolean tieneIndicadorPeso(String nombre) {

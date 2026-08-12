@@ -105,7 +105,7 @@ class ApiControllerMlOpsTest {
         List<Product> productos = new java.util.ArrayList<>();
         for (int i = 0; i < 100; i++) {
             productos.add(new Product("Sitio", "Producto " + i, 1000.0, null,
-                    "https://site.com/" + i, "", "Remeras", "unisex", List.of()));
+                    "https://site.com/" + i, "", "Remera", "unisex", List.of()));
         }
         var result = new AggregatedResult(productos, Map.of(), Map.of(), facets, 0, 0);
         when(service.getLastResult()).thenReturn(result);

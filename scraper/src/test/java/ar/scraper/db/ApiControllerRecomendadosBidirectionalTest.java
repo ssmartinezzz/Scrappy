@@ -131,14 +131,14 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
     @Test
     void unisexProductAlwaysEligibleRegardlessOfRequestedGenero() {
-        Product unisexRemera = producto("https://t/unisex-remera", "Vans", "Remeras", "unisex");
+        Product unisexRemera = producto("https://t/unisex-remera", "Vans", "Remera", "unisex");
         AggregatedResult result = mock(AggregatedResult.class);
         when(result.productos()).thenReturn(List.of(unisexRemera));
         when(service.getLastResult()).thenReturn(result);
 
         Allure.parameter("genero", "mujer");
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "mujer", "Remeras");
+                controller.recomendados(1, 24, "mujer", "Remera");
 
         JsonNode items = resp.getBody().get("items");
         assertThat(items).hasSize(1);
@@ -147,16 +147,16 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
     @Test
     void noGeneroParamStillBridgesAndExcludesInfantil() {
-        Product hombre   = producto("https://t/hombre", "Nike", "Zapatillas", "hombre");
-        Product mujer    = producto("https://t/mujer", "Puma", "Zapatillas", "mujer");
-        Product unisex   = producto("https://t/unisex", "Vans", "Zapatillas", "unisex");
-        Product infantil = producto("https://t/infantil", "Nike", "Zapatillas", "infantil");
+        Product hombre   = producto("https://t/hombre", "Nike", "Zapatilla", "hombre");
+        Product mujer    = producto("https://t/mujer", "Puma", "Zapatilla", "mujer");
+        Product unisex   = producto("https://t/unisex", "Vans", "Zapatilla", "unisex");
+        Product infantil = producto("https://t/infantil", "Nike", "Zapatilla", "infantil");
         AggregatedResult result = mock(AggregatedResult.class);
         when(result.productos()).thenReturn(List.of(hombre, mujer, unisex, infantil));
         when(service.getLastResult()).thenReturn(result);
 
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, null, "Zapatillas");
+                controller.recomendados(1, 24, null, "Zapatilla");
 
         JsonNode items = resp.getBody().get("items");
         List<String> nombres = new java.util.ArrayList<>();
@@ -190,17 +190,17 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
     void sufficientOwnGeneroStockDoesNotRelaxToOppositeGenero() {
         List<Product> productos = new java.util.ArrayList<>();
         for (int i = 0; i < 8; i++) {
-            productos.add(producto("https://t/pantalon-mujer-" + i, "Adidas", "Pantalones", "mujer"));
+            productos.add(producto("https://t/pantalon-mujer-" + i, "Adidas", "Pantalón", "mujer"));
         }
         for (int i = 0; i < 8; i++) {
-            productos.add(producto("https://t/pantalon-hombre-" + i, "Nike", "Pantalones", "hombre"));
+            productos.add(producto("https://t/pantalon-hombre-" + i, "Nike", "Pantalón", "hombre"));
         }
         AggregatedResult result = mock(AggregatedResult.class);
         when(result.productos()).thenReturn(productos);
         when(service.getLastResult()).thenReturn(result);
 
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "mujer", "Pantalones");
+                controller.recomendados(1, 24, "mujer", "Pantalón");
 
         JsonNode items = resp.getBody().get("items");
         for (JsonNode n : items) {
@@ -212,15 +212,15 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
     @Test
     void infantilExcludedEvenAsRelaxationFallbackCandidate() {
         List<Product> productos = new java.util.ArrayList<>();
-        // categoria "Zapatillas": zero hombre/mujer/unisex, only infantil stock.
-        productos.add(producto("https://t/zap-infantil", "Nike", "Zapatillas", "infantil"));
+        // categoria "Zapatilla": zero hombre/mujer/unisex, only infantil stock.
+        productos.add(producto("https://t/zap-infantil", "Nike", "Zapatilla", "infantil"));
         AggregatedResult result = mock(AggregatedResult.class);
         when(result.productos()).thenReturn(productos);
         when(service.getLastResult()).thenReturn(result);
 
         Allure.parameter("genero", "hombre");
         ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "hombre", "Zapatillas");
+                controller.recomendados(1, 24, "hombre", "Zapatilla");
 
         JsonNode items = resp.getBody().get("items");
         assertThat(items).isEmpty();
