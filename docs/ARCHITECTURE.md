@@ -129,6 +129,68 @@ para borrar datos de usuario para satisfacerse a sí misma.
 
 ---
 
+### ¿Por qué CHECK y no una tabla de lookup para genero/rubro/ml_segment?
+
+**Decisión** (`normalize-db-schema-fks-1nf`, V6): `productos.genero`, `rubro`
+y `ml_segment` son `TEXT` con tres CHECK enumerando el dominio exacto, no una
+FK a una tabla `generos`/`rubros`/`segments` de tres o cuatro filas. Una
+tabla de lookup para un enum que nunca gana una quinta columna (nombre para
+mostrar, orden, metadata) es normalización de manual, no de datos reales — el
+CHECK dice lo mismo con cero JOINs y cero tabla adicional que mantener.
+
+Los tres dominios se verificaron **en vivo** contra el catálogo completo
+(13543 productos, obs #839) antes de escribir la migración, no se
+adivinaron: `rubro` y `ml_segment` no tuvieron ninguna violación; `genero`
+tuvo exactamente una — una fila con `'Mujer'` con mayúscula. Por eso las tres
+constraints se agregan **VALID** de una (no `NOT VALID` como `favoritos` en
+V4): el riesgo que `NOT VALID` mitigaría —una instalación con huérfanos que
+la migración no puede borrar— no existe acá, porque el propio dominio se
+enumeró de forma exhaustiva.
+
+**NULL pasa en las tres** porque ninguna de las tres columnas es `NOT NULL`
+desde el baseline (`V1__baseline.sql:38,44,46`) — agregar esa restricción
+ahora sería un cambio de contrato distinto, no parte de esta migración.
+**El string vacío pasa solo en `genero`**: es el sentinel de abstención de
+`GenderResolver` (`CODE-5` — "vacío es sin opinión, nunca malo"), y un CHECK
+que lo rechazara convertiría "no sé" en un error de escritura cada vez que el
+clasificador se abstiene, que es exactamente el caso que `CODE-5` prohíbe
+penalizar.
+
+**De dónde salió el `'Mujer'` con mayúscula, y por qué se validan DOS lugares**:
+se rastrearon los caminos que persisten `genero` sin pasar por
+`GenderResolver`, y resultaron ser dos, no uno.
+
+El primero es `ProposeReclassifyTool` (la herramienta LLM de
+`propose_reclassify`), que valida `categoria` contra su taxonomía canónica
+pero dejaba pasar `genero` crudo. El diseño D7 lo señaló como *el* origen del
+dato sucio. **No lo es**: esa herramienta nunca escribe — solo devuelve el
+diff que el humano confirma.
+
+El que escribe es `AgentEndpoints.agentApply` →
+`aplicarReclasificacionAuditada`, y es alcanzable por HTTP **sin pasar jamás
+por la herramienta**. Tomaba `genero` del body (`ReclassifyProposal.generoPropuesto()`)
+sin ninguna validación, a diferencia de `categoria`, que el mismo método sí
+valida contra la taxonomía unas líneas más arriba. Ese es el camino por el que
+se coló el dato vivo, y validar solo la herramienta habría dejado el agujero
+abierto mientras el CHECK convertía la anomalía silenciosa en un 500 opaco —
+exactamente lo que D7 decía querer evitar.
+
+Los dos validan ahora, contra **una sola definición del dominio**
+(`ProposeReclassifyTool.VALID_GENEROS`, público por esta razón): dos copias de
+la misma lista de cinco literales se desincronizan de V6 la primera vez que el
+dominio cambia. Ambos **rechazan** en vez de normalizar en silencio — la
+herramienta con `ToolResult.error`, el endpoint con un 400 que nombra el valor
+ofensivo.
+
+Una sutileza que el endpoint sí distingue y la herramienta no necesita: ahí un
+`genero` **vacío o ausente significa "no lo cambies"** (cae a `previo.genero()`),
+no un valor a escribir. Validarlo como valor rechazaría un no-op legítimo, así
+que la validación se saltea el blanco a propósito. El `''` sigue siendo
+admisible como valor real en el CHECK; son dos capas con dos preguntas
+distintas.
+
+---
+
 ### ¿Cómo se revierte `V5` (booleans + fechas) si hace falta?
 
 **Por qué esto no vive dentro de `V5__boolean_and_date_column_types.sql`**:

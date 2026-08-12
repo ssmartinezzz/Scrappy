@@ -221,6 +221,17 @@ runtime — `date < character varying` no tiene operador — por eso
 `ProductRepository.purgarHistorialViejo()` y `PreciosExternosRepository`
 bindean `fecha` como `LocalDate` (`ps.setObject`), no como `String`.
 
+`V6` (`normalize-db-schema-fks-1nf`, slice A.3) agrega tres CHECK **VALID**
+sobre `productos`: `genero IN ('hombre','mujer','unisex','infantil','')`,
+`rubro IN ('indumentaria','tecnologia','suplementos')`, `ml_segment IN
+('budget','standard','premium','luxury')`. `NULL` pasa en las tres (ninguna
+es `NOT NULL`); el string vacío pasa solo en `genero`, el sentinel de
+abstención de `GenderResolver`. La migración normaliza primero la única fila
+viva con `genero='Mujer'` con mayúscula. `ProposeReclassifyTool` (agente LLM)
+ahora valida `genero` contra ese mismo dominio. Por qué del dominio elegido y
+de dónde salió el dato con mayúscula (y qué camino de escritura sigue sin
+validar): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).
 Corre **server-side** en las funciones plpgsql `sp_upsert_run`/
