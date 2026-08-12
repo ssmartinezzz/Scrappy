@@ -24,7 +24,11 @@ public class BrandExtractor {
     // MARCAS conocidas en Argentina
     // ══════════════════════════════════════════════════════════════════
 
-    private static final List<String> MARCAS = List.of(
+    // Público (close-1nf-and-3nf-foundation, design DD8): MarcasSiteIntersectionTest
+    // necesita esta lista para probar, sin DB, que la excepción de V19
+    // (Bulks/Fuark/Harvey) es EXACTAMENTE la intersección real contra
+    // sitio.nombre — pura ampliación de visibilidad, sin cambio de comportamiento.
+    public static final List<String> MARCAS = List.of(
         "Nike","Adidas","Puma","Reebok","New Balance","Asics","Saucony","Brooks",
         "Hoka","On Running","Salomon","Mizuno","Under Armour","Fila","Umbro",
         "Vans","Converse","DC","Etnies","Volcom","Quiksilver","Billabong",
@@ -49,6 +53,12 @@ public class BrandExtractor {
             .map(m -> Pattern.compile("\\b" + Pattern.quote(m.toLowerCase()) + "\\b"))
             .collect(Collectors.toList());
 
+    /**
+     * @param sitio no longer used to backfill an unmatched brand (V19, design
+     *              DD8) — kept in the signature because it is genuinely part
+     *              of the extraction context callers already have on hand,
+     *              not because this method still reads it for its own logic.
+     */
     public String extraer(String nombre, String sitio) {
         if (nombre == null || nombre.isBlank()) return "";
         String lower = nombre.toLowerCase();
@@ -57,6 +67,8 @@ public class BrandExtractor {
             if (MARCA_PATTERNS.get(i).matcher(lower).find()) return MARCAS.get(i);
         }
 
-        return sitio != null ? sitio : "";
+        // Abstención (CODE-5): un sitio NO es una marca. Devolver el nombre
+        // del sitio acá era la mentira que V19 existe para dejar de contar.
+        return "";
     }
 }
