@@ -175,6 +175,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gymrat, pack, visual attrs)
 producto_talle       -- Talles por producto, ordenados (url+posicion PK) (V7)
 producto_badge       -- Badges ML por producto, principal primero (url+posicion PK) (V7)
+cron_job_sitio       -- Sitios de cada cronjob, ordenados (job_id+posicion PK) (V9)
 precio_historico     -- Precio por fecha (UNIQUE url+fecha)
 ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
@@ -275,6 +276,34 @@ frontend: `CronJobService.parseAsZoned` parsea `next_run_at`, y sin arreglarlo
 el poller dejaba de disparar **todos** los cronjobs. Por qué ISO-UTC y no lo que
 devuelve pgjdbc, y el rollback (ejecutable, cubierto por `V8RollbackRoundTripTest`):
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+`V9`/`V10`/`V11` cierran la normalización. `V9` saca `cron_jobs.sitios_json`
+a `cron_job_sitio` — era la última violación de 1FN sobre una columna que el
+backend **interpreta** (de ahí salen los sitios que scrapea el job); misma
+forma que V7: PK `(job_id, posicion)`, FK `CASCADE`, DELETE+INSERT al editar.
+`V10` retipa `saved_outfits.slots_json`/`suplementos_json` a `jsonb` **sin
+normalizarlos**: el backend los serializa y los devuelve verbatim, nunca
+consulta adentro, así que son documentos del cliente y no grupos repetitivos —
+lo único exigible sin inventarles un esquema es que sean JSON válido (`?::jsonb`
+en el INSERT). `V11` valida por fin la FK `fk_favoritos_url` que `V4` había
+dejado `NOT VALID`, pero **sólo si no hay huérfanos**: un `VALIDATE`
+incondicional es justo la migración que `D8` se negó a escribir, la que le
+rompe el arranque a alguien por datos que la migración no puede borrar.
+
+**`outfit_feedback` (legacy) queda como está, a propósito**: sus cuatro
+columnas `*_url` son otra violación de 1FN, pero la tabla está muerta —la única
+referencia en todo el código es un `DELETE FROM`— y borrarla destruye historial
+del usuario. Esa decisión no la toma una migración sola.
+
+**`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`: los
+18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`, `talle` y
+`badge` salen por `EXISTS` contra las tablas hijas, y las facetas son un
+`GROUP BY` cada una. El dashboard muestra el catálogo persistido: el 204 quedó
+sólo para un catálogo realmente vacío, no para "todavía nadie scrapeó en esta
+sesión". `senal` y `finan` no se persisten —se calculan— y ahora se calculan
+sobre los ~24 productos de la página en vez de sobre el catálogo entero.
+El resto de las superficies (`/api/grupos`, `/api/mejores`, outfits,
+recomendados, agente) sigue leyendo el snapshot en memoria.
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).

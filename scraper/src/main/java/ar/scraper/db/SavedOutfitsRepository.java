@@ -37,7 +37,7 @@ class SavedOutfitsRepository {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO saved_outfits (nombre, slots_json, suplementos_json, total_estimado, created_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES (?, ?::jsonb, ?::jsonb, ?, ?)
                     """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, nombre != null ? nombre : "Outfit");
             ps.setString(2, slotsJson != null ? slotsJson : "[]");
