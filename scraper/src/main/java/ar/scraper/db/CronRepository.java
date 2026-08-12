@@ -59,10 +59,10 @@ class CronRepository {
             ps.setDouble(2, precioMin);
             ps.setDouble(3, precioMax);
             ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
-            ps.setInt(5, forceRetrain ? 1 : 0);
-            ps.setInt(6, useGpu ? 1 : 0);
+            ps.setBoolean(5, forceRetrain);
+            ps.setBoolean(6, useGpu);
             ps.setString(7, cronExpr);
-            ps.setInt(8, enabled ? 1 : 0);
+            ps.setBoolean(8, enabled);
             ps.setString(9, now);
             ps.setString(10, now);
             ps.setString(11, nextRunAt);
@@ -89,10 +89,10 @@ class CronRepository {
             ps.setDouble(2, precioMin);
             ps.setDouble(3, precioMax);
             ps.setString(4, MAPPER.writeValueAsString(sitios != null ? sitios : List.of()));
-            ps.setInt(5, forceRetrain ? 1 : 0);
-            ps.setInt(6, useGpu ? 1 : 0);
+            ps.setBoolean(5, forceRetrain);
+            ps.setBoolean(6, useGpu);
             ps.setString(7, cronExpr);
-            ps.setInt(8, enabled ? 1 : 0);
+            ps.setBoolean(8, enabled);
             ps.setString(9, LocalDateTime.now().format(DT));
             ps.setString(10, nextRunAt);
             ps.setLong(11, id);
@@ -169,8 +169,8 @@ class CronRepository {
         return new CronJob(
                 rs.getLong("id"), rs.getString("name"),
                 rs.getDouble("precio_min"), rs.getDouble("precio_max"), sitios,
-                rs.getInt("force_retrain") == 1, rs.getInt("use_gpu") == 1,
-                rs.getString("cron_expr"), rs.getInt("enabled") == 1,
+                rs.getBoolean("force_retrain"), rs.getBoolean("use_gpu"),
+                rs.getString("cron_expr"), rs.getBoolean("enabled"),
                 rs.getString("created_at"), rs.getString("updated_at"),
                 rs.getString("last_run_at"), rs.getString("next_run_at"));
     }

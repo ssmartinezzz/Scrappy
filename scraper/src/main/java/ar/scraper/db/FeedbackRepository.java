@@ -53,7 +53,7 @@ class FeedbackRepository {
             ps.setString(1, genero);
             ps.setString(2, slot);
             ps.setString(3, url);
-            ps.setInt(4, liked ? 1 : 0);
+            ps.setBoolean(4, liked);
             ps.setString(5, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
             ps.setString(6, LocalDateTime.now().format(DT));
             ps.executeUpdate();
@@ -80,7 +80,7 @@ class FeedbackRepository {
                 result.add(new DatabaseService.OutfitItemRow(
                         rs.getString("slot"),
                         rs.getString("url"),
-                        rs.getInt("liked") == 1,
+                        rs.getBoolean("liked"),
                         (estilo == null || estilo.isBlank()) ? "gym" : estilo));
             }
         } catch (Exception e) {
