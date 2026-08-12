@@ -21,6 +21,33 @@ El frontend es un servicio propio que le habla por **CORS**:
 - En Docker, el compose cablea las dos (ver `docs/DOCKER` / `docker.env.example`).
   Cualquier integración externa debe agregar su origen a `APP_CORS_ALLOWED_ORIGINS`.
 
+## Formato de timestamps
+
+**Desde `V8` (`normalize-db-schema-fks-1nf`, slice A.4) todos los campos de
+fecha/hora que salen de la base viajan en ISO-8601 UTC al segundo:
+`2026-08-11T20:15:00Z`.** Antes salían como `2026-08-11 17:15:00` — hora local,
+separada por espacio, sin offset — porque las columnas eran `TEXT` y la API
+devolvía el string tal cual estaba guardado.
+
+Campos afectados:
+
+| Endpoint | Campos |
+|----------|--------|
+| `GET /favoritos` | `addedAt` · `lastCheckedAt` |
+| `GET /outfits/saved` | `createdAt` |
+| `GET /cron` · `GET /cron/{id}` | `createdAt` · `updatedAt` · `lastRunAt` · `nextRunAt` |
+| `GET /cron/{id}/executions` | `startedAt` · `finishedAt` |
+
+Un campo nulo sigue siendo `null` (un `lastRunAt` de un job que nunca corrió, un
+`finishedAt` de una ejecución en curso), nunca un string vacío ni un `—`.
+
+**Qué NO cambió**: `training.startedAt` de `GET /ml/estado` no sale de la base
+—vive en memoria en `PythonRunner`— y ya emitía este mismo formato. El cambio
+alinea el resto de la API con lo que ese campo hacía desde siempre.
+
+`POST /cron` y `PUT /cron/{id}` siguen aceptando lo de antes: el `nextRunAt` lo
+calcula el backend, no lo manda el cliente.
+
 ## Índice de endpoints
 
 Las secciones detalladas de abajo cubren el núcleo. El resto sigue las mismas
