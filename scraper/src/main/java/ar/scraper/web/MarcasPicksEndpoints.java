@@ -262,7 +262,7 @@ class MarcasPicksEndpoints {
             n.put("segment", safe(p.ml().segment()));
             n.put("pctil",   p.ml().pctilCategoria());
         }
-        if (p.precioOriginal() != null && !p.precioOriginal().isBlank())
+        if (p.precioOriginal() != null)
             n.put("precioOrig", p.precioOriginal());
     }
 }

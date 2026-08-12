@@ -675,7 +675,7 @@ public class ScraperService {
                 String tallesStr = p.talles() != null ? String.join("|", p.talles()) : "";
                 w.writeNext(new String[]{
                     p.sitio(), p.nombre(), String.valueOf((long) p.precio()),
-                    p.precioOriginal() != null ? p.precioOriginal() : "",
+                    p.precioOriginal() != null ? String.valueOf(p.precioOriginal()) : "",
                     p.categoria()  != null ? p.categoria()  : "",
                     p.genero()     != null ? p.genero()     : "",
                     tallesStr,

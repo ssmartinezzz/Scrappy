@@ -1,5 +1,6 @@
 package ar.scraper.pages;
 
+import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -409,7 +410,7 @@ public class VaypolPage extends BasePage {
 
             // Precio
             double precio    = 0;
-            String precioOrig = null;
+            Double precioOrig = null;
 
             // Vaypol Next.js puede tener precio en distintos campos
             JsonNode priceNode = p.path("price");
@@ -426,7 +427,7 @@ public class VaypolPage extends BasePage {
                                     priceNode.path("sale").asDouble(0)));
                     double orig = priceNode.path("original").asDouble(
                                     priceNode.path("list").asDouble(0));
-                    if (orig > precio && orig > 0) precioOrig = "$" + String.format("%.0f", orig);
+                    if (orig > precio && orig > 0) precioOrig = orig;
                 }
             }
             // Alternativas
@@ -478,12 +479,12 @@ public class VaypolPage extends BasePage {
                 if (nombre.isBlank()) continue;
                 Optional<Double> precio = parsePrecio(n.path("precio").asText(""));
                 if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) continue;
-                String origStr = n.path("precioOrig").asText("");
+                OptionalDouble origParsed = PrecioParser.parse(n.path("precioOrig").asText(""));
+                Double precioOrig = origParsed.isPresent() ? origParsed.getAsDouble() : null;
                 String href    = n.path("url").asText("");
                 String url     = href.startsWith("http") ? href : base + href;
                 String genero  = normalizarGenero(n.path("genero").asText(""));
-                result.add(new Product(sitio, nombre, precio.get(),
-                        origStr.isBlank() ? null : origStr,
+                result.add(new Product(sitio, nombre, precio.get(), precioOrig,
                         url, "", "", genero, List.of()));
             }
             return result;

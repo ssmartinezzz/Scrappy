@@ -509,9 +509,9 @@ public class TechStorePage extends BasePage {
         String img  = n.path("img").asText("");
         if (img.startsWith("//")) img = "https:" + img;
 
-        String precioOrig = null;
+        Double precioOrig = null;
         Optional<Double> po = parsePrecioTech(n.path("precioOrig").asText(""));
-        if (po.isPresent() && po.get() > precio.get()) precioOrig = n.path("precioOrig").asText();
+        if (po.isPresent() && po.get() > precio.get()) precioOrig = po.get();
 
         String cat = normalizarCat(nombre);
 

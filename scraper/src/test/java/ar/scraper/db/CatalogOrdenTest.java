@@ -43,8 +43,8 @@ class CatalogOrdenTest extends PostgresTestBase {
         db.upsertProductos(List.of(
                 producto("https://s.com/barato", 100, 30, null),
                 producto("https://s.com/caro", 9000, 90, null),
-                producto("https://s.com/medio", 500, 60, "$1000"),
-                producto("https://s.com/oferton", 700, 45, "$2800")
+                producto("https://s.com/medio", 500, 60, 1000.0),
+                producto("https://s.com/oferton", 700, 45, 2800.0)
         ));
     }
 
@@ -95,7 +95,7 @@ class CatalogOrdenTest extends PostgresTestBase {
                 .productos().stream().map(Product::url).toList();
     }
 
-    private Product producto(String url, double precio, int score, String precioOrig) {
+    private Product producto(String url, double precio, int score, Double precioOrig) {
         Product.MlScore ml = new Product.MlScore(score, List.of(), false, "estable", score, 0.0, "standard");
         return new Product("Sitio", "Producto " + url, precio, precioOrig, url,
                 "http://img.example/x.jpg", "Remera", "unisex", List.of("M"), ml, "Nike",

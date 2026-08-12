@@ -120,7 +120,7 @@ class ComparadorEndpoints {
                 pNode.put("precio", p.precio());
                 pNode.put("url",    safe(p.url()));
                 pNode.put("img",    safe(p.imagenUrl()));
-                if (p.precioOriginal() != null && !p.precioOriginal().isBlank())
+                if (p.precioOriginal() != null)
                     pNode.put("precioOrig", p.precioOriginal());
                 if (p.ml() != null && !p.ml().badge().isBlank())
                     pNode.put("badge", p.ml().badge());

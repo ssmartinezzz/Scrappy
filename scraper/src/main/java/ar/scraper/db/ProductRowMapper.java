@@ -1,10 +1,12 @@
 package ar.scraper.db;
 
+import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.OptionalDouble;
 
 /**
  * The single row → {@link Product} mapping, shared by every read path
@@ -63,9 +65,14 @@ final class ProductRowMapper {
                 escote != null ? escote : "",
                 colorDominante != null ? colorDominante : "");
 
+        // precio_orig sigue siendo TEXT hasta V17; se parsea con el mismo
+        // parser canónico que va a reemplazar esta columna por double
+        // precision (DD2/DD7) para no introducir un cuarto parseo distinto.
+        OptionalDouble precioOrig = PrecioParser.parse(rs.getString("precio_orig"));
+
         return new Product(
                 rs.getString("sitio"), rs.getString("nombre"),
-                rs.getDouble("precio"), rs.getString("precio_orig"),
+                rs.getDouble("precio"), precioOrig.isPresent() ? precioOrig.getAsDouble() : null,
                 rs.getString("url"), rs.getString("imagen_url"),
                 rs.getString("categoria"), rs.getString("genero"),
                 talles, ml, marca != null ? marca : "",
