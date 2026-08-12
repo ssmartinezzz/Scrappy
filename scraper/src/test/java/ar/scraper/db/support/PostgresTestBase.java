@@ -268,7 +268,8 @@ public abstract class PostgresTestBase {
         try (var c = ds.getConnection(); var st = c.createStatement()) {
             st.execute("""
                 TRUNCATE TABLE
-                    precios_externos, productos, image_embeddings, precio_historico,
+                    precios_externos, productos, producto_talle, producto_badge,
+                    image_embeddings, precio_historico,
                     ml_output, sitios_dinamicos, categoria_stats, favoritos,
                     outfit_feedback, outfit_feedback_item, categoria_dismiss,
                     financiacion_presets, saved_outfits, cron_executions, cron_jobs,
