@@ -95,6 +95,40 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 
 ---
 
+### ¿Por qué cada FK a `productos` tiene una política de borrado distinta?
+
+**Decisión** (`normalize-db-schema-fks-1nf`, V4): las cuatro tablas que
+referencian `productos(url)` no comparten una política uniforme. Cada una recibe
+la que le corresponde según qué tipo de dato guarda.
+
+| Tabla | Política | Razón |
+|-------|----------|-------|
+| `precio_historico` | `ON DELETE CASCADE` | Dato derivado. No significa nada sin el producto que describe. |
+| `precios_externos` | `ON DELETE CASCADE` | Ídem: comparativas de MercadoLibre atadas a un producto del catálogo. |
+| `favoritos` | `ON DELETE RESTRICT` | Dato del usuario. Una limpieza de catálogo no tiene autoridad para destruirlo. |
+| `agent_reclassify_audit` | **sin FK** | Un audit trail no se ata a datos mutables: si el borrado del producto se lleva puesto el registro de quién lo reclasificó, deja de ser auditoría. |
+
+**Por qué no una política uniforme**: CASCADE en todo es lo cómodo, y borra en
+silencio los favoritos del usuario y el rastro de reclasificaciones humanas cada
+vez que alguien vacía el catálogo. RESTRICT en todo obliga a `limpiarProductos()`
+a borrar tabla por tabla en orden explícito, lo que es correcto pero convierte
+datos derivados en ceremonia. La distinción real no es técnica: es qué dato se
+puede regenerar con un scrape y cuál no.
+
+**Consecuencia visible**: `DELETE /api/db/productos` devuelve **409** si hay
+favoritos vivos, y no borra nada. No hay `?force=` — un override reintroduce
+exactamente el borrado silencioso que la política evita. El conteo y el DELETE
+comparten transacción: chequear en la capa del endpoint dejaría una ventana
+TOCTOU donde un favorito agregado en el medio convierte el 409 en un 500 crudo.
+
+**`favoritos` se crea `NOT VALID`**: la constraint valida desde el primer día
+los INSERT y UPDATE nuevos y dispara igual el RESTRICT al borrar el padre; lo
+único diferido es el chequeo de backfill sobre filas históricas. Una instalación
+vieja con huérfanos no puede quedar bloqueada, y la migración no tiene permiso
+para borrar datos de usuario para satisfacerse a sí misma.
+
+---
+
 ### ¿Por qué el aggregator está modularizado en collaborators de responsabilidad única?
 
 **Decisión**: `ar.scraper.aggregator` se organiza como orquestadores delgados (`NormalizerService`, `GroupingService`, `ResultAggregator`) que secuencian collaborators de responsabilidad única, agrupados en subpaquetes por tema (`normalize/`, `grouping/`, `text/`), más `FacetCalculator` como utility estática en la raíz del paquete.

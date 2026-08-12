@@ -39,7 +39,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | Picks/Marcas | `GET /mejores?rubro=` · `GET /marcas-browser` |
 | Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
 | Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |
-| DB | `GET /db/export` · `POST /db/import` (ambos **410 Gone** — usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · `DELETE /db/productos` · `DELETE /db/ml` |
+| DB | `GET /db/export` · `POST /db/import` (ambos **410 Gone** — usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · `DELETE /db/productos` (**409** si hay favoritos protegidos, ver detalle abajo) · `DELETE /db/ml` |
 | LLM Agent | `POST /agent/chat` · `POST /agent/apply` · `GET /agent/models` |
 
 ---
@@ -331,6 +331,34 @@ entrenamiento de imagen (ver "Pipeline ML" en `CLAUDE.md`).
 campo cambiado, `escriturasAplicadas` = filas realmente actualizadas,
 `escriturasFallidas` = 0 filas afectadas o excepción — un producto que falla
 no aborta el resto del batch.
+
+---
+
+## DELETE /db/productos
+
+Vacía `productos` (cascadea `precio_historico`/`precios_externos` por FK, ver
+`docs/ARCHITECTURE.md`) y `categoria_stats`. `agent_reclassify_audit`
+sobrevive siempre — es un audit trail sin FK a `productos`, por diseño.
+
+`normalize-db-schema-fks-1nf`: `favoritos.url` tiene una FK `RESTRICT` contra
+`productos(url)`. Si algún favorito referencia un producto vivo, el endpoint
+devuelve **409** con la cantidad bloqueante y **no borra nada** (chequeo y
+DELETE comparten transacción, sin condición de carrera entre el conteo y el
+borrado). **No existe** un `?force=` — el usuario tiene que desmarcar los
+favoritos primero.
+
+**Response (409, favoritos bloqueantes):**
+```
+No se puede vaciar el catálogo: 3 producto(s) favorito(s) todavía existen.
+```
+
+**Response (200, sin favoritos bloqueantes):**
+```
+Catálogo eliminado.
+```
+
+Gateado por scraping igual que el resto de `/db/*`: **409** mientras
+`GET /status` está `RUNNING`.
 
 ---
 

@@ -35,6 +35,14 @@ class DbAdminEndpoints {
             service.clearLastResult();
             aggregator.clearMlOutput();
             return ResponseEntity.ok("Catálogo eliminado.");
+        } catch (ar.scraper.db.FavoritosProtegidosException e) {
+            // normalize-db-schema-fks-1nf, slice A.1 (design D9): the FK RESTRICT
+            // on favoritos.url (V4) surfaces here as an actionable 409 instead of
+            // a raw FK-violation 500. No ?force= override — deliberate (spec
+            // "Catalog-wipe contract").
+            return ResponseEntity.status(409).body(
+                    "No se puede vaciar el catálogo: " + e.getFavoritosBloqueantes()
+                            + " producto(s) favorito(s) todavía existen.");
         } catch (Exception e) {
             LOG.error("[API] Error al limpiar productos", e);
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
