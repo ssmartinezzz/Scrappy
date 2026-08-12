@@ -120,7 +120,7 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
         String url = "https://site.com/ts-lock";
         db.upsertProductos(List.of(producto(url)));
 
-        boolean ok = db.aplicarReclasificacionAuditada(url, "Buzos", "Nike", "hombre",
+        boolean ok = db.aplicarReclasificacionAuditada(url, "Buzo", "Nike", "hombre",
                 List.of("M"), "Canguro", db.obtenerProducto(url).orElseThrow(), "santi");
         assertThat(ok).isTrue();
 
@@ -132,7 +132,7 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
 
     private ar.scraper.model.Product producto(String url) {
         return new ar.scraper.model.Product("Sitio", "Producto", 1000.0, null, url,
-                "http://img.example/x.jpg", "Remeras", "unisex", List.of("M"),
+                "http://img.example/x.jpg", "Remera", "unisex", List.of("M"),
                 ar.scraper.model.Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
                 ar.scraper.model.Product.SenalCompra.EMPTY,
                 ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);

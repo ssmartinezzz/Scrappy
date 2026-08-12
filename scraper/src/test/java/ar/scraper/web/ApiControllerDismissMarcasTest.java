@@ -75,24 +75,24 @@ class ApiControllerDismissMarcasTest {
 
     @Test
     void dismissCategoriaReturns200AndPersistsWhenValid() {
-        var resp = controller.dismissCategoria(Map.of("categoria", "Zapatillas"));
+        var resp = controller.dismissCategoria(Map.of("categoria", "Zapatilla"));
         JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).guardarCategoriaDismiss("Zapatillas");
+        verify(db).guardarCategoriaDismiss("Zapatilla");
     }
 
     // ── DELETE /api/recomendados/dismiss-categoria ───────────────────────
 
     @Test
     void undismissCategoriaAlwaysReturnsOkAndCallsDb() {
-        var resp = controller.undismissCategoria("Remeras");
+        var resp = controller.undismissCategoria("Remera");
         JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).borrarCategoriaDismiss("Remeras");
+        verify(db).borrarCategoriaDismiss("Remera");
     }
 
     // ── GET /api/marcas-browser ──────────────────────────────────────────
@@ -150,14 +150,14 @@ class ApiControllerDismissMarcasTest {
 
     private Product producto(String nombre, String url, String marca) {
         return new Product("Sporting", nombre, 10000.0, null, url, "img",
-                "Zapatillas", "unisex", List.of(), Product.MlScore.EMPTY, marca,
+                "Zapatilla", "unisex", List.of(), Product.MlScore.EMPTY, marca,
                 "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
     }
 
     private Product productWithRubro(String nombre, String url, String marca, String rubro) {
         return new Product("Sporting", nombre, 10000.0, null, url, "img",
-                "Zapatillas", "unisex", List.of(), Product.MlScore.EMPTY, marca,
+                "Zapatilla", "unisex", List.of(), Product.MlScore.EMPTY, marca,
                 rubro, false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
     }

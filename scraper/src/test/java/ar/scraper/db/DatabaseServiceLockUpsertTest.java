@@ -86,15 +86,15 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     void lockedClassificationSurvivesReUpsertWithDifferentTitleDerivedValues() throws Exception {
         String url = "https://site.com/locked-product";
         db.upsertProductos(List.of(
-                producto(url, "Remeras", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera Nike")));
+                producto(url, "Remera", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera Nike")));
         lockProduct(url, "local");
 
         db.upsertProductos(List.of(
-                producto(url, "Pantalones", "trekking", "Adidas", "mujer", "tecnologia", 16000.0, "Remera Nike")));
+                producto(url, "Pantalón", "trekking", "Adidas", "mujer", "tecnologia", 16000.0, "Remera Nike")));
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remeras");
+        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
         assertThat(reloaded.get().subCategoria()).isEqualTo("running");
         assertThat(reloaded.get().marca()).isEqualTo("Nike");
         assertThat(reloaded.get().genero()).isEqualTo("hombre");
@@ -105,14 +105,14 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     void unlockedProductIsStillOverwrittenOnReUpsert() throws Exception {
         String url = "https://site.com/unlocked-product";
         db.upsertProductos(List.of(
-                producto(url, "Remeras", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera Nike")));
+                producto(url, "Remera", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera Nike")));
 
         db.upsertProductos(List.of(
-                producto(url, "Pantalones", "trekking", "Adidas", "mujer", "tecnologia", 16000.0, "Remera Nike")));
+                producto(url, "Pantalón", "trekking", "Adidas", "mujer", "tecnologia", 16000.0, "Remera Nike")));
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Pantalones");
+        assertThat(reloaded.get().categoria()).isEqualTo("Pantalón");
         assertThat(reloaded.get().subCategoria()).isEqualTo("trekking");
         assertThat(reloaded.get().marca()).isEqualTo("Adidas");
         assertThat(reloaded.get().genero()).isEqualTo("mujer");
@@ -123,7 +123,7 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     void volatileFieldsStillUpdateOnALockedProduct() throws Exception {
         String url = "https://site.com/locked-volatile";
         db.upsertProductos(List.of(
-                producto(url, "Remeras", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera vieja",
+                producto(url, "Remera", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera vieja",
                         List.of("M", "L"))));
         lockProduct(url, "local");
 
@@ -131,7 +131,7 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
         // value the row already held would pass even if the column were wrongly CASE-guarded
         // in sp_upsert_run, so the assertion would prove nothing.
         db.upsertProductos(List.of(
-                producto(url, "Pantalones", "trekking", "Adidas", "mujer", "tecnologia", 18500.0, "Remera nueva",
+                producto(url, "Pantalón", "trekking", "Adidas", "mujer", "tecnologia", 18500.0, "Remera nueva",
                         List.of("S", "XL"))));
 
         Optional<Product> reloaded = db.obtenerProducto(url);
@@ -145,21 +145,21 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     void lockSurvivesSoftDeleteAndReactivation() throws Exception {
         String url = "https://site.com/locked-reactivated";
         db.upsertProductos(List.of(
-                producto(url, "Remeras", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera Nike")));
+                producto(url, "Remera", "running", "Nike", "hombre", "indumentaria", 15000.0, "Remera Nike")));
         lockProduct(url, "local");
 
         // Run without this URL present -> soft-deleted (activo=0).
         db.upsertProductos(List.of(
-                producto("https://site.com/other-product", "Zapatillas", "", "Puma", "unisex",
+                producto("https://site.com/other-product", "Zapatilla", "", "Puma", "unisex",
                         "indumentaria", 5000.0, "Otra")));
 
         // Run with a different title-derived classification -> reactivation.
         db.upsertProductos(List.of(
-                producto(url, "Pantalones", "trekking", "Adidas", "mujer", "tecnologia", 16000.0, "Remera Nike")));
+                producto(url, "Pantalón", "trekking", "Adidas", "mujer", "tecnologia", 16000.0, "Remera Nike")));
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remeras");
+        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
         assertThat(reloaded.get().subCategoria()).isEqualTo("running");
         assertThat(reloaded.get().marca()).isEqualTo("Nike");
         assertThat(reloaded.get().genero()).isEqualTo("hombre");

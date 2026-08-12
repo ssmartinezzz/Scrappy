@@ -73,7 +73,7 @@ class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTes
         Product.MlScore ml = new Product.MlScore(
                 60, badges, false, "estable", 50, 0.0, "standard");
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remeras", "unisex", List.of(), ml, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), ml, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 

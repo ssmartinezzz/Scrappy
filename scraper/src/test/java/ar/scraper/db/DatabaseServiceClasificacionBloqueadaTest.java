@@ -42,7 +42,7 @@ class DatabaseServiceClasificacionBloqueadaTest extends PostgresTestBase {
 
     private Product producto(String url) {
         return new Product("freres", "Producto", 15000.0, null, url, "http://img.example/x.jpg",
-                "Remeras", "hombre", List.of("M"), Product.MlScore.EMPTY, "Nike",
+                "Remera", "hombre", List.of("M"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
     }
 

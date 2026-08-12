@@ -98,7 +98,7 @@ class CatalogOrdenTest extends PostgresTestBase {
     private Product producto(String url, double precio, int score, String precioOrig) {
         Product.MlScore ml = new Product.MlScore(score, List.of(), false, "estable", score, 0.0, "standard");
         return new Product("Sitio", "Producto " + url, precio, precioOrig, url,
-                "http://img.example/x.jpg", "Remeras", "unisex", List.of("M"), ml, "Nike",
+                "http://img.example/x.jpg", "Remera", "unisex", List.of("M"), ml, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1);
     }

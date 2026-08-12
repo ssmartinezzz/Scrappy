@@ -64,7 +64,7 @@ class ComparadorGruposSitioTest {
     private static Product producto(String sitio, String nombre, double precio) {
         return new Product(sitio, nombre, precio, null,
                 "https://" + sitio + "/" + nombre.hashCode() + precio, "img",
-                "Zapatillas", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
+                "Zapatilla", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);
     }

@@ -174,7 +174,7 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperService service = serviceCon(
                 producto(URL, "Camisa", "Genérica", "unisex", "Casual")); // producto() defaults rubro to "indumentaria"
 
-        service.actualizarProductoEnMemoria(URL, "Zapatillas", "Nike", "hombre", "running", "tecnologia");
+        service.actualizarProductoEnMemoria(URL, "Zapatilla", "Nike", "hombre", "running", "tecnologia");
 
         Product patched = service.getLastResult().productos().get(0);
         assertThat(patched.rubro()).isEqualTo("tecnologia");

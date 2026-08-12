@@ -72,9 +72,9 @@ class ResultAggregatorRenormalizarTest {
         //   p1 -> UPDATE devuelve 1 fila (escritura realmente aplicada)
         //   p2 -> UPDATE devuelve 0 filas (no existía más / no aplicó)
         //   p3 -> UPDATE lanza una excepción
-        Product p1Antes = producto("http://test.com/1", "Zapatillas");
-        Product p2Antes = producto("http://test.com/2", "Zapatillas");
-        Product p3Antes = producto("http://test.com/3", "Zapatillas");
+        Product p1Antes = producto("http://test.com/1", "Zapatilla");
+        Product p2Antes = producto("http://test.com/2", "Zapatilla");
+        Product p3Antes = producto("http://test.com/3", "Zapatilla");
         Product p1Ahora = producto("http://test.com/1", "Calzado Deportivo");
         Product p2Ahora = producto("http://test.com/2", "Calzado Deportivo");
         Product p3Ahora = producto("http://test.com/3", "Calzado Deportivo");
@@ -110,15 +110,15 @@ class ResultAggregatorRenormalizarTest {
     @Test
     @DisplayName("manual-classification-lock: locked URLs are skipped from writes, counted separately, never in escriturasFallidas")
     void lockedUrlsAreSkippedFromWritesAndCountedSeparately() {
-        Product p1Antes = producto("http://test.com/1", "Zapatillas");
-        Product p4Antes = producto("http://test.com/4", "Zapatillas"); // locked
+        Product p1Antes = producto("http://test.com/1", "Zapatilla");
+        Product p4Antes = producto("http://test.com/4", "Zapatilla"); // locked
         Product p1Ahora = producto("http://test.com/1", "Calzado Deportivo");
         Product p4Ahora = producto("http://test.com/4", "Calzado Deportivo"); // title-derived diff, but locked
 
         when(db.cargarProductos()).thenReturn(List.of(p1Antes, p4Antes));
         when(normalizer.normalizar(anyList())).thenReturn(List.of(p1Ahora, p4Ahora));
         when(db.cargarClasificacionBloqueada()).thenReturn(
-                Map.of("http://test.com/4", new ClasificacionBloqueada("Zapatillas", "", "", "", "indumentaria")));
+                Map.of("http://test.com/4", new ClasificacionBloqueada("Zapatilla", "", "", "", "indumentaria")));
 
         when(db.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
                 anyString(), anyList(), anyString())).thenReturn(1);
@@ -146,7 +146,7 @@ class ResultAggregatorRenormalizarTest {
         // after the snapshot was taken but before the loop reached its row) —
         // the guarded UPDATE correctly returns 0 rows, but the code must not
         // ASSUME "failure" just because the stale snapshot didn't know about it.
-        Product p5Antes = producto("http://test.com/5", "Zapatillas");
+        Product p5Antes = producto("http://test.com/5", "Zapatilla");
         Product p5Ahora = producto("http://test.com/5", "Calzado Deportivo");
 
         when(db.cargarProductos()).thenReturn(List.of(p5Antes));
@@ -170,8 +170,8 @@ class ResultAggregatorRenormalizarTest {
     @Test
     @DisplayName("no changes detected -> zero escrituras*, no write calls")
     void noChangesDetected_zeroEscrituras() {
-        Product antes = producto("http://test.com/unchanged", "Zapatillas");
-        Product ahora = producto("http://test.com/unchanged", "Zapatillas");
+        Product antes = producto("http://test.com/unchanged", "Zapatilla");
+        Product ahora = producto("http://test.com/unchanged", "Zapatilla");
 
         when(db.cargarProductos()).thenReturn(List.of(antes));
         when(normalizer.normalizar(anyList())).thenReturn(List.of(ahora));

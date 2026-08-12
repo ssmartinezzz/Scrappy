@@ -80,7 +80,7 @@ class ApiControllerFinanciacionTest {
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remeras", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, finan);
     }
 

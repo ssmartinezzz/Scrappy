@@ -87,7 +87,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     @Test
     @DisplayName("success: UPDATE applied + exactly one audit row with old and new values")
     void successWritesUpdateAndAuditRow() throws Exception {
-        Product previo = producto("https://site.com/p1", "Remeras", "Nike", "hombre", List.of("M", "L"));
+        Product previo = producto("https://site.com/p1", "Remera", "Nike", "hombre", List.of("M", "L"));
         db.upsertProductos(List.of(previo));
 
         boolean applied = db.aplicarReclasificacionAuditada(
@@ -112,7 +112,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
             ps.setString(1, "https://site.com/p1");
             try (ResultSet rs = ps.executeQuery()) {
                 assertThat(rs.next()).isTrue();
-                assertThat(rs.getString("categoria_antes")).isEqualTo("Remeras");
+                assertThat(rs.getString("categoria_antes")).isEqualTo("Remera");
                 assertThat(rs.getString("categoria_despues")).isEqualTo("Buzo");
                 assertThat(rs.getString("marca_antes")).isEqualTo("Nike");
                 assertThat(rs.getString("marca_despues")).isEqualTo("Adidas");
@@ -127,7 +127,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     @Test
     @DisplayName("success acquires the classification lock: bloqueado_por/at set, rubro derived, applied_by audited")
     void successAcquiresTheClassificationLockAndDerivesRubro() throws Exception {
-        Product previo = producto("https://site.com/lock-acquire", "Remeras", "Nike", "hombre", List.of("M"));
+        Product previo = producto("https://site.com/lock-acquire", "Remera", "Nike", "hombre", List.of("M"));
         db.upsertProductos(List.of(previo));
 
         boolean applied = db.aplicarReclasificacionAuditada(
@@ -149,7 +149,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     @Test
     @DisplayName("second confirmation overwrites the lock: new actor and new timestamp replace the old ones")
     void secondConfirmationOverwritesLockAndActor() throws Exception {
-        Product previo = producto("https://site.com/lock-overwrite", "Remeras", "Nike", "hombre", List.of("M"));
+        Product previo = producto("https://site.com/lock-overwrite", "Remera", "Nike", "hombre", List.of("M"));
         db.upsertProductos(List.of(previo));
 
         db.aplicarReclasificacionAuditada(
@@ -158,7 +158,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
 
         Product actualizado = db.obtenerProducto("https://site.com/lock-overwrite").orElseThrow();
         boolean secondApplied = db.aplicarReclasificacionAuditada(
-                "https://site.com/lock-overwrite", "Pantalones", "Puma", "unisex", List.of("M"), "trekking",
+                "https://site.com/lock-overwrite", "Pantalón", "Puma", "unisex", List.of("M"), "trekking",
                 actualizado, "otro-actor");
 
         assertThat(secondApplied).isTrue();
@@ -168,7 +168,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
 
         Optional<Product> reloaded = db.obtenerProducto("https://site.com/lock-overwrite");
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Pantalones");
+        assertThat(reloaded.get().categoria()).isEqualTo("Pantalón");
         assertThat(reloaded.get().marca()).isEqualTo("Puma");
 
         assertThat(contarFilasAudit("https://site.com/lock-overwrite")).isEqualTo(2);
@@ -178,7 +178,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     @Test
     @DisplayName("zero-row UPDATE (nonexistent url) → false, zero audit rows, no partial write")
     void nonexistentUrlReturnsFalseWithNoAuditRow() throws Exception {
-        Product previoInexistente = producto("https://site.com/no-existe", "Remeras", "Nike", "hombre", List.of());
+        Product previoInexistente = producto("https://site.com/no-existe", "Remera", "Nike", "hombre", List.of());
 
         boolean applied = db.aplicarReclasificacionAuditada(
                 "https://site.com/no-existe", "Buzo", "Adidas", "mujer", List.of(), "urbano", previoInexistente, "local");
@@ -190,7 +190,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
     @Test
     @DisplayName("audit INSERT failure (schema mutation) rolls back the UPDATE — no partial write")
     void auditInsertFailureRollsBackTheUpdate() throws Exception {
-        Product previo = producto("https://site.com/p2", "Remeras", "Nike", "hombre", List.of("M"));
+        Product previo = producto("https://site.com/p2", "Remera", "Nike", "hombre", List.of("M"));
         db.upsertProductos(List.of(previo));
 
         // Fault injection: mutate the audit table's schema so the INSERT in
@@ -209,7 +209,7 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
 
             Optional<Product> sinCambios = db.obtenerProducto("https://site.com/p2");
             assertThat(sinCambios).isPresent();
-            assertThat(sinCambios.get().categoria()).isEqualTo("Remeras"); // UPDATE was rolled back
+            assertThat(sinCambios.get().categoria()).isEqualTo("Remera"); // UPDATE was rolled back
             assertThat(sinCambios.get().marca()).isEqualTo("Nike");
 
             LockRow lock = leerLock("https://site.com/p2");

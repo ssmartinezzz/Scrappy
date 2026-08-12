@@ -319,6 +319,24 @@ como categoría. La migración remapea las 478 filas (7,3%) que ya estaban mal.
 `CategoryVocabularyIsClosedTest` prueba que ninguna entrada, por hostil que
 sea, se sale de `CategoryGroups.canonicalCategories()`.
 
+`V13` le da a `categoria` **integridad referencial**: tabla `categoria(nombre PK)`
+sembrada con los 81 valores del canon + FK desde `productos.categoria`. Es
+clave **natural**, no un `categoria_id`: el nombre ya es único y estable y es
+lo que devuelve la API, así que un id sustituto costaría un JOIN por lectura y
+plomería de ids por toda la API a cambio de nada. Se eligió tabla y no CHECK
+(el criterio de `V6`) porque con 81 valores un CHECK obliga a una **migración
+por categoría nueva**; con tabla, es un INSERT. **No lleva columna `rubro`**:
+`categoria → rubro` NO es una dependencia funcional — `RubroResolver` deriva el
+rubro de (sitio, categoría, rubro previo), y en los datos vivos `Conjunto` es
+`tecnologia` en Fullh4rd e `indumentaria` en Sporting.
+
+⚠️ La FK obligó a corregir **192 literales en 53 archivos de test**: los
+fixtures escribían categorías en plural (`"Remeras"`, `"Buzos"`, `"Shorts"`)
+que producción nunca produce. Dos lugares quedaron a propósito con el plural
+porque ahí SÍ es válido: los nombres de producto de `CategoryClassifierTest`
+("Zapatillas Running Hombre" es un nombre, no una categoría) y
+`FacetCalculatorTest`, que es puro en memoria y no lo alcanza la FK.
+
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).
 Corre **server-side** en las funciones plpgsql `sp_upsert_run`/

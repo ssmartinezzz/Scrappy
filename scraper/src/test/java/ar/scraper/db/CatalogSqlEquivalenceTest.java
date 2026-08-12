@@ -220,21 +220,21 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
 
     private List<Product> dataset() {
         return List.of(
-                producto("https://s.com/1", "Remera básica", 1500, "Freres", "Remeras", "hombre",
+                producto("https://s.com/1", "Remera básica", 1500, "Freres", "Remera", "hombre",
                         List.of("S", "M"), List.of("trending"), "Nike", 1, "standard"),
                 // genero en minúscula: el CHECK de V6 rechaza "Hombre", y el
                 // case-insensitive que importa probar es el del FILTRO, no el del dato.
-                producto("https://s.com/2", "REMERA oversize", 2500, "Freres", "Remeras", "hombre",
+                producto("https://s.com/2", "REMERA oversize", 2500, "Freres", "Remera", "hombre",
                         List.of("L"), List.of(), "Adidas", 1, "premium"),
                 producto("https://s.com/3", "Zapatilla urbana", 45000, "VCP", "Zapatilla", "mujer",
                         List.of("38", "40"), List.of("all_time_low", "below_market"), "Puma", 1, null),
                 producto("https://s.com/4", "Zapatilla de running", 62000, "VCP", "Zapatilla Running", "mujer",
                         List.of("39"), List.of(), "Nike", 1, "luxury"),
-                producto("https://s.com/5", "Buzo canguro", 18000, "Midway", "Buzos", "unisex",
+                producto("https://s.com/5", "Buzo canguro", 18000, "Midway", "Buzo", "unisex",
                         List.of(), List.of("trending"), "Barnes", 1, "standard"),
                 producto("https://s.com/6", "Pack x3 medias multi-talle", 9000, "Bulks", "Medias", "unisex",
                         List.of("S", "M", "L", "XL"), List.of("all_time_low", "trending"), "Bulks", 3, "budget"),
-                producto("https://s.com/7", "Short 50% off", 7000, "Batuk", "Shorts", "",
+                producto("https://s.com/7", "Short 50% off", 7000, "Batuk", "Short", "",
                         List.of("M"), List.of(), "Batuk", 1, "standard")
         );
     }

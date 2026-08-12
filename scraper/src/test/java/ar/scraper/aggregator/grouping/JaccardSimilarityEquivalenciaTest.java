@@ -89,7 +89,7 @@ class JaccardSimilarityEquivalenciaTest {
 
     private Product producto(String sitio, String marca, String nombre) {
         return new Product(sitio, nombre, 1000, null,
-                "https://" + sitio + "/" + nombre.hashCode(), "img", "Zapatillas", "unisex",
+                "https://" + sitio + "/" + nombre.hashCode(), "img", "Zapatilla", "unisex",
                 List.of("M"), Product.MlScore.EMPTY, marca, "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "",
                 Product.VisualAttrs.EMPTY);

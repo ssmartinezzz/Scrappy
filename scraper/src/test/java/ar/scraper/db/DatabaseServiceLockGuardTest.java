@@ -71,27 +71,27 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
     @DisplayName("actualizarCategoria is a no-op on a locked product")
     void actualizarCategoriaNoOpsOnLockedProduct() throws Exception {
         String url = "https://site.com/cat-locked";
-        db.upsertProductos(List.of(producto(url, "Remeras", "Nike", "hombre")));
+        db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
         lockProduct(url, "local");
 
-        db.actualizarCategoria(url, "Pantalones");
+        db.actualizarCategoria(url, "Pantalón");
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remeras");
+        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
     }
 
     @Test
     @DisplayName("actualizarCategoria still works on an unlocked product")
     void actualizarCategoriaStillWorksOnUnlockedProduct() throws Exception {
         String url = "https://site.com/cat-unlocked";
-        db.upsertProductos(List.of(producto(url, "Remeras", "Nike", "hombre")));
+        db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
 
-        db.actualizarCategoria(url, "Pantalones");
+        db.actualizarCategoria(url, "Pantalón");
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Pantalones");
+        assertThat(reloaded.get().categoria()).isEqualTo("Pantalón");
     }
 
     // ─── actualizarNormalizacion (machine path — bulk renormalize) ─────────
@@ -100,15 +100,15 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
     @DisplayName("actualizarNormalizacion is a no-op (0 rows) on a locked product")
     void actualizarNormalizacionNoOpsOnLockedProduct() throws Exception {
         String url = "https://site.com/norm-locked";
-        db.upsertProductos(List.of(producto(url, "Remeras", "Nike", "hombre")));
+        db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
         lockProduct(url, "local");
 
-        int rows = db.actualizarNormalizacion(url, "Pantalones", "Adidas", "mujer", List.of("S"), "trekking");
+        int rows = db.actualizarNormalizacion(url, "Pantalón", "Adidas", "mujer", List.of("S"), "trekking");
 
         assertThat(rows).isEqualTo(0);
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remeras");
+        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
         assertThat(reloaded.get().marca()).isEqualTo("Nike");
     }
 
@@ -116,14 +116,14 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
     @DisplayName("actualizarNormalizacion still works (1 row) on an unlocked product")
     void actualizarNormalizacionStillWorksOnUnlockedProduct() throws Exception {
         String url = "https://site.com/norm-unlocked";
-        db.upsertProductos(List.of(producto(url, "Remeras", "Nike", "hombre")));
+        db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
 
-        int rows = db.actualizarNormalizacion(url, "Pantalones", "Adidas", "mujer", List.of("S"), "trekking");
+        int rows = db.actualizarNormalizacion(url, "Pantalón", "Adidas", "mujer", List.of("S"), "trekking");
 
         assertThat(rows).isEqualTo(1);
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Pantalones");
+        assertThat(reloaded.get().categoria()).isEqualTo("Pantalón");
         assertThat(reloaded.get().marca()).isEqualTo("Adidas");
     }
 
@@ -134,14 +134,14 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
         // classifies it OVERWRITTEN, not LOCKED) — a talles-only change must reach
         // the DB regardless of bloqueado_por, same as sp_upsert_run already does.
         String url = "https://site.com/norm-locked-talles";
-        db.upsertProductos(List.of(producto(url, "Remeras", "Nike", "hombre")));
+        db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
         lockProduct(url, "local");
 
-        int rows = db.actualizarNormalizacion(url, "Remeras", "Nike", "hombre", List.of("S", "M", "L"), "");
+        int rows = db.actualizarNormalizacion(url, "Remera", "Nike", "hombre", List.of("S", "M", "L"), "");
 
         Optional<Product> reloaded = db.obtenerProducto(url);
         assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remeras");
+        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
         assertThat(reloaded.get().marca()).isEqualTo("Nike");
         assertThat(reloaded.get().talles()).containsExactly("S", "M", "L");
     }
@@ -152,7 +152,7 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
     @DisplayName("human confirmation path still works on an already-locked product (recovery path for a wrong lock)")
     void humanConfirmationPathStillWorksOnAlreadyLockedProduct() throws Exception {
         String url = "https://site.com/human-recovers-lock";
-        Product previo = producto(url, "Remeras", "Nike", "hombre");
+        Product previo = producto(url, "Remera", "Nike", "hombre");
         db.upsertProductos(List.of(previo));
         lockProduct(url, "local");
 

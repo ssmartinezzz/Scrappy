@@ -105,11 +105,17 @@ class CatalogFacetsSqlEquivalenceTest extends PostgresTestBase {
 
     private List<Product> dataset() {
         return List.of(
-                producto("https://s.com/1", "Remera", 1500, "Freres", "Remeras", "hombre",
+                producto("https://s.com/1", "Remera", 1500, "Freres", "Remera", "hombre",
                         List.of("S", "M"), List.of("trending"), "Nike", "Basicas", "regular"),
-                producto("https://s.com/2", "Remera 2", 2500, "Freres", "REMERAS", "hombre",
+                // Antes acá iba "REMERAS" en mayúsculas, para probar que las
+                // facetas mergean claves con distinta capitalización. Desde V13
+                // ese caso NO ES REPRESENTABLE: la FK sólo admite el canon, así
+                // que la normalización de mayúsculas del GROUP BY quedó como
+                // defensa muerta. El merge por clave se sigue cubriendo acá con
+                // dos productos de la MISMA categoría canónica.
+                producto("https://s.com/2", "Remera 2", 2500, "Freres", "Remera", "hombre",
                         List.of("XL", "38"), List.of("trending", "below_market"), "Nike", "Basicas", ""),
-                producto("https://s.com/3", "Zapatilla", 45000, "VCP", "Zapatillas", "mujer",
+                producto("https://s.com/3", "Zapatilla", 45000, "VCP", "Zapatilla", "mujer",
                         List.of("40"), List.of(), "Puma", "Running", "oversize")
         );
     }

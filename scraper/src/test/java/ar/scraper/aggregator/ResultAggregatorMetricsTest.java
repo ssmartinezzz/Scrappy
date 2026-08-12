@@ -72,7 +72,7 @@ class ResultAggregatorMetricsTest {
     /** Convenience: create a minimal Product using the 9-arg legacy constructor. */
     private Product product(String nombre, double precio, String url) {
         return new Product("TestSite", nombre, precio, null, url, "",
-                "Remeras", "", List.of());
+                "Remera", "", List.of());
     }
 
     // ── Scenario (a): mixed valid/invalid ────────────────────────────────────
@@ -186,7 +186,7 @@ class ResultAggregatorMetricsTest {
         ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
 
         Product normalizado = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat", "", "Zapatillas", "", List.of());
+                "http://test.com/cat", "", "Zapatilla", "", List.of());
         when(normalizer.normalizar(anyList())).thenReturn(List.of(normalizado));
 
         Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
@@ -205,11 +205,11 @@ class ResultAggregatorMetricsTest {
         ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
 
         Product normalizado = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat2", "", "Zapatillas", "", List.of());
+                "http://test.com/cat2", "", "Zapatilla", "", List.of());
         when(normalizer.normalizar(anyList())).thenReturn(List.of(normalizado));
 
         Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat2", "", "Zapatillas", "", List.of());
+                "http://test.com/cat2", "", "Zapatilla", "", List.of());
         when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(enriquecido));
 
         aggregator.agregar(List.of(scrapeResult));
@@ -230,7 +230,7 @@ class ResultAggregatorMetricsTest {
         Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "estampado", "capucha", "gris");
         Product mlEnriquecido = new Product(
                 "TestSite", "Buzo con visual", 20000, null, "http://test.com/visual-e2e",
-                "", "Buzos", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
+                "", "Buzo", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
         when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(mlEnriquecido));
 

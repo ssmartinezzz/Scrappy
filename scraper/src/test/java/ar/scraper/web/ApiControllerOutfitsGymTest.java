@@ -103,7 +103,7 @@ class ApiControllerOutfitsGymTest {
 
         var pick = new OutfitService.SlotPick(
                 "Remera", "Sporting", "Nike Tee", 8000.0,
-                "https://a.com/1", "img.jpg", "Remeras", "Nike");
+                "https://a.com/1", "img.jpg", "Remera", "Nike");
         var outfit = new OutfitService.Outfit(List.of(pick), "hombre", false, 8000.0, false);
         when(outfitService.armar(any(), any(), eq("gym"), any(), anyDouble(), any()))
                 .thenReturn(outfit);
