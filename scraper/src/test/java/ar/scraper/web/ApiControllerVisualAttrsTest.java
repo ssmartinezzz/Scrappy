@@ -94,7 +94,7 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
 
     private Product producto(String url, VisualAttrs visual) {
         return new Product("Sitio", "Producto " + url, 10000.0, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "", visual);
     }
 
@@ -240,7 +240,7 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         sembrar(nike);
 
         ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
-                List.of("Marca"), null, null, null, null, "precio_asc", null, null, null, null);
+                List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null);
 
         JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
         assertThat(productos).hasSize(1);

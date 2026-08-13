@@ -95,14 +95,14 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
 
     private Product producto(String url, double precio) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
     /** Pack/combo product — {@code precioTotal} is the bundle price, not the per-unit price. */
     private Product productoPack(String url, double precioTotal, int cantidadUnidades) {
         return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, cantidadUnidades);
     }
 

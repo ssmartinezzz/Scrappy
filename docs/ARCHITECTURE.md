@@ -816,6 +816,100 @@ escribe las dos en la misma llamada — pero si pasara, el `UPDATE` de default
 la deja en `'tiendanube'`, la misma abstención que un nombre nunca visto
 siempre obtuvo).
 
+#### `marca` pasa a tabla de lookup con FK, clave natural (V21)
+
+close-1nf-and-3nf-foundation, extensión 3FN (design E4) — el equivalente de
+`V13`, pero para marca. `CREATE TABLE marca (nombre TEXT PRIMARY KEY)`,
+sembrada con **58 filas** medidas parseando `BrandExtractor.MARCAS`
+(`CODE-3` — el design doc había estimado 59 antes de contar; se corrige acá,
+no se lo hace coincidir en silencio). Clave natural, no un `marca_id`: el
+nombre ya es único, estable, y es lo que la API devuelve — un id sustituto
+cuesta un JOIN por lectura y plomería de ids por toda la API a cambio de
+nada. Tabla y no `CHECK`: con más de 50 valores es territorio de `V13`, no
+de `V6`.
+
+**El sentinel `""`: `NULL` en la DB, `""` en el borde Java — y por qué el
+precedente de `V6` no aplica.** `V6` dejó pasar `genero=''` porque un
+`CHECK` restringe un VALOR; una FK afirma una REFERENCIA, y no hay marca a
+la que referenciar cuando `BrandExtractor` abstiene. Sembrar una fila
+`('')` habría convertido el string vacío en una marca más — la faceta de
+marca y `/api/marcas-browser` la habrían enumerado. Guardar `NULL` mantiene
+la abstención significando exactamente lo mismo que en el resto del
+esquema. El radio de impacto es casi nulo porque el código de lectura ya
+era null-safe en esta columna: `ProductRowMapper.java:76`
+(`marca != null ? marca : ""`), `CatalogQueryRepository.java:141`/`:201` —
+ninguno necesitó cambio.
+
+**Desvío del diseño original, descubierto a mitad de la aplicación, no
+anticipado.** El diseño planeaba UN solo re-copy de `sp_upsert_run` en `V23`,
+juntando las tres sustituciones de esta extensión (E4/E2/E7). Al aplicar
+`V21` en TDD, la suite completa se rompió: `BrandExtractor` en Java YA emite
+`marca:""` (nunca omite la clave) para un producto abstenido, así que
+`COALESCE(r->>'marca', '')` —el `sp_upsert_run` heredado de `V17`— sigue
+escribiendo `''`, y `''` no es `NULL`: viola `fk_productos_marca` en el
+PRIMER upsert de cualquier producto sin marca reconocida. El razonamiento
+original ("las cuatro migraciones aplican juntas en un solo boot de Flyway,
+antes de que el proceso pueda aceptar un scrape") es cierto para producción,
+pero falso para la suite de tests: decenas de tests existentes hacen upsert
+de fixtures con marca abstenida contra el esquema YA migrado a `V21`, en el
+mismo commit — exactamente lo que `TEST-1` (suite verde en CADA commit)
+exige cubrir. La solución: la sustitución `nullif(r->>'marca','')` se
+adelanta a ESTE mismo archivo — un cuarto re-copy de `sp_upsert_run`
+(`V17`→`V21`), no el tercero que el diseño había planeado consolidar en
+`V23`. `V23` sigue existiendo, pero con sólo dos sustituciones (la baja de
+`marca_premium` y el get-or-create de `sitio`), no tres.
+`StoredProcedureDriftTest` gana el hop `V17`→`V21` con esta única
+sustitución declarada.
+
+**Segundo hallazgo del mismo tipo, misma sesión: `marca` tenía un
+`DEFAULT ''` a nivel de columna** (`V1__baseline.sql:47`), invisible al
+grep-verify que E4 hizo sobre los sitios de LECTURA. Cualquier `INSERT`
+crudo que omite `marca` — y varios fixtures de test lo hacen, porque sólo
+fijan las columnas que les importan — caía en `''` por default, no `NULL`,
+violando la FK igual que el caso de `sp_upsert_run`. `ALTER TABLE productos
+ALTER COLUMN marca DROP DEFAULT` cierra el mismo agujero desde el otro lado:
+una columna omitida ahora se comporta exactamente como un `NULL` explícito,
+que es la semántica de abstención que la FK ya asume. Medido, no asumido:
+9 clases de test (`CatalogSqlEquivalenceTest`, `CheckDomainTest`,
+`CategoriaLookupTableTest`, y 6 más bajo `ar.scraper.web`) fallaban con
+`fk_productos_marca` antes de este fix — la re-ejecución completa de la
+suite después de ambos cambios (el `nullif` de `sp_upsert_run` y el `DROP
+DEFAULT`) es la prueba, no una inspección de código.
+
+**Agregar una marca curada sin migración.** Igual que `sitio`, el seed
+estático de `V21` sólo existe para que la FK pueda ser VALID al momento de
+migrar. `MarcaSeeder` (`ApplicationRunner`, `@Order(HIGHEST_PRECEDENCE)`)
+re-siembra `marca` desde `BrandExtractor.MARCAS` en cada boot con
+`ON CONFLICT DO NOTHING` — agregar una marca es una línea en `MARCAS`, la
+fila aparece en el próximo boot, ninguna migración nueva. `MarcaSeedSyncTest`
+(classpath, sin DB) prueba una sola dirección: el seed de `V21` ⊆ `MARCAS`
+— nunca la inversa, porque `V21` queda congelado el día que se aplica y
+`MARCAS` puede crecer después sin que este test tenga que tocarse.
+
+> El bloque de abajo lo ejecuta `V21RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V21
+ALTER TABLE productos DROP CONSTRAINT fk_productos_marca;
+ALTER TABLE productos ALTER COLUMN marca SET DEFAULT '';
+DROP TABLE marca;
+-- <<< rollback:V21
+```
+
+Lossless para el esquema (la FK y la tabla vuelven exactamente a como
+estaban). NO intenta deshacer el `UPDATE marca = NULL WHERE marca = ''` —
+no es reversible (no queda registro de qué fila era `''` contra cuál ya
+era `NULL` antes) y tampoco hace falta: el borde de lectura ya trata ambos
+casos de forma idéntica (`marca != null ? marca : ""`), así que revertir el
+`DROP` no cambia ningún comportamiento observable.
+
+Tampoco restaura `sp_upsert_run` a su forma de `V17` — mismo precedente que
+`V17`'s propio bloque: una función no se puede recrear dos veces contra el
+mismo esquema dentro de un round-trip de test. Fuera del bloque: restaurar
+`COALESCE(r->>'marca', '')` requiere un `CREATE OR REPLACE FUNCTION` con el
+cuerpo de `V17` verbatim, en su propia migración hacia adelante.
+
 ---
 
 ## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
