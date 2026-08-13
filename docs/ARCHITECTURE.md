@@ -546,6 +546,41 @@ de la migración, y borrarlas perdería información que nadie más tiene.
 
 ---
 
+### Bloqueo conocido: Logg queda fuera de `fix-zero-yield-tech-sites`
+
+De los cinco sitios tech que scrapeaban 0 productos en el run del 2026-08-11
+(Compragamer, Rockethard, Venex, Maximus, Logg), cuatro se resolvieron en este
+cambio. **Logg no.** El diagnóstico heredado lo daba como "typo de URL,
+minutos" — medido en vivo contra `logg.com.ar` (2026-08-13) resultó ser el más
+caro de los cinco, no el más barato:
+
+- Plataforma custom ASP.NET **ABP** (`abp.min.js`, `abp.jquery.js`,
+  `signalr.min.js`), no una de las plataformas ya soportadas.
+- El grid de productos es **JS-hydrated**: `/Products?categoryName=…` sirve
+  ~119 KB con cero product cards en el HTML crudo — todo el contenido llega
+  después, por un mecanismo no identificado (¿JSON endpoint propio? ¿SignalR?
+  ¿ambos?).
+- La fuente de hidratación real nunca se aisló durante la exploración de este
+  cambio (proposal, riesgo R2). Sin eso, ni un `LoggPage`/`LoggScraper` ni una
+  fila de seed para `logg` en `sitio.plataforma` pueden escribirse con
+  confianza — arrancarían adivinando un contrato que nadie confirmó contra el
+  sitio real.
+
+**Decisión** (post-design, explícita del usuario): no ship Logg en este
+cambio. Consecuencia directa en el esquema: el dominio de `sitio.plataforma`
+crece de 9 a **11** valores (`qloud`, `oscommerce`), no a 12 — no existe
+`logg` en el CHECK, no existe `V25`, no existe `LoggPage`/`LoggScraper`, y
+`config.properties` no tiene ninguna entrada `sitio.logg.*`. No queda ningún
+valor muerto ni código muerto por retirar después: la migración que hubiera
+agregado `logg` nunca se escribió, en vez de escribirse y revertirse.
+
+Retomar Logg es trabajo de exploración, no de implementación: hay que capturar
+tráfico de red real contra `/Products?...` (DevTools, no `curl`) para encontrar
+qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
+`LoggPage`.
+
+---
+
 ### Las funciones plpgsql pasan a migraciones repetibles (`R__`)
 
 `sp_upsert_run` llegó a tener **siete copias** —`V1`, `V3`, `V5`, `V7`, `V17`,

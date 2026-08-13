@@ -15,11 +15,17 @@ Antes de codear, determinar la plataforma del sitio:
 
 > **Detección real** (`ScraperFactory.crear`, en orden): WooCommerce → Maximus →
 > FullH4rd → CompraGamer → Vaypol → VTEX → Shopify → Monkyforce → default
-> (Tiendanube). Además de las plataformas genéricas de arriba, el proyecto ya
-> tiene scrapers propios por sitio: **Maximus, FullH4rd, CompraGamer** (hardware/
-> PC — el proyecto ya no es solo moda) y **Monkyforce** (gym). Esos son el "Caso 5"
-> (Page/Scraper custom) ya resueltos; agregá el nombre a su name-set si aparece
-> otra tienda de la misma plataforma.
+> (Tiendanube). Desde `V20` esto **no** se resuelve con name-sets en Java: cada
+> `if` de `crear()` lee `siteRegistry.plataforma(sitioKey)`, y esa columna sale
+> de la tabla `sitio` (sembrada por migración). Los 8 `Set.of(...)` que existían
+> antes fueron **borrados**, no reemplazados por otra copia — agregar un sitio a
+> una plataforma ya soportada es una fila de seed, no una edición de código.
+> Además de las plataformas genéricas de arriba, el proyecto ya tiene scrapers
+> propios por sitio/plataforma: **Maximus, FullH4rd, CompraGamer** (hardware/PC
+> — el proyecto ya no es solo moda), **Monkyforce** (gym), **Qloud** (Rockethard)
+> y **osCommerce** (Venex). Esos son el "Caso 5" (Page/Scraper custom) ya
+> resueltos; agregá una fila de seed con el `plataforma` correspondiente si
+> aparece otra tienda sobre la misma plataforma — ver el patrón abajo.
 
 **Cómo detectar la plataforma**:
 1. Ver el HTML fuente: buscar `meta-shopify`, `cdn/shop/`, `LS.store`, `vtex`
@@ -135,13 +141,39 @@ public class NombreScraper extends BaseScraper {
 }
 ```
 
-### 3. `ScraperFactory.java`
-```java
-private static final Set<String> NOMBRE_NOMBRES = Set.of("nombre");
+### 3. Dar de alta la plataforma: migración + `ScraperFactory.java` + `config.properties`
 
-// En crear():
-if (NOMBRE_NOMBRES.contains(n)) return new NombreScraper(config, display, site.url());
+Desde `V20`, `ScraperFactory.crear` no mantiene un name-set por sitio: lee
+`sitio.plataforma` a través de `SiteRegistry`. Un sitio nuevo sobre una
+plataforma nueva necesita las tres piezas en el **mismo commit**
+(`site-platform-vocabulary`/Config-and-Seed-Move-Together — si una se olvida,
+`SitioSeedSyncTest` o `PlatformVocabularySyncTest` lo marcan rojo):
+
+**a) Migración nueva** (`V{N}__platform_vocabulary_nombre.sql` — nunca edites
+una migración ya aplicada, `sitio_plataforma_check` es CHECK, no tabla, por el
+mismo criterio de `V6`):
+```sql
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN (..., 'nombre_plataforma'));
+
+INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
+VALUES ('Nombre', 'nombre', 'nombre_plataforma', false, NULL, 'config')
+ON CONFLICT (nombre) DO NOTHING;
 ```
+
+**b) `ScraperFactory.java`** — un `if` más, mismo estilo que los existentes,
+**nunca** un `Set.of(...)` (`CODE-6`, `site-platform-vocabulary`/ScraperFactory
+Routes Exclusively Off `sitio.plataforma`):
+```java
+if ("nombre_plataforma".equals(plataforma))
+    return new NombreScraper(config, display, site.url());
+```
+
+**c) `PLATAFORMAS_VALIDAS`** en `SitiosRepository.java` — segunda copia
+deliberada (valida sitios agregados desde el dashboard, sin tabla `sitio`
+todavía). Se amplía junto con el CHECK; `PlatformVocabularySyncTest`
+(classpath, sin DB) falla si las dos se desincronizan.
 
 ### 4. `config.properties`
 ```properties
