@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.cron.CronExecution;
 import ar.scraper.cron.CronJob;
 import ar.scraper.model.Product;
@@ -7,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -59,9 +61,26 @@ public class DatabaseService {
     private final PreciosExternosRepository preciosExternosRepository;
     private final ProductRepository productRepository;
     private final CatalogQueryRepository catalogQueryRepository;
+    private final SiteRegistry siteRegistry;
 
+    /**
+     * Backward-compatible overload for the ~46 existing test call sites that
+     * construct {@code DatabaseService} without a {@link SiteRegistry} — each
+     * gets its own private instance, backed by the same {@code DataSource},
+     * rather than the single Spring-managed singleton production wiring
+     * shares (close-1nf-and-3nf-foundation extension, design E1). None of
+     * those tests exercise cross-refresh behavior (a POST/DELETE
+     * {@code /api/sitios} elsewhere becoming visible here), so a private
+     * instance is behaviorally identical to them.
+     */
     public DatabaseService(DataSource dataSource) {
+        this(dataSource, new SiteRegistry(dataSource));
+    }
+
+    @Autowired
+    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry) {
         this.dataSource = dataSource;
+        this.siteRegistry = siteRegistry;
         this.catalogQueryRepository = new CatalogQueryRepository(dataSource);
         this.cronRepository = new CronRepository(dataSource);
         this.presetRepository = new PresetRepository(dataSource);
@@ -70,10 +89,14 @@ public class DatabaseService {
         this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
         this.mlOutputRepository = new MlOutputRepository(dataSource);
         this.historialRepository = new HistorialRepository(dataSource);
-        this.sitiosRepository = new SitiosRepository(dataSource);
+        this.sitiosRepository = new SitiosRepository(dataSource, siteRegistry);
         this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
         this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
-        this.productRepository = new ProductRepository(dataSource);
+        this.productRepository = new ProductRepository(dataSource, siteRegistry);
+    }
+
+    public SiteRegistry siteRegistry() {
+        return siteRegistry;
     }
 
     @PostConstruct

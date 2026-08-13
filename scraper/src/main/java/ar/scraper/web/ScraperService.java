@@ -293,7 +293,7 @@ public class ScraperService {
                 try {
                     return withRetry(() -> {
                         try (Playwright pw = Playwright.create()) {
-                            BaseScraper scraper = ScraperFactory.crear(config, site);
+                            BaseScraper scraper = ScraperFactory.crear(config, site, db.siteRegistry());
                             return scraper.ejecutar(pw);
                         }
                     }, 3, 2000);
@@ -507,7 +507,7 @@ public class ScraperService {
             }
 
             String productUrl = urls.get(0);
-            BaseScraper sc = ScraperFactory.crearParaFavorito(config, sitio, productUrl);
+            BaseScraper sc = ScraperFactory.crearParaFavorito(config, sitio, productUrl, db.siteRegistry());
 
             if (sc == null) {
                 LOG.info("[FAVORITOS] favoritos rescrape no soportado para {} (Fase 2)", sitio);

@@ -1,7 +1,6 @@
 package ar.scraper.db.migration;
 
 import ar.scraper.aggregator.normalize.SiteClassification;
-import ar.scraper.scrapers.ScraperFactory;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -23,18 +22,32 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * close-1nf-and-3nf-foundation, Phase 5 (V18, design DD3).
+ * close-1nf-and-3nf-foundation, Phase 5 (V18, design DD3) — REWRITTEN by the
+ * 3NF extension's Phase 1 (design E1, {@code CODE-2} declared).
  *
- * <p>Classpath-only, no DB — same shape as {@code StoredProcedureDriftTest}:
- * parses the {@code sitio} seed's literal {@code INSERT ... VALUES} rows out
- * of {@code V18__sitio_lookup_table.sql} and asserts, in BOTH directions,
- * that the seed is an asserted mirror of {@link SiteClassification} and
- * {@link ScraperFactory} rather than a fourth copy of the same knowledge
- * that can drift unnoticed (design's stated blocker for this table).</p>
+ * <p>V18 seeded {@code sitio} while it was still read by nothing, so this
+ * test's job was proving the seed was a faithful mirror of the four
+ * name-set copies of the same knowledge ({@code SiteClassification}'s
+ * {@code TECH_SITIOS}/{@code SUPPL_SITIOS}/{@code SITIOS_PREMIUM},
+ * {@code ScraperFactory}'s 8 name-sets + {@code PLATAFORMA_NOMBRES}) that
+ * could otherwise drift from it unnoticed.</p>
+ *
+ * <p>Phase 1 DELETES every one of those copies — {@code sitio}, read through
+ * {@link ar.scraper.aggregator.normalize.SiteRegistry}, is now the single
+ * source ({@code CODE-6}). There is nothing left to cross-check the seed's
+ * {@code es_premium}/{@code rubro_forzado}/{@code plataforma} values
+ * bidirectionally AGAINST — that coverage moves to
+ * {@code RubroResolverEqualityParityTest} (rubro semantics, old-substring
+ * oracle vs. new equality) and {@code ScraperFactoryPlatformTest} (platform
+ * routing behavior). What remains here, and is still exactly the failure
+ * mode a drifted seed produces, is the one check that has nothing to do with
+ * the deleted sets: a site configured in {@code config.properties} but
+ * missing from the {@code sitio} seed is the exact shape of the
+ * {@code forever}-scrapes-0-products bug this table exists to prevent.</p>
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 seed mirrors SiteClassification/ScraperFactory/config.properties")
+@Story("V18 seed covers every config.properties site")
 @DisplayName("V18 — sitio seed sync (no DB)")
 class SitioSeedSyncTest {
 
@@ -42,69 +55,6 @@ class SitioSeedSyncTest {
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
                             boolean esPremium, String rubroForzado, String origen) {
-    }
-
-    @Test
-    @DisplayName("es_premium ⟺ SiteClassification.SITIOS_PREMIUM, en las dos direcciones")
-    void esPremiumEsBidireccionalConSitiosPremium() {
-        List<SeedRow> rows = seedRows();
-
-        for (SeedRow row : rows) {
-            assertThat(row.esPremium())
-                    .as("fila '%s' (sitio_key=%s): es_premium debe reflejar SITIOS_PREMIUM", row.nombre(), row.sitioKey())
-                    .isEqualTo(SiteClassification.SITIOS_PREMIUM.contains(row.sitioKey()));
-        }
-
-        Set<String> sitioKeysSemeadas = rows.stream().map(SeedRow::sitioKey).collect(java.util.stream.Collectors.toSet());
-        for (String premium : SiteClassification.SITIOS_PREMIUM) {
-            assertThat(sitioKeysSemeadas)
-                    .as("SITIOS_PREMIUM '%s' tiene que estar sembrado", premium)
-                    .contains(premium);
-        }
-    }
-
-    @Test
-    @DisplayName("rubro_forzado ⟺ TECH_SITIOS/SUPPL_SITIOS (nombres bare), en las dos direcciones")
-    void rubroForzadoEsBidireccionalConTechYSupplSitios() {
-        List<SeedRow> rows = seedRows();
-        Set<String> techBare = soloNombresBare(SiteClassification.TECH_SITIOS);
-        Set<String> supplBare = soloNombresBare(SiteClassification.SUPPL_SITIOS);
-
-        for (SeedRow row : rows) {
-            String esperado = techBare.contains(row.sitioKey()) ? "tecnologia"
-                    : supplBare.contains(row.sitioKey()) ? "suplementos"
-                    : null;
-            assertThat(row.rubroForzado())
-                    .as("fila '%s' (sitio_key=%s): rubro_forzado", row.nombre(), row.sitioKey())
-                    .isEqualTo(esperado);
-        }
-
-        Set<String> sitioKeysSemeadas = rows.stream().map(SeedRow::sitioKey).collect(java.util.stream.Collectors.toSet());
-        for (String tech : techBare) {
-            assertThat(sitioKeysSemeadas).as("TECH_SITIOS '%s' tiene que estar sembrado", tech).contains(tech);
-        }
-        for (String suppl : supplBare) {
-            assertThat(sitioKeysSemeadas).as("SUPPL_SITIOS '%s' tiene que estar sembrado", suppl).contains(suppl);
-        }
-    }
-
-    @Test
-    @DisplayName("plataforma ⟺ los 8 name-sets de ScraperFactory, else 'tiendanube'")
-    void plataformaEsBidireccionalConScraperFactory() {
-        List<SeedRow> rows = seedRows();
-
-        for (SeedRow row : rows) {
-            String esperado = "tiendanube";
-            for (var entry : ScraperFactory.PLATAFORMA_NOMBRES.entrySet()) {
-                if (entry.getValue().contains(row.sitioKey())) {
-                    esperado = entry.getKey();
-                    break;
-                }
-            }
-            assertThat(row.plataforma())
-                    .as("fila '%s' (sitio_key=%s): plataforma", row.nombre(), row.sitioKey())
-                    .isEqualTo(esperado);
-        }
     }
 
     @Test
@@ -124,15 +74,6 @@ class SitioSeedSyncTest {
     }
 
     // ─── helpers ───────────────────────────────────────────────────────────
-
-    /** Nombres bare (sin punto) de un set que mezcla nombre de sitio y variantes con dominio. */
-    private static Set<String> soloNombresBare(Set<String> sitios) {
-        Set<String> bare = new LinkedHashSet<>();
-        for (String s : sitios) {
-            if (!s.contains(".")) bare.add(s);
-        }
-        return bare;
-    }
 
     private static List<String> sitiosActivosDeConfigProperties() {
         List<String> nombres = new ArrayList<>();
