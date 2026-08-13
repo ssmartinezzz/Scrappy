@@ -11,25 +11,18 @@ import java.util.Set;
  * normalization expression from {@code normalizarProducto} (Work Unit 3 of
  * the aggregator SOLID modularization) — pure relocation, no behavior
  * change.</p>
+ *
+ * <p>{@code TECH_SITIOS}, {@code SUPPL_SITIOS} and {@code SITIOS_PREMIUM} were
+ * DELETED (close-1nf-and-3nf-foundation extension, design E1/E3) — their
+ * substring-matching {@code sitioKey.contains(...)} readers moved to
+ * equality lookups against {@link SiteRegistry}, which owns this data now
+ * ({@code CODE-6}). {@code GYM_SITIOS}/{@code GYM_MARCAS} stay: they are a
+ * tagging heuristic, not a transitive dependency of {@code productos} on
+ * {@code sitio} (design's stated non-goal).</p>
  */
 public final class SiteClassification {
 
     private SiteClassification() {}
-
-    // Sitios cuyo rubro se fuerza independientemente de lo que traiga el scraper.
-    // foreverbstrd salió de acá (close-1nf-and-3nf-foundation, design DD5):
-    // es streetwear real (Tiendanube), no tecnología — estaba clasificado como
-    // tech sin ninguna razón de dominio. V18 reescribe el rubro sticky que
-    // esto deja en productos ya persistidos (no es autocurativo — ver
-    // RubroResolver.resolver's fallthrough a rubroExistente).
-    public static final Set<String> TECH_SITIOS = Set.of(
-        "compragamer","fullh4rd","maximus",
-        "compragamer.com","fullh4rd.com.ar","maximus.com.ar"
-    );
-
-    public static final Set<String> SUPPL_SITIOS = Set.of(
-        "entreno","entreno.com.ar"
-    );
 
     // Sitios 100% orientados a ropa/indumentaria de gimnasio
     // Nota: la marca es "Monky" sin e — el key debe matchear el nombre
@@ -47,24 +40,8 @@ public final class SiteClassification {
         "nike", "adidas", "puma", "champion", "under armour", "reebok"
     );
 
-    // ══════════════════════════════════════════════════════════════════
-    // SITIOS PREMIUM — tag transversal aditivo "marcaPremium"
-    // Por sitio (tienda), no por marca extraída del nombre del producto:
-    // la mayoría de los productos de una tienda premium no llevan el
-    // nombre de la tienda en el título (ej. Harvey Willys vende "Soquete
-    // Ozzy Black", no "Harvey Willys Ozzy Black").
-    // NO altera ni reordena la cadena de prioridad de `badge` en ml_pipeline.py.
-    // ══════════════════════════════════════════════════════════════════
-    public static final Set<String> SITIOS_PREMIUM = Set.of(
-        "harvey"
-    );
-
     /** Normaliza el nombre de un sitio a su clave comparable (lowercase, sin no-alfanuméricos). */
     public static String sitioKey(String sitio) {
         return (sitio != null ? sitio : "").toLowerCase().replaceAll("[^a-z0-9]", "");
-    }
-
-    public static boolean esPremium(String sitioKey) {
-        return SITIOS_PREMIUM.contains(sitioKey);
     }
 }

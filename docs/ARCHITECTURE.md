@@ -725,6 +725,97 @@ borran: con `BrandExtractor` abstiniendo, `marca` sólo puede ser `""`
 Sin rollback: la regla vieja era literalmente `marca = sitio`, no hay nada
 que reconstruir desde el esquema.
 
+#### `sitio` pasa de sembrada-pero-leída-por-nadie a única fuente de `plataforma` (V20)
+
+close-1nf-and-3nf-foundation, extensión 3FN (design E1). `V18` dejó
+`sitio.plataforma` sembrada pero leída por nadie (DD3) — `plataforma` seguía
+viviendo, en paralelo, en `sitios_dinamicos.plataforma` y en los 8 name-sets
+de `ScraperFactory` + `PLATAFORMA_NOMBRES`. `V20` cierra esa duplicación:
+`SiteRegistry` (bean único, cargado al boot, refrescado por
+`POST`/`DELETE /api/sitios`) pasa a ser el único lector de `sitio`, y los 8
+name-sets + `PLATAFORMA_NOMBRES` de `ScraperFactory` junto con
+`SiteClassification.TECH_SITIOS`/`SUPPL_SITIOS`/`SITIOS_PREMIUM` se BORRAN,
+no se mantienen en paralelo (`CODE-6`).
+
+**Antes de soltar la columna, un `UPDATE` de re-sync, no un `DROP` a secas.**
+`V18` sembró `sitio.plataforma` desde `sitios_dinamicos` en el instante en que
+corrió esa migración; un sitio agregado desde el dashboard *después* de `V18`
+y *antes* de `V20` pudo haber cambiado de plataforma sin que `sitio` se
+enterara (nada lo leía todavía, así que nada lo mantenía sincronizado). El
+`UPDATE ... FROM sitios_dinamicos` re-absorbe cualquier drift de esa ventana
+antes de que la columna deje de existir. `sitios_dinamicos` conserva
+`(nombre, url, created_at)` — su único trabajo que queda es "la URL a
+scrapear"; `plataforma` se lee ahora vía `SitiosRepository.cargarSitiosDinamicos`
+con un `LEFT JOIN sitio` + `COALESCE(..., 'tiendanube')` — el mismo default de
+abstención que un nombre no matcheado siempre tuvo, en vez de un `INNER JOIN`
+que podría hacer desaparecer una fila de la respuesta.
+
+**El backfill de `rubro_forzado` que NO viaja en `V20` (design E3).** El
+`RubroResolver` que hasta acá comparaba por substring
+(`sitioKey.contains(token)`) pasa a comparar por igualdad contra
+`SiteRegistry.rubroForzado`. La pregunta que importa no es si el código
+cambia — es si algún `sitio` real cambia de rubro bajo esa igualdad. Medido
+contra la base de dev real (23 filas en `sitio`, TODAS `origen='config'` —
+no existe ninguna fila `dinamico`/`historico` en esa base para ejercer el
+riesgo hacia adelante que sigue sin medir): **0 filas**. Los cuatro tokens
+(`compragamer`, `fullh4rd`, `maximus`, `entreno`) son iguales a su propio
+`sitio_key` exactamente; las variantes con dominio
+(`compragamer.com`, `fullh4rd.com.ar`, `maximus.com.ar`, `entreno.com.ar`)
+eran, y siguen siendo, inalcanzables — `sitioKey()` saca los puntos, así que
+sólo podrían matchear un sitio literalmente llamado así, y ninguno existe.
+`V20` no manda ningún `UPDATE` de rubro: uno vacío se vería igual a uno que sí
+hizo algo, y esa distinción **sí** importa para el próximo que lea el diff.
+`RubroResolverEqualityParityTest` (classpath, sin DB) prueba mecánicamente
+que la igualdad nueva concuerda con el substring viejo sobre 23 sitios × 81
+categorías × 5 rubros previos — 9.315 triples — con el substring viejo
+conservado ÚNICAMENTE en el archivo de test, nunca en `main` (`CODE-6`).
+
+**Medido, no estimado (`CODE-3`).** Mismo harness (jshell, JIT calentado con
+20 pasadas antes de medir, 500 pasadas × 9.315 combinaciones = 4.657.500
+llamadas) antes/después del cambio: el substring viejo (`stream().anyMatch` +
+`replaceAll` por elemento del set, por llamada) da **~1.288 ns/llamada**; el
+lookup de igualdad nuevo (un `HashMap.get`) da **~139 ns/llamada** — ~9,3x
+más rápido. Esperable y no el objetivo del cambio (el objetivo es cerrar el
+riesgo de substring, E3), pero se reporta el número real en vez de asumirlo.
+
+**`marcaPremium` también migra de lectura.** `NormalizerService` leía
+`SiteClassification.SITIOS_PREMIUM.contains(sitioKey)` directamente; ahora lee
+`SiteRegistry.esPremium(sitioKey)` — mismo dato (`harvey` → `true`), un solo
+dueño. `productos.marca_premium` en sí **no se toca** en esta migración — eso
+es `V22`, condicionado a la medición de `EXPLAIN` de esa fase.
+
+**El write path que DD4 dejaba pendiente queda resuelto en este slice.**
+`SitiosRepository.guardarSitio` ahora hace upsert en `sitio` ADEMÁS de
+`sitios_dinamicos` — con la `plataforma` recibida validada contra el mismo
+dominio cerrado del `CHECK` (si no matchea, cae a `'tiendanube'`, igual que
+`V18`'s propio `INSERT ... SELECT` desde `sitios_dinamicos`) — y
+`eliminarSitio` marca `sitio.origen='historico'` en vez de borrar la fila
+(un sitio retirado sigue siendo un nombre históricamente válido, el mismo
+criterio que le dio origen a la columna `origen`). Ambos métodos terminan con
+`SiteRegistry.reload()`, así que un alta o baja desde el dashboard es visible
+sin reiniciar el proceso.
+
+> El bloque de abajo lo ejecuta `V20RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V20
+ALTER TABLE sitios_dinamicos ADD COLUMN plataforma TEXT;
+UPDATE sitios_dinamicos d SET plataforma = s.plataforma
+FROM sitio s WHERE s.nombre = d.nombre;
+UPDATE sitios_dinamicos SET plataforma = 'tiendanube' WHERE plataforma IS NULL;
+ALTER TABLE sitios_dinamicos ALTER COLUMN plataforma SET NOT NULL;
+-- <<< rollback:V20
+```
+
+Lossless para toda fila `dinamico` que siga en `sitio` (la inmensa mayoría):
+su `plataforma` se reconstruye exactamente desde la copia que `sitio` ya
+tiene. El único caso no perfectamente reversible es una fila `sitios_dinamicos`
+cuyo `sitio` correspondiente ya no exista (no debería pasar — `guardarSitio`
+escribe las dos en la misma llamada — pero si pasara, el `UPDATE` de default
+la deja en `'tiendanube'`, la misma abstención que un nombre nunca visto
+siempre obtuvo).
+
 ---
 
 ## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)

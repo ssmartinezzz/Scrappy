@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.aggregator.normalize.SiteClassification;
+import ar.scraper.aggregator.normalize.SiteRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,39 +15,76 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Persistence for the {@code sitios_dinamicos} aggregate (sites added from the
  * dashboard, on top of the ones declared in {@code config.properties}).
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
+ *
+ * <p>close-1nf-and-3nf-foundation extension (design E1/E7): {@code sitio} is
+ * DD4's deferred write path — {@link #guardarSitio} upserts both tables so
+ * the FK {@code productos.sitio -> sitio(nombre)} that lands later in this
+ * same extension can never fail for a name reachable through here;
+ * {@link #eliminarSitio} deletes the {@code sitios_dinamicos} row and flips
+ * {@code sitio.origen} to {@code 'historico'} — the state {@code V18}
+ * invented {@code origen} for. Every write calls
+ * {@link SiteRegistry#reload()} so the cached copy never lags the table it
+ * mirrors.</p>
  */
 class SitiosRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(SitiosRepository.class);
 
-    private final DataSource dataSource;
+    /** Mirrors the CHECK domain on {@code sitio.plataforma} (V18) — an untrusted client value must not abort the write. */
+    private static final Set<String> PLATAFORMAS_VALIDAS = Set.of(
+            "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
+            "monkyforce", "maximus", "fullh4rd", "compragamer");
 
-    SitiosRepository(DataSource dataSource) {
+    private final DataSource dataSource;
+    private final SiteRegistry siteRegistry;
+
+    SitiosRepository(DataSource dataSource, SiteRegistry siteRegistry) {
         this.dataSource = dataSource;
+        this.siteRegistry = siteRegistry;
     }
 
     void guardarSitio(String nombre, String url, String plataforma) {
         Objects.requireNonNull(nombre, "nombre must not be null");
+        // sitios_dinamicos.plataforma was dropped by V20 — sitio.plataforma
+        // (below) is the only copy now (design E1). sitios_dinamicos keeps
+        // (nombre, url, created_at): its remaining job is "the URL to scrape".
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO sitios_dinamicos (nombre, url, plataforma, created_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(nombre) DO UPDATE SET url=excluded.url, plataforma=excluded.plataforma
+                    INSERT INTO sitios_dinamicos (nombre, url, created_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(nombre) DO UPDATE SET url=excluded.url
                     """)) {
             ps.setString(1, nombre);
             ps.setString(2, url);
-            ps.setString(3, plataforma);
-            ps.setObject(4, Timestamps.now());
+            ps.setObject(3, Timestamps.now());
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
         }
+
+        String plataformaValida = PLATAFORMAS_VALIDAS.contains(plataforma) ? plataforma : "tiendanube";
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
+                    VALUES (?, ?, ?, false, NULL, 'dinamico')
+                    ON CONFLICT (nombre) DO UPDATE SET plataforma = EXCLUDED.plataforma
+                    """)) {
+            ps.setString(1, nombre);
+            ps.setString(2, SiteClassification.sitioKey(nombre));
+            ps.setString(3, plataformaValida);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error guardando sitio (tabla sitio): {}", e.getMessage());
+        }
+
+        siteRegistry.reload();
     }
 
     void eliminarSitio(String nombre) {
@@ -57,14 +96,33 @@ class SitiosRepository {
         } catch (Exception e) {
             LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
         }
+
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                "UPDATE sitio SET origen = 'historico' WHERE nombre = ? AND origen = 'dinamico'")) {
+            ps.setString(1, nombre);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            LOG.warn("[DB] Error actualizando origen de sitio: {}", e.getMessage());
+        }
+
+        siteRegistry.reload();
     }
 
     List<Map<String, String>> cargarSitiosDinamicos() {
         List<Map<String, String>> result = new ArrayList<>();
+        // plataforma reads through sitio now (V20) — LEFT JOIN + COALESCE so a
+        // dinamico row somehow missing its sitio counterpart still abstains to
+        // the same default an unmatched name always got, rather than dropping
+        // the row from the response.
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT nombre, url, plataforma FROM sitios_dinamicos ORDER BY created_at")) {
+             ResultSet rs = st.executeQuery("""
+                SELECT d.nombre, d.url, COALESCE(s.plataforma, 'tiendanube') AS plataforma
+                FROM sitios_dinamicos d
+                LEFT JOIN sitio s ON s.nombre = d.nombre
+                ORDER BY d.created_at
+                """)) {
             while (rs.next()) {
                 Map<String, String> row = new LinkedHashMap<>();
                 row.put("nombre",     rs.getString(1));

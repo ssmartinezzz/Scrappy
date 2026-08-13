@@ -2,6 +2,7 @@ package ar.scraper.db;
 
 import ar.scraper.aggregator.normalize.RubroResolver;
 import ar.scraper.aggregator.normalize.SiteClassification;
+import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,12 +45,14 @@ class ProductRepository {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final DataSource dataSource;
-    // Stateless (no injected dependencies of its own) — instantiated directly, same
-    // rationale as before the split (manual-classification-lock Phase 3).
-    private final RubroResolver rubroResolver = new RubroResolver();
+    // Not Spring-managed (constructed directly by DatabaseService, same rationale
+    // as before the split, manual-classification-lock Phase 3) — takes the shared
+    // SiteRegistry passed down from DatabaseService instead of resolving its own.
+    private final RubroResolver rubroResolver;
 
-    ProductRepository(DataSource dataSource) {
+    ProductRepository(DataSource dataSource, SiteRegistry siteRegistry) {
         this.dataSource = dataSource;
+        this.rubroResolver = new RubroResolver(siteRegistry);
     }
 
     // ─── Upsert de productos (write-path, design D2) ─────────────────────────
