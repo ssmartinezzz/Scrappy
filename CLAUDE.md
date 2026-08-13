@@ -134,17 +134,23 @@ Scrappy/
 | dcshoes | WooCommerce | moda | |
 | maximus, fullh4rd | Scrapers propios | tecnologia | Hardware/PC |
 | compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (~1400 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular |
+| rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **637 productos** en el primer run real (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
 
+Desde `V20` esto lee `sitio.plataforma` vía `SiteRegistry`, no name-sets en
+código (ver [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md)). La lista de abajo
+es qué sitio hoy tiene sembrado cada valor, no un `Set.of(...)` a editar:
+
 ```
-WOOCOMMERCE → {dcshoes, woocommerce}
-MAXIMUS → {maximus}   FULLH4RD → {fullh4rd}   COMPRAGAMER → {compragamer}
-VAYPOL  → {vaypol, city}
-VTEX    → {sporting} o url contiene vtexcommercestable.com.br / vteximg.com.br
-SHOPIFY → {freres, vcp, forever} o url contiene myshopify.com
-MONKYFORCE → {monkyforce}
+WOOCOMMERCE → dcshoes
+MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
+VAYPOL  → vaypol, city
+QLOUD   → rockethard
+VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
+SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
+MONKYFORCE → monkyforce
 default → TiendanubeScraper (JS heurístico)
 ```
 
