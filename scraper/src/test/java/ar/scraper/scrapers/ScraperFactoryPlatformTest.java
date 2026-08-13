@@ -42,7 +42,8 @@ class ScraperFactoryPlatformTest {
             "freres", new SiteRegistry.Sitio("Freres", "freres", "shopify", false, null, "config"),
             "vcp", new SiteRegistry.Sitio("Vcp", "vcp", "shopify", false, null, "config"),
             "foreverbstrd", new SiteRegistry.Sitio("Foreverbstrd", "foreverbstrd", "tiendanube", false, null, "config"),
-            "barnes", new SiteRegistry.Sitio("Barnes", "barnes", "tiendanube", false, null, "config")
+            "barnes", new SiteRegistry.Sitio("Barnes", "barnes", "tiendanube", false, null, "config"),
+            "rockethard", new SiteRegistry.Sitio("Rockethard", "rockethard", "qloud", false, "tecnologia", "config")
     ));
 
     @Step("Create scraper for sitio={nombre}, url={url}")
@@ -80,6 +81,12 @@ class ScraperFactoryPlatformTest {
     void barnesStaysOnTiendanube() {
         assertThat(crear("barnes", "https://barnesindustries.com.ar"))
                 .isInstanceOf(TiendanubeScraper.class);
+    }
+
+    @Test
+    void rockethardRoutesToQloud() {
+        assertThat(crear("rockethard", "https://rockethard.com.ar"))
+                .isInstanceOf(QloudScraper.class);
     }
 
     @Test
