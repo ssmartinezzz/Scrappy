@@ -479,32 +479,52 @@ destruye historial del usuario: es una decisión de producto, no de esquema.
 
 ---
 
-### `V23` — la FK de `productos.sitio`, con get-or-create
+### `V23` — la FK del sitio, sobre la **clave** y no sobre el nombre
 
 La FK que faltaba, y que el design E7 había especificado pero nunca se
-implementó (lo encontró el verify, no el review). Sin ella `productos.sitio`
+implementó — lo encontró el verify, no el review. Sin ella `productos.sitio`
 seguía siendo un string suelto contra una tabla que ya es la fuente
 autoritativa de `plataforma`, `es_premium` y `rubro_forzado`.
+
+**El design decía `productos.sitio → sitio(nombre)`, y estaba mal.** Se
+implementó tal cual y reventó 28 tests con un mensaje que explica el problema
+entero:
+
+```
+Key (sitio)=(VCP) is not present in table "sitio".
+```
+
+`V18` sembró ese sitio como `'Vcp'`. El scraper y los fixtures escriben
+`'VCP'` y `'vcp'`. **Los tres son el mismo sitio**: `sitioKey()` los manda a
+`'vcp'`. Una FK sobre `nombre` enforcea igualdad de string de display, o sea
+sensibilidad a mayúsculas — que no es lo que significa identidad de sitio en
+ningún otro lado de este sistema. `SiteClassification.sitioKey()` existe
+precisamente porque el display **no** es la identidad, y por eso `V18` lleva
+las dos columnas desde el principio. Así que la FK va sobre `sitio_key`, y
+`productos.sitio` queda como lo que siempre fue: lo que reportó el scraper,
+sin reescribir.
+
+**La columna es generada, no mantenida.** `productos.sitio_key` es
+`GENERATED ALWAYS AS ... STORED` con la misma expresión que corre `sitioKey()`
+en Java. No hay camino de escritura que actualizarla ni forma de que se
+desincronice de `sitio`. Una columna derivada mantenida a mano habría sido una
+copia más para desalinear, que es justo el problema que este cambio entero vino
+a cerrar. El `nullif(..., '')` hace que un sitio vacío o nulo dé `NULL`, y una
+FK ignora los NULL, así que un producto sin sitio no rebota.
 
 **Sola sería una trampa.** Un scrape de un sitio que todavía no está en
 `sitio` la violaría dentro de `sp_upsert_run`, y ese error lo atrapa
 `ProductRepository`, que loguea y devuelve `UpsertStats(0,0,0,0)`: sale como
 `"0 nuevos"`, nunca como error. Por eso la FK viaja junto con un
 **get-or-create** en `R__sp_upsert_run.sql` — la fila de `sitio` se crea antes
-que el producto que la referencia, lo que hace la restricción infalsificable
-para cualquier cosa que escriba el scraper. `SitioGetOrCreateTest` prueba las
-dos mitades y afirma `nuevos()` antes que cualquier columna.
+que el producto que la referencia. `SitioGetOrCreateTest` prueba las dos
+mitades y afirma `nuevos()` antes que cualquier columna.
 
 `ON CONFLICT DO NOTHING` **sin target** es deliberado: cubre las dos
-restricciones únicas de la tabla (`nombre` PK y `sitio_key`), así que un sitio
-ya sembrado nunca se pisa y Harvey conserva su `es_premium`.
-
-**Borde residual, declarado en vez de disimulado:** si aparecieran dos nombres
-distintos que normalizan a la misma `sitio_key` ("Harvey" y "Harvey!"), el
-get-or-create no insertaría el segundo y su producto rebotaría contra la FK —
-tragado. Es patológico: los nombres salen de `config.properties` o de
-`sitios_dinamicos`, ambos ya sembrados en `V18`, así que requiere que alguien
-cargue a mano un nombre que colisione en clave con uno existente.
+restricciones únicas de la tabla (`nombre` PK y `sitio_key`), así que cuando
+llega `'VCP'` y la clave `'vcp'` ya existe bajo `'Vcp'`, no inserta nada — y
+eso ahora está **bien**, porque la FK mira la clave. Un sitio ya sembrado
+tampoco se pisa: Harvey conserva su `es_premium`.
 
 Este fue además el primer cambio declarado contra una migración **repetible**
 en vez de una copia versionada nueva, y es lo que el movimiento a `R__`
@@ -635,6 +655,32 @@ un producto, ni relacionar prendas con un futuro `user_uuid`. Semántica **foto
 `url` permite traer el precio de HOY por LEFT JOIN. Por eso esa `url` **no
 lleva FK**, mismo criterio que el audit trail de `V4`: un producto
 discontinuado no puede borrar un outfit del usuario.
+
+---
+
+### Por qué el esquema decía estar en 1FN sin estarlo
+
+Vale la pena dejarlo escrito, porque la afirmación falsa sobrevivió varias
+migraciones sin que nadie la cuestionara, y el motivo es una media verdad muy
+fácil de repetir.
+
+**1FN pide DOS cosas, no una.** Sin grupos repetitivos, sí — pero también
+valores **atómicos** por celda. La primera mitad se venía cerrando con
+disciplina: `talles`/`ml_badge` salieron a tablas hijas en `V7`, `sitios_json`
+en `V9`, `slots_json`/`suplementos_json` en `V14`, y `V15` borró las cuatro
+columnas `*_url` de `outfit_feedback`, que eran un grupo repetitivo desplegado
+en columnas, la forma más clásica que hay.
+
+Y ahí se declaró la victoria. Pero la segunda mitad seguía rota:
+`categoria_stats.payload` era un `TEXT` con un registro entero serializado
+adentro — un valor compuesto en una sola celda. Ningún grupo repetitivo, y aun
+así no atómico.
+
+La lección que queda: *"no quedan columnas multivaluadas"* **no** es lo mismo
+que *"está en 1FN"*, y confundirlas es cómodo porque los grupos repetitivos son
+visibles de un vistazo mientras que un blob serializado parece una columna
+normal. `V16` cerró esa segunda mitad, y recién ahí la afirmación se volvió
+cierta.
 
 ---
 

@@ -25,10 +25,13 @@ import java.util.Set;
  *
  * <p>close-1nf-and-3nf-foundation extension (design E1/E7): {@code sitio} is
  * DD4's deferred write path — {@link #guardarSitio} upserts both tables so
- * the FK {@code productos.sitio -> sitio(nombre)} added by {@code V23} can
- * never fail for a name reachable through here. That FK's other half is the
- * get-or-create inside {@code sp_upsert_run}, which covers names that arrive
- * from a scrape without passing through this repository;
+ * the FK {@code productos.sitio_key -> sitio(sitio_key)} added by {@code V23}
+ * can never fail for a name reachable through here. That FK targets the
+ * normalized KEY, not the display name: {@code 'VCP'}, {@code 'vcp'} and
+ * {@code 'Vcp'} are the same site, and {@code productos.sitio_key} is a
+ * generated column carrying {@code sitioKey()}'s normalization. Its other half
+ * is the get-or-create inside {@code sp_upsert_run}, which covers names that
+ * arrive from a scrape without passing through this repository;
  * {@link #eliminarSitio} deletes the {@code sitios_dinamicos} row and flips
  * {@code sitio.origen} to {@code 'historico'} — the state {@code V18}
  * invented {@code origen} for. Every write calls
