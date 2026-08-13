@@ -1,15 +1,19 @@
-# Fashion Scraper Argentina — Estado del Proyecto
+# Fashion Scraper Argentina — Guía
 
-> Este archivo describe **qué hay hoy**, para que una sesión nueva no tenga que
-> reconstruirlo desde cero. Leelo siempre antes de sugerir cambios.
+> **Este archivo es una guía índice: qué hay y dónde leerlo.** No es un
+> changelog ni el lugar de las justificaciones. Si acá aparece un párrafo
+> explicando *por qué* se tomó una decisión, está en el archivo equivocado y
+> va a [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 >
-> El reparto entre los tres documentos raíz es deliberado:
-> **`CLAUDE.md` = estado · [`CONTRIBUTING.md`](./CONTRIBUTING.md) = proceso ·
-> [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) = por qué.**
-> Si acá aparece una justificación larga, está en el lugar equivocado.
-> Índice completo de documentación: [`SKILL.md`](./SKILL.md).
+> El reparto entre los documentos raíz es deliberado:
+> **`CLAUDE.md` = guía · [`CONTRIBUTING.md`](./CONTRIBUTING.md) = proceso ·
+> [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) = por qué ·
+> [`SKILL.md`](./SKILL.md) = índice de documentación.**
 >
-> Última actualización integral: 2026-08-11.
+> Se carga en contexto en cada sesión, así que tiene que ser navegable: preferí
+> una tabla y un puntero antes que un párrafo.
+>
+> Última actualización integral: 2026-08-12.
 
 ---
 
@@ -192,228 +196,72 @@ cron_jobs / cron_executions -- Scraping programado + historial
 agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
 ```
 
-`V3` no agrega tablas: marca en `productos` la clasificación fijada a mano para
-que el pipeline no la pise, y extiende `agent_reclassify_audit`.
+### Migraciones
 
-`V4` (`normalize-db-schema-fks-1nf`, slice A.1) agrega FKs desde
-`producto_url`/`url` hacia `productos(url)`, con política por tabla decidida
-explícitamente: `precio_historico.url` y `precios_externos.producto_url` en
-`CASCADE` (VALID — cero orfandades verificadas en vivo); `favoritos.url` en
-`RESTRICT` (`NOT VALID` — igual enforcement en inserts/deletes nuevos, pero no
-valida el historial completo de una instalación existente; `VALIDATE
-CONSTRAINT` queda diferido a propósito). `agent_reclassify_audit.url` sigue
-**sin FK** — un audit trail no puede depender de que el dato mutable siga
-existiendo. Por esto, `DELETE /api/db/productos` ahora devuelve **409** (con
-la cantidad bloqueante) y no borra nada si algún favorito referencia un
-producto vivo — sin `?force=`, decisión explícita para no reabrir el camino
-de borrado silencioso.
+Flyway, en `scraper/src/main/resources/db/migration/`. **Una migración aplicada
+es byte-frozen**: Flyway valida checksums y hasta agregar un comentario rompe
+`flyway validate`. Por eso el SQL de rollback vive en
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), donde además lo **ejecutan**
+los `V*RollbackRoundTripTest` para que el documento no pueda desincronizarse.
 
-`V5` (`normalize-db-schema-fks-1nf`, slice A.2) retipa las 8 columnas
-INTEGER-boolean a `BOOLEAN` nativo — `productos.activo`/`gymrat`/
-`marca_premium`/`ml_oferta`, `cron_jobs.enabled`/`force_retrain`/`use_gpu`,
-`outfit_feedback_item.liked`, `financiacion_presets.activo` (9 columnas
-físicas: `activo` existe en dos tablas) — y 2 columnas `TEXT` de fecha a tipos
-nativos: `precio_historico.fecha`/`precios_externos.fecha` → `DATE`.
-`productos.touched_at`/`created_at` retipan a `TIMESTAMPTZ` en esta MISMA
-migración (no en la fecha "genérica" que le tocaría por criterio) únicamente
-porque `sp_upsert_run`/`sp_soft_delete_ausentes` los escriben y Postgres no
-tiene redefinición parcial de función — el resto de las columnas `TEXT` `*_at`
-del esquema queda sin tocar acá, es un cambio de puro tipo sin costo de recopia
-de función, y viaja en su propio slice (`V8`, abajo). `ps.setString()` en un
-parámetro bindeado contra una columna `DATE` ya no compila contra el tipo en
-runtime — `date < character varying` no tiene operador — por eso
-`ProductRepository.purgarHistorialViejo()` y `PreciosExternosRepository`
-bindean `fecha` como `LocalDate` (`ps.setObject`), no como `String`.
+| | Qué hace |
+|---|---|
+| `V1` | Baseline: 15 tablas + `sp_upsert_run`/`sp_soft_delete_ausentes` |
+| `V2` | `agent_reclassify_audit` |
+| `V3` | Lock de clasificación manual |
+| `V4` | FKs hacia `productos(url)`, política `ON DELETE` por tabla |
+| `V5` | 8 columnas INTEGER-boolean → `BOOLEAN`; 2 fechas → `DATE` |
+| `V6` | Tres CHECK de dominio sobre `genero`/`rubro`/`ml_segment` |
+| `V7` | `talles` y `ml_badge` → `producto_talle` / `producto_badge` |
+| `V8` | Las 19 columnas `*_at` restantes → `TIMESTAMPTZ` |
+| `V9` | `cron_jobs.sitios_json` → `cron_job_sitio` |
+| `V10` | `saved_outfits.*_json` → `jsonb` (revertido por `V14`) |
+| `V11` | Valida `fk_favoritos_url`, sólo si no hay huérfanos |
+| `V12` | Cierra el vocabulario de `categoria`, con bucket `Otros` |
+| `V13` | Tabla `categoria(nombre PK)` + FK, clave natural |
+| `V14` | `saved_outfit_item`: los blobs SÍ eran dato del dominio |
+| `V15` | Borra `outfit_feedback` (legacy) |
+| `V16` | `categoria_stats.payload` → 12 columnas tipadas + FK |
+| `V17` | `precio_orig` → `double precision`, tres parsers colapsan en uno |
+| `V18` | Tabla `sitio` (identidad de sitio), sembrada |
+| `V19` | `BrandExtractor` abstiene en vez de caer al nombre del sitio |
+| `V20` | `sitio` pasa a ser la fuente de `plataforma`; `RubroResolver` por igualdad |
+| `V21` | Tabla `marca` + FK, clave natural |
+| `V22` | Dropea `productos.marca_premium` (3FN) |
 
-`V6` (`normalize-db-schema-fks-1nf`, slice A.3) agrega tres CHECK **VALID**
-sobre `productos`: `genero IN ('hombre','mujer','unisex','infantil','')`,
-`rubro IN ('indumentaria','tecnologia','suplementos')`, `ml_segment IN
-('budget','standard','premium','luxury')`. `NULL` pasa en las tres (ninguna
-es `NOT NULL`); el string vacío pasa solo en `genero`, el sentinel de
-abstención de `GenderResolver`. La migración normaliza primero la única fila
-viva con `genero='Mujer'` con mayúscula. `ProposeReclassifyTool` (agente LLM)
-ahora valida `genero` contra ese mismo dominio. Por qué del dominio elegido y
-de dónde salió el dato con mayúscula (y qué camino de escritura sigue sin
-validar): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+**El porqué de cada una está en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)**,
+incluidos los criterios que se repiten: cuándo tabla de lookup y cuándo CHECK,
+qué lleva FK y qué no (un registro histórico nunca depende de que el dato
+mutable siga existiendo), y por qué un valor ausente se dice con `NULL` o `""`
+y nunca con un centinela.
 
-`V7` (`normalize-db-schema-fks-1nf`, slice B) saca las dos violaciones de 1FN de
-`productos` a tablas hijas: `talles` (array JSON dentro de un `TEXT`) →
-`producto_talle`, `ml_badge` (CSV) → `producto_badge`. Misma forma en las dos:
-PK `(url, posicion)` + FK `ON DELETE CASCADE`. **Las dos columnas viejas se
-borraron** — no quedan como sombra de solo lectura. `posicion` es lo que
-preserva que `badges().get(0)` siga siendo el badge principal, y lo que hace
-que el rollback (re-agregar con `json_agg`/`string_agg ORDER BY posicion`) sea
-lossless. `sp_upsert_run` escribe las hijas con DELETE + `INSERT … WITH
-ORDINALITY` por producto: una lista de talles que se achica no puede dejar
-filas viejas. `cargarProductos()` sigue siendo de 3 sentencias constantes (las
-dos hijas se leen enteras y se mergean por url, nunca un lookup por producto).
-El `buildRowsJson` manda ahora `talles`/`mlBadges` como arrays JSON reales, no
-como string serializado ni CSV. Por qué de cada una de esas decisiones, el
-riesgo residual del backfill y el SQL de rollback (ejecutable, cubierto por
-`V7RollbackRoundTripTest`): [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+### Estado normal
 
-`V8` (`normalize-db-schema-fks-1nf`, slice A.4) retipa las **19 columnas
-`*_at` que quedaban en `TEXT`** a `TIMESTAMPTZ` (todas menos las dos que ya
-había hecho `V5`): `productos.bloqueado_at`, `image_embeddings.computed_at`,
-`ml_output`/`sitios_dinamicos`/`outfit_feedback`/`outfit_feedback_item`/
-`categoria_dismiss`/`financiacion_presets`/`saved_outfits`.`created_at`,
-`categoria_stats.updated_at`, `favoritos.added_at`/`last_checked_at`,
-`cron_jobs.created_at`/`updated_at`/`last_run_at`/`next_run_at`,
-`cron_executions.started_at`/`finished_at`, `agent_reclassify_audit.applied_at`.
-Ninguna cuesta recopia de función, por eso viajan acá y no en `V5`.
-
-⚠️ **Cambio de payload de la API, deliberado:** los timestamps ya no salen como
-`2026-08-11 17:15:00` sino como **ISO-8601 UTC al segundo**
-(`2026-08-11T20:15:00Z`). `ps.setString` contra un `TIMESTAMPTZ` no compila
-contra el tipo en runtime, así que los nueve `DateTimeFormatter` duplicados de
-los repositorios se reemplazaron por un único seam `ar.scraper.db.Timestamps`
-(`setObject(OffsetDateTime)` para escribir, ISO-UTC para leer); donde el valor
-llega como `String` por una API pública (`insertCronExecution`,
-`touchLastRunAt`, `updateNextRunAt`) el cast es explícito en el SQL
-(`?::timestamptz`). En el frontend los seis sitios que hardcodeaban un formato
-—dos supuestos contrarios: unos asumían `T`, otros espacio— ahora usan un solo
-parser, `frontend/src/lib/fechas.js`. El consumidor menos obvio no era del
-frontend: `CronJobService.parseAsZoned` parsea `next_run_at`, y sin arreglarlo
-el poller dejaba de disparar **todos** los cronjobs. Por qué ISO-UTC y no lo que
-devuelve pgjdbc, y el rollback (ejecutable, cubierto por `V8RollbackRoundTripTest`):
-[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
-
-`V9`/`V10`/`V11` cierran la normalización. `V9` saca `cron_jobs.sitios_json`
-a `cron_job_sitio` — era la última violación de 1FN sobre una columna que el
-backend **interpreta** (de ahí salen los sitios que scrapea el job); misma
-forma que V7: PK `(job_id, posicion)`, FK `CASCADE`, DELETE+INSERT al editar.
-`V10` retipa `saved_outfits.slots_json`/`suplementos_json` a `jsonb` **sin
-normalizarlos**: el backend los serializa y los devuelve verbatim, nunca
-consulta adentro, así que son documentos del cliente y no grupos repetitivos —
-lo único exigible sin inventarles un esquema es que sean JSON válido (`?::jsonb`
-en el INSERT). `V11` valida por fin la FK `fk_favoritos_url` que `V4` había
-dejado `NOT VALID`, pero **sólo si no hay huérfanos**: un `VALIDATE`
-incondicional es justo la migración que `D8` se negó a escribir, la que le
-rompe el arranque a alguien por datos que la migración no puede borrar.
-
-`V15` borra `outfit_feedback` (legacy). Sus cuatro columnas
-`torso_url`/`piernas_url`/`calzado_url`/`accesorio_url` eran la última
-violación de 1FN del esquema, y de la forma más clásica: un grupo repetitivo
-desplegado en columnas. No se normalizó, se borró — la tabla estaba muerta
-desde que `outfit_feedback_item` la reemplazó (una fila por ítem, la forma
-correcta) y la única referencia viva era un `DELETE FROM`. Destruye el
-historial de likes del modelo viejo por-outfit; decisión explícita del usuario,
-se reconstruye con el uso. El feedback por ítem, que es el que alimenta a los
-armadores, no se toca.
-
-**Con V15 no quedaba ninguna columna multivaluada ni grupo repetitivo**:
-`talles`/`ml_badge` (V7), `sitios_json` (V9) y `slots_json`/`suplementos_json`
-(V14) viven en tablas hijas. Pero 1FN pide DOS cosas, no una — sin grupos
-repetitivos, sí, pero también valores **atómicos** por celda — y esa segunda
-mitad seguía rota: `categoria_stats.payload` era un `TEXT` con un registro
-entero serializado adentro, un valor compuesto en una sola celda. `V16`
-(`close-1nf-and-3nf-foundation`, abajo) lo cierra. **Recién ahí el esquema
-está en 1FN de verdad.**
-
-**`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`: los
-18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`, `talle` y
-`badge` salen por `EXISTS` contra las tablas hijas, y las facetas son un
-`GROUP BY` cada una. El dashboard muestra el catálogo persistido: el 204 quedó
-sólo para un catálogo realmente vacío, no para "todavía nadie scrapeó en esta
-sesión". `senal` y `finan` no se persisten —se calculan— y ahora se calculan
-sobre los ~24 productos de la página en vez de sobre el catálogo entero.
-El resto de las superficies (`/api/grupos`, `/api/mejores`, outfits,
-recomendados, agente) sigue leyendo el snapshot en memoria.
-
-`V12` (`close-category-vocabulary`) **cierra el vocabulario de `categoria`**,
-que era la condición que faltaba para poder pensar 3FN. `CategoryClassifier`
-tenía una rama que devolvía la PRIMERA PALABRA del breadcrumb cuando no
-matcheaba ningún keyword: con eso cada tienda podía inventar una categoría, y
-las que inventó estaban mal (`Mini` para "Mini Morral", `Pc` para una microSD,
-`Cooling` para un adaptador). Ahora esa rama sólo acepta lo que tenga alias
-hacia el canon (`CategoryAliases`), y lo demás cae en **`Otros`**, un bucket
-explícito: un "no sé" visible se mide y se corrige, uno disfrazado de categoría
-real no. `Almacenamiento` se AGREGÓ al canon (era legítima, 57 productos de
-HDDs/SSDs). `Indumentaria` como categoría desapareció: era un *rubro* usado
-como categoría. La migración remapea las 478 filas (7,3%) que ya estaban mal.
-`CategoryVocabularyIsClosedTest` prueba que ninguna entrada, por hostil que
-sea, se sale de `CategoryGroups.canonicalCategories()`.
-
-`V14` corrige a `V10`: `saved_outfits.slots_json`/`suplementos_json` **sí eran
-dato del dominio**, no documentos opacos. Cada elemento traía la `url` del
-producto —la misma clave que ya lleva FK en tres tablas— más copias congeladas
-de su fila. Pasan a `saved_outfit_item` (una fila por prenda/suplemento, clase
-`slot`/`suplemento`). El argumento que lo decidió: *la estructura de las tablas
-condiciona al frontend, no al revés*, y con un blob no se puede preguntar qué
-outfits contienen un producto ni relacionar prendas con un futuro `user_uuid`.
-Semántica **foto + precio actual**: la fila guarda lo que el producto ERA al
-guardarse y la `url` permite traer el precio de HOY por LEFT JOIN
-(`precioActual`). Por eso `url` **no lleva FK** — mismo criterio que
-`agent_reclassify_audit`: un registro histórico no depende de que el dato
-mutable siga existiendo, y un producto discontinuado no puede borrar un outfit
-del usuario.
-
-`V13` le da a `categoria` **integridad referencial**: tabla `categoria(nombre PK)`
-sembrada con los 81 valores del canon + FK desde `productos.categoria`. Es
-clave **natural**, no un `categoria_id`: el nombre ya es único y estable y es
-lo que devuelve la API, así que un id sustituto costaría un JOIN por lectura y
-plomería de ids por toda la API a cambio de nada. Se eligió tabla y no CHECK
-(el criterio de `V6`) porque con 81 valores un CHECK obliga a una **migración
-por categoría nueva**; con tabla, es un INSERT. **No lleva columna `rubro`**:
-`categoria → rubro` NO es una dependencia funcional — `RubroResolver` deriva el
-rubro de (sitio, categoría, rubro previo), y en los datos vivos `Conjunto` es
-`tecnologia` en Fullh4rd e `indumentaria` en Sporting.
-
-⚠️ La FK obligó a corregir **192 literales en 53 archivos de test**: los
-fixtures escribían categorías en plural (`"Remeras"`, `"Buzos"`, `"Shorts"`)
-que producción nunca produce. Dos lugares quedaron a propósito con el plural
-porque ahí SÍ es válido: los nombres de producto de `CategoryClassifierTest`
-("Zapatillas Running Hombre" es un nombre, no una categoría) y
-`FacetCalculatorTest`, que es puro en memoria y no lo alcanza la FK.
+El esquema está en **1FN** y **2FN**. 3FN está parcialmente alcanzada: `V22`
+cerró `marca_premium`, que era la violación más filosa (`url → sitio →
+es_premium`). Queda `ml_output.payload` como **único** blob del esquema,
+deliberado: es un log de corridas —se poda a 10 filas, nunca se consulta
+adentro, siempre se lee entero— no dato del dominio.
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
-precio cambió → UPDATE + historial · ausente en el run → soft-delete (`activo=false`).
-Corre **server-side** en las funciones plpgsql `sp_upsert_run`/
+precio cambió → UPDATE + historial · ausente en el run → soft-delete
+(`activo=false`). Corre **server-side** en `sp_upsert_run`/
 `sp_soft_delete_ausentes`. La concurrencia la resuelve Postgres MVCC: no hay
-locks de aplicación (la vieja lock-dance de SQLite fue removida por completo).
+locks de aplicación.
 
-`V16`-`V19` (`close-1nf-and-3nf-foundation`) cierran 1FN de verdad y sientan
-la base para 3FN — **no** la completan; `RubroResolver`'s `.contains()`
-substring matching y la extracción de `marca_premium`/`rubro`/`plataforma`
-hacia `sitio` quedan como follow-up explícito, no como parte de este cambio.
+⚠️ **El upsert se traga los errores SQL**: `ProductRepository` loguea y
+devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error.
+Todo test de round-trip afirma `nuevos()` **antes** que cualquier valor de
+columna, porque `0` es la firma exacta de un fallo tragado.
 
-`V16` aplana `categoria_stats.payload` (un blob JSON) a 12 columnas tipadas
-(`n, mean, median, mode, std, cv, q1, q3, iqr, mad, fence_low, fence_high`,
-espejo exacto de `PriceStats.to_dict()`) con FK **VALID** a `categoria(nombre)`
-(V13). La tabla se vacía y se regenera en el próximo run de ML en vez de
-backfillearse: sus claves eran salida de `norm_cat` (`"medias"`), el canon de
-V13 es Title Case (`"Medias"`) — una FK sobre las filas viejas rechazaría
-todas. `distribucionCategorias` sale `{}` hasta ese próximo run; el frontend
-ya guardaba `catStats?.[...]` con optional chaining en los tres call sites.
+### Lecturas
 
-`V17` retipa `productos.precio_orig` de `TEXT` crudo a `double precision` — un
-valor no parseable es `NULL`, nunca `0` ni un string centinela. Es la migración
-riesgosa: re-copia `sp_upsert_run` entero con **una sola línea** editada
-(`StoredProcedureDriftTest` lo prueba mecánicamente), y colapsa tres parsers
-que venían desacordando en la misma pregunta (`ar.scraper.aggregator.text.PrecioParser`
-en Java, el regex SQL de `CatalogQueryRepository`, el regex JS de
-`ProductCard.jsx`) en uno solo, corrido en Java al momento del scrape. `%
-Oferta` ahora ordena `NULLS LAST` en vez de tratar "no sé" como "0% de
-descuento" — el bug real que hacía aparecer un `-666x`.
-
-`V18` crea `sitio`, tabla única de identidad de sitio (`nombre` display +
-`sitio_key` normalizado), sembrada desde `config.properties` ∪
-`sitios_dinamicos` ∪ `productos.sitio`, pero **leída por nadie todavía** —
-`es_premium`/`rubro_forzado`/`plataforma` siguen viviendo en
-`SiteClassification`/`ScraperFactory`. Lo que compra esta migración es que el
-seed ya es un espejo verificado (`SitioSeedSyncTest`, sin DB) de esas cinco
-copias que antes podían desalinearse sin que nada avisara. `foreverbstrd`
-sale de `TECH_SITIOS` (es streetwear real) y `V18` reescribe el rubro
-`tecnologia` pegajoso que ya tenían sus productos persistidos.
-
-`V19` hace que `BrandExtractor` **abstenga** (`""`) en vez de devolver el
-nombre del sitio cuando ninguna marca curada matchea — un producto sin marca
-reconocida no es "de la tienda", es simplemente sin marca conocida. El
-backfill NO es `WHERE marca = sitio` a secas: `Bulks`/`Fuark`/`Harvey` son
-simultáneamente nombre de sitio Y marca curada real, y `MarcasSiteIntersectionTest`
-prueba que esa lista de excepción es exactamente esas tres, sin DB. Es la
-única de las cuatro sin rollback — la regla vieja era literalmente
-`marca = sitio`, no hay nada que reconstruir.
+**`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`:
+los 18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`,
+`talle` y `badge` salen por `EXISTS` contra las tablas hijas, y las facetas son
+un `GROUP BY` cada una. `senal` y `finan` no se persisten: se calculan sobre
+los ~24 productos de la página. El resto de las superficies (`/api/grupos`,
+`/api/mejores`, outfits, recomendados, agente) lee el snapshot en memoria.
 
 ---
 
@@ -669,7 +517,7 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación de su API |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges, no recalibrar thresholds aún |
 | `precio_orig` sigue teniendo strings genuinamente no parseables en la base histórica | `close-1nf-and-3nf-foundation`/`V17`: 817/3148 filas con texto (25,95%) no parsean ni con el parser AR-locale correcto — quedan `NULL`, no `0`; medido contra datos reales, no estimado |
-| Bare `except:` en `safe_price`/`price_velocity`/carga de historial | Nit no bloqueante — migrar a `except Exception:` |
+| Bare `except:` en `price_velocity`/carga de historial | Nit no bloqueante — migrar a `except Exception:`. El de `safe_price` se fue con la función, borrada al quedar sin callers |
 | `/api/db/export`/`import` en 410 Gone — sin backup/restore por UI | Aceptado por diseño: usar `pg_dump`/`pg_restore` contra `DATABASE_URL` |
 | `sp_upsert_run` reactivando un producto soft-deleted reinserta `precio_historico` aunque el precio no haya cambiado | Follow-up no bloqueante |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Necesita un umbral de tamaño calibrado con datos reales |

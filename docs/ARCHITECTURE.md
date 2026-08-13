@@ -479,6 +479,67 @@ destruye historial del usuario: es una decisión de producto, no de esquema.
 
 ---
 
+### Decisiones de `V3`, `V4`, `V6`, `V11`, `V13` y `V14`
+
+Vivían en `CLAUDE.md`, que pasó a ser guía/índice. El razonamiento es el que
+sigue aplicando cuando aparece un caso parecido.
+
+**`V3` no agrega tablas.** Marca en `productos` la clasificación fijada a mano
+para que el pipeline no la pise, y extiende `agent_reclassify_audit`. El guard
+es `bloqueado_por IS NULL`, que aparece dentro de `sp_upsert_run` sobre las
+cinco columnas que un humano puede corregir.
+
+**`V4`: la política `ON DELETE` se decidió por tabla, no de forma uniforme.**
+`precio_historico.url` y `precios_externos.producto_url` en `CASCADE` (VALID —
+cero orfandades verificadas en vivo); `favoritos.url` en `RESTRICT`, y
+deliberadamente `NOT VALID`: enforcea igual en inserts y deletes nuevos pero no
+exige que el historial completo de una instalación existente esté sano.
+`agent_reclassify_audit.url` **sin FK** — un audit trail no puede depender de
+que el dato mutable siga existiendo. Ese último criterio se repite después en
+`saved_outfit_item` (V14) y es el que decide cualquier tabla histórica.
+Consecuencia visible: `DELETE /api/db/productos` devuelve **409** con la
+cantidad bloqueante si algún favorito referencia un producto vivo, y no hay
+`?force=` — decisión explícita para no reabrir el borrado silencioso.
+
+**`V6`: CHECK, no tabla, y el porqué del corte.** Tres CHECK VALID sobre
+`productos` (`genero`, `rubro`, `ml_segment`). `NULL` pasa en las tres (ninguna
+es `NOT NULL`); el string vacío pasa sólo en `genero`, que es el sentinel de
+abstención de `GenderResolver`. El criterio contra `V13`: con **pocos** valores
+estables un CHECK alcanza, con **muchos** obliga a una migración por valor
+nuevo y ahí gana la tabla de lookup.
+
+**`V11` valida `fk_favoritos_url`, pero sólo si no hay huérfanos.** Un
+`VALIDATE` incondicional es exactamente la migración que no se quiso escribir:
+la que le rompe el arranque a alguien por datos que la migración misma no puede
+borrar sin decidir por él.
+
+**`V13`: clave natural, no `categoria_id`.** El nombre ya es único y estable, y
+es lo que devuelve la API — un id sustituto costaría un JOIN por lectura y
+plomería de ids por toda la API a cambio de nada. **No lleva columna `rubro`**:
+`categoria → rubro` NO es una dependencia funcional, `RubroResolver` deriva el
+rubro de (sitio, categoría, rubro previo), y en datos vivos `Conjunto` es
+`tecnologia` en Fullh4rd e `indumentaria` en Sporting.
+
+> ⚠️ La FK obligó a corregir **192 literales en 53 archivos de test**: los
+> fixtures escribían categorías en plural (`"Remeras"`, `"Buzos"`) que
+> producción nunca produce. Dos lugares quedaron en plural a propósito porque
+> ahí SÍ es válido: los nombres de producto de `CategoryClassifierTest`
+> ("Zapatillas Running Hombre" es un nombre, no una categoría) y
+> `FacetCalculatorTest`, que es puro en memoria y no lo alcanza la FK.
+
+**`V14` corrige a `V10`.** `slots_json`/`suplementos_json` **sí eran dato del
+dominio**, no documentos opacos: cada elemento traía la `url` del producto —la
+misma clave que ya lleva FK en tres tablas— más copias congeladas de su fila.
+El argumento que lo decidió: *la estructura de las tablas condiciona al
+frontend, no al revés*. Con un blob no se puede preguntar qué outfits contienen
+un producto, ni relacionar prendas con un futuro `user_uuid`. Semántica **foto
++ precio actual**: la fila guarda lo que el producto ERA al guardarse, y la
+`url` permite traer el precio de HOY por LEFT JOIN. Por eso esa `url` **no
+lleva FK**, mismo criterio que el audit trail de `V4`: un producto
+discontinuado no puede borrar un outfit del usuario.
+
+---
+
 ### `close-1nf-and-3nf-foundation` (V16-V19): cerrar 1FN de una vez
 
 Cuatro migraciones, una por concern, mismo patrón que V4-V8: la más
@@ -980,17 +1041,25 @@ cuerpo de `V17` verbatim, en su propia migración hacia adelante.
 
 ## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
 
+Los tres primeros items de esta lista **dejaron de ser non-goals**: el usuario
+decidió plegar el trabajo de 3FN dentro del mismo PR, así que `V20` hizo el
+swap de `RubroResolver` a igualdad, `V21` le dio a `marca` su tabla de lookup y
+`V22` sacó `marca_premium` de `productos`. Quedan dos, y los dos son "se queda
+así, y acá está el motivo", no "no llegamos".
+
 | Item | Se queda como está porque |
 |---|---|
-| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; es un log de corrida, no dato de dominio |
-| Tabla de lookup para `marca` | Diferido, mismo patrón de dos pasos que `V12`→`V13`: cerrar el vocabulario primero (`V19`), la tabla en un follow-up con su propio seed/sync test |
-| Mover `marca_premium`/`rubro`/`plataforma` de `productos` a `sitio` | `V18` sólo crea y siembra `sitio` — mover esas columnas es un cambio de comportamiento de clasificación independiente y revisable por separado, no parte de esta migración |
-| `RubroResolver`'s `sitioKey.contains(...)` (substring, no igualdad) | Deliberadamente NO tocado — un lookup contra `sitio.rubro_forzado` sería exacto por naturaleza, y canjear substring por igualdad silenciosamente reclasificaría cualquier sitio cuya clave sea superset de otra. Ese swap es, específicamente, el trabajo del follow-up 3FN, no de esta base |
-| `precios_externos` | Su dependencia transitiva es `externo_url`, un target de normalización distinto y fuera del alcance de este cambio |
+| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; se poda a 10 filas, nunca se consulta adentro y siempre se lee entero. Es un log de corrida, no dato de dominio: falla el test de `V14` en vez de pasarlo |
+| `precios_externos` | Sus columnas `sitio`/`titulo`/`precio`/`condicion` dependen de `externo_url`, no del `id` sustituto — es una dependencia transitiva real. Pero cada fila es una **captura fechada** de una publicación de MercadoLibre: el título y el precio de esa URL cambian, y la fila registra lo que ERA el día que se comparó. Normalizarla a una tabla de publicaciones destruiría exactamente el dato que se guarda. Mismo carve-out que `saved_outfit_item` (V14) y `agent_reclassify_audit` (V4): un registro histórico no se normaliza contra una entidad mutable |
 
-Estos cinco puntos son la frontera explícita entre "cerrar 1FN" (lo que este
-cambio hace) y "3FN completo" (lo que sienta las bases pero no completa) —
-`close-1nf-and-3nf-foundation` es una **base**, el nombre lo dice.
+**El único blob que sobrevive en el esquema es `ml_output.payload`.** Los
+`jsonb` de `saved_outfits` no cuentan: `V14` los borró (`slots_json` y
+`suplementos_json`, ambos `DROP COLUMN`).
+
+`close-1nf-and-3nf-foundation` empezó siendo una base y terminó cerrando
+también la extracción — pero 3FN sigue sin estar "completa" en el sentido
+formal, y `precios_externos` es la razón, documentada arriba a propósito para
+que la próxima sesión no la trate como un olvido.
 
 ---
 
