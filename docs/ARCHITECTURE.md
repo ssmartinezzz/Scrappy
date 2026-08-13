@@ -479,6 +479,57 @@ destruye historial del usuario: es una decisión de producto, no de esquema.
 
 ---
 
+### Las funciones plpgsql pasan a migraciones repetibles (`R__`)
+
+`sp_upsert_run` llegó a tener **siete copias** —`V1`, `V3`, `V5`, `V7`, `V17`,
+`V21`, `V22`— de la misma función de ~90 líneas, y `sp_soft_delete_ausentes`
+dos. No fue descuido: Postgres no tiene redefinición parcial de función, así
+que cambiar una línea obliga a un `CREATE OR REPLACE` del cuerpo entero; y una
+migración Flyway aplicada es byte-frozen, porque Flyway valida checksums. Las
+dos reglas juntas hacen que cada cambio de una línea produzca una copia nueva.
+
+El costo real no era el espacio. Cada copia es una oportunidad de introducir
+una diferencia que nadie pidió, y ese riesgo es exactamente el que
+`StoredProcedureDriftTest` vino a atajar: deshace las sustituciones declaradas
+de cada salto y exige que el resultado sea el cuerpo anterior, carácter por
+carácter. Funcionó —atajó el caso de `V22`, donde `rg marca_premium` encuentra
+sólo dos de los tres sitios— pero era un test defendiéndonos de una duplicación
+que no hacía falta tener.
+
+**Una migración repetible (`R__`, sin número de versión) es la herramienta que
+Flyway tiene para esto**, y su caso de uso declarado son funciones, vistas y
+procedimientos. Dos propiedades la hacen correcta acá:
+
+1. **Las repetibles corren después de todas las versionadas.** No es
+   convención ni suerte de ordenamiento alfabético:
+   `ResolvedMigrationComparator` ordena cualquier migración con versión antes
+   que cualquiera sin versión. Verificado en el log de una corrida real:
+   `... to version "22 - drop marca premium"` → `... with repeatable migration
+   "sp upsert run"` → `Successfully applied 24 migrations, now at version v22`.
+   Así que el cuerpo del `R__` es siempre la última palabra, incluso en una
+   instalación desde cero que aplica `V1`..`V22` y crea la función siete veces
+   antes de llegar ahí.
+2. **Se re-aplica sola cuando cambia su checksum.** Editar el archivo YA es la
+   migración; no hay que escribir una versionada nueva que vuelva a copiar
+   todo.
+
+Las siete copias históricas quedan donde están —son inmutables por
+definición— y sirven como registro de cómo llegó el cuerpo hasta acá.
+`StoredProcedureDriftTest` gana dos saltos finales, `V22 → R__` y `V5 → R__`,
+con **cero sustituciones declaradas**: un salto sin sustituciones no afloja la
+aserción de igualdad, la deja sola, así que exige que el cuerpo del `R__` sea
+idéntico al de la última copia versionada. Eso es precisamente lo que hay que
+probar al mover una definición: que mover no cambió nada. Se verificó que la
+aserción muerde perturbando el archivo a propósito y viendo el rojo antes de
+revertir.
+
+De acá en adelante, cuando una de las dos funciones cambie de verdad, ese
+salto se pone en rojo y **el diff de git es la declaración del cambio** — que
+es como debería haber funcionado desde el principio, en vez de con siete
+copias y una tabla de sustituciones.
+
+---
+
 ### Decisiones de `V3`, `V4`, `V6`, `V11`, `V13` y `V14`
 
 Vivían en `CLAUDE.md`, que pasó a ser guía/índice. El razonamiento es el que
