@@ -228,6 +228,7 @@ los `V*RollbackRoundTripTest` para que el documento no pueda desincronizarse.
 | `V20` | `sitio` pasa a ser la fuente de `plataforma`; `RubroResolver` por igualdad |
 | `V21` | Tabla `marca` + FK, clave natural |
 | `V22` | Dropea `productos.marca_premium` (3FN) |
+| `V23` | `productos.sitio_key` (generada) + FK a `sitio(sitio_key)` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -247,9 +248,17 @@ y nunca con un centinela.
 
 El esquema está en **1FN** y **2FN**. 3FN está parcialmente alcanzada: `V22`
 cerró `marca_premium`, que era la violación más filosa (`url → sitio →
-es_premium`). Queda `ml_output.payload` como **único** blob del esquema,
-deliberado: es un log de corridas —se poda a 10 filas, nunca se consulta
-adentro, siempre se lee entero— no dato del dominio.
+es_premium`), y `V23` le puso integridad referencial al sitio. Queda
+`ml_output.payload` como **único** blob del esquema, deliberado: es un log de
+corridas —se poda a 10 filas, nunca se consulta adentro, siempre se lee
+entero— no dato del dominio.
+
+> 1FN pide **dos** cosas, no una: sin grupos repetitivos **y** con valores
+> atómicos por celda. Ese matiz es el que hizo que la afirmación anterior
+> fuera falsa durante varias migraciones — no quedaban grupos repetitivos,
+> pero `categoria_stats.payload` seguía siendo un registro entero serializado
+> en una sola celda. El desarrollo está en
+> [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete
