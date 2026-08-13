@@ -50,6 +50,8 @@ class StoredProcedureDriftTest {
     private static final String V17 = "/db/migration/V17__precio_orig_numeric.sql";
     private static final String V21 = "/db/migration/V21__marca_lookup_table.sql";
     private static final String V22 = "/db/migration/V22__drop_marca_premium.sql";
+    private static final String R_UPSERT = "/db/migration/R__sp_upsert_run.sql";
+    private static final String R_SOFT_DELETE = "/db/migration/R__sp_soft_delete_ausentes.sql";
 
     private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String SP_SOFT_DELETE_AUSENTES_START =
@@ -223,7 +225,22 @@ class StoredProcedureDriftTest {
             new Hop(SP_UPSERT_RUN_START, V7, V17, List.of(SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST)),
             new Hop(SP_UPSERT_RUN_START, V17, V21, List.of(SP_UPSERT_RUN_V21_MARCA_NULLIF)),
             new Hop(SP_UPSERT_RUN_START, V21, V22, SP_UPSERT_RUN_V22_DROP_MARCA_PREMIUM),
-            new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
+            new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS),
+
+            // Los dos saltos finales, hacia las migraciones REPETIBLES, con
+            // CERO sustituciones declaradas. Un salto sin sustituciones no
+            // afloja nada: la aserción de igualdad sigue corriendo, así que
+            // exige que el cuerpo del R__ sea idéntico —carácter por carácter,
+            // normalizando espacios— al de la última copia versionada. Eso es
+            // exactamente lo que hay que probar al mover una definición: que
+            // mover no cambió.
+            //
+            // Cuando el R__ cambie de verdad, ESTE salto es el que se pone en
+            // rojo, y ahí el diff de git pasa a ser la declaración del cambio
+            // — que es como debería haber funcionado desde el principio, en
+            // vez de con siete copias y una tabla de sustituciones.
+            new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT, List.of()),
+            new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE, List.of())
     );
 
     @Test

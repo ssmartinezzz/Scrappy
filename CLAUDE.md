@@ -228,6 +228,14 @@ los `V*RollbackRoundTripTest` para que el documento no pueda desincronizarse.
 | `V20` | `sitio` pasa a ser la fuente de `plataforma`; `RubroResolver` por igualdad |
 | `V21` | Tabla `marca` + FK, clave natural |
 | `V22` | Dropea `productos.marca_premium` (3FN) |
+| `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
+| `R__sp_soft_delete_ausentes` | Ídem |
+
+> ⚠️ **Las dos funciones plpgsql se editan en su archivo `R__`, y en ningún
+> otro lado.** No agregues una migración versionada para tocarlas. Flyway
+> re-aplica una repetible cuando cambia su checksum, y las corre después de
+> todas las versionadas. Las copias históricas en `V1`/`V3`/`V5`/`V7`/`V17`/
+> `V21`/`V22` son inmutables y quedan sólo como registro.
 
 **El porqué de cada una está en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)**,
 incluidos los criterios que se repiten: cuándo tabla de lookup y cuándo CHECK,
