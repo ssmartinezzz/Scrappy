@@ -230,18 +230,21 @@ Re-calibrar thresholds está **fuera de alcance** de este change — ver
 
 ---
 
-## Parseo de `precioOriginal` — `safe_price` dejó de ser canónico
+## Parseo de `precioOriginal` — `safe_price` se borró
 
 Desde `close-1nf-and-3nf-foundation` (design DD2), `ar.scraper.aggregator.text.PrecioParser`
 (Java) es el único parser que corre sobre el string crudo que scrapea cada
 sitio — al momento del scrape, no en este pipeline. `precioOriginal` llega
 acá ya resuelto: un número o `None`, nunca el string original.
 
-`safe_price` (`ml_pipeline.py:354`+) **se queda en el código** — no se borra,
-sería un segundo cambio de comportamiento viajando adentro de un PR de
-esquema — pero pasa a tener **cero callers** dentro de este archivo. Es la
-especificación de la que `PrecioParser.java` y `sp_parse_precio_ar` (SQL, la
-migración `V17`) copian su contrato de 8 reglas, no al revés. Los tres se
+`safe_price` quedó con **cero callers** y **se borró**. Se la había dejado un
+tiempo como "especificación de referencia" de la que `PrecioParser.java` y
+`sp_parse_precio_ar` copiaban su contrato, y esa fue exactamente la trampa:
+era la única de las tres implementaciones **fuera** de la cadena del fixture
+compartido, o sea la única que podía romperse sin poner ningún test en rojo.
+Una spec que nadie ejecuta no es una spec, es una copia esperando
+desincronizarse. Hoy el contrato vive en `PrecioParser.java` y en
+`sp_parse_precio_ar` (SQL, dentro de la migración `V17`), y los dos se
 prueban contra el mismo fixture
 (`scraper/src/test/resources/price-parser-cases.tsv`) para que no puedan
 divergir en silencio — ni siquiera divergir de forma consistente hacia una
