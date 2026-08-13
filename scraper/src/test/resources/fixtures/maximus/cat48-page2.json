@@ -1,0 +1,230 @@
+{
+  "scName": "web.MAX.GetItemList4Search_v3_V6",
+  "data": {
+    "page": 2,
+    "pagesTotal": 3,
+    "itemsTotal": 59,
+    "items": [
+      {
+        "item_id": 21000,
+        "item_code4web": "GEN2-0",
+        "item_desc": "Placa de Video Generica Pagina2 0",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-0",
+        "prli_price": "200.000",
+        "prli_price_original": 200000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21001,
+        "item_code4web": "GEN2-1",
+        "item_desc": "Placa de Video Generica Pagina2 1",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-1",
+        "prli_price": "201.000",
+        "prli_price_original": 201000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21002,
+        "item_code4web": "GEN2-2",
+        "item_desc": "Placa de Video Generica Pagina2 2",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-2",
+        "prli_price": "202.000",
+        "prli_price_original": 202000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21003,
+        "item_code4web": "GEN2-3",
+        "item_desc": "Placa de Video Generica Pagina2 3",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-3",
+        "prli_price": "203.000",
+        "prli_price_original": 203000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21004,
+        "item_code4web": "GEN2-4",
+        "item_desc": "Placa de Video Generica Pagina2 4",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-4",
+        "prli_price": "204.000",
+        "prli_price_original": 204000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21005,
+        "item_code4web": "GEN2-5",
+        "item_desc": "Placa de Video Generica Pagina2 5",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-5",
+        "prli_price": "205.000",
+        "prli_price_original": 205000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21006,
+        "item_code4web": "GEN2-6",
+        "item_desc": "Placa de Video Generica Pagina2 6",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-6",
+        "prli_price": "206.000",
+        "prli_price_original": 206000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21007,
+        "item_code4web": "GEN2-7",
+        "item_desc": "Placa de Video Generica Pagina2 7",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-7",
+        "prli_price": "207.000",
+        "prli_price_original": 207000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21008,
+        "item_code4web": "GEN2-8",
+        "item_desc": "Placa de Video Generica Pagina2 8",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-8",
+        "prli_price": "208.000",
+        "prli_price_original": 208000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21009,
+        "item_code4web": "GEN2-9",
+        "item_desc": "Placa de Video Generica Pagina2 9",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-9",
+        "prli_price": "209.000",
+        "prli_price_original": 209000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21010,
+        "item_code4web": "GEN2-10",
+        "item_desc": "Placa de Video Generica Pagina2 10",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-10",
+        "prli_price": "210.000",
+        "prli_price_original": 210000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21011,
+        "item_code4web": "GEN2-11",
+        "item_desc": "Placa de Video Generica Pagina2 11",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-11",
+        "prli_price": "211.000",
+        "prli_price_original": 211000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21012,
+        "item_code4web": "GEN2-12",
+        "item_desc": "Placa de Video Generica Pagina2 12",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-12",
+        "prli_price": "212.000",
+        "prli_price_original": 212000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21013,
+        "item_code4web": "GEN2-13",
+        "item_desc": "Placa de Video Generica Pagina2 13",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-13",
+        "prli_price": "213.000",
+        "prli_price_original": 213000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21014,
+        "item_code4web": "GEN2-14",
+        "item_desc": "Placa de Video Generica Pagina2 14",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-14",
+        "prli_price": "214.000",
+        "prli_price_original": 214000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21015,
+        "item_code4web": "GEN2-15",
+        "item_desc": "Placa de Video Generica Pagina2 15",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-15",
+        "prli_price": "215.000",
+        "prli_price_original": 215000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21016,
+        "item_code4web": "GEN2-16",
+        "item_desc": "Placa de Video Generica Pagina2 16",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-16",
+        "prli_price": "216.000",
+        "prli_price_original": 216000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21017,
+        "item_code4web": "GEN2-17",
+        "item_desc": "Placa de Video Generica Pagina2 17",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-17",
+        "prli_price": "217.000",
+        "prli_price_original": 217000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21018,
+        "item_code4web": "GEN2-18",
+        "item_desc": "Placa de Video Generica Pagina2 18",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-18",
+        "prli_price": "218.000",
+        "prli_price_original": 218000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 21019,
+        "item_code4web": "GEN2-19",
+        "item_desc": "Placa de Video Generica Pagina2 19",
+        "item_desc4link": "Placa-de-Video-Generica-Pagina2-19",
+        "prli_price": "219.000",
+        "prli_price_original": 219000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      }
+    ]
+  }
+}
