@@ -2,6 +2,7 @@ package ar.scraper.aggregator.normalize;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -40,6 +41,7 @@ public final class SiteRegistry {
     private final DataSource dataSource;
     private volatile Map<String, Sitio> porSitioKey = Map.of();
 
+    @Autowired
     public SiteRegistry(DataSource dataSource) {
         this.dataSource = dataSource;
         reload();

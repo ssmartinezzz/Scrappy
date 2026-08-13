@@ -85,6 +85,14 @@ class AgentEndpoints {
     // never touches `db` (close-1nf-and-3nf-foundation extension) —
     // several existing tests assert verifyNoInteractions(db) for exactly
     // that reason.
+    //
+    // NOT a hot path, so NOT cached: this method has exactly one call site,
+    // reached at most once per POST /api/agent/apply request — a human-gated
+    // write of a single product, never a per-product loop over the catalog
+    // (unlike NormalizerService.normalizarProducto, which resolves the
+    // Spring-managed RubroResolver singleton once and reuses it across the
+    // whole scrape). The allocation itself is a single field assignment
+    // wrapping the already-loaded SiteRegistry singleton — no I/O, no query.
     private RubroResolver rubroResolver() {
         return new RubroResolver(db.siteRegistry());
     }
