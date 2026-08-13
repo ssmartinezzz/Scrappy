@@ -135,6 +135,7 @@ Scrappy/
 | maximus, fullh4rd | Scrapers propios | tecnologia | Hardware/PC |
 | compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (~1400 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular |
 | rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **637 productos** en el primer run real (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
+| venex | osCommerce (propio) | tecnologia | Descubrimiento en dos niveles: categoría top → sub-categorías leaf en su landing (la landing muestra 12 productos no representativos, nunca se cuentan). `?page=N`, se detiene en página vacía **o** repetida — pasado el final real, Venex repite la última página en vez de devolver vacío. `page.content()` sirve el DOM re-serializado por Chromium (comillas dobles + entidad `&quot;`), no el HTML crudo del servidor (comillas simples) — el parser normaliza antes de matchear. **125 productos** en un run real de una sola categoría (`placas-de-video`, 2026-08-13) |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -148,6 +149,7 @@ WOOCOMMERCE → dcshoes
 MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
 VAYPOL  → vaypol, city
 QLOUD   → rockethard
+OSCOMMERCE → venex
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
 MONKYFORCE → monkyforce
@@ -482,6 +484,16 @@ puede pasar contra clases viejas y fingir verde.
 **Jar stale:** `cli/core/builder.py` saltea el build si `scraper/scraper.jar`
 existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.0.jar`
 → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
+
+**`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
+descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
+`curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles
+literales adentro) parseaba perfecto en test y rendía **0 productos en un run
+real**. Chromium normaliza los atributos a comillas dobles y escapa las
+comillas internas como `&quot;` al serializar `document.documentElement.outerHTML`
+(que es lo que `page.content()` devuelve). Cualquier parser que lea un
+atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
+entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
 
 **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita
 el prefijo `jdbc:` (`jdbc:postgresql://…`); psycopg2 **no** lo entiende, solo
