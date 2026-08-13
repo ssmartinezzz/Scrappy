@@ -74,6 +74,20 @@ BEGIN
             v_fit := ''; v_estampado := ''; v_escote := ''; v_color := '';
         END IF;
 
+        -- get-or-create de `sitio` ANTES del producto que lo referencia (E7).
+        -- La FK `fk_productos_sitio` (V23) sin esto sería una trampa: un sitio
+        -- nuevo haría fallar el INSERT dentro del camino que ProductRepository
+        -- se traga, y saldría como "0 nuevos" en vez de como error.
+        -- `ON CONFLICT DO NOTHING` sin target cubre las DOS restricciones
+        -- únicas de la tabla (`nombre` PK y `sitio_key`), así que un sitio ya
+        -- sembrado nunca se pisa — Harvey conserva su es_premium.
+        INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
+        SELECT r->>'sitio',
+               lower(regexp_replace(r->>'sitio', '[^a-zA-Z0-9]', '', 'g')),
+               'tiendanube', false, NULL, 'historico'
+        WHERE COALESCE(r->>'sitio', '') <> ''
+        ON CONFLICT DO NOTHING;
+
         INSERT INTO productos (
             url, sitio, nombre, precio, precio_orig, imagen_url, categoria, genero,
             ml_score, ml_oferta, ml_tendencia, ml_segment, ml_zscore,

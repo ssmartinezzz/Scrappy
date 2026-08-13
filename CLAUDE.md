@@ -185,7 +185,7 @@ ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
 categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)
 sitios_dinamicos     -- Sitios agregados desde el dashboard
-sitio                -- Identidad de sitio, sembrada, leída por nadie todavía (V18)
+sitio                -- Identidad de sitio: plataforma, es_premium, rubro_forzado (V18, leída por SiteRegistry desde V20)
 favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
 outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)

@@ -218,6 +218,24 @@ class StoredProcedureDriftTest {
                     Pattern.compile(Pattern.quote("gymrat = EXCLUDED.gymrat, cantidad_unidades")),
                     "gymrat = EXCLUDED.gymrat, marca_premium = EXCLUDED.marca_premium, cantidad_unidades"));
 
+    /**
+     * close-1nf-and-3nf-foundation extension, design E7: `V23` puts a real FK
+     * on {@code productos.sitio}, and the function gains a get-or-create so
+     * that FK is unfalsifiable for anything the scraper writes — without it, a
+     * site not yet in {@code sitio} would violate the constraint inside
+     * {@code ProductRepository}'s swallowed-error path and surface as
+     * {@code "0 nuevos"} rather than as a failure.
+     *
+     * <p>This is the first change declared against a REPEATABLE migration
+     * instead of a new versioned copy, and it is what the `R__` move was for:
+     * editing the one file turned this hop red on its own, demanding the
+     * declaration. From here the git diff carries the rest of the story.</p>
+     */
+    private static final Substitution SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE = new Substitution(
+            "get-or-create de sitio antes del INSERT de producto (design E7, FK fk_productos_sitio)",
+            Pattern.compile("-- get-or-create de .*?ON CONFLICT DO NOTHING; "),
+            "");
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
@@ -239,7 +257,7 @@ class StoredProcedureDriftTest {
             // rojo, y ahí el diff de git pasa a ser la declaración del cambio
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
-            new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT, List.of()),
+            new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT, List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE, List.of())
     );
 

@@ -479,6 +479,53 @@ destruye historial del usuario: es una decisión de producto, no de esquema.
 
 ---
 
+### `V23` — la FK de `productos.sitio`, con get-or-create
+
+La FK que faltaba, y que el design E7 había especificado pero nunca se
+implementó (lo encontró el verify, no el review). Sin ella `productos.sitio`
+seguía siendo un string suelto contra una tabla que ya es la fuente
+autoritativa de `plataforma`, `es_premium` y `rubro_forzado`.
+
+**Sola sería una trampa.** Un scrape de un sitio que todavía no está en
+`sitio` la violaría dentro de `sp_upsert_run`, y ese error lo atrapa
+`ProductRepository`, que loguea y devuelve `UpsertStats(0,0,0,0)`: sale como
+`"0 nuevos"`, nunca como error. Por eso la FK viaja junto con un
+**get-or-create** en `R__sp_upsert_run.sql` — la fila de `sitio` se crea antes
+que el producto que la referencia, lo que hace la restricción infalsificable
+para cualquier cosa que escriba el scraper. `SitioGetOrCreateTest` prueba las
+dos mitades y afirma `nuevos()` antes que cualquier columna.
+
+`ON CONFLICT DO NOTHING` **sin target** es deliberado: cubre las dos
+restricciones únicas de la tabla (`nombre` PK y `sitio_key`), así que un sitio
+ya sembrado nunca se pisa y Harvey conserva su `es_premium`.
+
+**Borde residual, declarado en vez de disimulado:** si aparecieran dos nombres
+distintos que normalizan a la misma `sitio_key` ("Harvey" y "Harvey!"), el
+get-or-create no insertaría el segundo y su producto rebotaría contra la FK —
+tragado. Es patológico: los nombres salen de `config.properties` o de
+`sitios_dinamicos`, ambos ya sembrados en `V18`, así que requiere que alguien
+cargue a mano un nombre que colisione en clave con uno existente.
+
+Este fue además el primer cambio declarado contra una migración **repetible**
+en vez de una copia versionada nueva, y es lo que el movimiento a `R__`
+compraba: editar el archivo puso el salto del drift test en rojo por su cuenta,
+exigiendo la declaración.
+
+> El bloque de abajo lo ejecuta `V23RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V23
+ALTER TABLE productos DROP CONSTRAINT fk_productos_sitio;
+-- <<< rollback:V23
+```
+
+Lossless para el esquema. **No** borra las filas `origen='historico'` que el
+backfill haya creado: son identidades de sitio reales y observadas, no basura
+de la migración, y borrarlas perdería información que nadie más tiene.
+
+---
+
 ### Las funciones plpgsql pasan a migraciones repetibles (`R__`)
 
 `sp_upsert_run` llegó a tener **siete copias** —`V1`, `V3`, `V5`, `V7`, `V17`,
@@ -684,7 +731,8 @@ resultante explotaba a un número absurdo.
 scrape — ver el retype de `Product.precioOriginal` más abajo) y
 `sp_parse_precio_ar` (SQL, sólo para el backfill de esta migración) implementan
 el MISMO contrato de 8 reglas, verbatim de `ml_pipeline.py:354-389`
-(`safe_price`, que sigue siendo la spec). Los tres se prueban contra el MISMO
+(`safe_price`, que era la spec de la que se portaron y que después se borró al
+quedar sin callers — ver `docs/ML_PIPELINE.md`). Los dos se prueban contra el MISMO
 fixture, `scraper/src/test/resources/price-parser-cases.tsv` — `PrecioParserTest`
 corre el Java, `V17BackfillParityTest` extrae `sp_parse_precio_ar` del archivo
 de migración y lo corre dentro de una transacción que siempre se revierte.
@@ -787,13 +835,26 @@ como una optimización aparte.
 
 ```sql
 -- >>> rollback:V18
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS fk_productos_sitio;
 DROP TABLE sitio;
 -- <<< rollback:V18
 ```
 
-Trivial: la tabla no tiene FKs entrantes ni salientes y nada la lee en este
-slice, así que soltarla no pierde ningún comportamiento downstream — sólo la
-tabla misma. El `UPDATE` de rubro de `foreverbstrd` NO es reversible desde el
+⚠️ **Este bloque dejó de ser trivial cuando llegó `V23`.** Cuando se escribió,
+`sitio` no tenía FKs entrantes y un `DROP TABLE` pelado alcanzaba. `V23` le
+agregó `fk_productos_sitio`, así que ahora hay que soltar la restricción
+primero — `DROP TABLE` falla con *"constraint fk_productos_sitio on table
+productos depends on table sitio"*. Se prefiere el `DROP CONSTRAINT` explícito
+antes que un `CASCADE`, que soltaría en silencio cualquier otra cosa que
+llegue a depender de la tabla más adelante. El `IF EXISTS` deja el bloque
+válido también en una base que quedó en `V18` sin llegar a `V23`.
+
+Que esto se haya detectado es mérito de `V18RollbackRoundTripTest`, que
+**ejecuta** el bloque en vez de sólo mostrarlo: un rollback documentado que ya
+no corre es peor que no documentar ninguno.
+
+Fuera de eso el rollback no pierde comportamiento downstream — sólo la tabla
+misma. El `UPDATE` de rubro de `foreverbstrd` NO es reversible desde el
 esquema (el valor previo no se guardó) pero sí es re-derivable
 determinísticamente: revertir el edit de `TECH_SITIOS` y volver a scrapear.
 
