@@ -546,6 +546,63 @@ de la migración, y borrarlas perdería información que nadie más tiene.
 
 ---
 
+### `V24` — el dominio de `plataforma` pasa de 9 a 11 valores (`qloud`, `oscommerce`)
+
+`fix-zero-yield-tech-sites`: Rockethard y Venex scrapeaban 0 productos porque
+nunca estuvieron registrados — sin fila en `config.properties`, sin fila en
+`sitio` (el seed de `V18` es de 23 filas, ninguna de las dos). El mismo
+criterio de `V6` aplica de nuevo: `sitio.plataforma` es un dominio cerrado y
+chico (9 valores antes de esto), así que sigue siendo `CHECK`, no una tabla —
+`V13` sólo se justifica pasado el orden de las decenas.
+
+**Por qué migración nueva y no editar `V18`.** `V18` está aplicada y
+Flyway-checksummeada: hasta un comentario agregado ahí rompe `flyway
+validate`. La única forma de ampliar un `CHECK` ya aplicado es un `DROP
+CONSTRAINT` + `ADD CONSTRAINT` en una migración versionada nueva.
+
+**El nombre del constraint se confirmó contra el esquema real antes de
+escribir esto** (`pg_constraint`/`information_schema.table_constraints`), no
+se asumió: el `CHECK` inline y sin nombre de `V18` lo auto-nombró Postgres
+`sitio_plataforma_check`. Se mantiene ese nombre — renombrarlo haría que el
+rollback de abajo dejara de ser literal.
+
+**Sólo dos valores, no tres.** La exploración original consideraba también
+`logg` para un tercer sitio (Logg). Su fuente de hidratación (grid renderizado
+por JS, sin endpoint identificado) nunca se aisló — ver "Bloqueo conocido:
+Logg queda fuera de `fix-zero-yield-tech-sites`" más abajo — así que no hay
+`V25` en este cambio y el dominio no lleva `logg`. Sembrar una plataforma sin
+scraper sería exactamente el bug que este cambio existe para cerrar: un sitio
+registrado que scrapea 0 en silencio.
+
+Las dos filas de seed llevan `rubro_forzado='tecnologia'`, mismo criterio que
+`maximus`/`fullh4rd`/`compragamer` en `V18`.
+
+> El bloque de abajo lo ejecuta `V24RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte. El orden importa —
+> primero las filas de seed, después el `CHECK` — y el test lo prueba:
+> revertir en el otro orden dejaría, por un instante, un `CHECK` más angosto
+> que datos que todavía lo violan.
+
+```sql
+-- >>> rollback:V24
+DELETE FROM sitio s WHERE s.plataforma IN ('qloud','oscommerce')
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer'));
+-- <<< rollback:V24
+```
+
+El `NOT EXISTS` existe porque `V23` le puso una FK a `productos.sitio_key ->
+sitio(sitio_key)`: si ya corrió un scrape de Rockethard o Venex, borrar su
+fila de `sitio` rompería esa referencia. Consecuencia honesta, documentada en
+vez de escondida: **antes** del primer scrape el rollback es lossless;
+**después**, retirar el sitio es `origen='historico'` (soft), no angostar el
+dominio.
+
+---
+
 ### Bloqueo conocido: Logg queda fuera de `fix-zero-yield-tech-sites`
 
 De los cinco sitios tech que scrapeaban 0 productos en el run del 2026-08-11

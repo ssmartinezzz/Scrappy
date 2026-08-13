@@ -230,6 +230,7 @@ los `V*RollbackRoundTripTest` para que el documento no pueda desincronizarse.
 | `V21` | Tabla `marca` + FK, clave natural |
 | `V22` | Dropea `productos.marca_premium` (3FN) |
 | `V23` | `productos.sitio_key` (generada) + FK a `sitio(sitio_key)` |
+| `V24` | `sitio.plataforma` 9→11 valores (`qloud`, `oscommerce`) + seed Rockethard/Venex |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
