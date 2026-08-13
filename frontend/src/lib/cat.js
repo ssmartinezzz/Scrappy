@@ -1,8 +1,11 @@
-// Mirror of ml_pipeline.py `norm_cat`: lowercase + strip accents/tildes. Product
-// categories (Title Case, e.g. "Medias") must be normalized this way before
-// looking them up in `catStats`, whose keys come from the ML pipeline already
-// normalized (e.g. "medias"). Without this, every catStats lookup silently
-// misses and category stats (price bar, pack savings %) never render.
+// Mirror of ml_pipeline.py `norm_cat`: lowercase + strip accents/tildes.
+//
+// close-1nf-and-3nf-foundation (design DD6): `catStats` (distribucionCategorias)
+// is keyed by the CANONICAL categoria (Title Case, "Medias") since V16 —
+// every catStats lookup now uses the raw categoria directly, not this
+// function's output. normCat's only remaining job is `slugify`/
+// `canonicalFromSlug` below, for `/picks/:categoria` URLs — it still needs a
+// stable, lowercase, accent-free key for that, unrelated to catStats.
 export function normCat(raw) {
   if (!raw) return 'general';
   return String(raw)

@@ -45,7 +45,7 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
     @BeforeEach
     void setUp() {
         db = new DatabaseService(dataSource());
-        repo = new CatalogQueryRepository(dataSource());
+        repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         dataset = dataset();
         db.upsertProductos(dataset);
     }
@@ -231,11 +231,11 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
                 producto("https://s.com/4", "Zapatilla de running", 62000, "VCP", "Zapatilla Running", "mujer",
                         List.of("39"), List.of(), "Nike", 1, "luxury"),
                 producto("https://s.com/5", "Buzo canguro", 18000, "Midway", "Buzo", "unisex",
-                        List.of(), List.of("trending"), "Barnes", 1, "standard"),
+                        List.of(), List.of("trending"), "Reebok", 1, "standard"),
                 producto("https://s.com/6", "Pack x3 medias multi-talle", 9000, "Bulks", "Medias", "unisex",
                         List.of("S", "M", "L", "XL"), List.of("all_time_low", "trending"), "Bulks", 3, "budget"),
                 producto("https://s.com/7", "Short 50% off", 7000, "Batuk", "Short", "",
-                        List.of("M"), List.of(), "Batuk", 1, "standard")
+                        List.of("M"), List.of(), "Umbro", 1, "standard")
         );
     }
 

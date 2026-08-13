@@ -4,7 +4,6 @@ import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } fro
 import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
-import { normCat } from '../lib/cat';
 import { highlightPrices } from '../lib/richText';
 
 // MercadoLibre's official brand yellow — third-party partner color, not one
@@ -337,7 +336,9 @@ function PriceContext({ product: p, st }) {
 export default function DetailPanel({ product: p, catStats, onClose }) {
   const [hist, setHist] = useState(null);
   const ml  = p.ml || {};
-  const st  = catStats?.[normCat(p.categoria)];
+  // catStats está keyeado por la categoria CANÓNICA desde V16 (design DD6),
+  // no por la salida de normCat — normCat sigue vivo solo para slugify/URLs.
+  const st  = catStats?.[p.categoria];
 
   useEffect(() => {
     if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));

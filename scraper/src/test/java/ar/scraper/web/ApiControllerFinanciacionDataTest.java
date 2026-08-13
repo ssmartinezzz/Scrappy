@@ -131,7 +131,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
         Product p = new Product("Sitio", "Producto ML", 10000, null, "https://site.com/ml", "img",
                 "Remera", "unisex", List.of("M"),
                 new Product.MlScore(80, List.of("all_time_low"), true, "bajando", 12, 0.5, "premium"),
-                "Marca", "indumentaria", false, false,
+                "Nike", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
         sembrar(p);
 
@@ -243,13 +243,13 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
 
     private Product producto(String url, double precio) {
         return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
     }
 
     private Product pack(String url, double precioTotal, int unidades) {
         return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, unidades);
     }
 }

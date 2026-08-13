@@ -42,7 +42,7 @@ class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
     private static final Set<String> OVERWRITTEN = Set.of(
             "sitio", "nombre", "precio", "precio_orig", "imagen_url",
             "ml_score", "ml_oferta", "ml_tendencia", "ml_segment", "ml_zscore",
-            "gymrat", "marca_premium", "cantidad_unidades", "activo", "touched_at");
+            "gymrat", "cantidad_unidades", "activo", "touched_at");
 
     private static final Set<String> FILL_ONLY = Set.of(
             "fit", "estampado", "escote", "color_dominante");
@@ -56,12 +56,23 @@ class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
     private static final Set<String> NEVER_IN_UPSERT = Set.of(
             "url", "created_at");
 
+    /**
+     * Columnas {@code GENERATED ALWAYS AS ... STORED}: Postgres prohíbe
+     * nombrarlas en un INSERT, así que su ausencia del upsert no es una
+     * decisión que documentar sino una regla del motor. Bucket propio y no
+     * {@link #NEVER_IN_UPSERT} porque el motivo es distinto: {@code url} y
+     * {@code created_at} se omiten por decisión (design D2), {@code sitio_key}
+     * no podría estar aunque quisiéramos.
+     */
+    private static final Set<String> GENERADAS = Set.of("sitio_key");
+
     @Test
     void everyProductosColumnFallsIntoExactlyOneDeclaredBucket() throws Exception {
         List<String> columns = readProductosColumns();
         assertThat(columns).as("productos table has columns").isNotEmpty();
 
-        List<Set<String>> buckets = List.of(OVERWRITTEN, FILL_ONLY, LOCKED, LOCKED_METADATA, NEVER_IN_UPSERT);
+        List<Set<String>> buckets =
+                List.of(OVERWRITTEN, FILL_ONLY, LOCKED, LOCKED_METADATA, NEVER_IN_UPSERT, GENERADAS);
         Set<String> allDeclared = new HashSet<>();
         for (Set<String> bucket : buckets) {
             for (String col : bucket) {

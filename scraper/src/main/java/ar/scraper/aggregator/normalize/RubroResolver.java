@@ -9,9 +9,25 @@ import org.springframework.stereotype.Component;
  * {@code catEsSuppl} en {@code NormalizerService.normalizarProducto} (Work
  * Unit 8 de la modularización SOLID del aggregator) — pure relocation, no
  * behavior change. Usa {@link SiteClassification} y {@link CategoryGroups}.</p>
+ *
+ * <p>close-1nf-and-3nf-foundation extension (design E1/E3): el sitio forzado
+ * pasa de dos {@code stream().anyMatch(sitioKey::contains)} sobre
+ * {@code TECH_SITIOS}/{@code SUPPL_SITIOS} — una comparación por substring que
+ * podía enmascarar un sitio distinto ("foreverbstrd" contiene "forever") — a
+ * un lookup de igualdad exacta sobre {@link SiteRegistry#rubroForzado}.
+ * {@code RubroResolverEqualityParityTest} prueba que el resultado es idéntico
+ * al del substring viejo sobre los 23 sitios reales × 81 categorías × 5
+ * rubros previos — el conjunto de sitios donde había margen para que
+ * cambiara.</p>
  */
 @Component
 public class RubroResolver {
+
+    private final SiteRegistry siteRegistry;
+
+    public RubroResolver(SiteRegistry siteRegistry) {
+        this.siteRegistry = siteRegistry;
+    }
 
     /**
      * Resuelve el rubro: forzar por sitio, luego por categoría, luego usar
@@ -24,14 +40,13 @@ public class RubroResolver {
     public String resolver(String sitioKey, String cat, String rubroExistente) {
         boolean catEsTextil = CategoryGroups.esIndumentariaOCalzado(cat);
         boolean catEsSuppl  = CategoryGroups.esCategoriaSuplemento(cat);
+        String rubroForzado = siteRegistry.rubroForzado(sitioKey);
 
-        if (SiteClassification.TECH_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
-                && !catEsTextil) {
+        if ("tecnologia".equals(rubroForzado) && !catEsTextil) {
             return "tecnologia";
         } else if (catEsSuppl) {
             return "suplementos";
-        } else if (SiteClassification.SUPPL_SITIOS.stream().anyMatch(s -> sitioKey.contains(s.replaceAll("[^a-z0-9]","")))
-                   && !catEsTextil) {
+        } else if ("suplementos".equals(rubroForzado) && !catEsTextil) {
             return "suplementos";
         } else if (catEsTextil) {
             return "indumentaria";

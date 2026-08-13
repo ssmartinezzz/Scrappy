@@ -42,9 +42,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class NoIntegerBooleanLiteralsTest {
 
-    /** The 8 boolean column names retyped by V5 (design D2) — "activo" covers two tables. */
+    /**
+     * The boolean column names retyped by V5 (design D2) — "activo" covers two
+     * tables. V5 retyped 8; {@code marca_premium} is deliberately absent
+     * because V22 dropped the column outright (it was a transitive dependency
+     * of {@code sitio}, now read from {@code sitio.es_premium}). Guarding a
+     * column that no longer exists would just be a dead name in a list.
+     */
     private static final List<String> BOOLEAN_COLUMNS = List.of(
-            "activo", "gymrat", "marca_premium", "ml_oferta",
+            "activo", "gymrat", "ml_oferta",
             "enabled", "liked", "force_retrain", "use_gpu");
 
     private static final Pattern SET_INT_TERNARY = Pattern.compile(

@@ -151,11 +151,11 @@ public class WooCommercePage extends BasePage {
 
             if (img.startsWith("//")) img = "https:" + img;
 
-            String precioOrig = null;
+            Double precioOrig = null;
             if (!origStr.isBlank()) {
                 Optional<Double> pOrig = parsePrecioWC(origStr);
                 if (pOrig.isPresent() && pOrig.get() > precio.get())
-                    precioOrig = origStr;
+                    precioOrig = pOrig.get();
             }
 
             return Optional.of(new Product(

@@ -6,6 +6,7 @@ import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
 import ar.scraper.aggregator.normalize.RubroResolver;
+import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
 import ar.scraper.aggregator.normalize.SubcategoryResolver;
 import ar.scraper.model.Product;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static ar.scraper.aggregator.normalize.SiteClassification.SITIOS_PREMIUM;
 import static ar.scraper.aggregator.normalize.SiteClassification.sitioKey;
 
 /**
@@ -31,7 +31,10 @@ import static ar.scraper.aggregator.normalize.SiteClassification.sitioKey;
  * {@code SiteClassification}, {@code NonTextileGuard}, Work Unit 3) se siguen
  * consumiendo vía static import/referencia estática dentro de cada
  * collaborator, sin cambios — este orquestador solo usa
- * {@code SiteClassification.sitioKey}/{@code SITIOS_PREMIUM} directamente.</p>
+ * {@code SiteClassification.sitioKey} directamente. {@code marcaPremium}
+ * pasa a leer {@link SiteRegistry#esPremium} (close-1nf-and-3nf-foundation
+ * extension, design E1) en vez de {@code SiteClassification.SITIOS_PREMIUM}
+ * — mismo dato, un solo dueño.</p>
  */
 @Component
 public class NormalizerService {
@@ -44,6 +47,7 @@ public class NormalizerService {
     private final SubcategoryResolver subcategoryResolver;
     private final RubroResolver rubroResolver;
     private final GymratTagger gymratTagger;
+    private final SiteRegistry siteRegistry;
 
     public NormalizerService(PackQuantityDetector packQuantityDetector,
                               CategoryClassifier categoryClassifier,
@@ -52,7 +56,8 @@ public class NormalizerService {
                               SizeNormalizer sizeNormalizer,
                               SubcategoryResolver subcategoryResolver,
                               RubroResolver rubroResolver,
-                              GymratTagger gymratTagger) {
+                              GymratTagger gymratTagger,
+                              SiteRegistry siteRegistry) {
         this.packQuantityDetector = packQuantityDetector;
         this.categoryClassifier = categoryClassifier;
         this.brandExtractor = brandExtractor;
@@ -61,6 +66,7 @@ public class NormalizerService {
         this.subcategoryResolver = subcategoryResolver;
         this.rubroResolver = rubroResolver;
         this.gymratTagger = gymratTagger;
+        this.siteRegistry = siteRegistry;
     }
 
     public List<Product> normalizar(List<Product> productos) {
@@ -81,7 +87,7 @@ public class NormalizerService {
         String sitioKey       = sitioKey(p.sitio());
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);
-        boolean marcaPremium  = SITIOS_PREMIUM.contains(sitioKey);
+        boolean marcaPremium  = siteRegistry.esPremium(sitioKey);
         int cantidadUnidades  = packQuantityDetector.detectar(nombre, cat);
         String subCategoria   = subcategoryResolver.resolver(nombre, cat);
 

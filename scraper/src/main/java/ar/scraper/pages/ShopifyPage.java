@@ -1,5 +1,6 @@
 package ar.scraper.pages;
 
+import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -118,8 +119,10 @@ public class ShopifyPage extends BasePage {
             Optional<Double> precio = parsePrecio(v.path("price").asText(""));
             if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) return Optional.empty();
 
-            String compare = v.path("compare_at_price").asText("");
-            if ("null".equals(compare)) compare = "";
+            String compareStr = v.path("compare_at_price").asText("");
+            if ("null".equals(compareStr)) compareStr = "";
+            OptionalDouble compareParsed = PrecioParser.parse(compareStr);
+            Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
 
             // --- Categoría: product_type ---
             String categoria = prod.path("product_type").asText("").trim();
@@ -130,8 +133,7 @@ public class ShopifyPage extends BasePage {
             // --- Talles: opciones del producto ---
             List<String> talles = extraerTalles(prod, variants);
 
-            return Optional.of(new Product(sitio, nombre, precio.get(),
-                    compare.isBlank() ? null : "$" + compare,
+            return Optional.of(new Product(sitio, nombre, precio.get(), compare,
                     url, img, categoria, genero, talles));
         } catch (Exception e) { return Optional.empty(); }
     }

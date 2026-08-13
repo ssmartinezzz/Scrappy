@@ -351,42 +351,23 @@ class HistoricalAnalysis:
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def safe_price(raw):
-    if not raw: return 0.0
-    s = str(raw).strip()
-    # Rechazar strings que contienen NaN, null, undefined
-    if any(bad in s.lower() for bad in ('nan', 'null', 'undefined', 'none')): return 0.0
-    s = re.sub(r'[^\d,.]', '', s)
-    if not s: return 0.0
-    # Manejar formato argentino: 1.249.999,99 o 1249999
-    dots  = s.count('.')
-    comas = s.count(',')
-    if comas == 1 and dots >= 1:
-        # 1.249.999,99 → quitar puntos, coma → punto decimal
-        s = s.replace('.', '').replace(',', '.')
-    elif comas == 1 and dots == 0:
-        # 99,99 → coma decimal AR, sin separador de miles → punto decimal
-        s = s.replace(',', '.')
-    elif dots == 1 and comas == 0:
-        # Un solo punto: puede ser separador decimal o de miles, según la cantidad
-        # de dígitos después del punto y el tamaño de la parte entera (precios AR
-        # son típicamente enteros en pesos).
-        intpart, frac = s.split('.')
-        if len(frac) == 3:
-            s = s.replace('.', '')                 # 199.500 → 199500 (miles)
-        elif len(frac) <= 2 and len(intpart) <= 3:
-            pass                                    # 199.50 / 12.99 → decimal real (precio < 1000)
-        else:
-            # 1234.5 / 12345.67 → punto como separador de miles AR (precio entero)
-            s = s.replace('.', '')
-    else:
-        # Sin separadores claros → quitar todo excepto dígitos
-        s = s.replace('.', '').replace(',', '')
-    try:
-        v = float(s)
-        return v if 0 < v < 100_000_000 else 0.0
-    except:
-        return 0.0
+# El parser de precios AR vivía acá (`safe_price`) y se BORRÓ.
+#
+# `V17` lo colapsó junto con otras dos copias —el regex SQL de
+# CatalogQueryRepository y el de ProductCard.jsx— en un único parser:
+# ar.scraper.aggregator.text.PrecioParser (Java), con sp_parse_precio_ar
+# (SQL, V17) como su gemelo para el backfill. Los dos se prueban contra el
+# MISMO fixture, scraper/src/test/resources/price-parser-cases.tsv, así que
+# no pueden divergir en silencio.
+#
+# Esta copia quedó con CERO callers: PrecioParser corre en Java al momento
+# del scrape, así que `precioOriginal` llega a este pipeline ya como número
+# o None, nunca como el string crudo que safe_price parseaba. Se la había
+# dejado como "especificación de referencia", y esa era exactamente la
+# trampa: era la única de las tres implementaciones FUERA de la cadena del
+# fixture, o sea la única que podía romperse sin poner ningún test en rojo.
+# Una spec que nadie ejecuta no es una spec, es una copia esperando
+# desincronizarse.
 
 
 def tfidf_simple(docs):
@@ -672,12 +653,21 @@ def main():
             key = f"{key}|{genero}"
         grupos_precios[key].append(precio_unitario(p))
 
-    # Categoría normalizada sola (para stats de scoring por producto — distinta de
-    # cat_prices/cat_stats_output más abajo, que es SOLO para el panel de tendencias y
-    # se mantiene en precio de estantería)
+    # Clave del output 'categoriaStats' persistido en categoria_stats (V16,
+    # close-1nf-and-3nf-foundation design DD6): la categoria CANÓNICA (V13),
+    # no norm_cat — categoria_stats.categoria ahora tiene FK a categoria(nombre)
+    # y norm_cat produce claves en minúscula que esa tabla nunca tuvo ("medias",
+    # no "Medias"). Vacío cae en 'Otros', el bucket de abstención de V12, que sí
+    # está en el canon — 'general' nunca estuvo.
+    #
+    # Distinta de cat_prices/cat_stats_output más abajo, que es SOLO para
+    # tendencias.categoriaStats (no se persiste) y se mantiene en precio de
+    # estantería. El fallback de scoring por producto (stats_cats.get(cat_nc),
+    # más abajo) es en la práctica inalcanzable: stats_grupos ya cubre a todo
+    # producto con la misma clave que él mismo aportó al construir grupos_precios.
     cats_precios = defaultdict(list)
     for p in productos:
-        cat = norm_cat((p.get('categoria') or 'General').strip() or 'General')
+        cat = (p.get('categoria') or '').strip() or 'Otros'
         cats_precios[cat].append(precio_unitario(p))
 
     # Construir objetos PriceStats
@@ -718,8 +708,10 @@ def main():
     descuentos_por_cat = defaultdict(list)
     for p in productos:
         precio = p.get('precio', 0)
-        raw_orig = (p.get('precioOriginal') or '').strip()
-        orig = safe_price(raw_orig) if raw_orig and raw_orig.lower() not in ('nan','null','none','') else 0.0
+        # precioOriginal ya llega como número o None (D1/DD7): PrecioParser
+        # corrió en Java al momento del scrape, así que acá no hay nada que
+        # parsear — safe_price ya no aplica a este campo (DD2, measurement 5).
+        orig = p.get('precioOriginal') or 0.0
         # Hard guard: orig must be at least 20% above precio to be a real discount
         if orig > 0 and orig < precio * 1.20:
             orig = 0.0
@@ -781,8 +773,9 @@ def main():
         hist_min  = hist_anal.min_price()
         hist_max  = hist_anal.max_price()
 
-        # Análisis de descuento
-        orig  = safe_price(p.get('precioOriginal', ''))
+        # Análisis de descuento — precioOriginal ya es número o None (D1/DD7),
+        # PrecioParser corrió en Java; sin safe_price acá (DD2, measurement 5).
+        orig  = p.get('precioOriginal') or 0.0
         ratio = orig / precio if orig > precio > 0 else 1.0
         descuento_pct = (1 - precio / orig) * 100 if orig > precio > 0 else 0
         orig_price = orig
@@ -1225,12 +1218,14 @@ def main():
     print(f"[ML] ofertaReal=True en {n_oferta_real} productos "
           f"(badge verified_deal={badge_counts.get('verified_deal', 0)})", file=sys.stderr)
 
-    # Logging de validación: precios originales no parseables (rechazados a 0.0)
-    n_orig_cero = sum(1 for p in productos
-                       if (p.get('precioOriginal') or '').strip()
-                       and safe_price(p.get('precioOriginal', '')) == 0.0)
-    print(f"[ML] safe_price: {n_orig_cero}/{len(productos)} precioOriginal no parseables "
-          f"(rechazados a 0.0)", file=sys.stderr)
+    # Logging de validación: productos sin precio original. Antes de D1/DD7
+    # esto contaba "precioOriginal no parseó" (safe_price devolviendo 0.0);
+    # ahora precioOriginal ya llega resuelto desde Java (PrecioParser corrió
+    # al scrapear) — "no parseó" y "nunca hubo" son la MISMA cosa acá, así
+    # que la métrica pasa a contar directamente lo que sí se puede observar.
+    n_sin_precio_orig = sum(1 for p in productos if not p.get('precioOriginal'))
+    print(f"[ML] precioOriginal: {n_sin_precio_orig}/{len(productos)} productos sin precio original",
+          file=sys.stderr)
 
     # ─── 7. Tendencias globales ───────────────────────────────────────────────
     cat_counts  = defaultdict(int)
