@@ -3,6 +3,7 @@ package ar.scraper.pages;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.microsoft.playwright.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -224,134 +225,243 @@ public class TechStorePage extends BasePage {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MAXIMUS — custom ASP-like CMS
-    // URL: /Productos/CAT={id}/SCAT=-1/M=-1/OR=1/maximus.aspx/PAGE={n}/
+    // MAXIMUS — ASP.NET custom, page-method JSON API behind a Playwright session
+    // URL: /Productos/{Slug}/maximus.aspx?/CAT={id}/SCAT=-1/M=-1/OR=1/PAGE={n}/
+    // API:  POST /wfmWebSite2.aspx/wsNRW_Script  (needs the session cookies a
+    //       category-page navigation mints — a cookie-less call is REJECTED,
+    //       see MaximusPayloadException/parseMaximusPayload)
     // Producto: /Producto/{Slug}/ITEM={id}/maximus.aspx
     // ═══════════════════════════════════════════════════════════════════════
 
-    // MAXIMUS — ASP.NET custom
-    // ═══════════════════════════════════════════════════════════════════════
+    /** Cosmetic slug segment — confirmed live that only `CAT=` routes, any text works. */
+    private static final String MAXIMUS_SLUG_PLACEHOLDER = "categoria";
+    private static final String MAXIMUS_GUID = "a632009a-7686-4fcb-a0b4-24b18caf5234";
+    private static final String MAXIMUS_SCRIPT_LABEL = "web.MAX.GetItemList4Search_v3_V6";
+    private static final int MAXIMUS_MAX_PAGES = 30;
+
+    /** Fallback IDs measured live 2026-08-13 when nav discovery finds none — not exhaustive. */
+    private static final List<Integer> MAXIMUS_FALLBACK_CATS =
+            List.of(48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60);
+
+    record MaximusPage(int page, int pagesTotal, int itemsTotal, List<JsonNode> items) {}
 
     private List<Product> scrapeMaximus() {
         List<Product> result = new ArrayList<>();
         Set<String> vistas   = new HashSet<>();
 
-        // Descubrir IDs de categoría desde el nav de la homepage
-        Set<Integer> catIds = discoverMaximusCategories();
+        List<Integer> catIds = discoverMaximusCategoryIds();
         log.info("[{}] Categorías Maximus: {}", sitio, catIds);
 
         for (int catId : catIds) {
-            for (int p = 1; p <= 25; p++) {
-                // URL real: /Productos/CAT={id}/SCAT=-1/M=-1/OR=1/maximus.aspx/PAGE={n}/
-                String url = baseUrl + "/Productos/CAT=" + catId
-                    + "/SCAT=-1/M=-1/OR=1/maximus.aspx/PAGE=" + p + "/";
-                try {
-                    navigateTo(url);
-                    // Esperar que los productos carguen (JavaScript renderiza precios)
-                    try {
-                        page.waitForSelector(
-                            "a[href*='/Producto/'],a[href*='ITEM='],a[href*='/producto/']",
-                            new Page.WaitForSelectorOptions().setTimeout(10000)
-                        );
-                    } catch (Exception waitEx) {
-                        log.debug("[{}] CAT={} p={}: sin productos", sitio, catId, p);
-                        break;
-                    }
-                    page.waitForTimeout(500); // precios se renderizan con JS
-
-                    var prods = extractMaximus(vistas);
-                    if (prods.isEmpty()) break;
-                    result.addAll(prods);
-                    log.debug("[{}] CAT={} p={}: +{}", sitio, catId, p, prods.size());
-                } catch (Exception e) {
-                    log.debug("[{}] CAT={} p={}: {}", sitio, catId, p, e.getMessage());
-                    break;
-                }
-            }
+            List<Product> prods = crawlMaximusCategory(catId, vistas);
+            result.addAll(prods);
         }
         log.info("[{}] COMPLETADO: {} productos", sitio, result.size());
         return result;
     }
 
-    /** Descubre IDs de categoría desde el nav de Maximus */
-    private Set<Integer> discoverMaximusCategories() {
+    /**
+     * Package-private: pagination loop for one category, mocked-Page
+     * testable (design D6). A {@link MaximusPayloadException} from
+     * {@link #parseMaximusPayload} is NEVER caught here — it propagates
+     * through {@code scrapeMaximus}/{@code scrapeAll} into
+     * {@code BaseScraper.ejecutar}'s catch, landing in
+     * {@code ScrapeResult.error} instead of a silently empty result.
+     */
+    List<Product> crawlMaximusCategory(int catId, Set<String> vistas) {
+        List<Product> result = new ArrayList<>();
+        for (int p = 1; p <= MAXIMUS_MAX_PAGES; p++) {
+            String navUrl = baseUrl + "/Productos/" + MAXIMUS_SLUG_PLACEHOLDER + "/maximus.aspx?/CAT="
+                    + catId + "/SCAT=-1/M=-1/OR=1/PAGE=" + p + "/";
+            navigateTo(navUrl); // mints ASP.NET_GBP_SessionId_*/GBP_<guid> cookies
+
+            String responseText = fetchMaximusApiPage(catId, p);
+            String d = extractD(responseText);
+            MaximusPage maximusPage;
+            try {
+                maximusPage = parseMaximusPayload(d);
+            } catch (MaximusPayloadException e) {
+                // WARN (not debug) — this is the R1 loud-failure contract: visible in
+                // error.log, not swallowed into an indistinguishable empty category.
+                // Rethrown immediately, never caught-and-return-empty.
+                log.warn("[{}] CAT={} p={}: Maximus payload gate/forma inesperada — {}", sitio, catId, p, e.getMessage());
+                throw e;
+            }
+
+            if (maximusPage.items().isEmpty()) {
+                log.info("[{}] CAT={} p={}: categoría vacía (itemsTotal={})", sitio, catId, p, maximusPage.itemsTotal());
+                break;
+            }
+            for (JsonNode item : maximusPage.items()) {
+                maximusItemToProduct(item).ifPresent(prod -> {
+                    if (vistas.add(prod.url())) result.add(prod);
+                });
+            }
+            log.debug("[{}] CAT={} p={}/{}: +{}", sitio, catId, p, maximusPage.pagesTotal(), maximusPage.items().size());
+            if (p >= maximusPage.pagesTotal()) break;
+        }
+        return result;
+    }
+
+    /** POST body built in Java/Jackson — never a JSON literal concatenated into JS source (CODE-7). */
+    private String fetchMaximusApiPage(int catId, int pageNum) {
+        try {
+            ObjectNode inner = MAPPER.createObjectNode();
+            inner.put("ws_id", MAXIMUS_GUID);
+            inner.put("comp_id", 1);
+            inner.put("prli_id", 17);
+            inner.put("cust_id", -1);
+            inner.put("page", pageNum);
+            inner.put("cat_id", catId);
+            inner.put("subcat_id", -1);
+            inner.put("brand_id", -1);
+            inner.put("local", 0);
+            inner.put("search", "");
+            inner.put("order", 1);
+            inner.put("price_min", "");
+            inner.put("price_max", "");
+            inner.putArray("wco_tV");
+
+            ObjectNode outer = MAPPER.createObjectNode();
+            outer.put("guidWS_Id", MAXIMUS_GUID);
+            outer.put("strScriptLabel", MAXIMUS_SCRIPT_LABEL);
+            outer.put("JSonParameters", MAPPER.writeValueAsString(inner));
+            String body = MAPPER.writeValueAsString(outer);
+
+            // Two-arg evaluate: `body` travels as a real JS argument, never
+            // interpolated into the script source (CODE-7 by elimination —
+            // this removes two of the four quoting levels the raw string
+            // concatenation would otherwise need).
+            return (String) page.evaluate(
+                    "(body) => fetch('/wfmWebSite2.aspx/wsNRW_Script', {"
+                            + "method:'POST',"
+                            + "headers:{'Content-Type':'application/json; charset=utf-8'},"
+                            + "credentials:'same-origin',"
+                            + "body"
+                            + "}).then(r => r.text())",
+                    body);
+        } catch (Exception e) {
+            // Un fallo de red/serialización acá NO es el session-gate — es una
+            // falla de transporte genérica, se trata como cualquier otro error
+            // de página (log + página vacía), no como MaximusPayloadException.
+            log.debug("[{}] fetchMaximusApiPage error CAT={} p={}: {}", sitio, catId, pageNum, e.getMessage());
+            return "";
+        }
+    }
+
+    /** Extrae el campo `d` del envelope `{"d": "..."}`. Cadena vacía -> "" (no null), tratado como gate por parseMaximusPayload. */
+    private static String extractD(String outerJson) {
+        try {
+            JsonNode outer = MAPPER.readTree(outerJson);
+            return outer.path("d").asText("");
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * Pure, package-private (design D6, D2). Discriminator:
+     * <ul>
+     *   <li>{@code d} parses to a JSON object whose {@code data.items} is a
+     *       (possibly empty) array -> real payload, never throws.</li>
+     *   <li>Anything else — does not parse as JSON, parses to a non-object
+     *       (bare scalar), or an object missing {@code data.items} — is the
+     *       session/module gate shape or an unrecognized contract change,
+     *       and MUST fail loudly rather than look like an empty category.</li>
+     * </ul>
+     */
+    static MaximusPage parseMaximusPayload(String d) {
+        if (d == null || d.isBlank()) throw new MaximusPayloadException(prefixOf(d));
+
+        JsonNode node;
+        try {
+            node = MAPPER.readTree(d);
+        } catch (Exception e) {
+            throw new MaximusPayloadException(prefixOf(d));
+        }
+        if (!node.isObject()) throw new MaximusPayloadException(prefixOf(d));
+
+        JsonNode data = node.path("data");
+        if (!data.isObject() || !data.has("items") || !data.path("items").isArray()) {
+            throw new MaximusPayloadException(prefixOf(d));
+        }
+
+        int page = data.path("page").asInt(0);
+        int pagesTotal = data.path("pagesTotal").asInt(0);
+        int itemsTotal = data.path("itemsTotal").asInt(0);
+        List<JsonNode> items = new ArrayList<>();
+        for (JsonNode item : data.path("items")) items.add(item);
+        return new MaximusPage(page, pagesTotal, itemsTotal, items);
+    }
+
+    private static String prefixOf(String d) {
+        if (d == null) return "";
+        return d.length() > 120 ? d.substring(0, 120) : d;
+    }
+
+    private Optional<Product> maximusItemToProduct(JsonNode item) {
+        String nombre = item.path("item_desc").asText("").trim();
+        if (nombre.isBlank()) return Optional.empty();
+
+        long itemId = item.path("item_id").asLong(-1);
+        if (itemId < 0) return Optional.empty();
+
+        double precio = item.path("prli_price_original").asDouble(0);
+        if (precio <= 0) {
+            // Fallback: prli_price_original ausente -> parsear el string AR-format.
+            Optional<Double> parsed = parsePrecioTech(item.path("prli_price").asText(""));
+            if (parsed.isEmpty()) return Optional.empty();
+            precio = parsed.get();
+        }
+        if (precio <= 0 || precio < precioMin || precio > precioMax) return Optional.empty();
+
+        Double precioOriginal = null;
+        if (item.hasNonNull("strikeThroughPrice_original")) {
+            double strike = item.path("strikeThroughPrice_original").asDouble(0);
+            if (strike > precio) precioOriginal = strike;
+        }
+
+        String desc4link = item.path("item_desc4link").asText("");
+        String url = baseUrl + "/Producto/" + desc4link + "/ITEM=" + itemId + "/maximus.aspx";
+
+        // Maximus no expone ningún campo de imagen en la API (confirmado:
+        // ninguna key del item la trae) — abstención (CODE-5), no inventada.
+        return Optional.of(new Product(
+                sitio, nombre, precio, precioOriginal,
+                url, "", "", "",
+                List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
+    }
+
+    /** Navega a la home y descubre IDs de categoría vía nav; frozen list como fallback si la descubierta da 0. */
+    private List<Integer> discoverMaximusCategoryIds() {
         try {
             navigateTo(baseUrl + "/");
-            page.waitForTimeout(2000);
-            String json = (String) page.evaluate(
-                "(function(){" +
-                "  var ids=new Set();" +
-                "  var links=document.querySelectorAll('a[href]');" +
-                "  for(var i=0;i<links.length;i++){" +
-                "    var h=links[i].getAttribute('href')||'';" +
-                "    var m=h.match(/CAT[_=](\\d+)/i);" +
-                "    if(m){var v=parseInt(m[1]);if(v>0)ids.add(v);}" +
-                "  }" +
-                "  return JSON.stringify([...ids].sort(function(a,b){return a-b;}));" +
-                "})()"
-            );
-            var arr = MAPPER.readTree(json);
-            var ids = new java.util.LinkedHashSet<Integer>();
-            for (var n : arr) { int v = n.asInt(); if (v > 0) ids.add(v); }
-            if (!ids.isEmpty()) return ids;
+            String html = page.content();
+            List<Integer> discovered = extractMaximusCategoryIds(html);
+            if (!discovered.isEmpty()) return discovered;
         } catch (Exception e) {
             log.debug("[{}] discover maximus cats error: {}", sitio, e.getMessage());
         }
-        // Fallback: categorías conocidas de Maximus (hardware gaming)
-        var fb = new java.util.LinkedHashSet<Integer>();
-        for (int id : new int[]{48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60}) fb.add(id);
-        return fb;
+        log.warn("[{}] nav discovery returned 0 category ids, falling back to the frozen list of {}",
+                sitio, MAXIMUS_FALLBACK_CATS.size());
+        return MAXIMUS_FALLBACK_CATS;
     }
 
-    private List<Product> extractMaximus(Set<String> vistas) {
-        try {
-            String json = (String) page.evaluate(
-                "(function(){" +
-                "  var results=[];" +
-                "  var seen=new Set();" +
-                "  var base=location.origin;" +
-                // Buscar links a productos Maximus: /Producto/ con ITEM=
-                "  var allA=Array.from(document.querySelectorAll('a[href]'));" +
-                "  var links=allA.filter(function(a){" +
-                "    var h=a.getAttribute('href')||'';" +
-                "    return h.indexOf('/Producto/')>-1||h.indexOf('ITEM=')>-1;" +
-                "  });" +
-                "  links.forEach(function(a){" +
-                "    try{" +
-                "      var href=a.getAttribute('href')||'';" +
-                "      var url=href.startsWith('http')?href:base+href;" +
-                "      url=url.split('?')[0];" +
-                "      if(!url||seen.has(url)||url.endsWith('/Productos/')||url.endsWith('/maximus.aspx'))return;" +
-                "      seen.add(url);" +
-                "      var container=a.closest('.pCard,.iCard,.card,[class*=Card]')||a;" +
-                "      var txt=container.innerText||a.innerText||'';" +
-                // Nombre: primer texto significativo
-                "      var lines=txt.split('\\n').map(function(l){return l.trim();}).filter(function(l){return l.length>4;});" +
-                "      var nombre='';" +
-                "      for(var i=0;i<lines.length;i++){" +
-                "        if(!lines[i].startsWith('$')&&!/^\\d/.test(lines[i])&&lines[i].length>5){nombre=lines[i];break;}" +
-                "      }" +
-                "      if(!nombre)nombre=a.getAttribute('title')||'';" +
-                "      if(!nombre)return;" +
-                // Precio: formato argentino $ 1.234.567
-                "      var pm=txt.match(/\\$\\s?[\\d][\\d.,]{4,}/);" +
-                "      if(!pm)return;" +
-                "      var img='';" +
-                "      var imgEl=container.querySelector('img')||a.querySelector('img');" +
-                "      if(imgEl)img=imgEl.getAttribute('src')||'';" +
-                "      results.push({nombre:nombre,precio:pm[0],precioOrig:'',url:url,img:img});" +
-                "    }catch(e){}" +
-                "  });" +
-                "  return JSON.stringify(results);" +
-                "})()"
-            );
-            return parseProductNodes(json, vistas);
-        } catch (Exception e) {
-            log.debug("[{}] extractMaximus error: {}", sitio, e.getMessage());
-            return List.of();
+    private static final java.util.regex.Pattern MAXIMUS_CAT_LINK = java.util.regex.Pattern.compile(
+            "CAT=(\\d+)", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    static List<Integer> extractMaximusCategoryIds(String navHtml) {
+        if (navHtml == null || navHtml.isBlank()) return List.of();
+        Set<Integer> ids = new LinkedHashSet<>();
+        var m = MAXIMUS_CAT_LINK.matcher(navHtml);
+        while (m.find()) {
+            try {
+                int id = Integer.parseInt(m.group(1));
+                if (id > 0) ids.add(id);
+            } catch (NumberFormatException ignored) { /* not a real id */ }
         }
+        return List.copyOf(ids);
     }
-
 
     // ─── Generic link extractor ───────────────────────────────────────────
 
