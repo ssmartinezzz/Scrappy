@@ -101,6 +101,24 @@ class OsCommercePageListingTest {
     }
 
     @Test
+    @DisplayName("una categoria top-level SIN leaves se crawlea a si misma "
+            + "(medido en vivo: /notebooks no tiene sub-categorias pero sirve productos directo)")
+    void topCategoryWithoutLeavesIsCrawledAsItsOwnLeaf() {
+        List<String> targets = OsCommercePage.resolveCrawlTargets(BASE_URL, "notebooks", List.of());
+        assertThat(targets).containsExactly("https://www.venex.com.ar/notebooks");
+    }
+
+    @Test
+    @DisplayName("una categoria top-level CON leaves se crawlea por cada leaf, no a si misma")
+    void topCategoryWithLeavesIsCrawledPerLeaf() {
+        List<String> targets = OsCommercePage.resolveCrawlTargets(
+                BASE_URL, "componentes-de-pc", List.of("placas-de-video", "fuentes"));
+        assertThat(targets).containsExactly(
+                "https://www.venex.com.ar/componentes-de-pc/placas-de-video",
+                "https://www.venex.com.ar/componentes-de-pc/fuentes");
+    }
+
+    @Test
     @DisplayName("nombre, precio, categoria e imagen se mapean desde el JSON de enhancedClick")
     void mapsFieldsFromEnhancedClickJson() {
         List<Product> result = OsCommercePage.parseListing(

@@ -56,10 +56,13 @@ public class OsCommercePage extends BasePage {
         for (String topSlug : topSlugs) {
             List<String> leaves = discoverLeafCategorySlugs(topSlug);
             log.debug("[{}] {} -> {} sub-categorías leaf", sitio, topSlug, leaves.size());
-            for (String leafSlug : leaves) {
-                String leafUrl = baseUrl + "/" + topSlug + "/" + leafSlug;
-                String categoriaHint = humanize(leafSlug);
-                List<Product> productos = crawlLeafCategory(leafUrl, categoriaHint);
+            List<String> targets = resolveCrawlTargets(baseUrl, topSlug, leaves);
+            String categoriaHintFallback = humanize(topSlug);
+            for (String targetUrl : targets) {
+                String categoriaHint = leaves.isEmpty()
+                        ? categoriaHintFallback
+                        : humanize(targetUrl.substring(targetUrl.lastIndexOf('/') + 1));
+                List<Product> productos = crawlLeafCategory(targetUrl, categoriaHint);
                 for (Product p : productos) {
                     if (vistasGlobal.add(p.url())) result.add(p);
                 }
@@ -94,6 +97,23 @@ public class OsCommercePage extends BasePage {
             }
         }
         return result;
+    }
+
+    /**
+     * Pure, package-private. A top category with no discoverable leaves is
+     * NOT skipped — measured live (2026-08-13) that flat categories like
+     * {@code /notebooks} serve products directly (12 on page 1, same
+     * {@code product-box} shape as any leaf) instead of nesting further.
+     * Skipping them silently dropped every product under every top category
+     * that happens to have no sub-categories — discovered by comparing a
+     * real full-site run's category list against its yield, not by design.
+     */
+    static List<String> resolveCrawlTargets(String baseUrl, String topSlug, List<String> leafSlugs) {
+        String base = baseUrl.replaceAll("/+$", "");
+        if (!leafSlugs.isEmpty()) {
+            return leafSlugs.stream().map(leaf -> base + "/" + topSlug + "/" + leaf).toList();
+        }
+        return List.of(base + "/" + topSlug);
     }
 
     private List<String> discoverTopCategorySlugs() {
