@@ -37,6 +37,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code SitioSeedSyncTest} does. Whether V18 or V19 "runs first" against a
  * real schema is irrelevant to it, confirming design's "ordering is not
  * load-bearing" claim.</p>
+ *
+ * <p>close-1nf-and-3nf-foundation extension, Phase 2 (design E4, task 2.6):
+ * also guards that all three exception-list brands are seeded into
+ * {@code marca} — parsed from {@code V21__marca_lookup_table.sql}, same
+ * classpath-only mechanism, no DB.</p>
  */
 @Epic("Normalization")
 @Feature("Brand")
@@ -45,6 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MarcasSiteIntersectionTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
+    private static final String V21 = "/db/migration/V21__marca_lookup_table.sql";
 
     /** The three literals V19's backfill (`marca NOT IN (...)`) must exclude. */
     private static final Set<String> EXCEPTION_LIST = Set.of("Bulks", "Fuark", "Harvey");
@@ -66,6 +72,15 @@ class MarcasSiteIntersectionTest {
         assertThat(interseccion).containsExactlyInAnyOrderElementsOf(EXCEPTION_LIST);
     }
 
+    @Test
+    @DisplayName("los tres literales de la excepción están sembrados en marca (V21)")
+    void theThreeExceptionBrandsAreSeededIntoMarca() {
+        Set<String> marcaSeed = marcaSeedRows();
+        for (String marca : EXCEPTION_LIST) {
+            assertThat(marcaSeed).as("marca '%s' tiene que estar sembrada en V21", marca).contains(marca);
+        }
+    }
+
     // ─── helpers ───────────────────────────────────────────────────────────
 
     private static final Pattern PRIMER_CAMPO = Pattern.compile("\\(\\s*'([^']*)'");
@@ -85,6 +100,25 @@ class MarcasSiteIntersectionTest {
         while (m.find()) nombres.add(m.group(1));
         assertThat(nombres).as("at least one site name parsed from " + V18).isNotEmpty();
         return nombres;
+    }
+
+    private static final Pattern MARCA_ROW = Pattern.compile("\\(\\s*'((?:[^']|'')*)'\\s*\\)");
+
+    /** Parses the literal `nombre` values out of V21's `INSERT INTO marca (nombre) VALUES` block. */
+    private static Set<String> marcaSeedRows() {
+        String sql = readClasspathResource(V21);
+        String marker = "INSERT INTO marca (nombre) VALUES";
+        int start = sql.indexOf(marker);
+        assertThat(start).as(marker + " present in " + V21).isNotEqualTo(-1);
+        int end = sql.indexOf(';', start);
+        assertThat(end).as("terminating ';' present after the VALUES block in " + V21).isNotEqualTo(-1);
+        String block = sql.substring(start + marker.length(), end);
+
+        Set<String> rows = new LinkedHashSet<>();
+        Matcher m = MARCA_ROW.matcher(block);
+        while (m.find()) rows.add(m.group(1).replace("''", "'"));
+        assertThat(rows).as("at least one row parsed from " + V21).isNotEmpty();
+        return rows;
     }
 
     private static String readClasspathResource(String path) {

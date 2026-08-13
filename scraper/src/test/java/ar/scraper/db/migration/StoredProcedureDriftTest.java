@@ -48,6 +48,7 @@ class StoredProcedureDriftTest {
     private static final String V5 = "/db/migration/V5__boolean_and_date_column_types.sql";
     private static final String V7 = "/db/migration/V7__product_multivalue_child_tables.sql";
     private static final String V17 = "/db/migration/V17__precio_orig_numeric.sql";
+    private static final String V21 = "/db/migration/V21__marca_lookup_table.sql";
 
     private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String SP_SOFT_DELETE_AUSENTES_START =
@@ -163,11 +164,30 @@ class StoredProcedureDriftTest {
             Pattern.compile(Pattern.quote("(r->>'precioOrig')::DOUBLE PRECISION")),
             "r->>'precioOrig'");
 
+    /**
+     * close-1nf-and-3nf-foundation extension, design E4/E6 (discovered
+     * mid-apply, not in the original design): the {@code fk_productos_marca}
+     * FK that V21 adds rejects {@code ''} immediately, and Java's
+     * {@code BrandExtractor} always emits {@code marca:""} for an abstained
+     * product (never omits the key), so {@code COALESCE(r->>'marca', '')}
+     * would violate the FK for the very first abstained-brand upsert after
+     * V21 applies — a same-commit break, not the deploy-time race the
+     * original design assumed away. Moved here instead of staying folded
+     * into the single V23 the design planned, specifically so V21's own
+     * commit keeps the full suite green (`TEST-1`). V23 still lands the
+     * other two substitutions (marca_premium removal, sitio get-or-create).
+     */
+    private static final Substitution SP_UPSERT_RUN_V21_MARCA_NULLIF = new Substitution(
+            "INSERT VALUES: marca gains nullif('') instead of COALESCE('') (design E4, FK abstention)",
+            Pattern.compile(Pattern.quote("nullif(r->>'marca','')")),
+            "COALESCE(r->>'marca', '')");
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
             new Hop(SP_UPSERT_RUN_START, V5, V7, SP_UPSERT_RUN_V7_CHILD_TABLES),
             new Hop(SP_UPSERT_RUN_START, V7, V17, List.of(SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST)),
+            new Hop(SP_UPSERT_RUN_START, V17, V21, List.of(SP_UPSERT_RUN_V21_MARCA_NULLIF)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
     );
 
