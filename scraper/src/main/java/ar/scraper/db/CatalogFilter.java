@@ -64,6 +64,11 @@ public record CatalogFilter(
                 rubro, gymrat, pack, precioMin, precioMax, subCategorias, fit, estampado, escote, colorDominante);
     }
 
+    public CatalogFilter conMarcas(List<String> valores) {
+        return new CatalogFilter(talles, genero, categorias, q, sitio, valores, badge, segment,
+                rubro, gymrat, pack, precioMin, precioMax, subCategorias, fit, estampado, escote, colorDominante);
+    }
+
     public CatalogFilter conBadge(String valor) {
         return new CatalogFilter(talles, genero, categorias, q, sitio, marcas, valor, segment,
                 rubro, gymrat, pack, precioMin, precioMax, subCategorias, fit, estampado, escote, colorDominante);
