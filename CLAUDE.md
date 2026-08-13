@@ -132,7 +132,8 @@ Scrappy/
 | sporting | VTEX | deportes | |
 | vaypol, city | Vaypol (Rails SSR custom) | deportes | |
 | dcshoes | WooCommerce | moda | |
-| maximus, fullh4rd, compragamer | Scrapers propios | tecnologia | Hardware/PC |
+| maximus, fullh4rd | Scrapers propios | tecnologia | Hardware/PC |
+| compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (~1400 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)

@@ -13,7 +13,8 @@ import java.util.*;
  * Scraper genérico para tiendas de tecnología argentinas con plataformas custom.
  *
  *  FULLH4RD  — PHP custom, URL: /cat/supra/{ID}/{name}/{page}
- *  COMPRAGAMER — React SPA, URL: /productos?cate={ID}&pag={page}
+ *  COMPRAGAMER — Angular SPA, catalog read from its own static JSON feed
+ *                (static.compragamer.com/productos), not scraped from the DOM
  *  MAXIMUS   — ASP.NET custom, URL: /Productos/{category}.aspx
  */
 public class TechStorePage extends BasePage {
@@ -44,9 +45,6 @@ public class TechStorePage extends BasePage {
         FH_CATS.put(20, "impresoras");
         FH_CATS.put(62, "promociones");
     }
-
-    /** CompraGamer category IDs (all relevant) */
-    private static final int[] CG_CATES = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20 };
 
     public TechStorePage(Page page, int timeoutMs, String sitio, String baseUrl,
                          double precioMin, double precioMax, TechStoreType tipo) {
@@ -190,130 +188,39 @@ public class TechStorePage extends BasePage {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // COMPRAGAMER — static JSON feed (design D3). Replaces the old React-SPA
+    // HTML scrape (discoverCompraGamerCates/extractCompraGamer, deleted here):
+    // the SPA loads its whole catalog from an unauthenticated, unpaginated
+    // static endpoint, so reading it directly is strictly more robust than
+    // scraping the rendered DOM ever was.
     // ═══════════════════════════════════════════════════════════════════════
-    // COMPRAGAMER — React SPA /productos?cate={ID}&pag={page}
-    // ═══════════════════════════════════════════════════════════════════════
+
+    private static final String CG_FEED_HOST = "https://static.compragamer.com";
 
     private List<Product> scrapeCompraGamer() {
-        List<Product> result = new ArrayList<>();
-        Set<String> vistas   = new HashSet<>();
-
-        // Paso 1: auto-descubrir category IDs desde el nav de la homepage
-        Set<Integer> cateIds = discoverCompraGamerCates();
-        log.info("[{}] Categorías descubiertas: {}", sitio, cateIds);
-
-        // Paso 2: scrapear cada categoría
-        for (int cate : cateIds) {
-            boolean cateEmpty = false;
-            for (int p = 1; p <= 12 && !cateEmpty; p++) {
-                String url = baseUrl + "/productos?cate=" + cate + (p > 1 ? "&pag=" + p : "");
-                try {
-                    navigateTo(url);
-                    // React SPA: esperar renderizado con timeout generoso
-                    boolean loaded = false;
-                    try {
-                        page.waitForSelector(
-                            "a[href*='/producto/']",
-                            new Page.WaitForSelectorOptions().setTimeout(14000)
-                        );
-                        loaded = true;
-                    } catch (Exception waitEx) {
-                        log.debug("[{}] cate={} p={}: timeout sin productos", sitio, cate, p);
-                    }
-                    if (!loaded) { cateEmpty = true; continue; }
-                    page.waitForTimeout(600); // tiempo extra para más cards
-
-                    var prods = extractCompraGamer(vistas);
-                    if (prods.isEmpty()) { cateEmpty = true; }
-                    else {
-                        result.addAll(prods);
-                        log.debug("[{}] cate={} p={}: +{}", sitio, cate, p, prods.size());
-                    }
-                } catch (Exception e) {
-                    log.debug("[{}] cate={} p={}: {}", sitio, cate, p, e.getMessage());
-                    cateEmpty = true;
-                }
-            }
-        }
-        log.info("[{}] COMPLETADO: {} productos", sitio, result.size());
-        return result;
-    }
-
-    /** Navega a la homepage y extrae todos los valores 'cate=N' del nav */
-    private Set<Integer> discoverCompraGamerCates() {
         try {
+            // Navegar al origin de la tienda primero: mismo UA/cookies/CORS
+            // que el resto de los scrapers, y consistente con cómo la propia
+            // SPA hace estos tres GETs.
             navigateTo(baseUrl + "/");
-            page.waitForTimeout(3500); // esperar que cargue el nav de React
-            String json = (String) page.evaluate(
-                "(function(){" +
-                "  var ids=new Set();" +
-                "  var links=document.querySelectorAll('a[href]');" +
-                "  for(var i=0;i<links.length;i++){" +
-                "    var m=(links[i].getAttribute('href')||'').match(/[?&]cate=(\\d+)/);" +
-                "    if(m)ids.add(parseInt(m[1]));" +
-                "  }" +
-                "  return JSON.stringify([...ids].sort(function(a,b){return a-b;}));" +
-                "})()"
-            );
-            var arr = MAPPER.readTree(json);
-            var ids = new java.util.LinkedHashSet<Integer>();
-            for (var n : arr) { int v = n.asInt(); if (v > 0) ids.add(v); }
-            if (!ids.isEmpty()) return ids;
-        } catch (Exception e) {
-            log.debug("[{}] discover cates error: {}", sitio, e.getMessage());
-        }
-        // Fallback: rango amplio basado en estructura conocida
-        var fallback = new java.util.LinkedHashSet<Integer>();
-        for (int i = 1; i <= 30; i++) fallback.add(i);
-        return fallback;
-    }
 
-    private List<Product> extractCompraGamer(Set<String> vistas) {
-        try {
-            String json = (String) page.evaluate(
-                "(function() {" +
-                "  var results = [];" +
-                "  var seen = new Set();" +
-                "  var base = location.origin;" +
-                // Buscar product cards por link a /producto/
-                "  var links = Array.from(document.querySelectorAll('a[href*=\"/producto/\"]'));" +
-                "  links.forEach(function(a) {" +
-                "    try {" +
-                "      var href = a.getAttribute('href') || '';" +
-                "      var url  = href.startsWith('http') ? href : base + href;" +
-                "      url = url.split('?')[0];" +
-                "      if (!url || seen.has(url) || url.match(/\\/producto\\/$/) ) return;" +
-                "      seen.add(url);" +
-                // Tomar el contenedor más cercano que tenga precio
-                "      var container = a.closest('[class],[data-id]') || a;" +
-                "      var txt = container.innerText || a.innerText || '';" +
-                // Extraer nombre (primer línea no-precio)
-                "      var lines = txt.split('\\n').map(function(l){return l.trim();}).filter(Boolean);" +
-                "      var nombre = '';" +
-                "      for(var i=0;i<lines.length;i++){" +
-                "        if(!lines[i].startsWith('$')&&lines[i].length>4){nombre=lines[i];break;}" +
-                "      }" +
-                "      if(!nombre) nombre = a.getAttribute('title') || '';" +
-                "      if(!nombre) return;" +
-                // Extraer precio
-                "      var priceMatch = txt.match(/\\$\\s?[\\d][\\d.,]{3,}/);" +
-                "      if(!priceMatch) return;" +
-                "      var precio = priceMatch[0];" +
-                // Imagen
-                "      var img='';" +
-                "      var imgEl=container.querySelector('img[src],img[data-src]') || a.querySelector('img');" +
-                "      if(imgEl)img=imgEl.getAttribute('data-src')||imgEl.getAttribute('src')||'';" +
-                "      results.push({nombre:nombre,precio:precio,precioOrig:'',url:url,img:img});" +
-                "    } catch(e) {}" +
-                "  });" +
-                "  return JSON.stringify(results);" +
-                "})()"
-            );
-            return parseProductNodes(json, vistas);
+            String productos = fetchJson(CG_FEED_HOST + "/productos");
+            String categoriasSub = fetchJson(CG_FEED_HOST + "/categorias_sub");
+            String marcas = fetchJson(CG_FEED_HOST + "/marcas");
+
+            List<Product> result = parseCompraGamerFeed(
+                    productos, categoriasSub, marcas, sitio, baseUrl, precioMin, precioMax);
+            log.info("[{}] COMPLETADO: {} productos", sitio, result.size());
+            return result;
         } catch (Exception e) {
-            log.debug("[{}] extractCG error: {}", sitio, e.getMessage());
+            log.warn("[{}] scrapeCompraGamer error: {}", sitio, e.getMessage());
             return List.of();
         }
+    }
+
+    /** GET vía fetch dentro de la página ya navegada (mismo UA/cookies que el resto del scrape). */
+    private String fetchJson(String url) {
+        return (String) page.evaluate("(u) => fetch(u).then(r => r.text())", url);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -477,6 +384,124 @@ public class TechStorePage extends BasePage {
             );
             return parseProductNodes(json, vistas);
         } catch (Exception e) { return List.of(); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // COMPRAGAMER — static JSON feed parsing (design D3, package-private pure)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Deviation from design's illustrative interface (D6): {@code baseUrl} was
+     * added as a parameter. The design's contract listed only
+     * ({@code productos, categoriasSub, marcas, sitio, min, max}), but the
+     * feed has no per-item URL field — only {@code id_producto} — so a real
+     * absolute product URL cannot be built without the store's own base URL.
+     */
+    static List<Product> parseCompraGamerFeed(String productos, String categoriasSub,
+                                                String marcas, String sitio, String baseUrl,
+                                                double precioMin, double precioMax) {
+        Map<Integer, String> categorias = compraGamerLookup(categoriasSub);
+        // marcas is parsed for logging visibility only (design D3) — id_marca is
+        // NEVER resolved into Product.marca: V21's fk_productos_marca throws on a
+        // brand absent from the marca table, ProductRepository swallows that
+        // SQLException, and the run silently reports "0 nuevos". BrandExtractor
+        // owns marca (CODE-6).
+        Map<Integer, String> marcasPorId = compraGamerLookup(marcas);
+
+        List<Product> result = new ArrayList<>();
+        int totalItems = 0;
+        try {
+            JsonNode arr = MAPPER.readTree(productos);
+            if (!arr.isArray()) return List.of();
+            totalItems = arr.size();
+            for (JsonNode item : arr) {
+                compraGamerItemToProduct(item, categorias, sitio, baseUrl, precioMin, precioMax)
+                        .ifPresent(result::add);
+            }
+        } catch (Exception e) {
+            log.warn("[{}] parseCompraGamerFeed error: {}", sitio, e.getMessage());
+            return List.of();
+        }
+        log.debug("[{}] feed CompraGamer: {} items -> {} productos ({} marcas resueltas)",
+                sitio, totalItems, result.size(), marcasPorId.size());
+        return result;
+    }
+
+    /** Parses a flat `[{id, nombre}, ...]` lookup array into an id -> trimmed name map. */
+    private static Map<Integer, String> compraGamerLookup(String json) {
+        Map<Integer, String> map = new HashMap<>();
+        try {
+            JsonNode arr = MAPPER.readTree(json);
+            if (!arr.isArray()) return map;
+            for (JsonNode n : arr) {
+                int id = n.path("id").asInt(-1);
+                String nombre = n.path("nombre").asText("").trim();
+                if (id >= 0 && !nombre.isBlank()) map.put(id, nombre);
+            }
+        } catch (Exception e) {
+            log.debug("compraGamerLookup error: {}", e.getMessage());
+        }
+        return map;
+    }
+
+    private static Optional<Product> compraGamerItemToProduct(
+            JsonNode item, Map<Integer, String> categorias, String sitio, String baseUrl,
+            double precioMin, double precioMax) {
+
+        boolean vendible = item.path("vendible").asInt(0) != 0;
+        int stock = item.path("stock").asInt(0);
+        if (!vendible || stock <= 0) return Optional.empty();
+
+        String nombre = item.path("nombre").asText("").trim();
+        if (nombre.isBlank()) return Optional.empty();
+
+        int idProducto = item.path("id_producto").asInt(-1);
+        if (idProducto < 0) return Optional.empty();
+
+        double precioLista = item.path("precioLista").asDouble(0);
+        double precioEspecial = item.path("precioEspecial").asDouble(0);
+        double precio = precioEspecial > 0 ? precioEspecial : precioLista;
+        if (precio <= 0 || precio < precioMin || precio > precioMax) return Optional.empty();
+
+        Double precioOriginal = null;
+        if (precioLista > precio) {
+            precioOriginal = precioLista;
+        } else if (item.hasNonNull("precioListaAnterior")) {
+            double anterior = item.path("precioListaAnterior").asDouble(0);
+            if (anterior > precio) precioOriginal = anterior;
+        }
+
+        String categoria;
+        int idSubcategoria = item.path("id_subcategoria").asInt(-1);
+        if (categorias.containsKey(idSubcategoria)) {
+            categoria = categorias.get(idSubcategoria);
+        } else {
+            int idCategoria = item.path("id_categoria").asInt(-1);
+            categoria = categorias.getOrDefault(idCategoria, "");
+        }
+
+        String img = "";
+        JsonNode imagenes = item.path("imagenes");
+        if (imagenes.isArray() && !imagenes.isEmpty()) {
+            JsonNode primera = null;
+            int minOrden = Integer.MAX_VALUE;
+            for (JsonNode im : imagenes) {
+                int orden = im.path("orden").asInt(Integer.MAX_VALUE);
+                if (orden < minOrden) { minOrden = orden; primera = im; }
+            }
+            if (primera != null) {
+                String imgNombre = primera.path("nombre").asText("");
+                if (!imgNombre.isBlank()) img = "https://imagenes.compragamer.com/" + imgNombre;
+            }
+        }
+
+        String base = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
+        String url = base + "/producto/" + idProducto;
+
+        return Optional.of(new Product(
+                sitio, nombre, precio, precioOriginal,
+                url, img, categoria, "",
+                List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
     }
 
     // ─── Shared: parse JSON array → List<Product> ─────────────────────────

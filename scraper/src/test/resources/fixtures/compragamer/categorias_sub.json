@@ -1,0 +1,8 @@
+[
+  { "id": 3, "nombre": "Impresoras y Multifunciones" },
+  { "id": 5, "nombre": "Monitores y pantallas" },
+  { "id": 14, "nombre": "Placas de red inalambricas" },
+  { "id": 21, "nombre": "Cables y adaptadores" },
+  { "id": 31, "nombre": "Estabilizadores" },
+  { "id": 107, "nombre": "Armados" }
+]
