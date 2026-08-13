@@ -81,7 +81,7 @@ public class DatabaseService {
     public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
-        this.catalogQueryRepository = new CatalogQueryRepository(dataSource);
+        this.catalogQueryRepository = new CatalogQueryRepository(dataSource, siteRegistry);
         this.cronRepository = new CronRepository(dataSource);
         this.presetRepository = new PresetRepository(dataSource);
         this.favoritosRepository = new FavoritosRepository(dataSource);

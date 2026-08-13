@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.model.Product;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,9 +43,11 @@ class CatalogQueryRepository {
     private static final Logger LOG = LoggerFactory.getLogger(CatalogQueryRepository.class);
 
     private final DataSource dataSource;
+    private final SiteRegistry siteRegistry;
 
-    CatalogQueryRepository(DataSource dataSource) {
+    CatalogQueryRepository(DataSource dataSource, SiteRegistry siteRegistry) {
         this.dataSource = dataSource;
+        this.siteRegistry = siteRegistry;
     }
 
     CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size) {
@@ -344,7 +347,7 @@ class CatalogQueryRepository {
                     String url = rs.getString("url");
                     porUrl.put(url, ProductRowMapper.map(rs,
                             talles.getOrDefault(url, List.of()),
-                            badges.getOrDefault(url, List.of())));
+                            badges.getOrDefault(url, List.of()), siteRegistry));
                 }
             }
         }

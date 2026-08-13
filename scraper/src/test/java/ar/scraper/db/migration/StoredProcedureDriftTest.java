@@ -49,6 +49,7 @@ class StoredProcedureDriftTest {
     private static final String V7 = "/db/migration/V7__product_multivalue_child_tables.sql";
     private static final String V17 = "/db/migration/V17__precio_orig_numeric.sql";
     private static final String V21 = "/db/migration/V21__marca_lookup_table.sql";
+    private static final String V22 = "/db/migration/V22__drop_marca_premium.sql";
 
     private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String SP_SOFT_DELETE_AUSENTES_START =
@@ -182,12 +183,46 @@ class StoredProcedureDriftTest {
             Pattern.compile(Pattern.quote("nullif(r->>'marca','')")),
             "COALESCE(r->>'marca', '')");
 
+    /**
+     * close-1nf-and-3nf-foundation extension, design E2: {@code marca_premium}
+     * is a transitive dependency of {@code sitio}, not of {@code url}
+     * ({@code SITIOS_PREMIUM} keyed the value off the SITE all along, despite
+     * the column name), so V22 drops it from {@code productos} and the value is
+     * resolved in Java from the already-in-memory {@code SiteRegistry}.
+     *
+     * <p>THREE substitutions, and the third is the reason this list is spelled
+     * out rather than trusted to review: {@code rg marca_premium} finds only
+     * TWO of the three sites. The INSERT VALUES expression reads the camelCase
+     * JSON key {@code (r->>'marcaPremium')}, so a grep-driven cleanup removes
+     * the column from the list and the SET, leaves the value behind, and ships
+     * an INSERT with 26 columns and 27 values. {@code CREATE FUNCTION} does not
+     * catch it — plpgsql bodies are late-bound — so the migration applies
+     * cleanly and the break surfaces at the first upsert, where
+     * {@code ProductRepository} swallows it and reports {@code "0 nuevos"}.</p>
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_V22_DROP_MARCA_PREMIUM = List.of(
+            new Substitution(
+                    "INSERT column list: marca_premium removed (design E2)",
+                    Pattern.compile(Pattern.quote("rubro, marca, gymrat, cantidad_unidades,")),
+                    "rubro, marca, gymrat, marca_premium, cantidad_unidades,"),
+            new Substitution(
+                    "INSERT VALUES: the (r->>'marcaPremium') expression removed — the grep-invisible one",
+                    Pattern.compile(Pattern.quote(
+                            "COALESCE((r->>'gymrat')::boolean, false), COALESCE((r->>'cantidadUnidades')::INTEGER, 1),")),
+                    "COALESCE((r->>'gymrat')::boolean, false), COALESCE((r->>'marcaPremium')::boolean, false), "
+                            + "COALESCE((r->>'cantidadUnidades')::INTEGER, 1),"),
+            new Substitution(
+                    "ON CONFLICT SET: marca_premium assignment removed (design E2)",
+                    Pattern.compile(Pattern.quote("gymrat = EXCLUDED.gymrat, cantidad_unidades")),
+                    "gymrat = EXCLUDED.gymrat, marca_premium = EXCLUDED.marca_premium, cantidad_unidades"));
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
             new Hop(SP_UPSERT_RUN_START, V5, V7, SP_UPSERT_RUN_V7_CHILD_TABLES),
             new Hop(SP_UPSERT_RUN_START, V7, V17, List.of(SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST)),
             new Hop(SP_UPSERT_RUN_START, V17, V21, List.of(SP_UPSERT_RUN_V21_MARCA_NULLIF)),
+            new Hop(SP_UPSERT_RUN_START, V21, V22, SP_UPSERT_RUN_V22_DROP_MARCA_PREMIUM),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
     );
 

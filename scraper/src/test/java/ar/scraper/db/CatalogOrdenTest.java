@@ -39,7 +39,7 @@ class CatalogOrdenTest extends PostgresTestBase {
     @BeforeEach
     void setUp() {
         db = new DatabaseService(dataSource());
-        repo = new CatalogQueryRepository(dataSource());
+        repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         db.upsertProductos(List.of(
                 producto("https://s.com/barato", 100, 30, null),
                 producto("https://s.com/caro", 9000, 90, null),
