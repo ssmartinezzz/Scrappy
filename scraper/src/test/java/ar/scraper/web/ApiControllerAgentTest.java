@@ -13,6 +13,7 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.ResultAggregator.Facets;
 import ar.scraper.aggregator.grouping.GroupingService;
+import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
@@ -87,6 +88,7 @@ class ApiControllerAgentTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        when(db.siteRegistry()).thenReturn(SiteRegistry.forTesting(Map.of()));
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);

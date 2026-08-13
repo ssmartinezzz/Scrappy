@@ -37,7 +37,7 @@ final class ProductJson {
         n.put("sitio",      safe(p.sitio()));
         n.put("nombre",     safe(p.nombre()));
         n.put("precio",     p.precio());
-        n.put("precioOrig", safe(p.precioOriginal()));
+        n.put("precioOrig", p.precioOriginal());
         n.put("descuento",  p.tieneDescuento());
         String img = safe(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;

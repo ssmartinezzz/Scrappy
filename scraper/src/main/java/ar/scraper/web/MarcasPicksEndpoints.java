@@ -35,26 +35,14 @@ class MarcasPicksEndpoints {
         if (r == null) return ResponseEntity.noContent().build();
         var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
 
-        // Sitios conocidos — excluirlos como "marca" si no es un nombre de marca real
-        var SITIOS = java.util.Set.of(
-            "vcp","sporting","vaypol","freres","batuk","tussy","bulks","bullbenny",
-            "midway","eldon","entreno","city","foreverbstrd","forever","dcshoes",
-            "compragamer","fullh4rd","maximus","indumentaria","tecnologia","suplementos"
-        );
-
-        // Agrupar por marca — incluir cualquier producto con marca no vacía y no-sitio-genérica
+        // Agrupar por marca — BrandExtractor ya abstiene a "" en vez de caer
+        // al nombre del sitio (V19, design DD8), así que las tres capas que
+        // vivían acá para filtrar ESE fallback (marca==sitio exacto, un set
+        // de 18 sitios hardcodeado, un mínimo de 2 caracteres) son código
+        // muerto: marca ya sólo puede ser "" (filtrado abajo) o una entrada
+        // real de BrandExtractor.MARCAS — nunca un nombre de sitio.
         var byMarca = r.productos().stream()
-            .filter(p -> {
-                String m = p.marca();
-                if (m == null || m.isBlank()) return false;
-                String ml = m.toLowerCase().trim().replaceAll("[^a-z0-9 ]","");
-                if (ml.length() < 2) return false;
-                // Excluir si la marca ES el nombre del sitio exacto
-                String sl = p.sitio() != null ? p.sitio().toLowerCase().replaceAll("[^a-z0-9]","") : "";
-                if (ml.replaceAll(" ","").equals(sl)) return false;
-                if (SITIOS.contains(ml.replaceAll(" ",""))) return false;
-                return true;
-            })
+            .filter(p -> p.marca() != null && !p.marca().isBlank())
             .filter(p -> rubro == null || rubro.isBlank()
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
             .filter(p -> q == null || q.isBlank()
@@ -262,7 +250,7 @@ class MarcasPicksEndpoints {
             n.put("segment", safe(p.ml().segment()));
             n.put("pctil",   p.ml().pctilCategoria());
         }
-        if (p.precioOriginal() != null && !p.precioOriginal().isBlank())
+        if (p.precioOriginal() != null)
             n.put("precioOrig", p.precioOriginal());
     }
 }

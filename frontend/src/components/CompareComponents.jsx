@@ -30,7 +30,7 @@ export function CompareModal({ items, onClose }) {
     { label: 'Nombre',       fn: p => <strong>{p.nombre}</strong> },
     { label: 'Marca',        fn: p => p.marca || p.sitio || '—' },
     { label: 'Precio',       fn: p => `ARS $${fmt(p.precio)}`, hl: p => p.precio === minPrecio },
-    { label: 'Precio orig',  fn: p => p.precioOrig || '—' },
+    { label: 'Precio orig',  fn: p => p.precioOrig != null ? `ARS $${fmt(p.precioOrig)}` : '—' },
     { label: 'Categoría',    fn: p => p.categoria || '—' },
     { label: 'Género',       fn: p => p.genero || '—' },
     { label: 'Talles',       fn: p => (p.talles||[]).join(', ') || '—' },

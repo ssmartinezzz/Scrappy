@@ -230,6 +230,42 @@ Re-calibrar thresholds está **fuera de alcance** de este change — ver
 
 ---
 
+## Parseo de `precioOriginal` — `safe_price` se borró
+
+Desde `close-1nf-and-3nf-foundation` (design DD2), `ar.scraper.aggregator.text.PrecioParser`
+(Java) es el único parser que corre sobre el string crudo que scrapea cada
+sitio — al momento del scrape, no en este pipeline. `precioOriginal` llega
+acá ya resuelto: un número o `None`, nunca el string original.
+
+`safe_price` quedó con **cero callers** y **se borró**. Se la había dejado un
+tiempo como "especificación de referencia" de la que `PrecioParser.java` y
+`sp_parse_precio_ar` copiaban su contrato, y esa fue exactamente la trampa:
+era la única de las tres implementaciones **fuera** de la cadena del fixture
+compartido, o sea la única que podía romperse sin poner ningún test en rojo.
+Una spec que nadie ejecuta no es una spec, es una copia esperando
+desincronizarse. Hoy el contrato vive en `PrecioParser.java` y en
+`sp_parse_precio_ar` (SQL, dentro de la migración `V17`), y los dos se
+prueban contra el mismo fixture
+(`scraper/src/test/resources/price-parser-cases.tsv`) para que no puedan
+divergir en silencio — ni siquiera divergir de forma consistente hacia una
+respuesta incorrecta: un bug real en la regla del punto único (exigir
+parte entera chica para leer un decimal, en vez de bastar con que la parte
+decimal tenga 1-2 dígitos) estaba clonado en las tres implementaciones y
+sólo se detectó corriendo el parser contra el catálogo real. Corregido en
+lockstep en las tres.
+
+**Categoría de `categoriaStats` (`cats_precios`, línea ~680)**: la clave pasa
+de `norm_cat((categoria or 'General').strip() or 'General')` a
+`(categoria or '').strip() or 'Otros'` — la categoria CANÓNICA (V13, Title
+Case), no la salida de `norm_cat`, porque `categoria_stats.categoria` tiene
+FK a `categoria(nombre)` desde `V16` y ese FK nunca aceptó minúsculas.
+`'Otros'` es el bucket de abstención de `V12`, que sí está en el canon —
+`'general'` nunca lo estuvo. `norm_cat` sigue intacto para todo lo demás:
+sigue siendo la clave de `grupos_precios`/`elegir_cat`, el scoring por
+producto, un concern distinto.
+
+---
+
 ## Historial de precios
 
 El archivo `precio_historico.json` acumula cambios de precio por URL. Estructura:

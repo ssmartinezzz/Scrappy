@@ -1,5 +1,6 @@
 package ar.scraper.pages;
 
+import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -176,8 +177,10 @@ public class TiendanubePage extends BasePage {
             Optional<Double> precio = parsePrecio(v.path("price").asText(""));
             if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) return Optional.empty();
 
-            String compare = v.path("compare_at_price").asText("");
-            if ("null".equals(compare)) compare = "";
+            String compareStr = v.path("compare_at_price").asText("");
+            if ("null".equals(compareStr)) compareStr = "";
+            OptionalDouble compareParsed = PrecioParser.parse(compareStr);
+            Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
 
             // --- Categoría: categories[0].name o tags ---
             String categoria = "";
@@ -192,8 +195,7 @@ public class TiendanubePage extends BasePage {
             // --- Talles: variants[].values[] donde attribute.es == "Talle" o similar ---
             List<String> talles = extraerTallesApi(prod, variants);
 
-            return Optional.of(new Product(sitio, nombre, precio.get(),
-                    compare.isBlank() ? null : compare,
+            return Optional.of(new Product(sitio, nombre, precio.get(), compare,
                     url, img, categoria, genero, talles));
         } catch (Exception e) { return Optional.empty(); }
     }
@@ -362,7 +364,8 @@ public class TiendanubePage extends BasePage {
             if (nombre.isBlank()) return Optional.empty();
             Optional<Double> precio = parsePrecio(n.path("precio").asText(""));
             if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) return Optional.empty();
-            String compare = n.path("compare").asText("").trim();
+            OptionalDouble compareParsed = PrecioParser.parse(n.path("compare").asText("").trim());
+            Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
             String url     = absoluteUrl(n.path("url").asText(""), baseUrl);
             String img     = n.path("img").asText("").trim();
             if (img.startsWith("//")) img = "https:" + img;
@@ -378,8 +381,7 @@ public class TiendanubePage extends BasePage {
             }
             String genero = n.path("genero").asText("").trim();
 
-            return Optional.of(new Product(sitio, nombre, precio.get(),
-                    compare.isBlank() ? null : compare,
+            return Optional.of(new Product(sitio, nombre, precio.get(), compare,
                     url, img, "", genero, talles));
         } catch (Exception e) { return Optional.empty(); }
     }

@@ -63,11 +63,6 @@ class AgentEndpoints {
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
-    // Stateless (no injected dependencies of its own) — instantiated directly, same
-    // rationale as DatabaseService.rubroResolver (manual-classification-lock Phase 3):
-    // a pure function of (sitioKey, categoria, rubroPrevio), so computing it here for the
-    // in-memory patch is guaranteed to match what aplicarReclasificacionAuditada persisted.
-    private final RubroResolver rubroResolver = new RubroResolver();
 
     AgentEndpoints(ScraperService service,
                    ar.scraper.db.DatabaseService db,
@@ -79,6 +74,27 @@ class AgentEndpoints {
         this.catalogAgentService = catalogAgentService;
         this.agentConfig = agentConfig;
         this.actorResolver = actorResolver;
+    }
+
+    // Not Spring-managed (built on demand, same rationale as
+    // DatabaseService.rubroResolver, manual-classification-lock Phase 3): a
+    // pure function of (sitioKey, categoria, rubroPrevio), so computing it here
+    // for the in-memory patch is guaranteed to match what
+    // aplicarReclasificacionAuditada persisted. Built lazily, not in the
+    // constructor, so a test path that never reaches the reclassify branch
+    // never touches `db` (close-1nf-and-3nf-foundation extension) —
+    // several existing tests assert verifyNoInteractions(db) for exactly
+    // that reason.
+    //
+    // NOT a hot path, so NOT cached: this method has exactly one call site,
+    // reached at most once per POST /api/agent/apply request — a human-gated
+    // write of a single product, never a per-product loop over the catalog
+    // (unlike NormalizerService.normalizarProducto, which resolves the
+    // Spring-managed RubroResolver singleton once and reuses it across the
+    // whole scrape). The allocation itself is a single field assignment
+    // wrapping the already-loaded SiteRegistry singleton — no I/O, no query.
+    private RubroResolver rubroResolver() {
+        return new RubroResolver(db.siteRegistry());
     }
 
     ResponseEntity<Object> agentChat(Map<String, Object> body) {
@@ -248,7 +264,7 @@ class AgentEndpoints {
         // aplicarReclasificacionAuditada para persistirlo, design D3) — fix del
         // bug preexistente donde rubro quedaba stale tras un apply.
         String sitioKey = SiteClassification.sitioKey(previo.sitio());
-        String rubro = rubroResolver.resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
+        String rubro = rubroResolver().resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
         service.actualizarProductoEnMemoria(
                 body.url(),
                 body.categoriaPropuesta(),

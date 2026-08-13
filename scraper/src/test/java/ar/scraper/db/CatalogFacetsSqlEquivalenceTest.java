@@ -43,7 +43,7 @@ class CatalogFacetsSqlEquivalenceTest extends PostgresTestBase {
     @BeforeEach
     void setUp() {
         DatabaseService db = new DatabaseService(dataSource());
-        repo = new CatalogQueryRepository(dataSource());
+        repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         List<Product> dataset = dataset();
         db.upsertProductos(dataset);
 

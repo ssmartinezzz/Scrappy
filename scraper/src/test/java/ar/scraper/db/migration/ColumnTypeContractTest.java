@@ -42,7 +42,13 @@ class ColumnTypeContractTest extends PostgresTestBase {
     private static final List<ColumnType> EXPECTED = List.of(
             new ColumnType("productos", "activo", "boolean"),
             new ColumnType("productos", "gymrat", "boolean"),
-            new ColumnType("productos", "marca_premium", "boolean"),
+            // productos.marca_premium was retyped to boolean by V5 and is
+            // deliberately absent here: V22 DROPS it (design E2). It was a
+            // transitive dependency of `sitio`, not of the key — the value was
+            // always `SITIOS_PREMIUM.contains(sitioKey)` despite the column
+            // name — and it now lives in `sitio.es_premium`, resolved in Java
+            // from SiteRegistry. Removing the row is the point of the change,
+            // not an erosion of V5's contract (CODE-2: declared).
             new ColumnType("productos", "ml_oferta", "boolean"),
             new ColumnType("cron_jobs", "force_retrain", "boolean"),
             new ColumnType("cron_jobs", "use_gpu", "boolean"),

@@ -62,13 +62,26 @@ class MlEndpoints {
         com.fasterxml.jackson.databind.node.ObjectNode result =
                 (com.fasterxml.jackson.databind.node.ObjectNode) tendNode.deepCopy();
 
-        // Enriquecer con categoriaStats desde DB
+        // Enriquecer con categoriaStats desde DB — V16 (design DD6): 12 columnas
+        // tipadas, ya no un payload JSON a reparsear. cv se redondea a 1 decimal,
+        // los otros 11 campos son enteros por construcción (columnas INTEGER/BIGINT).
         var catStats = db.cargarCategoriaStats();
         if (!catStats.isEmpty()) {
             var catNode = result.putObject("distribucionCategorias");
-            catStats.forEach((cat, payload) -> {
-                try { catNode.set(cat, new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload)); }
-                catch (Exception ignored) {}
+            catStats.forEach((cat, s) -> {
+                var n = catNode.putObject(cat);
+                n.put("n", s.n());
+                n.put("mean", s.mean());
+                n.put("median", s.median());
+                n.put("mode", s.mode());
+                n.put("std", s.std());
+                n.put("cv", Math.round(s.cv() * 10.0) / 10.0);
+                n.put("q1", s.q1());
+                n.put("q3", s.q3());
+                n.put("iqr", s.iqr());
+                n.put("mad", s.mad());
+                n.put("fence_low", s.fenceLow());
+                n.put("fence_high", s.fenceHigh());
             });
         }
         return ResponseEntity.ok(result);

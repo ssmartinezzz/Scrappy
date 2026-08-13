@@ -166,7 +166,7 @@ visual (embeddings de imagen); un producto sin backfill de embeddings no matchea
       "sitio": "Sporting",
       "nombre": "Zapatillas Nike Vomero 17",
       "precio": 247999,
-      "precioOrig": "$309.999",
+      "precioOrig": 309999,
       "descuento": true,
       "url": "https://...",
       "img": "https://...",
@@ -186,6 +186,11 @@ visual (embeddings de imagen); un producto sin backfill de embeddings no matchea
   ]
 }
 ```
+
+`precioOrig` es `number | null` (`close-1nf-and-3nf-foundation`, D1) — antes
+era `string`. Un valor no parseable es `null`, nunca un string vacío ni `"0"`.
+`marca` nunca es un nombre de tienda (V19, D3): `?marca=<tienda>` devuelve un
+result set vacío, sin el viejo fallback marca→sitio.
 
 ---
 
@@ -219,6 +224,14 @@ Output del pipeline ML para el panel de Tendencias.
   "fecha": "2026-05-29"
 }
 ```
+
+Cuando hay `categoria_stats` persistidas, la response incluye además
+`distribucionCategorias.<categoria>` con 12 campos (`n, mean, median, mode,
+std, cv, q1, q3, iqr, mad, fence_low, fence_high`; `cv` a 1 decimal, el resto
+enteros). La clave es la categoria **canónica** (`"Medias"`, Title Case),
+`close-1nf-and-3nf-foundation` V16 — no la salida de `norm_cat`. Ausente
+(no la clave `{}`) hasta el próximo run de ML tras la migración, que
+regenera la tabla entera.
 
 ---
 

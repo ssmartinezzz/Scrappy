@@ -300,7 +300,7 @@ public class VtexPage extends BasePage {
 
             // Precio: mismo que legacy
             OptionalDouble precio = OptionalDouble.empty();
-            String precioCompare = "";
+            Double precioCompare = null;
             if (items.isArray() && !items.isEmpty()) {
                 for (JsonNode item : items) {
                     JsonNode sellers = item.path("sellers");
@@ -311,7 +311,7 @@ public class VtexPage extends BasePage {
                         double pOrig = offer.path("ListPrice").asDouble(0);
                         if (p > 0) {
                             precio = OptionalDouble.of(p);
-                            if (pOrig > p) precioCompare = String.valueOf((long) pOrig);
+                            if (pOrig > p) precioCompare = pOrig;
                             break;
                         }
                     }
@@ -347,8 +347,7 @@ public class VtexPage extends BasePage {
             List<String> talles = extraerTallesVtex(prod);
 
             return Optional.of(new Product(
-                    sitio, nombre, p,
-                    precioCompare.isBlank() ? null : "$" + precioCompare,
+                    sitio, nombre, p, precioCompare,
                     url, img, categoria, genero, talles));
         } catch (Exception e) {
             return Optional.empty();
@@ -378,7 +377,7 @@ public class VtexPage extends BasePage {
 
             // Precio: buscar en sellers del primer item
             OptionalDouble precio = OptionalDouble.empty();
-            String precioCompare = "";
+            Double precioCompare = null;
 
             if (items.isArray() && !items.isEmpty()) {
                 for (JsonNode item : items) {
@@ -390,7 +389,7 @@ public class VtexPage extends BasePage {
                         double pOrig = offer.path("ListPrice").asDouble(0);
                         if (p > 0) {
                             precio = OptionalDouble.of(p);
-                            if (pOrig > p) precioCompare = String.valueOf((long) pOrig);
+                            if (pOrig > p) precioCompare = pOrig;
                             break;
                         }
                     }
@@ -421,8 +420,7 @@ public class VtexPage extends BasePage {
             List<String> talles = extraerTallesVtex(prod);
 
             return Optional.of(new Product(
-                    sitio, nombre, p,
-                    precioCompare.isBlank() ? null : "$" + precioCompare,
+                    sitio, nombre, p, precioCompare,
                     url, img, categoria, genero, talles));
         } catch (Exception e) {
             return Optional.empty();

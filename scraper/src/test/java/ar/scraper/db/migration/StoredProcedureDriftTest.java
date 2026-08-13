@@ -47,6 +47,11 @@ class StoredProcedureDriftTest {
     private static final String V3 = "/db/migration/V3__manual_classification_lock.sql";
     private static final String V5 = "/db/migration/V5__boolean_and_date_column_types.sql";
     private static final String V7 = "/db/migration/V7__product_multivalue_child_tables.sql";
+    private static final String V17 = "/db/migration/V17__precio_orig_numeric.sql";
+    private static final String V21 = "/db/migration/V21__marca_lookup_table.sql";
+    private static final String V22 = "/db/migration/V22__drop_marca_premium.sql";
+    private static final String R_UPSERT = "/db/migration/R__sp_upsert_run.sql";
+    private static final String R_SOFT_DELETE = "/db/migration/R__sp_soft_delete_ausentes.sql";
 
     private static final String SP_UPSERT_RUN_START = "CREATE OR REPLACE FUNCTION sp_upsert_run";
     private static final String SP_SOFT_DELETE_AUSENTES_START =
@@ -150,11 +155,110 @@ class StoredProcedureDriftTest {
                     "touched_at = EXCLUDED.touched_at; IF v_prev_precio IS NULL THEN")
     );
 
+    /**
+     * close-1nf-and-3nf-foundation, design DD7: V17 retypes {@code precio_orig}
+     * to {@code double precision} and the INSERT VALUES expression that used
+     * to hand {@code sp_upsert_run} a raw JSON string now casts it. Exactly
+     * ONE line changes — the {@code ON CONFLICT} line needs no edit, EXCLUDED
+     * already carries the typed value once the INSERT VALUES cast lands.
+     */
+    private static final Substitution SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST = new Substitution(
+            "INSERT VALUES: precioOrig gains a (::DOUBLE PRECISION) cast (D1/DD7 — Double retype)",
+            Pattern.compile(Pattern.quote("(r->>'precioOrig')::DOUBLE PRECISION")),
+            "r->>'precioOrig'");
+
+    /**
+     * close-1nf-and-3nf-foundation extension, design E4/E6 (discovered
+     * mid-apply, not in the original design): the {@code fk_productos_marca}
+     * FK that V21 adds rejects {@code ''} immediately, and Java's
+     * {@code BrandExtractor} always emits {@code marca:""} for an abstained
+     * product (never omits the key), so {@code COALESCE(r->>'marca', '')}
+     * would violate the FK for the very first abstained-brand upsert after
+     * V21 applies — a same-commit break, not the deploy-time race the
+     * original design assumed away. Moved here instead of staying folded
+     * into the single V23 the design planned, specifically so V21's own
+     * commit keeps the full suite green (`TEST-1`). V23 still lands the
+     * other two substitutions (marca_premium removal, sitio get-or-create).
+     */
+    private static final Substitution SP_UPSERT_RUN_V21_MARCA_NULLIF = new Substitution(
+            "INSERT VALUES: marca gains nullif('') instead of COALESCE('') (design E4, FK abstention)",
+            Pattern.compile(Pattern.quote("nullif(r->>'marca','')")),
+            "COALESCE(r->>'marca', '')");
+
+    /**
+     * close-1nf-and-3nf-foundation extension, design E2: {@code marca_premium}
+     * is a transitive dependency of {@code sitio}, not of {@code url}
+     * ({@code SITIOS_PREMIUM} keyed the value off the SITE all along, despite
+     * the column name), so V22 drops it from {@code productos} and the value is
+     * resolved in Java from the already-in-memory {@code SiteRegistry}.
+     *
+     * <p>THREE substitutions, and the third is the reason this list is spelled
+     * out rather than trusted to review: {@code rg marca_premium} finds only
+     * TWO of the three sites. The INSERT VALUES expression reads the camelCase
+     * JSON key {@code (r->>'marcaPremium')}, so a grep-driven cleanup removes
+     * the column from the list and the SET, leaves the value behind, and ships
+     * an INSERT with 26 columns and 27 values. {@code CREATE FUNCTION} does not
+     * catch it — plpgsql bodies are late-bound — so the migration applies
+     * cleanly and the break surfaces at the first upsert, where
+     * {@code ProductRepository} swallows it and reports {@code "0 nuevos"}.</p>
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_V22_DROP_MARCA_PREMIUM = List.of(
+            new Substitution(
+                    "INSERT column list: marca_premium removed (design E2)",
+                    Pattern.compile(Pattern.quote("rubro, marca, gymrat, cantidad_unidades,")),
+                    "rubro, marca, gymrat, marca_premium, cantidad_unidades,"),
+            new Substitution(
+                    "INSERT VALUES: the (r->>'marcaPremium') expression removed — the grep-invisible one",
+                    Pattern.compile(Pattern.quote(
+                            "COALESCE((r->>'gymrat')::boolean, false), COALESCE((r->>'cantidadUnidades')::INTEGER, 1),")),
+                    "COALESCE((r->>'gymrat')::boolean, false), COALESCE((r->>'marcaPremium')::boolean, false), "
+                            + "COALESCE((r->>'cantidadUnidades')::INTEGER, 1),"),
+            new Substitution(
+                    "ON CONFLICT SET: marca_premium assignment removed (design E2)",
+                    Pattern.compile(Pattern.quote("gymrat = EXCLUDED.gymrat, cantidad_unidades")),
+                    "gymrat = EXCLUDED.gymrat, marca_premium = EXCLUDED.marca_premium, cantidad_unidades"));
+
+    /**
+     * close-1nf-and-3nf-foundation extension, design E7: `V23` puts a real FK
+     * on {@code productos.sitio}, and the function gains a get-or-create so
+     * that FK is unfalsifiable for anything the scraper writes — without it, a
+     * site not yet in {@code sitio} would violate the constraint inside
+     * {@code ProductRepository}'s swallowed-error path and surface as
+     * {@code "0 nuevos"} rather than as a failure.
+     *
+     * <p>This is the first change declared against a REPEATABLE migration
+     * instead of a new versioned copy, and it is what the `R__` move was for:
+     * editing the one file turned this hop red on its own, demanding the
+     * declaration. From here the git diff carries the rest of the story.</p>
+     */
+    private static final Substitution SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE = new Substitution(
+            "get-or-create de sitio antes del INSERT de producto (design E7, FK fk_productos_sitio)",
+            Pattern.compile("-- get-or-create de .*?ON CONFLICT DO NOTHING; "),
+            "");
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
             new Hop(SP_UPSERT_RUN_START, V5, V7, SP_UPSERT_RUN_V7_CHILD_TABLES),
-            new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS)
+            new Hop(SP_UPSERT_RUN_START, V7, V17, List.of(SP_UPSERT_RUN_V17_PRECIO_ORIG_CAST)),
+            new Hop(SP_UPSERT_RUN_START, V17, V21, List.of(SP_UPSERT_RUN_V21_MARCA_NULLIF)),
+            new Hop(SP_UPSERT_RUN_START, V21, V22, SP_UPSERT_RUN_V22_DROP_MARCA_PREMIUM),
+            new Hop(SP_SOFT_DELETE_AUSENTES_START, V1, V5, SP_SOFT_DELETE_AUSENTES_V5_CASTS),
+
+            // Los dos saltos finales, hacia las migraciones REPETIBLES, con
+            // CERO sustituciones declaradas. Un salto sin sustituciones no
+            // afloja nada: la aserción de igualdad sigue corriendo, así que
+            // exige que el cuerpo del R__ sea idéntico —carácter por carácter,
+            // normalizando espacios— al de la última copia versionada. Eso es
+            // exactamente lo que hay que probar al mover una definición: que
+            // mover no cambió.
+            //
+            // Cuando el R__ cambie de verdad, ESTE salto es el que se pone en
+            // rojo, y ahí el diff de git pasa a ser la declaración del cambio
+            // — que es como debería haber funcionado desde el principio, en
+            // vez de con siete copias y una tabla de sustituciones.
+            new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT, List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE)),
+            new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE, List.of())
     );
 
     @Test

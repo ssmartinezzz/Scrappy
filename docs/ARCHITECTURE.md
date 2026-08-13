@@ -479,6 +479,748 @@ destruye historial del usuario: es una decisión de producto, no de esquema.
 
 ---
 
+### `V23` — la FK del sitio, sobre la **clave** y no sobre el nombre
+
+La FK que faltaba, y que el design E7 había especificado pero nunca se
+implementó — lo encontró el verify, no el review. Sin ella `productos.sitio`
+seguía siendo un string suelto contra una tabla que ya es la fuente
+autoritativa de `plataforma`, `es_premium` y `rubro_forzado`.
+
+**El design decía `productos.sitio → sitio(nombre)`, y estaba mal.** Se
+implementó tal cual y reventó 28 tests con un mensaje que explica el problema
+entero:
+
+```
+Key (sitio)=(VCP) is not present in table "sitio".
+```
+
+`V18` sembró ese sitio como `'Vcp'`. El scraper y los fixtures escriben
+`'VCP'` y `'vcp'`. **Los tres son el mismo sitio**: `sitioKey()` los manda a
+`'vcp'`. Una FK sobre `nombre` enforcea igualdad de string de display, o sea
+sensibilidad a mayúsculas — que no es lo que significa identidad de sitio en
+ningún otro lado de este sistema. `SiteClassification.sitioKey()` existe
+precisamente porque el display **no** es la identidad, y por eso `V18` lleva
+las dos columnas desde el principio. Así que la FK va sobre `sitio_key`, y
+`productos.sitio` queda como lo que siempre fue: lo que reportó el scraper,
+sin reescribir.
+
+**La columna es generada, no mantenida.** `productos.sitio_key` es
+`GENERATED ALWAYS AS ... STORED` con la misma expresión que corre `sitioKey()`
+en Java. No hay camino de escritura que actualizarla ni forma de que se
+desincronice de `sitio`. Una columna derivada mantenida a mano habría sido una
+copia más para desalinear, que es justo el problema que este cambio entero vino
+a cerrar. El `nullif(..., '')` hace que un sitio vacío o nulo dé `NULL`, y una
+FK ignora los NULL, así que un producto sin sitio no rebota.
+
+**Sola sería una trampa.** Un scrape de un sitio que todavía no está en
+`sitio` la violaría dentro de `sp_upsert_run`, y ese error lo atrapa
+`ProductRepository`, que loguea y devuelve `UpsertStats(0,0,0,0)`: sale como
+`"0 nuevos"`, nunca como error. Por eso la FK viaja junto con un
+**get-or-create** en `R__sp_upsert_run.sql` — la fila de `sitio` se crea antes
+que el producto que la referencia. `SitioGetOrCreateTest` prueba las dos
+mitades y afirma `nuevos()` antes que cualquier columna.
+
+`ON CONFLICT DO NOTHING` **sin target** es deliberado: cubre las dos
+restricciones únicas de la tabla (`nombre` PK y `sitio_key`), así que cuando
+llega `'VCP'` y la clave `'vcp'` ya existe bajo `'Vcp'`, no inserta nada — y
+eso ahora está **bien**, porque la FK mira la clave. Un sitio ya sembrado
+tampoco se pisa: Harvey conserva su `es_premium`.
+
+Este fue además el primer cambio declarado contra una migración **repetible**
+en vez de una copia versionada nueva, y es lo que el movimiento a `R__`
+compraba: editar el archivo puso el salto del drift test en rojo por su cuenta,
+exigiendo la declaración.
+
+> El bloque de abajo lo ejecuta `V23RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V23
+ALTER TABLE productos DROP CONSTRAINT fk_productos_sitio;
+-- <<< rollback:V23
+```
+
+Lossless para el esquema. **No** borra las filas `origen='historico'` que el
+backfill haya creado: son identidades de sitio reales y observadas, no basura
+de la migración, y borrarlas perdería información que nadie más tiene.
+
+---
+
+### Las funciones plpgsql pasan a migraciones repetibles (`R__`)
+
+`sp_upsert_run` llegó a tener **siete copias** —`V1`, `V3`, `V5`, `V7`, `V17`,
+`V21`, `V22`— de la misma función de ~90 líneas, y `sp_soft_delete_ausentes`
+dos. No fue descuido: Postgres no tiene redefinición parcial de función, así
+que cambiar una línea obliga a un `CREATE OR REPLACE` del cuerpo entero; y una
+migración Flyway aplicada es byte-frozen, porque Flyway valida checksums. Las
+dos reglas juntas hacen que cada cambio de una línea produzca una copia nueva.
+
+El costo real no era el espacio. Cada copia es una oportunidad de introducir
+una diferencia que nadie pidió, y ese riesgo es exactamente el que
+`StoredProcedureDriftTest` vino a atajar: deshace las sustituciones declaradas
+de cada salto y exige que el resultado sea el cuerpo anterior, carácter por
+carácter. Funcionó —atajó el caso de `V22`, donde `rg marca_premium` encuentra
+sólo dos de los tres sitios— pero era un test defendiéndonos de una duplicación
+que no hacía falta tener.
+
+**Una migración repetible (`R__`, sin número de versión) es la herramienta que
+Flyway tiene para esto**, y su caso de uso declarado son funciones, vistas y
+procedimientos. Dos propiedades la hacen correcta acá:
+
+1. **Las repetibles corren después de todas las versionadas.** No es
+   convención ni suerte de ordenamiento alfabético:
+   `ResolvedMigrationComparator` ordena cualquier migración con versión antes
+   que cualquiera sin versión. Verificado en el log de una corrida real:
+   `... to version "22 - drop marca premium"` → `... with repeatable migration
+   "sp upsert run"` → `Successfully applied 24 migrations, now at version v22`.
+   Así que el cuerpo del `R__` es siempre la última palabra, incluso en una
+   instalación desde cero que aplica `V1`..`V22` y crea la función siete veces
+   antes de llegar ahí.
+2. **Se re-aplica sola cuando cambia su checksum.** Editar el archivo YA es la
+   migración; no hay que escribir una versionada nueva que vuelva a copiar
+   todo.
+
+Las siete copias históricas quedan donde están —son inmutables por
+definición— y sirven como registro de cómo llegó el cuerpo hasta acá.
+`StoredProcedureDriftTest` gana dos saltos finales, `V22 → R__` y `V5 → R__`,
+con **cero sustituciones declaradas**: un salto sin sustituciones no afloja la
+aserción de igualdad, la deja sola, así que exige que el cuerpo del `R__` sea
+idéntico al de la última copia versionada. Eso es precisamente lo que hay que
+probar al mover una definición: que mover no cambió nada. Se verificó que la
+aserción muerde perturbando el archivo a propósito y viendo el rojo antes de
+revertir.
+
+De acá en adelante, cuando una de las dos funciones cambie de verdad, ese
+salto se pone en rojo y **el diff de git es la declaración del cambio** — que
+es como debería haber funcionado desde el principio, en vez de con siete
+copias y una tabla de sustituciones.
+
+---
+
+### Decisiones de `V3`, `V4`, `V6`, `V11`, `V13` y `V14`
+
+Vivían en `CLAUDE.md`, que pasó a ser guía/índice. El razonamiento es el que
+sigue aplicando cuando aparece un caso parecido.
+
+**`V3` no agrega tablas.** Marca en `productos` la clasificación fijada a mano
+para que el pipeline no la pise, y extiende `agent_reclassify_audit`. El guard
+es `bloqueado_por IS NULL`, que aparece dentro de `sp_upsert_run` sobre las
+cinco columnas que un humano puede corregir.
+
+**`V4`: la política `ON DELETE` se decidió por tabla, no de forma uniforme.**
+`precio_historico.url` y `precios_externos.producto_url` en `CASCADE` (VALID —
+cero orfandades verificadas en vivo); `favoritos.url` en `RESTRICT`, y
+deliberadamente `NOT VALID`: enforcea igual en inserts y deletes nuevos pero no
+exige que el historial completo de una instalación existente esté sano.
+`agent_reclassify_audit.url` **sin FK** — un audit trail no puede depender de
+que el dato mutable siga existiendo. Ese último criterio se repite después en
+`saved_outfit_item` (V14) y es el que decide cualquier tabla histórica.
+Consecuencia visible: `DELETE /api/db/productos` devuelve **409** con la
+cantidad bloqueante si algún favorito referencia un producto vivo, y no hay
+`?force=` — decisión explícita para no reabrir el borrado silencioso.
+
+**`V6`: CHECK, no tabla, y el porqué del corte.** Tres CHECK VALID sobre
+`productos` (`genero`, `rubro`, `ml_segment`). `NULL` pasa en las tres (ninguna
+es `NOT NULL`); el string vacío pasa sólo en `genero`, que es el sentinel de
+abstención de `GenderResolver`. El criterio contra `V13`: con **pocos** valores
+estables un CHECK alcanza, con **muchos** obliga a una migración por valor
+nuevo y ahí gana la tabla de lookup.
+
+**`V11` valida `fk_favoritos_url`, pero sólo si no hay huérfanos.** Un
+`VALIDATE` incondicional es exactamente la migración que no se quiso escribir:
+la que le rompe el arranque a alguien por datos que la migración misma no puede
+borrar sin decidir por él.
+
+**`V13`: clave natural, no `categoria_id`.** El nombre ya es único y estable, y
+es lo que devuelve la API — un id sustituto costaría un JOIN por lectura y
+plomería de ids por toda la API a cambio de nada. **No lleva columna `rubro`**:
+`categoria → rubro` NO es una dependencia funcional, `RubroResolver` deriva el
+rubro de (sitio, categoría, rubro previo), y en datos vivos `Conjunto` es
+`tecnologia` en Fullh4rd e `indumentaria` en Sporting.
+
+> ⚠️ La FK obligó a corregir **192 literales en 53 archivos de test**: los
+> fixtures escribían categorías en plural (`"Remeras"`, `"Buzos"`) que
+> producción nunca produce. Dos lugares quedaron en plural a propósito porque
+> ahí SÍ es válido: los nombres de producto de `CategoryClassifierTest`
+> ("Zapatillas Running Hombre" es un nombre, no una categoría) y
+> `FacetCalculatorTest`, que es puro en memoria y no lo alcanza la FK.
+
+**`V14` corrige a `V10`.** `slots_json`/`suplementos_json` **sí eran dato del
+dominio**, no documentos opacos: cada elemento traía la `url` del producto —la
+misma clave que ya lleva FK en tres tablas— más copias congeladas de su fila.
+El argumento que lo decidió: *la estructura de las tablas condiciona al
+frontend, no al revés*. Con un blob no se puede preguntar qué outfits contienen
+un producto, ni relacionar prendas con un futuro `user_uuid`. Semántica **foto
++ precio actual**: la fila guarda lo que el producto ERA al guardarse, y la
+`url` permite traer el precio de HOY por LEFT JOIN. Por eso esa `url` **no
+lleva FK**, mismo criterio que el audit trail de `V4`: un producto
+discontinuado no puede borrar un outfit del usuario.
+
+---
+
+### Por qué el esquema decía estar en 1FN sin estarlo
+
+Vale la pena dejarlo escrito, porque la afirmación falsa sobrevivió varias
+migraciones sin que nadie la cuestionara, y el motivo es una media verdad muy
+fácil de repetir.
+
+**1FN pide DOS cosas, no una.** Sin grupos repetitivos, sí — pero también
+valores **atómicos** por celda. La primera mitad se venía cerrando con
+disciplina: `talles`/`ml_badge` salieron a tablas hijas en `V7`, `sitios_json`
+en `V9`, `slots_json`/`suplementos_json` en `V14`, y `V15` borró las cuatro
+columnas `*_url` de `outfit_feedback`, que eran un grupo repetitivo desplegado
+en columnas, la forma más clásica que hay.
+
+Y ahí se declaró la victoria. Pero la segunda mitad seguía rota:
+`categoria_stats.payload` era un `TEXT` con un registro entero serializado
+adentro — un valor compuesto en una sola celda. Ningún grupo repetitivo, y aun
+así no atómico.
+
+La lección que queda: *"no quedan columnas multivaluadas"* **no** es lo mismo
+que *"está en 1FN"*, y confundirlas es cómodo porque los grupos repetitivos son
+visibles de un vistazo mientras que un blob serializado parece una columna
+normal. `V16` cerró esa segunda mitad, y recién ahí la afirmación se volvió
+cierta.
+
+---
+
+### `close-1nf-and-3nf-foundation` (V16-V19): cerrar 1FN de una vez
+
+Cuatro migraciones, una por concern, mismo patrón que V4-V8: la más
+riesgosa (V17, re-copia `sp_upsert_run`) queda sola y chica. El orden
+V16→V17→V18→V19 **no es load-bearing** — las cuatro son mutuamente
+independientes, Flyway se detiene en la primera que falla y una migración
+detenida rompe el arranque de Spring de cualquier forma. El orden se
+mantuvo porque es el que la propuesta le hizo esperar a quien revisa el PR,
+no porque exista una dependencia real entre ellas.
+
+#### `categoria_stats`: de blob JSON a 12 columnas tipadas (V16)
+
+**Decisión**: `categoria_stats.payload` (un `TEXT` con un JSON adentro) pasa
+a 12 columnas tipadas — `n` (`INTEGER`, un conteo, nunca redondeado por
+Python) y diez campos de plata en `BIGINT` (`round()` sin `ndigits` en
+Python devuelve un `int` sin límite, y `fence_high` en una categoría tech
+no tiene techo — `INTEGER` no ahorra nada acá) más `cv` en
+`DOUBLE PRECISION` (`round(cv, 1)`). Es la misma clase de violación que
+`talles`/`ml_badge` (V7) y `sitios_json` (V9), un nivel más adentro: en vez
+de una columna con una lista, una columna entera con un registro
+estructurado serializado en un TEXT, sin poder tipar ni un campo.
+
+**Sin backfill, tabla vaciada primero.** Cada clave existente es la salida
+de `norm_cat` (`"medias"`); `categoria(nombre)` (V13) tiene el canon en
+Title Case (`"Medias"`). Una FK sobre las filas actuales rechazaría todas.
+La tabla es upsert-only, tope de 20 categorías por corrida, y se
+regenera entera en el próximo run de ML — traducir las claves es más
+trabajo que borrarlas. **Consecuencia declarada**: `distribucionCategorias`
+sale `{}` hasta el próximo run de ML. Se verificó (no se asumió) que los
+tres call sites del frontend que leen `catStats?.[...]` ya usan optional
+chaining desde antes de este cambio — no hay pantalla que reviente.
+
+**El filtro de claves no canónicas es por-clave, no por-batch.**
+`CategoriaStatsRepository.guardarCategoriaStats` descarta contra
+`CategoryGroups.canonicalCategories()` **antes** de bindear — nunca llega
+a la base una clave inválida — así que una categoría inventada por el
+pipeline no puede volver a tirar abajo el batch entero como el upsert
+principal ya sabe hacer en silencio (`upsert-swallows-sql-errors`, la
+misma clase de bug, una tabla al lado).
+
+**Productor Python** (`ml_pipeline.py`, el loop que arma `cats_precios`):
+la clave pasa de `norm_cat((categoria or 'General').strip() or 'General')`
+a `(categoria or '').strip() or 'Otros'` — la categoría CANÓNICA, no
+`norm_cat`, y el fallback de vacío es `'Otros'` (el bucket de abstención de
+V12, que SÍ está en el canon de V13; `'general'` nunca estuvo). `norm_cat`
+se mantiene intacto para todo lo demás: sigue siendo la clave de
+`grupos_precios`/`elegir_cat`, que es el scoring por producto (percentil,
+z-score, badges), un concern distinto. El fallback de ese scoring hacia
+`stats_cats.get(cat_nc)` es en la práctica inalcanzable — `stats_grupos`
+ya cubre a cualquier producto con la clave que él mismo aportó al
+construir `grupos_precios`, con la misma condición de umbral (`>= 20`)
+evaluada dos veces sobre el mismo `cat_counts` — así que este cambio de
+clave no le pega al scoring, sólo a lo que se persiste.
+
+> El bloque de abajo lo ejecuta `V16RollbackRoundTripTest` contra el
+> esquema real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V16
+ALTER TABLE categoria_stats DROP CONSTRAINT fk_categoria_stats_categoria;
+ALTER TABLE categoria_stats ADD COLUMN payload TEXT;
+UPDATE categoria_stats SET payload = json_build_object(
+    'n', n, 'mean', mean, 'median', median, 'mode', mode, 'std', std, 'cv', cv,
+    'q1', q1, 'q3', q3, 'iqr', iqr, 'mad', mad,
+    'fence_low', fence_low, 'fence_high', fence_high)::text;
+ALTER TABLE categoria_stats ALTER COLUMN payload SET NOT NULL;
+ALTER TABLE categoria_stats
+    DROP COLUMN n,   DROP COLUMN mean, DROP COLUMN median, DROP COLUMN mode,
+    DROP COLUMN std, DROP COLUMN cv,   DROP COLUMN q1,     DROP COLUMN q3,
+    DROP COLUMN iqr, DROP COLUMN mad,  DROP COLUMN fence_low, DROP COLUMN fence_high;
+-- <<< rollback:V16
+```
+
+Lossless en **forma** (los 12 campos vuelven adentro de un blob JSON); NO
+lossless en **vocabulario de clave** — vuelven en canon V13, no en salida
+de `norm_cat`. Inocuo: la tabla se regenera entera en la próxima corrida
+de ML.
+
+#### `precio_orig`: de TEXT crudo a `double precision` (V17) — la migración riesgosa
+
+**Decisión**: `productos.precio_orig` pasa de `TEXT` (lo que el sitio haya
+escrito: `"$ 1.249.999,99"`, `"ARS 45.000"`, cualquier cosa) a
+`double precision`. Un valor no interpretable es `NULL`, nunca un string
+centinela ni `0` (D1) — esa era la causa real del bug `-666x` en el orden
+`% Oferta`: un parser regex del lado SQL confundía el separador de miles con
+un decimal (`"$45.000"` → `45.0`) y el `(precio_orig - precio) / precio_orig`
+resultante explotaba a un número absurdo.
+
+**Un solo parser canónico, tres verificaciones cruzadas (DD2).**
+`ar.scraper.aggregator.text.PrecioParser` (Java, corre en el momento del
+scrape — ver el retype de `Product.precioOriginal` más abajo) y
+`sp_parse_precio_ar` (SQL, sólo para el backfill de esta migración) implementan
+el MISMO contrato de 8 reglas, verbatim de `ml_pipeline.py:354-389`
+(`safe_price`, que era la spec de la que se portaron y que después se borró al
+quedar sin callers — ver `docs/ML_PIPELINE.md`). Los dos se prueban contra el MISMO
+fixture, `scraper/src/test/resources/price-parser-cases.tsv` — `PrecioParserTest`
+corre el Java, `V17BackfillParityTest` extrae `sp_parse_precio_ar` del archivo
+de migración y lo corre dentro de una transacción que siempre se revierte.
+Ninguno de los dos puede quedar verde si sus semánticas divergen.
+
+**`sp_parse_precio_ar` es de un solo uso.** Existe ÚNICAMENTE para el
+`ALTER COLUMN ... USING sp_parse_precio_ar(precio_orig)` de este archivo, y se
+dropea inmediatamente después. El camino de escritura ONGOING
+(`sp_upsert_run`) NO lo llama — para cuando una fila llega al upsert,
+`PrecioParser` ya corrió en Java al momento del scrape, así que el JSON que
+llega es un número limpio o `null`, y un cast directo alcanza.
+
+**La re-copia de `sp_upsert_run` es de UNA sola línea editada**, no dos como
+suponía la propuesta original: el `INSERT ... VALUES` gana
+`(r->>'precioOrig')::DOUBLE PRECISION` (antes `r->>'precioOrig'`, texto crudo);
+la línea del `ON CONFLICT` (`precio_orig = EXCLUDED.precio_orig`) no necesita
+tocarse — `EXCLUDED` ya lleva el valor tipado en cuanto el `INSERT VALUES`
+lo castea. `StoredProcedureDriftTest` prueba mecánicamente que esa es la
+ÚNICA diferencia entre el cuerpo de V7 y el de V17 (un solo `Substitution`
+declarado, sin DB).
+
+**Verificación en dos capas, porque el modo de falla conocido es el silencio.**
+Un bind mal tipado alguna vez se manifestó como "0 nuevos" y 78 tests
+fallando en otro lado, nunca como un error. Por eso
+`SpUpsertRunPrecioOrigRoundTripTest` asegura primero
+`UpsertStats.nuevos == 3` (la firma exacta de un upsert que rollbackeó
+completo) **antes** de mirar ninguna columna — sólo entonces compara los
+tres valores (número / `NULL` / `NULL`). Invertir el orden dejaría pasar un
+upsert totalmente fallido como "no hay filas, no hay discrepancia".
+
+**`% Oferta` (D6): `NULLS LAST`, no `ELSE 0.0`.** La expresión vieja
+(`CASE ... ELSE 0.0 END`) trataba "no sé" como si fuera "0% de descuento" —
+un producto con un descuento NEGATIVO genuino (el precio subió) terminaba
+ordenado DESPUÉS de un producto sin ningún dato, porque `0.0 > -0.25`. La
+nueva expresión, `(p.precio_orig - p.precio) / p.precio_orig`, propaga `NULL`
+sola cuando no hay precio original — sin `CASE`, sin regex — y
+`ORDER BY ... DESC NULLS LAST` manda lo desconocido al final SIEMPRE, incluso
+detrás de un descuento negativo conocido. `CatalogOrdenTest` lo pinea.
+
+> El bloque de abajo lo ejecuta `V17RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V17
+ALTER TABLE productos ALTER COLUMN precio_orig TYPE text
+    USING CASE WHEN precio_orig IS NULL THEN NULL
+               ELSE to_char(precio_orig, 'FM999999999.99') END;
+-- <<< rollback:V17
+```
+
+**No lossless, y el doc no lo disimula.** Los strings de origen (`"$ 1.249.999,99"`,
+`"ARS 45.000"`) ya no existen — esto devuelve strings numéricos canónicos.
+Fuera del bloque (no puede correr dos veces contra el mismo esquema):
+restaurar `sp_upsert_run` con el cuerpo de V7 **verbatim** vía un
+`CREATE OR REPLACE FUNCTION` en su propia migración hacia adelante — misma
+salvedad que el bloque de rollback de V7.
+
+#### `sitio`: tabla de identidad de sitio, sembrada pero leída por nadie (V18)
+
+**Decisión** (DD3): tabla `sitio` con clave natural `nombre` (forma de
+display, `"Harvey"`) más una columna separada `sitio_key`
+(`SiteClassification.sitioKey()`, `"harvey"`) — son valores genuinamente
+distintos y una sola columna recrearía el mismo mismatch que esta tabla
+existe para dejar de esconder. `plataforma`/`rubro_forzado`/`origen` van por
+`CHECK` (9, 2 y 3 valores — el criterio de V6, no el de V13) en vez de tabla
+de lookup.
+
+**Sembrada pero leída por nadie en este slice.** `es_premium`,
+`rubro_forzado` y la mitad por nombre de `plataforma` siguen viviendo en
+`SiteClassification`/`ScraperFactory` — moverlos es la extracción 3FN que
+sigue, no esta migración. Lo que esta migración compra es que el seed ya NO
+es una cuarta copia sin verificar: `SitioSeedSyncTest` (classpath, sin DB)
+parsea las filas `INSERT` de este archivo y las compara, en las dos
+direcciones, contra `SITIOS_PREMIUM`, `TECH_SITIOS`/`SUPPL_SITIOS` (nombres
+bare — las variantes con dominio como `compragamer.com` colapsan sobre el
+mismo `sitio_key`) y los 8 name-sets de `ScraperFactory.crear` — las cinco
+copias que hoy pueden desalinearse sin que nada avise dejan de poder hacerlo
+sin romper un build.
+
+**Cero FKs hacia `sitio` (DD4), y por razones distintas según la tabla.**
+`productos.sitio`/`favoritos.sitio`/`cron_job_sitio.sitio`: `POST
+/api/sitios` escribe `sitios_dinamicos` y `ScraperConfig` lee
+`config.properties` — ninguno de los dos hace upsert en `sitio` — así que
+una FK acá rompería el primer scrape de un sitio agregado desde el
+dashboard, adentro del path de error silenciado de `ProductRepository`
+(se leería como "0 nuevos", nunca como un error). `saved_outfit_item.sitio`
+no lleva FK **de forma permanente** — mismo criterio que
+`agent_reclassify_audit.url`: una foto histórica no puede depender de que
+el dato mutable siga vivo.
+
+**El fix de rubro de `foreverbstrd` no es cosmético (DD5).** Sacarlo de
+`TECH_SITIOS` no autocura los productos ya persistidos: `RubroResolver.resolver`
+cae a `rubroExistente` cuando ningún sitio/categoría fuerza un rubro, y una
+fila releída del snapshot de DB (`fromDBParcial`) arrastra el `'tecnologia'`
+viejo para siempre. Por eso el `UPDATE` vive en esta misma migración, no
+como una optimización aparte.
+
+> El bloque de abajo lo ejecuta `V18RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V18
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS fk_productos_sitio;
+DROP TABLE sitio;
+-- <<< rollback:V18
+```
+
+⚠️ **Este bloque dejó de ser trivial cuando llegó `V23`.** Cuando se escribió,
+`sitio` no tenía FKs entrantes y un `DROP TABLE` pelado alcanzaba. `V23` le
+agregó `fk_productos_sitio`, así que ahora hay que soltar la restricción
+primero — `DROP TABLE` falla con *"constraint fk_productos_sitio on table
+productos depends on table sitio"*. Se prefiere el `DROP CONSTRAINT` explícito
+antes que un `CASCADE`, que soltaría en silencio cualquier otra cosa que
+llegue a depender de la tabla más adelante. El `IF EXISTS` deja el bloque
+válido también en una base que quedó en `V18` sin llegar a `V23`.
+
+Que esto se haya detectado es mérito de `V18RollbackRoundTripTest`, que
+**ejecuta** el bloque en vez de sólo mostrarlo: un rollback documentado que ya
+no corre es peor que no documentar ninguno.
+
+Fuera de eso el rollback no pierde comportamiento downstream — sólo la tabla
+misma. El `UPDATE` de rubro de `foreverbstrd` NO es reversible desde el
+esquema (el valor previo no se guardó) pero sí es re-derivable
+determinísticamente: revertir el edit de `TECH_SITIOS` y volver a scrapear.
+
+#### `marca` abstiene en vez de caer al nombre del sitio (V19)
+
+**Decisión** (DD8, declarado como cambio de comportamiento — `CODE-2`):
+`BrandExtractor.extraer` devuelve `""` cuando ninguna marca curada matchea,
+en vez de devolver `sitio`. Un producto sin marca reconocida no es "de la
+tienda que lo vende" — esa era la mentira que `marca="Bullbenny"` en un jean
+sin marca real dejaba escrita en el dato.
+
+**El backfill no puede ser `WHERE marca = sitio` a secas.** Tres marcas
+curadas SON también nombre de sitio: `Bulks`, `Fuark`, `Harvey` están en
+`BrandExtractor.MARCAS` (matcheadas por `\b`, no por igualdad de string) y
+son tiendas configuradas en `sitio`. Un producto "Remera Bulks Oversize"
+vendido por la tienda Bulks tiene `marca='Bulks'` **legítimamente** — un
+`UPDATE` ciego por igualdad la destruiría junto con el fallback real que se
+quiere limpiar. Rechazado: portar el `\b` de Java a `\m`/`\M` de Postgres con
+los literales de marca escapados — reabre el mismo riesgo de drift que
+`PrecioParser`/`sp_parse_precio_ar` existen para cerrar, por un `UPDATE` de
+una sola vez. Elegido: `WHERE marca = sitio AND marca NOT IN ('Bulks','Fuark','Harvey')`.
+El costo es conservador en la dirección segura — un puñado de `marca` con
+nombre de sitio genuino sobrevive en esas tres tiendas y converge en el
+próximo scrape, contra destruir dato de marca real.
+
+`MarcasSiteIntersectionTest` (classpath, sin DB) prueba que la intersección
+de `MARCAS` con `sitio.nombre` es EXACTA y ÚNICAMENTE esos tres literales —
+si una marca nueva o un sitio nuevo agrandara esa intersección, el build se
+pone rojo en vez de que la lista de excepción quede desactualizada en
+silencio. También resuelve, por construcción, la duda que el artefacto de
+tasks había marcado sobre el orden `V18`→`V19`: este test nunca corre Flyway
+ni toca una base viva — parsea `V18__sitio_lookup_table.sql` como texto de
+classpath, igual que `SitioSeedSyncTest` — así que el orden de aplicación de
+las migraciones le es irrelevante.
+
+`MarcasPicksEndpoints`'s tres capas de workaround (`marca==sitio` exacto, un
+set hardcodeado de 18 sitios, un mínimo de 2 caracteres) quedan muertas y se
+borran: con `BrandExtractor` abstiniendo, `marca` sólo puede ser `""`
+(filtrada) o una entrada real de `MARCAS` — nunca un nombre de sitio.
+
+Sin rollback: la regla vieja era literalmente `marca = sitio`, no hay nada
+que reconstruir desde el esquema.
+
+#### `sitio` pasa de sembrada-pero-leída-por-nadie a única fuente de `plataforma` (V20)
+
+close-1nf-and-3nf-foundation, extensión 3FN (design E1). `V18` dejó
+`sitio.plataforma` sembrada pero leída por nadie (DD3) — `plataforma` seguía
+viviendo, en paralelo, en `sitios_dinamicos.plataforma` y en los 8 name-sets
+de `ScraperFactory` + `PLATAFORMA_NOMBRES`. `V20` cierra esa duplicación:
+`SiteRegistry` (bean único, cargado al boot, refrescado por
+`POST`/`DELETE /api/sitios`) pasa a ser el único lector de `sitio`, y los 8
+name-sets + `PLATAFORMA_NOMBRES` de `ScraperFactory` junto con
+`SiteClassification.TECH_SITIOS`/`SUPPL_SITIOS`/`SITIOS_PREMIUM` se BORRAN,
+no se mantienen en paralelo (`CODE-6`).
+
+**Antes de soltar la columna, un `UPDATE` de re-sync, no un `DROP` a secas.**
+`V18` sembró `sitio.plataforma` desde `sitios_dinamicos` en el instante en que
+corrió esa migración; un sitio agregado desde el dashboard *después* de `V18`
+y *antes* de `V20` pudo haber cambiado de plataforma sin que `sitio` se
+enterara (nada lo leía todavía, así que nada lo mantenía sincronizado). El
+`UPDATE ... FROM sitios_dinamicos` re-absorbe cualquier drift de esa ventana
+antes de que la columna deje de existir. `sitios_dinamicos` conserva
+`(nombre, url, created_at)` — su único trabajo que queda es "la URL a
+scrapear"; `plataforma` se lee ahora vía `SitiosRepository.cargarSitiosDinamicos`
+con un `LEFT JOIN sitio` + `COALESCE(..., 'tiendanube')` — el mismo default de
+abstención que un nombre no matcheado siempre tuvo, en vez de un `INNER JOIN`
+que podría hacer desaparecer una fila de la respuesta.
+
+**El backfill de `rubro_forzado` que NO viaja en `V20` (design E3).** El
+`RubroResolver` que hasta acá comparaba por substring
+(`sitioKey.contains(token)`) pasa a comparar por igualdad contra
+`SiteRegistry.rubroForzado`. La pregunta que importa no es si el código
+cambia — es si algún `sitio` real cambia de rubro bajo esa igualdad. Medido
+contra la base de dev real (23 filas en `sitio`, TODAS `origen='config'` —
+no existe ninguna fila `dinamico`/`historico` en esa base para ejercer el
+riesgo hacia adelante que sigue sin medir): **0 filas**. Los cuatro tokens
+(`compragamer`, `fullh4rd`, `maximus`, `entreno`) son iguales a su propio
+`sitio_key` exactamente; las variantes con dominio
+(`compragamer.com`, `fullh4rd.com.ar`, `maximus.com.ar`, `entreno.com.ar`)
+eran, y siguen siendo, inalcanzables — `sitioKey()` saca los puntos, así que
+sólo podrían matchear un sitio literalmente llamado así, y ninguno existe.
+`V20` no manda ningún `UPDATE` de rubro: uno vacío se vería igual a uno que sí
+hizo algo, y esa distinción **sí** importa para el próximo que lea el diff.
+`RubroResolverEqualityParityTest` (classpath, sin DB) prueba mecánicamente
+que la igualdad nueva concuerda con el substring viejo sobre 23 sitios × 81
+categorías × 5 rubros previos — 9.315 triples — con el substring viejo
+conservado ÚNICAMENTE en el archivo de test, nunca en `main` (`CODE-6`).
+
+**Medido, no estimado (`CODE-3`).** Mismo harness (jshell, JIT calentado con
+20 pasadas antes de medir, 500 pasadas × 9.315 combinaciones = 4.657.500
+llamadas) antes/después del cambio: el substring viejo (`stream().anyMatch` +
+`replaceAll` por elemento del set, por llamada) da **~1.288 ns/llamada**; el
+lookup de igualdad nuevo (un `HashMap.get`) da **~139 ns/llamada** — ~9,3x
+más rápido. Esperable y no el objetivo del cambio (el objetivo es cerrar el
+riesgo de substring, E3), pero se reporta el número real en vez de asumirlo.
+
+**`marcaPremium` también migra de lectura.** `NormalizerService` leía
+`SiteClassification.SITIOS_PREMIUM.contains(sitioKey)` directamente; ahora lee
+`SiteRegistry.esPremium(sitioKey)` — mismo dato (`harvey` → `true`), un solo
+dueño. `productos.marca_premium` en sí **no se toca** en esta migración — eso
+es `V22`, condicionado a la medición de `EXPLAIN` de esa fase.
+
+**El write path que DD4 dejaba pendiente queda resuelto en este slice.**
+`SitiosRepository.guardarSitio` ahora hace upsert en `sitio` ADEMÁS de
+`sitios_dinamicos` — con la `plataforma` recibida validada contra el mismo
+dominio cerrado del `CHECK` (si no matchea, cae a `'tiendanube'`, igual que
+`V18`'s propio `INSERT ... SELECT` desde `sitios_dinamicos`) — y
+`eliminarSitio` marca `sitio.origen='historico'` en vez de borrar la fila
+(un sitio retirado sigue siendo un nombre históricamente válido, el mismo
+criterio que le dio origen a la columna `origen`). Ambos métodos terminan con
+`SiteRegistry.reload()`, así que un alta o baja desde el dashboard es visible
+sin reiniciar el proceso.
+
+> El bloque de abajo lo ejecuta `V20RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V20
+ALTER TABLE sitios_dinamicos ADD COLUMN plataforma TEXT;
+UPDATE sitios_dinamicos d SET plataforma = s.plataforma
+FROM sitio s WHERE s.nombre = d.nombre;
+UPDATE sitios_dinamicos SET plataforma = 'tiendanube' WHERE plataforma IS NULL;
+ALTER TABLE sitios_dinamicos ALTER COLUMN plataforma SET NOT NULL;
+-- <<< rollback:V20
+```
+
+Lossless para toda fila `dinamico` que siga en `sitio` (la inmensa mayoría):
+su `plataforma` se reconstruye exactamente desde la copia que `sitio` ya
+tiene. El único caso no perfectamente reversible es una fila `sitios_dinamicos`
+cuyo `sitio` correspondiente ya no exista (no debería pasar — `guardarSitio`
+escribe las dos en la misma llamada — pero si pasara, el `UPDATE` de default
+la deja en `'tiendanube'`, la misma abstención que un nombre nunca visto
+siempre obtuvo).
+
+#### `marca` pasa a tabla de lookup con FK, clave natural (V21)
+
+close-1nf-and-3nf-foundation, extensión 3FN (design E4) — el equivalente de
+`V13`, pero para marca. `CREATE TABLE marca (nombre TEXT PRIMARY KEY)`,
+sembrada con **58 filas** medidas parseando `BrandExtractor.MARCAS`
+(`CODE-3` — el design doc había estimado 59 antes de contar; se corrige acá,
+no se lo hace coincidir en silencio). Clave natural, no un `marca_id`: el
+nombre ya es único, estable, y es lo que la API devuelve — un id sustituto
+cuesta un JOIN por lectura y plomería de ids por toda la API a cambio de
+nada. Tabla y no `CHECK`: con más de 50 valores es territorio de `V13`, no
+de `V6`.
+
+**El sentinel `""`: `NULL` en la DB, `""` en el borde Java — y por qué el
+precedente de `V6` no aplica.** `V6` dejó pasar `genero=''` porque un
+`CHECK` restringe un VALOR; una FK afirma una REFERENCIA, y no hay marca a
+la que referenciar cuando `BrandExtractor` abstiene. Sembrar una fila
+`('')` habría convertido el string vacío en una marca más — la faceta de
+marca y `/api/marcas-browser` la habrían enumerado. Guardar `NULL` mantiene
+la abstención significando exactamente lo mismo que en el resto del
+esquema. El radio de impacto es casi nulo porque el código de lectura ya
+era null-safe en esta columna: `ProductRowMapper.java:76`
+(`marca != null ? marca : ""`), `CatalogQueryRepository.java:141`/`:201` —
+ninguno necesitó cambio.
+
+**Desvío del diseño original, descubierto a mitad de la aplicación, no
+anticipado.** El diseño planeaba UN solo re-copy de `sp_upsert_run` en `V23`,
+juntando las tres sustituciones de esta extensión (E4/E2/E7). Al aplicar
+`V21` en TDD, la suite completa se rompió: `BrandExtractor` en Java YA emite
+`marca:""` (nunca omite la clave) para un producto abstenido, así que
+`COALESCE(r->>'marca', '')` —el `sp_upsert_run` heredado de `V17`— sigue
+escribiendo `''`, y `''` no es `NULL`: viola `fk_productos_marca` en el
+PRIMER upsert de cualquier producto sin marca reconocida. El razonamiento
+original ("las cuatro migraciones aplican juntas en un solo boot de Flyway,
+antes de que el proceso pueda aceptar un scrape") es cierto para producción,
+pero falso para la suite de tests: decenas de tests existentes hacen upsert
+de fixtures con marca abstenida contra el esquema YA migrado a `V21`, en el
+mismo commit — exactamente lo que `TEST-1` (suite verde en CADA commit)
+exige cubrir. La solución: la sustitución `nullif(r->>'marca','')` se
+adelanta a ESTE mismo archivo — un cuarto re-copy de `sp_upsert_run`
+(`V17`→`V21`), no el tercero que el diseño había planeado consolidar en
+`V23`. `V23` sigue existiendo, pero con sólo dos sustituciones (la baja de
+`marca_premium` y el get-or-create de `sitio`), no tres.
+`StoredProcedureDriftTest` gana el hop `V17`→`V21` con esta única
+sustitución declarada.
+
+**Segundo hallazgo del mismo tipo, misma sesión: `marca` tenía un
+`DEFAULT ''` a nivel de columna** (`V1__baseline.sql:47`), invisible al
+grep-verify que E4 hizo sobre los sitios de LECTURA. Cualquier `INSERT`
+crudo que omite `marca` — y varios fixtures de test lo hacen, porque sólo
+fijan las columnas que les importan — caía en `''` por default, no `NULL`,
+violando la FK igual que el caso de `sp_upsert_run`. `ALTER TABLE productos
+ALTER COLUMN marca DROP DEFAULT` cierra el mismo agujero desde el otro lado:
+una columna omitida ahora se comporta exactamente como un `NULL` explícito,
+que es la semántica de abstención que la FK ya asume. Medido, no asumido:
+9 clases de test (`CatalogSqlEquivalenceTest`, `CheckDomainTest`,
+`CategoriaLookupTableTest`, y 6 más bajo `ar.scraper.web`) fallaban con
+`fk_productos_marca` antes de este fix — la re-ejecución completa de la
+suite después de ambos cambios (el `nullif` de `sp_upsert_run` y el `DROP
+DEFAULT`) es la prueba, no una inspección de código.
+
+**Agregar una marca curada sin migración.** Igual que `sitio`, el seed
+estático de `V21` sólo existe para que la FK pueda ser VALID al momento de
+migrar. `MarcaSeeder` (`ApplicationRunner`, `@Order(HIGHEST_PRECEDENCE)`)
+re-siembra `marca` desde `BrandExtractor.MARCAS` en cada boot con
+`ON CONFLICT DO NOTHING` — agregar una marca es una línea en `MARCAS`, la
+fila aparece en el próximo boot, ninguna migración nueva. `MarcaSeedSyncTest`
+(classpath, sin DB) prueba una sola dirección: el seed de `V21` ⊆ `MARCAS`
+— nunca la inversa, porque `V21` queda congelado el día que se aplica y
+`MARCAS` puede crecer después sin que este test tenga que tocarse.
+
+> El bloque de abajo lo ejecuta `V21RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V21
+ALTER TABLE productos DROP CONSTRAINT fk_productos_marca;
+ALTER TABLE productos ALTER COLUMN marca SET DEFAULT '';
+DROP TABLE marca;
+-- <<< rollback:V21
+```
+
+Lossless para el esquema (la FK y la tabla vuelven exactamente a como
+estaban). NO intenta deshacer el `UPDATE marca = NULL WHERE marca = ''` —
+no es reversible (no queda registro de qué fila era `''` contra cuál ya
+era `NULL` antes) y tampoco hace falta: el borde de lectura ya trata ambos
+casos de forma idéntica (`marca != null ? marca : ""`), así que revertir el
+`DROP` no cambia ningún comportamiento observable.
+
+### `V22` — `marca_premium` sale de `productos` (3FN)
+
+`productos.marca_premium` dependía transitivamente de `sitio`, no de la
+clave. A pesar del nombre nunca se derivó de la marca: `NormalizerService`
+lo calculaba como `SITIOS_PREMIUM.contains(sitioKey)`, así que la
+dependencia funcional real era `url → sitio → es_premium`. Eso es la
+violación de 3FN de manual, y `sitio.es_premium` (`V18`) ya tiene el valor
+autoritativo.
+
+**Por qué se resuelve en Java y no con un JOIN.** El design planteó una
+disyuntiva: leer el valor por `LEFT JOIN sitio`, o quedarse con la columna
+denormalizada. Las dos se midieron contra el catálogo de dev (6540
+productos, `cargarProductos()` como query de gate, 5 rondas intercaladas
+para que el ruido de máquina pegue igual en los dos lados):
+
+| Implementación | `cargarProductos()` | vs. baseline |
+|---|---|---|
+| `LEFT JOIN sitio` | 10,004 ms | **+28,03 %** |
+| Resuelto en Java | 7,858 ms | **−3,76 %** |
+
+El umbral de aborto pre-comprometido era 5 %, así que el JOIN quedaba
+afuera — pero quedarse con la columna habría sido una denormalización
+justificada por un número que sólo valía para **una** forma de leerla.
+`marca_premium` no es filtro, ni orden, ni faceta: `CatalogQueryRepository`
+no lo menciona y `CatalogoEndpoints` sólo lo emite en el JSON. El tercer
+camino no cuesta nada — `SiteRegistry` ya tiene el mapa de sitios en
+memoria (≤30 filas, cargado una vez) y `ProductRowMapper` resuelve premium
+con un lookup de hash donde ya está armando la fila, **después** de tener
+el `ResultSet` y por lo tanto fuera del plan de query.
+
+**La re-copia de `sp_upsert_run` viaja en la MISMA migración.** La función
+escribe `marca_premium`, así que dropear la columna la rompe. Postgres
+**no** valida cuerpos plpgsql cuando se dropea una columna —son
+late-bound— de modo que una migración que dropea sin re-copiar aplica
+perfecto y el problema aparece recién en el primer upsert, donde
+`ProductRepository` lo traga y devuelve `UpsertStats(0,0,0,0)`: sale como
+`"0 nuevos"`, nunca como error. Un scrape entero escribiendo nada, en
+silencio. El plan tenía esto como `V22` (drop) + `V23` (re-copia); juntarlas
+elimina la ventana en la que una función viva referencia una columna
+borrada, y baja la cuenta de re-copias de esta extensión de dos a una.
+
+**Tres sitios cambian, y el tercero es la razón por la que
+`StoredProcedureDriftTest` los declara uno por uno en vez de confiar en el
+review:** `rg marca_premium` encuentra sólo **dos**. La expresión del
+`INSERT VALUES` lee la clave JSON en camelCase, `(r->>'marcaPremium')`, así
+que una limpieza guiada por grep saca la columna de la lista y del `SET`,
+deja el valor, y produce un `INSERT` con 26 columnas y 27 valores — que,
+otra vez, falla en silencio en runtime.
+
+> El bloque de abajo lo ejecuta `V22RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V22
+ALTER TABLE productos ADD COLUMN marca_premium BOOLEAN DEFAULT false;
+-- <<< rollback:V22
+```
+
+Devuelve la columna con exactamente el tipo y el default que tenía tras
+`V5`. **No** restaura el cuerpo de `sp_upsert_run`, igual que el rollback de
+`V21` tampoco lo hace: la convención acá es revertir el *esquema*, no la
+función. En la práctica no cambia nada observable, porque después de `V22`
+ningún camino de lectura consulta esa columna — `marcaPremium` sale de
+`SiteRegistry`, así que una columna revivida y nunca escrita queda en
+`false` sin que nadie la mire.
+
+Tampoco restaura `sp_upsert_run` a su forma de `V17` — mismo precedente que
+`V17`'s propio bloque: una función no se puede recrear dos veces contra el
+mismo esquema dentro de un round-trip de test. Fuera del bloque: restaurar
+`COALESCE(r->>'marca', '')` requiere un `CREATE OR REPLACE FUNCTION` con el
+cuerpo de `V17` verbatim, en su propia migración hacia adelante.
+
+---
+
+## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
+
+Los tres primeros items de esta lista **dejaron de ser non-goals**: el usuario
+decidió plegar el trabajo de 3FN dentro del mismo PR, así que `V20` hizo el
+swap de `RubroResolver` a igualdad, `V21` le dio a `marca` su tabla de lookup y
+`V22` sacó `marca_premium` de `productos`. Quedan dos, y los dos son "se queda
+así, y acá está el motivo", no "no llegamos".
+
+| Item | Se queda como está porque |
+|---|---|
+| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; se poda a 10 filas, nunca se consulta adentro y siempre se lee entero. Es un log de corrida, no dato de dominio: falla el test de `V14` en vez de pasarlo |
+| `precios_externos` | Sus columnas `sitio`/`titulo`/`precio`/`condicion` dependen de `externo_url`, no del `id` sustituto — es una dependencia transitiva real. Pero cada fila es una **captura fechada** de una publicación de MercadoLibre: el título y el precio de esa URL cambian, y la fila registra lo que ERA el día que se comparó. Normalizarla a una tabla de publicaciones destruiría exactamente el dato que se guarda. Mismo carve-out que `saved_outfit_item` (V14) y `agent_reclassify_audit` (V4): un registro histórico no se normaliza contra una entidad mutable |
+
+**El único blob que sobrevive en el esquema es `ml_output.payload`.** Los
+`jsonb` de `saved_outfits` no cuentan: `V14` los borró (`slots_json` y
+`suplementos_json`, ambos `DROP COLUMN`).
+
+`close-1nf-and-3nf-foundation` empezó siendo una base y terminó cerrando
+también la extracción — pero 3FN sigue sin estar "completa" en el sentido
+formal, y `precios_externos` es la razón, documentada arriba a propósito para
+que la próxima sesión no la trate como un olvido.
+
+---
+
 ### ¿Por qué `/api/data` filtra en SQL y el resto del catálogo no?
 
 **Decisión** (`sql-catalog-filtering`): `/api/data` y `/api/facets` consultan la
