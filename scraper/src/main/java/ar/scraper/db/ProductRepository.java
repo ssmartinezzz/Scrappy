@@ -49,10 +49,12 @@ class ProductRepository {
     // as before the split, manual-classification-lock Phase 3) — takes the shared
     // SiteRegistry passed down from DatabaseService instead of resolving its own.
     private final RubroResolver rubroResolver;
+    private final SiteRegistry siteRegistry;
 
     ProductRepository(DataSource dataSource, SiteRegistry siteRegistry) {
         this.dataSource = dataSource;
         this.rubroResolver = new RubroResolver(siteRegistry);
+        this.siteRegistry = siteRegistry;
     }
 
     // ─── Upsert de productos (write-path, design D2) ─────────────────────────
@@ -242,7 +244,7 @@ class ProductRepository {
                     String url = rs.getString("url");
                     result.add(ProductRowMapper.map(rs,
                             tallesPorUrl.getOrDefault(url, List.of()),
-                            badgesPorUrl.getOrDefault(url, List.of())));
+                            badgesPorUrl.getOrDefault(url, List.of()), siteRegistry));
                 }
             }
             LOG.info("[DB] Cargados {} productos activos", result.size());
@@ -261,7 +263,7 @@ class ProductRepository {
                     if (!rs.next()) return java.util.Optional.empty();
                     return java.util.Optional.of(ProductRowMapper.map(rs,
                             cargarMultivalor(c, "producto_talle", "talle", url),
-                            cargarMultivalor(c, "producto_badge", "badge", url)));
+                            cargarMultivalor(c, "producto_badge", "badge", url), siteRegistry));
                 }
             }
         } catch (Exception e) {

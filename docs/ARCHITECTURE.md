@@ -904,6 +904,72 @@ era `NULL` antes) y tampoco hace falta: el borde de lectura ya trata ambos
 casos de forma idéntica (`marca != null ? marca : ""`), así que revertir el
 `DROP` no cambia ningún comportamiento observable.
 
+### `V22` — `marca_premium` sale de `productos` (3FN)
+
+`productos.marca_premium` dependía transitivamente de `sitio`, no de la
+clave. A pesar del nombre nunca se derivó de la marca: `NormalizerService`
+lo calculaba como `SITIOS_PREMIUM.contains(sitioKey)`, así que la
+dependencia funcional real era `url → sitio → es_premium`. Eso es la
+violación de 3FN de manual, y `sitio.es_premium` (`V18`) ya tiene el valor
+autoritativo.
+
+**Por qué se resuelve en Java y no con un JOIN.** El design planteó una
+disyuntiva: leer el valor por `LEFT JOIN sitio`, o quedarse con la columna
+denormalizada. Las dos se midieron contra el catálogo de dev (6540
+productos, `cargarProductos()` como query de gate, 5 rondas intercaladas
+para que el ruido de máquina pegue igual en los dos lados):
+
+| Implementación | `cargarProductos()` | vs. baseline |
+|---|---|---|
+| `LEFT JOIN sitio` | 10,004 ms | **+28,03 %** |
+| Resuelto en Java | 7,858 ms | **−3,76 %** |
+
+El umbral de aborto pre-comprometido era 5 %, así que el JOIN quedaba
+afuera — pero quedarse con la columna habría sido una denormalización
+justificada por un número que sólo valía para **una** forma de leerla.
+`marca_premium` no es filtro, ni orden, ni faceta: `CatalogQueryRepository`
+no lo menciona y `CatalogoEndpoints` sólo lo emite en el JSON. El tercer
+camino no cuesta nada — `SiteRegistry` ya tiene el mapa de sitios en
+memoria (≤30 filas, cargado una vez) y `ProductRowMapper` resuelve premium
+con un lookup de hash donde ya está armando la fila, **después** de tener
+el `ResultSet` y por lo tanto fuera del plan de query.
+
+**La re-copia de `sp_upsert_run` viaja en la MISMA migración.** La función
+escribe `marca_premium`, así que dropear la columna la rompe. Postgres
+**no** valida cuerpos plpgsql cuando se dropea una columna —son
+late-bound— de modo que una migración que dropea sin re-copiar aplica
+perfecto y el problema aparece recién en el primer upsert, donde
+`ProductRepository` lo traga y devuelve `UpsertStats(0,0,0,0)`: sale como
+`"0 nuevos"`, nunca como error. Un scrape entero escribiendo nada, en
+silencio. El plan tenía esto como `V22` (drop) + `V23` (re-copia); juntarlas
+elimina la ventana en la que una función viva referencia una columna
+borrada, y baja la cuenta de re-copias de esta extensión de dos a una.
+
+**Tres sitios cambian, y el tercero es la razón por la que
+`StoredProcedureDriftTest` los declara uno por uno en vez de confiar en el
+review:** `rg marca_premium` encuentra sólo **dos**. La expresión del
+`INSERT VALUES` lee la clave JSON en camelCase, `(r->>'marcaPremium')`, así
+que una limpieza guiada por grep saca la columna de la lista y del `SET`,
+deja el valor, y produce un `INSERT` con 26 columnas y 27 valores — que,
+otra vez, falla en silencio en runtime.
+
+> El bloque de abajo lo ejecuta `V22RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V22
+ALTER TABLE productos ADD COLUMN marca_premium BOOLEAN DEFAULT false;
+-- <<< rollback:V22
+```
+
+Devuelve la columna con exactamente el tipo y el default que tenía tras
+`V5`. **No** restaura el cuerpo de `sp_upsert_run`, igual que el rollback de
+`V21` tampoco lo hace: la convención acá es revertir el *esquema*, no la
+función. En la práctica no cambia nada observable, porque después de `V22`
+ningún camino de lectura consulta esa columna — `marcaPremium` sale de
+`SiteRegistry`, así que una columna revivida y nunca escrita queda en
+`false` sin que nadie la mire.
+
 Tampoco restaura `sp_upsert_run` a su forma de `V17` — mismo precedente que
 `V17`'s propio bloque: una función no se puede recrear dos veces contra el
 mismo esquema dentro de un round-trip de test. Fuera del bloque: restaurar
