@@ -42,10 +42,16 @@ class SitiosRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(SitiosRepository.class);
 
-    /** Mirrors the CHECK domain on {@code sitio.plataforma} (V18) — an untrusted client value must not abort the write. */
-    private static final Set<String> PLATAFORMAS_VALIDAS = Set.of(
+    /**
+     * Mirrors the CHECK domain on {@code sitio.plataforma} — an untrusted
+     * client value must not abort the write. Package-private (not
+     * {@code private}) so {@code PlatformVocabularySyncTest} can assert it
+     * stays in sync with the CHECK, classpath-only, no DB.
+     */
+    static final Set<String> PLATAFORMAS_VALIDAS = Set.of(
             "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
-            "monkyforce", "maximus", "fullh4rd", "compragamer");
+            "monkyforce", "maximus", "fullh4rd", "compragamer",
+            "qloud", "oscommerce");
 
     private final DataSource dataSource;
     private final SiteRegistry siteRegistry;

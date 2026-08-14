@@ -1,0 +1,230 @@
+{
+  "scName": "web.MAX.GetItemList4Search_v3_V6",
+  "data": {
+    "page": 1,
+    "pagesTotal": 3,
+    "itemsTotal": 59,
+    "items": [
+      {
+        "item_id": 16650,
+        "item_code4web": "912-V532-009",
+        "item_desc": "Placa de Video Msi Nvidia Geforce RTX 5070 Ventus 2X 12GB OC GDDR7",
+        "item_desc4link": "Placa-de-Video-Msi-Nvidia-Geforce-RTX-5070-Ventus-2X-12GB-OC-GDDR7",
+        "prli_price": "1.812.600",
+        "prli_price_original": 1812600.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 19769,
+        "item_code4web": "PLD-RX580-8G",
+        "item_desc": "Placa de Video Peladn Amd Radeon RX 580 8GB GDDR5",
+        "item_desc4link": "Placa-de-Video-Peladn-Amd-Radeon-RX-580-8GB-GDDR5",
+        "prli_price": "433.200",
+        "prli_price_original": 433200.0,
+        "strikeThroughPrice": "520.000",
+        "strikeThroughPrice_original": 520000.0,
+        "item_outlet": false
+      },
+      {
+        "item_id": 19770,
+        "item_code4web": "GEN-NODISC",
+        "item_desc": "Placa de Video Generica Sin Descuento Real",
+        "item_desc4link": "Placa-de-Video-Generica-Sin-Descuento-Real",
+        "prli_price": "433.200",
+        "prli_price_original": 433200.0,
+        "strikeThroughPrice": "433.200",
+        "strikeThroughPrice_original": 433200.0,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20000,
+        "item_code4web": "GEN-0",
+        "item_desc": "Placa de Video Generica 0",
+        "item_desc4link": "Placa-de-Video-Generica-0",
+        "prli_price": "100.000",
+        "prli_price_original": 100000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20001,
+        "item_code4web": "GEN-1",
+        "item_desc": "Placa de Video Generica 1",
+        "item_desc4link": "Placa-de-Video-Generica-1",
+        "prli_price": "101.000",
+        "prli_price_original": 101000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20002,
+        "item_code4web": "GEN-2",
+        "item_desc": "Placa de Video Generica 2",
+        "item_desc4link": "Placa-de-Video-Generica-2",
+        "prli_price": "102.000",
+        "prli_price_original": 102000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20003,
+        "item_code4web": "GEN-3",
+        "item_desc": "Placa de Video Generica 3",
+        "item_desc4link": "Placa-de-Video-Generica-3",
+        "prli_price": "103.000",
+        "prli_price_original": 103000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20004,
+        "item_code4web": "GEN-4",
+        "item_desc": "Placa de Video Generica 4",
+        "item_desc4link": "Placa-de-Video-Generica-4",
+        "prli_price": "104.000",
+        "prli_price_original": 104000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20005,
+        "item_code4web": "GEN-5",
+        "item_desc": "Placa de Video Generica 5",
+        "item_desc4link": "Placa-de-Video-Generica-5",
+        "prli_price": "105.000",
+        "prli_price_original": 105000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20006,
+        "item_code4web": "GEN-6",
+        "item_desc": "Placa de Video Generica 6",
+        "item_desc4link": "Placa-de-Video-Generica-6",
+        "prli_price": "106.000",
+        "prli_price_original": 106000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20007,
+        "item_code4web": "GEN-7",
+        "item_desc": "Placa de Video Generica 7",
+        "item_desc4link": "Placa-de-Video-Generica-7",
+        "prli_price": "107.000",
+        "prli_price_original": 107000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20008,
+        "item_code4web": "GEN-8",
+        "item_desc": "Placa de Video Generica 8",
+        "item_desc4link": "Placa-de-Video-Generica-8",
+        "prli_price": "108.000",
+        "prli_price_original": 108000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20009,
+        "item_code4web": "GEN-9",
+        "item_desc": "Placa de Video Generica 9",
+        "item_desc4link": "Placa-de-Video-Generica-9",
+        "prli_price": "109.000",
+        "prli_price_original": 109000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20010,
+        "item_code4web": "GEN-10",
+        "item_desc": "Placa de Video Generica 10",
+        "item_desc4link": "Placa-de-Video-Generica-10",
+        "prli_price": "110.000",
+        "prli_price_original": 110000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20011,
+        "item_code4web": "GEN-11",
+        "item_desc": "Placa de Video Generica 11",
+        "item_desc4link": "Placa-de-Video-Generica-11",
+        "prli_price": "111.000",
+        "prli_price_original": 111000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20012,
+        "item_code4web": "GEN-12",
+        "item_desc": "Placa de Video Generica 12",
+        "item_desc4link": "Placa-de-Video-Generica-12",
+        "prli_price": "112.000",
+        "prli_price_original": 112000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20013,
+        "item_code4web": "GEN-13",
+        "item_desc": "Placa de Video Generica 13",
+        "item_desc4link": "Placa-de-Video-Generica-13",
+        "prli_price": "113.000",
+        "prli_price_original": 113000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20014,
+        "item_code4web": "GEN-14",
+        "item_desc": "Placa de Video Generica 14",
+        "item_desc4link": "Placa-de-Video-Generica-14",
+        "prli_price": "114.000",
+        "prli_price_original": 114000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20015,
+        "item_code4web": "GEN-15",
+        "item_desc": "Placa de Video Generica 15",
+        "item_desc4link": "Placa-de-Video-Generica-15",
+        "prli_price": "115.000",
+        "prli_price_original": 115000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      },
+      {
+        "item_id": 20016,
+        "item_code4web": "GEN-16",
+        "item_desc": "Placa de Video Generica 16",
+        "item_desc4link": "Placa-de-Video-Generica-16",
+        "prli_price": "116.000",
+        "prli_price_original": 116000.0,
+        "strikeThroughPrice": null,
+        "strikeThroughPrice_original": null,
+        "item_outlet": false
+      }
+    ]
+  }
+}
