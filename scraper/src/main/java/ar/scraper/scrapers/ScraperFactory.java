@@ -36,6 +36,12 @@ public class ScraperFactory {
         if ("vaypol".equals(plataforma))
             return new VaypolScraper(config, display, site.url());
 
+        if ("qloud".equals(plataforma))
+            return new QloudScraper(config, display, site.url());
+
+        if ("oscommerce".equals(plataforma))
+            return new OsCommerceScraper(config, display, site.url());
+
         if ("vtex".equals(plataforma)
                 || site.url().contains("vtexcommercestable.com.br")
                 || site.url().contains("vteximg.com.br"))

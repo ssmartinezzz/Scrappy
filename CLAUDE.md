@@ -132,18 +132,28 @@ Scrappy/
 | sporting | VTEX | deportes | |
 | vaypol, city | Vaypol (Rails SSR custom) | deportes | |
 | dcshoes | WooCommerce | moda | |
-| maximus, fullh4rd, compragamer | Scrapers propios | tecnologia | Hardware/PC |
+| fullh4rd | Scraper propio | tecnologia | Hardware/PC |
+| maximus | Scraper propio (API session-gated) | tecnologia | URL: `/Productos/{Slug}/maximus.aspx?/CAT={id}/SCAT=-1/M=-1/OR=1/PAGE={p}/` (el `{Slug}` es cosmético, sólo `CAT=` rutea — confirmado en vivo). Productos vía `POST /wfmWebSite2.aspx/wsNRW_Script` **desde adentro de la página ya navegada** — un cookie-less call responde HTTP 200 con `{"d":"-2, Módulo GlobalBluePoint© GBPScripts NO ADQUIRIDO."}` (el gate no se detecta por status code). `parseMaximusPayload` **lanza** `MaximusPayloadException` ante esa forma en vez de devolver una categoría vacía silenciosa — se propaga sin atrapar hasta `BaseScraper.ejecutar`. Sin campo de imagen en la API (abstención). **745 productos** en un run real de sitio completo (2026-08-13): 73 categorías descubiertas del nav, 1122 únicos, 745 dentro de `precio.maximo` |
+| compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (1389 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular. **650 productos** en un run real tras filtrar por stock/vendible y bandas de precio (2026-08-13) |
+| rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **503 productos** en un run real de sitio completo con las bandas de precio de producción (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
+| venex | osCommerce (propio) | tecnologia | Descubrimiento en dos niveles: categoría top → sub-categorías leaf en su landing (la landing muestra 12 productos no representativos, nunca se cuentan). `?page=N`, se detiene en página vacía **o** repetida — pasado el final real, Venex repite la última página en vez de devolver vacío. `page.content()` sirve el DOM re-serializado por Chromium (comillas dobles + entidad `&quot;`), no el HTML crudo del servidor (comillas simples) — el parser normaliza antes de matchear. **1294 productos** en un run real de sitio completo (las 19 categorías top, 2026-08-13) |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
 
+Desde `V20` esto lee `sitio.plataforma` vía `SiteRegistry`, no name-sets en
+código (ver [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md)). La lista de abajo
+es qué sitio hoy tiene sembrado cada valor, no un `Set.of(...)` a editar:
+
 ```
-WOOCOMMERCE → {dcshoes, woocommerce}
-MAXIMUS → {maximus}   FULLH4RD → {fullh4rd}   COMPRAGAMER → {compragamer}
-VAYPOL  → {vaypol, city}
-VTEX    → {sporting} o url contiene vtexcommercestable.com.br / vteximg.com.br
-SHOPIFY → {freres, vcp, forever} o url contiene myshopify.com
-MONKYFORCE → {monkyforce}
+WOOCOMMERCE → dcshoes
+MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
+VAYPOL  → vaypol, city
+QLOUD   → rockethard
+OSCOMMERCE → venex
+VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
+SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
+MONKYFORCE → monkyforce
 default → TiendanubeScraper (JS heurístico)
 ```
 
@@ -229,6 +239,7 @@ los `V*RollbackRoundTripTest` para que el documento no pueda desincronizarse.
 | `V21` | Tabla `marca` + FK, clave natural |
 | `V22` | Dropea `productos.marca_premium` (3FN) |
 | `V23` | `productos.sitio_key` (generada) + FK a `sitio(sitio_key)` |
+| `V24` | `sitio.plataforma` 9→11 valores (`qloud`, `oscommerce`) + seed Rockethard/Venex |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -475,6 +486,16 @@ puede pasar contra clases viejas y fingir verde.
 existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.0.jar`
 → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
 
+**`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
+descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
+`curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles
+literales adentro) parseaba perfecto en test y rendía **0 productos en un run
+real**. Chromium normaliza los atributos a comillas dobles y escapa las
+comillas internas como `&quot;` al serializar `document.documentElement.outerHTML`
+(que es lo que `page.content()` devuelve). Cualquier parser que lea un
+atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
+entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
+
 **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita
 el prefijo `jdbc:` (`jdbc:postgresql://…`); psycopg2 **no** lo entiende, solo
 `postgresql://…`. `PythonRunner.toPsycopgDsn` traduce antes de pasarlo al
@@ -532,6 +553,8 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 | Problema | Estado |
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación de su API |
+| `precio.maximo=300000` borra categorías enteras de tecnología. Medido sobre Maximus (2026-08-13): notebooks `CAT=56` conserva 0 de 16, computadoras armadas `CAT=68` conserva 0 de 59, `CAT=48` (GPUs) 5 de 59 — 377 de 1122 productos filtrados, 34% | Config preexistente, **no** introducida por `fix/zero-yield-tech-sites` y deliberadamente no tocada ahí. El scraper trae esos productos bien; el filtro los descarta después. Los conteos por sitio de la tabla de arriba subestiman la cobertura real |
+| Logg (`logg.com.ar`, ABP/ASP.NET) sigue sin scraper | Diagnóstico completo en `docs/ARCHITECTURE.md` y en el header de `V24`: la grilla está hidratada por JS y la fuente de datos no se encontró. Sacado de scope por decisión explícita, no por fallar |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges, no recalibrar thresholds aún |
 | `precio_orig` sigue teniendo strings genuinamente no parseables en la base histórica | `close-1nf-and-3nf-foundation`/`V17`: 817/3148 filas con texto (25,95%) no parsean ni con el parser AR-locale correcto — quedan `NULL`, no `0`; medido contra datos reales, no estimado |
 | Bare `except:` en `price_velocity`/carga de historial | Nit no bloqueante — migrar a `except Exception:`. El de `safe_price` se fue con la función, borrada al quedar sin callers |

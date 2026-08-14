@@ -1,0 +1,154 @@
+[
+  {
+    "id_producto": 1674,
+    "nombre": "Estabilizador Desktop TCA-1200N LYONN AV",
+    "id_categoria": 5,
+    "id_subcategoria": 31,
+    "id_marca": 63,
+    "precioLista": 49989,
+    "precioEspecial": 44990,
+    "precioListaAnterior": null,
+    "imagenes": [
+      { "nombre": "1226_Estabilizador_Desktop_TCA-1200N_LYONN_AV_63a535eb", "id_producto_imagen": 1674, "orden": 1 },
+      { "nombre": "1228_Estabilizador_Desktop_TCA-1200N_LYONN_AV_240ffe5a", "id_producto_imagen": 1674, "orden": 2 },
+      { "nombre": "1227_Estabilizador_Desktop_TCA-1200N_LYONN_AV_ffb2770e", "id_producto_imagen": 1674, "orden": 3 }
+    ],
+    "stock": 10,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 3903,
+    "nombre": "Placa de Red Tp-Link TG-3468 Ethernet PCIe 1000Mbps",
+    "id_categoria": 5,
+    "id_subcategoria": 14,
+    "id_marca": 29,
+    "precioLista": 6100,
+    "precioEspecial": 6100,
+    "precioListaAnterior": 13556,
+    "imagenes": [
+      { "nombre": "12586_Placa_de_Red_Tp-Link_TG-3468_Ethernet_PCIe_1000Mbps_38025fac", "id_producto_imagen": 3903, "orden": 1 }
+    ],
+    "stock": 10,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 2113,
+    "nombre": "Service Instalacion de armado de PC o cambio de gabinete",
+    "id_categoria": 3,
+    "id_subcategoria": 107,
+    "id_marca": 130,
+    "precioLista": 2278,
+    "precioEspecial": 2050,
+    "precioListaAnterior": null,
+    "imagenes": null,
+    "stock": 10,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 14895,
+    "nombre": "Cargador Samsung 45W Carga Rapida cable USB-C EP-T4510XBSGAR",
+    "id_categoria": 5,
+    "id_subcategoria": 21,
+    "id_marca": 23,
+    "precioLista": 52056,
+    "precioEspecial": 46850,
+    "precioListaAnterior": null,
+    "imagenes": [
+      { "nombre": "37685_Cargador_Samsung_45W_Carga_Rapida_cable_USB-C_EP-T4510XBSGAR_00e5bf45", "id_producto_imagen": 14895, "orden": 1 }
+    ],
+    "stock": 5,
+    "vendible": 0,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 20001,
+    "nombre": "Mouse Gamer RGB XYZ Sin Stock",
+    "id_categoria": 5,
+    "id_subcategoria": 21,
+    "id_marca": 23,
+    "precioLista": 15000,
+    "precioEspecial": 12000,
+    "precioListaAnterior": null,
+    "imagenes": [
+      { "nombre": "mouse_gamer_rgb_xyz_00000001", "id_producto_imagen": 20001, "orden": 1 }
+    ],
+    "stock": 0,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 20002,
+    "nombre": "Accesorio Barato Fuera De Rango",
+    "id_categoria": 5,
+    "id_subcategoria": 21,
+    "id_marca": 23,
+    "precioLista": 50,
+    "precioEspecial": 50,
+    "precioListaAnterior": null,
+    "imagenes": null,
+    "stock": 10,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 20003,
+    "nombre": "Notebook Premium Fuera De Rango",
+    "id_categoria": 5,
+    "id_subcategoria": 21,
+    "id_marca": 23,
+    "precioLista": 5000000,
+    "precioEspecial": 5000000,
+    "precioListaAnterior": null,
+    "imagenes": null,
+    "stock": 10,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 20004,
+    "nombre": "Producto Outlet Real",
+    "id_categoria": 5,
+    "id_subcategoria": 21,
+    "id_marca": 23,
+    "precioLista": 18000,
+    "precioEspecial": 15000,
+    "precioListaAnterior": null,
+    "imagenes": [
+      { "nombre": "producto_outlet_real_00000001", "id_producto_imagen": 20004, "orden": 1 }
+    ],
+    "stock": 5,
+    "vendible": 1,
+    "es_outlet": true
+  },
+  {
+    "id_producto": 20005,
+    "nombre": "Producto Categoria Desconocida",
+    "id_categoria": 8888,
+    "id_subcategoria": 9999,
+    "id_marca": 23,
+    "precioLista": 20000,
+    "precioEspecial": 20000,
+    "precioListaAnterior": null,
+    "imagenes": null,
+    "stock": 5,
+    "vendible": 1,
+    "es_outlet": false
+  },
+  {
+    "id_producto": 20006,
+    "nombre": "Producto Categoria Via Id Categoria",
+    "id_categoria": 5,
+    "id_subcategoria": 9999,
+    "id_marca": 23,
+    "precioLista": 21000,
+    "precioEspecial": 21000,
+    "precioListaAnterior": null,
+    "imagenes": null,
+    "stock": 5,
+    "vendible": 1,
+    "es_outlet": false
+  }
+]
