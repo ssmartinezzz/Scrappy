@@ -179,8 +179,8 @@ class TechStorePageMaximusTest {
     }
 
     @Test
-    @DisplayName("url = baseUrl/Producto/{item_desc4link}/ITEM={item_id}/maximus.aspx; sin imagen (abstencion, CODE-5)")
-    void mapsUrlAndAbstainsOnImage() {
+    @DisplayName("url = baseUrl/Producto/{item_desc4link}/ITEM={item_id}/maximus.aspx")
+    void mapsUrl() {
         Page mockPage = Mockito.mock(Page.class);
         when(mockPage.evaluate(anyString(), any())).thenReturn(wrapD(CAT48_PAGE1));
         TechStorePage techStorePage = new TechStorePage(
@@ -190,8 +190,51 @@ class TechStorePageMaximusTest {
         Product p = productoPorId(techStorePage.crawlMaximusCategory(48, new HashSet<>()), "16650");
         assertThat(p.url()).isEqualTo(
                 "https://www.maximus.com.ar/Producto/Placa-de-Video-Msi-Nvidia-Geforce-RTX-5070-Ventus-2X-12GB-OC-GDDR7/ITEM=16650/maximus.aspx");
-        assertThat(p.imagenUrl()).isEmpty();
     }
+
+    @Test
+    @DisplayName("imagen = /Temp/App_WebSite/App_PictureFiles/Items/{item_code4web}_600.jpg")
+    void derivesImageUrlFromItemCode4Web() {
+        // El item NO trae un campo de imagen, pero SI trae la clave con la que
+        // el propio sitio la arma. Verificado en vivo (2026-08-15) con HEAD
+        // sobre las 121 filas de las CAT 48/56/68/3/10: 121/121 en 200. El
+        // comentario viejo del codigo ("ninguna key del item la trae") describia
+        // mal el presente y por eso los 745 productos de Maximus se guardaban
+        // sin imagen (DOC-3).
+        Page mockPage = Mockito.mock(Page.class);
+        when(mockPage.evaluate(anyString(), any())).thenReturn(wrapD(CAT48_PAGE1));
+        TechStorePage techStorePage = new TechStorePage(
+                mockPage, 30000, "Maximus", "https://www.maximus.com.ar",
+                0, 100_000_000, TechStorePage.TechStoreType.MAXIMUS);
+
+        Product p = productoPorId(techStorePage.crawlMaximusCategory(48, new HashSet<>()), "16650");
+        assertThat(p.imagenUrl()).isEqualTo(
+                "https://www.maximus.com.ar/Temp/App_WebSite/App_PictureFiles/Items/912-V532-009_600.jpg");
+    }
+
+    @Test
+    @DisplayName("item_code4web ausente o vacio -> imagen vacia (abstencion, CODE-5), nunca una URL a medias")
+    void abstainsOnImageWhenItemCodeIsMissing() {
+        Page mockPage = Mockito.mock(Page.class);
+        when(mockPage.evaluate(anyString(), any())).thenReturn(wrapD(SIN_ITEM_CODE));
+        TechStorePage techStorePage = new TechStorePage(
+                mockPage, 30000, "Maximus", "https://www.maximus.com.ar",
+                0, 100_000_000, TechStorePage.TechStoreType.MAXIMUS);
+
+        List<Product> result = techStorePage.crawlMaximusCategory(48, new HashSet<>());
+
+        assertThat(result).hasSize(2);
+        assertThat(result).allSatisfy(p -> assertThat(p.imagenUrl()).isEmpty());
+    }
+
+    /** Dos items validos en todo lo demas: uno con {@code item_code4web} vacio, otro sin la key. */
+    private static final String SIN_ITEM_CODE = """
+            {"data":{"page":1,"pagesTotal":1,"itemsTotal":2,"items":[
+              {"item_id":90001,"item_code4web":"","item_desc":"Gabinete Sin Codigo",
+               "item_desc4link":"Gabinete-Sin-Codigo","prli_price_original":100000},
+              {"item_id":90002,"item_desc":"Gabinete Sin La Key",
+               "item_desc4link":"Gabinete-Sin-La-Key","prli_price_original":120000}
+            ]}}""";
 
     // ─── category id discovery ──────────────────────────────────────────────
 
