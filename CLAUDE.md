@@ -277,6 +277,17 @@ precio cambió → UPDATE + historial · ausente en el run → soft-delete
 `sp_soft_delete_ausentes`. La concurrencia la resuelve Postgres MVCC: no hay
 locks de aplicación.
 
+⚠️ **El soft-delete está acotado a los sitios del batch, y esa cota no es
+opcional.** `sp_soft_delete_ausentes` recibe `p_sitios` y sólo desactiva dentro
+de esos sitios. "Ausente" únicamente significa algo dentro de un sitio que se
+miró: para uno que no se miró no hay evidencia de nada, y `activo=false` es una
+afirmación, no la falta de una. Sin esa cota, scrapear un rubro solo daba por
+desaparecido el catálogo entero — pasó de verdad (2026-08-15): un run de solo
+tecnología desactivó 5806 productos de 19 sitios no visitados, Sporting de 1860
+a 0. **El alcance se deriva del batch, no de la lista de sitios pedidos**: un
+sitio cuyo scraper se rompió llega con 0 productos, y "se rompió" no es "se
+vació" — para eso está `SiteYieldGuard`. Un batch vacío no desactiva nada.
+
 ⚠️ **El upsert se traga los errores SQL**: `ProductRepository` loguea y
 devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error.
 Todo test de round-trip afirma `nuevos()` **antes** que cualquier valor de
