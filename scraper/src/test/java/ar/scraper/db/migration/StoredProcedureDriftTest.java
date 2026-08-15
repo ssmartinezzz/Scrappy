@@ -236,6 +236,26 @@ class StoredProcedureDriftTest {
             Pattern.compile("-- get-or-create de .*?ON CONFLICT DO NOTHING; "),
             "");
 
+    /**
+     * El soft-delete pasa a estar acotado por sitio: la firma gana un tercer
+     * argumento {@code p_sitios} y el UPDATE gana la condición
+     * {@code sitio = ANY(p_sitios)}. Antes barría el catálogo entero, así que un
+     * run de un subconjunto de sitios desactivaba todo lo demás.
+     *
+     * <p>Se declaran las DOS mitades por separado a propósito: si mañana alguien
+     * agrega el parámetro y se olvida la condición del WHERE (o al revés), el
+     * hop queda rojo en vez de pasar por "ya está declarado".</p>
+     */
+    private static final List<Substitution> SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE = List.of(
+            new Substitution(
+                    "tercer argumento p_sitios en la firma",
+                    Pattern.compile("\\(p_urls text\\[\\], p_now text, p_sitios text\\[\\]\\)"),
+                    "(p_urls text[], p_now text)"),
+            new Substitution(
+                    "condición de alcance por sitio en el UPDATE",
+                    Pattern.compile("WHERE activo AND sitio = ANY\\(p_sitios\\) AND NOT"),
+                    "WHERE activo AND NOT"));
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
@@ -258,7 +278,8 @@ class StoredProcedureDriftTest {
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
             new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT, List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE)),
-            new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE, List.of())
+            new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE,
+                    SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE)
     );
 
     @Test

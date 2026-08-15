@@ -90,11 +90,17 @@ class ProductRepository {
                     }
                 }
 
-                Set<String> urlsNuevoRun = new LinkedHashSet<>();
+                Set<String> urlsNuevoRun    = new LinkedHashSet<>();
+                Set<String> sitiosDelRun     = new LinkedHashSet<>();
                 for (Product p : productos) {
-                    if (p.url() != null && !p.url().isBlank()) urlsNuevoRun.add(p.url());
+                    if (p.url() == null || p.url().isBlank()) continue;
+                    urlsNuevoRun.add(p.url());
+                    if (p.sitio() != null && !p.sitio().isBlank()) sitiosDelRun.add(p.sitio());
                 }
-                int desactivados = softDeleteAusentes(c, urlsNuevoRun, now);
+                // El alcance del soft-delete sale del batch, no de la lista de
+                // sitios pedidos: un sitio cuyo scraper se rompió llega con 0
+                // productos, y no hay que confundir "se rompió" con "se vació".
+                int desactivados = softDeleteAusentes(c, urlsNuevoRun, now, sitiosDelRun);
 
                 purgarHistorialViejo(c);
 
@@ -167,11 +173,14 @@ class ProductRepository {
         return MAPPER.writeValueAsString(arr);
     }
 
-    private int softDeleteAusentes(Connection c, Set<String> urlsPresentes, String now) throws SQLException {
-        try (PreparedStatement ps = c.prepareStatement("SELECT sp_soft_delete_ausentes(?, ?)")) {
+    private int softDeleteAusentes(Connection c, Set<String> urlsPresentes, String now,
+                                   Set<String> sitiosPresentes) throws SQLException {
+        if (sitiosPresentes.isEmpty()) return 0;
+        try (PreparedStatement ps = c.prepareStatement("SELECT sp_soft_delete_ausentes(?, ?, ?)")) {
             Array urlArray = c.createArrayOf("text", urlsPresentes.toArray());
             ps.setArray(1, urlArray);
             ps.setString(2, now);
+            ps.setArray(3, c.createArrayOf("text", sitiosPresentes.toArray()));
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
             }
