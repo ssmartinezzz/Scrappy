@@ -167,7 +167,7 @@ public class QloudPage extends BasePage {
             String img = "";
             var mImg = IMG.matcher(card);
             if (mImg.find()) img = mImg.group(1);
-            if (img.startsWith("//")) img = "https:" + img;
+            img = ImageUrl.absolutize(img, baseUrl);
 
             Double precioOriginal = null;
             var mTachado = TACHADO.matcher(card);

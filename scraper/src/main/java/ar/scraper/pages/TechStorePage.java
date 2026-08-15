@@ -235,6 +235,10 @@ public class TechStorePage extends BasePage {
 
     /** Cosmetic slug segment — confirmed live that only `CAT=` routes, any text works. */
     private static final String MAXIMUS_SLUG_PLACEHOLDER = "categoria";
+    /** GlobalBluePoint serves item pictures off a fixed path keyed by {@code item_code4web}. */
+    private static final String MAXIMUS_IMAGE_PATH = "/Temp/App_WebSite/App_PictureFiles/Items/";
+    private static final String MAXIMUS_IMAGE_SUFFIX = "_600.jpg";
+
     private static final String MAXIMUS_GUID = "a632009a-7686-4fcb-a0b4-24b18caf5234";
     private static final String MAXIMUS_SCRIPT_LABEL = "web.MAX.GetItemList4Search_v3_V6";
     private static final int MAXIMUS_MAX_PAGES = 30;
@@ -424,11 +428,18 @@ public class TechStorePage extends BasePage {
         String desc4link = item.path("item_desc4link").asText("");
         String url = baseUrl + "/Producto/" + desc4link + "/ITEM=" + itemId + "/maximus.aspx";
 
-        // Maximus no expone ningún campo de imagen en la API (confirmado:
-        // ninguna key del item la trae) — abstención (CODE-5), no inventada.
+        // La API no trae un campo de imagen, pero sí `item_code4web`, que es la
+        // clave con la que el propio sitio arma el <img> del listado. Medido en
+        // vivo 2026-08-15: HEAD 200 en 121/121 items de las CAT 48/56/68/3/10.
+        // Sin código no hay URL que valga: abstención (CODE-5), no una a medias.
+        String itemCode = item.path("item_code4web").asText("").trim();
+        String img = itemCode.isBlank()
+                ? ""
+                : baseUrl + MAXIMUS_IMAGE_PATH + itemCode + MAXIMUS_IMAGE_SUFFIX;
+
         return Optional.of(new Product(
                 sitio, nombre, precio, precioOriginal,
-                url, "", "", "",
+                url, img, "", "",
                 List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
     }
 
@@ -600,13 +611,13 @@ public class TechStorePage extends BasePage {
                 if (orden < minOrden) { minOrden = orden; primera = im; }
             }
             if (primera != null) {
-                String imgNombre = primera.path("nombre").asText("");
-                if (!imgNombre.isBlank()) img = "https://imagenes.compragamer.com/" + imgNombre;
+                String imgNombre = primera.path("nombre").asText("").trim();
+                if (!imgNombre.isBlank()) img = CG_IMAGE_PREFIX + imgNombre + CG_IMAGE_SUFFIX;
             }
         }
 
         String base = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
-        String url = base + "/producto/" + idProducto;
+        String url = base + "/producto/" + slugCompraGamer(nombre) + "_" + idProducto;
 
         return Optional.of(new Product(
                 sitio, nombre, precio, precioOriginal,
@@ -614,9 +625,39 @@ public class TechStorePage extends BasePage {
                 List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
     }
 
+    /**
+     * The feed's {@code imagenes[].nombre} is the image KEY, not its URL — the
+     * bucket path has to be rebuilt around it. Confirmed live 2026-08-15 against
+     * the {@code <img>} the store itself renders, and with HEAD 200 on the URL
+     * built here. The {@code Imganen} typo is theirs and is load-bearing: the
+     * bare {@code imagenes.compragamer.com/{nombre}} the previous code built
+     * answers {@code 403 AccessDenied} for 100% of the catalog.
+     */
+    private static final String CG_IMAGE_PREFIX =
+            "https://imagenes.compragamer.com/productos/compragamer_Imganen_general_";
+    private static final String CG_IMAGE_SUFFIX = ".jpg";
+
+    private static final java.util.regex.Pattern CG_NO_ALFANUMERICO =
+            java.util.regex.Pattern.compile("[^A-Za-z0-9]+");
+
+    /**
+     * Builds the {@code {slug}} half of Compragamer's {@code /producto/{slug}_{id}}
+     * route. The store's router keys on the trailing {@code _{id}} — measured live,
+     * {@code /producto/x_20213} renders the right product — but the bare
+     * {@code /producto/{id}} the previous code built has no {@code _} at all and
+     * the router bounces it to the homepage, so every row held a dead link.
+     * Each RUN of non-alphanumerics collapses into one underscore, which is how
+     * the store builds its own links ({@code Tp-Link TG-3468} -> {@code Tp_Link_TG_3468}).
+     */
+    static String slugCompraGamer(String nombre) {
+        if (nombre == null || nombre.isBlank()) return "";
+        String slug = CG_NO_ALFANUMERICO.matcher(nombre.trim()).replaceAll("_");
+        return slug.replaceAll("^_+", "").replaceAll("_+$", "");
+    }
+
     // ─── Shared: parse JSON array → List<Product> ─────────────────────────
 
-    private List<Product> parseProductNodes(String json, Set<String> vistas) {
+    List<Product> parseProductNodes(String json, Set<String> vistas) {
         if (json == null || json.equals("[]")) return List.of();
         try {
             JsonNode arr = MAPPER.readTree(json);
@@ -641,8 +682,10 @@ public class TechStorePage extends BasePage {
             return Optional.empty();
 
         String url  = n.path("url").asText("");
-        String img  = n.path("img").asText("");
-        if (img.startsWith("//")) img = "https:" + img;
+        // FullH4rd sirve el src root-relative (/img/productos/{cat}/{slug}-0.jpg):
+        // sin absolutizar, la fila guarda un path pelado que no puede fetchear ni
+        // el dashboard ni el clasificador visual.
+        String img  = ImageUrl.absolutize(n.path("img").asText(""), baseUrl);
 
         Double precioOrig = null;
         Optional<Double> po = parsePrecioTech(n.path("precioOrig").asText(""));
