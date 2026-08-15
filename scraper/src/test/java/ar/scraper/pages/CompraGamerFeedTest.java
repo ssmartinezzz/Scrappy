@@ -128,9 +128,37 @@ class CompraGamerFeedTest {
     void mapsImageFromFirstSortedImagen() {
         List<Product> result = parseFixture();
 
+        // El `nombre` del feed es la CLAVE de la imagen, no su URL. La ruta real
+        // del bucket, confirmada en vivo (2026-08-15) contra las <img> que el
+        // sitio renderiza y con HEAD 200 sobre la URL construida, es
+        // /productos/compragamer_Imganen_general_{nombre}.jpg — con el typo
+        // "Imganen" incluido, que es de ellos. Sin ese prefijo el bucket S3
+        // responde 403 AccessDenied para el 100% de los productos.
         assertThat(productoPorId(result, 1674).imagenUrl())
-                .isEqualTo("https://imagenes.compragamer.com/1226_Estabilizador_Desktop_TCA-1200N_LYONN_AV_63a535eb");
+                .isEqualTo("https://imagenes.compragamer.com/productos/"
+                        + "compragamer_Imganen_general_1226_Estabilizador_Desktop_TCA-1200N_LYONN_AV_63a535eb.jpg");
         assertThat(productoPorId(result, 2113).imagenUrl()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("url de producto: /producto/{slug}_{id} — /producto/{id} pelado redirige al home")
+    void buildsProductUrlWithTheSlugIdSuffixTheRouterNeeds() {
+        // Medido en vivo (2026-08-15): la SPA rutea por el sufijo `_{id}` del
+        // ultimo segmento. /producto/1674 (sin `_`) no resuelve y el router
+        // redirige al home — o sea que TODA fila de Compragamer guardaba un link
+        // muerto, y la url es la PK del catalogo.
+        assertThat(productoPorId(parseFixture(), 1674).url())
+                .isEqualTo("https://compragamer.com/producto/Estabilizador_Desktop_TCA_1200N_LYONN_AV_1674");
+    }
+
+    @Test
+    @DisplayName("el slug colapsa cada corrida de no-alfanumericos en UN solo guion bajo")
+    void collapsesNonAlphanumericRunsIntoASingleUnderscore() {
+        // "Tp-Link TG-3468" -> "Tp_Link_TG_3468": el separador es la corrida
+        // entera, no cada caracter (asi arma sus propios links el sitio).
+        assertThat(productoPorId(parseFixture(), 3903).url())
+                .isEqualTo("https://compragamer.com/producto/"
+                        + "Placa_de_Red_Tp_Link_TG_3468_Ethernet_PCIe_1000Mbps_3903");
     }
 
     @Test
@@ -148,9 +176,10 @@ class CompraGamerFeedTest {
                 PRODUCTOS, CATEGORIAS_SUB, MARCAS, "Compragamer", BASE_URL, MIN, MAX);
     }
 
+    /** La url termina en {@code _{id}} — el sufijo por el que rutea la SPA. */
     private static Product productoPorId(List<Product> productos, int idProducto) {
         return productos.stream()
-                .filter(p -> p.url().equals(BASE_URL + "/producto/" + idProducto))
+                .filter(p -> p.url().endsWith("_" + idProducto))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No se encontro id_producto=" + idProducto + " en el resultado"));
     }

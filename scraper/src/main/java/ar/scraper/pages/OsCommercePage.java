@@ -1,6 +1,8 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -170,13 +172,27 @@ public class OsCommercePage extends BasePage {
      * actually sees. {@link #normalizeQuotedEntities} folds both shapes onto
      * one before matching, instead of maintaining two regex sets.</p>
      */
-    private static final java.util.regex.Pattern ENHANCED_CLICK = java.util.regex.Pattern.compile(
-            "enhancedClick\\(\\{\"id\":\"(\\d+)\",\"name\":\"([^\"]*)\",\"category\":\"([^\"]*)\"");
+    /**
+     * Captures the whole {@code enhancedClick({...})} argument so Jackson can
+     * read it, instead of picking fields out with a regex per field.
+     *
+     * <p>That field-by-field form is what shipped first, and it lost 41% of the
+     * catalog: {@code "name":"([^"]*)"} cannot survive the escaped inch mark
+     * Venex embeds in almost every notebook and monitor name
+     * ({@code 15.6\"}) — the character class stops at the backslash, the match
+     * fails, and the card was skipped by a bare {@code continue} that never
+     * reached a log. Measured live on {@code /notebooks/} (2026-08-15): 99
+     * cards on the page, 58 parsed, 41 dropped in silence. The argument IS a
+     * JSON object, so the parser that already knows every escape rule should be
+     * the one reading it.</p>
+     */
+    private static final java.util.regex.Pattern ENHANCED_CLICK_ARG = java.util.regex.Pattern.compile(
+            "enhancedClick\\((\\{.*?\\})\\)");
     private static final java.util.regex.Pattern PRODUCT_URL = java.util.regex.Pattern.compile(
             "<a href=\"([^\"]+)\"\\s+onclick=['\"]enhancedClick");
-    private static final java.util.regex.Pattern PRICE_JSON = java.util.regex.Pattern.compile(
-            "\"price\":\"([0-9.]+)\"");
     private static final java.util.regex.Pattern IMG = java.util.regex.Pattern.compile("<img src=\"([^\"]+)\"");
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** Folds Chromium's re-serialized-DOM entity form onto the raw-HTML form. */
     private static String normalizeQuotedEntities(String html) {
@@ -198,17 +214,23 @@ public class OsCommercePage extends BasePage {
             if (!mUrl.find()) continue;
             String url = mUrl.group(1);
 
-            var mClick = ENHANCED_CLICK.matcher(card);
+            var mClick = ENHANCED_CLICK_ARG.matcher(card);
             if (!mClick.find()) continue;
-            String nombre = mClick.group(2).trim();
-            String categoriaJson = mClick.group(3).trim();
+            JsonNode click;
+            try {
+                click = MAPPER.readTree(mClick.group(1));
+            } catch (Exception e) {
+                continue;
+            }
+            if (!click.isObject()) continue;
+
+            String nombre = click.path("name").asText("").trim();
+            String categoriaJson = click.path("category").asText("").trim();
             if (nombre.isBlank() || url.isBlank() || !vistasEnPagina.add(url)) continue;
 
-            var mPrecio = PRICE_JSON.matcher(card);
-            if (!mPrecio.find()) continue;
             double precio;
             try {
-                precio = Double.parseDouble(mPrecio.group(1));
+                precio = Double.parseDouble(click.path("price").asText(""));
             } catch (NumberFormatException e) {
                 continue;
             }
@@ -217,10 +239,7 @@ public class OsCommercePage extends BasePage {
             String img = "";
             var mImg = IMG.matcher(card);
             if (mImg.find()) img = mImg.group(1);
-            if (img.startsWith("//")) img = "https:" + img;
-            else if (!img.isBlank() && !img.startsWith("http")) {
-                img = baseUrl.replaceAll("/+$", "") + "/" + img.replaceAll("^/+", "");
-            }
+            img = ImageUrl.absolutize(img, baseUrl);
 
             String categoria = !categoriaJson.isBlank() ? categoriaJson : categoriaHint;
 
