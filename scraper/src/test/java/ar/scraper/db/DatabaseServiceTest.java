@@ -37,8 +37,12 @@ class DatabaseServiceTest extends PostgresTestBase {
     }
 
     private Product producto(String url, String nombre, double precio) {
+        return productoDe("Sitio", url, nombre, precio);
+    }
+
+    private Product productoDe(String sitio, String url, String nombre, double precio) {
         return new Product(
-                "Sitio", nombre, precio, null, url, "http://img.example/x.jpg",
+                sitio, nombre, precio, null, url, "http://img.example/x.jpg",
                 "Remera", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1);
@@ -132,6 +136,66 @@ class DatabaseServiceTest extends PostgresTestBase {
         assertThat(db.esProductoActivo("https://site.com/desaparece")).isFalse();
         // Historial no se toca por el soft-delete
         assertThat(db.cargarHistorial("https://site.com/desaparece")).hasSize(1);
+    }
+
+    // ── Scenario: Partial run (subset of sites) ──────────────────────────
+
+    @Test
+    @DisplayName("un run parcial NO desactiva los productos de los sitios que no scrapeó")
+    void aPartialRunNeverDeactivatesTheSitesItDidNotScrape() {
+        // El soft-delete era global: `WHERE activo AND NOT (url = ANY(p_urls))`
+        // sin ninguna condición de sitio. O sea que scrapear un rubro solo
+        // borraba TODO el resto del catálogo. Medido sobre la base real tras un
+        // run de solo-tecnología (2026-08-15 23:09:52): 5806 productos de 19
+        // sitios que nunca se scrapearon quedaron en activo=false de una, con
+        // Sporting pasando de 1860 productos a 0.
+        db.upsertProductos(List.of(
+                productoDe("Sporting", "https://sporting.com/remera", "Remera", 10000.0),
+                productoDe("Venex", "https://venex.com/notebook", "Notebook", 900000.0)));
+
+        DatabaseService.UpsertStats stats = db.upsertProductos(List.of(
+                productoDe("Venex", "https://venex.com/notebook", "Notebook", 900000.0)));
+
+        assertThat(stats.desactivados())
+                .as("Sporting no estuvo en el run: no es un producto ausente, es un sitio no visitado")
+                .isEqualTo(0);
+        assertThat(db.esProductoActivo("https://sporting.com/remera")).isTrue();
+        assertThat(db.cargarProductos()).extracting(Product::url)
+                .containsExactlyInAnyOrder("https://sporting.com/remera", "https://venex.com/notebook");
+    }
+
+    @Test
+    @DisplayName("un sitio que rinde 0 conserva su catálogo — un scraper roto no vacía la tabla")
+    void aSiteThatYieldsNothingKeepsItsCatalog() {
+        // Corolario del anterior, y la razón de derivar el alcance del batch y
+        // no de la lista de sitios pedidos: si un sitio se pide y su scraper se
+        // rompe, llega con 0 productos. Tratar eso como "todo desapareció" es
+        // exactamente el modo de falla que `SiteYieldGuard` existe para avisar.
+        db.upsertProductos(List.of(
+                productoDe("Sporting", "https://sporting.com/remera", "Remera", 10000.0)));
+
+        DatabaseService.UpsertStats stats = db.upsertProductos(List.of());
+
+        assertThat(stats.desactivados()).isEqualTo(0);
+        assertThat(db.esProductoActivo("https://sporting.com/remera")).isTrue();
+    }
+
+    @Test
+    @DisplayName("dentro de un sitio SI presente en el run, el ausente se sigue desactivando")
+    void withinAScrapedSiteTheMissingProductIsStillDeactivated() {
+        db.upsertProductos(List.of(
+                productoDe("Sporting", "https://sporting.com/queda", "Queda", 100.0),
+                productoDe("Sporting", "https://sporting.com/se-va", "Se va", 200.0),
+                productoDe("Venex", "https://venex.com/otro", "Otro", 300.0)));
+
+        DatabaseService.UpsertStats stats = db.upsertProductos(List.of(
+                productoDe("Sporting", "https://sporting.com/queda", "Queda", 100.0)));
+
+        assertThat(stats.desactivados())
+                .as("solo el de Sporting: Venex no estuvo en el run")
+                .isEqualTo(1);
+        assertThat(db.esProductoActivo("https://sporting.com/se-va")).isFalse();
+        assertThat(db.esProductoActivo("https://venex.com/otro")).isTrue();
     }
 
     // ── Scenario: Historial chart on new product (greenfield, no error) ──
