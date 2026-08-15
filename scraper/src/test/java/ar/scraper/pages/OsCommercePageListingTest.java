@@ -91,6 +91,72 @@ class OsCommercePageListingTest {
     }
 
     @Test
+    @DisplayName("un nombre con pulgadas escapadas (15.6\\\") NO tira la card — forma cruda del servidor")
+    void parsesEscapedInchMarkInRawServerForm() {
+        // Medido en vivo contra venex.com.ar/notebooks/ (2026-08-15): 99 cards
+        // en la pagina, 58 parseadas, 41 DESCARTADAS EN SILENCIO. Todas las
+        // descartadas tienen la comilla de pulgadas escapada dentro de `name`,
+        // que corta el grupo "name":"([^"]*)" a mitad de camino y hace fallar el
+        // match entero. Monitores y notebooks son las categorias mas golpeadas:
+        // ahi las pulgadas estan en practicamente cada nombre.
+        String card = """
+                <div class="product-box" >
+                    <div class="product-box-media">
+                        <a href="https://www.venex.com.ar/notebooks/notebook-hp-omnibook-3-ryzen-5.html" onclick='enhancedClick({"id":"21499","name":"Notebook HP OmniBook 3 Ryzen 5 16GB 256GB W11 16\\" 2K Glacier Silver","category":"Notebooks","brand":"HP","price":"1299990","list":"Listado de Productos","position":"7"})'>
+                            <img src="products_images/thumb/1782745188_omnibook.jpg" class="img-contained">
+                        </a>
+                    </div>
+                </div>
+                """;
+
+        List<Product> result = OsCommercePage.parseListing(
+                card, "Venex", BASE_URL, "Notebooks", MIN, MAX);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).nombre())
+                .as("la comilla escapada se desescapa: el nombre guardado lleva la pulgada real")
+                .isEqualTo("Notebook HP OmniBook 3 Ryzen 5 16GB 256GB W11 16\" 2K Glacier Silver");
+        assertThat(result.get(0).precio()).isEqualTo(1299990.0);
+        assertThat(result.get(0).categoria()).isEqualTo("Notebooks");
+    }
+
+    @Test
+    @DisplayName("un nombre con pulgadas escapadas NO tira la card — forma serializada por Chromium")
+    void parsesEscapedInchMarkInChromiumSerializedForm() {
+        // La misma card como la sirve page.content(): atributo en comillas dobles
+        // y cada comilla del JSON como &quot;. La pulgada escapada queda
+        // literalmente como \\&quot; — el backslash sobrevive a la entidad.
+        String card = """
+                <div class="product-box" >
+                    <div class="product-box-media">
+                        <a href="https://www.venex.com.ar/notebooks/notebook-lenovo-v15-g5.html" onclick="enhancedClick({&quot;id&quot;:&quot;21082&quot;,&quot;name&quot;:&quot;Notebook Lenovo V15 G5 Core i7 13620H 8GB 512GB 15.6\\&quot; Luna Grey&quot;,&quot;category&quot;:&quot;Notebooks&quot;,&quot;brand&quot;:&quot;LENOVO&quot;,&quot;price&quot;:&quot;1384990&quot;,&quot;list&quot;:&quot;Listado de Productos&quot;,&quot;position&quot;:&quot;8&quot;})">
+                            <img src="products_images/thumb/1781108403_v15.jpg" class="img-contained">
+                        </a>
+                    </div>
+                </div>
+                """;
+
+        List<Product> result = OsCommercePage.parseListing(
+                card, "Venex", BASE_URL, "Notebooks", MIN, MAX);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).nombre())
+                .isEqualTo("Notebook Lenovo V15 G5 Core i7 13620H 8GB 512GB 15.6\" Luna Grey");
+        assertThat(result.get(0).precio()).isEqualTo(1384990.0);
+    }
+
+    @Test
+    @DisplayName("la imagen relativa se absolutiza contra el origen del sitio")
+    void absolutizesRelativeImageAgainstTheOrigin() {
+        List<Product> result = OsCommercePage.parseListing(
+                LEAF_PAGE1, "Venex", BASE_URL, "Placas de Video", MIN, MAX);
+
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(p ->
+                assertThat(p.imagenUrl()).startsWith("https://www.venex.com.ar/products_images/"));
+    }
+
+    @Test
     @DisplayName("precio fuera de banda excluye el item")
     void excludesOutOfPriceBoundItems() {
         List<Product> result = OsCommercePage.parseListing(
