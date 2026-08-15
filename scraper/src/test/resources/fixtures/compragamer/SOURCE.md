@@ -12,7 +12,43 @@
   which item). `categorias_sub.json`/`marcas.json` keep only the ids the
   fixture products reference.
 
-## Open question resolved: `imagenes.compragamer.com` path prefix — UNRESOLVED
+## `imagenes.compragamer.com` path prefix — RESOLVED 2026-08-15
+
+The prefix is:
+
+```
+https://imagenes.compragamer.com/productos/compragamer_Imganen_general_<nombre>.jpg
+```
+
+`Imganen` is their typo, not one here, and it is load-bearing. `-grn.jpg`
+instead of `.jpg` serves the smaller variant the store's own grid uses; both
+return 200.
+
+**How it was resolved**: the headless-browser capture the note below called for.
+Driving a real Chrome at `https://compragamer.com/productos?cate=58` and reading
+the rendered `<img>` elements after the product grid hydrated gave the literal
+URLs; matching one back to its feed entry (`id_producto` 20213) showed the feed's
+`imagenes[].nombre` is exactly the middle of that path. HEAD on the URL rebuilt
+from the fixture's own `nombre` values returns 200 `image/jpeg`.
+
+**Why the earlier probes all failed**: they were right that `403 AccessDenied`
+is not proof of a wrong prefix, and right not to guess further — but the guessed
+set never included the `compragamer_Imganen_general_` infix, which no amount of
+path-shape guessing would have produced. The grep of the shipped bundles failed
+because the URL is not built from a literal template in the JS at all.
+
+Also resolved in the same pass: the product route. `/producto/{id}` — what the
+first implementation built — is not a route; the SPA router keys on the trailing
+`_{id}` of the last segment, so it bounced every product link to the homepage.
+`/producto/{slug}_{id}` is the real form and the slug is cosmetic
+(`/producto/x_20213` renders the right product).
+
+## Historical note: how this was left open
+
+_Kept verbatim — the reasoning was sound and the follow-up it named is exactly
+what closed the question._
+
+## Open question: `imagenes.compragamer.com` path prefix — UNRESOLVED (at capture time)
 
 Design (`sdd/fix-zero-yield-tech-sites/design`, D3) left the exact CDN path
 prefix as an open question to confirm against one live URL. Attempted here:
@@ -44,3 +80,6 @@ confirmed wrong answer). This is a known follow-up: if the image field turns
 out blank/broken for Compragamer products after a live run, capturing real
 browser network traffic against `/productos` is the next step, not more
 guessing.
+
+_Outcome: the field was broken for 100% of rows, and the browser capture named
+here is what resolved it. See the section at the top of this file._
