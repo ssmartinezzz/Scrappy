@@ -273,9 +273,19 @@ entero— no dato del dominio.
 
 **Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
 precio cambió → UPDATE + historial · ausente en el run → soft-delete
-(`activo=false`). Corre **server-side** en `sp_upsert_run`/
-`sp_soft_delete_ausentes`. La concurrencia la resuelve Postgres MVCC: no hay
-locks de aplicación.
+(`activo=false`) · **vuelve tras un soft-delete → se reactiva y nada más**: se
+lo trata por su precio, como a cualquier fila existente, no como a una URL
+nueva. Corre **server-side** en `sp_upsert_run`/`sp_soft_delete_ausentes`. La
+concurrencia la resuelve Postgres MVCC: no hay locks de aplicación.
+
+⚠️ **`precio_historico` registra cambios de precio, no avistajes.** Por eso
+`sp_upsert_run` lee el precio previo **sin** filtrar por `activo` y usa `FOUND`
+para separar "no existe" de "existe pero está inactivo". Con el filtro puesto,
+la fila inactiva no matcheaba, el precio previo salía `NULL` —indistinguible de
+una URL nunca vista— y la reactivación escribía un punto de historial aunque el
+precio no se hubiera movido. El `UNIQUE(url, fecha)` tapaba el síntoma mientras
+el producto volviera el mismo día; recién se veía cuando volvía días después,
+que es el caso real.
 
 ⚠️ **El soft-delete está acotado a los sitios del batch, y esa cota no es
 opcional.** `sp_soft_delete_ausentes` recibe `p_sitios` y sólo desactiva dentro
@@ -585,7 +595,6 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 | `precio_orig` sigue teniendo strings genuinamente no parseables en la base histórica | `close-1nf-and-3nf-foundation`/`V17`: 817/3148 filas con texto (25,95%) no parsean ni con el parser AR-locale correcto — quedan `NULL`, no `0`; medido contra datos reales, no estimado |
 | Bare `except:` en `price_velocity`/carga de historial | Nit no bloqueante — migrar a `except Exception:`. El de `safe_price` se fue con la función, borrada al quedar sin callers |
 | `/api/db/export`/`import` en 410 Gone — sin backup/restore por UI | Aceptado por diseño: usar `pg_dump`/`pg_restore` contra `DATABASE_URL` |
-| `sp_upsert_run` reactivando un producto soft-deleted reinserta `precio_historico` aunque el precio no haya cambiado | Follow-up no bloqueante |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Necesita un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Revisar contra datos reales |
 | `OutfitsEndpoints.outfits` pide TODOS los subtipos, así que el combo creció de 17 a 21 filas al agregar BCAA/Pre-Workout/Gainer/Colágeno | Solo crece donde el catálogo tiene esos productos; nunca fue una decisión explícita |

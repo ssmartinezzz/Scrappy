@@ -237,6 +237,35 @@ class StoredProcedureDriftTest {
             "");
 
     /**
+     * La lectura del precio previo deja de filtrar por {@code activo}, para que
+     * un producto soft-deleted que vuelve no se confunda con una URL nunca
+     * vista. Antes, su fila inactiva no matcheaba, {@code v_prev_precio} salía
+     * NULL y la reactivación tomaba la rama de "producto nuevo": lo contaba en
+     * {@code nuevos} y escribía una fila de {@code precio_historico} aunque el
+     * precio no hubiera cambiado.
+     *
+     * <p>Las TRES mitades se declaran por separado a propósito, misma razón que
+     * en {@code SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE}: quitar el filtro sin
+     * cambiar la condición del IF (o al revés) deja la función incoherente, y
+     * declararlas juntas dejaría pasar esa combinación en silencio.</p>
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW = List.of(
+            new Substitution(
+                    "declaración de v_prev_existe",
+                    Pattern.compile("v_prev_existe BOOLEAN; "),
+                    ""),
+            new Substitution(
+                    "lectura del precio previo sin el filtro por activo, + captura de FOUND",
+                    Pattern.compile("-- El precio previo se lee .*?"
+                            + "SELECT precio INTO v_prev_precio FROM productos WHERE url = r->>'url'; "
+                            + "v_prev_existe := FOUND;"),
+                    "SELECT precio INTO v_prev_precio FROM productos WHERE url = r->>'url' AND activo;"),
+            new Substitution(
+                    "rama de producto nuevo discriminada por existencia, no por precio NULL",
+                    Pattern.compile("IF NOT v_prev_existe THEN"),
+                    "IF v_prev_precio IS NULL THEN"));
+
+    /**
      * El soft-delete pasa a estar acotado por sitio: la firma gana un tercer
      * argumento {@code p_sitios} y el UPDATE gana la condición
      * {@code sitio = ANY(p_sitios)}. Antes barría el catálogo entero, así que un
@@ -277,7 +306,9 @@ class StoredProcedureDriftTest {
             // rojo, y ahí el diff de git pasa a ser la declaración del cambio
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
-            new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT, List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE)),
+            new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT,
+                    concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
+                            SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE,
                     SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE)
     );
@@ -398,5 +429,12 @@ class StoredProcedureDriftTest {
 
     private static String normalizeWhitespace(String text) {
         return text.replaceAll("\\s+", " ").trim();
+    }
+
+    /** Une dos listas de sustituciones preservando el orden de aplicación. */
+    private static List<Substitution> concat(List<Substitution> a, List<Substitution> b) {
+        List<Substitution> all = new ArrayList<>(a);
+        all.addAll(b);
+        return List.copyOf(all);
     }
 }
