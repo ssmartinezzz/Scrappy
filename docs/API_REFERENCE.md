@@ -57,7 +57,8 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 |-------|-----------|
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
-| ML | `GET /tendencias` · `GET /historial?url=` · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
+| Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
+| ML | `GET /tendencias` · `GET /historial?url=` (204 sin puntos) · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
 | Comparador | `GET /grupos` · `GET /buscar-externo` (MercadoLibre) |
 | Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
 | Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `GET /suplementos/tipos` (subtipos ofrecibles + grupo de selector; taxonomía pura, responde sin catálogo) · `POST /outfits/feedback` · CRUD `/outfits/saved` |
@@ -237,16 +238,89 @@ regenera la tabla entera.
 
 ## GET /historial?url=URL
 
-Historial de precios de un producto.
+Historial de precios de un producto, para los widgets que lo resumen (el
+sparkline de `BuySignal`, el del `DetailPanel`).
 
 **Query params:** `url` (required) — URL canónica del producto
 
+**`204 No Content`** cuando el producto no tiene puntos registrados: un
+sparkline sin nada que dibujar no dibuja nada. Una página que igual tiene que
+renderizar el producto **no puede usar este endpoint** — para eso está
+`GET /producto`.
+
+`min`/`max`/`avg`/`deltaPct` aparecen **sólo desde dos puntos**. Una sola
+observación no tiene mínimo, máximo ni variación: tiene un precio. El cuerpo lo
+arma `HistorialJson`, compartido con `GET /producto` para que las dos rutas no
+puedan divergir.
+
 **Response:**
 ```json
-[
-  {"fecha": "2026-05-20", "precio": 15990},
-  {"fecha": "2026-05-28", "precio": 14990}
-]
+{
+  "puntos": [
+    {"fecha": "2026-05-20", "precio": 15990},
+    {"fecha": "2026-05-28", "precio": 14990}
+  ],
+  "min": 14990,
+  "max": 15990,
+  "avg": 15490,
+  "deltaPct": -6.3
+}
+```
+
+---
+
+## GET /producto/{key}
+
+Un producto y su historial en una sola respuesta. Es la lectura detrás de la
+vista dedicada de historial de precios (`/historial?url=` en el frontend).
+
+**Path params:** `key` (required) — el handle corto del producto: 16 hex de
+`productos.producto_key`, la columna generada de `V25`. Viene ya calculado en
+el campo `key` de cada fila de `GET /data`, así que el frontend nunca tiene que
+derivarlo ni ir a buscarlo.
+
+No entra por la URL entera porque como query param era ilegible, había que
+encodearla en cada borde y metía el dominio scrapeado adentro de nuestra ruta.
+Tampoco por un id sustituto: `productos.url` **es** la clave primaria (clave
+natural, igual que `categoria`, `marca` y `sitio_key`), y un id no habría
+cambiado ninguna forma normal — ver [`DATABASE.md`](./DATABASE.md) § `V25`.
+
+Se lee de la **base**, no del snapshot en memoria: la página es deep-linkeable y
+un producto soft-deleted tiene que seguir siendo inspeccionable, que es justo
+cuando su historial es interesante.
+
+- **`404`** — el producto no existe.
+- **`200` con `puntos: []`** — el producto existe pero todavía no tiene serie.
+  Deliberadamente **no** es un `204`: la página tiene que renderizar el producto
+  igual y decir que la serie no está.
+
+**Response:**
+```json
+{
+  "producto": {
+    "key": "6f1c2b8a4d3e5079",
+    "url": "https://site.com/remera-negra",
+    "sitio": "Freres",
+    "nombre": "Remera Negra",
+    "precio": 15990,
+    "precioOrig": 19990,
+    "descuento": true,
+    "img": "https://...",
+    "categoria": "Remera",
+    "genero": "hombre",
+    "marca": "Nike",
+    "rubro": "indumentaria",
+    "cantidadUnidades": 1,
+    "esPack": false,
+    "precioUnitario": 15990,
+    "talles": ["M", "L"],
+    "ml": { "badge": "", "badges": [], "scoreP": 50 }
+  },
+  "historial": {
+    "puntos": [{"fecha": "2026-05-20", "precio": 15990}],
+    "min": 14990, "max": 15990, "avg": 15490, "deltaPct": -6.3
+  }
+}
 ```
 
 ---

@@ -135,6 +135,11 @@ class CatalogoEndpoints {
         ArrayNode prods = root.putArray("productos");
         for (Product p : pagina) {
             ObjectNode n = prods.addObject();
+            // Handle corto para las rutas del frontend (/historial/{key}).
+            // OJO: esta fila se arma acá inline y NO por ProductJson.escribir —
+            // son dos copias del mismo shape, y este campo hay que agregarlo en
+            // las dos o el link sale vacío en una superficie y anda en la otra.
+            n.put("key",        ProductKey.of(p.url()));
             n.put("sitio",      safe(p.sitio()));
             n.put("nombre",     safe(p.nombre()));
             n.put("precio",     p.precio());
@@ -187,6 +192,46 @@ class CatalogoEndpoints {
             finanNode.put("presetLabel", presetActivoLabel);
         }
 
+        return ResponseEntity.ok(root);
+    }
+
+    // ---------------------------------------------------------------
+    // Detalle de un producto + su historial de precios
+    // ---------------------------------------------------------------
+
+    /**
+     * Un producto y su serie de precios en una sola respuesta, para la vista
+     * dedicada de historial.
+     *
+     * <p>Entra por el handle corto ({@code producto_key}, V25) y no por la URL
+     * entera: una URL de producto como query param es ilegible, hay que
+     * encodearla en cada borde y mete el dominio scrapeado adentro de nuestra
+     * propia ruta. El handle es un alias de presentación — la identidad sigue
+     * siendo {@code productos.url}, que es la clave primaria.</p>
+     *
+     * <p>Se lee de la BASE, no del snapshot en memoria, por dos razones: la
+     * página es deep-linkeable —se puede abrir sin haber pasado por el catálogo,
+     * cuando el snapshot puede ni existir— y un producto soft-deleted tiene que
+     * seguir siendo inspeccionable, que es justo cuando su historial de precios
+     * es interesante.</p>
+     *
+     * <p>Distinto de {@code /api/historial}, que responde {@code 204} cuando no
+     * hay puntos: acá un producto scrapeado una sola vez es una página que
+     * igual tiene que renderizar, con sus datos y sin serie. El {@code 404}
+     * queda reservado para un producto que de verdad no existe.</p>
+     */
+    ResponseEntity<Object> productoDetalle(String key) {
+        if (key == null || key.isBlank()) return ResponseEntity.notFound().build();
+
+        var encontrado = db.obtenerProductoPorKey(key);
+        if (encontrado.isEmpty()) return ResponseEntity.notFound().build();
+
+        String url = encontrado.get().url();
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ObjectNode prod = root.putObject("producto");
+        prod.put("url", url);
+        ProductJson.escribir(prod, encontrado.get());
+        root.set("historial", HistorialJson.construir(db.cargarHistorial(url)));
         return ResponseEntity.ok(root);
     }
 

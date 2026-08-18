@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
@@ -486,10 +487,22 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
           {/* Contexto estadístico */}
           <PriceContext product={p} st={st} />
 
-          {/* Historial de precio: inline, sin cue externo — se queda en el panel */}
+          {/* Historial de precio: el sparkline resume, el link lleva a la vista
+              dedicada (/historial/{key}) con la serie completa, mín/máx/promedio
+              y tooltip por punto. El link cierra el panel antes de navegar: el
+              Dialog es modal y quedaría abierto encima de la página nueva. */}
           <div>
             <div className="detail-section-title">Historial de precio</div>
             <Sparkline hist={hist} />
+            {p?.key && (
+              <Link
+                to={`/historial/${p.key}`}
+                onClick={onClose}
+                className="text-[.7rem] text-primary underline"
+              >
+                Ver historial completo →
+              </Link>
+            )}
           </div>
 
           {/* ── COMPARATIVA DE PRECIOS EXTERNOS ── */}

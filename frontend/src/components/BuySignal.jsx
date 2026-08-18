@@ -6,8 +6,13 @@ function MiniSparkline({ url }) {
   const [hist, setHist] = useState([]);
   useEffect(() => {
     if (!url) return;
+    // La clave es `puntos`, no `historial`: es lo que devuelve
+    // GET /api/historial. Con `d.historial` la condición era siempre falsa y
+    // este sparkline no se dibujó nunca — se veía igual que "todavía no hay
+    // historial", que es lo que pasa de verdad la mayor parte del tiempo, y
+    // por eso el bug sobrevivió. DetailPanel siempre leyó `puntos` bien.
     fetchHistorial(url)
-      .then(d => { if (d?.historial?.length) setHist(d.historial.slice(-16)); })
+      .then(d => { if (d?.puntos?.length) setHist(d.puntos.slice(-16)); })
       .catch(() => {});
   }, [url]);
   if (hist.length < 2) return null;

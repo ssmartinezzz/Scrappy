@@ -10,3 +10,40 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
+
+// jsdom no implementa ResizeObserver, y `ResponsiveContainer` de Recharts lo
+// usa para medirse. Sin esto, cualquier test que renderice un gráfico tira
+// "ResizeObserver is not defined" desde un passive effect — un error que no
+// señala al componente y se lee como si el gráfico estuviera roto.
+//
+// No alcanza con un stub vacío: jsdom no hace layout, así que el contenedor
+// mide 0x0 y `ResponsiveContainer` decide, correctamente, que no hay lugar
+// para dibujar — el gráfico queda montado pero VACÍO, y el test falla igual
+// aunque el componente esté bien. El stub reporta un tamaño fijo para que
+// Recharts tenga dónde renderizar.
+//
+// Ese tamaño es una convención del entorno de test, no una aserción: los tests
+// afirman que el gráfico SE MONTA con la serie que le pasaron, nunca cómo se
+// ve. Medir píxeles acá sería medir la ficción, no el componente.
+const TEST_CHART_SIZE = { width: 800, height: 300 };
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    constructor(callback) { this.callback = callback; }
+    observe(target) {
+      this.callback([{ target, contentRect: { ...TEST_CHART_SIZE, top: 0, left: 0 } }], this);
+    }
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
+// ResponsiveContainer también consulta el box del nodo directamente.
+if (!HTMLElement.prototype.getBoundingClientRect.__chartStub) {
+  const stub = function () {
+    return { ...TEST_CHART_SIZE, top: 0, left: 0, right: TEST_CHART_SIZE.width,
+             bottom: TEST_CHART_SIZE.height, x: 0, y: 0, toJSON: () => ({}) };
+  };
+  stub.__chartStub = true;
+  HTMLElement.prototype.getBoundingClientRect = stub;
+}
