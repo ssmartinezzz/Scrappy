@@ -488,15 +488,15 @@ export default function DetailPanel({ product: p, catStats, onClose }) {
           <PriceContext product={p} st={st} />
 
           {/* Historial de precio: el sparkline resume, el link lleva a la vista
-              dedicada (/historial?url=) con la serie completa, mín/máx/promedio
+              dedicada (/historial/{key}) con la serie completa, mín/máx/promedio
               y tooltip por punto. El link cierra el panel antes de navegar: el
               Dialog es modal y quedaría abierto encima de la página nueva. */}
           <div>
             <div className="detail-section-title">Historial de precio</div>
             <Sparkline hist={hist} />
-            {p?.url && (
+            {p?.key && (
               <Link
-                to={`/historial?url=${encodeURIComponent(p.url)}`}
+                to={`/historial/${p.key}`}
                 onClick={onClose}
                 className="text-[.7rem] text-primary underline"
               >

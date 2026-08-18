@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 vi.mock('@/api', async (importOriginal) => {
@@ -11,11 +11,16 @@ import PriceHistoryPage from '@/components/PriceHistoryPage';
 import { fetchProductoDetalle } from '@/api';
 
 const URL_PROD = 'https://site.com/remera-negra';
+// 16 hex — el mismo largo que emite la columna generada de V25.
+const KEY = 'a1b2c3d4e5f60718';
 
-function renderPage(search = `?url=${encodeURIComponent(URL_PROD)}`) {
+function renderPage(path = `/historial/${KEY}`) {
   return render(
-    <MemoryRouter initialEntries={[`/historial${search}`]}>
-      <PriceHistoryPage/>
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/historial/:key" element={<PriceHistoryPage/>}/>
+        <Route path="/historial"      element={<PriceHistoryPage/>}/>
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -28,12 +33,13 @@ const producto = {
 describe('PriceHistoryPage', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('pide el detalle por la url del query param', async () => {
+  it('pide el detalle por el handle corto de la ruta, no por la url', async () => {
     fetchProductoDetalle.mockResolvedValue({ producto, historial: { puntos: [] } });
 
     renderPage();
 
-    await waitFor(() => expect(fetchProductoDetalle).toHaveBeenCalledWith(URL_PROD));
+    await waitFor(() => expect(fetchProductoDetalle).toHaveBeenCalledWith(KEY));
+    expect(fetchProductoDetalle).not.toHaveBeenCalledWith(URL_PROD);
   });
 
   it('con serie: muestra producto, stats y el gráfico', async () => {
@@ -89,8 +95,8 @@ describe('PriceHistoryPage', () => {
     expect(screen.getByText(/Volver al catálogo/)).toBeInTheDocument();
   });
 
-  it('sin url en el query no pide nada', async () => {
-    renderPage('');
+  it('sin handle en la ruta no pide nada', async () => {
+    renderPage('/historial');
 
     await waitFor(() => expect(screen.getByText(/No encontramos ese producto/)).toBeInTheDocument());
     expect(fetchProductoDetalle).not.toHaveBeenCalled();

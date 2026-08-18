@@ -46,6 +46,8 @@ import static org.mockito.Mockito.*;
 class ApiControllerProductoDetalleTest {
 
     private static final String URL = "https://site.com/remera-negra";
+    /** El handle corto de URL — mismo valor que calcula la columna generada de V25. */
+    private static final String KEY = ProductKeyTestBridge.of(URL);
 
     private ScraperService service;
     private DatabaseService db;
@@ -76,9 +78,9 @@ class ApiControllerProductoDetalleTest {
     @Test
     @Story("404 cuando el producto no existe")
     void unknownProductIsA404() {
-        when(db.obtenerProducto(URL)).thenReturn(Optional.empty());
+        when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.empty());
 
-        var resp = controller.productoDetalle(URL);
+        var resp = controller.productoDetalle(KEY);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
         verify(db, never()).cargarHistorial(anyString());
@@ -89,10 +91,10 @@ class ApiControllerProductoDetalleTest {
     @Test
     @Story("un producto sin historial igual renderiza")
     void productWithoutHistoryStillReturnsTheProduct() {
-        when(db.obtenerProducto(URL)).thenReturn(Optional.of(producto()));
+        when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
         when(db.cargarHistorial(URL)).thenReturn(List.of());
 
-        var resp = controller.productoDetalle(URL);
+        var resp = controller.productoDetalle(KEY);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         JsonNode body = (JsonNode) resp.getBody();
@@ -104,10 +106,10 @@ class ApiControllerProductoDetalleTest {
     @Test
     @Story("un solo punto tampoco alcanza para stats, pero no rompe")
     void aSinglePointYieldsNoStatsButStillRenders() {
-        when(db.obtenerProducto(URL)).thenReturn(Optional.of(producto()));
+        when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
         when(db.cargarHistorial(URL)).thenReturn(List.of(punto("2026-05-20", 15990)));
 
-        JsonNode body = (JsonNode) controller.productoDetalle(URL).getBody();
+        JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
 
         assertThat(body.path("historial").path("puntos")).hasSize(1);
         assertThat(body.path("historial").has("min")).isFalse();
@@ -118,13 +120,13 @@ class ApiControllerProductoDetalleTest {
     @Test
     @Story("producto + puntos + stats en una sola respuesta")
     void productAndHistoryComeBackTogether() {
-        when(db.obtenerProducto(URL)).thenReturn(Optional.of(producto()));
+        when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
         when(db.cargarHistorial(URL)).thenReturn(List.of(
                 punto("2026-05-20", 20000),
                 punto("2026-05-28", 15000),
                 punto("2026-06-04", 16000)));
 
-        JsonNode body = (JsonNode) controller.productoDetalle(URL).getBody();
+        JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
         JsonNode hist = body.path("historial");
 
         assertThat(body.path("producto").path("precio").asDouble()).isEqualTo(15990);
@@ -135,6 +137,18 @@ class ApiControllerProductoDetalleTest {
         assertThat(hist.path("max").asDouble()).isEqualTo(20000);
         // Del primero al último: 20000 -> 16000 = -20%
         assertThat(hist.path("deltaPct").asDouble()).isEqualTo(-20.0);
+    }
+
+    @Test
+    @Story("la respuesta trae el handle, para que el frontend pueda re-linkear")
+    void theResponseCarriesTheShortHandle() {
+        when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
+        when(db.cargarHistorial(URL)).thenReturn(List.of());
+
+        JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
+
+        assertThat(body.path("producto").path("key").asText()).isEqualTo(KEY);
+        assertThat(KEY).hasSize(16);
     }
 
     // ── El contrato viejo no se toca ─────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip } from './ui/chart';
 import { ImageWithFallback } from './ui/image-with-fallback';
@@ -8,10 +8,11 @@ import { fetchProductoDetalle, fmt } from '../api';
 /**
  * Vista dedicada del historial de precios de un producto.
  *
- * Se entra por `?url=` y no por un id: `productos.url` ES la clave primaria del
- * esquema (ver docs/DATABASE.md — clave natural, igual que `categoria`, `marca`
- * y `sitio_key`). Un id sustituto no haría a esto "más normalizado"; las formas
- * normales hablan de dependencias funcionales, no del tipo de la clave.
+ * Se entra por el handle corto (`producto_key`, V25), no por la URL entera ni
+ * por un id sustituto. La URL como query param era ilegible; un id habría sido
+ * una identidad nueva, y no habría movido una sola forma normal — `productos.url`
+ * ya es la clave primaria. El handle es un alias de presentación: 16 hex
+ * derivados de la url por una columna generada, con índice único atrás.
  */
 
 // Una fecha ISO a etiqueta corta, sin dependencias: '2026-05-28' -> '28 may'.
@@ -43,20 +44,19 @@ function Stat({ label, children, tone = 'text-t1' }) {
 }
 
 export default function PriceHistoryPage() {
-  const [params] = useSearchParams();
-  const url = params.get('url') || '';
+  const { key } = useParams();
 
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!url) { setLoading(false); return; }
+    if (!key) { setLoading(false); return; }
     setLoading(true);
-    fetchProductoDetalle(url)
+    fetchProductoDetalle(key)
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [url]);
+  }, [key]);
 
   if (loading) return <div className="p-3 text-t4">Cargando historial…</div>;
 

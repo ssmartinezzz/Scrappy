@@ -81,18 +81,19 @@ describe('DetailPanel — link a la vista de historial', () => {
     fetchHistorial.mockResolvedValue(null);
   });
 
-  it('linkea a /historial con la url del producto encodeada', () => {
-    renderPanel({ ...base, url: 'https://site.com/a b?x=1&y=2' }, {});
+  it('linkea a /historial con el handle corto, no con la url', () => {
+    renderPanel({ ...base, key: 'a1b2c3d4e5f60718', url: 'https://site.com/a b?x=1&y=2' }, {});
 
     const link = screen.getByRole('link', { name: /Ver historial completo/ });
-    expect(link).toHaveAttribute(
-      'href',
-      '/historial?url=' + encodeURIComponent('https://site.com/a b?x=1&y=2')
-    );
+    // Corta y estable: nada de la url percent-encodeada entra en la ruta.
+    expect(link).toHaveAttribute('href', '/historial/a1b2c3d4e5f60718');
+    expect(link.getAttribute('href')).not.toContain('site.com');
   });
 
-  it('sin url no ofrece el link', () => {
-    renderPanel({ ...base, url: undefined }, {});
+  it('sin handle no ofrece el link', () => {
+    // Una fila vieja de un cliente cacheado puede no traer `key` todavía; el
+    // panel no ofrece un link roto por eso.
+    renderPanel({ ...base, key: undefined }, {});
 
     expect(screen.queryByRole('link', { name: /Ver historial completo/ })).not.toBeInTheDocument();
   });

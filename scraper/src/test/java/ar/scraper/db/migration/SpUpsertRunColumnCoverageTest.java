@@ -62,9 +62,9 @@ class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
      * decisión que documentar sino una regla del motor. Bucket propio y no
      * {@link #NEVER_IN_UPSERT} porque el motivo es distinto: {@code url} y
      * {@code created_at} se omiten por decisión (design D2), {@code sitio_key}
-     * no podría estar aunque quisiéramos.
+     * y {@code producto_key} no podrían estar aunque quisiéramos.
      */
-    private static final Set<String> GENERADAS = Set.of("sitio_key");
+    private static final Set<String> GENERADAS = Set.of("sitio_key", "producto_key");
 
     @Test
     void everyProductosColumnFallsIntoExactlyOneDeclaredBucket() throws Exception {

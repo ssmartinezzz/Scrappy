@@ -103,7 +103,7 @@ export default function App() {
         {/* /tendencias retired (spec "Old route retired") -> redirect to /analisis/mercado */}
         <Route path="tendencias" element={<Navigate to="/analisis/mercado" replace/>}/>
         <Route path="analisis/mercado" element={<MercadoPanelRoute/>}/>
-        <Route path="historial"  element={<HistorialPanelRoute/>}/>
+        <Route path="historial/:key" element={<HistorialPanelRoute/>}/>
         <Route path="analisis/oportunidades" element={<OportunidadesPanelRoute/>}/>
         <Route path="analisis/oportunidades/:badge" element={<OportunidadesBadgePanelRoute/>}/>
         <Route path="favoritos"  element={<FavoritosPanelRoute/>}/>

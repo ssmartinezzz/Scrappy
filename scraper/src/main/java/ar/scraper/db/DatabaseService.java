@@ -235,6 +235,11 @@ public class DatabaseService {
         return productRepository.obtenerProducto(url);
     }
 
+    /** Producto por su handle corto (`producto_key`, V25). Ver ProductRepository. */
+    public java.util.Optional<Product> obtenerProductoPorKey(String key) {
+        return productRepository.obtenerProductoPorKey(key);
+    }
+
     /**
      * Read-side of the manual classification lock (design D3/D4). One entry
      * per locked product, keyed by url — {@code ResultAggregator.aplicarBloqueos}
