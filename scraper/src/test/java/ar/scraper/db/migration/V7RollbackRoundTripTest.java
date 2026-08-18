@@ -10,10 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -25,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * normalize-db-schema-fks-1nf, slice B (V7) — design D5's rollback.
  *
  * <p>An applied Flyway migration is byte-frozen, so V7's rollback is
- * documented in {@code docs/ARCHITECTURE.md} instead of inside the {@code .sql}
+ * documented in {@code docs/DATABASE.md} instead of inside the {@code .sql}
  * (adding a single comment to a shipped migration breaks checksum validation
  * and the backend stops booting). A documented rollback nobody ever runs is a
  * guess, so this test reads that exact block from the doc — between its
@@ -104,34 +100,8 @@ class V7RollbackRoundTripTest extends PostgresTestBase {
         }
     }
 
-    /** The rollback block documented in {@code docs/ARCHITECTURE.md}, verbatim. */
+    /** El bloque de rollback documentado en {@code docs/DATABASE.md}, verbatim. */
     private static String rollbackSql() {
-        String doc = readArchitectureDoc();
-        String open = "-- >>> rollback:V7";
-        String close = "-- <<< rollback:V7";
-        int start = doc.indexOf(open);
-        assertThat(start).as("opening marker '%s' present in docs/ARCHITECTURE.md", open).isNotEqualTo(-1);
-        int end = doc.indexOf(close, start);
-        assertThat(end).as("closing marker '%s' present in docs/ARCHITECTURE.md", close).isNotEqualTo(-1);
-        String sql = doc.substring(start + open.length(), end).trim();
-        assertThat(sql).as("the documented rollback block is not empty").isNotEmpty();
-        return sql;
-    }
-
-    private static String readArchitectureDoc() {
-        Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        for (int i = 0; i < 6 && dir != null; i++) {
-            Path candidate = dir.resolve("docs").resolve("ARCHITECTURE.md");
-            if (Files.isRegularFile(candidate)) {
-                try {
-                    return Files.readString(candidate);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-            dir = dir.getParent();
-        }
-        throw new IllegalStateException("docs/ARCHITECTURE.md not found walking up from "
-                + System.getProperty("user.dir"));
+        return DocumentedRollback.sqlFor("V7");
     }
 }

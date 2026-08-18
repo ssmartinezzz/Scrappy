@@ -280,10 +280,16 @@ hacer fallar la suite entera por una dependencia que no está.
 | `CLAUDE.md` | ¿Qué hay hoy? | **estado** |
 | `CONTRIBUTING.md` | ¿Cómo se trabaja? | **proceso** |
 | `docs/ARCHITECTURE.md` | ¿Por qué así? | **por qué** |
+| `docs/DATABASE.md` | Todo lo de la base | **la base** |
 | `SKILL.md` | ¿Dónde está? | **índice** |
 
 Si `CLAUDE.md` está creciendo una justificación, va a `ARCHITECTURE.md`. Un dato
 escrito en dos lugares se desincroniza; es cuestión de cuándo.
+
+`docs/DATABASE.md` es un corte por tema, no una cuarta categoría: se lleva el
+estado, el porqué y el rollback de la base juntos, porque separarlos entre
+`CLAUDE.md` y `ARCHITECTURE.md` era lo que hacía que el esquema se documentara
+dos veces. `ARCHITECTURE.md` conserva sólo el índice hacia él.
 
 Documentar un archivo obliga a trackearlo: un doc que referencia algo untracked
 miente para cualquiera que clone.
@@ -298,6 +304,7 @@ En el **mismo PR**, por `COMMIT-5`:
 | Scoring, badges, clustering, atributos visuales | `docs/ML_PIPELINE.md` |
 | Un sitio o plataforma nueva | `docs/ADD_SCRAPER.md` + la tabla de sitios en `CLAUDE.md` |
 | Una decisión estructural | `docs/ARCHITECTURE.md` |
+| El esquema, una migración, el upsert o una tabla nueva | `docs/DATABASE.md` — **toda tabla nueva cumple 1FN y 3FN**, y el bloque `-- >>> rollback:VN` lo ejecuta un test |
 | El agente LLM | `docs/LLM_EMBED.md` |
 | Los armadores de outfits | La sección de armadores en `CLAUDE.md` + `ARCHITECTURE.md` si cambia el criterio |
 | Un doc nuevo o retirado | `SKILL.md` |
