@@ -67,6 +67,19 @@ export async function fetchHistorial(url) {
   return r.ok ? r.json() : null;
 }
 
+/**
+ * Producto + su historial en una sola respuesta, para la vista dedicada.
+ *
+ * Distinto de fetchHistorial: ese endpoint responde 204 cuando no hay puntos,
+ * lo que sirve para un sparkline (sin datos, no dibuja) pero no para una
+ * pagina que igual tiene que renderizar el producto. Aca un 404 significa que
+ * el producto no existe, y eso si es "no hay nada que mostrar".
+ */
+export async function fetchProductoDetalle(url) {
+  const r = await fetch(`${BASE}/api/producto?url=${encodeURIComponent(url)}`);
+  return r.ok ? r.json() : null;
+}
+
 export async function fetchInflacion() {
   const r = await fetch(`${BASE}/api/inflacion`);
   return r.ok ? r.json() : null;

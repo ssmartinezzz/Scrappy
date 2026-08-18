@@ -30,6 +30,7 @@ const FinanPanel     = lazy(() => import('./FinanPanel'));
 const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
 const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
 const CronjobsPage      = lazy(() => import('./CronjobsPage'));
+const PriceHistoryPage  = lazy(() => import('./PriceHistoryPage'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 48;
@@ -277,6 +278,13 @@ function GruposRoute() {
   return <GruposPanel onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
+// Historial de precios de un producto. No consume el outlet context: se lee
+// entera de `?url=` + la API, para que el deep link funcione sin haber
+// pasado antes por el catálogo.
+function HistorialRoute() {
+  return <PriceHistoryPage/>;
+}
+
 function MercadoRoute() {
   return <TrendsPanel/>;
 }
@@ -370,6 +378,7 @@ export {
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
   RecomendadosRoute as RecomendadosPanelRoute,
   MercadoRoute as MercadoPanelRoute,
+  HistorialRoute as HistorialPanelRoute,
   OportunidadesRoute as OportunidadesPanelRoute,
   OportunidadesBadgeRoute as OportunidadesBadgePanelRoute,
   FavoritosRoute as FavoritosPanelRoute,
