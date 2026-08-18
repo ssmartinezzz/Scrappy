@@ -8,12 +8,17 @@
 > El reparto entre los documentos raíz es deliberado:
 > **`CLAUDE.md` = guía · [`CONTRIBUTING.md`](./CONTRIBUTING.md) = proceso ·
 > [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) = por qué ·
+> [`docs/DATABASE.md`](./docs/DATABASE.md) = la base, entera ·
 > [`SKILL.md`](./SKILL.md) = índice de documentación.**
+>
+> Nada de la base se documenta acá ni en `ARCHITECTURE.md`: esquema,
+> migraciones, rollback y normalización viven en
+> [`docs/DATABASE.md`](./docs/DATABASE.md), y `ARCHITECTURE.md` sólo lo indexa.
 >
 > Se carga en contexto en cada sesión, así que tiene que ser navegable: preferí
 > una tabla y un puntero antes que un párrafo.
 >
-> Última actualización integral: 2026-08-12.
+> Última actualización integral: 2026-08-18.
 
 ---
 
@@ -73,7 +78,7 @@ Scrappy/
 │   ├── tui/                     ←   consola Textual
 │   ├── plain/                   ←   fallback texto plano
 │   └── __main__.py              ←   detección de capacidad + routing
-├── docs/                        ← ARCHITECTURE, API_REFERENCE, ADD_SCRAPER,
+├── docs/                        ← DATABASE, ARCHITECTURE, API_REFERENCE, ADD_SCRAPER,
 │                                  ML_PIPELINE, LLM_EMBED, LLM_AGENT_SETUP
 ├── openspec/                    ← Artefactos SDD (changes/ activos, changes/archive/ cerrados, specs/)
 ├── scripts/
@@ -185,132 +190,26 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 
 ## Base de datos PostgreSQL
 
-```
-productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gymrat, pack, visual attrs)
-producto_talle       -- Talles por producto, ordenados (url+posicion PK) (V7)
-producto_badge       -- Badges ML por producto, principal primero (url+posicion PK) (V7)
-cron_job_sitio       -- Sitios de cada cronjob, ordenados (job_id+posicion PK) (V9)
-precio_historico     -- Precio por fecha (UNIQUE url+fecha)
-ml_output            -- Último output JSON del pipeline
-image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
-categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)
-sitios_dinamicos     -- Sitios agregados desde el dashboard
-sitio                -- Identidad de sitio: plataforma, es_premium, rubro_forzado (V18, leída por SiteRegistry desde V20)
-favoritos            -- Productos guardados
-precios_externos     -- Comparativas MercadoLibre
-outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
-saved_outfits        -- Outfits persistidos
-categoria_dismiss    -- Categorías "no me interesa" del feed
-financiacion_presets -- Presets de cuotas/recargo
-cron_jobs / cron_executions -- Scraping programado + historial
-agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
-```
+📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
+esquema tabla por tabla, qué hizo cada migración `V1`..`V24` + las dos `R__`,
+semántica del upsert, estado de normalización, decisiones con su porqué y el
+SQL de rollback que ejecutan los tests.
 
-### Migraciones
+Lo mínimo para no romper nada sin abrir ese archivo:
 
-Flyway, en `scraper/src/main/resources/db/migration/`. **Una migración aplicada
-es byte-frozen**: Flyway valida checksums y hasta agregar un comentario rompe
-`flyway validate`. Por eso el SQL de rollback vive en
-[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), donde además lo **ejecutan**
-los `V*RollbackRoundTripTest` para que el documento no pueda desincronizarse.
-
-| | Qué hace |
+| Regla | |
 |---|---|
-| `V1` | Baseline: 15 tablas + `sp_upsert_run`/`sp_soft_delete_ausentes` |
-| `V2` | `agent_reclassify_audit` |
-| `V3` | Lock de clasificación manual |
-| `V4` | FKs hacia `productos(url)`, política `ON DELETE` por tabla |
-| `V5` | 8 columnas INTEGER-boolean → `BOOLEAN`; 2 fechas → `DATE` |
-| `V6` | Tres CHECK de dominio sobre `genero`/`rubro`/`ml_segment` |
-| `V7` | `talles` y `ml_badge` → `producto_talle` / `producto_badge` |
-| `V8` | Las 19 columnas `*_at` restantes → `TIMESTAMPTZ` |
-| `V9` | `cron_jobs.sitios_json` → `cron_job_sitio` |
-| `V10` | `saved_outfits.*_json` → `jsonb` (revertido por `V14`) |
-| `V11` | Valida `fk_favoritos_url`, sólo si no hay huérfanos |
-| `V12` | Cierra el vocabulario de `categoria`, con bucket `Otros` |
-| `V13` | Tabla `categoria(nombre PK)` + FK, clave natural |
-| `V14` | `saved_outfit_item`: los blobs SÍ eran dato del dominio |
-| `V15` | Borra `outfit_feedback` (legacy) |
-| `V16` | `categoria_stats.payload` → 12 columnas tipadas + FK |
-| `V17` | `precio_orig` → `double precision`, tres parsers colapsan en uno |
-| `V18` | Tabla `sitio` (identidad de sitio), sembrada |
-| `V19` | `BrandExtractor` abstiene en vez de caer al nombre del sitio |
-| `V20` | `sitio` pasa a ser la fuente de `plataforma`; `RubroResolver` por igualdad |
-| `V21` | Tabla `marca` + FK, clave natural |
-| `V22` | Dropea `productos.marca_premium` (3FN) |
-| `V23` | `productos.sitio_key` (generada) + FK a `sitio(sitio_key)` |
-| `V24` | `sitio.plataforma` 9→11 valores (`qloud`, `oscommerce`) + seed Rockethard/Venex |
-| `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
-| `R__sp_soft_delete_ausentes` | Ídem |
+| **Toda tabla nueva cumple 1FN y 3FN** | Precondición, no aspiración. Si no las cumple, se rediseña antes de escribir la migración |
+| **Una migración aplicada es byte-frozen** | Flyway valida checksums; hasta agregar un comentario rompe `flyway validate`. Por eso el rollback se documenta, no se edita el `.sql` |
+| **Las dos funciones plpgsql se editan en su `R__`** | `sp_upsert_run` y `sp_soft_delete_ausentes`. Nunca una migración versionada nueva para tocarlas |
+| **El soft-delete está acotado a los sitios del batch** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15) |
+| **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
+| **`precio_historico` registra cambios, no avistajes** | Un producto que vuelve tras un soft-delete se trata por su precio, como cualquier fila existente — no como URL nueva |
 
-> ⚠️ **Las dos funciones plpgsql se editan en su archivo `R__`, y en ningún
-> otro lado.** No agregues una migración versionada para tocarlas. Flyway
-> re-aplica una repetible cuando cambia su checksum, y las corre después de
-> todas las versionadas. Las copias históricas en `V1`/`V3`/`V5`/`V7`/`V17`/
-> `V21`/`V22` son inmutables y quedan sólo como registro.
-
-**El porqué de cada una está en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)**,
-incluidos los criterios que se repiten: cuándo tabla de lookup y cuándo CHECK,
-qué lleva FK y qué no (un registro histórico nunca depende de que el dato
-mutable siga existiendo), y por qué un valor ausente se dice con `NULL` o `""`
-y nunca con un centinela.
-
-### Estado normal
-
-El esquema está en **1FN** y **2FN**. 3FN está parcialmente alcanzada: `V22`
-cerró `marca_premium`, que era la violación más filosa (`url → sitio →
-es_premium`), y `V23` le puso integridad referencial al sitio. Queda
-`ml_output.payload` como **único** blob del esquema, deliberado: es un log de
-corridas —se poda a 10 filas, nunca se consulta adentro, siempre se lee
-entero— no dato del dominio.
-
-> 1FN pide **dos** cosas, no una: sin grupos repetitivos **y** con valores
-> atómicos por celda. Ese matiz es el que hizo que la afirmación anterior
-> fuera falsa durante varias migraciones — no quedaban grupos repetitivos,
-> pero `categoria_stats.payload` seguía siendo un registro entero serializado
-> en una sola celda. El desarrollo está en
-> [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
-
-**Upsert:** URL nueva → INSERT + historial · precio igual → `touched_at` ·
-precio cambió → UPDATE + historial · ausente en el run → soft-delete
-(`activo=false`) · **vuelve tras un soft-delete → se reactiva y nada más**: se
-lo trata por su precio, como a cualquier fila existente, no como a una URL
-nueva. Corre **server-side** en `sp_upsert_run`/`sp_soft_delete_ausentes`. La
-concurrencia la resuelve Postgres MVCC: no hay locks de aplicación.
-
-⚠️ **`precio_historico` registra cambios de precio, no avistajes.** Por eso
-`sp_upsert_run` lee el precio previo **sin** filtrar por `activo` y usa `FOUND`
-para separar "no existe" de "existe pero está inactivo". Con el filtro puesto,
-la fila inactiva no matcheaba, el precio previo salía `NULL` —indistinguible de
-una URL nunca vista— y la reactivación escribía un punto de historial aunque el
-precio no se hubiera movido. El `UNIQUE(url, fecha)` tapaba el síntoma mientras
-el producto volviera el mismo día; recién se veía cuando volvía días después,
-que es el caso real.
-
-⚠️ **El soft-delete está acotado a los sitios del batch, y esa cota no es
-opcional.** `sp_soft_delete_ausentes` recibe `p_sitios` y sólo desactiva dentro
-de esos sitios. "Ausente" únicamente significa algo dentro de un sitio que se
-miró: para uno que no se miró no hay evidencia de nada, y `activo=false` es una
-afirmación, no la falta de una. Sin esa cota, scrapear un rubro solo daba por
-desaparecido el catálogo entero — pasó de verdad (2026-08-15): un run de solo
-tecnología desactivó 5806 productos de 19 sitios no visitados, Sporting de 1860
-a 0. **El alcance se deriva del batch, no de la lista de sitios pedidos**: un
-sitio cuyo scraper se rompió llega con 0 productos, y "se rompió" no es "se
-vació" — para eso está `SiteYieldGuard`. Un batch vacío no desactiva nada.
-
-⚠️ **El upsert se traga los errores SQL**: `ProductRepository` loguea y
-devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error.
-Todo test de round-trip afirma `nuevos()` **antes** que cualquier valor de
-columna, porque `0` es la firma exacta de un fallo tragado.
-
-### Lecturas
-
-**`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`:
-los 18 filtros, el orden y la paginación son `WHERE`/`ORDER BY`/`LIMIT`,
-`talle` y `badge` salen por `EXISTS` contra las tablas hijas, y las facetas son
-un `GROUP BY` cada una. `senal` y `finan` no se persisten: se calculan sobre
-los ~24 productos de la página. El resto de las superficies (`/api/grupos`,
-`/api/mejores`, outfits, recomendados, agente) lee el snapshot en memoria.
+**Lecturas:** `/api/data` y `/api/facets` consultan SQL (18 filtros, orden y
+paginación como `WHERE`/`ORDER BY`/`LIMIT`). El resto de las superficies
+(`/api/grupos`, `/api/mejores`, outfits, recomendados, agente) lee el snapshot
+en memoria.
 
 ---
 
@@ -586,20 +485,57 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 
 ## Problemas conocidos / pendientes
 
+> Esta tabla lista **lo que está mal y sin arreglar**. Nada más.
+>
+> Una decisión tomada no es un problema pendiente, y mientras vivió acá mezclada
+> con los bugs hizo que la lista pareciera deuda cuando no lo era. El *por qué*
+> de cada decisión está en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) y
+> [`docs/DATABASE.md`](./docs/DATABASE.md), que es donde lo manda `DOC-1`.
+
+### Bugs abiertos
+
 | Problema | Estado |
 |---------|--------|
-| Vans 0 productos (plataforma Grimoldi custom) | Comentado en config, pendiente investigación de su API |
-| `precio.maximo=300000` borra categorías enteras de tecnología. Medido sobre Maximus (2026-08-13): notebooks `CAT=56` conserva 0 de 16, computadoras armadas `CAT=68` conserva 0 de 59, `CAT=48` (GPUs) 5 de 59 — 377 de 1122 productos filtrados, 34% | Config preexistente, **no** introducida por `fix/zero-yield-tech-sites` y deliberadamente no tocada ahí. El scraper trae esos productos bien; el filtro los descarta después. Los conteos por sitio de la tabla de arriba subestiman la cobertura real |
-| Logg (`logg.com.ar`, ABP/ASP.NET) sigue sin scraper | Diagnóstico completo en `docs/ARCHITECTURE.md` y en el header de `V24`: la grilla está hidratada por JS y la fuente de datos no se encontró. Sacado de scope por decisión explícita, no por fallar |
-| Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Live — monitorear badges, no recalibrar thresholds aún |
-| `precio_orig` sigue teniendo strings genuinamente no parseables en la base histórica | `close-1nf-and-3nf-foundation`/`V17`: 817/3148 filas con texto (25,95%) no parsean ni con el parser AR-locale correcto — quedan `NULL`, no `0`; medido contra datos reales, no estimado |
-| Bare `except:` en `price_velocity`/carga de historial | Nit no bloqueante — migrar a `except Exception:`. El de `safe_price` se fue con la función, borrada al quedar sin callers |
-| `/api/db/export`/`import` en 410 Gone — sin backup/restore por UI | Aceptado por diseño: usar `pg_dump`/`pg_restore` contra `DATABASE_URL` |
-| Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Necesita un umbral de tamaño calibrado con datos reales |
-| El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Revisar contra datos reales |
-| `OutfitsEndpoints.outfits` pide TODOS los subtipos, así que el combo creció de 17 a 21 filas al agregar BCAA/Pre-Workout/Gainer/Colágeno | Solo crece donde el catálogo tiene esos productos; nunca fue una decisión explícita |
-| `/api/outfits` y `/api/outfits/builder` rearman el `FeedbackModel` completo (índice URL de todo el catálogo) y pegan 2 queries a la DB en **cada** request, incluido cada click de regenerar | Encontrado 2026-08-11, no arreglado — candidato a cachear por corrida |
 | `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
+| `OutfitsEndpoints.outfits` pide TODOS los subtipos, así que el combo creció de 17 a 21 filas al agregar BCAA/Pre-Workout/Gainer/Colágeno | Solo crece donde el catálogo tiene esos productos; nunca fue una decisión explícita |
+
+### Necesitan datos, no código
+
+Ninguno de estos se puede cerrar sentado frente al editor: hace falta muestrear
+el catálogo real primero.
+
+| Pendiente | Qué falta |
+|---------|--------|
+| Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
+| Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
+| El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
+
+### Sin dueño
+
+| Pendiente | Estado |
+|---------|--------|
+| Vans 0 productos (plataforma Grimoldi custom) | Comentado en `config.properties`, pendiente investigación de su API |
+| Logg (`logg.com.ar`, ABP/ASP.NET) sigue sin scraper | **Fuera de scope por decisión explícita, no por fallar.** Diagnóstico completo en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) y en el header de `V24` |
+
+### Medido y descartado
+
+Lo que alguna vez estuvo en esta lista y las mediciones sacaron de ella. Se deja
+escrito para que no vuelva a proponerse.
+
+| Sospecha | Qué dijo la medición |
+|---------|--------|
+| `/api/outfits` y `/api/outfits/builder` rearman el `FeedbackModel` y pegan 2 queries a la DB en **cada** request — "candidato a cachear por corrida" | **No es un problema de performance** (medido 2026-08-18, catálogo de 6700): `FeedbackModels.build` 0,208 ms · 2 queries con pool HikariCP 0,429 ms · `OutfitService.armar` —el trabajo real del endpoint— 0,258 ms. Total ≈ 0,64 ms por request. La caché exigiría invalidar en cinco métodos de escritura, y si se escapa uno el like de un usuario deja de afectar los outfits en silencio: correctitud a cambio de 0,64 ms imperceptibles |
+| Idem, medido sin pool | ⚠️ **Trampa de medición, no un dato.** `PostgresTestBase` usa `SimpleDriverDataSource`, que abre una conexión nueva por llamada: las mismas 2 queries dan 13,5 ms así y 0,429 ms con HikariCP, 31x inflado. Cualquier medición de DB en este repo tiene que envolver el datasource de test en un `HikariDataSource` o el número es ficción |
+
+### Config vigente, no bug
+
+| | |
+|---------|--------|
+| `precio.maximo=300000` borra categorías enteras de tecnología. Medido sobre Maximus (2026-08-13): notebooks `CAT=56` conserva 0 de 16, computadoras armadas `CAT=68` 0 de 59, `CAT=48` (GPUs) 5 de 59 — 377 de 1122 productos filtrados, 34% | El scraper trae esos productos bien; el filtro los descarta después. Los conteos por sitio de la tabla de sitios **subestiman** la cobertura real |
+
+Decisiones que antes vivían acá y ahora están donde corresponde:
+`/api/db/export`/`import` en 410 Gone → [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) ·
+`precio_orig` con strings genuinamente no parseables → [`docs/DATABASE.md`](./docs/DATABASE.md).
 
 ---
 

@@ -9,13 +9,15 @@ directorios con identidad propia. Cada entrada es independiente.
 
 | Doc | Qué cubre | Cuándo leerlo |
 |-----|-----------|---------------|
-| [`CLAUDE.md`](./CLAUDE.md) | **Estado** del proyecto: stack, sitios, API, base de datos, problemas conocidos | Siempre — inicio de sesión |
+| [`CLAUDE.md`](./CLAUDE.md) | **Estado** del proyecto: stack, sitios, API, gotchas, problemas conocidos | Siempre — inicio de sesión |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | **Proceso**: commits, PRs, TDD, contrato de refactor, qué doc actualizar con cada cambio. Reglas con **ID citable** (`COMMIT-2`, `CODE-3`…) para referenciarlas en un review | Antes de escribir código o abrir un PR |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | **Por qué**: decisiones estructurales y su justificación | Antes de proponer cambios estructurales |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | **Por qué**: decisiones estructurales y su justificación. Para la base es sólo un índice hacia `DATABASE.md` | Antes de proponer cambios estructurales |
+| [`docs/DATABASE.md`](./docs/DATABASE.md) | **La base, entera**: esquema, las migraciones `V1`..`V24` + las `R__`, semántica del upsert, estado de normalización y el SQL de rollback que ejecutan los tests. Manda la regla de admisión: **toda tabla nueva cumple 1FN y 3FN** | Antes de tocar el esquema, escribir una migración o agregar una tabla |
 
-El reparto entre los tres es deliberado: estado / proceso / por qué. Si un dato
-responde "¿qué hay hoy?" va al primero, "¿cómo se trabaja?" al segundo, "¿por
-qué así?" al tercero.
+El reparto entre los cuatro es deliberado: estado / proceso / por qué / base.
+Si un dato responde "¿qué hay hoy?" va al primero, "¿cómo se trabaja?" al
+segundo, "¿por qué así?" al tercero, y **cualquier cosa sobre la base va al
+cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 
 ## Referencia por área
 
@@ -69,6 +71,8 @@ Dos que conviene tener presentes al leer código de este repo:
   `\\d`/`\\s`; comillas simples en el JS; `\?`, `\$`, `\,`, `\.` son escapes
   ilegales en Java.
 - **Agregar un sitio de una plataforma ya soportada** (Shopify/TN/VTEX/Vaypol/
-  Woo) son **2 archivos**: `config.properties` + el name-set en
-  `ScraperFactory`. Una plataforma custom suma hasta 2 más: `*Page.java` +
-  `*Scraper.java`. Detalle en `docs/ADD_SCRAPER.md`.
+  Woo) **no es una edición de código**: desde `V20` la plataforma sale de la
+  columna `sitio.plataforma` vía `SiteRegistry`, así que son `config.properties`
+  + una fila de seed. Los `Set.of(...)` de `ScraperFactory` fueron **borrados**
+  (`CODE-6`). Una plataforma nueva sí suma `*Page.java` + `*Scraper.java` + un
+  `if`. Detalle en `docs/ADD_SCRAPER.md`.
