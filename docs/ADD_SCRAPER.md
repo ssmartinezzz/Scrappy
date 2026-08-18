@@ -34,37 +34,78 @@ Antes de codear, determinar la plataforma del sitio:
 
 ---
 
-## Caso 1: Sitio Shopify
+## Lo que toda alta comparte: config + fila de seed
 
-Solo tocar **2 archivos**:
+Agregar un sitio sobre una plataforma **ya soportada no es una edición de
+código**. Desde `V20` la plataforma sale de la columna `sitio.plataforma`, leída
+por `SiteRegistry`; los 8 `Set.of(...)` de `ScraperFactory` fueron **borrados**
+(`CODE-6`). Son tres piezas, en el **mismo commit**:
 
-### `config.properties`
+### 1. `config.properties`
+
 ```properties
 sitio.NOMBRE.url=https://DOMINIO.com
 sitio.NOMBRE.activo=true
 ```
 
-### `ScraperFactory.java`
-```java
-private static final Set<String> SHOPIFY_NOMBRES = Set.of("freres", "vcp", "NOMBRE");
+### 2. Una migración nueva que siembre la fila en `sitio`
+
+Nunca edites una migración ya aplicada: son byte-frozen y Flyway valida
+checksums. Va una `V{N}` nueva. Si la plataforma **ya existe** en el
+vocabulario, es sólo el `INSERT` — el `CHECK` no se toca:
+
+```sql
+INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
+VALUES ('Nombre', 'nombre', 'shopify', false, NULL, 'config')
+ON CONFLICT (nombre) DO NOTHING;
 ```
 
-Listo. `ShopifyPage` llamará `/products.json?limit=250&page=N` automáticamente.
+`origen` tiene que ser **`'config'`**: es lo que el test de abajo busca.
+`rubro_forzado` va con el mismo valor que `sitio.NOMBRE.rubro` en
+`config.properties`, o `NULL` si no lo declarás.
+
+### 3. Agregar esa migración a `SitioSeedSyncTest`
+
+```java
+private static final String V25 = "/db/migration/V25__seed_nombre.sql";
+...
+for (String migration : List.of(V18, V24, V25)) {
+```
+
+El test arma el set de sitios sembrados desde una lista **hardcodeada** de
+migraciones y exige que todo sitio activo de `config.properties` esté ahí con
+`origen='config'`. Sembrar en una migración nueva sin sumarla a esa lista deja
+el test rojo aunque la fila exista.
+
+> ⚠️ **Por qué la fila de seed no es opcional, aunque el scraper "ande" sin
+> ella.** `SiteRegistry.porKey` se abstiene hacia `"tiendanube"` cuando no
+> encuentra la clave, así que un sitio sin sembrar **igual scrapea** — como
+> Tiendanube, sea o no Tiendanube. Ese es exactamente el bug de `forever`:
+> estaba en `config.properties`, no estaba en el name-set, caía a Tiendanube y
+> devolvía 0 productos, y parecía un scraper roto en vez de un sitio sin
+> registrar. `SitioSeedSyncTest` existe para atajar esa forma exacta.
+
+---
+
+## Caso 1: Sitio Shopify
+
+Seguí las tres piezas de arriba con `plataforma = 'shopify'`. `ShopifyPage`
+llama `/products.json?limit=250&page=N` automáticamente.
 
 ---
 
 ## Caso 2: Sitio Tiendanube
 
-Solo tocar **2 archivos**:
+Las tres piezas de arriba con `plataforma = 'tiendanube'`, y la URL termina en
+`/productos/`.
 
-### `config.properties`
-```properties
-sitio.NOMBRE.url=https://DOMINIO.com.ar/productos/
-sitio.NOMBRE.activo=true
-```
-
-### `ScraperFactory.java`
-No es necesario cambiar nada — todo lo que no sea Shopify/VTEX/Vaypol va a `TiendanubeScraper`.
+**La fila de seed hace falta igual.** Es tentador saltearla, porque Tiendanube
+es justo el destino al que cae un sitio sin registrar: `ScraperFactory` no tiene
+un `if` para Tiendanube, es el `default`, y `SiteRegistry` se abstiene hacia
+`"tiendanube"`. O sea que el scraper anda sin sembrar nada. Pero
+`SitioSeedSyncTest` se pone rojo, y con razón: sin la fila no se puede
+distinguir "es Tiendanube" de "nadie lo registró", que es la ambigüedad que
+costó los 0 productos de `forever`.
 
 **Nota**: si el sitio usa `/coleccion/`, `/indumentaria/` u otras rutas en lugar de `/productos/`, agregarlo al array `paths` en `TiendanubePage.buildExtractorJs()`.
 
@@ -72,16 +113,7 @@ No es necesario cambiar nada — todo lo que no sea Shopify/VTEX/Vaypol va a `Ti
 
 ## Caso 3: Sitio VTEX
 
-### `config.properties`
-```properties
-sitio.NOMBRE.url=https://DOMINIO.com.ar
-sitio.NOMBRE.activo=true
-```
-
-### `ScraperFactory.java`
-```java
-private static final Set<String> VTEX_NOMBRES = Set.of("sporting", "NOMBRE");
-```
+Las tres piezas de arriba con `plataforma = 'vtex'`.
 
 `VtexPage` intenta primero la API Legacy (`/api/catalog_system/pub/products/search`), y si devuelve vacío, prueba la API IO (`/api/io/_v/api/intelligent-search/product_search/trade-policy/1`).
 
@@ -89,16 +121,7 @@ private static final Set<String> VTEX_NOMBRES = Set.of("sporting", "NOMBRE");
 
 ## Caso 4: Plataforma Vaypol/City (Rails SSR)
 
-### `config.properties`
-```properties
-sitio.NOMBRE.url=https://DOMINIO.com.ar
-sitio.NOMBRE.activo=true
-```
-
-### `ScraperFactory.java`
-```java
-private static final Set<String> VAYPOL_NOMBRES = Set.of("vaypol", "city", "NOMBRE");
-```
+Las tres piezas de arriba con `plataforma = 'vaypol'`.
 
 `VaypolPage` busca links con href que terminen en `/-{4-6 dígitos}` (el slug de producto de esta plataforma). Si el nuevo sitio usa un patrón diferente, ajustar el regex en `buildExtractorJs()`.
 
@@ -141,11 +164,11 @@ public class NombreScraper extends BaseScraper {
 }
 ```
 
-### 3. Dar de alta la plataforma: migración + `ScraperFactory.java` + `config.properties`
+### 3. Dar de alta la plataforma: migración + `ScraperFactory.java` + los dos tests de sincronía
 
 Desde `V20`, `ScraperFactory.crear` no mantiene un name-set por sitio: lee
 `sitio.plataforma` a través de `SiteRegistry`. Un sitio nuevo sobre una
-plataforma nueva necesita las tres piezas en el **mismo commit**
+plataforma nueva necesita todas estas piezas en el **mismo commit**
 (`site-platform-vocabulary`/Config-and-Seed-Move-Together — si una se olvida,
 `SitioSeedSyncTest` o `PlatformVocabularySyncTest` lo marcan rojo):
 
@@ -175,6 +198,16 @@ deliberada (valida sitios agregados desde el dashboard, sin tabla `sitio`
 todavía). Se amplía junto con el CHECK; `PlatformVocabularySyncTest`
 (classpath, sin DB) falla si las dos se desincronizan.
 
+**d) `PlatformVocabularySyncTest`** — mové el puntero a la migración más nueva
+que redefine el CHECK. El test compara `PLATAFORMAS_VALIDAS` contra el dominio
+de **esa** migración, así que dejarlo apuntando a la anterior lo hace comparar
+contra un vocabulario viejo.
+
+**e) `SitioSeedSyncTest`** — sumá la migración a su `List.of(V18, V24)`. El set
+de sitios sembrados se arma desde esa lista hardcodeada, así que una fila de
+seed en una migración que la lista no nombra es, para el test, un sitio sin
+sembrar.
+
 ### 4. `config.properties`
 ```properties
 sitio.nombre.url=https://DOMINIO.com
@@ -185,6 +218,8 @@ sitio.nombre.activo=true
 
 ## Checklist al agregar cualquier sitio
 
+- [ ] La fila de seed en `sitio` existe, con `origen='config'` y el `plataforma` correcto
+- [ ] La migración que la siembra está en la `List.of(...)` de `SitioSeedSyncTest`
 - [ ] Verificar que la URL responde (no da 404 ni timeout)
 - [ ] Confirmar el rango de precios (sitios premium pueden estar sobre $300k)
 - [ ] Primer run: revisar log `[SITIO] NOMBRE → X productos` con fotos
