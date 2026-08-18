@@ -106,6 +106,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V22` | Dropea `productos.marca_premium` (3FN) |
 | `V23` | `productos.sitio_key` (generada) + FK a `sitio(sitio_key)` |
 | `V24` | `sitio.plataforma` 9→11 valores (`qloud`, `oscommerce`) + seed Rockethard/Venex |
+| `V25` | `productos.producto_key` (generada) + índice único — handle corto para rutas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -1359,6 +1360,62 @@ Tampoco restaura `sp_upsert_run` a su forma de `V17` — mismo precedente que
 mismo esquema dentro de un round-trip de test. Fuera del bloque: restaurar
 `COALESCE(r->>'marca', '')` requiere un `CREATE OR REPLACE FUNCTION` con el
 cuerpo de `V17` verbatim, en su propia migración hacia adelante.
+
+---
+
+### `V25` — `producto_key`, un handle corto para direccionar un producto
+
+**Decisión**: `productos` gana una columna `producto_key TEXT GENERATED ALWAYS
+AS (substr(md5(url), 1, 16)) STORED`, con índice único.
+
+**Qué problema resuelve, y cuál no.** La vista de historial se direccionaba con
+la URL entera como query param — ilegible, hay que encodearla en cada borde, y
+mete el dominio del sitio scrapeado adentro de nuestra propia ruta.
+
+Esto **no** es una clave primaria nueva y **no** cambia la normalización.
+`productos.url` sigue siendo la PK. `url → producto_key` es un atributo
+no-clave dependiendo de la clave, que es exactamente lo que 3FN permite; no hay
+dependencia transitiva. Es un alias de presentación con un índice atrás.
+
+Vale aclararlo porque la intuición habitual es la contraria: que "traer por id"
+está más normalizado. No lo está. Las formas normales hablan de dependencias
+funcionales, no del tipo de dato de la clave, y `url` ya era clave candidata —
+única, `NOT NULL`, con todo lo demás dependiendo de ella. Un `id BIGSERIAL` no
+habría movido ni una forma normal; habría agregado una segunda clave candidata
+y obligado a reescribir las 5 FKs, `sp_upsert_run` y el frontend entero.
+
+**Por qué generada.** `GENERATED ALWAYS AS ... STORED` significa que no hay
+camino de escritura que actualizarla ni forma de desincronizarla de `url` —
+mismo argumento que `V23` ya hizo para `sitio_key`. `md5()` y `substr()` son
+IMMUTABLE, que es lo que una columna generada exige; `sha256()` habría
+necesitado castear a `bytea`, y ese cast no lo es.
+
+No es un uso criptográfico: es un identificador opaco, y se le pide ser
+determinístico y estar bien distribuido, nada más.
+
+**Por qué 16 caracteres y por qué UNIQUE.** 16 hex = 64 bits. Con n productos,
+P(existe alguna colisión) ≈ n²/2^65: con 100.000 da ~2,7e-10, y el catálogo
+real ronda los 10.000. El `UNIQUE` no baja esa probabilidad — elige **dónde**
+falla si alguna vez ocurre. Con él, una colisión rompe fuerte y temprano, al
+aplicar la migración sobre los datos existentes. Sin él, dos productos
+compartirían handle y la vista mostraría el producto equivocado en silencio.
+Entre un fallo ruidoso improbable y un dato incorrecto callado, el ruidoso.
+
+**La misma expresión corre en Java** (`ar.scraper.web.ProductKey.of`), porque
+el frontend necesita el handle sin ir a la base. Que no puedan divergir lo
+prueba `ProductKeyParityTest` contra un Postgres real, sobre un corpus de URLs
+con no-ASCII, espacios, `%` ya encodeados, comillas y emoji — mismo criterio
+que `PrecioParser` / `sp_parse_precio_ar`.
+
+```sql
+-- >>> rollback:V25
+DROP INDEX IF EXISTS idx_productos_producto_key;
+ALTER TABLE productos DROP COLUMN IF EXISTS producto_key;
+-- <<< rollback:V25
+```
+
+El rollback es total: la columna es derivada, así que soltarla no pierde ningún
+dato que `url` no tenga ya.
 
 ---
 

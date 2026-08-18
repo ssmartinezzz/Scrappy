@@ -67,6 +67,24 @@ export async function fetchHistorial(url) {
   return r.ok ? r.json() : null;
 }
 
+/**
+ * Producto + su historial en una sola respuesta, para la vista dedicada.
+ *
+ * Entra por el handle corto (`key`, 16 hex) que viene en cada fila del
+ * catalogo, no por la URL entera: una URL de producto como query param es
+ * ilegible y hay que encodearla en cada borde. El handle es un alias de
+ * presentacion — la identidad del producto sigue siendo su url.
+ *
+ * Distinto de fetchHistorial: ese endpoint responde 204 cuando no hay puntos,
+ * lo que sirve para un sparkline (sin datos, no dibuja) pero no para una
+ * pagina que igual tiene que renderizar el producto. Aca un 404 significa que
+ * el producto no existe, y eso si es "no hay nada que mostrar".
+ */
+export async function fetchProductoDetalle(key) {
+  const r = await fetch(`${BASE}/api/producto/${encodeURIComponent(key)}`);
+  return r.ok ? r.json() : null;
+}
+
 export async function fetchInflacion() {
   const r = await fetch(`${BASE}/api/inflacion`);
   return r.ok ? r.json() : null;

@@ -173,7 +173,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 | Grupo | Endpoints |
 |-------|-----------|
 | Scraping | GET `/api/status` · POST `/api/scrape` |
-| Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · DELETE `/api/data?url=` (soft-delete) |
+| Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
 | Comparador | GET `/api/grupos` · `/api/buscar-externo` (MercadoLibre) |
 | Financiación | CRUD `/api/financiacion/presets` · GET `/api/recomendacion` · `/api/inflacion` (INDEC) |
@@ -389,7 +389,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
-Outfits `/outfits`. `/tendencias` redirige a `/analisis/mercado`.
+Outfits `/outfits` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
 `MlStatusPanel`, `GpuTrainingOverlay` y `AgentChatPanel` son componentes montados
 a nivel `AppLayout`, no rutas.
 

@@ -89,3 +89,50 @@ describe('BuySignal', () => {
     expect(toggle.textContent).not.toBe(labelBefore);
   });
 });
+
+/**
+ * El sparkline leía `d.historial`, pero GET /api/historial devuelve
+ * `{ puntos: [...] }` — nunca una clave `historial`. La condición era siempre
+ * falsa, el estado quedaba en [] y el componente devolvía null: un gráfico que
+ * no se dibujó nunca.
+ *
+ * Sobrevivió porque se ve igual que "todavía no hay historial", que es lo que
+ * pasa de verdad la mayor parte del tiempo. DetailPanel siempre leyó `puntos`
+ * bien, así que el bug era de este componente, no del endpoint.
+ */
+describe('BuySignal — el sparkline lee la clave que el endpoint devuelve', () => {
+  it('dibuja la serie cuando el endpoint devuelve puntos', async () => {
+    fetchHistorial.mockResolvedValue({
+      puntos: [
+        { fecha: '2026-05-20', precio: 20000 },
+        { fecha: '2026-05-28', precio: 18000 },
+        { fecha: '2026-06-04', precio: 16000 },
+      ],
+      min: 16000, max: 20000, deltaPct: -20,
+    });
+
+    const { container } = render(<BuySignal url="https://site.com/p1"/>);
+
+    await waitFor(() => {
+      expect(container.querySelector('polyline')).toBeInTheDocument();
+    });
+  });
+
+  it('no dibuja nada con un solo punto', async () => {
+    fetchHistorial.mockResolvedValue({ puntos: [{ fecha: '2026-05-20', precio: 20000 }] });
+
+    const { container } = render(<BuySignal url="https://site.com/p1"/>);
+
+    await waitFor(() => expect(screen.queryByText(/Analizando/)).not.toBeInTheDocument());
+    expect(container.querySelector('polyline')).not.toBeInTheDocument();
+  });
+
+  it('no rompe cuando el endpoint responde 204 (null)', async () => {
+    fetchHistorial.mockResolvedValue(null);
+
+    const { container } = render(<BuySignal url="https://site.com/p1"/>);
+
+    await waitFor(() => expect(screen.queryByText(/Analizando/)).not.toBeInTheDocument());
+    expect(container.querySelector('polyline')).not.toBeInTheDocument();
+  });
+});

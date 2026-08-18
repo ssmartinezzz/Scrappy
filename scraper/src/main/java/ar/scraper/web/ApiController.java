@@ -290,6 +290,15 @@ public class ApiController {
         return catalogoEndpoints.csv();
     }
 
+    /**
+     * Detalle de un producto + su historial, para la vista dedicada. 404 si no
+     * existe. Entra por el handle corto (`producto_key`), no por la URL entera.
+     */
+    @GetMapping("/producto/{key}")
+    public ResponseEntity<Object> productoDetalle(@PathVariable String key) {
+        return catalogoEndpoints.productoDetalle(key);
+    }
+
     // ─── Gestión de sitios y config. Bodies in ScrapeControlEndpoints
     // (backlog A3); the mappings stay here.
     // ─────────────────────────────────────────────────────────────────────
