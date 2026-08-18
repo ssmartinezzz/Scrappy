@@ -334,7 +334,11 @@ class HistoricalAnalysis:
             d1 = datetime.strptime(p1['fecha'], '%Y-%m-%d')
             days = max(1, (d1 - d0).days)
             return round((p1['precio'] - p0['precio']) / p0['precio'] / days * 100, 4)
-        except:
+        except Exception:
+            # Solo fallas de DATO degradan a 0: fecha no parseable, precio de
+            # apertura en 0, punto sin las claves esperadas. Un `except:` pelado
+            # también atrapaba KeyboardInterrupt/SystemExit, o sea que un Ctrl-C
+            # se registraba como "velocidad 0" y el run seguía como si nada.
             return 0
 
     def min_price(self):
@@ -368,6 +372,27 @@ class HistoricalAnalysis:
 # fixture, o sea la única que podía romperse sin poner ningún test en rojo.
 # Una spec que nadie ejecuta no es una spec, es una copia esperando
 # desincronizarse.
+
+
+def cargar_historial(hist_path):
+    """
+    Lee el archivo de historial de precios. Devuelve {} si no hay ruta, si el
+    archivo no existe, o si su contenido no es JSON válido.
+
+    Vivía inline dentro de `main()`. Se extrajo para poder probar el manejo de
+    error, que es todo el punto de la función: un historial truncado arranca la
+    corrida de cero en vez de abortarla. Lo que NO puede hacer es tragarse un
+    Ctrl-C — con un `except:` pelado, una interrupción durante el parseo salía
+    como historial vacío y el run continuaba descartando en silencio todos los
+    puntos de precio.
+    """
+    if not hist_path or not os.path.exists(hist_path):
+        return {}
+    try:
+        with open(hist_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 
 def tfidf_simple(docs):
@@ -683,13 +708,7 @@ def main():
 
     # ─── 2. Historial de precios ─────────────────────────────────────────────
     print("[ML] Cargando historial...", file=sys.stderr)
-    history = {}
-    if hist_path and os.path.exists(hist_path):
-        try:
-            with open(hist_path, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-        except:
-            history = {}
+    history = cargar_historial(hist_path)
 
     # Actualizar historial con precios actuales
     for p in productos:
