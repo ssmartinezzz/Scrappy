@@ -90,27 +90,17 @@ class MlEndpoints {
     // ---------------------------------------------------------------
     // Historial de precios
     // ---------------------------------------------------------------
+    /**
+     * El {@code 204} sin historial es para los widgets: un sparkline sin nada
+     * que dibujar no dibuja nada. La página dedicada NO puede usar este
+     * endpoint por eso mismo — ver {@code CatalogoEndpoints.productoDetalle},
+     * que responde 200 con {@code puntos} vacío. El cuerpo lo arma
+     * {@link HistorialJson}, compartido con esa otra ruta.
+     */
     ResponseEntity<Object> historial(String url) {
         var hist = db.cargarHistorial(url);
         if (hist.isEmpty()) return ResponseEntity.noContent().build();
-        // Enriquecer con stats básicas del historial
-        var node = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
-        var arr  = node.putArray("puntos");
-        hist.forEach(h -> {
-            var p = arr.addObject();
-            p.put("fecha",  (String) h.get("fecha"));
-            p.put("precio", ((Number) h.get("precio")).doubleValue());
-        });
-        if (hist.size() >= 2) {
-            double min = hist.stream().mapToDouble(h -> ((Number) h.get("precio")).doubleValue()).min().orElse(0);
-            double max = hist.stream().mapToDouble(h -> ((Number) h.get("precio")).doubleValue()).max().orElse(0);
-            double avg = hist.stream().mapToDouble(h -> ((Number) h.get("precio")).doubleValue()).average().orElse(0);
-            double first = ((Number) hist.get(0).get("precio")).doubleValue();
-            double last  = ((Number) hist.get(hist.size()-1).get("precio")).doubleValue();
-            node.put("min", min).put("max", max).put("avg", avg);
-            node.put("deltaPct", first > 0 ? Math.round((last - first) / first * 1000.0) / 10.0 : 0);
-        }
-        return ResponseEntity.ok(node);
+        return ResponseEntity.ok(HistorialJson.construir(hist));
     }
 
     ResponseEntity<Object> mlAplicar() {

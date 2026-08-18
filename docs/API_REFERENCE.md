@@ -57,7 +57,8 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 |-------|-----------|
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
-| ML | `GET /tendencias` · `GET /historial?url=` · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
+| Catálogo | `GET /producto?url=` (producto + historial, 404 si no existe) |
+| ML | `GET /tendencias` · `GET /historial?url=` (204 sin puntos) · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
 | Comparador | `GET /grupos` · `GET /buscar-externo` (MercadoLibre) |
 | Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
 | Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `GET /suplementos/tipos` (subtipos ofrecibles + grupo de selector; taxonomía pura, responde sin catálogo) · `POST /outfits/feedback` · CRUD `/outfits/saved` |
@@ -237,16 +238,83 @@ regenera la tabla entera.
 
 ## GET /historial?url=URL
 
-Historial de precios de un producto.
+Historial de precios de un producto, para los widgets que lo resumen (el
+sparkline de `BuySignal`, el del `DetailPanel`).
 
 **Query params:** `url` (required) — URL canónica del producto
 
+**`204 No Content`** cuando el producto no tiene puntos registrados: un
+sparkline sin nada que dibujar no dibuja nada. Una página que igual tiene que
+renderizar el producto **no puede usar este endpoint** — para eso está
+`GET /producto`.
+
+`min`/`max`/`avg`/`deltaPct` aparecen **sólo desde dos puntos**. Una sola
+observación no tiene mínimo, máximo ni variación: tiene un precio. El cuerpo lo
+arma `HistorialJson`, compartido con `GET /producto` para que las dos rutas no
+puedan divergir.
+
 **Response:**
 ```json
-[
-  {"fecha": "2026-05-20", "precio": 15990},
-  {"fecha": "2026-05-28", "precio": 14990}
-]
+{
+  "puntos": [
+    {"fecha": "2026-05-20", "precio": 15990},
+    {"fecha": "2026-05-28", "precio": 14990}
+  ],
+  "min": 14990,
+  "max": 15990,
+  "avg": 15490,
+  "deltaPct": -6.3
+}
+```
+
+---
+
+## GET /producto?url=URL
+
+Un producto y su historial en una sola respuesta. Es la lectura detrás de la
+vista dedicada de historial de precios (`/historial?url=` en el frontend).
+
+**Query params:** `url` (required) — URL canónica del producto
+
+Identifica por `url` y no por un id sustituto porque `productos.url` **es** la
+clave primaria del esquema (clave natural, igual que `categoria`, `marca` y
+`sitio_key` — ver [`DATABASE.md`](./DATABASE.md)).
+
+Se lee de la **base**, no del snapshot en memoria: la página es deep-linkeable y
+un producto soft-deleted tiene que seguir siendo inspeccionable, que es justo
+cuando su historial es interesante.
+
+- **`404`** — el producto no existe.
+- **`200` con `puntos: []`** — el producto existe pero todavía no tiene serie.
+  Deliberadamente **no** es un `204`: la página tiene que renderizar el producto
+  igual y decir que la serie no está.
+
+**Response:**
+```json
+{
+  "producto": {
+    "url": "https://site.com/remera-negra",
+    "sitio": "Freres",
+    "nombre": "Remera Negra",
+    "precio": 15990,
+    "precioOrig": 19990,
+    "descuento": true,
+    "img": "https://...",
+    "categoria": "Remera",
+    "genero": "hombre",
+    "marca": "Nike",
+    "rubro": "indumentaria",
+    "cantidadUnidades": 1,
+    "esPack": false,
+    "precioUnitario": 15990,
+    "talles": ["M", "L"],
+    "ml": { "badge": "", "badges": [], "scoreP": 50 }
+  },
+  "historial": {
+    "puntos": [{"fecha": "2026-05-20", "precio": 15990}],
+    "min": 14990, "max": 15990, "avg": 15490, "deltaPct": -6.3
+  }
+}
 ```
 
 ---

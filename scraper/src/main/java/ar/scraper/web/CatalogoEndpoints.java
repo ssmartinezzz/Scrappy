@@ -191,6 +191,39 @@ class CatalogoEndpoints {
     }
 
     // ---------------------------------------------------------------
+    // Detalle de un producto + su historial de precios
+    // ---------------------------------------------------------------
+
+    /**
+     * Un producto y su serie de precios en una sola respuesta, para la vista
+     * dedicada de historial.
+     *
+     * <p>Se lee de la BASE, no del snapshot en memoria, por dos razones: la
+     * página es deep-linkeable —se puede abrir sin haber pasado por el catálogo,
+     * cuando el snapshot puede ni existir— y un producto soft-deleted tiene que
+     * seguir siendo inspeccionable, que es justo cuando su historial de precios
+     * es interesante.</p>
+     *
+     * <p>Distinto de {@code /api/historial}, que responde {@code 204} cuando no
+     * hay puntos: acá un producto scrapeado una sola vez es una página que
+     * igual tiene que renderizar, con sus datos y sin serie. El {@code 404}
+     * queda reservado para un producto que de verdad no existe.</p>
+     */
+    ResponseEntity<Object> productoDetalle(String url) {
+        if (url == null || url.isBlank()) return ResponseEntity.notFound().build();
+
+        var encontrado = db.obtenerProducto(url);
+        if (encontrado.isEmpty()) return ResponseEntity.notFound().build();
+
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ObjectNode prod = root.putObject("producto");
+        prod.put("url", url);
+        ProductJson.escribir(prod, encontrado.get());
+        root.set("historial", HistorialJson.construir(db.cargarHistorial(url)));
+        return ResponseEntity.ok(root);
+    }
+
+    // ---------------------------------------------------------------
     // Facets sueltos (para cargar filtros sin productos)
     // ---------------------------------------------------------------
     ResponseEntity<ObjectNode> facets() {
