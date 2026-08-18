@@ -264,6 +264,31 @@ class ProductRepository {
     }
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
+    /**
+     * Resuelve un producto por su handle corto ({@code producto_key}, la columna
+     * generada de V25) en vez de por su URL entera.
+     *
+     * <p>Delega en {@link #obtenerProducto} después de traducir handle -> url,
+     * a propósito: la carga de talles y badges es idéntica y duplicarla sería
+     * dos caminos de lectura que pueden divergir. El índice único sobre
+     * {@code producto_key} hace que la traducción sea una búsqueda, no un scan.</p>
+     */
+    java.util.Optional<Product> obtenerProductoPorKey(String key) {
+        if (key == null || key.isBlank()) return java.util.Optional.empty();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT url FROM productos WHERE producto_key = ?")) {
+            ps.setString(1, key);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return java.util.Optional.empty();
+                return obtenerProducto(rs.getString(1));
+            }
+        } catch (Exception e) {
+            LOG.error("[DB] Error resolviendo producto_key {}: {}", key, e.getMessage(), e);
+            return java.util.Optional.empty();
+        }
+    }
+
     java.util.Optional<Product> obtenerProducto(String url) {
         try (Connection c = dataSource.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement(ProductRowMapper.COLUMNAS + " WHERE url=?")) {

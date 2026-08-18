@@ -34,6 +34,11 @@ final class ProductJson {
 
     /** Mismo formato que la lista de /api/data, para reuso en DetailPanel. */
     static void escribir(ObjectNode n, Product p) {
+        // Handle corto para las rutas del frontend (/historial/{key}). Se manda
+        // en cada fila para que un link no tenga que ir a la base a buscarlo.
+        // Gemelo de la columna generada productos.producto_key (V25) — la
+        // paridad la fija ProductKeyParityTest.
+        n.put("key",        ProductKey.of(p.url()));
         n.put("sitio",      safe(p.sitio()));
         n.put("nombre",     safe(p.nombre()));
         n.put("precio",     p.precio());
