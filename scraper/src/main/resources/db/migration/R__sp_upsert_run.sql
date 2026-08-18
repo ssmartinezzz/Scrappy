@@ -47,6 +47,7 @@ RETURNS jsonb AS $$
 DECLARE
     r              jsonb;
     v_prev_precio  DOUBLE PRECISION;
+    v_prev_existe  BOOLEAN;
     v_new_precio   DOUBLE PRECISION;
     v_nuevos       INTEGER := 0;
     v_actualizados INTEGER := 0;
@@ -62,7 +63,17 @@ BEGIN
             CONTINUE;
         END IF;
 
-        SELECT precio INTO v_prev_precio FROM productos WHERE url = r->>'url' AND activo;
+        -- El precio previo se lee SIN filtrar por `activo`. Un producto
+        -- soft-deleted que vuelve NO es un producto nuevo: con el filtro, su
+        -- fila inactiva no matcheaba y v_prev_precio salia NULL, indistinguible
+        -- de una URL nunca vista. La reactivacion caia entonces en la rama de
+        -- producto nuevo y escribia una fila de precio_historico aunque el
+        -- precio no se hubiera movido un centavo, contra el contrato de esa
+        -- tabla —que registra CAMBIOS de precio, no avistajes. `FOUND` separa
+        -- "no existe" de "existe pero esta inactivo", que es lo unico que hacia
+        -- falta distinguir.
+        SELECT precio INTO v_prev_precio FROM productos WHERE url = r->>'url';
+        v_prev_existe := FOUND;
         v_new_precio := (r->>'precio')::DOUBLE PRECISION;
 
         IF p_include_visual THEN
@@ -142,7 +153,7 @@ BEGIN
         FROM jsonb_array_elements_text(COALESCE(r->'mlBadges', '[]'::jsonb)) WITH ORDINALITY AS b(val, ord)
         WHERE b.val <> '';
 
-        IF v_prev_precio IS NULL THEN
+        IF NOT v_prev_existe THEN
             v_nuevos := v_nuevos + 1;
             INSERT INTO precio_historico (url, precio, fecha)
             VALUES (r->>'url', v_new_precio, (r->>'fecha')::date)
