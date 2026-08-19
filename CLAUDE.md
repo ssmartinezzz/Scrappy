@@ -529,6 +529,47 @@ catálogo filtrado en **cada** request, paginación incluida — nada se cachea 
 páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
 ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 
+**Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
+
+- **`PostgresTestBase.truncateAll` es una lista a mano, no un barrido del
+  esquema.** Toda tabla nueva hay que agregarla ahí. Si te la olvidás no falla:
+  contamina otros tests y se ve como un bug en otro lado. `rol` está excluida a
+  propósito — es dato semilla de la migración, y truncarla deja el esquema sin
+  vocabulario de roles.
+- **Un test de esquema afirma el SQLState, no `SQLException`.** Un INSERT contra
+  una tabla que todavía no existe también tira `SQLException`, así que la versión
+  floja se pone verde ANTES de escribir la migración. `23514` = CHECK,
+  `23505` = UNIQUE.
+- **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
+  `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
+  BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
+- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
+  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
+  separan, el backend deja de negarse a sembrar con la password de ejemplo.
+- **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
+  los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
+  en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos
+  los cronjobs contra una config que se ve perfecta, porque el seeder nunca pisa
+  un hash existente.
+- **`@WebMvcTest` registra los `Filter` pero no los `@Component` comunes.** Un
+  test del slice de seguridad necesita importar `SecurityConfig`, `JwtAuthFilter`
+  **y** `TokenService`, o el contexto no carga.
+- **Un fixture tiene que sembrar el mismo rol que pone en el contexto de
+  seguridad.** El rol se lee de la BASE en cada request —el token no lo lleva—
+  así que decir ADMIN en el contexto y escribir VIEWER en la tabla da un sujeto
+  que la app trata como VIEWER, correctamente, y un test que falla por algo que
+  no tiene que ver con lo que quería probar.
+- **Los relojes fijos de los tests caen en segundos exactos.** Por eso los 1540
+  tests no vieron que `iat` (segundos) y `password_changed_at` (microsegundos)
+  se comparaban directo, rechazando el token del usuario que acababa de cambiar
+  su contraseña. **Todo cambio de auth se verifica además contra un proceso
+  real**: la verificación manual encontró tres bugs que la suite no podía ver
+  —dos que impedían arrancar y este—.
+- **Convención de commits de la cadena**: subject conventional (`COMMIT-1`) y
+  `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
+  rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
+  de `COMMIT-3`.
+
 **Docker:**
 - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
 - En `DATABASE_URL` el host es **`postgres`** (nombre del servicio), no `localhost`.
