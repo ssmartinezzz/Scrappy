@@ -216,11 +216,13 @@ endpoint que lo diga; **hoy no existe** y es una decisión del SDD de frontend.
 ## Cosas que el backend NO tiene y quizás esperes
 
 - **No hay endpoint que devuelva el usuario actual ni su rol.** Ver arriba.
-- **No hay administración de usuarios todavía.** La regla ADMIN para
-  `/api/usuarios/**` ya está puesta y no matchea nada: los endpoints nacen
-  gateados cuando se escriban.
+- **La administración de usuarios YA existe** (`GET`/`POST /api/usuarios`,
+  `PUT /api/usuarios/{username}/rol`, `DELETE /api/usuarios/{username}`,
+  `PUT /api/usuarios/{username}/activar`) pero **sin UI**: es ADMIN-only y se
+  maneja por `curl`. Una pantalla es tuya si la querés.
 - **La cuenta admin inicial no tiene email**, así que **no es reseteable**. Darle
-  una dirección hoy es SQL directo.
+  una dirección sigue siendo SQL directo: el endpoint de creación acepta `email`,
+  pero no hay uno para editarlo en una cuenta existente.
 - **Cambiar `ADMIN_BOOTSTRAP_PASSWORD` y reiniciar no cambia la password** de una
   cuenta ya creada. El seeder nunca pisa un hash existente.
 

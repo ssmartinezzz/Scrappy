@@ -51,6 +51,19 @@ import java.util.UUID;
  * issued stay cryptographically valid until they expire. Rejecting tokens whose
  * {@code iat} predates the password change closes that window — and it costs
  * nothing extra, because the same row is already being read for the role.</p>
+ *
+ * <p><b>The comparison is against the truncated second, and it has to be.</b> A
+ * JWT's {@code iat} is expressed in whole seconds; {@code password_changed_at} is
+ * a microsecond-precision timestamp. Comparing them directly compares values of
+ * different precision, and a user who changes their password at
+ * {@code 12:00:00.267} and logs in immediately gets a token stamped
+ * {@code 12:00:00} — which is not "after" — so their brand-new token is rejected.
+ * Found by hand against a live backend: the login succeeds and every subsequent
+ * call 401s, for up to a second, with nothing in the logs to explain it.</p>
+ *
+ * <p>Flooring costs a window of at most one second, and only to a token issued in
+ * the very same second as the change. A stolen pre-reset token has an {@code iat}
+ * strictly earlier and is still refused.</p>
  */
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -97,7 +110,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         Instant emitido = tokens.emitidoEn(header.substring(PREFIJO.length()).trim()).orElse(null);
         if (emitido != null && auth.get().passwordChangedAt() != null
-                && !emitido.isAfter(auth.get().passwordChangedAt())) {
+                && emitido.isBefore(auth.get().passwordChangedAt()
+                        .truncatedTo(java.time.temporal.ChronoUnit.SECONDS))) {
             return Optional.empty();
         }
 

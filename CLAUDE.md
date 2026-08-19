@@ -214,7 +214,8 @@ Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/F
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` · POST `/api/auth/password-reset/request` · `/confirm` — **no gatean nada todavía** |
+| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` · POST `/api/auth/password-reset/request` · `/confirm` |
+| Usuarios | GET/POST `/api/usuarios` · PUT `/api/usuarios/{username}/rol` · DELETE `/api/usuarios/{username}` · PUT `/api/usuarios/{username}/activar` — **ADMIN, sin UI** |
 | Scraping | GET `/api/status` · POST `/api/scrape` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |

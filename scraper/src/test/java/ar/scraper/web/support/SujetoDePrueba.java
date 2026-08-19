@@ -38,7 +38,7 @@ public final class SujetoDePrueba {
      * quietly exercises nothing.</p>
      */
     public static UUID entrar(DataSource dataSource, String rol) {
-        UUID id = ar.scraper.db.support.UsuarioDePrueba.crear(dataSource, "test-" + rol.toLowerCase());
+        UUID id = ar.scraper.db.support.UsuarioDePrueba.crear(dataSource, "test-" + rol.toLowerCase(), rol);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(
                         new AuthenticatedSubject(id, "test-" + rol.toLowerCase()),

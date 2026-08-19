@@ -20,9 +20,23 @@ public final class UsuarioDePrueba {
 
     /** Creates the account if absent and returns its id. Idempotent within a test. */
     public static UUID crear(DataSource dataSource, String username) {
+        return crear(dataSource, username, "VIEWER");
+    }
+
+    /**
+     * Same, with an explicit role.
+     *
+     * <p>The role has to match whatever the test puts in the security context.
+     * The database is the source of truth for authorization — the token carries
+     * no role — so a fixture that says ADMIN in the context and writes VIEWER in
+     * the table produces a subject the application correctly treats as a VIEWER,
+     * and a test that fails for a reason that has nothing to do with what it
+     * meant to check.</p>
+     */
+    public static UUID crear(DataSource dataSource, String username, String rol) {
         UsuarioRepository repo = new UsuarioRepository(dataSource);
         repo.crear(username, null, "$argon2id$de-prueba", false);
-        repo.asignarRol(username, "VIEWER");
+        repo.asignarRol(username, rol);
         return repo.buscarActivaPorUsername(username).orElseThrow().id();
     }
 
