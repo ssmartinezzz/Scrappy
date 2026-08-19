@@ -63,7 +63,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
 | Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `GET /suplementos/tipos` (subtipos ofrecibles + grupo de selector; taxonomía pura, responde sin catálogo) · `POST /outfits/feedback` · CRUD `/outfits/saved` |
 | Para ti | `GET /recomendados` · `POST /recomendados/feedback` · `POST`/`DELETE /recomendados/dismiss-categoria` |
-| Favoritos | `GET`/`POST`/`DELETE /favoritos` · `POST /favoritos/rescrape` |
+| Favoritos | `GET`/`POST`/`DELETE /favoritos` |
 | Picks/Marcas | `GET /mejores?rubro=` · `GET /marcas-browser` |
 | Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
 | Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |

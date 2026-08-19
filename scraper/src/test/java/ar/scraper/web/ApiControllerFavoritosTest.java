@@ -191,36 +191,6 @@ class ApiControllerFavoritosTest {
         return controller.deleteFavorito(url);
     }
 
-    // ── POST /api/favoritos/rescrape ─────────────────────────────────────
-
-    @Test
-    @Story("POST /api/favoritos/rescrape")
-    void rescrapeFavoritosReturnsIniciadoTrueWhenNotRunning() {
-        givenRescrapeAvailable(true);
-
-        var resp = controller.rescrapeFavoritos();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
-
-        assertThat(body.get("iniciado").asBoolean()).isTrue();
-    }
-
-    @Test
-    @Story("POST /api/favoritos/rescrape")
-    void rescrapeFavoritosReturnsIniciadoFalseWhenAlreadyRunning() {
-        givenRescrapeAvailable(false);
-
-        var resp = controller.rescrapeFavoritos();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
-
-        assertThat(body.get("iniciado").asBoolean()).isFalse();
-        assertThat(body.get("mensaje").asText()).contains("curso");
-    }
-
-    @Step("Stub rescrape availability: iniciado={iniciado}")
-    private void givenRescrapeAvailable(boolean iniciado) {
-        when(service.rescrapearFavoritos()).thenReturn(iniciado);
-    }
-
     // ── DELETE /api/data ─────────────────────────────────────────────────
 
     @Test

@@ -300,16 +300,12 @@ function OportunidadesBadgeRoute() {
 }
 
 function FavoritosRoute() {
-  const { S, dispatch, startPolling, loadFavoritos, set } = useOutletContext();
+  const { S, dispatch } = useOutletContext();
   return (
     <FavoritosPanel
       favoritos={S.favoritos}
       savedOutfits={S.savedOutfits || []}
-      scrapeStatus={S.scrapeStatus}
       onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}
-      onStartPolling={startPolling}
-      onRefreshFavoritos={loadFavoritos}
-      onSetScraping={() => set({ scrapeStatus:'RUNNING' })}
       onDeleteFavorito={async (url) => {
         await removeFavorito(url);
         dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
