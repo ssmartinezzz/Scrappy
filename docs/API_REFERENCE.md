@@ -55,6 +55,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 | Grupo | Endpoints |
 |-------|-----------|
+| Auth | `POST /auth/login` (**no gatea nada todavía** — ver abajo) |
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
 | Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
@@ -71,6 +72,60 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | LLM Agent | `POST /agent/chat` · `POST /agent/apply` · `GET /agent/models` |
 
 ---
+
+## POST /auth/login
+
+Autentica por **`username`** y devuelve un access token JWT de 15 minutos.
+
+> ⚠️ **Este endpoint no protege nada.** Emite tokens; todavía no existe ningún
+> `SecurityFilterChain` que los exija. Todos los demás endpoints siguen tan
+> abiertos como antes de que este existiera. Quien despliegue esta fase creyendo
+> que ya tiene control de acceso, no lo tiene.
+
+**Request**
+
+```json
+{ "username": "admin", "password": "..." }
+```
+
+`email` **nunca** es identificador de login: es opcional, y ni la cuenta
+bootstrap ni la de servicio del CLI tienen uno.
+
+**200**
+
+```json
+{ "accessToken": "eyJhbGciOiJIUzI1NiJ9...", "tokenType": "Bearer", "expiresIn": 900 }
+```
+
+El token lleva `sub`, `iat`, `exp` y `jti`, y **nada más** — en particular, sin
+claim de rol. Un rol dentro de un token firmado no se puede revocar antes de que
+venza, así que el rol se relee de la base en cada request (fase 2).
+
+**401** — mismo status y mismo body para credencial equivocada, usuario
+inexistente, cuenta con `activo=FALSE` y body malformado:
+
+```json
+{ "error": "credenciales_invalidas", "mensaje": "Usuario o contraseña incorrectos" }
+```
+
+Distinguirlos convertiría al endpoint en un oráculo de qué usuarios existen. Por
+la misma razón el tiempo de respuesta tampoco los distingue: cuando el usuario no
+existe se verifica igual contra un hash señuelo, así que las dos ramas cuestan el
+mismo Argon2id (~76 ms) en vez de diferir en algo perfectamente medible por red.
+
+**Cuentas iniciales.** Se siembran al arrancar desde el entorno
+(`ADMIN_BOOTSTRAP_*`, `CLI_SERVICE_ACCOUNT_*`), de forma idempotente. El seeder
+**nunca pisa un hash existente**: cambiar la variable y reiniciar *no* cambia la
+password de una cuenta ya creada. Recuperarla es SQL directo.
+
+### Exponerlo fuera de localhost exige TLS
+
+El access token viaja como `Authorization: Bearer` en texto plano. Sobre HTTP sin
+cifrar es legible en tránsito por cualquiera en el camino, y con él se puede
+actuar como el usuario hasta que venza. Esta aplicación está pensada para correr
+en `localhost`; publicarla más allá **requiere TLS por delante**, no es una
+recomendación.
+
 
 ## GET /status
 

@@ -28,6 +28,9 @@
              does not manage it, so it is pinned here like flyway-database-postgresql
              below — an unpinned version is a build that changes under you. -->
         <bouncycastle.version>1.76</bouncycastle.version>
+        <!-- HS256 access tokens. Boot 3.2.5's BOM does not manage a JWT library
+             either, so this is pinned for the same reason as BouncyCastle. -->
+        <nimbus.jwt.version>9.37.3</nimbus.jwt.version>
         <!-- Spring Boot 3.2.5's dependencyManagement does not pin flyway-database-postgresql
              (added to Boot's managed BOM in later 3.2.x/3.3 lines) — pin explicitly, matching
              the flyway-core version Boot 3.2.5 DOES manage (10.10.0). -->
@@ -117,6 +120,15 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
             <version>${bouncycastle.version}</version>
+        </dependency>
+
+        <!-- JWT (user-accounts-and-roles slice 2). Nimbus rather than jjwt: one
+             artifact instead of three, and it is the library Spring Security
+             itself uses, so a later move to the starter finds it already here. -->
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>${nimbus.jwt.version}</version>
         </dependency>
 
         <!-- Testing (JUnit 5 + Mockito) -->
