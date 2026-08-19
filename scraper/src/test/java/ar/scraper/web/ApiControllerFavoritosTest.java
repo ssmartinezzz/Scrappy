@@ -13,6 +13,8 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,11 @@ class ApiControllerFavoritosTest {
     private RecommendationService recommendationService;
     private ApiController controller;
 
+    @AfterEach
+    void limpiarContexto() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
         wireController();
@@ -56,6 +63,7 @@ class ApiControllerFavoritosTest {
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
+        SujetoDePrueba.entrar("ADMIN");
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
@@ -77,7 +85,7 @@ class ApiControllerFavoritosTest {
 
     @Step("Stub DB with no favoritos")
     private void givenNoFavoritos() {
-        when(db.listarFavoritos()).thenReturn(List.of());
+        when(db.listarFavoritos(any())).thenReturn(List.of());
     }
 
     @Test
@@ -100,7 +108,7 @@ class ApiControllerFavoritosTest {
         var row = Map.of(
                 "url", url, "sitio", "Sporting", "nombre", "Zapatillas Nike",
                 "added_at", "2025-01-01", "last_checked_at", "2025-01-15");
-        when(db.listarFavoritos()).thenReturn(List.of(row));
+        when(db.listarFavoritos(any())).thenReturn(List.of(row));
         when(db.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
         when(db.esProductoActivo(url)).thenReturn(true);
     }
@@ -121,7 +129,7 @@ class ApiControllerFavoritosTest {
     private void givenInactiveFavoritoRow(String url) {
         var row = Map.of("url", url, "sitio", "S", "nombre", "N",
                 "added_at", "2025-01-01", "last_checked_at", "2025-01-01");
-        when(db.listarFavoritos()).thenReturn(List.of(row));
+        when(db.listarFavoritos(any())).thenReturn(List.of(row));
         when(db.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
         when(db.esProductoActivo(url)).thenReturn(false);
     }
@@ -139,7 +147,7 @@ class ApiControllerFavoritosTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
-        verify(db, never()).guardarFavorito(any(), any(), any());
+        verify(db, never()).guardarFavorito(any(), any(), any(), any());
     }
 
     @Test
@@ -163,7 +171,7 @@ class ApiControllerFavoritosTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).guardarFavorito("https://a.com/1", "Sporting", "Nike Air Max");
+        verify(db).guardarFavorito(any(), eq("https://a.com/1"), eq("Sporting"), eq("Nike Air Max"));
     }
 
     @Step("Add favorito: url={url}, sitio={sitio}, nombre={nombre}")
@@ -183,7 +191,7 @@ class ApiControllerFavoritosTest {
         JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).eliminarFavorito("https://a.com/1");
+        verify(db).eliminarFavorito(any(), eq("https://a.com/1"));
     }
 
     @Step("Delete favorito {url}")

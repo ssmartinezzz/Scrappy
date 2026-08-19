@@ -105,6 +105,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 .map(rol -> new SimpleGrantedAuthority("ROLE_" + rol))
                 .toList();
         return Optional.of(new UsernamePasswordAuthenticationToken(
-                auth.get().username(), null, roles));
+                new AuthenticatedSubject(subject.get(), auth.get().username()), null, roles));
     }
 }

@@ -2,6 +2,7 @@ package ar.scraper.db.migration;
 
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -15,6 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
@@ -100,7 +102,7 @@ class ForeignKeyTopologyTest extends PostgresTestBase {
     void deletingFavoritedProductIsRejected() throws Exception {
         String url = "https://site.com/fk-restrict";
         db.upsertProductos(List.of(producto(url)));
-        db.guardarFavorito(url, "Sitio", "Producto");
+        db.guardarFavorito(yo(), url, "Sitio", "Producto");
 
         assertThatThrownBy(() -> rawDeleteProducto(url)).isInstanceOf(SQLException.class);
 
@@ -119,5 +121,17 @@ class ForeignKeyTopologyTest extends PostgresTestBase {
         rawDeleteProducto(url);
 
         assertThat(contar("agent_reclassify_audit", "url", url)).isEqualTo(1);
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

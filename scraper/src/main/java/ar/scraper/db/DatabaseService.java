@@ -342,22 +342,27 @@ public class DatabaseService {
     }
 
     // ─── Favoritos. Bodies in FavoritosRepository (backlog A3).
+    //
+    // Cada método toma usuario_id PRIMERO y no existe ninguna variante sin él.
+    // Esa ausencia es el diseño: una lectura que ramifica por rol es donde una
+    // fuga aparece tarde o temprano, y un método que no existe no se puede
+    // llamar por error. ADMIN y VIEWER corren el mismo SQL con otro parámetro.
     // ─────────────────────────────────────────────────────────────────────
 
-    public void guardarFavorito(String url, String sitio, String nombre) {
-        favoritosRepository.guardarFavorito(url, sitio, nombre);
+    public void guardarFavorito(UUID usuarioId, String url, String sitio, String nombre) {
+        favoritosRepository.guardarFavorito(usuarioId, url, sitio, nombre);
     }
 
-    public void eliminarFavorito(String url) {
-        favoritosRepository.eliminarFavorito(url);
+    public void eliminarFavorito(UUID usuarioId, String url) {
+        favoritosRepository.eliminarFavorito(usuarioId, url);
     }
 
-    public List<Map<String, String>> listarFavoritos() {
-        return favoritosRepository.listarFavoritos();
+    public List<Map<String, String>> listarFavoritos(UUID usuarioId) {
+        return favoritosRepository.listarFavoritos(usuarioId);
     }
 
-    public void tocarFavorito(String url) {
-        favoritosRepository.tocarFavorito(url);
+    public void tocarFavorito(UUID usuarioId, String url) {
+        favoritosRepository.tocarFavorito(usuarioId, url);
     }
 
     // ─── Outfit feedback + categoria dismiss. Bodies in FeedbackRepository
@@ -373,50 +378,51 @@ public class DatabaseService {
      * la separación de señal por estilo). Se mantiene para callers/tests que no
      * distinguen estilo.
      */
-    public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked) {
-        guardarOutfitFeedbackItem(genero, slot, url, liked, "gym");
+    public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url, boolean liked) {
+        guardarOutfitFeedbackItem(usuarioId, genero, slot, url, liked, "gym");
     }
 
-    public void guardarOutfitFeedbackItem(String genero, String slot, String url, boolean liked, String estilo) {
-        feedbackRepository.guardarOutfitFeedbackItem(genero, slot, url, liked, estilo);
+    public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url,
+                                          boolean liked, String estilo) {
+        feedbackRepository.guardarOutfitFeedbackItem(usuarioId, genero, slot, url, liked, estilo);
     }
 
-    public List<OutfitItemRow> obtenerOutfitFeedback() {
-        return feedbackRepository.obtenerOutfitFeedback();
+    public List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
+        return feedbackRepository.obtenerOutfitFeedback(usuarioId);
     }
 
     /**
      * Marca una categoria como "no me interesa" feed-wide. Idempotente: si la
      * categoria ya está dismissed, no inserta una fila duplicada.
      */
-    public void guardarCategoriaDismiss(String categoria) {
-        feedbackRepository.guardarCategoriaDismiss(categoria);
+    public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
+        feedbackRepository.guardarCategoriaDismiss(usuarioId, categoria);
     }
 
     /**
      * Borra TODO el historial de feedback (todos los estilos + tabla legacy).
      * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
      */
-    public void limpiarOutfitFeedback() {
-        feedbackRepository.limpiarOutfitFeedback();
+    public void limpiarOutfitFeedback(UUID usuarioId) {
+        feedbackRepository.limpiarOutfitFeedback(usuarioId);
     }
 
     /**
      * Borra el historial de feedback de UN estilo ("gym" | "casual"). estilo
      * null/blank → no-op.
      */
-    public void limpiarOutfitFeedback(String estilo) {
-        feedbackRepository.limpiarOutfitFeedback(estilo);
+    public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
+        feedbackRepository.limpiarOutfitFeedback(usuarioId, estilo);
     }
 
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
-    public void borrarCategoriaDismiss(String categoria) {
-        feedbackRepository.borrarCategoriaDismiss(categoria);
+    public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
+        feedbackRepository.borrarCategoriaDismiss(usuarioId, categoria);
     }
 
     /** Lee todas las categorias dismissed feed-wide. */
-    public Set<String> obtenerCategoriaDismiss() {
-        return feedbackRepository.obtenerCategoriaDismiss();
+    public Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
+        return feedbackRepository.obtenerCategoriaDismiss(usuarioId);
     }
 
     public void marcarDescontinuado(String url) {
@@ -483,23 +489,24 @@ public class DatabaseService {
      * Persiste un outfit generado con su nombre, slots y suplementos en JSON, y el
      * total estimado. Retorna el id generado, o -1 en error.
      */
-    public int guardarOutfit(String nombre, String slotsJson, String suplementosJson, double total) {
-        return savedOutfitsRepository.guardarOutfit(nombre, slotsJson, suplementosJson, total);
+    public int guardarOutfit(UUID usuarioId, String nombre, String slotsJson,
+                             String suplementosJson, double total) {
+        return savedOutfitsRepository.guardarOutfit(usuarioId, nombre, slotsJson, suplementosJson, total);
     }
 
     /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
-    public List<Map<String, Object>> obtenerOutfitsGuardados() {
-        return savedOutfitsRepository.obtenerOutfitsGuardados();
+    public List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
+        return savedOutfitsRepository.obtenerOutfitsGuardados(usuarioId);
     }
 
     /** Elimina un outfit guardado por id. Retorna true si existía. */
-    public boolean eliminarOutfitGuardado(int id) {
-        return savedOutfitsRepository.eliminarOutfitGuardado(id);
+    public boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
+        return savedOutfitsRepository.eliminarOutfitGuardado(usuarioId, id);
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
-    public boolean renombrarOutfit(int id, String nombre) {
-        return savedOutfitsRepository.renombrarOutfit(id, nombre);
+    public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
+        return savedOutfitsRepository.renombrarOutfit(usuarioId, id, nombre);
     }
 
     // ─── Cron Jobs + Executions. Bodies in CronRepository (backlog A3);

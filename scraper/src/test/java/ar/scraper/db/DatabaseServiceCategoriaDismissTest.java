@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,16 +43,16 @@ class DatabaseServiceCategoriaDismissTest extends PostgresTestBase {
 
     @Test
     void obtenerCategoriaDismissIsEmptyWhenNothingDismissedYet() {
-        Set<String> dismissed = db.obtenerCategoriaDismiss();
+        Set<String> dismissed = db.obtenerCategoriaDismiss(yo());
 
         assertThat(dismissed).isEmpty();
     }
 
     @Test
     void guardarCategoriaDismissRoundTripsThroughObtener() {
-        db.guardarCategoriaDismiss("Antiparras");
+        db.guardarCategoriaDismiss(yo(), "Antiparras");
 
-        Set<String> dismissed = db.obtenerCategoriaDismiss();
+        Set<String> dismissed = db.obtenerCategoriaDismiss(yo());
 
         assertThat(dismissed).containsExactly("Antiparras");
     }
@@ -58,41 +60,53 @@ class DatabaseServiceCategoriaDismissTest extends PostgresTestBase {
     @Test
     void guardarCategoriaDismissIsIdempotentForTheSameCategoria() {
         Allure.parameter("categoria", "Lentes");
-        db.guardarCategoriaDismiss("Lentes");
-        db.guardarCategoriaDismiss("Lentes");
+        db.guardarCategoriaDismiss(yo(), "Lentes");
+        db.guardarCategoriaDismiss(yo(), "Lentes");
 
-        Set<String> dismissed = db.obtenerCategoriaDismiss();
+        Set<String> dismissed = db.obtenerCategoriaDismiss(yo());
 
         assertThat(dismissed).containsExactly("Lentes");
     }
 
     @Test
     void borrarCategoriaDismissRemovesItAndObtenerReturnsEmptyAgain() {
-        db.guardarCategoriaDismiss("Antiparras");
+        db.guardarCategoriaDismiss(yo(), "Antiparras");
 
-        db.borrarCategoriaDismiss("Antiparras");
+        db.borrarCategoriaDismiss(yo(), "Antiparras");
 
-        assertThat(db.obtenerCategoriaDismiss()).isEmpty();
+        assertThat(db.obtenerCategoriaDismiss(yo())).isEmpty();
     }
 
     @Test
     void borrarCategoriaDismissOnNonExistentCategoriaIsSafeNoOp() {
-        db.guardarCategoriaDismiss("Lentes");
+        db.guardarCategoriaDismiss(yo(), "Lentes");
 
         Allure.parameter("categoria", "NoExiste");
-        db.borrarCategoriaDismiss("NoExiste");
+        db.borrarCategoriaDismiss(yo(), "NoExiste");
 
-        assertThat(db.obtenerCategoriaDismiss()).containsExactly("Lentes");
+        assertThat(db.obtenerCategoriaDismiss(yo())).containsExactly("Lentes");
     }
 
     @Test
     void multipleDismissedCategoriasAreAllReturned() {
-        db.guardarCategoriaDismiss("Antiparras");
-        db.guardarCategoriaDismiss("Lentes");
-        db.guardarCategoriaDismiss("Gorras");
+        db.guardarCategoriaDismiss(yo(), "Antiparras");
+        db.guardarCategoriaDismiss(yo(), "Lentes");
+        db.guardarCategoriaDismiss(yo(), "Gorras");
 
-        Set<String> dismissed = db.obtenerCategoriaDismiss();
+        Set<String> dismissed = db.obtenerCategoriaDismiss(yo());
 
         assertThat(dismissed).containsExactlyInAnyOrder("Antiparras", "Lentes", "Gorras");
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

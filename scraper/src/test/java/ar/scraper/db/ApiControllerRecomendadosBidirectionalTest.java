@@ -18,6 +18,8 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,11 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
                 categoria, genero, List.of(), Product.MlScore.EMPTY, marca, "indumentaria", true);
     }
 
+    @AfterEach
+    void limpiarContextoDeSeguridad() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
         wireController();
@@ -77,6 +84,8 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         OutfitService outfitService       = new OutfitService(recommendationService);
 
         when(config.getMoneda()).thenReturn("ARS");
+
+        SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
