@@ -1,19 +1,28 @@
 package ar.scraper.web;
 
+import ar.scraper.config.AllowedOrigins;
 import ar.scraper.db.UsuarioRepository;
+import ar.scraper.security.AuthenticatedSubject;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.security.RefreshCookie;
 import ar.scraper.security.RefreshTokenService;
 import ar.scraper.security.TokenService;
 import ar.scraper.security.reset.PasswordResetService;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -23,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Authentication endpoints: login, refresh, logout.
@@ -60,11 +70,15 @@ public class AuthEndpoints {
     /** Header carrying the double-submit nonce. See {@link RefreshTokenService#rotar}. */
     public static final String CSRF_HEADER = "X-Refresh-CSRF";
 
+    /** {@code Sec-Fetch-Site} values a nonce-less bootstrap refresh trusts. See {@link #esBootstrapAdmitido}. */
+    private static final Set<String> SEC_FETCH_SITE_CONFIABLE = Set.of("same-origin", "same-site");
+
     private final UsuarioRepository usuarios;
     private final PasswordHasher hasher;
     private final TokenService tokens;
     private final RefreshTokenService sesiones;
     private final PasswordResetService reseteos;
+    private final AllowedOrigins allowedOrigins;
 
     /**
      * A real Argon2id hash of a value nobody knows, verified against when the
@@ -73,6 +87,44 @@ public class AuthEndpoints {
      */
     private final String hashSenuelo;
 
+    /**
+     * The sole Spring-managed constructor — {@code SpringWiringTest} enforces
+     * exactly one {@code @Autowired} constructor per bean, so a second
+     * {@code @Autowired(required = false)} overload (the earlier shape of this
+     * change) is not an option here. {@code AllowedOrigins} arrives via
+     * {@link ObjectProvider} instead of directly: several existing
+     * {@code @WebMvcTest} slices (predating frontend-auth-ui Phase 2) construct
+     * this controller with no {@code AllowedOrigins} bean registered at all, and
+     * {@code ObjectProvider} is always resolvable — {@link ObjectProvider#getIfAvailable()}
+     * simply returns {@code null} where the bean is absent, which
+     * {@link #esBootstrapAdmitido} already treats as "never admit". A direct
+     * {@code AllowedOrigins} parameter would instead fail those slices outright.
+     */
+    @Autowired
+    public AuthEndpoints(UsuarioRepository usuarios,
+                         PasswordHasher hasher,
+                         TokenService tokens,
+                         RefreshTokenService sesiones,
+                         PasswordResetService reseteos,
+                         ObjectProvider<AllowedOrigins> allowedOrigins) {
+        this.usuarios = usuarios;
+        this.hasher = hasher;
+        this.tokens = tokens;
+        this.sesiones = sesiones;
+        this.reseteos = reseteos;
+        this.allowedOrigins = allowedOrigins.getIfAvailable();
+        this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
+    }
+
+    /**
+     * Legacy 5-arg convenience overload, kept for the tests that predate the
+     * bootstrap-CSRF check and construct this class directly in plain Java (not
+     * through Spring). Not {@code @Autowired} — Spring never sees it as a
+     * candidate — so it exists purely so those call sites keep compiling
+     * unedited. With no allow-list to consult, a nonce-less refresh is never
+     * admitted through the bootstrap path — exactly this class's behaviour
+     * before Phase 2, not a new leniency.
+     */
     public AuthEndpoints(UsuarioRepository usuarios,
                          PasswordHasher hasher,
                          TokenService tokens,
@@ -83,6 +135,7 @@ public class AuthEndpoints {
         this.tokens = tokens;
         this.sesiones = sesiones;
         this.reseteos = reseteos;
+        this.allowedOrigins = null;
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
@@ -134,13 +187,26 @@ public class AuthEndpoints {
      * <p>The refresh token arrives only as a cookie and the nonce only as a
      * header, and that split is the CSRF defence: a cross-site page can make the
      * browser send the cookie, but it cannot set a custom header.</p>
+     *
+     * <h3>The bootstrap path — no nonce at all</h3>
+     *
+     * <p>A cold page load holds no nonce in memory yet, so its first refresh
+     * necessarily omits {@link #CSRF_HEADER}. {@link #esBootstrapAdmitido} decides
+     * whether that absence is forgiven, from {@code Origin} and
+     * {@code Sec-Fetch-Site} alone — never from anything the client could not be
+     * trusted to send honestly. The verdict is threaded into
+     * {@link RefreshTokenService#rotar} as an explicit argument; this method does
+     * not otherwise change what "valid" means.</p>
      */
     @PostMapping("/refresh")
     public ResponseEntity<ObjectNode> refresh(
             @CookieValue(name = RefreshCookie.NOMBRE, required = false) String refreshToken,
-            @RequestHeader(name = CSRF_HEADER, required = false) String nonce) {
+            @RequestHeader(name = CSRF_HEADER, required = false) String nonce,
+            @RequestHeader(name = "Origin", required = false) String origin,
+            @RequestHeader(name = "Sec-Fetch-Site", required = false) String secFetchSite) {
 
-        RefreshTokenService.Resultado resultado = sesiones.rotar(refreshToken, nonce);
+        boolean bootstrapAdmitido = esBootstrapAdmitido(origin, secFetchSite);
+        RefreshTokenService.Resultado resultado = sesiones.rotar(refreshToken, nonce, bootstrapAdmitido);
 
         if (resultado instanceof RefreshTokenService.Rotada rotada) {
             return conSesion(cuerpoDeAcceso(rotada.accessToken()), rotada.sesion());
@@ -162,6 +228,77 @@ public class AuthEndpoints {
         return ResponseEntity.status(401)
                 .header(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString())
                 .body(cuerpoDeError("refresh_invalido", "Volvé a iniciar sesión."));
+    }
+
+    /**
+     * Legacy 2-arg overload for tests that construct calls directly (bypassing
+     * HTTP) and predate the bootstrap-CSRF headers. No {@code Origin} or
+     * {@code Sec-Fetch-Site} means {@link #esBootstrapAdmitido} answers
+     * {@code false} regardless — identical to this endpoint's behaviour before
+     * Phase 2, not a shortcut around it.
+     */
+    public ResponseEntity<ObjectNode> refresh(String refreshToken, String nonce) {
+        return refresh(refreshToken, nonce, null, null);
+    }
+
+    /**
+     * The bootstrap-CSRF admission check (frontend-auth-ui, design D1).
+     *
+     * <p>Admits a nonce-less refresh only when <b>both</b> hold: {@code Origin}
+     * is present and an exact match of a configured allow-listed origin — port
+     * included, unlike {@code SameSite}/cookie scoping — and
+     * {@code Sec-Fetch-Site} is present and is {@code same-origin} or
+     * {@code same-site}. Either header missing, or {@code Origin} not an exact
+     * match, fails closed. {@code Sec-Fetch-Site} alone cannot discriminate a
+     * legitimate cross-origin deployment (this application's own topology sends
+     * {@code same-site} in both shipped installs) from a foreign {@code
+     * localhost} port, which is why {@code Origin} carries the real weight here.
+     */
+    private boolean esBootstrapAdmitido(String origin, String secFetchSite) {
+        if (allowedOrigins == null) {
+            return false;
+        }
+        if (origin == null || secFetchSite == null) {
+            return false;
+        }
+        if (!allowedOrigins.esPermitido(origin)) {
+            return false;
+        }
+        return SEC_FETCH_SITE_CONFIABLE.contains(secFetchSite);
+    }
+
+    // ── me ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Who the caller is, per the current filter chain's own read.
+     *
+     * <p>Reached only after {@link ar.scraper.security.SecurityConfig}'s chain
+     * has already required a valid, authenticated subject for this route (its
+     * {@link ar.scraper.security.ApiRoutePolicy} row is {@code AUTHENTICATED},
+     * deliberately not on the permit list — see that table's comment). This
+     * handler therefore never runs for an anonymous caller; the entry point
+     * answers 401 first. Zero new queries: {@link ar.scraper.security.JwtAuthFilter}
+     * already read the username and roles from the database for this exact
+     * request, and this method only reads what it already put in the security
+     * context.</p>
+     *
+     * <p>{@code roles} is a JSON array, never a scalar — {@code usuario_rol} is a
+     * join table that admits more than one, and collapsing it here would bake in
+     * an assumption the schema does not make.</p>
+     */
+    @GetMapping("/me")
+    public ResponseEntity<ObjectNode> me() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        AuthenticatedSubject subject = (AuthenticatedSubject) auth.getPrincipal();
+
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        resp.put("username", subject.username());
+        ArrayNode roles = resp.putArray("roles");
+        for (GrantedAuthority authority : auth.getAuthorities()) {
+            String nombre = authority.getAuthority();
+            roles.add(nombre.startsWith("ROLE_") ? nombre.substring("ROLE_".length()) : nombre);
+        }
+        return ResponseEntity.ok(resp);
     }
 
     // ── logout ───────────────────────────────────────────────────────────────
