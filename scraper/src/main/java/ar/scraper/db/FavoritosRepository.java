@@ -18,6 +18,15 @@ import java.util.Objects;
  * Persistence for the {@code favoritos} aggregate.
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
+ *
+ * <p><b>The {@code WHERE usuario_id IS NULL} in the upsert is load-bearing.</b>
+ * {@code V26} dropped {@code favoritos}' {@code url} primary key, so the only
+ * unique index left over {@code url} alone is the partial one covering rows
+ * with no owner. Postgres will not infer a partial index implicitly: the
+ * {@code ON CONFLICT} clause has to repeat its predicate, or the statement is
+ * rejected outright — the first insert included, not only a conflicting one.
+ * Dropping the predicate here fails as "no favourites saved" rather than as an
+ * error, because the methods below log and swallow.</p>
  */
 class FavoritosRepository {
 
@@ -35,7 +44,8 @@ class FavoritosRepository {
              PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO favoritos (url, sitio, nombre, added_at, last_checked_at)
                     VALUES (?, ?, ?, ?, NULL)
-                    ON CONFLICT(url) DO UPDATE SET sitio=excluded.sitio, nombre=excluded.nombre
+                    ON CONFLICT (url) WHERE usuario_id IS NULL
+                    DO UPDATE SET sitio=excluded.sitio, nombre=excluded.nombre
                     """)) {
             ps.setString(1, url);
             ps.setString(2, sitio);

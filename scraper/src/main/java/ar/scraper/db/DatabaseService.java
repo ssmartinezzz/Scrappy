@@ -61,6 +61,7 @@ public class DatabaseService {
     private final PreciosExternosRepository preciosExternosRepository;
     private final ProductRepository productRepository;
     private final CatalogQueryRepository catalogQueryRepository;
+    private final UsuarioRepository usuarioRepository;
     private final SiteRegistry siteRegistry;
 
     /**
@@ -93,10 +94,22 @@ public class DatabaseService {
         this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
         this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
         this.productRepository = new ProductRepository(dataSource, siteRegistry);
+        this.usuarioRepository = new UsuarioRepository(dataSource);
     }
 
     public SiteRegistry siteRegistry() {
         return siteRegistry;
+    }
+
+    /**
+     * Exposed as the repository itself rather than as delegating methods, unlike
+     * every other aggregate here. Account operations have one caller each (the
+     * seeder, then login) and no shared surface worth flattening, and the
+     * repository deliberately throws instead of logging and returning a wrong
+     * answer — a delegation layer that swallowed those would undo the point.
+     */
+    public UsuarioRepository usuarios() {
+        return usuarioRepository;
     }
 
     @PostConstruct
