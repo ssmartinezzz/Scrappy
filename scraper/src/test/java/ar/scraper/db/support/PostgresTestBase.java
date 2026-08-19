@@ -273,7 +273,12 @@ public abstract class PostgresTestBase {
                     ml_output, sitios_dinamicos, categoria_stats, favoritos,
                     outfit_feedback_item, categoria_dismiss,
                     financiacion_presets, saved_outfits, cron_executions, cron_jobs,
-                    agent_reclassify_audit
+                    agent_reclassify_audit,
+                    -- user-accounts-and-roles (V26). `rol` is deliberately absent:
+                    -- it is seed data the migration itself inserts, not test
+                    -- residue, and truncating it would leave the schema with no
+                    -- role vocabulary for any later test to grant.
+                    usuario, usuario_rol, refresh_token, password_reset_token
                 RESTART IDENTITY CASCADE
                 """);
         }

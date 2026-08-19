@@ -24,6 +24,10 @@
         <allure.version>2.29.1</allure.version>
         <aspectj.version>1.9.24</aspectj.version>
         <testcontainers.version>1.21.4</testcontainers.version>
+        <!-- BouncyCastle backs Argon2PasswordEncoder. Spring Boot 3.2.5's BOM
+             does not manage it, so it is pinned here like flyway-database-postgresql
+             below — an unpinned version is a build that changes under you. -->
+        <bouncycastle.version>1.76</bouncycastle.version>
         <!-- Spring Boot 3.2.5's dependencyManagement does not pin flyway-database-postgresql
              (added to Boot's managed BOM in later 3.2.x/3.3 lines) — pin explicitly, matching
              the flyway-core version Boot 3.2.5 DOES manage (10.10.0). -->
@@ -97,6 +101,22 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
             <version>${flyway.version}</version>
+        </dependency>
+
+        <!-- Argon2id password hashing (user-accounts-and-roles slice 1).
+             spring-security-crypto + BouncyCastle instead of a native binding:
+             this project ships as a portable Windows installer, and a JNI
+             library would have to be vendored per-architecture. Pure Java has
+             no such tail. The full spring-boot-starter-security is not pulled
+             in — slice 1 has no filter chain and no HTTP surface at all. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
 
         <!-- Testing (JUnit 5 + Mockito) -->
