@@ -1,8 +1,11 @@
 package ar.scraper.web;
 
+import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.security.PasswordHasher;
+import ar.scraper.security.RefreshCookie;
+import ar.scraper.security.RefreshTokenService;
 import ar.scraper.security.TokenService;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
@@ -57,7 +60,9 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
         repo = new UsuarioRepository(dataSource());
         PasswordHasher hasher = new PasswordHasher();
         tokens = new TokenService(SECRETO, Clock.systemUTC());
-        endpoints = new AuthEndpoints(repo, hasher, tokens);
+        Clock reloj = Clock.systemUTC();
+        endpoints = new AuthEndpoints(repo, hasher, tokens,
+                new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj));
 
         repo.crear("ana", "ana@example.com", hasher.hash(PASSWORD), false);
         repo.asignarRol("ana", "VIEWER");
@@ -135,6 +140,47 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
     void theResponseNeverEchoesTheCredential() {
         assertThat(login("ana", PASSWORD).getBody().toString()).doesNotContain(PASSWORD);
         assertThat(login("ana", "mal").getBody().toString()).doesNotContain("mal");
+    }
+
+
+    @Test
+    @DisplayName("login opens a session: the refresh token rides a scoped HttpOnly cookie, never the body")
+    void loginOpensASessionInACookieNotInTheBody() {
+        ResponseEntity<ObjectNode> resp = login("ana", PASSWORD);
+
+        String setCookie = resp.getHeaders().getFirst("Set-Cookie");
+        assertThat(setCookie)
+                .as("HttpOnly is what survives an XSS foothold; the narrow Path is what keeps it "
+                        + "off the other ~70 endpoints")
+                .contains(RefreshCookie.NOMBRE + "=")
+                .contains("HttpOnly")
+                .contains("Secure")
+                .contains("SameSite=Strict")
+                .contains("Path=" + RefreshCookie.PATH);
+
+        String valor = setCookie.substring(setCookie.indexOf('=') + 1, setCookie.indexOf(';'));
+        assertThat(resp.getBody().toString())
+                .as("a refresh token in the JSON body is readable by script, which is the whole "
+                        + "thing the cookie exists to prevent")
+                .doesNotContain(valor);
+        assertThat(resp.getBody().get("csrfNonce").asText()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("a service account gets a token but no session — the CLI has no use for one")
+    void serviceAccountsGetNoCookie() {
+        PasswordHasher hasher = new PasswordHasher();
+        repo.crear("cli", null, hasher.hash(PASSWORD), true);
+
+        ResponseEntity<ObjectNode> resp = login("cli", PASSWORD);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().get("accessToken").asText()).isNotBlank();
+        assertThat(resp.getHeaders().getFirst("Set-Cookie"))
+                .as("a fourteen-day credential for a client that re-authenticates from .env is "
+                        + "a credential lying around for nothing")
+                .isNull();
+        assertThat(resp.getBody().has("csrfNonce")).isFalse();
     }
 
     private ResponseEntity<ObjectNode> login(String username, String password) {

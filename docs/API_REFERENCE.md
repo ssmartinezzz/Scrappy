@@ -55,7 +55,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | `POST /auth/login` (**no gatea nada todavía** — ver abajo) |
+| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` (**no gatean nada todavía** — ver abajo) |
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
 | Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
@@ -125,6 +125,88 @@ cifrar es legible en tránsito por cualquiera en el camino, y con él se puede
 actuar como el usuario hasta que venza. Esta aplicación está pensada para correr
 en `localhost`; publicarla más allá **requiere TLS por delante**, no es una
 recomendación.
+
+
+## POST /auth/refresh · DELETE /auth/refresh
+
+Rotación de sesión y logout. **Sin consumidor hoy**: el CLI se reautentica con
+sus credenciales del `.env` y nunca sostiene un refresh token, así que toda esta
+superficie existe para un cliente de browser que todavía no está escrito. Se
+construyó antes que él a propósito, para que el frontend sea sólo consumir.
+
+**Cómo viaja cada cosa, y por qué**
+
+| | Dónde viaja | Por qué |
+|---|---|---|
+| Access token | header `Authorization: Bearer`, en memoria | un header no se adjunta solo, así que ninguna página ajena puede hacer que el browser lo mande |
+| Refresh token | cookie `refresh`, `HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh` | es lo único que tiene que sobrevivir a un F5. En memoria muere con el reload; en `localStorage` sobrevive pero lo lee cualquier script inyectado. `HttpOnly` hace las dos |
+| Nonce CSRF | body JSON al recibirlo, header `X-Refresh-CSRF` al mandarlo | el browser no adjunta headers custom por su cuenta — eso es lo que lo hace una prueba de intención |
+
+**Por qué hace falta el nonce si ya está `SameSite=Strict`.** Porque *same-site
+ignora el puerto*. Cualquier página servida desde cualquier otro puerto de
+`localhost` es same-site con este backend y la cookie se le adjunta igual. En una
+app pensada para localhost eso no es un caso de borde, es el escenario normal.
+
+**El orden importa: el nonce se valida ANTES de consumir el token.** Al revés, un
+pedido forjado rotaría primero y fallaría el chequeo después — dejando al cliente
+real con un token ya gastado, cuyo próximo refresco dispara la detección de reuso
+y lo desloguea. Sería convertir un ataque bloqueado en una denegación de servicio
+exitosa.
+
+**`POST /auth/refresh`** — cookie + `X-Refresh-CSRF`
+
+- **200**: `{ "accessToken", "tokenType", "expiresIn", "csrfNonce" }` + `Set-Cookie` con el token sucesor. El refresh token **nunca** aparece en el body.
+- **403** `csrf_invalido`: falta o no coincide el nonce. El token presentado **queda intacto**.
+- **401** `refresh_invalido`: desconocido, vencido o revocado. Limpia la cookie.
+- **401** `sesion_invalidada`: el token se presentó dos veces pasada la ventana de gracia. **Toda la familia queda revocada** — no se puede saber cuál de los dos presentadores es el ladrón, así que ninguno conserva la sesión.
+
+**Ventana de gracia de 10 s.** Un cliente que dispara varios pedidos en paralelo
+recibe varios 401 y puede refrescar más de una vez con el mismo token. Sin la
+ventana eso es indistinguible de un robo, y el detector desloguearía al usuario
+por ser rápido. Dentro de la ventana se devuelve el mismo par sucesor, sin rotar
+de nuevo. **Los 10 s son una propuesta, no una medición** — medirlos requiere un
+cliente de browser, que todavía no existe.
+
+**`DELETE /auth/refresh`** (logout) — cookie + `X-Refresh-CSRF`
+
+Revoca la familia entera y limpia la cookie. Es `DELETE` sobre `/auth/refresh` y
+no `/auth/logout` por una razón mecánica: el `Path` de la cookie es
+`/api/auth/refresh`, así que el browser no la adjuntaría a otra ruta y el
+servidor no sabría qué familia revocar. Deslogearse en otro path limpiaría la
+copia del browser dejando la sesión viva en el servidor.
+
+La cookie se limpia **siempre**, incluso con un token desconocido: quien la tiene
+igual la quiere afuera, y no limpiarla lo deja reenviando algo que ya nunca va a
+funcionar.
+
+**Las cuentas de servicio no reciben sesión.** `POST /auth/login` con
+`es_servicio = TRUE` devuelve access token y ninguna cookie: el CLI se
+reautentica de su `.env`, así que una credencial de catorce días sería una
+credencial tirada al pedo.
+
+### Topología: dónde funciona y dónde no
+
+`SameSite` usa el dominio registrable e **ignora el puerto**; el esquema sí cuenta.
+
+| Topología | ¿Anda? |
+|---|---|
+| `localhost:5173` → `localhost:3000` | **Sí** |
+| `app.example.com` → `api.example.com` | **Sí** |
+| `app.example.com` → `api.example.net` | **No** — cross-site, se descarta la cookie |
+| `http://` front → `https://` back | **No** — cross-scheme |
+| Fuera de localhost por HTTP plano | **No** — `Secure` la descarta |
+
+Frontend y backend tienen que compartir dominio registrable (o ser los dos
+localhost); fuera de localhost, HTTPS en ambos. Si no, el refresco falla **en
+silencio** y al usuario lo desloguean cada quince minutos sin ningún error a la
+vista — parece un bug, no una mala configuración.
+
+**CORS con credenciales está acotado a `/api/auth/refresh`.** Todo el resto sigue
+en `allowCredentials=false`. El mapeo del refresco se registra **antes** del
+`/**` porque gana el primero que matchea; al revés nunca se consultaría y el
+browser descartaría la cookie en cada refresco. Y `APP_CORS_ALLOWED_ORIGINS=*`
+**aborta el arranque** nombrando la variable: el comodín está prohibido bajo CORS
+con credenciales, y dejárselo a Spring lo convierte en un 500 al hacer login.
 
 
 ## GET /status
