@@ -3,6 +3,8 @@ package ar.scraper.db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.stereotype.Repository;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * Persistence for the {@code usuario} aggregate and its role grants.
@@ -32,11 +35,21 @@ import java.util.UUID;
  *       undoing a password change.</li>
  * </ul>
  *
+ * <p><b>A Spring bean, unlike its siblings in this package.</b> The others are
+ * package-private and constructed inside {@link DatabaseService}, which then
+ * delegates to them. This one is injected directly into {@code AuthEndpoints}
+ * and {@code AdminSeeder}, because authentication has no reason to reach
+ * through a service that also owns scraping, the catalogue and the ML output.
+ * There is deliberately no second copy behind {@code DatabaseService}: two
+ * instances of the same repository is how a future stateful field ends up
+ * disagreeing with itself.</p>
+ *
  * <p>Unlike the older repositories in this package, the methods here do not
  * swallow their exceptions. A favourite that fails to save is an annoyance; an
  * account operation that fails silently is an authentication decision made on
  * bad data, so failures propagate as {@link DatabaseException}.</p>
  */
+@Repository
 public class UsuarioRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(UsuarioRepository.class);
@@ -169,6 +182,128 @@ public class UsuarioRepository {
             }
         } catch (Exception e) {
             throw new DatabaseException("no se pudo desactivar la cuenta '" + username + "'", e);
+        }
+    }
+
+    // ─── Unidad de trabajo transaccional ─────────────────────────────────────
+
+    /**
+     * Runs {@code trabajo} against one connection with autocommit off,
+     * committing on return and rolling back on any throw.
+     *
+     * <p>It exists because bootstrap seeding and ownership adoption have to be
+     * one atomic step. Adopting rows into an admin account that a later failure
+     * rolls back would leave every personal row pointing at a user id that does
+     * not exist — a dangling owner is worse than no owner, because the rows
+     * become unreachable rather than merely unclaimed.</p>
+     */
+    public <T> T enTransaccion(Function<Tx, T> trabajo) {
+        try (Connection c = dataSource.getConnection()) {
+            boolean autocommitPrevio = c.getAutoCommit();
+            c.setAutoCommit(false);
+            try {
+                T resultado = trabajo.apply(new Tx(c));
+                c.commit();
+                return resultado;
+            } catch (RuntimeException | Error e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(autocommitPrevio);
+            }
+        } catch (java.sql.SQLException e) {
+            throw new DatabaseException("falló la transacción de cuentas", e);
+        }
+    }
+
+    /** The four tables a person owns rows in. {@code saved_outfit_item} inherits through its parent. */
+    private static final List<String> TABLAS_CON_DUENO =
+            List.of("favoritos", "saved_outfits", "outfit_feedback_item", "categoria_dismiss");
+
+    /** Connection-scoped operations. Only reachable from {@link #enTransaccion}. */
+    public final class Tx {
+
+        private final Connection c;
+
+        private Tx(Connection c) {
+            this.c = c;
+        }
+
+        /**
+         * Insert-if-absent plus the role grant, both idempotent.
+         *
+         * @return the account's id, whether this call created it or found it.
+         *         An existing {@code password_hash} is never touched — see
+         *         {@link UsuarioRepository#crear}.
+         */
+        public UUID sembrarCuenta(String username, String email, String passwordHash,
+                                  boolean esServicio, String rol) {
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO usuario (username, email, password_hash, es_servicio)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (username) DO NOTHING
+                    """)) {
+                ps.setString(1, username);
+                ps.setString(2, email);
+                ps.setString(3, passwordHash);
+                ps.setBoolean(4, esServicio);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudo sembrar la cuenta '" + username + "'", e);
+            }
+
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO usuario_rol (usuario_id, rol_id)
+                    SELECT u.id, r.id
+                    FROM usuario u, rol r
+                    WHERE u.username = ? AND r.nombre = ?
+                    ON CONFLICT DO NOTHING
+                    """)) {
+                ps.setString(1, username);
+                ps.setString(2, rol);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudo asignar el rol " + rol + " a '" + username + "'", e);
+            }
+
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT id FROM usuario WHERE username = ?")) {
+                ps.setString(1, username);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new DatabaseException(
+                                "la cuenta '" + username + "' no existe después de sembrarla", null);
+                    }
+                    return rs.getObject(1, UUID.class);
+                }
+            } catch (DatabaseException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudo leer el id de '" + username + "'", e);
+            }
+        }
+
+        /**
+         * Claims every ownerless row for {@code duenoId}.
+         *
+         * <p>Scoped to {@code usuario_id IS NULL}, which is what makes it both
+         * idempotent (a second run matches nothing) and safe to run while other
+         * accounts already own rows — it claims the unclaimed, never the owned.</p>
+         *
+         * @return how many rows were adopted, across all four tables.
+         */
+        public int adoptarFilasSinDueno(UUID duenoId) {
+            int adoptadas = 0;
+            for (String tabla : TABLAS_CON_DUENO) {
+                try (PreparedStatement ps = c.prepareStatement(
+                        "UPDATE " + tabla + " SET usuario_id = ? WHERE usuario_id IS NULL")) {
+                    ps.setObject(1, duenoId);
+                    adoptadas += ps.executeUpdate();
+                } catch (Exception e) {
+                    throw new DatabaseException("no se pudieron adoptar las filas de " + tabla, e);
+                }
+            }
+            return adoptadas;
         }
     }
 }

@@ -104,7 +104,8 @@ Scrappy/
         │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
         │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
         │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
-        │   ├── security/PasswordHasher     ← Argon2id (user-accounts-and-roles, fase 1)
+        │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
+        │   │                                  AdminSeeder (siembra + adopción)
         │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
         │   └── web/                        ← ApiController + *Endpoints + servicios
         │       ├── OutfitService           ←   armador aleatorio (Gym)
@@ -173,6 +174,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 
 | Grupo | Endpoints |
 |-------|-----------|
+| Auth | POST `/api/auth/login` — **emite tokens, no gatea nada todavía** |
 | Scraping | GET `/api/status` · POST `/api/scrape` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
