@@ -21,6 +21,9 @@ import AppLayout, {
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
+import { AuthProvider } from './auth/AuthProvider';
+import AuthGate from './auth/AuthGate';
+import Login from './pages/Login';
 
 // ─── RootGate ───────────────────────────────────────────────────────────────
 // Initial-load gate for "/" only: checking | toSplash | toCatalogo.
@@ -89,31 +92,40 @@ function SplashRoute() {
 }
 
 // ─── App (Routes) ────────────────────────────────────────────────────────────
+// frontend-auth-ui, Phase 5 (design D5): AuthGate sits ABOVE this Routes tree
+// so RootGate/SplashRoute — which call fetchStatus(), an AUTHENTICATED
+// endpoint (ApiRoutePolicy.java:150) — cannot mount before auth has settled.
+// RootGate itself is untouched; AuthGate just stops it mounting early.
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<RootGate/>}/>
-      <Route path="/splash" element={<SplashRoute/>}/>
-      <Route path="/" element={<AppLayout/>}>
-        <Route path="catalogo"   element={<CatalogoPanelRoute/>}/>
-        <Route path="picks"      element={<PicksPanelRoute/>}/>
-        <Route path="picks/:categoria" element={<CategoryPicksPageRoute/>}/>
-        <Route path="marcas"     element={<MarcasPanelRoute/>}/>
-        <Route path="grupos"     element={<GruposPanelRoute/>}/>
-        {/* /tendencias retired (spec "Old route retired") -> redirect to /analisis/mercado */}
-        <Route path="tendencias" element={<Navigate to="/analisis/mercado" replace/>}/>
-        <Route path="analisis/mercado" element={<MercadoPanelRoute/>}/>
-        <Route path="historial/:key" element={<HistorialPanelRoute/>}/>
-        <Route path="analisis/oportunidades" element={<OportunidadesPanelRoute/>}/>
-        <Route path="analisis/oportunidades/:badge" element={<OportunidadesBadgePanelRoute/>}/>
-        <Route path="favoritos"  element={<FavoritosPanelRoute/>}/>
-        <Route path="outfits"    element={<OutfitsPanelRoute/>}/>
-        <Route path="suplementos" element={<SuplementosPanelRoute/>}/>
-        <Route path="recomendados" element={<RecomendadosPanelRoute/>}/>
-        <Route path="financiacion" element={<FinanPanelRoute/>}/>
-        <Route path="cronjobs"   element={<CronjobsPanelRoute/>}/>
-        <Route path="*" element={<NotFound/>}/>
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <AuthGate>
+        <Routes>
+          <Route path="/login" element={<Login/>}/>
+          <Route path="/" element={<RootGate/>}/>
+          <Route path="/splash" element={<SplashRoute/>}/>
+          <Route path="/" element={<AppLayout/>}>
+            <Route path="catalogo"   element={<CatalogoPanelRoute/>}/>
+            <Route path="picks"      element={<PicksPanelRoute/>}/>
+            <Route path="picks/:categoria" element={<CategoryPicksPageRoute/>}/>
+            <Route path="marcas"     element={<MarcasPanelRoute/>}/>
+            <Route path="grupos"     element={<GruposPanelRoute/>}/>
+            {/* /tendencias retired (spec "Old route retired") -> redirect to /analisis/mercado */}
+            <Route path="tendencias" element={<Navigate to="/analisis/mercado" replace/>}/>
+            <Route path="analisis/mercado" element={<MercadoPanelRoute/>}/>
+            <Route path="historial/:key" element={<HistorialPanelRoute/>}/>
+            <Route path="analisis/oportunidades" element={<OportunidadesPanelRoute/>}/>
+            <Route path="analisis/oportunidades/:badge" element={<OportunidadesBadgePanelRoute/>}/>
+            <Route path="favoritos"  element={<FavoritosPanelRoute/>}/>
+            <Route path="outfits"    element={<OutfitsPanelRoute/>}/>
+            <Route path="suplementos" element={<SuplementosPanelRoute/>}/>
+            <Route path="recomendados" element={<RecomendadosPanelRoute/>}/>
+            <Route path="financiacion" element={<FinanPanelRoute/>}/>
+            <Route path="cronjobs"   element={<CronjobsPanelRoute/>}/>
+            <Route path="*" element={<NotFound/>}/>
+          </Route>
+        </Routes>
+      </AuthGate>
+    </AuthProvider>
   );
 }
