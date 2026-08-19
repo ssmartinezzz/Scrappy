@@ -11,6 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -285,6 +286,155 @@ public class UsuarioRepository {
     /** What the per-request authorization check reads. */
     public record Autorizacion(String username, List<String> roles, java.time.Instant passwordChangedAt) {}
 
+    // ─── Administración de cuentas (slice 9) ────────────────────────────────
+
+    /** A user as the administration surface shows them. Never carries the hash. */
+    public record Ficha(UUID id, String username, String email, boolean activo,
+                        boolean esServicio, List<String> roles) {}
+
+    /**
+     * Every account, active and disabled alike.
+     *
+     * <p>Disabled ones are included on purpose: an admin looking for the person
+     * they locked out last week needs to find them in order to let them back in.
+     * A list that silently omitted them would make deactivation look like
+     * deletion, which is exactly the confusion {@link #desactivar} avoids.</p>
+     *
+     * <p>{@code password_hash} is not selected. Nothing in this surface needs it,
+     * and a field that is never fetched cannot be leaked by a future serializer
+     * that helpfully includes every column.</p>
+     */
+    public List<Ficha> listar() {
+        Map<UUID, Ficha> porId = new java.util.LinkedHashMap<>();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                    SELECT u.id, u.username, u.email, u.activo, u.es_servicio, r.nombre
+                    FROM usuario u
+                    LEFT JOIN usuario_rol ur ON ur.usuario_id = u.id
+                    LEFT JOIN rol r          ON r.id = ur.rol_id
+                    ORDER BY u.username, r.nombre
+                    """);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                UUID id = rs.getObject(1, UUID.class);
+                Ficha previa = porId.get(id);
+                List<String> roles = previa == null ? new ArrayList<>() : new ArrayList<>(previa.roles());
+                String rol = rs.getString(6);
+                if (rol != null) {
+                    roles.add(rol);
+                }
+                porId.put(id, new Ficha(id, rs.getString(2), rs.getString(3),
+                        rs.getBoolean(4), rs.getBoolean(5), roles));
+            }
+            return List.copyOf(porId.values());
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudieron listar las cuentas", e);
+        }
+    }
+
+    /** The closed vocabulary, read from the table rather than hardcoded a second time. */
+    public List<String> rolesValidos() {
+        List<String> roles = new ArrayList<>();
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT nombre FROM rol ORDER BY nombre");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                roles.add(rs.getString(1));
+            }
+            return roles;
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo leer el vocabulario de roles", e);
+        }
+    }
+
+    /**
+     * Creates the account and grants its role in ONE transaction.
+     *
+     * <p>Atomic because the halves are useless apart: a user with no role cannot
+     * authorize anything (the per-request lookup returns empty and reads as
+     * "disabled"), and a grant with no user is impossible. Creating one without
+     * the other would leave an account that looks present in a listing and
+     * cannot log in, with no indication why.</p>
+     *
+     * @return the new account's id, or empty when the username is taken.
+     * @throws IllegalArgumentException for a role outside the closed vocabulary —
+     *         thrown, not silently ignored: {@link #asignarRol} matches on
+     *         {@code r.nombre}, so an invalid role would grant nothing and the
+     *         account would be born unusable.
+     */
+    public Optional<UUID> crearConRol(String username, String email, String passwordHash, String rol) {
+        if (!rolesValidos().contains(rol)) {
+            throw new IllegalArgumentException("rol inválido: " + rol);
+        }
+        return enTransaccion(tx -> {
+            if (!tx.existeUsername(username)) {
+                return Optional.of(tx.sembrarCuenta(username, email, passwordHash, false, rol));
+            }
+            return Optional.empty();
+        });
+    }
+
+    /**
+     * Replaces the account's roles with exactly {@code rol}.
+     *
+     * <p>A replacement rather than an addition: the matrix has two roles and ADMIN
+     * strictly contains VIEWER's reach, so "add VIEWER to an ADMIN" is never a
+     * meaningful request, while accidentally leaving the old grant in place would
+     * be a demotion that did not demote.</p>
+     */
+    public boolean reemplazarRol(String username, String rol) {
+        if (!rolesValidos().contains(rol)) {
+            throw new IllegalArgumentException("rol inválido: " + rol);
+        }
+        return enTransaccion(tx -> tx.reemplazarRol(username, rol));
+    }
+
+    /** Counts active ADMINs. Used to refuse removing the last one. */
+    public int adminsActivos() {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                    SELECT count(DISTINCT u.id)
+                    FROM usuario u
+                    JOIN usuario_rol ur ON ur.usuario_id = u.id
+                    JOIN rol r          ON r.id = ur.rol_id
+                    WHERE u.activo = TRUE AND r.nombre = 'ADMIN'
+                    """);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudieron contar los administradores activos", e);
+        }
+    }
+
+    public boolean esAdminActivo(String username) {
+        return rolesDe(username).contains("ADMIN")
+                && buscarActivaPorUsername(username).isPresent();
+    }
+
+    /** Puts a deactivated account back in service. */
+    public boolean reactivar(String username) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "UPDATE usuario SET activo = TRUE WHERE username = ?")) {
+            ps.setString(1, username);
+            return ps.executeUpdate() == 1;
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo reactivar la cuenta '" + username + "'", e);
+        }
+    }
+
+    public boolean existe(String username) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT 1 FROM usuario WHERE username = ?")) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo verificar la cuenta '" + username + "'", e);
+        }
+    }
+
     // ─── Unidad de trabajo transaccional ─────────────────────────────────────
 
     /**
@@ -380,6 +530,42 @@ public class UsuarioRepository {
                 throw e;
             } catch (Exception e) {
                 throw new DatabaseException("no se pudo leer el id de '" + username + "'", e);
+            }
+        }
+
+        /** Inside the transaction, so create-if-absent cannot race with itself. */
+        public boolean existeUsername(String username) {
+            try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM usuario WHERE username = ?")) {
+                ps.setString(1, username);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next();
+                }
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudo verificar '" + username + "'", e);
+            }
+        }
+
+        /** Drops every existing grant and leaves exactly one. */
+        public boolean reemplazarRol(String username, String rol) {
+            try (PreparedStatement ps = c.prepareStatement("""
+                    DELETE FROM usuario_rol
+                     WHERE usuario_id = (SELECT id FROM usuario WHERE username = ?)
+                    """)) {
+                ps.setString(1, username);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudo limpiar el rol de '" + username + "'", e);
+            }
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO usuario_rol (usuario_id, rol_id)
+                    SELECT u.id, r.id FROM usuario u, rol r
+                    WHERE u.username = ? AND r.nombre = ?
+                    """)) {
+                ps.setString(1, username);
+                ps.setString(2, rol);
+                return ps.executeUpdate() == 1;
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudo asignar el rol a '" + username + "'", e);
             }
         }
 

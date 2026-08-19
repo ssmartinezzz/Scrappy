@@ -55,7 +55,8 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `POST /auth/password-reset/request` · `POST /auth/password-reset/confirm` (**no gatean nada todavía**) |
+| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `POST /auth/password-reset/request` · `/confirm` |
+| Usuarios | `GET`/`POST /usuarios` · `PUT /usuarios/{username}/rol` · `DELETE /usuarios/{username}` · `PUT /usuarios/{username}/activar` — **ADMIN, sin UI** |
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
 | Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
@@ -294,6 +295,53 @@ ningún lado, porque nada en este diseño recibe correo. Una dirección tipeada 
 devuelve el mismo "fijate tu mail" y después silencio permanente — consecuencia
 directa de no ser un oráculo de enumeración. El diagnóstico del operador es
 consultar `password_reset_token`.
+
+
+## /usuarios — administración de cuentas
+
+**Sólo ADMIN, y sin interfaz.** Se maneja por `curl`; una pantalla es una
+decisión aparte con su propio diseño.
+
+**Nacieron gateados.** La regla ADMIN para `/api/usuarios/**` estaba en
+`ApiRoutePolicy.TABLE` desde el slice de enforcement, **matcheando nada**, un
+slice antes de que existieran las rutas. No hubo un instante en que un endpoint
+de creación de usuarios existiera sin una regla arriba — y eso importa porque un
+`POST /api/usuarios` abierto deja que cualquiera se cree una cuenta ADMIN, que es
+estrictamente peor que no tener la función.
+
+| | |
+|---|---|
+| `GET /usuarios` | Lista **todas** las cuentas, activas y desactivadas. Nunca devuelve el hash |
+| `POST /usuarios` | `{username, password, role, email?}` → **201**. `role` ∈ `ADMIN`/`VIEWER`; password mínimo 8 |
+| `PUT /usuarios/{username}/rol` | `{role}` — **reemplaza**, no acumula |
+| `DELETE /usuarios/{username}` | **Desactiva**, no borra |
+| `PUT /usuarios/{username}/activar` | Reactiva |
+
+**Errores**: `400 rol_invalido` (fuera del vocabulario cerrado) · `400 password_corta`
+· `400 faltan_campos` · `409 username_tomado` · `404 no_existe` · `409 ultimo_admin`.
+
+**Desactivar no es borrar.** Un DELETE real se llevaría por CASCADE los roles, los
+refresh tokens, los tokens de reseteo, el rastro de auditoría de lo que hizo esa
+persona, y —como el ownership cascadea— sus datos personales. La desactivación
+reusa el mecanismo de revocación que ya existe: el **próximo request** con su token
+todavía válido se rechaza, sin reemitir nada y sin mecanismo nuevo.
+
+**El crear es atómico**: cuenta + rol en una transacción. Las dos mitades no sirven
+por separado — una cuenta sin rol no autoriza nada (la consulta por request vuelve
+vacía y se lee como "desactivada"), así que media creación dejaría una cuenta que
+figura en la lista y no puede entrar, sin ninguna pista de por qué.
+
+**Y una cuenta duplicada no pisa la existente**: si el username está tomado
+devuelve 409 sin tocar nada. Si no, crear un duplicado sería una forma de
+resetearle la contraseña a otro.
+
+### La última cuenta ADMIN no se puede sacar
+
+Esto **no está en el spec** y lo agregué igual: desactivar o degradar al único
+ADMIN activo deja una aplicación que nadie puede administrar, y que sólo se
+recupera con SQL directo contra la base. Es un estado de un solo click,
+silencioso e irrecuperable por la API. Ambas rutas devuelven `409 ultimo_admin`,
+y el chequeo cuesta una consulta.
 
 
 ## GET /status

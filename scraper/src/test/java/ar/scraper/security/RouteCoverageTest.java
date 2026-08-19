@@ -100,16 +100,31 @@ class RouteCoverageTest {
     }
 
     @Test
-    @DisplayName("the /api/usuarios rule exists and currently matches no live mapping")
-    void theUserAdminRowIsPresentAndUnused() {
-        assertThat(ApiRoutePolicy.resolver(HttpMethod.POST, "/api/usuarios"))
-                .as("the rule ships before the routes so they are born gated — D10")
-                .isEqualTo(Access.ADMIN);
+    @DisplayName("every live /api/usuarios mapping resolves to ADMIN")
+    void everyUserAdminMappingIsAdminOnly() {
+        // Until the administration slice this asserted the opposite: the rule
+        // existed and matched NOTHING. That was the born-gated guarantee — the
+        // rule shipped one slice ahead of the routes, so there was never an
+        // instant in which a user-creation endpoint existed without an ADMIN rule
+        // above it. Now the routes exist, and the same rule covers them.
+        //
+        // The asymmetry that made it work is worth keeping in mind: an unused row
+        // is tolerated, a mapping with no row is not.
+        List<Ruta> deUsuarios = rutasDeLaAplicacion().stream()
+                .filter(r -> r.path().startsWith("/api/usuarios"))
+                .toList();
 
-        assertThat(rutasDeLaAplicacion())
-                .as("shipping a user-creation endpoint before enforcement would let anybody mint "
-                        + "themselves an ADMIN account — strictly worse than not having it")
-                .noneMatch(r -> r.path().startsWith("/api/usuarios"));
+        assertThat(deUsuarios)
+                .as("the administration surface exists now")
+                .isNotEmpty();
+
+        for (Ruta ruta : deUsuarios) {
+            assertThat(ApiRoutePolicy.resolver(ruta.metodo(), concretar(ruta.path())))
+                    .as("%s %s must be ADMIN — an ungated one lets anybody mint themselves an "
+                            + "ADMIN account, which is strictly worse than not having the feature",
+                            ruta.metodo(), ruta.path())
+                    .isEqualTo(Access.ADMIN);
+        }
     }
 
     @Test
