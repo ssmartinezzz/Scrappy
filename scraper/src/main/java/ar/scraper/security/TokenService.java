@@ -115,4 +115,23 @@ public class TokenService {
             return Optional.empty();
         }
     }
+
+    /**
+     * The token's {@code iat}, when it is one of ours and still valid.
+     *
+     * <p>Read separately from {@link #verificar} so the two questions stay
+     * separate: "is this token ours" and "was it issued before the password
+     * changed" have different answers and different consequences.</p>
+     */
+    public Optional<Instant> emitidoEn(String token) {
+        if (verificar(token).isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            Date emitido = SignedJWT.parse(token).getJWTClaimsSet().getIssueTime();
+            return Optional.ofNullable(emitido).map(Date::toInstant);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
 }

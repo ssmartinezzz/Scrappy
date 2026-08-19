@@ -239,6 +239,52 @@ public class UsuarioRepository {
         }
     }
 
+    /**
+     * Everything authorization needs about a subject, in <b>one</b> query.
+     *
+     * <p>Role and {@code password_changed_at} come back together because the
+     * filter needs both on every single request, and two round-trips for one
+     * decision is the kind of cost that later gets "optimised" into a cache —
+     * which is exactly what must not happen here, since a missed eviction would
+     * be a privilege escalation nobody sees.</p>
+     *
+     * <p>Filters {@code activo = TRUE}, so an empty result covers unknown,
+     * disabled and role-less alike.</p>
+     */
+    public Optional<Autorizacion> autorizacionDe(UUID usuarioId) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                    SELECT u.username, u.password_changed_at, r.nombre
+                    FROM usuario u
+                    JOIN usuario_rol ur ON ur.usuario_id = u.id
+                    JOIN rol r          ON r.id = ur.rol_id
+                    WHERE u.id = ? AND u.activo = TRUE
+                    ORDER BY r.nombre
+                    """)) {
+            ps.setObject(1, usuarioId);
+            try (ResultSet rs = ps.executeQuery()) {
+                String username = null;
+                java.time.Instant cambiada = null;
+                List<String> roles = new ArrayList<>();
+                while (rs.next()) {
+                    username = rs.getString(1);
+                    java.sql.Timestamp ts = rs.getTimestamp(2);
+                    cambiada = ts == null ? null : ts.toInstant();
+                    roles.add(rs.getString(3));
+                }
+                if (roles.isEmpty()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new Autorizacion(username, roles, cambiada));
+            }
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo leer la autorización del usuario", e);
+        }
+    }
+
+    /** What the per-request authorization check reads. */
+    public record Autorizacion(String username, List<String> roles, java.time.Instant passwordChangedAt) {}
+
     // ─── Unidad de trabajo transaccional ─────────────────────────────────────
 
     /**

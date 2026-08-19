@@ -2,7 +2,9 @@ package ar.scraper.web;
 
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.security.PasswordHasher;
+import ar.scraper.security.JwtAuthFilter;
 import ar.scraper.security.RefreshTokenService;
+import ar.scraper.security.SecurityConfig;
 import ar.scraper.security.reset.PasswordResetService;
 import ar.scraper.security.TokenService;
 import io.qameta.allure.Epic;
@@ -14,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
@@ -40,6 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * not what is under test here.</p>
  */
 @WebMvcTest(controllers = AuthEndpoints.class)
+@Import({SecurityConfig.class, JwtAuthFilter.class})
+@TestPropertySource(properties = "auth.jwt.secret=un-secreto-de-al-menos-32-bytes-para-hs256")
 @Epic("Security")
 @Feature("Login")
 @Story("POST /api/auth/login is actually mapped")
@@ -77,9 +83,14 @@ class AuthEndpointsMappingTest {
     }
 
     @Test
-    @DisplayName("GET /api/auth/login is not routed — the mapping is method-scoped")
+    @DisplayName("GET /api/auth/login is refused before it ever reaches a mapping")
     void loginIsPostOnly() throws Exception {
+        // Before enforcement this was a 405: the route existed, the verb did not.
+        // Now the policy table permits only POST on this path, so an unlisted verb
+        // never reaches a mapping — it is refused by the chain first. Anonymous, so
+        // 401 ("authenticate") rather than 403 ("you may not"): the two are
+        // deliberately different answers, and this is the entry point doing its job.
         mockMvc.perform(get("/api/auth/login"))
-                .andExpect(status().isMethodNotAllowed());
+                .andExpect(status().isUnauthorized());
     }
 }

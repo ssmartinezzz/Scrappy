@@ -107,6 +107,8 @@ Scrappy/
         │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
         │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
         │   │                                  AdminSeeder (siembra + adopción)
+        │   │                                  ApiRoutePolicy (la matriz, como dato),
+        │   │                                  SecurityConfig + JwtAuthFilter (el gate)
         │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
         │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
         │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
@@ -174,6 +176,24 @@ default → TiendanubeScraper (JS heurístico)
 ## API REST
 
 Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
+Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md).
+
+> 🔒 **El API está cerrado.** Desde `user-accounts-and-roles` toda ruta `/api/*`
+> exige un access token salvo seis, y **una ruta sin fila en la tabla de política
+> se rechaza, no se permite** — `ApiRoutePolicy.TABLE` no tiene catch-all y
+> termina en `denyAll()`. Agregar un endpoint sin su fila lo deja en 403, y
+> `RouteCoverageTest` lo rompe en el build antes de que llegue a producción.
+>
+> **El dashboard React actual NO funciona contra esto**: no manda ningún header.
+> Repararlo es el primer trabajo del SDD de frontend.
+>
+> Permitidas sin credencial, y son todas: `OPTIONS /**` (preflight),
+> `POST /api/auth/login`, `POST`/`DELETE /api/auth/refresh`,
+> `POST /api/auth/password-reset/request` y `/confirm`, `GET /`.
+>
+> **401 y 403 no son lo mismo**: 401 es "no sé quién sos, autenticá"; 403 es "sé
+> quién sos y no podés". Un cliente que los confunde entra en loop de refresh o
+> muestra un error de permisos cuando sólo se le venció el token.
 
 | Grupo | Endpoints |
 |-------|-----------|
