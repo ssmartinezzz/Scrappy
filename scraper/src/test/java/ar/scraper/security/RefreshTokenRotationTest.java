@@ -226,7 +226,74 @@ class RefreshTokenRotationTest extends PostgresTestBase {
                 .isEmpty();
     }
 
+    // ── frontend-auth-ui, Phase 2 · bootstrapAdmitido ────────────────────────
+
+    @Test
+    @DisplayName("2.1 — bootstrapAdmitido=true admits a nonce-less refresh when the row has a stored nonce")
+    void bootstrapAdmitidoTrueAdmitsANonceLessRefresh() {
+        RefreshTokenService.Sesion inicial = service.abrir(ana);
+
+        RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), null, true);
+
+        assertThat(resultado)
+                .as("the row has a real stored nonce (emitir() always mints one) and the caller "
+                        + "vouched for the request via bootstrapAdmitido — this is the cold-start path")
+                .isInstanceOf(RefreshTokenService.Rotada.class);
+    }
+
+    @Test
+    @DisplayName("2.2 — bootstrapAdmitido=false still refuses a nonce-less refresh, token intact")
+    void bootstrapAdmitidoFalseStillRefusesANonceLessRefresh() {
+        RefreshTokenService.Sesion inicial = service.abrir(ana);
+
+        RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), null, false);
+
+        assertThat(resultado).isInstanceOf(RefreshTokenService.CsrfInvalido.class);
+        assertThat(service.rotar(inicial.refreshToken(), inicial.csrfNonce(), false))
+                .as("a rejected bootstrap attempt must not have consumed the token")
+                .isInstanceOf(RefreshTokenService.Rotada.class);
+    }
+
+    @Test
+    @DisplayName("2.3 — bootstrapAdmitido=true does not disturb the pre-existing null-stored-nonce path")
+    void bootstrapAdmitidoTrueLeavesTheNullStoredNoncePathUntouched() throws Exception {
+        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        limpiarNonceAlmacenado(inicial.refreshToken());
+
+        RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), "cualquier-cosa", true);
+
+        assertThat(resultado)
+                .as("esperado == null is unconditional — bootstrapAdmitido adds a path, it does not "
+                        + "replace this one")
+                .isInstanceOf(RefreshTokenService.Rotada.class);
+    }
+
+    @Test
+    @DisplayName("2.8 — a wrong, non-null nonce is always 403, regardless of bootstrapAdmitido")
+    void aWrongNonNullNonceIsAlwaysRejectedRegardlessOfBootstrapAdmitido() {
+        RefreshTokenService.Sesion inicial = service.abrir(ana);
+
+        RefreshTokenService.Resultado resultado =
+                service.rotar(inicial.refreshToken(), "nonce-equivocado", true);
+
+        assertThat(resultado)
+                .as("the nonce-less bootstrap path grants no other leniency — a present-but-wrong "
+                        + "nonce is a separate case, never admitted by this flag")
+                .isInstanceOf(RefreshTokenService.CsrfInvalido.class);
+        assertThat(service.rotar(inicial.refreshToken(), inicial.csrfNonce(), false))
+                .as("and the token was not consumed by the rejected attempt")
+                .isInstanceOf(RefreshTokenService.Rotada.class);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private void limpiarNonceAlmacenado(String rawToken) throws Exception {
+        try (Connection c = dataSource().getConnection();
+             Statement st = c.createStatement()) {
+            st.execute("UPDATE refresh_token SET csrf_nonce = NULL WHERE token_hash = '"
+                    + RefreshTokenRepository.hash(rawToken) + "'");
+        }
+    }
 
     private java.sql.Timestamp rotadoEn(String rawToken) throws Exception {
         try (Connection c = dataSource().getConnection();

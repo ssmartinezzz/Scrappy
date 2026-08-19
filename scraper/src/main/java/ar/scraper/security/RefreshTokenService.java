@@ -119,6 +119,16 @@ public class RefreshTokenService {
     }
 
     /**
+     * Rotates, replays, or refuses. Equivalent to {@link #rotar(String, String, boolean)}
+     * with {@code bootstrapAdmitido=false} — every pre-frontend-auth-ui caller,
+     * including this application's own {@code AuthEndpoints}, passes through here
+     * with no bootstrap leniency at all.
+     */
+    public Resultado rotar(String rawToken, String nonce) {
+        return rotar(rawToken, nonce, false);
+    }
+
+    /**
      * Rotates, replays, or refuses.
      *
      * <p><b>The nonce is verified before the token is consumed, and the order is
@@ -127,8 +137,19 @@ public class RefreshTokenService {
      * a token that has just been spent, so its next refresh trips reuse
      * detection. That converts a blocked attack into a forced logout, which is
      * most of what the attacker wanted anyway.</p>
+     *
+     * <h3>{@code bootstrapAdmitido} — the frontend-auth-ui, Phase 2 carve-out</h3>
+     *
+     * <p>A cold page load has no nonce to present at all: it is not "wrong", it
+     * is simply absent. {@code AuthEndpoints} decides, from the servlet request's
+     * {@code Origin} and {@code Sec-Fetch-Site} headers (never from anything
+     * inside this service), whether that absence should be forgiven, and passes
+     * the verdict in as this boolean. {@code rotar} stays a pure function of its
+     * arguments — no static, no thread-local — so the decision is always visible
+     * at the call site. A nonce that is <b>present but wrong</b> is never
+     * forgiven by this flag; see {@link #nonceCoincide}.</p>
      */
-    public Resultado rotar(String rawToken, String nonce) {
+    public Resultado rotar(String rawToken, String nonce, boolean bootstrapAdmitido) {
         if (rawToken == null || rawToken.isBlank()) {
             return new Rechazada("sin token");
         }
@@ -142,7 +163,7 @@ public class RefreshTokenService {
         }
         RefreshTokenRepository.Fila fila = quiza.get();
 
-        if (!nonceCoincide(fila.csrfNonce(), nonce)) {
+        if (!nonceCoincide(fila.csrfNonce(), nonce, bootstrapAdmitido)) {
             return new CsrfInvalido();
         }
 
@@ -195,7 +216,9 @@ public class RefreshTokenService {
             return false;
         }
         RefreshTokenRepository.Fila fila = quiza.get();
-        if (!nonceCoincide(fila.csrfNonce(), nonce)) {
+        // Logout has no bootstrap carve-out: a page with no nonce cannot log
+        // another session out just by being on an allow-listed origin.
+        if (!nonceCoincide(fila.csrfNonce(), nonce, false)) {
             return false;
         }
         repo.revocarFamilia(fila.familyId(), reloj.instant());
@@ -219,13 +242,23 @@ public class RefreshTokenService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer);
     }
 
-    /** Constant-time, so a nonce cannot be recovered one character at a time. */
-    private static boolean nonceCoincide(String esperado, String recibido) {
+    /**
+     * Constant-time, so a nonce cannot be recovered one character at a time.
+     *
+     * <p>Three cases, and only one of them consults {@code bootstrapAdmitido}:
+     * a row with no stored nonce at all is unaffected (nothing to compare
+     * against, exactly as before this parameter existed); a nonce-less request
+     * against a row that <b>does</b> have a stored nonce is admitted only when
+     * the caller vouched for it; a <b>present but wrong</b> nonce is never
+     * admitted by this flag — {@code bootstrapAdmitido} widens what counts as
+     * "no nonce presented", not what counts as "the right nonce".</p>
+     */
+    private static boolean nonceCoincide(String esperado, String recibido, boolean bootstrapAdmitido) {
         if (esperado == null) {
             return true; // pre-nonce row; nothing to compare against
         }
         if (recibido == null) {
-            return false;
+            return bootstrapAdmitido;
         }
         return java.security.MessageDigest.isEqual(
                 esperado.getBytes(java.nio.charset.StandardCharsets.UTF_8),
