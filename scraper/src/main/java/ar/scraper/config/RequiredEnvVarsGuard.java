@@ -70,6 +70,23 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
             "CLI_SERVICE_ACCOUNT_PASSWORD"
     );
 
+    /**
+     * SMTP is required <b>conditionally</b> — only when the operator has selected
+     * that channel. Listing it unconditionally would force every installation to
+     * configure a mail server for a feature whose default adapter writes to the
+     * log and needs nothing, which is the opposite of what this project's
+     * zero-configuration install is for.
+     */
+    static final List<String> SMTP_VARS = List.of(
+            "SMTP_HOST",
+            "SMTP_PORT",
+            "SMTP_USERNAME",
+            "SMTP_PASSWORD",
+            "SMTP_FROM_ADDRESS"
+    );
+
+    private static final String SELECTOR_DE_CANAL = "PASSWORD_RESET_CHANNEL";
+
     private static final List<String> SKIP_PROFILES = List.of("dev", "test");
 
     @Override
@@ -88,6 +105,14 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
             String value = environment.getProperty(key);
             if (value == null || value.isBlank()) {
                 missing.add(key);
+            }
+        }
+        if ("smtp".equalsIgnoreCase(String.valueOf(environment.getProperty(SELECTOR_DE_CANAL)).trim())) {
+            for (String key : SMTP_VARS) {
+                String value = environment.getProperty(key);
+                if (value == null || value.isBlank()) {
+                    missing.add(key);
+                }
             }
         }
 

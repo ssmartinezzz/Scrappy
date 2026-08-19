@@ -5,6 +5,7 @@ import ar.scraper.security.PasswordHasher;
 import ar.scraper.security.RefreshCookie;
 import ar.scraper.security.RefreshTokenService;
 import ar.scraper.security.TokenService;
+import ar.scraper.security.reset.PasswordResetService;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -62,6 +64,7 @@ public class AuthEndpoints {
     private final PasswordHasher hasher;
     private final TokenService tokens;
     private final RefreshTokenService sesiones;
+    private final PasswordResetService reseteos;
 
     /**
      * A real Argon2id hash of a value nobody knows, verified against when the
@@ -73,11 +76,13 @@ public class AuthEndpoints {
     public AuthEndpoints(UsuarioRepository usuarios,
                          PasswordHasher hasher,
                          TokenService tokens,
-                         RefreshTokenService sesiones) {
+                         RefreshTokenService sesiones,
+                         PasswordResetService reseteos) {
         this.usuarios = usuarios;
         this.hasher = hasher;
         this.tokens = tokens;
         this.sesiones = sesiones;
+        this.reseteos = reseteos;
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
@@ -187,6 +192,45 @@ public class AuthEndpoints {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString())
                 .body(resp);
+    }
+
+    // ── password reset ───────────────────────────────────────────────────────
+
+    /**
+     * Accepts a reset request and says nothing about the address.
+     *
+     * <p>Always 202, always the same body, always at the same speed. The
+     * uniformity is not politeness: a form that answers differently for a known
+     * address is a list of this system's users, handed out for free to anybody
+     * with a wordlist. See {@link PasswordResetService} for how the timing half
+     * is achieved.</p>
+     */
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<ObjectNode> pedirReseteo(@RequestBody(required = false) Map<String, String> body,
+                                                   HttpServletRequest request) {
+        String direccion = body == null ? null : body.get("email");
+        reseteos.solicitar(direccion, request == null ? null : request.getRemoteAddr());
+
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        resp.put("mensaje", "Si la dirección corresponde a una cuenta, va a recibir un enlace.");
+        return ResponseEntity.accepted().body(resp);
+    }
+
+    /** Consumes the token and sets the new password, or refuses without saying why. */
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<ObjectNode> confirmarReseteo(@RequestBody(required = false) Map<String, String> body) {
+        String token = body == null ? null : body.get("token");
+        String nueva = body == null ? null : body.get("password");
+
+        if (!reseteos.confirmar(token, nueva)) {
+            return error(400, "reseteo_invalido",
+                    "El enlace no sirve, ya fue usado o venció, o la contraseña es muy corta "
+                            + "(mínimo 8 caracteres). Pedí uno nuevo.");
+        }
+        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+        resp.put("ok", true);
+        resp.put("mensaje", "Contraseña cambiada. Todas las sesiones abiertas fueron cerradas.");
+        return ResponseEntity.ok(resp);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

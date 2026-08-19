@@ -68,9 +68,16 @@ public class UsuarioRepository {
                          boolean esServicio) {
     }
 
-    /** Thrown instead of logging and returning a wrong answer. */
+    /**
+     * Thrown instead of logging and returning a wrong answer.
+     *
+     * <p>Public constructor because the account-adjacent services outside this
+     * package — the reset flow, the session store — need to raise the same kind
+     * of failure. Their alternative is inventing a parallel exception for the
+     * same condition, which only makes the callers catch two things.</p>
+     */
     public static class DatabaseException extends RuntimeException {
-        DatabaseException(String message, Throwable cause) {
+        public DatabaseException(String message, Throwable cause) {
             super(message, cause);
         }
     }
@@ -182,6 +189,53 @@ public class UsuarioRepository {
             }
         } catch (Exception e) {
             throw new DatabaseException("no se pudo desactivar la cuenta '" + username + "'", e);
+        }
+    }
+
+    /** Reset looks accounts up by address; login never does. */
+    public Optional<Cuenta> buscarActivaPorEmail(String email) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
+                    SELECT id, username, email, password_hash, es_servicio
+                    FROM usuario
+                    WHERE email = ? AND activo = TRUE
+                    """)) {
+            ps.setString(1, email == null ? null : email.trim().toLowerCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new Cuenta(
+                        rs.getObject(1, UUID.class),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getString(4),
+                        rs.getBoolean(5)));
+            }
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo buscar la cuenta por email", e);
+        }
+    }
+
+    /**
+     * Sets a new hash and stamps {@code password_changed_at}, on the caller's
+     * connection so it can join the reset transaction.
+     *
+     * <p>The stamp is not bookkeeping. Access tokens already issued stay
+     * cryptographically valid for up to fifteen minutes after a reset, and
+     * comparing a token's {@code iat} against this column is what closes that
+     * window — at no extra query, because the per-request authorization lookup
+     * reads it anyway.</p>
+     */
+    public boolean cambiarPassword(Connection c, UUID usuarioId, String passwordHash, java.time.Instant cuando) {
+        try (PreparedStatement ps = c.prepareStatement(
+                "UPDATE usuario SET password_hash = ?, password_changed_at = ? WHERE id = ?")) {
+            ps.setString(1, passwordHash);
+            ps.setTimestamp(2, java.sql.Timestamp.from(cuando));
+            ps.setObject(3, usuarioId);
+            return ps.executeUpdate() == 1;
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo cambiar la password", e);
         }
     }
 

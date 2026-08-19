@@ -107,6 +107,8 @@ Scrappy/
         │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
         │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
         │   │                                  AdminSeeder (siembra + adopción)
+        │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
+        │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
         │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
         │   └── web/                        ← ApiController + *Endpoints + servicios
         │       ├── OutfitService           ←   armador aleatorio (Gym)
@@ -175,7 +177,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` — **emiten y rotan tokens, no gatean nada todavía** |
+| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` · POST `/api/auth/password-reset/request` · `/confirm` — **no gatean nada todavía** |
 | Scraping | GET `/api/status` · POST `/api/scrape` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |

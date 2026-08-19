@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.security.RefreshTokenService;
+import ar.scraper.security.reset.PasswordResetService;
 import ar.scraper.security.TokenService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -59,6 +60,9 @@ class AuthEndpointsMappingTest {
 
     @MockBean
     private RefreshTokenService sesiones;
+
+    @MockBean
+    private PasswordResetService reseteos;
 
     @Test
     @DisplayName("POST /api/auth/login is routed — bad credentials reach the endpoint and get 401")

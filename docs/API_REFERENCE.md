@@ -55,7 +55,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` (**no gatean nada todavía** — ver abajo) |
+| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `POST /auth/password-reset/request` · `POST /auth/password-reset/confirm` (**no gatean nada todavía**) |
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
 | Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
@@ -207,6 +207,93 @@ en `allowCredentials=false`. El mapeo del refresco se registra **antes** del
 browser descartaría la cookie en cada refresco. Y `APP_CORS_ALLOWED_ORIGINS=*`
 **aborta el arranque** nombrando la variable: el comodín está prohibido bajo CORS
 con credenciales, y dejárselo a Spring lo convierte en un 500 al hacer login.
+
+
+## POST /auth/password-reset/request · POST /auth/password-reset/confirm
+
+"Me olvidé la contraseña". Sin autenticación por diseño: quien lo usa es
+exactamente quien no puede entrar.
+
+### `/request` — siempre 202, siempre igual, siempre a la misma velocidad
+
+```json
+{ "email": "ana@example.com" }
+```
+
+Responde **202** con el mismo body para una dirección real, una inexistente, una
+malformada y una de cuenta de servicio:
+
+```json
+{ "mensaje": "Si la dirección corresponde a una cuenta, va a recibir un enlace." }
+```
+
+**La uniformidad no es cortesía.** Un formulario que contesta distinto para una
+dirección conocida es la lista de usuarios de este sistema, regalada a cualquiera
+con un diccionario.
+
+Y el body igual no alcanza: si la rama de la cuenta existente hiciera una lectura
+a la base, un hash y una vuelta a SMTP antes de contestar, **el reloj respondería
+lo que el body se niega a decir**. Por eso el hilo del request no hace *nada* que
+dependa de la cuenta: normaliza la dirección, la manda a un hilo virtual y
+retorna. La búsqueda, el rate-limit y el envío pasan todos después. Efecto lateral
+útil: una falla de envío es **estructuralmente incapaz** de llegar al que llamó,
+porque para cuando el `send` explota el 202 ya se escribió.
+
+**Las cuentas de servicio quedan afuera por el esquema, no por un `if`.** `V26`
+trae `CHECK (NOT es_servicio OR email IS NULL)`: no tienen dirección, y un flujo
+que busca *por* dirección no puede encontrarlas.
+
+**Rate-limit silencioso**, tres ventanas de una hora: 3 por dirección, 10 por IP,
+100 global. Un pedido limitado **igual devuelve 202** — un 429 sería un oráculo
+por cuenta: preguntá dos veces y la segunda respuesta te dice si la dirección
+existe. Los tres topes son **propuestas, no mediciones**.
+
+### `/confirm`
+
+```json
+{ "token": "…", "password": "la-nueva" }
+```
+
+- **200**: contraseña cambiada. **Todas** las sesiones del usuario quedan revocadas.
+- **400** `reseteo_invalido`: token desconocido, ya usado o vencido, o contraseña de menos de 8 caracteres. No se distinguen.
+
+Corre en **una** transacción: consumir el token, escribir el hash nuevo y
+`password_changed_at`, revocar todas las familias de refresh, anular los demás
+links pendientes. Que alguna de esas fallara sola dejaría un desastre con buena
+cara: un token quemado con la contraseña vieja todavía puesta, o una contraseña
+nueva con la sesión del intruso viva.
+
+El consumo es **una sola sentencia** (`UPDATE … WHERE consumed_at IS NULL AND
+expires_at > now() RETURNING usuario_id`). Leer-chequear-actualizar pasa todos
+los tests secuenciales y falla exactamente cuando llegan dos pedidos juntos, que
+es la carrera que un atacante corre y la que causa un doble click.
+
+### El link
+
+`{PASSWORD_RESET_LINK_BASE}/reset-password#token=…` — el token va en el
+**fragmento**, no en el query string. Un fragmento nunca llega al servidor, así
+que no puede terminar en un access log, y nunca viaja en `Referer`, así que no se
+filtra a los recursos de terceros que cargue la página.
+
+### Canales
+
+| | `console` (default) | `smtp` (opt-in) |
+|---|---|---|
+| Configuración | ninguna | las cinco `SMTP_*`, o el arranque aborta nombrándolas |
+| Entrega | escribe el link en `scraper.log` | manda el mail |
+
+El default es `console` a propósito: exigir un servidor de mail para recuperar
+una contraseña dejaría la función fuera de alcance para las instalaciones de un
+solo usuario que más la necesitan. **Pone un token vivo en el log** — trade-off
+real, acotado por el uso único y los 30 minutos, y por que quien lee el log ya
+puede leer `.env`.
+
+**Los rebotes son invisibles.** El log de ERROR cubre el rechazo sincrónico
+únicamente; un mail aceptado por el relay y rebotado después no deja línea en
+ningún lado, porque nada en este diseño recibe correo. Una dirección tipeada mal
+devuelve el mismo "fijate tu mail" y después silencio permanente — consecuencia
+directa de no ser un oráculo de enumeración. El diagnóstico del operador es
+consultar `password_reset_token`.
 
 
 ## GET /status

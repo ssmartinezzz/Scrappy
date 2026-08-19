@@ -73,7 +73,7 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
         tokens = new TokenService(SECRETO, Clock.systemUTC());
         sesiones = new RefreshTokenService(
                 new RefreshTokenRepository(dataSource()), tokens, Clock.systemUTC());
-        endpoints = new AuthEndpoints(usuarios, hasher, tokens, sesiones);
+        endpoints = new AuthEndpoints(usuarios, hasher, tokens, sesiones, null);
 
         usuarios.crear("ana", null, hasher.hash(PASSWORD), false);
         ana = usuarios.buscarActivaPorUsername("ana").orElseThrow().id();
@@ -225,6 +225,6 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
         // service instance is what "the window has closed" looks like from here.
         sesiones = new RefreshTokenService(
                 new RefreshTokenRepository(dataSource()), tokens, Clock.systemUTC());
-        endpoints = new AuthEndpoints(usuarios, new PasswordHasher(), tokens, sesiones);
+        endpoints = new AuthEndpoints(usuarios, new PasswordHasher(), tokens, sesiones, null);
     }
 }

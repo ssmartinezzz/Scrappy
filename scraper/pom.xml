@@ -122,6 +122,15 @@
             <version>${bouncycastle.version}</version>
         </dependency>
 
+        <!-- SMTP delivery for the opt-in password-reset channel (slice 6). The
+             console channel is the default and needs none of this; the starter
+             is here so choosing SMTP is a config change rather than a rebuild.
+             Version managed by spring-boot-starter-parent. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- JWT (user-accounts-and-roles slice 2). Nimbus rather than jjwt: one
              artifact instead of three, and it is the library Spring Security
              itself uses, so a later move to the starter finds it already here. -->
