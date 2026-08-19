@@ -194,6 +194,23 @@ Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/F
 > **401 y 403 no son lo mismo**: 401 es "no sé quién sos, autenticá"; 403 es "sé
 > quién sos y no podés". Un cliente que los confunde entra en loop de refresh o
 > muestra un error de permisos cuando sólo se le venció el token.
+>
+> 👤 **Los datos personales están scopeados por dueño.** `favoritos`,
+> `saved_outfits`, `outfit_feedback_item` y `categoria_dismiss` se leen y
+> escriben con `usuario_id` como **primer parámetro obligatorio**, y **no existe
+> ninguna variante sin scope** — un método que no existe no se puede llamar por
+> error, y eso lo verifica el compilador y no un reviewer. Un ADMIN corre el
+> MISMO SQL que un VIEWER con otro parámetro: el rol manda sobre el sistema, no
+> sobre los datos personales ajenos.
+>
+> **La excepción deliberada**: el guard de `DELETE /api/db/productos` cuenta los
+> favoritos de **todos**, no los del que llama. Scopearlo haría que un admin sin
+> favoritos propios pasara el chequeo justo cuando es más engañoso. Hay tests que
+> lo fijan para que nadie lo "haga consistente" con el resto.
+>
+> Una fila con `usuario_id IS NULL` queda **invisible para todos** (`NULL` no
+> matchea con nadie), no visible para todos. `UnownedRowsWarner` avisa al
+> arranque con los conteos por tabla y el SQL para adoptarlas.
 
 | Grupo | Endpoints |
 |-------|-----------|

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 
+import ar.scraper.identity.ActorResolver;
+
 import java.util.Map;
 
 /**
@@ -21,14 +23,16 @@ import java.util.Map;
 class FavoritosEndpoints {
 
     private final ar.scraper.db.DatabaseService db;
+    private final ActorResolver actorResolver;
 
-    FavoritosEndpoints(ar.scraper.db.DatabaseService db) {
+    FavoritosEndpoints(ar.scraper.db.DatabaseService db, ActorResolver actorResolver) {
         this.db = db;
+        this.actorResolver = actorResolver;
     }
 
     ResponseEntity<ArrayNode> getFavoritos() {
         ArrayNode arr = JsonNodeFactory.instance.arrayNode();
-        for (var f : db.listarFavoritos()) {
+        for (var f : db.listarFavoritos(Sujeto.de(actorResolver))) {
             String url = f.get("url");
             ObjectNode n = arr.addObject();
             // Si tenemos el producto en la DB, volcamos sus campos con la misma
@@ -56,14 +60,14 @@ class FavoritosEndpoints {
             resp.put("mensaje", "url y sitio obligatorios");
             return ResponseEntity.badRequest().body(resp);
         }
-        db.guardarFavorito(url, sitio, nombre);
+        db.guardarFavorito(Sujeto.de(actorResolver), url, sitio, nombre);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }
 
     ResponseEntity<ObjectNode> deleteFavorito(String url) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.eliminarFavorito(url);
+        db.eliminarFavorito(Sujeto.de(actorResolver), url);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }

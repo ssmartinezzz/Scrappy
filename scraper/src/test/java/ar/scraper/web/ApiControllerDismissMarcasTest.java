@@ -14,6 +14,8 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,11 @@ class ApiControllerDismissMarcasTest {
     private RecommendationService recommendationService;
     private ApiController controller;
 
+    @AfterEach
+    void limpiarContexto() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
         wireController();
@@ -57,6 +64,7 @@ class ApiControllerDismissMarcasTest {
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
+        SujetoDePrueba.entrar("ADMIN");
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
@@ -70,7 +78,7 @@ class ApiControllerDismissMarcasTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
-        verify(db, never()).guardarCategoriaDismiss(any());
+        verify(db, never()).guardarCategoriaDismiss(any(), any());
     }
 
     @Test
@@ -80,7 +88,7 @@ class ApiControllerDismissMarcasTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).guardarCategoriaDismiss("Zapatilla");
+        verify(db).guardarCategoriaDismiss(any(), eq("Zapatilla"));
     }
 
     // ── DELETE /api/recomendados/dismiss-categoria ───────────────────────
@@ -92,7 +100,7 @@ class ApiControllerDismissMarcasTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).borrarCategoriaDismiss("Remera");
+        verify(db).borrarCategoriaDismiss(any(), eq("Remera"));
     }
 
     // ── GET /api/marcas-browser ──────────────────────────────────────────

@@ -1,9 +1,12 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
+import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,9 +59,9 @@ class DatabaseServiceFavoritoUpsertTest extends PostgresTestBase {
     @Test
     @DisplayName("a favourite is persisted, not swallowed")
     void savingAFavouritePersistsIt() {
-        db.guardarFavorito(URL, "Freres", "Producto");
+        db.guardarFavorito(yo(), URL, "Freres", "Producto");
 
-        assertThat(db.listarFavoritos())
+        assertThat(db.listarFavoritos(yo()))
                 .as("the repository logs and swallows, so a broken write reads back as emptiness")
                 .hasSize(1);
     }
@@ -66,10 +69,22 @@ class DatabaseServiceFavoritoUpsertTest extends PostgresTestBase {
     @Test
     @DisplayName("saving the same url twice updates in place instead of duplicating")
     void savingTheSameUrlTwiceUpdatesInPlace() {
-        db.guardarFavorito(URL, "Freres", "Nombre viejo");
-        db.guardarFavorito(URL, "Freres", "Nombre nuevo");
+        db.guardarFavorito(yo(), URL, "Freres", "Nombre viejo");
+        db.guardarFavorito(yo(), URL, "Freres", "Nombre nuevo");
 
-        assertThat(db.listarFavoritos()).hasSize(1);
-        assertThat(db.listarFavoritos().get(0).get("nombre")).isEqualTo("Nombre nuevo");
+        assertThat(db.listarFavoritos(yo())).hasSize(1);
+        assertThat(db.listarFavoritos(yo()).get(0).get("nombre")).isEqualTo("Nombre nuevo");
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

@@ -1,8 +1,12 @@
 package ar.scraper.identity;
 
+import ar.scraper.security.AuthenticatedSubject;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Sole seam through which any component resolves "who is acting" (the human
@@ -35,5 +39,26 @@ public final class ActorResolver {
             return LOCAL_ACTOR;
         }
         return auth.getName();
+    }
+
+    /**
+     * The subject's id, for owner-scoped queries.
+     *
+     * <p>Returns {@link Optional} rather than a fallback on purpose. {@link #current()}
+     * can sensibly answer {@code "local"} for system work, because an audit row
+     * saying "the system did it" is true and useful. A <i>scoped query</i> has no
+     * equivalent: there is no id that means "everybody", and inventing one would be
+     * the leak this whole mechanism exists to prevent. A caller with no subject must
+     * refuse to answer, not widen the query.</p>
+     */
+    public Optional<UUID> currentUsuarioId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return Optional.empty();
+        }
+        if (auth.getPrincipal() instanceof AuthenticatedSubject sujeto) {
+            return Optional.of(sujeto.id());
+        }
+        return Optional.empty();
     }
 }
