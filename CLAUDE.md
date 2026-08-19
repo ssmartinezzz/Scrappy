@@ -105,6 +105,7 @@ Scrappy/
         │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
         │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
         │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
+        │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
         │   │                                  AdminSeeder (siembra + adopción)
         │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
         │   └── web/                        ← ApiController + *Endpoints + servicios
@@ -174,7 +175,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | POST `/api/auth/login` — **emite tokens, no gatea nada todavía** |
+| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` — **emiten y rotan tokens, no gatean nada todavía** |
 | Scraping | GET `/api/status` · POST `/api/scrape` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
@@ -523,6 +524,8 @@ el catálogo real primero.
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
+| La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | Medirlas necesita un cliente de browser ejercitando refrescos en paralelo, y ese cliente es otro SDD. Hasta entonces el número queda como está, documentado como propuesta |
+| Toda la superficie de refresh/CSRF/CORS con credenciales no tiene consumidor | Construida a propósito antes que su cliente, para que el SDD de frontend sea sólo consumir. El CLI no la toca: se reautentica de su `.env` y nunca sostiene un refresh token |
 | Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev): 76 ms hash / 76 ms verify con `m=16384, t=2, p=1`. Falta la máquina que importa — el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
 
 ### Sin dueño
