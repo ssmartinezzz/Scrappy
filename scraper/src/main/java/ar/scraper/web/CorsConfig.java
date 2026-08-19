@@ -1,13 +1,12 @@
 package ar.scraper.web;
 
+import ar.scraper.config.AllowedOrigins;
 import ar.scraper.security.RefreshCookie;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import java.util.Arrays;
 
 /**
  * CORS policy for the API-only backend (decouple-services-postgres, Batch 3,
@@ -50,6 +49,23 @@ import java.util.Arrays;
  * <p>No fallback default on the {@code @Value} (scoped correction, verify-report
  * CRITICAL-1): a silent default here would defeat
  * {@code RequiredEnvVarsGuard}'s fail-fast for {@code APP_CORS_ALLOWED_ORIGINS}.</p>
+ *
+ * <h3>One parser, two callers — not one shared bean</h3>
+ *
+ * <p>The split/trim/filter and the empty/wildcard validation live once, as
+ * {@link AllowedOrigins#parsear} and {@link AllowedOrigins#validar}
+ * (frontend-auth-ui, Phase 1). This class calls those same static methods
+ * against its own {@code allowedOrigins} field rather than keeping a second
+ * copy of the algorithm; {@code ar.scraper.config.AllowedOrigins} (the
+ * {@code @Component}) calls them too, for the bootstrap-CSRF admission check
+ * (Phase 2) to consume. This class is deliberately <b>not</b> constructor-
+ * injected with that component: two existing tests — {@code CorsConfigTest}
+ * (a {@code @WebMvcTest} slice with a fixed {@code @Import} list) and
+ * {@code CorsCredentialsTest.Estructural} (which calls {@code new CorsConfig()}
+ * directly and reflects into the {@code allowedOrigins} field by name) — pin
+ * this class's no-arg constructor, its {@code String allowedOrigins} field,
+ * and its {@code validarOrigenes()} method by name. A bean dependency breaks
+ * both; a static call needs no bean and breaks neither.</p>
  */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
@@ -62,20 +78,7 @@ public class CorsConfig implements WebMvcConfigurer {
 
     @PostConstruct
     void validarOrigenes() {
-        String[] origins = origenes();
-        if (origins.length == 0) {
-            throw new IllegalStateException(
-                    "APP_CORS_ALLOWED_ORIGINS está vacía. El endpoint de refresco usa CORS con "
-                            + "credenciales, que exige una lista de orígenes exacta.");
-        }
-        for (String origin : origins) {
-            if ("*".equals(origin)) {
-                throw new IllegalStateException(
-                        "APP_CORS_ALLOWED_ORIGINS no puede ser '*': el endpoint de refresco usa CORS "
-                                + "con credenciales, y el comodín está prohibido ahí. Poné la lista "
-                                + "exacta de orígenes del frontend.");
-            }
-        }
+        AllowedOrigins.validar(AllowedOrigins.parsear(allowedOrigins));
     }
 
     @Override
@@ -97,12 +100,6 @@ public class CorsConfig implements WebMvcConfigurer {
     }
 
     private String[] origenes() {
-        if (allowedOrigins == null) {
-            return new String[0];
-        }
-        return Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toArray(String[]::new);
+        return AllowedOrigins.parsear(allowedOrigins).toArray(new String[0]);
     }
 }
