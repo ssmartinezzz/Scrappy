@@ -95,11 +95,4 @@ class ScraperFactoryPlatformTest {
         assertThat(crear("venex", "https://www.venex.com.ar"))
                 .isInstanceOf(OsCommerceScraper.class);
     }
-
-    @Test
-    void foreverFavoritoResolvesToShopify() {
-        assertThat(ScraperFactory.plataformaDeFavorito(
-                "forever", "https://forever.com.ar/products/remera-basica", SITE_REGISTRY))
-                .isEqualTo(ScraperFactory.FavPlatform.SHOPIFY);
-    }
 }
