@@ -4,6 +4,7 @@ import ar.scraper.db.UsuarioRepository;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.security.RefreshCookie;
 import ar.scraper.security.RefreshTokenService;
+import ar.scraper.security.reset.PasswordResetService;
 import ar.scraper.security.TokenService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -69,6 +70,9 @@ class CorsCredentialsTest {
         private TokenService tokens;
         @MockBean
         private RefreshTokenService sesiones;
+
+        @MockBean
+        private PasswordResetService reseteos;
 
         @Test
         @DisplayName("the refresh path echoes the exact origin and allows credentials")

@@ -62,7 +62,8 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
         tokens = new TokenService(SECRETO, Clock.systemUTC());
         Clock reloj = Clock.systemUTC();
         endpoints = new AuthEndpoints(repo, hasher, tokens,
-                new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj));
+                new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj),
+                null);   // el reseteo tiene su propio test; acá no se ejercita
 
         repo.crear("ana", "ana@example.com", hasher.hash(PASSWORD), false);
         repo.asignarRol("ana", "VIEWER");
