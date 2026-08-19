@@ -266,11 +266,6 @@ export async function removeFavorito(url) {
   return r.ok;
 }
 
-export async function rescrapeFavoritos() {
-  const r = await fetch(`${BASE}/api/favoritos/rescrape`, { method: 'POST' });
-  return r.ok ? r.json() : null;
-}
-
 // ─── Outfits (armador Gym) ───────────────────────────────────────────────────
 
 export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], presupuestoSuplementos = 0) {

@@ -149,7 +149,7 @@ public class ApiController {
                                                                db, aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService);
-        this.favoritosEndpoints = new FavoritosEndpoints(service, db);
+        this.favoritosEndpoints = new FavoritosEndpoints(db);
         this.mlEndpoints        = new MlEndpoints(service, db, aggregator, pythonRunner);
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);
@@ -534,11 +534,6 @@ public class ApiController {
     @DeleteMapping("/data")
     public ResponseEntity<ObjectNode> eliminarProducto(@RequestParam String url) {
         return catalogoEndpoints.eliminarProducto(url);
-    }
-
-    @PostMapping("/favoritos/rescrape")
-    public ResponseEntity<ObjectNode> rescrapeFavoritos() {
-        return favoritosEndpoints.rescrapeFavoritos();
     }
 
     @GetMapping("/ml/estado")

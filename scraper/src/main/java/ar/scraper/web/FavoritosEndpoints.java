@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.Map;
 
 /**
- * Saved products ("favoritos") and their on-demand rescrape.
+ * Saved products ("favoritos").
  *
  * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
  * no request mappings: {@link ApiController} keeps them and delegates here, so
@@ -20,11 +20,9 @@ import java.util.Map;
  */
 class FavoritosEndpoints {
 
-    private final ScraperService service;
     private final ar.scraper.db.DatabaseService db;
 
-    FavoritosEndpoints(ScraperService service, ar.scraper.db.DatabaseService db) {
-        this.service = service;
+    FavoritosEndpoints(ar.scraper.db.DatabaseService db) {
         this.db = db;
     }
 
@@ -67,15 +65,6 @@ class FavoritosEndpoints {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         db.eliminarFavorito(url);
         resp.put("ok", true);
-        return ResponseEntity.ok(resp);
-    }
-
-    ResponseEntity<ObjectNode> rescrapeFavoritos() {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        boolean ok = service.rescrapearFavoritos();
-        resp.put("iniciado", ok);
-        resp.put("mensaje", ok ? "Rescrape de favoritos iniciado"
-                               : "Ya hay un scraping en curso");
         return ResponseEntity.ok(resp);
     }
 }
