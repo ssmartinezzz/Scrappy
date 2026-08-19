@@ -4,10 +4,12 @@
 // production. VITE_API_BASE_URL is the env-driven base; it defaults to ''
 // (relative) so local dev keeps using Vite's `/api` proxy (vite.config.js)
 // unless the var is explicitly set.
+import { authedFetch } from './lib/authedFetch';
+
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export async function fetchStatus() {
-  const r = await fetch(`${BASE}/api/status`);
+  const r = await authedFetch(`${BASE}/api/status`);
   return r.ok ? r.json() : null;
 }
 
@@ -15,16 +17,16 @@ export async function startScrape({ precioMin, precioMax, sitios, forceRetrain =
   const p = new URLSearchParams({ precioMin, precioMax });
   sitios.forEach(s => p.append('sitios', s));
   if (forceRetrain) p.set('forceRetrain', 'true');
-  const r = await fetch(`${BASE}/api/scrape?${p}`, { method: 'POST' });
+  const r = await authedFetch(`${BASE}/api/scrape?${p}`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 
 export async function limpiarCatalogo() {
-  return fetch(`${BASE}/api/db/productos`, { method: 'DELETE' });
+  return authedFetch(`${BASE}/api/db/productos`, { method: 'DELETE' });
 }
 
 export async function limpiarMl() {
-  return fetch(`${BASE}/api/db/ml`, { method: 'DELETE' });
+  return authedFetch(`${BASE}/api/db/ml`, { method: 'DELETE' });
 }
 
 export async function fetchData(filters) {
@@ -33,23 +35,23 @@ export async function fetchData(filters) {
     if (Array.isArray(v)) v.forEach(vi => p.append(k, vi));
     else if (v !== '' && v !== null && v !== undefined) p.set(k, String(v));
   });
-  const r = await fetch(`${BASE}/api/data?${p}`);
+  const r = await authedFetch(`${BASE}/api/data?${p}`);
   return r.ok ? r.json() : null;
 }
 
 export async function deleteProducto(url) {
-  const r = await fetch(`${BASE}/api/data?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/data?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
   return r.ok;
 }
 
 export async function fetchFacets() {
-  const r = await fetch(`${BASE}/api/facets`);
+  const r = await authedFetch(`${BASE}/api/facets`);
   return r.ok ? r.json() : null;
 }
 
 export async function fetchTendencias() {
   try {
-    const r = await fetch(`${BASE}/api/tendencias`);
+    const r = await authedFetch(`${BASE}/api/tendencias`);
     if (r.status === 204) return { state: 'empty', data: null };
     if (r.status === 503) return { state: 'failed', data: null }; // pipeline ML falló
     if (r.ok) return { state: 'ok', data: await r.json() };
@@ -62,7 +64,7 @@ export async function fetchTendencias() {
 }
 
 export async function fetchHistorial(url) {
-  const r = await fetch(`${BASE}/api/historial?url=${encodeURIComponent(url)}`);
+  const r = await authedFetch(`${BASE}/api/historial?url=${encodeURIComponent(url)}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;
 }
@@ -81,27 +83,27 @@ export async function fetchHistorial(url) {
  * el producto no existe, y eso si es "no hay nada que mostrar".
  */
 export async function fetchProductoDetalle(key) {
-  const r = await fetch(`${BASE}/api/producto/${encodeURIComponent(key)}`);
+  const r = await authedFetch(`${BASE}/api/producto/${encodeURIComponent(key)}`);
   return r.ok ? r.json() : null;
 }
 
 export async function fetchInflacion() {
-  const r = await fetch(`${BASE}/api/inflacion`);
+  const r = await authedFetch(`${BASE}/api/inflacion`);
   return r.ok ? r.json() : null;
 }
 
 export async function fetchRecomendacion(url) {
-  const r = await fetch(`${BASE}/api/recomendacion?url=${encodeURIComponent(url)}`);
+  const r = await authedFetch(`${BASE}/api/recomendacion?url=${encodeURIComponent(url)}`);
   return r.ok ? r.json() : null;
 }
 
 export async function fetchSitios() {
-  const r = await fetch(`${BASE}/api/sitios`);
+  const r = await authedFetch(`${BASE}/api/sitios`);
   return r.ok ? r.json() : null;
 }
 
 export async function addSitio(body) {
-  const r = await fetch(`${BASE}/api/sitios`, {
+  const r = await authedFetch(`${BASE}/api/sitios`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -110,12 +112,12 @@ export async function addSitio(body) {
 }
 
 export async function deleteSitio(nombre) {
-  const r = await fetch(`${BASE}/api/sitios/${encodeURIComponent(nombre)}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/sitios/${encodeURIComponent(nombre)}`, { method: 'DELETE' });
   return r.ok;
 }
 
 export async function updateConfig(cfg) {
-  const r = await fetch(`${BASE}/api/config`, {
+  const r = await authedFetch(`${BASE}/api/config`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(cfg)
@@ -126,12 +128,12 @@ export async function updateConfig(cfg) {
 // ─── Presets de financiación ─────────────────────────────────────────────────
 
 export async function fetchFinanciacionPresets() {
-  const r = await fetch(`${BASE}/api/financiacion/presets`);
+  const r = await authedFetch(`${BASE}/api/financiacion/presets`);
   return r.ok ? r.json() : null;
 }
 
 export async function crearFinanciacionPreset({ label, recargoPct, cuotas }) {
-  const r = await fetch(`${BASE}/api/financiacion/presets`, {
+  const r = await authedFetch(`${BASE}/api/financiacion/presets`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ label, recargoPct, cuotas }),
@@ -140,7 +142,7 @@ export async function crearFinanciacionPreset({ label, recargoPct, cuotas }) {
 }
 
 export async function editarFinanciacionPreset(id, { label, recargoPct, cuotas }) {
-  const r = await fetch(`${BASE}/api/financiacion/presets/${id}`, {
+  const r = await authedFetch(`${BASE}/api/financiacion/presets/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ label, recargoPct, cuotas }),
@@ -149,12 +151,12 @@ export async function editarFinanciacionPreset(id, { label, recargoPct, cuotas }
 }
 
 export async function activarFinanciacionPreset(id) {
-  const r = await fetch(`${BASE}/api/financiacion/presets/${id}/activar`, { method: 'PUT' });
+  const r = await authedFetch(`${BASE}/api/financiacion/presets/${id}/activar`, { method: 'PUT' });
   return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
 }
 
 export async function eliminarFinanciacionPreset(id) {
-  const r = await fetch(`${BASE}/api/financiacion/presets/${id}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/financiacion/presets/${id}`, { method: 'DELETE' });
   return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
 }
 
@@ -171,7 +173,7 @@ export { BADGE_LABELS } from './lib/colors';
 export async function buscarExterno(nombre, productoUrl) {
   const p = new URLSearchParams({ q: nombre });
   if (productoUrl) p.set('url', productoUrl);
-  const r = await fetch(`${BASE}/api/buscar-externo?${p}`);
+  const r = await authedFetch(`${BASE}/api/buscar-externo?${p}`);
   if (!r.ok) return { resultados: [], searchUrl: EXTERNAL_SEARCH.mercadolibre(nombre), queryUsada: nombre };
   const data = await r.json();
   // Compatibilidad: si el backend devuelve array (legacy) o el nuevo objeto
@@ -197,7 +199,7 @@ export async function fetchGrupos(filters = {}) {
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== '' && v != null) p.set(k, v);
   });
-  const r = await fetch(`${BASE}/api/grupos?${p}`);
+  const r = await authedFetch(`${BASE}/api/grupos?${p}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;
 }
@@ -205,7 +207,7 @@ export async function fetchGrupos(filters = {}) {
 export async function fetchMejores(rubro = '') {
   const p = new URLSearchParams();
   if (rubro) p.set('rubro', rubro);
-  const r = await fetch(`${BASE}/api/mejores?${p}`);
+  const r = await authedFetch(`${BASE}/api/mejores?${p}`);
   if (r.status === 204) return [];
   return r.ok ? r.json() : [];
 }
@@ -213,47 +215,47 @@ export async function fetchMejores(rubro = '') {
 export async function fetchMarcasBrowser(params = {}) {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
-  const r = await fetch(`${BASE}/api/marcas-browser?${p}`);
+  const r = await authedFetch(`${BASE}/api/marcas-browser?${p}`);
   if (r.status === 204) return [];
   return r.ok ? r.json() : [];
 }
 
 // ─── ML Training ─────────────────────────────────────────────────────────────
 export async function fetchMlEstado() {
-  const r = await fetch(`${BASE}/api/ml/estado`);
+  const r = await authedFetch(`${BASE}/api/ml/estado`);
   return r.ok ? r.json() : null;
 }
 
 export async function startMlTraining(images = false, epochs = 8) {
   const p = new URLSearchParams({ images, epochs });
-  const r = await fetch(`${BASE}/api/ml/entrenar?${p}`, { method: 'POST' });
+  const r = await authedFetch(`${BASE}/api/ml/entrenar?${p}`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 
 export async function fetchMlResultado() {
-  const r = await fetch(`${BASE}/api/ml/resultado`);
+  const r = await authedFetch(`${BASE}/api/ml/resultado`);
   return r.ok ? r.json() : null;
 }
 
 export async function aplicarModeloML() {
-  const r = await fetch(`${BASE}/api/ml/aplicar`, { method: 'POST' });
+  const r = await authedFetch(`${BASE}/api/ml/aplicar`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 
 export async function renormalizarCatalogo() {
-  const r = await fetch(`${BASE}/api/ml/renormalizar`, { method: 'POST' });
+  const r = await authedFetch(`${BASE}/api/ml/renormalizar`, { method: 'POST' });
   return r.ok ? r.json() : null;
 }
 
 // ─── Favoritos ─────────────────────────────────────────────────────────────
 
 export async function fetchFavoritos() {
-  const r = await fetch(`${BASE}/api/favoritos`);
+  const r = await authedFetch(`${BASE}/api/favoritos`);
   return r.ok ? r.json() : [];
 }
 
 export async function addFavorito({ url, sitio, nombre }) {
-  const r = await fetch(`${BASE}/api/favoritos`, {
+  const r = await authedFetch(`${BASE}/api/favoritos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, sitio, nombre })
@@ -262,7 +264,7 @@ export async function addFavorito({ url, sitio, nombre }) {
 }
 
 export async function removeFavorito(url) {
-  const r = await fetch(`${BASE}/api/favoritos?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/favoritos?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
   return r.ok;
 }
 
@@ -274,7 +276,7 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
   if (excluirUrls.length) p.set('excluir', excluirUrls.join(','));
   if (presupuestoSuplementos > 0) p.set('presupuestoSuplementos', presupuestoSuplementos);
-  const r = await fetch(`${BASE}/api/outfits?${p}`);
+  const r = await authedFetch(`${BASE}/api/outfits?${p}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;
 }
@@ -304,7 +306,7 @@ export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excl
   if (pin && pin.length) p.set('pin', pin.join(','));
   if (greedy) p.set('greedy', 'true');
   if (estilo && estilo !== 'gym') p.set('estilo', estilo);
-  const r = await fetch(`${BASE}/api/outfits/builder?${p}`);
+  const r = await authedFetch(`${BASE}/api/outfits/builder?${p}`);
   if (r.status === 204) return null;
   if (!r.ok) return null;
   return r.json();
@@ -313,7 +315,7 @@ export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excl
 // ─── Saved Outfits ───────────────────────────────────────────────────────────
 
 export async function saveOutfit(body) {
-  const r = await fetch(`${BASE}/api/outfits/save`, {
+  const r = await authedFetch(`${BASE}/api/outfits/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -322,17 +324,17 @@ export async function saveOutfit(body) {
 }
 
 export async function fetchSavedOutfits() {
-  const r = await fetch(`${BASE}/api/outfits/saved`);
+  const r = await authedFetch(`${BASE}/api/outfits/saved`);
   return r.ok ? r.json() : [];
 }
 
 export async function deleteSavedOutfit(id) {
-  const r = await fetch(`${BASE}/api/outfits/saved/${id}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/outfits/saved/${id}`, { method: 'DELETE' });
   return r.ok;
 }
 
 export async function renameOutfit(id, nombre) {
-  const r = await fetch(`${BASE}/api/outfits/saved/${id}/nombre`, {
+  const r = await authedFetch(`${BASE}/api/outfits/saved/${id}/nombre`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nombre }),
@@ -345,13 +347,13 @@ export async function renameOutfit(id, nombre) {
 export async function resetOutfitFeedback(estilo = 'gym') {
   const p = new URLSearchParams();
   if (estilo) p.set('estilo', estilo);
-  const r = await fetch(`${BASE}/api/outfits/feedback?${p}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/outfits/feedback?${p}`, { method: 'DELETE' });
   return r.ok;
 }
 
 // body shape: { genero, items: [{ slot, url, liked }] } — one POST per rated item (per-item feedback contract).
 export async function sendOutfitFeedback(body) {
-  const r = await fetch(`${BASE}/api/outfits/feedback`, {
+  const r = await authedFetch(`${BASE}/api/outfits/feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -366,7 +368,7 @@ export async function fetchRecomendados(page = 1, size = 24, filters = {}) {
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== '' && v !== null && v !== undefined) p.set(k, String(v));
   });
-  const r = await fetch(`${BASE}/api/recomendados?${p}`);
+  const r = await authedFetch(`${BASE}/api/recomendados?${p}`);
   if (r.status === 204) return null;
   return r.ok ? r.json() : null;
 }
@@ -374,7 +376,7 @@ export async function fetchRecomendados(page = 1, size = 24, filters = {}) {
 // body shape: { genero, items: [{ url, liked }] } — per-card like/dislike,
 // writes to the same shared taste signal store as sendOutfitFeedback().
 export async function sendRecomendadosFeedback(genero, items) {
-  const r = await fetch(`${BASE}/api/recomendados/feedback`, {
+  const r = await authedFetch(`${BASE}/api/recomendados/feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ genero, items })
@@ -383,7 +385,7 @@ export async function sendRecomendadosFeedback(genero, items) {
 }
 
 export async function dismissCategoria(categoria) {
-  const r = await fetch(`${BASE}/api/recomendados/dismiss-categoria`, {
+  const r = await authedFetch(`${BASE}/api/recomendados/dismiss-categoria`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ categoria })
@@ -392,7 +394,7 @@ export async function dismissCategoria(categoria) {
 }
 
 export async function undismissCategoria(categoria) {
-  const r = await fetch(`${BASE}/api/recomendados/dismiss-categoria?categoria=${encodeURIComponent(categoria)}`,
+  const r = await authedFetch(`${BASE}/api/recomendados/dismiss-categoria?categoria=${encodeURIComponent(categoria)}`,
     { method: 'DELETE' });
   return r.ok ? r.json() : null;
 }
@@ -404,7 +406,7 @@ export async function undismissCategoria(categoria) {
  * Returns [] on failure so the caller can fall back rather than crash the panel.
  */
 export async function fetchSuplementosTipos() {
-  const r = await fetch(`${BASE}/api/suplementos/tipos`);
+  const r = await authedFetch(`${BASE}/api/suplementos/tipos`);
   if (!r.ok) return [];
   const body = await r.json();
   return Array.isArray(body?.tipos) ? body.tipos : [];
@@ -417,7 +419,7 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
   // URLs ya mostradas: el pick del servidor es determinístico, así que sin esto
   // "Regenerar" repite la misma respuesta.
   if (excluir.length > 0) p.set('excluir', excluir.join(','));
-  const r = await fetch(`${BASE}/api/suplementos/builder?${p}`);
+  const r = await authedFetch(`${BASE}/api/suplementos/builder?${p}`);
   if (r.status === 204) return null;
   if (!r.ok) return null;
   return r.json();
@@ -428,17 +430,17 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
 // logOutput embebido por fila (ver ar.scraper.web.CronApiController).
 
 export async function listCronJobs() {
-  const r = await fetch(`${BASE}/api/cron`);
+  const r = await authedFetch(`${BASE}/api/cron`);
   return r.ok ? r.json() : null;
 }
 
 export async function getCronJob(id) {
-  const r = await fetch(`${BASE}/api/cron/${id}`);
+  const r = await authedFetch(`${BASE}/api/cron/${id}`);
   return r.ok ? r.json() : null;
 }
 
 export async function createCronJob(job) {
-  const r = await fetch(`${BASE}/api/cron`, {
+  const r = await authedFetch(`${BASE}/api/cron`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(job),
@@ -447,7 +449,7 @@ export async function createCronJob(job) {
 }
 
 export async function updateCronJob(id, job) {
-  const r = await fetch(`${BASE}/api/cron/${id}`, {
+  const r = await authedFetch(`${BASE}/api/cron/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(job),
@@ -456,7 +458,7 @@ export async function updateCronJob(id, job) {
 }
 
 export async function deleteCronJob(id) {
-  const r = await fetch(`${BASE}/api/cron/${id}`, { method: 'DELETE' });
+  const r = await authedFetch(`${BASE}/api/cron/${id}`, { method: 'DELETE' });
   return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
 }
 
@@ -464,13 +466,13 @@ export async function deleteCronJob(id) {
 // responds immediately: 202 {ok:true,...} started, 409 {ok:false,...} scraper
 // busy or job already in-flight, 404 {ok:false,...} job no longer exists.
 export async function runCronNow(id) {
-  const r = await fetch(`${BASE}/api/cron/${id}/run-now`, { method: 'POST' });
+  const r = await authedFetch(`${BASE}/api/cron/${id}/run-now`, { method: 'POST' });
   return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
 }
 
 export async function fetchCronExecutions(id, limit = 50) {
   const p = new URLSearchParams({ limit });
-  const r = await fetch(`${BASE}/api/cron/${id}/executions?${p}`);
+  const r = await authedFetch(`${BASE}/api/cron/${id}/executions?${p}`);
   return r.ok ? r.json() : null;
 }
 
@@ -481,12 +483,12 @@ export async function fetchCronExecutions(id, limit = 50) {
 // "wait for the scrape to finish" message instead of a generic error.
 
 export async function fetchAgentModels() {
-  const r = await fetch(`${BASE}/api/agent/models`);
+  const r = await authedFetch(`${BASE}/api/agent/models`);
   return r.ok ? r.json() : null;
 }
 
 export async function askAgent(messages, model) {
-  const r = await fetch(`${BASE}/api/agent/chat`, {
+  const r = await authedFetch(`${BASE}/api/agent/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(model ? { messages, model } : { messages }),
@@ -504,7 +506,7 @@ export async function askAgent(messages, model) {
 }
 
 export async function applyProposal(proposal) {
-  const r = await fetch(`${BASE}/api/agent/apply`, {
+  const r = await authedFetch(`${BASE}/api/agent/apply`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(proposal),

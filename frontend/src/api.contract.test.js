@@ -39,3 +39,50 @@ describe('every API call goes through the configured base URL', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * frontend-auth-ui design D3: `credentials: 'include'` may appear in exactly
+ * ONE place in the whole frontend — the refresh call inside
+ * lib/authSession.js. Credentialed CORS is scoped to that route alone
+ * (CorsConfig.java / RefreshCookie.PATH); anywhere else it is silently
+ * useless cross-origin and a needless widening same-origin. api.js's 57
+ * authedFetch() call sites must never set it themselves — authedFetch
+ * attaches the Bearer token, never cookies.
+ */
+describe('credentials: include is scoped to authSession.js alone', () => {
+  it('api.js never mentions credentials', () => {
+    const hits = readFileSync(join(srcDir, 'api.js'), 'utf8')
+      .split('\n')
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => /credentials/.test(line));
+
+    expect(hits).toEqual([]);
+  });
+
+  it('authedFetch.js never mentions credentials', () => {
+    const hits = readFileSync(join(srcDir, 'lib', 'authedFetch.js'), 'utf8')
+      .split('\n')
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => /credentials/.test(line));
+
+    expect(hits).toEqual([]);
+  });
+
+  it("authSession.js uses credentials: 'include' exactly once across the whole frontend", () => {
+    const occurrencesOutsideAuthSession = sourceFiles()
+      .filter(file => relative(srcDir, file) !== join('lib', 'authSession.js'))
+      .flatMap(file => {
+        const lines = readFileSync(file, 'utf8').split('\n');
+        return lines.filter(line => /credentials\s*:\s*['"`]include['"`]/.test(line));
+      });
+    expect(occurrencesOutsideAuthSession).toEqual([]);
+
+    // Only real code counts — the module's own comments explain the rule in
+    // prose and would otherwise inflate this count.
+    const codeHits = readFileSync(join(srcDir, 'lib', 'authSession.js'), 'utf8')
+      .split('\n')
+      .filter(line => !line.trim().startsWith('//'))
+      .filter(line => /credentials\s*:\s*['"`]include['"`]/.test(line));
+    expect(codeHits).toHaveLength(1);
+  });
+});

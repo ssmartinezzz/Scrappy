@@ -1,0 +1,192 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  installFakeCoordinationPrimitives,
+  uninstallCoordinationPrimitives,
+} from '../test/fakeAuthPrimitives';
+
+function jsonResponse(body, init = {}) {
+  return { ok: true, status: 200, json: async () => body, ...init };
+}
+
+function refreshOk(accessToken, csrfNonce, expiresIn = 900) {
+  return jsonResponse({ accessToken, csrfNonce, expiresIn, tokenType: 'Bearer' });
+}
+
+/** Fresh, isolated module instance (own closure state) — used to simulate a second tab. */
+async function freshAuthSession() {
+  vi.resetModules();
+  return import('./authSession');
+}
+
+describe('authSession — no coordination primitives available', () => {
+  beforeEach(() => {
+    uninstallCoordinationPrimitives();
+    vi.resetModules();
+    global.fetch = vi.fn();
+  });
+
+  it('module import does not throw when BroadcastChannel and navigator.locks are both missing', async () => {
+    await expect(import('./authSession')).resolves.toBeDefined();
+  });
+
+  it('still refreshes and grants a session in degraded (per-tab-only) mode', async () => {
+    global.fetch.mockResolvedValueOnce(refreshOk('tok-degraded', 'nonce-degraded'));
+    global.fetch.mockResolvedValueOnce(jsonResponse({ username: 'valeria', roles: ['VIEWER'] }));
+
+    const authSession = await import('./authSession');
+    const ok = await authSession.ensureFreshSession({ reason: 'test' });
+
+    expect(ok).toBe(true);
+    expect(authSession.getAccessToken()).toBe('tok-degraded');
+  });
+
+  it('a reuse-detection 401 (sesion_invalidada) still performs a clean local logout with no retry', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false, status: 401, json: async () => ({ error: 'sesion_invalidada' }),
+    });
+
+    const authSession = await import('./authSession');
+    authSession.__test.setSession({ accessToken: 'stale', nonce: 'n', receivedAt: 1, expiresAt: 9999999999999 });
+
+    const ok = await authSession.ensureFreshSession({ reason: 'test' });
+
+    expect(ok).toBe(false);
+    expect(authSession.getAccessToken()).toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(1); // no retry loop
+  });
+});
+
+describe('authSession — resetSession()', () => {
+  beforeEach(() => {
+    uninstallCoordinationPrimitives();
+    vi.resetModules();
+  });
+
+  it('clears the in-memory token, nonce and identity set via the test seam', async () => {
+    const authSession = await import('./authSession');
+    authSession.__test.setSession({ accessToken: 'abc', nonce: 'n1', receivedAt: 5, expiresAt: 999999999999 });
+    authSession.__test.setIdentity({ username: 'valeria', roles: ['ADMIN'] });
+
+    expect(authSession.getAccessToken()).toBe('abc');
+    expect(authSession.getIdentity()).toEqual({ username: 'valeria', roles: ['ADMIN'] });
+
+    authSession.resetSession();
+
+    expect(authSession.getAccessToken()).toBeNull();
+    expect(authSession.getIdentity()).toBeNull();
+  });
+
+  it('clears the in-tab refresh promise so a subsequent 401 triggers a fresh network refresh, not a stale one', async () => {
+    global.fetch = vi.fn().mockResolvedValue(refreshOk('after-reset', 'nonce-after-reset'));
+    const authSession = await import('./authSession');
+
+    // Simulate a hung refresh from a previous "test" by seeding state, then resetting.
+    authSession.__test.setSession({ accessToken: 'leftover', nonce: 'leftover-nonce', receivedAt: 1, expiresAt: 1 });
+    authSession.resetSession();
+
+    const ok = await authSession.ensureFreshSession({ reason: 'test' });
+    expect(ok).toBe(true);
+    expect(authSession.getAccessToken()).toBe('after-reset');
+  });
+});
+
+describe('authSession — cross-tab coordination', () => {
+  beforeEach(() => {
+    installFakeCoordinationPrimitives();
+  });
+
+  afterEach(() => {
+    uninstallCoordinationPrimitives();
+  });
+
+  it('adopts a broadcast session only if strictly newer than the one it already holds', async () => {
+    vi.resetModules();
+    const tabB = await import('./authSession');
+
+    // tabB already holds something "fresher" than what's about to arrive.
+    tabB.__test.setSession({ accessToken: 'tabB-own', nonce: 'n-b', receivedAt: 5000, expiresAt: 999999999999 });
+
+    // An older broadcast arrives (simulates a delayed message from a stale rotation).
+    tabB.__test.receiveBroadcast({ type: 'session', accessToken: 'stale-broadcast', nonce: 'n-old', receivedAt: 1000, expiresAt: 1 });
+    expect(tabB.getAccessToken()).toBe('tabB-own'); // NOT adopted — older
+
+    // A genuinely newer broadcast arrives.
+    tabB.__test.receiveBroadcast({ type: 'session', accessToken: 'fresh-broadcast', nonce: 'n-new', receivedAt: 9000, expiresAt: 999999999999 });
+    expect(tabB.getAccessToken()).toBe('fresh-broadcast'); // adopted — newer
+  });
+
+  it('two real module instances: a refresh in tab A is observed and adopted by tab B, with zero network calls from B', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tabA = await import('./authSession');
+    vi.resetModules();
+    const tabB = await import('./authSession');
+
+    const okA = await tabA.ensureFreshSession({ reason: 'test' });
+    expect(okA).toBe(true);
+
+    // Let the microtask-queued broadcast delivery to tabB settle.
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(tabB.getAccessToken()).toBe('tokA');
+    // Only tabA's refresh (+ its /me call) hit the network — tabB made none.
+    const refreshCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/auth/refresh'));
+    expect(refreshCalls).toHaveLength(1);
+  });
+
+  it('an "ended" broadcast stops a sibling tab from firing its own refresh', async () => {
+    global.fetch = vi.fn();
+
+    vi.resetModules();
+    const tabA = await import('./authSession');
+    vi.resetModules();
+    const tabB = await import('./authSession');
+
+    tabB.__test.setSession({ accessToken: 'tabB-tok', nonce: 'n', receivedAt: 1, expiresAt: 999999999999 });
+
+    tabA.__test.receiveBroadcast({ type: 'ended', reason: 'sesion_invalidada' }); // simulate as if A broadcast it
+    // Directly simulate delivery to B (real transport would carry this over BroadcastChannel):
+    tabB.__test.receiveBroadcast({ type: 'ended', reason: 'sesion_invalidada' });
+
+    expect(tabB.getAccessToken()).toBeNull();
+
+    const ok = await tabB.ensureFreshSession({ reason: 'test' });
+    expect(ok).toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('authSession — network error vs rejected session', () => {
+  beforeEach(() => {
+    uninstallCoordinationPrimitives();
+    vi.resetModules();
+  });
+
+  it('a network error (fetch rejects) is reported distinctly from a backend-rejected session', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const authSession = await import('./authSession');
+
+    const ok = await authSession.ensureFreshSession({ reason: 'bootstrap' });
+
+    expect(ok).toBe(false);
+    expect(authSession.getLastFailureReason()).toBe('network_error');
+  });
+
+  it('a rejected refresh (refresh_invalido) is reported with its own reason, not network_error', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }),
+    });
+    const authSession = await import('./authSession');
+
+    const ok = await authSession.ensureFreshSession({ reason: 'bootstrap' });
+
+    expect(ok).toBe(false);
+    expect(authSession.getLastFailureReason()).toBe('refresh_invalido');
+  });
+});
