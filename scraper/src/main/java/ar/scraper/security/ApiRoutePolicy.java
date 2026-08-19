@@ -147,6 +147,8 @@ public final class ApiRoutePolicy {
             // ── Band D · any authenticated subject ───────────────────────────
             // Ownership scoping happens in the query layer (slice 8), not here:
             // these rows say "you may reach this", not "you may see everything".
+            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/auth/me"), Access.AUTHENTICATED,
+                    "deliberately NOT Band A — answering 'who am I' to an anonymous caller is an oracle"),
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/status"), Access.AUTHENTICATED,
                     "gated like everything else — deliberately not on the permit list"),
             new RoutePolicy(Set.of(HttpMethod.GET),

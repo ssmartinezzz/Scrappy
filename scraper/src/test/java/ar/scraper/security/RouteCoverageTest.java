@@ -127,6 +127,25 @@ class RouteCoverageTest {
         }
     }
 
+    // ── frontend-auth-ui, Phase 3 · GET /api/auth/me ─────────────────────────
+
+    @Test
+    @DisplayName("3.1 — GET /api/auth/me resolves to AUTHENTICATED, not denyAll()")
+    void meIsAuthenticatedNotBandA() {
+        assertThat(ApiRoutePolicy.resolver(HttpMethod.GET, "/api/auth/me"))
+                .as("no /api/auth/** wildcard and no catch-all exist — without its own row this "
+                        + "falls through to denyAll() and 403s every caller, including a valid one")
+                .isEqualTo(Access.AUTHENTICATED);
+    }
+
+    @Test
+    @DisplayName("3.1 — the real mapping for GET /api/auth/me is covered by the scan")
+    void meMappingIsFoundByTheScan() {
+        assertThat(rutasDeLaAplicacion())
+                .as("if the reflection scan cannot even see the route, the row above proves nothing")
+                .contains(new Ruta(HttpMethod.GET, "/api/auth/me"));
+    }
+
     @Test
     @DisplayName("no route referencing the deleted favourites re-scrape survives anywhere")
     void theDeletedRescrapeIsGoneFromBothSides() {
