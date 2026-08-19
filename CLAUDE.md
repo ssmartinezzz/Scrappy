@@ -458,6 +458,16 @@ script ni respeta `PYTHONPATH`); `ml_pipeline.py` inserta su propio dir antes de
 importar `ml_embeddings`. Esto es **solo** del embeddable de ML (`_tools/python`) —
 `_tools/cli-venv` es un venv uv normal y no tiene el problema, por diseño.
 
+**El CLI se autentica solo, y falla fuerte si no puede:** desde
+`user-accounts-and-roles` fase 1, `RestClient` lee
+`CLI_SERVICE_ACCOUNT_USERNAME`/`_PASSWORD` del `.env`, hace `POST /api/auth/login`
+y adjunta `Authorization: Bearer`. Ante un 401 reautentica **una** vez y
+reintenta; si el segundo intento también da 401, levanta `RestError` — nunca un
+skip silencioso ni un loop de logins contra la cuenta que ya está fallando.
+**Nunca** toca `/api/auth/refresh` ni una cookie: esa superficie es del browser.
+Sin esas dos claves en el `.env` (instalación previa al cambio) el cliente se
+comporta exactamente como antes: sin login y sin header.
+
 **CLI (`_tools/cli-venv`):** si `import textual` falla, el instalador aborta con
 mensaje accionable. Para reprovisionar: borrar `_tools/uv` y `_tools/cli-venv` y
 re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
