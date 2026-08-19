@@ -208,6 +208,19 @@ class RestClient:
                     self.tokens.clear()
                     self._login()
                     continue
+                if exc.code == 401 and not self._autentica:
+                    # The likeliest cause by far, now that the API is gated: an
+                    # installation whose `.env` predates authentication. Pointing
+                    # at the port would send them chasing a backend that is up
+                    # and answering exactly as designed.
+                    raise RestError(
+                        f"{method} {url} devolvió 401 y este cliente no tiene credenciales.",
+                        action=(
+                            "El backend ahora exige autenticación. Corré el paso de env del CLI "
+                            "para que tu .env gane CLI_SERVICE_ACCOUNT_USERNAME/"
+                            "CLI_SERVICE_ACCOUNT_PASSWORD, o completalas a mano."
+                        ),
+                    ) from exc
                 if exc.code == 401 and self._autentica:
                     raise RestError(
                         f"{method} {url} sigue devolviendo 401 después de reautenticar como "

@@ -122,6 +122,20 @@
             <version>${bouncycastle.version}</version>
         </dependency>
 
+        <!-- Spring Security (slice 7). Pulled in only now, with the filter chain:
+             adding it earlier would have switched on Boot's default chain and
+             gated everything by accident, which is precisely the change this
+             slice makes deliberately and visibly. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- SMTP delivery for the opt-in password-reset channel (slice 6). The
              console channel is the default and needs none of this; the starter
              is here so choosing SMTP is a config change rather than a rebuild.

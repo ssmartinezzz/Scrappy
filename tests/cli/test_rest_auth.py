@@ -12,10 +12,11 @@ mutability lives in the `TokenHolder` it points at, not in the client itself —
 the client's configuration remains immutable, which is the property that was
 worth keeping.
 
-**Nothing is gated yet.** No `SecurityFilterChain` exists at this phase's tip,
-so the backend ignores the header this client now sends. Configured without
-credentials, the client behaves exactly as it did before this change, which is
-what keeps the dashboard and every cronjob working identically today.
+**The API is gated since the enforcement slice**, so these credentials are no
+longer decorative: without them every call is a 401. An unconfigured client still
+sends no header and attempts no login — the behaviour it always had — but it now
+fails, and it says so in terms of the credential rather than of the port, which
+is the one thing somebody upgrading actually needs to read.
 """
 from __future__ import annotations
 
@@ -227,3 +228,19 @@ def test_the_password_is_never_logged(caplog):
         _client(backend).status()
 
     assert PASSWORD not in caplog.text
+
+
+def test_an_unconfigured_client_gets_a_useful_message_now_that_the_api_is_gated():
+    """The upgrade path: a .env that predates authentication."""
+    backend = _Backend(fail_next_with=[401])
+    client = RestClient(base_url="http://localhost:3000", opener=backend)
+
+    with pytest.raises(RestError) as exc:
+        client.status()
+
+    mensaje = str(exc.value)
+    assert "credenciales" in mensaje, (
+        "pointing at the port sends them chasing a backend that is up and answering as designed"
+    )
+    assert "CLI_SERVICE_ACCOUNT_USERNAME" in mensaje
+    assert backend.logins == [], "with nothing configured there is nothing to log in with"
