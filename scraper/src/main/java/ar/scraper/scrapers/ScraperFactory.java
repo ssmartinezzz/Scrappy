@@ -42,6 +42,9 @@ public class ScraperFactory {
         if ("oscommerce".equals(plataforma))
             return new OsCommerceScraper(config, display, site.url());
 
+        if ("inpro".equals(plataforma))
+            return new InproScraper(config, display, site.url());
+
         if ("vtex".equals(plataforma)
                 || site.url().contains("vtexcommercestable.com.br")
                 || site.url().contains("vteximg.com.br"))
