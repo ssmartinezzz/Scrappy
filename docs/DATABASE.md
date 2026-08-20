@@ -1477,6 +1477,12 @@ cambio después de `user-accounts-and-roles`, o renumerar.**
 DELETE FROM sitio s WHERE s.plataforma = 'inpro'
   AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
 UPDATE productos SET rubro = NULL WHERE rubro = 'oficina';
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Silla','Escritorio','Soporte Monitor','Soporte Laptop',
+     'Iluminación','Mat Escritorio','Organización');
+DELETE FROM categoria WHERE nombre IN
+    ('Silla','Escritorio','Soporte Monitor','Soporte Laptop',
+     'Iluminación','Mat Escritorio','Organización');
 ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
 ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
     CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
