@@ -41,13 +41,21 @@ describe('every API call goes through the configured base URL', () => {
 });
 
 /**
- * frontend-auth-ui design D3: `credentials: 'include'` may appear in exactly
- * ONE place in the whole frontend — the refresh call inside
- * lib/authSession.js. Credentialed CORS is scoped to that route alone
- * (CorsConfig.java / RefreshCookie.PATH); anywhere else it is silently
- * useless cross-origin and a needless widening same-origin. api.js's 57
- * authedFetch() call sites must never set it themselves — authedFetch
- * attaches the Bearer token, never cookies.
+ * frontend-auth-ui design D3, amended by what the Phase 8 browser suite found:
+ * `credentials: 'include'` belongs to lib/authSession.js and nowhere else, and
+ * inside it there are exactly TWO cookie-bearing calls, not one.
+ *
+ * The design said one — the refresh — and that was wrong. The **login
+ * response** is what plants the refresh cookie, and cross-origin a browser
+ * discards `Set-Cookie` from a response whose request was not made in
+ * credentials mode. With login left out, the cookie was never stored at all
+ * and session recovery on reload could not work in any topology this project
+ * ships. It passed every unit test because `vite dev` proxies /api and makes
+ * login same-origin — the one topology that never ships.
+ *
+ * What has not changed is the part worth guarding: api.js's authedFetch() call
+ * sites must never set credentials themselves. authedFetch attaches the Bearer
+ * token, never cookies.
  */
 describe('credentials: include is scoped to authSession.js alone', () => {
   it('api.js never mentions credentials', () => {
@@ -68,7 +76,7 @@ describe('credentials: include is scoped to authSession.js alone', () => {
     expect(hits).toEqual([]);
   });
 
-  it("authSession.js uses credentials: 'include' exactly once across the whole frontend", () => {
+  it("authSession.js is the only file using credentials: 'include', and uses it exactly twice", () => {
     const occurrencesOutsideAuthSession = sourceFiles()
       .filter(file => relative(srcDir, file) !== join('lib', 'authSession.js'))
       .flatMap(file => {
@@ -83,6 +91,9 @@ describe('credentials: include is scoped to authSession.js alone', () => {
       .split('\n')
       .filter(line => !line.trim().startsWith('//'))
       .filter(line => /credentials\s*:\s*['"`]include['"`]/.test(line));
-    expect(codeHits).toHaveLength(1);
+    // Two, and exactly two: the refresh/logout helper (refreshCookieFetch) and
+    // login. A third would mean a cookie is travelling somewhere the backend's
+    // credentialed-CORS mapping does not cover, which fails silently.
+    expect(codeHits).toHaveLength(2);
   });
 });

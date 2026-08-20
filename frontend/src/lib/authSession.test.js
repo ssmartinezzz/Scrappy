@@ -140,6 +140,33 @@ describe('authSession — cross-tab coordination', () => {
     expect(refreshCalls).toHaveLength(1);
   });
 
+  it('a tab that adopts a sibling session also learns WHO it is, not just the token', async () => {
+    // Found by the Phase 8 browser suite: the session payload carried the token
+    // and nonce but not the identity, and nothing re-fetched /me afterwards. The
+    // adopting tab was fully authenticated and still roleless — which, under
+    // hide-not-disable, strips every ADMIN affordance from an admin's second tab
+    // and reads as a demotion rather than a bug.
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'e2e-admin', roles: ['ADMIN'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tabA = await import('./authSession');
+    vi.resetModules();
+    const tabB = await import('./authSession');
+
+    expect(await tabA.ensureFreshSession({ reason: 'test' })).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // tabB answers the probe path the same way a cold-starting tab would.
+    expect(await tabB.bootstrap()).toBe(true);
+
+    expect(tabB.getAccessToken()).toBe('tokA');
+    expect(tabB.getIdentity()).toEqual({ username: 'e2e-admin', roles: ['ADMIN'] });
+  });
+
   it('an "ended" broadcast stops a sibling tab from firing its own refresh', async () => {
     global.fetch = vi.fn();
 

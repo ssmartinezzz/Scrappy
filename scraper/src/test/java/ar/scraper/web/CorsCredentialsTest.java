@@ -86,9 +86,30 @@ class CorsCredentialsTest {
         }
 
         @Test
-        @DisplayName("every other path grants no credentials")
-        void otherPathsGrantNoCredentials() throws Exception {
+        @DisplayName("the login path allows credentials too — its response plants the cookie")
+        void loginPathAllowsCredentials() throws Exception {
+            // This test used to assert the OPPOSITE, with /api/auth/login as its
+            // example of a path that must NOT grant credentials — it encoded the
+            // bug rather than catching it. Cross-origin, a browser discards
+            // Set-Cookie from a response whose request was not in credentials
+            // mode, so with login uncredentialed the refresh cookie was never
+            // stored at all and session recovery could not work in any shipped
+            // topology. Only `vite dev` hid it, by making login same-origin.
             mockMvc.perform(options("/api/auth/login")
+                            .header("Origin", ORIGEN)
+                            .header("Access-Control-Request-Method", "POST"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", ORIGEN))
+                    .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+        }
+
+        @Test
+        @DisplayName("every path outside the cookie-bearing pair grants no credentials")
+        void otherPathsGrantNoCredentials() throws Exception {
+            // A route that carries no cookie in either direction. The credentialed
+            // surface is exactly two paths — refresh and login — and widening it
+            // further is a security decision, not a convenience.
+            mockMvc.perform(options("/api/auth/password-reset/request")
                             .header("Origin", ORIGEN)
                             .header("Access-Control-Request-Method", "POST"))
                     .andExpect(status().isOk())
@@ -115,18 +136,19 @@ class CorsCredentialsTest {
         }
 
         @Test
-        @DisplayName("the refresh mapping is registered before the catch-all")
-        void theRefreshMappingComesFirst() {
+        @DisplayName("both cookie-bearing mappings are registered before the catch-all")
+        void theCookieBearingMappingsComeFirst() {
             RegistroVisible registro = new RegistroVisible();
 
             configCon(ORIGEN).addCorsMappings(registro);
 
             List<String> patrones = List.copyOf(registro.configuraciones().keySet());
             assertThat(patrones)
-                    .as("first match wins: registered after /**, the refresh rule is never consulted "
-                            + "and the browser silently drops the cookie on every refresh")
-                    .containsExactly(RefreshCookie.PATH, "/**");
+                    .as("first match wins: registered after /**, a credentialed rule is never "
+                            + "consulted and the browser silently drops the cookie")
+                    .containsExactly(RefreshCookie.PATH, "/api/auth/login", "/**");
             assertThat(registro.configuraciones().get(RefreshCookie.PATH).getAllowCredentials()).isTrue();
+            assertThat(registro.configuraciones().get("/api/auth/login").getAllowCredentials()).isTrue();
             assertThat(registro.configuraciones().get("/**").getAllowCredentials()).isFalse();
         }
 

@@ -81,12 +81,33 @@ public class CorsConfig implements WebMvcConfigurer {
         AllowedOrigins.validar(AllowedOrigins.parsear(allowedOrigins));
     }
 
+    /**
+     * The login path also needs credentialed CORS, and the reason is easy to
+     * miss: the <b>login response</b> is what plants the refresh cookie. A
+     * cross-origin response whose request was not made in credentials mode has
+     * its {@code Set-Cookie} discarded by the browser, so without this mapping
+     * the cookie is never stored, and session recovery on reload can never work
+     * — in every topology this project actually ships (SPA on :5173 or :8080,
+     * API on :3000). It looked fine only under {@code vite dev}, where the
+     * proxy makes login same-origin. Found by the Phase 8 browser suite, not by
+     * any unit test.
+     */
+    private static final String LOGIN_PATH = "/api/auth/login";
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         String[] origins = origenes();
 
         // FIRST — first match wins. See the class javadoc.
         registry.addMapping(RefreshCookie.PATH)
+                .allowedOrigins(origins)
+                .allowedMethods(METODOS)
+                .allowedHeaders("*")
+                .allowCredentials(true);
+
+        // Also before the catch-all: see LOGIN_PATH's javadoc for why the
+        // credentialed surface is two paths and not one.
+        registry.addMapping(LOGIN_PATH)
                 .allowedOrigins(origins)
                 .allowedMethods(METODOS)
                 .allowedHeaders("*")
