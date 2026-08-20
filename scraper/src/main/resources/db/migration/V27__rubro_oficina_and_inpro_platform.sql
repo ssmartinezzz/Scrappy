@@ -52,7 +52,19 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
                           'monkyforce','maximus','fullh4rd','compragamer',
                           'qloud','oscommerce','inpro'));
 
--- ── 4. Seed ─────────────────────────────────────────────────────────────────
+-- ── 4. Las siete categorías nuevas entran a la tabla lookup de V13 ─────────
+-- `productos.categoria` tiene FK a `categoria(nombre)` desde V13. Sin estas
+-- filas, cada producto de oficina viola la FK en el upsert — y como
+-- ProductRepository se traga los errores SQL y devuelve UpsertStats(0,0,0,0),
+-- el síntoma NO sería un error sino "0 nuevos" en un run que parece sano.
+-- CategoriaLookupTableTest exige que la tabla y CategoryGroups.canonicalCategories()
+-- sean el mismo conjunto, exactamente para que esto no se pueda olvidar.
+INSERT INTO categoria (nombre) VALUES
+    ('Silla'), ('Escritorio'), ('Soporte Monitor'), ('Soporte Laptop'),
+    ('Iluminación'), ('Mat Escritorio'), ('Organización')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- ── 5. Seed del sitio ───────────────────────────────────────────────────────
 -- origen='config' porque tiene su entrada en config.properties, que es lo que
 -- SitioSeedSyncTest exige. ON CONFLICT DO NOTHING: misma postura que todo
 -- INSERT de seed de esta tabla, un re-run no puede pisar una fila que un
