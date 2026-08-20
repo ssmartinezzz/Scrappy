@@ -130,11 +130,16 @@ cleanup() {
     return $code
   fi
   [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null || true
-  [ -n "$PREVIEW_PID" ] && kill "$PREVIEW_PID" 2>/dev/null || true
-  # `npm run preview` spawns vite as a child; killing the npm wrapper alone
-  # orphans it and the port stays bound, which the NEXT run reads as "already
-  # up" and silently tests against a stale bundle.
-  [ -n "$PREVIEW_PID" ] && pkill -P "$PREVIEW_PID" 2>/dev/null || true
+  # `npm run preview` is a WRAPPER: it spawns vite as a child of its own.
+  # Killing the wrapper alone reparents vite to init, the port stays bound, and
+  # the NEXT run reads that as "already up" and silently tests against whatever
+  # stale bundle the orphan is still serving. So the whole process GROUP goes —
+  # which is why the preview is started under `setsid` below, and why the group
+  # is signalled BEFORE the leader, not after (once the leader is gone there is
+  # nothing left to look its children up by).
+  if [ -n "$PREVIEW_PID" ]; then
+    kill -TERM -- "-$PREVIEW_PID" 2>/dev/null || kill "$PREVIEW_PID" 2>/dev/null || true
+  fi
   wait 2>/dev/null || true
   return $code
 }
@@ -179,7 +184,9 @@ if [ "$RUN_BROWSER" = "1" ]; then
         > "$RUN_DIR/frontend-build.out" 2>&1 || { tail -30 "$RUN_DIR/frontend-build.out"; die "vite build failed"; }
     fi
     say "starting preview on $APP_ORIGIN (NOT vite dev)"
-    ( cd "$REPO_ROOT/frontend" && npm run preview -- --port "$APP_PORT" --strictPort ) \
+    # setsid: its own process group, so cleanup can take vite down with the
+    # npm wrapper that spawned it. $! is then both the pid and the group id.
+    setsid bash -c "cd '$REPO_ROOT/frontend' && exec npm run preview -- --port '$APP_PORT' --strictPort" \
       > "$RUN_DIR/frontend-preview.out" 2>&1 &
     PREVIEW_PID=$!
     wait_for "$APP_ORIGIN/" "preview" 60
