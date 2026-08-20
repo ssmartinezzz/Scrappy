@@ -1419,6 +1419,96 @@ dato que `url` no tenga ya.
 
 ---
 
+### `V27` — `oficina` entra al dominio de `rubro`, e `inpro` al de `plataforma`
+
+`add-inpro-office-store`: INPRO (`inpro.ar`) vende sillas ergonómicas,
+standing desks, brazos de monitor e iluminación de escritorio. Ninguna de esas
+cosas es indumentaria, ni tecnología, ni suplemento, y forzarla a uno de los
+tres sería precisamente lo que `V6` vino a impedir — un valor de dominio que
+miente sobre el producto. Así que el dominio se abre a un cuarto rubro en vez
+de reetiquetar el catálogo.
+
+Tres `CHECK` se amplían acá, y siguen siendo `CHECK` y no tabla de lookup por
+el criterio de `V6`/`V18`/`V24`: dominios chicos y cerrados (3, 2 y 11 valores
+antes de esto). La inversión de `V13` —81 valores, pasa a tabla— sigue sin
+aplicar.
+
+| Constraint | Antes | Después |
+|---|---|---|
+| `chk_productos_rubro_domain` | 3 valores | `+ 'oficina'` |
+| `sitio_rubro_forzado_check` | 2 valores | `+ 'oficina'` |
+| `sitio_plataforma_check` | 11 valores | `+ 'inpro'` |
+
+**Los tres nombres se confirmaron contra un Postgres real antes de escribir la
+migración** (`pg_constraint`), no se asumieron — mismo criterio que `V24`.
+`V6` nombra el suyo explícitamente; los dos de `V18` son `CHECK` inline y sin
+nombre, y Postgres los auto-nombró `sitio_plataforma_check` y
+`sitio_rubro_forzado_check`. Se mantienen esos nombres: renombrarlos haría que
+el bloque de rollback de abajo dejara de ser literal.
+
+**Por qué `inpro` es una plataforma propia y no `tiendanube`.** Los datos que
+sirve INPRO *son* los objetos crudos de la API de Tiendanube —`variants[]`,
+`compare_at_price`, `promotional_price`, `stock`, `sku`, imágenes en
+`acdn-us.mitiendanube.com`— pero la vidriera no lo es: es un Next.js propio
+hosteado en Vercel, y el storefront clásico no es alcanzable
+(`inpro.mitiendanube.com` redirige a **otra** tienda, `inproindumentaria.com.ar`;
+los slugs candidatos dan 410). Sembrarlo como `tiendanube` lo rutearía a
+`TiendanubeScraper`, que iría a buscar un DOM que en `inpro.ar` no existe: 0
+productos, en silencio. Es exactamente el bug que `V24` cerró para Rockethard y
+Venex, y la razón por la que la plataforma es un dato del sitio y no una
+heurística de URL.
+
+**Por qué `V27` y no `V26`.** La rama `feature/user-accounts-and-roles`, abierta
+en paralelo, ya tiene su propia `V26`. Este cambio sale de `master`, donde la
+última migración es `V25`, así que `V26` queda **reservada** para esa rama.
+El hueco es inocuo —Flyway aplica por orden de versión y tolera faltantes— pero
+el orden de merge no lo es: si este cambio entra primero, la `V26` de la otra
+rama queda *out-of-order* y `validateOnMigrate` la rechaza. **Mergear este
+cambio después de `user-accounts-and-roles`, o renumerar.**
+
+> El bloque de abajo lo ejecuta `V27RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte. El orden importa y
+> el test lo prueba: primero la fila de seed, después los tres `CHECK` —
+> revertir en el otro orden dejaría, por un instante, un `CHECK` más angosto
+> que datos que todavía lo violan.
+
+```sql
+-- >>> rollback:V27
+DELETE FROM sitio s WHERE s.plataforma = 'inpro'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+UPDATE productos SET rubro = NULL WHERE rubro = 'oficina';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce'));
+ALTER TABLE sitio DROP CONSTRAINT sitio_rubro_forzado_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_rubro_forzado_check
+    CHECK (rubro_forzado IN ('tecnologia','suplementos'));
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos'));
+-- <<< rollback:V27
+```
+
+**El rollback sólo aplica antes del primer scrape, y eso está probado, no
+prometido.** El `NOT EXISTS` del `DELETE` existe por la FK que `V23` le puso a
+`productos.sitio_key`: con productos de INPRO vivos protege la fila de `sitio`
+— y entonces angostar `sitio_plataforma_check` choca contra esa misma fila y el
+bloque **falla entero**. `V27RollbackRoundTripTest` tiene un test por cada uno
+de los dos estados: round-trip limpio sin productos, y fallo ruidoso con
+productos. Pasado el primer scrape, retirar el sitio es `origen='historico'`
+(soft), no angostar el dominio — igual que en `V24`.
+
+El `UPDATE ... SET rubro = NULL` cubre el otro caso, el que sí sobrevive al
+`DELETE`: un producto de **otro** sitio que quedó en `rubro='oficina'` por una
+reclasificación manual del agente LLM. Degradarlo a `NULL` —la abstención que
+el propio dominio ya admite— lo deja pasar el `CHECK` angostado sin borrar la
+fila, a costa de la clasificación.
+
+---
+
 ## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
 
 Los tres primeros items de esta lista **dejaron de ser non-goals**: el usuario
