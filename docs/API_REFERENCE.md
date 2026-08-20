@@ -55,7 +55,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 | Grupo | Endpoints |
 |-------|-----------|
-| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `POST /auth/password-reset/request` · `/confirm` |
+| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `GET /auth/me` · `POST /auth/password-reset/request` · `/confirm` |
 | Usuarios | `GET`/`POST /usuarios` · `PUT /usuarios/{username}/rol` · `DELETE /usuarios/{username}` · `PUT /usuarios/{username}/activar` — **ADMIN, sin UI** |
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
@@ -130,10 +130,11 @@ recomendación.
 
 ## POST /auth/refresh · DELETE /auth/refresh
 
-Rotación de sesión y logout. **Sin consumidor hoy**: el CLI se reautentica con
-sus credenciales del `.env` y nunca sostiene un refresh token, así que toda esta
-superficie existe para un cliente de browser que todavía no está escrito. Se
-construyó antes que él a propósito, para que el frontend sea sólo consumir.
+Rotación de sesión y logout. El CLI se reautentica con sus credenciales del
+`.env` y nunca sostiene un refresh token — esta superficie es exclusivamente
+para un cliente de browser, y el dashboard React (`frontend/src/lib/authSession.js`)
+es ese consumidor: es el único módulo del frontend donde aparece
+`credentials: 'include'`.
 
 **Cómo viaja cada cosa, y por qué**
 
@@ -208,6 +209,66 @@ en `allowCredentials=false`. El mapeo del refresco se registra **antes** del
 browser descartaría la cookie en cada refresco. Y `APP_CORS_ALLOWED_ORIGINS=*`
 **aborta el arranque** nombrando la variable: el comodín está prohibido bajo CORS
 con credenciales, y dejárselo a Spring lo convierte en un 500 al hacer login.
+
+### Admisión de arranque en frío ("bootstrap") sin nonce
+
+Un reload no deja nonce en memoria — el cliente no tiene forma de mandar
+`X-Refresh-CSRF` en el primer refresh tras recargar la página. Un `POST
+/auth/refresh` que **no lleva ese header en absoluto** (bootstrap, distinto de
+llevarlo y que no matchee, que sigue siendo `403` sin excepción) se admite
+sólo si **las dos** condiciones valen:
+
+| # | Condición |
+|---|---|
+| 1 | `Origin` presente y coincide **exactamente** (string completo, con puerto) con una entrada de `APP_CORS_ALLOWED_ORIGINS` |
+| 2 | `Sec-Fetch-Site` presente y ∈ {`same-origin`, `same-site`} |
+
+Falta cualquiera de los dos headers, o no matchea el valor → **falla cerrado**,
+`403 csrf_invalido`, igual que hoy. El camino de bootstrap no relaja nada más:
+token vencido, revocado o reusado se comporta exactamente igual que con nonce.
+
+**`Sec-Fetch-Site: same-origin` solo no alcanza** — es la opción que este
+documento recomendaba antes de medir las topologías reales. Ninguna instalación
+que se shippea de esta app es same-origin: el SPA vive en `localhost:5173`
+(portable/POSIX) o `localhost:8080` (Docker), el backend en `localhost:3000`.
+Un refresh legítimo manda `Sec-Fetch-Site: same-site`, nunca `same-origin` —
+eso sólo ocurre bajo `vite dev`. Exigir `same-origin` habría rechazado el
+arranque en frío en las dos instalaciones que se shippean. Y como `same-site`
+es también lo que manda una página servida desde otro puerto de `localhost`
+—el atacante que el nonce existe para frenar—, `Sec-Fetch-Site` por sí solo no
+discrimina nada acá. `Origin` sí: lleva el puerto, es un forbidden header name
+que un script no puede forjar, y el backend ya valida ese allow-list al
+arrancar. Por eso `Origin` es el gate primario y `Sec-Fetch-Site` un segundo
+gate fail-closed, no la única señal.
+
+
+## GET /auth/me
+
+Devuelve el sujeto autenticado — `AUTHENTICATED`, no en la lista de rutas
+abiertas: contestar "quién sos" a un caller anónimo es un oráculo de qué
+usuarios existen, así que exige un access token válido como cualquier otra
+ruta cerrada.
+
+**200**
+
+```json
+{ "username": "valeria", "roles": ["VIEWER"] }
+```
+
+`roles` es un **array**, no un string: `usuario_rol` es una tabla de join que
+admite más de un rol por cuenta, y la API no colapsa esa cardinalidad. El rol
+se lee de la base en cada request — nunca del claim del JWT, que no lo lleva.
+
+**401** — sin access token, o vencido/inválido. Nunca 200 con datos vacíos.
+
+Zero queries nuevas: el filtro de seguridad ya hace la lectura por request que
+esto expone (`JwtAuthFilter`), así que el endpoint sólo formatea lo que el
+contexto de seguridad ya tiene.
+
+El cliente lo llama después de login, después de recuperar la sesión al
+recargar (bootstrap), y después de **cada** refresh exitoso — no sólo el de
+arranque — para que un cambio de rol server-side se vea dentro de una vida de
+token (15 min) en vez de recién en el próximo login.
 
 
 ## POST /auth/password-reset/request · POST /auth/password-reset/confirm
