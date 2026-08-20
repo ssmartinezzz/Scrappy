@@ -10,8 +10,14 @@ Antes de codear, determinar la plataforma del sitio:
 ¿Es WooCommerce (wp-json/wc)?   → WooCommerce  {dcshoes}
 ¿URL termina en /productos/p/N? → Vaypol/City platform
 ¿Es tiendanube.com?             → Tiendanube (JS heurístico)
+¿Es un SPA/SSR propio sobre     → HEADLESS: ver abajo, NO es la plataforma
+  otra plataforma?                 de atrás  {inpro}
 ¿Otro?                          → Necesita Page/Scraper custom
 ```
+
+> ⚠️ **El paso del headless es nuevo y es el que más fácil se saltea.** Antes de
+> concluir "es Tiendanube/Shopify" por lo que hay en el payload, mirá qué sirve
+> la **vidriera**. Ver [Caso 6](#caso-6--headless-la-plataforma-de-atrás-no-es-la-plataforma) más abajo.
 
 > **Detección real** (`ScraperFactory.crear`, en orden): WooCommerce → Maximus →
 > FullH4rd → CompraGamer → Vaypol → VTEX → Shopify → Monkyforce → default
@@ -234,3 +240,64 @@ headless=false
 ```
 
 Esto abre el browser visible durante el scraping. Útil para ver popups, captchas o estructuras DOM inusuales.
+
+---
+
+## Caso 6 — Headless: la plataforma de atrás **no** es la plataforma
+
+Una tienda puede servir los datos de una plataforma y **no ser** esa plataforma.
+INPRO (`inpro.ar`) es el caso testigo: su payload trae los objetos crudos de la
+API de Tiendanube —`variants[]`, `compare_at_price`, `promotional_price`,
+`stock`, `sku`, imágenes en `acdn-us.mitiendanube.com`— pero la vidriera es un
+**Next.js propio en Vercel**. No hay DOM de Tiendanube en ningún lado.
+
+**Por qué importa y no es una sutileza.** Sembrarlo como `plataforma='tiendanube'`
+lo rutea a `TiendanubeScraper`, que sale a buscar selectores de un tema de
+Tiendanube que ahí no existen. Resultado: **0 productos, sin error**. Es
+exactamente el bug que `V24` cerró para Rockethard y Venex, y la razón por la que
+la plataforma es un dato del sitio y no una heurística sobre la URL.
+
+### Cómo detectarlo
+
+1. **Mirá los headers, no sólo el HTML**: `x-powered-by: Next.js` + `server: Vercel`
+   sobre un dominio propio es la señal.
+2. **Buscá el storefront clásico antes de darlo por hecho.** En INPRO
+   `inpro.mitiendanube.com` existe pero redirige a **otra tienda**
+   (`inproindumentaria.com.ar`), y los slugs candidatos dan `410`. Adivinar el
+   slug `*.mitiendanube.com` es un callejón sin salida: si no lo encontrás en
+   dos intentos, no está.
+3. **Confirmá de dónde salen los datos**: en Next.js con App Router, del payload
+   RSC embebido en chunks `self.__next_f.push([1,"<json escapado>"])`.
+
+### Cómo leerlo
+
+Leer el payload es **estrictamente mejor** que scrapear el DOM renderizado: trae
+precio de lista, precio promocional, precio comparado, stock por variante y SKU,
+que es más de lo que la vidriera muestra. Tres trampas, las tres medidas contra
+el sitio real y las tres invisibles en un fixture escrito a mano:
+
+| Trampa | Qué pasa |
+|---|---|
+| **El regex para un string JS escapado** | `"(?:[^"\\]|\\.)*"` es una alternancia bajo cuantificador y `java.util.regex` la implementa **con recursión**: `StackOverflowError` con un chunk de 7,5 KB, y los reales son de cientos de KB. Escaneo lineal, siempre |
+| **El orden de las claves del JSON** | No es estable entre superficies. En las páginas de categoría el objeto abre con `"id"`; en las de producto abre con `"name"` y el `"id"` aparece después de `"variants"`. Un ancla `{"id":` anda en una superficie y devuelve **0 en la otra**, en silencio. `InproPage.objetosConVariants` escanea con pila y busca el objeto **dueño de la clave `variants`** |
+| **Los chunks vienen partidos** | Un objeto de producto puede empezar en un chunk y terminar en el siguiente. Hay que concatenar **todo** antes de leer, y el fixture de test tiene que venir partido también o no prueba nada |
+
+### Enumeración
+
+Usá el **sitemap**, no la API interna: en INPRO `robots.txt` tiene `/api/*` en
+`Disallow` y el sitemap declarado en `Sitemap:`. `/server-sitemap.xml` da 106
+productos y 16 categorías.
+
+Y separá **visto** de **aceptado**: un producto que la banda de precios descarta
+ya se vio, así que la pasada de fallback no tiene que volver a pedir su página.
+Medido en INPRO con `precio.maximo=300000`, esa distinción son 6 fetches en vez
+de 38, de ~550 KB cada uno.
+
+### La fila de seed
+
+Igual que cualquier alta, más el `CHECK` de plataforma si el valor es nuevo
+(`V27` para `inpro`). Si además el sitio inaugura un **rubro**, se amplían
+también `chk_productos_rubro_domain` y `sitio_rubro_forzado_check`, y las
+categorías nuevas necesitan su fila en la tabla `categoria` de `V13` — sin eso
+la FK rechaza el upsert y, como `ProductRepository` se traga los errores SQL,
+el síntoma es **"0 nuevos"** y no un error. Ver `docs/DATABASE.md`.
