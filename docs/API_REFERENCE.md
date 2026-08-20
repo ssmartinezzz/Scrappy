@@ -203,10 +203,20 @@ localhost); fuera de localhost, HTTPS en ambos. Si no, el refresco falla **en
 silencio** y al usuario lo desloguean cada quince minutos sin ningún error a la
 vista — parece un bug, no una mala configuración.
 
-**CORS con credenciales está acotado a `/api/auth/refresh`.** Todo el resto sigue
-en `allowCredentials=false`. El mapeo del refresco se registra **antes** del
-`/**` porque gana el primero que matchea; al revés nunca se consultaría y el
-browser descartaría la cookie en cada refresco. Y `APP_CORS_ALLOWED_ORIGINS=*`
+**CORS con credenciales está acotado a DOS rutas: `/api/auth/login` y
+`/api/auth/refresh`.** Todo el resto sigue en `allowCredentials=false`, y sumar
+una tercera es una decisión de seguridad, no una comodidad.
+
+El login está en la lista porque **su respuesta es la que planta la cookie**, y
+cross-origin el browser descarta el `Set-Cookie` de una respuesta cuyo pedido no
+se hizo en modo credenciales. Sin eso la cookie no se guarda nunca y la sesión no
+se puede recuperar al recargar. Esto no se ve bajo `vite dev`, donde el proxy
+hace same-origin al login — se ve sólo en las topologías que se instalan de
+verdad, y lo encontró la suite de browser (`tests/e2e/run-e2e.sh`), no un test
+unitario.
+
+Los dos mapeos se registran **antes** del `/**` porque gana el primero que
+matchea; al revés nunca se consultarían y el browser descartaría la cookie. Y `APP_CORS_ALLOWED_ORIGINS=*`
 **aborta el arranque** nombrando la variable: el comodín está prohibido bajo CORS
 con credenciales, y dejárselo a Spring lo convierte en un 500 al hacer login.
 
