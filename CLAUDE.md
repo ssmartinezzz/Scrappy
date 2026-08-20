@@ -142,6 +142,7 @@ Scrappy/
 | compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (1389 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular. **650 productos** en un run real tras filtrar por stock/vendible y bandas de precio (2026-08-13). Dos claves del feed hay que reconstruirlas, no usarlas crudas: la imagen es `imagenes.compragamer.com/productos/compragamer_Imganen_general_{imagenes[].nombre}.jpg` (el typo `Imganen` es de ellos; sin el prefijo, el bucket S3 da `403 AccessDenied`), y la URL de producto es `/producto/{slug}_{id}` — el router de la SPA rutea por el sufijo `_{id}` y manda `/producto/{id}` pelado al home |
 | rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **503 productos** en un run real de sitio completo con las bandas de precio de producción (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
 | venex | osCommerce (propio) | tecnologia | Descubrimiento en dos niveles: categoría top → sub-categorías leaf en su landing (la landing muestra 12 productos no representativos, nunca se cuentan). `?page=N`, se detiene en página vacía **o** repetida — pasado el final real, Venex repite la última página en vez de devolver vacío. `page.content()` sirve el DOM re-serializado por Chromium (comillas dobles + entidad `&quot;`), no el HTML crudo del servidor (comillas simples) — el parser normaliza antes de matchear. El argumento de `enhancedClick` se lee **con Jackson**, no campo por campo con regex: los nombres traen la pulgada escapada (`15.6\"`) y un `"name":"([^"]*)"` se corta ahí y tira la card entera en silencio — medido en `/notebooks/`, eso costaba 20 de 47 productos únicos (2026-08-15). **1294 productos** en un run real de sitio completo (las 19 categorías top, 2026-08-13), sub-contado por esa pérdida |
+| inpro | Inpro (Tiendanube headless) | oficina | Sillas ergonómicas, standing desks, brazos de monitor, iluminación. **NO es plataforma `tiendanube`**: sirve los objetos crudos de la API de Tiendanube pero la vidriera es un Next.js propio en Vercel, y el storefront clásico no es alcanzable (`inpro.mitiendanube.com` redirige a *otra* tienda, `inproindumentaria.com.ar`; los slugs candidatos dan 410). El catálogo se lee del payload RSC (`self.__next_f`), no del DOM. Enumera por `/server-sitemap.xml` (106 productos, 16 categorías) → páginas de categoría (100 productos en 16 fetches) → los 6 handles que ninguna categoría mostró, de a uno. **101 productos** en una corrida real (2026-08-20); los 5 `pod-*` restantes son cabinas con `price: null`, se venden a consultar. El orden de las claves del JSON **no** es estable: en categoría el objeto abre con `id`, en producto con `name` — anclar en `{"id":` da 0 en la mitad de las superficies, en silencio |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -156,6 +157,7 @@ MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
 VAYPOL  → vaypol, city
 QLOUD   → rockethard
 OSCOMMERCE → venex
+INPRO   → inpro
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
 MONKYFORCE → monkyforce
@@ -191,7 +193,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V24` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V27` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -360,6 +362,14 @@ cantidadUnidades, subCategoria, visual (VisualAttrs)
 `String`): `null` es "no parseó / no había" (D1), nunca un sentinel string.
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
+
+`rubro` tiene **cuatro** valores desde `V27`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina`. Lo resuelve `RubroResolver` por
+`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
+tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
+esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
+manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
+sobre el rubro forzado del sitio.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;
@@ -532,6 +542,7 @@ escrito para que no vuelva a proponerse.
 | | |
 |---------|--------|
 | `precio.maximo=300000` borra categorías enteras de tecnología. Medido sobre Maximus (2026-08-13): notebooks `CAT=56` conserva 0 de 16, computadoras armadas `CAT=68` 0 de 59, `CAT=48` (GPUs) 5 de 59 — 377 de 1122 productos filtrados, 34% | El scraper trae esos productos bien; el filtro los descarta después. Los conteos por sitio de la tabla de sitios **subestiman** la cobertura real |
+| ⚠️ **En `oficina` el filtro se lleva justo lo que se quiere seguir.** Medido sobre INPRO (2026-08-20): **32 de 101 productos, 32%** — y entre ellos TODAS las sillas ergonómicas de gama y TODOS los standing desks salvo los tres más baratos (`LiberNovo Omni` $2.999.000, `Standing Desk Pro Ultra` $2.399.000, `Silla Ergonómica Pro` $1.099.990…) | La banda es **global**, no por sitio: `precio.maximo` sale de `config.properties` y lo lee `ScraperConfig`, sin override por sitio. Para ver el catálogo de oficina completo hay que **subir `precio.maximo`** (se edita desde el dashboard, `PUT /api/config`), lo que afecta a los 24 sitios. La alternativa —una banda por sitio— es una feature aparte, no se coló acá |
 
 Decisiones que antes vivían acá y ahora están donde corresponde:
 `/api/db/export`/`import` en 410 Gone → [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) ·
