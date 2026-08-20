@@ -3,6 +3,7 @@ import { fetchSitios, startScrape, limpiarCatalogo, limpiarMl } from '../api';
 import { cn } from '../lib/utils';
 import MlStatusPanel from './MlStatusPanel';
 import { SEMANTIC } from '../lib/colors';
+import { PRECIO_MIN_DEFAULT, PRECIO_MAX_DEFAULT } from '../lib/scrapeDefaults';
 
 const RUBRO_META = {
   indumentaria: { icon:'👕', color: 'var(--p)',       label:'Indumentaria' },
@@ -48,8 +49,8 @@ export default function SplashPanel({
 }) {
   const [sitios,    setSitios]    = useState([]);
   const [selected,  setSelected]  = useState([]);
-  const [precioMin, setPrecioMin] = useState(config?.precioMin || 0);
-  const [precioMax, setPrecioMax] = useState(config?.precioMax || 300000);
+  const [precioMin, setPrecioMin] = useState(config?.precioMin || PRECIO_MIN_DEFAULT);
+  const [precioMax, setPrecioMax] = useState(config?.precioMax || PRECIO_MAX_DEFAULT);
   const [tab,          setTab]          = useState('launch'); // launch | config
   const [pct,          setPct]          = useState(5);
   const [forceRetrain, setForceRetrain] = useState(false);

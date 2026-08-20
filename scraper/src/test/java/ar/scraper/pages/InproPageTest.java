@@ -172,6 +172,11 @@ class InproPageTest {
     @DisplayName("La banda de precios global se respeta, como en todo scraper")
     class PriceBand {
 
+        // Los valores de banda de estos tests son del TEST, no de produccion
+        // (hoy precio.maximo=5000000 y no filtra nada de INPRO): lo que se
+        // prueba es el mecanismo del filtro, que tiene que andar con cualquier
+        // banda.
+        //
         // Ojo con estos dos: un assert que sólo dice `doesNotContain` pasa
         // también cuando el parseo devuelve CERO productos. Por eso los dos
         // fijan además exactamente quién SÍ queda.
@@ -181,7 +186,7 @@ class InproPageTest {
         void porEncimaDelMaximoSeDescarta() {
             List<Product> ps = InproPage.parsePayload(fixture(), "Inpro", BASE, 0, 300_000);
             assertThat(ps).extracting(Product::nombre)
-                    .as("con el precio.maximo=300000 de produccion se cae justo lo que se quiere seguir")
+                    .as("con una banda angosta se cae justo lo que se quiere seguir")
                     .containsExactlyInAnyOrder(
                             "Brazo de Monitor",
                             "Soporte de CPU para Standing Desk",
@@ -233,8 +238,10 @@ class InproPageTest {
         void descartadoPorPrecioQuedaComoVisto() {
             // Si "visto" fuera lo mismo que "aceptado", la tercera pasada del
             // scraper volvería a pedir la página de cada producto que la banda
-            // filtró. Medido en vivo con precio.maximo=300000: 38 páginas de
-            // ~550 KB por corrida a cambio de nada.
+            // filtró. Medido en vivo cuando precio.maximo era 300000: 38
+            // páginas de ~550 KB por corrida a cambio de nada. El 300_000 de
+            // abajo es del TEST, no de produccion: hace falta una banda que
+            // filtre algo para poder probar la distinción.
             InproPage.Lote lote = InproPage.parseLote(fixture(), "Inpro", BASE, 0, 300_000);
             assertThat(lote.productos()).extracting(Product::nombre)
                     .doesNotContain("Silla Ergonómica Pro");
