@@ -103,6 +103,12 @@ function adoptBroadcastSession(msg) {
     receivedAt: msg.receivedAt,
     expiresAt: msg.expiresAt,
   };
+  // The identity travels WITH the session. Without it an adopting tab holds a
+  // perfectly valid token and still does not know who it is — and because the
+  // role rule is hide-not-disable, an ADMIN's second tab silently loses every
+  // ADMIN affordance. It rides along rather than being re-fetched because the
+  // sibling already resolved it for this exact token.
+  if (msg.identity !== undefined) identity = msg.identity;
   ended = false;
   lastFailureReason = null;
   notify();
@@ -126,6 +132,7 @@ function handleBroadcastMessage(msg) {
         accessToken: session.accessToken,
         nonce: session.nonce,
         expiresAt: session.expiresAt,
+        identity,
       });
     }
   }
@@ -179,6 +186,10 @@ function adoptSession(data) {
     accessToken: session.accessToken,
     nonce: session.nonce,
     expiresAt: session.expiresAt,
+    // May legitimately be null here: this fires the moment a token is stored,
+    // and /api/auth/me has not necessarily answered yet. That is why adopting
+    // is belt-and-braces — see adoptIdentityIfMissing().
+    identity,
   });
   notify();
 }
@@ -297,10 +308,25 @@ export async function ensureFreshSession(_opts = {}) {
   return refreshPromise;
 }
 
+/**
+ * A sibling normally sends its identity along with the session, but it can
+ * legitimately have none yet — it may have answered the probe in the window
+ * between storing a token and /api/auth/me replying. Adopting a session and
+ * then never learning who we are is the failure this closes: the tab would be
+ * fully authenticated and still render as roleless, which under hide-not-
+ * disable looks exactly like a demotion.
+ */
+async function adoptIdentityIfMissing() {
+  if (session.accessToken && !identity) await fetchIdentity();
+}
+
 /** Probe siblings first; only refresh over the network if none answers. */
 export async function bootstrap() {
   const adopted = await probeSiblings();
-  if (adopted) return true;
+  if (adopted) {
+    await adoptIdentityIfMissing();
+    return true;
+  }
   return ensureFreshSession({ reason: 'bootstrap' });
 }
 
@@ -308,8 +334,19 @@ export async function bootstrap() {
 export async function login(username, password) {
   let res;
   try {
+    // `credentials: 'include'` is REQUIRED here, not optional, and the reason
+    // is easy to get backwards: this response carries the Set-Cookie that
+    // plants the refresh cookie. Cross-origin — which is every shipped
+    // topology — a response to a request made without credentials mode has its
+    // Set-Cookie discarded, so the cookie is never stored and the session can
+    // never be recovered on reload. FRONTEND_AUTH_CONTRACT.md used to say
+    // credentials belonged on /api/auth/refresh "and only there"; that was
+    // wrong, and it only looked right under `vite dev`, where login is
+    // same-origin. The backend allows credentials on this path for the same
+    // reason (CorsConfig.LOGIN_PATH).
     res = await fetch(`${BASE}/api/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
@@ -338,7 +375,8 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pageshow', event => {
     if (!event.persisted) return;
     probeSiblings().then(adopted => {
-      if (!adopted) ensureFreshSession({ reason: 'bfcache' });
+      if (!adopted) return ensureFreshSession({ reason: 'bfcache' });
+      return adoptIdentityIfMissing();
     });
   });
 
@@ -346,10 +384,11 @@ if (typeof window !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
       probeSiblings().then(adopted => {
-        if (adopted) return;
+        if (adopted) return adoptIdentityIfMissing();
         if (session.accessToken && Date.now() > session.expiresAt - WAKE_REFRESH_THRESHOLD_MS) {
-          ensureFreshSession({ reason: 'wake' });
+          return ensureFreshSession({ reason: 'wake' });
         }
+        return undefined;
       });
     });
   }

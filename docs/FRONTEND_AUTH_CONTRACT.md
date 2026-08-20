@@ -49,9 +49,25 @@ sobrevive al reload pero lo lee cualquier script inyectado. En memoria muere con
 el reload — y eso está bien, porque la sesión se recupera con la cookie.
 
 **El refresh token no lo vas a ver nunca.** Es `HttpOnly`: no aparece en
-`document.cookie` y no está en ningún body de respuesta. Sólo tenés que mandar
-`credentials: 'include'` en las llamadas a `/api/auth/refresh` — y **sólo ahí**,
-porque CORS con credenciales está habilitado únicamente en esa ruta.
+`document.cookie` y no está en ningún body de respuesta.
+
+**`credentials: 'include'` va en DOS llamadas, no en una: `/api/auth/login` y
+`/api/auth/refresh`.** Y el login es el que se olvida, porque uno piensa en la
+cookie como algo que se *manda* y ahí todavía no existe. Pero **la respuesta del
+login es la que la planta**, y cross-origin el browser **descarta el
+`Set-Cookie`** de una respuesta cuyo pedido no se hizo en modo credenciales. Sin
+eso la cookie no se guarda nunca, y la recuperación de sesión al recargar no
+puede funcionar — no falla a veces: no funciona.
+
+> ⚠️ Este documento afirmaba lo contrario —"`credentials` sólo en `/refresh`"— y
+> estaba mal. El bug sobrevivió a 1570 tests de backend y 148 de frontend, y
+> apareció recién en la suite de browser de la fase 8 (`tests/e2e/run-e2e.sh`).
+> **Bajo `vite dev` no se ve**: el proxy hace que el login sea same-origin y la
+> cookie se guarda igual. Sólo se manifiesta en las topologías que se instalan
+> de verdad. Si vas a tocar esta superficie, corré la suite cross-origin.
+
+CORS con credenciales está habilitado exactamente en esas dos rutas y en ninguna
+más. Agregar una tercera es una decisión de seguridad, no un detalle.
 
 ---
 
