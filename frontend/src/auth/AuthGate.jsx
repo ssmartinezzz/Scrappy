@@ -7,8 +7,9 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import RouteFallback from '../components/RouteFallback';
 
-// /forgot-password and /reset-password join this list in Phase 6.
-const PUBLIC_ROUTES = ['/login'];
+// frontend-auth-ui Phase 6: /forgot-password and /reset-password are public
+// too — a reset link is exactly what an anonymous, locked-out visitor uses.
+const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password'];
 
 export default function AuthGate({ children }) {
   const { status } = useAuth();

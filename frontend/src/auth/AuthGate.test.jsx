@@ -88,6 +88,42 @@ describe('AuthGate — bootstrap ordering (design D5)', () => {
   });
 });
 
+describe('AuthGate — Phase 6 password-reset routes are public', () => {
+  function ResetRoutesTree({ initialPath }) {
+    return (
+      <MemoryRouter initialEntries={[initialPath]}>
+        <AuthProvider>
+          <AuthGate>
+            <Routes>
+              <Route path="/login" element={<div>LOGIN SCREEN</div>} />
+              <Route path="/forgot-password" element={<div>FORGOT PASSWORD SCREEN</div>} />
+              <Route path="/reset-password" element={<div>RESET PASSWORD SCREEN</div>} />
+            </Routes>
+          </AuthGate>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+  }
+
+  it('an anonymous visitor lands directly on /forgot-password without a redirect to /login', async () => {
+    global.fetch = vi.fn().mockResolvedValue(refreshRejected());
+
+    render(<ResetRoutesTree initialPath="/forgot-password" />);
+
+    await waitFor(() => expect(screen.getByText('FORGOT PASSWORD SCREEN')).toBeInTheDocument());
+    expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
+  });
+
+  it('an anonymous visitor lands directly on /reset-password without a redirect to /login', async () => {
+    global.fetch = vi.fn().mockResolvedValue(refreshRejected());
+
+    render(<ResetRoutesTree initialPath="/reset-password" />);
+
+    await waitFor(() => expect(screen.getByText('RESET PASSWORD SCREEN')).toBeInTheDocument());
+    expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
+  });
+});
+
 describe('AuthGate — network error vs rejected session (design D5 point 5)', () => {
   it('a network-unreachable backend still routes anonymous to /login but is distinguishable via failureReason', async () => {
     global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
