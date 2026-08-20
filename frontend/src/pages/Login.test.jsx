@@ -49,6 +49,17 @@ describe('Login — username, not email (D7)', () => {
   });
 });
 
+describe('Login — forgot password link (task 6.1: always visible, regardless of account type)', () => {
+  it('always renders a link to /forgot-password', async () => {
+    global.fetch = vi.fn().mockResolvedValue(refreshRejected());
+    renderLogin();
+    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+
+    const link = screen.getByRole('link', { name: /olvidé mi contraseña/i });
+    expect(link).toHaveAttribute('href', '/forgot-password');
+  });
+});
+
 describe('Login — no OAuth affordance (spec: no functional OAuth affordance)', () => {
   it('never renders a Google/OAuth control', async () => {
     global.fetch = vi.fn().mockResolvedValue(refreshRejected());
