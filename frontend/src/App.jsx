@@ -21,6 +21,7 @@ import AppLayout, {
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
+import { CONFIG_DEFAULT } from './lib/scrapeDefaults';
 
 // ─── RootGate ───────────────────────────────────────────────────────────────
 // Initial-load gate for "/" only: checking | toSplash | toCatalogo.
@@ -49,7 +50,7 @@ function SplashRoute() {
   const [progreso, setProgreso] = useState(null);
   const [prods, setProds] = useState([]);
   const [totalProds, setTotalProds] = useState(0);
-  const config = { precioMin: 0, precioMax: 300000 };
+  const config = CONFIG_DEFAULT;
 
   useEffect(() => {
     fetchStatus().then(st => {

@@ -102,9 +102,14 @@ public class InproPage extends BasePage {
             // VISTO != ACEPTADO, y la diferencia cuesta plata. Un producto que
             // la banda de precios descarta YA se vio: volver a pedir su página
             // en la tercera pasada es tráfico puro a cambio de descartarlo otra
-            // vez. Medido contra el sitio real con precio.maximo=300000: sin
-            // esta distinción la tercera pasada pide 38 páginas de ~550 KB (21
-            // MB) en cada corrida; con ella pide 6.
+            // vez.
+            //
+            // Medido contra el sitio real cuando `precio.maximo` era 300000:
+            // sin esta distinción la tercera pasada pedía 38 páginas de ~550 KB
+            // (21 MB) por corrida; con ella, 6. Con la banda actual (5000000)
+            // no filtra nada de INPRO y las dos cuentas dan 6 — la distinción
+            // deja de notarse acá, y sigue siendo correcta: vale para cualquier
+            // banda que sí filtre, y para cualquier sitio que se agregue.
             Set<String> vistos = new LinkedHashSet<>();
             for (String slug : categorias) {
                 Lote lote = parsear(fetchText(baseUrl + "/categorias/" + slug));

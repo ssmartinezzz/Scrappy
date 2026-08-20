@@ -290,8 +290,10 @@ productos y 16 categorías.
 
 Y separá **visto** de **aceptado**: un producto que la banda de precios descarta
 ya se vio, así que la pasada de fallback no tiene que volver a pedir su página.
-Medido en INPRO con `precio.maximo=300000`, esa distinción son 6 fetches en vez
-de 38, de ~550 KB cada uno.
+Medido en INPRO cuando `precio.maximo` era 300.000, esa distinción eran 6
+fetches en vez de 38, de ~550 KB cada uno. Con la banda actual (5.000.000) no
+filtra nada de INPRO y las dos cuentas dan 6 — pero la distinción sigue
+valiendo para cualquier banda que sí filtre.
 
 ### La fila de seed
 
