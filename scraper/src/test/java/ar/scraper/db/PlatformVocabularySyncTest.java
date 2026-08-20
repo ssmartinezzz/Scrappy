@@ -42,7 +42,7 @@ class PlatformVocabularySyncTest {
 
     /** Newest migration that redefines `sitio_plataforma_check` — update this pointer, never leave two truths. */
     private static final String NEWEST_PLATAFORMA_MIGRATION =
-            "/db/migration/V24__platform_vocabulary_qloud_oscommerce.sql";
+            "/db/migration/V27__rubro_oficina_and_inpro_platform.sql";
 
     private static final Pattern CHECK_LIST = Pattern.compile(
             "CHECK\\s*\\(\\s*plataforma\\s+IN\\s*\\(([^)]*)\\)\\s*\\)", Pattern.CASE_INSENSITIVE);
