@@ -47,6 +47,19 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   };
 }
 
+// jsdom doesn't implement IntersectionObserver either — ProductGrid's
+// infinite-scroll sentinel uses it (frontend-auth-ui Phase 7: the first test
+// suite to mount AppLayout/ProductGrid together surfaced this gap). A no-op
+// stub is correct here: these tests assert role-aware visibility, not scroll
+// behaviour, so the sentinel simply never fires.
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+  globalThis.IntersectionObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // ResponsiveContainer también consulta el box del nodo directamente.
 if (!HTMLElement.prototype.getBoundingClientRect.__chartStub) {
   const stub = function () {

@@ -162,6 +162,73 @@ describe('authSession — cross-tab coordination', () => {
   });
 });
 
+describe('authSession — role is fetched from /me, never decoded from the token (design D4, spec frontend-role-awareness)', () => {
+  beforeEach(() => {
+    uninstallCoordinationPrimitives();
+    vi.resetModules();
+  });
+
+  it('GET /api/auth/me is called after a successful bootstrap refresh, and the identity is stored', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/api/auth/refresh')) return refreshOk('tok', 'nonce');
+      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['ADMIN'] });
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+
+    const authSession = await import('./authSession');
+    const ok = await authSession.bootstrap();
+
+    expect(ok).toBe(true);
+    expect(authSession.getIdentity()).toEqual({ username: 'valeria', roles: ['ADMIN'] });
+    const meCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/auth/me'));
+    expect(meCalls).toHaveLength(1);
+  });
+
+  it('GET /api/auth/me is called again after every subsequent successful refresh — not just bootstrap', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/api/auth/refresh')) return refreshOk('tok2', 'nonce2');
+      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+
+    const authSession = await import('./authSession');
+    authSession.__test.setSession({ accessToken: 'old', nonce: 'old-nonce', receivedAt: 1, expiresAt: 1 });
+
+    await authSession.ensureFreshSession({ reason: 'test' });
+
+    const meCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/auth/me'));
+    expect(meCalls).toHaveLength(1); // this refresh's own /me call, not zero
+  });
+
+  it('GET /api/auth/me is called after login and the identity is stored', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/api/auth/login')) return refreshOk('tok3', 'nonce3');
+      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'admin', roles: ['ADMIN'] });
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+
+    const authSession = await import('./authSession');
+    const result = await authSession.login('admin', 'hunter2');
+
+    expect(result.ok).toBe(true);
+    expect(authSession.getIdentity()).toEqual({ username: 'admin', roles: ['ADMIN'] });
+  });
+
+  it('source assertion: authSession.js never decodes a role/claim out of the JWT itself', async () => {
+    const path = await import('node:path');
+    const fs = await import('node:fs/promises');
+    const src = await fs.readFile(path.resolve(process.cwd(), 'src/lib/authSession.js'), 'utf-8');
+    // The only legitimate source of `roles` is the /me response body — never
+    // a base64/JWT-payload decode of accessToken.
+    expect(src).not.toMatch(/atob\(/);
+    expect(src).not.toMatch(/jwt-decode/);
+    expect(src).not.toMatch(/accessToken\.split\(['"]\.['"]\)/);
+  });
+});
+
 describe('authSession — network error vs rejected session', () => {
   beforeEach(() => {
     uninstallCoordinationPrimitives();
