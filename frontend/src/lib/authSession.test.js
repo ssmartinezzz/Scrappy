@@ -284,3 +284,100 @@ describe('authSession — network error vs rejected session', () => {
     expect(authSession.getLastFailureReason()).toBe('refresh_invalido');
   });
 });
+
+// ─── bfcache / wake revalidation (design D2, spec frontend-auth-session) ────
+// Added after sdd-verify found these two handlers had ZERO covering tests —
+// unit or e2e. The logic read as sound, but a spec scenario without a passing
+// test is assumed, not verified. The browser suite cannot reach them either:
+// its back/forward test does full document loads, which is not bfcache.
+describe('authSession — a tab resumed from bfcache or from the background revalidates', () => {
+  beforeEach(() => {
+    installFakeCoordinationPrimitives();
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    uninstallCoordinationPrimitives();
+    vi.restoreAllMocks();
+  });
+
+  // Every assertion here — the NEGATIVE ones included — must outlast the 150 ms
+  // sibling probe (SIBLING_PROBE_TIMEOUT_MS). Asserting "no fetch" after 5 ms
+  // only proves the probe had not timed out yet, which is not the same thing as
+  // proving nothing happens. Two of these tests were vacuous exactly that way.
+  const esperarAlSondeo = () => new Promise(resolve => setTimeout(resolve, 250));
+
+  /** jsdom builds a PageTransitionEvent poorly; a plain Event with the flag set is enough. */
+  function firePageshow(persisted) {
+    const event = new Event('pageshow');
+    Object.defineProperty(event, 'persisted', { value: persisted });
+    window.dispatchEvent(event);
+  }
+
+  it('a restored tab with no live sibling refreshes rather than presenting its stale token', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokFresco', 'nonceFresco');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'e2e-admin', roles: ['ADMIN'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const tab = await import('./authSession');
+    tab.__test.setSession({ accessToken: 'tokViejo', nonce: 'n', receivedAt: 1, expiresAt: 2 });
+
+    firePageshow(true);
+    await esperarAlSondeo();
+
+    expect(tab.getAccessToken()).toBe('tokFresco');
+  });
+
+  it('a NON-persisted pageshow is an ordinary load and triggers no revalidation at all', async () => {
+    global.fetch = vi.fn();
+
+    const tab = await import('./authSession');
+    tab.__test.setSession({ accessToken: 'tok', nonce: 'n', receivedAt: 1, expiresAt: Date.now() + 900000 });
+
+    firePageshow(false);
+    await esperarAlSondeo();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('waking with a token that is still comfortably fresh does NOT mint a new session', async () => {
+    // Restoring five backgrounded tabs must not produce five refreshes.
+    global.fetch = vi.fn();
+
+    const tab = await import('./authSession');
+    tab.__test.setSession({
+      accessToken: 'tok',
+      nonce: 'n',
+      receivedAt: Date.now(),
+      expiresAt: Date.now() + 900_000,
+    });
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await esperarAlSondeo();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('waking with a token about to expire refreshes it', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokRenovado', 'nonceRenovado');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'e2e-admin', roles: ['ADMIN'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const tab = await import('./authSession');
+    tab.__test.setSession({
+      accessToken: 'tokPorVencer',
+      nonce: 'n',
+      receivedAt: Date.now(),
+      expiresAt: Date.now() + 1_000, // inside the wake threshold
+    });
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    await esperarAlSondeo();
+
+    expect(tab.getAccessToken()).toBe('tokRenovado');
+  });
+});
