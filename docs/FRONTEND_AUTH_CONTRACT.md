@@ -132,19 +132,57 @@ el backend además iguala los tiempos.
 ### Recuperar la sesión al recargar la página
 
 No hay `localStorage` que leer. Al arrancar la app, llamá a
-`POST /api/auth/refresh` con `credentials: 'include'`:
+`POST /api/auth/refresh` con `credentials: 'include'` — **sin** `X-Refresh-CSRF`,
+porque después de un reload no tenés el nonce:
 
-- si la cookie sigue viva → 200 con un access token y un nonce nuevos, sesión recuperada
-- si no → 401, mostrá el login
+- si la cookie sigue viva y el pedido cumple la admisión de arranque en frío
+  (ver abajo) → 200 con un access token y un nonce nuevos, sesión recuperada
+- si no → 401 (`refresh_invalido`/`sesion_invalidada`) o 403 (`csrf_invalido`), mostrá el login
 
-**El nonce es el problema del arranque en frío**: después de un reload no lo
-tenés. El backend acepta el refresh sin nonce **sólo** si la fila no tenía uno;
-en la práctica, después de un reload necesitás el nonce y no lo tenés.
-**Esto es una punta suelta real que el SDD de frontend tiene que resolver**, y la
-dejamos escrita en vez de que la descubras: las opciones son guardar el nonce en
-un `sessionStorage` (accesible a script, pero inútil sin la cookie `HttpOnly`) o
-cambiar el backend para vincular el nonce a la cookie de otra forma. **No la
-decidimos por vos.**
+**Admisión de arranque en frío ("bootstrap"), el mecanismo que se shippeó.**
+Una versión anterior de este documento describía acá un escape hatch —
+"el backend acepta el refresh sin nonce sólo si la fila no tenía uno"— que
+resultó ser **código muerto**: `RefreshTokenService.emitir()` genera un nonce
+en **toda** emisión, así que una fila sin nonce nunca existe. Seguir esa regla
+al pie de la letra significaba que un refresh sin nonce recibía siempre
+`403 csrf_invalido`, nunca la recuperación silenciosa que el arranque necesita.
+
+Lo que se implementó en su lugar: un refresh sin `X-Refresh-CSRF` (bootstrap)
+se admite sólo si **las dos** condiciones valen —
+
+| # | Condición |
+|---|---|
+| 1 | `Origin` presente y coincide **exactamente** (string, con puerto) con una entrada de `APP_CORS_ALLOWED_ORIGINS` |
+| 2 | `Sec-Fetch-Site` presente y ∈ {`same-origin`, `same-site`} |
+
+Si falta cualquiera de los dos headers, o el valor no matchea, el backend
+**falla cerrado**: `403 csrf_invalido`, igual que hoy. El camino de bootstrap
+no otorga ninguna otra leniencia — un token revocado, vencido o reusado se
+comporta exactamente igual que en el camino con nonce; lo único que cambia es
+que la ausencia del nonce deja de ser, por sí sola, un rechazo.
+
+**Por qué NO alcanza con `Sec-Fetch-Site: same-origin` solo** — la opción que
+este documento recomendaba antes de medir las topologías reales: **ninguna
+instalación que se shippea de esta app es same-origin**. El SPA vive en
+`localhost:5173` (portable/POSIX, `npm run preview`) o `localhost:8080`
+(Docker); el backend siempre en `localhost:3000`. Un refresh legítimo manda
+`Sec-Fetch-Site: same-site`, nunca `same-origin` — eso sólo pasa bajo
+`vite dev`, con el proxy y una `VITE_API_BASE_URL` relativa vacía. Exigir
+`same-origin` habría rechazado el arranque en frío en **las dos**
+instalaciones que se shippean, y sólo hubiera andado en dev. Peor: como
+`same-site` es también exactamente lo que manda una página servida desde otro
+puerto de `localhost` —el atacante contra el que el nonce existe—,
+`Sec-Fetch-Site` solo no discrimina nada en este caso. La señal que sí
+discrimina es `Origin`: lleva el puerto (a diferencia de `SameSite`, que lo
+ignora), es un forbidden header name que un script no puede forjar, y el
+backend ya tiene un allow-list exacto y validado al arranque para compararlo.
+Por eso `Origin` es el gate primario y `Sec-Fetch-Site` queda como segundo
+gate — fail-closed, no la única señal.
+
+**Del lado del cliente** esto es un carve-out acotado a **un** reintento sin
+nonce, en dos lugares — el bootstrap en sí, y un refresh con nonce que volvió
+`403 csrf_invalido` (nonce stale porque otra pestaña ya rotó primero). Todo
+otro `403` de la app sigue siendo terminal y nunca dispara un refresh.
 
 ### Refresh
 
@@ -208,14 +246,19 @@ favoritos, feedback y outfits guardados.
 
 **El rol no viene en el token** — se relee de la base en cada request. No
 intentes decodificar el JWT para saber qué mostrar: no está ahí, y si estuviera
-no sería confiable. Si necesitás el rol para armar el menú, hace falta un
-endpoint que lo diga; **hoy no existe** y es una decisión del SDD de frontend.
+no sería confiable. Para armar el menú llamá a `GET /api/auth/me` — devuelve
+`{ username, roles: [...] }` — después de login, después de la recuperación de
+sesión al recargar, y después de **cada** refresh exitoso, no sólo el de
+arranque, así un cambio de rol server-side aparece dentro de una vida de token
+(15 min) en vez de recién en el próximo login.
 
 ---
 
 ## Cosas que el backend NO tiene y quizás esperes
 
-- **No hay endpoint que devuelva el usuario actual ni su rol.** Ver arriba.
+- **`GET /api/auth/me` ya existe** — devuelve `{ username, roles: [...] }` del
+  sujeto autenticado, leído de la base en cada request (nunca del token).
+  Ver la sección de arriba y [`API_REFERENCE.md`](./API_REFERENCE.md).
 - **La administración de usuarios YA existe** (`GET`/`POST /api/usuarios`,
   `PUT /api/usuarios/{username}/rol`, `DELETE /api/usuarios/{username}`,
   `PUT /api/usuarios/{username}/activar`) pero **sin UI**: es ADMIN-only y se
@@ -232,7 +275,6 @@ endpoint que lo diga; **hoy no existe** y es una decisión del SDD de frontend.
 
 | Punta | Estado |
 |---|---|
-| El nonce después de un reload (ver "Recuperar la sesión") | **Sin resolver.** Es la decisión de diseño más importante que le queda al SDD de frontend |
 | La ventana de gracia de 10 s | Propuesta, no medición. Medirla necesita justo el cliente que vos vas a escribir |
 | Los topes de rate-limit del reseteo (3/h por dirección, 10/h por IP, 100/h global) | Propuestas, sin validar contra tráfico real |
 | Parámetros de Argon2id | Medidos en Linux (76 ms), sin medir en el Windows portable |
