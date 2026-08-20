@@ -4,6 +4,7 @@ import {
   activarFinanciacionPreset, eliminarFinanciacionPreset,
 } from '../api';
 import { SEMANTIC } from '../lib/colors';
+import { useAuth } from '../auth/AuthProvider';
 
 const DISCLAIMER = 'Valores asumidos por vos — no es una tasa oficial ni proviene de ningún banco/financiera.';
 
@@ -74,7 +75,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
   );
 }
 
-function PresetRow({ preset, onActivar, onEliminar, onGuardarEdicion }) {
+function PresetRow({ preset, onActivar, onEliminar, onGuardarEdicion, canEdit }) {
   const [editando, setEditando] = useState(false);
 
   if (editando) {
@@ -124,33 +125,43 @@ function PresetRow({ preset, onActivar, onEliminar, onGuardarEdicion }) {
           <span style={{ fontStyle:'italic', marginLeft:6 }}>(asumido por vos)</span>
         </div>
       </div>
-      <div style={{ display:'flex', gap:4 }}>
-        {!preset.activo && (
-          <button onClick={() => onActivar(preset.id)} title="Activar" style={{
-            padding:'4px 8px', borderRadius:6, border:'1px solid var(--p)', cursor:'pointer',
-            background:'transparent', color:'var(--p2)', fontSize:'.66rem',
+      {/* frontend-auth-ui Phase 7 audit finding: every mutation on this row
+          (activar/editar/eliminar) hits an ADMIN row in ApiRoutePolicy.TABLE
+          (POST/PUT/DELETE /api/financiacion/presets/**), but the GET this
+          component renders is AUTHENTICATED — a VIEWER is entitled to SEE
+          which preset is active, just not to change it. Hiding the whole
+          page would have hidden that legitimate read too (the symmetric
+          error), so only the mutation controls are gated here. */}
+      {canEdit && (
+        <div style={{ display:'flex', gap:4 }}>
+          {!preset.activo && (
+            <button onClick={() => onActivar(preset.id)} title="Activar" style={{
+              padding:'4px 8px', borderRadius:6, border:'1px solid var(--p)', cursor:'pointer',
+              background:'transparent', color:'var(--p2)', fontSize:'.66rem',
+            }}>
+              Activar
+            </button>
+          )}
+          <button onClick={() => setEditando(true)} title="Editar" style={{
+            padding:'4px 8px', borderRadius:6, border:'1px solid var(--bd)', cursor:'pointer',
+            background:'transparent', color:'var(--t4)', fontSize:'.66rem',
           }}>
-            Activar
+            ✎
           </button>
-        )}
-        <button onClick={() => setEditando(true)} title="Editar" style={{
-          padding:'4px 8px', borderRadius:6, border:'1px solid var(--bd)', cursor:'pointer',
-          background:'transparent', color:'var(--t4)', fontSize:'.66rem',
-        }}>
-          ✎
-        </button>
-        <button onClick={() => onEliminar(preset.id)} title="Eliminar" style={{
-          padding:'4px 8px', borderRadius:6, border:'1px solid var(--bd)', cursor:'pointer',
-          background:'transparent', color:'var(--t4)', fontSize:'.66rem',
-        }}>
-          🗑
-        </button>
-      </div>
+          <button onClick={() => onEliminar(preset.id)} title="Eliminar" style={{
+            padding:'4px 8px', borderRadius:6, border:'1px solid var(--bd)', cursor:'pointer',
+            background:'transparent', color:'var(--t4)', fontSize:'.66rem',
+          }}>
+            🗑
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function FinanPanel() {
+  const { isAdmin } = useAuth();
   const [presets, setPresets]   = useState([]);
   const [activo, setActivo]     = useState(null);
   const [loading, setLoading]   = useState(true);
@@ -223,10 +234,11 @@ export default function FinanPanel() {
           onActivar={handleActivar}
           onEliminar={handleEliminar}
           onGuardarEdicion={handleEditar}
+          canEdit={isAdmin}
         />
       ))}
 
-      {!creando ? (
+      {isAdmin && (!creando ? (
         <button onClick={() => setCreando(true)} style={{
           marginTop:8, padding:'6px 14px', borderRadius:8, border:'1.5px dashed var(--bd)',
           cursor:'pointer', background:'transparent', color:'var(--t3)', fontSize:'.72rem', fontWeight:700,
@@ -239,7 +251,7 @@ export default function FinanPanel() {
           onCancel={() => setCreando(false)}
           onSubmit={handleCrear}
         />
-      )}
+      ))}
 
       {activo && (
         <div style={{ marginTop:14, fontSize:'.64rem', color:'var(--t4)' }}>

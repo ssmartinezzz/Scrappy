@@ -10,7 +10,8 @@ import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetClose, SheetTitle } from '../ui/sheet';
-import { NAV_CONFIG, isLinkActive } from './nav-config';
+import { NAV_CONFIG, isLinkActive, visibleNav } from './nav-config';
+import { useAuth } from '../../auth/AuthProvider';
 
 function DrawerLink({ to, label, Icon, active }) {
   return (
@@ -32,6 +33,10 @@ function DrawerLink({ to, label, Icon, active }) {
 export default function NavDrawer({ className }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  // frontend-auth-ui Phase 7 (design D6): same filter as NavMenubar — this
+  // module is the single source of truth for both surfaces (nav-config.js).
+  const { identity } = useAuth();
+  const config = visibleNav(NAV_CONFIG, identity?.roles || []);
 
   return (
     <div className={className}>
@@ -48,7 +53,7 @@ export default function NavDrawer({ className }) {
         </Button>
         <SheetContent side="left" className="flex flex-col gap-1 overflow-y-auto p-3">
           <SheetTitle className="px-3 py-2">Navegación</SheetTitle>
-          {NAV_CONFIG.map(node => {
+          {config.map(node => {
             if (node.kind === 'link') {
               return (
                 <DrawerLink
