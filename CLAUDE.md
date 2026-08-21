@@ -86,6 +86,9 @@ Scrappy/
 │   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
 ├── ml-tests/                    ← pytest del pipeline Python
 ├── tests/cli/                   ← pytest del CLI nativo
+├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
+│                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
+├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
 └── scraper/
     ├── pom.xml
     └── src/main/
@@ -448,6 +451,26 @@ a nivel `AppLayout`, no rutas.
 
 ## Gotchas
 
+**El entorno de desarrollo NO tiene la forma de ninguna instalación real, y eso
+esconde bugs de auth.** `vite dev` proxea `/api`, así que el frontend queda
+**same-origin** con el backend. Las dos vías que se instalan de verdad son
+**cross-origin**: portable/POSIX es `:5173 → :3000` y Docker es `:8080 → :3000`.
+Cualquier cosa que dependa de la relación entre orígenes —`Origin`,
+`Sec-Fetch-*`, `SameSite`, si el browser guarda una cookie— se comporta distinto
+en dev y en producción, **y dev es la topología que nunca se instala**.
+
+Esto ya costó dos veces. Primero se recomendó exigir `Sec-Fetch-Site:
+same-origin` para el refresh de bootstrap, que habría dado 403 en las dos
+instalaciones reales y sólo habría andado en dev. Después, y peor: el login se
+mandaba sin `credentials: 'include'`, así que el browser descartaba la cookie de
+refresh y **la recuperación de sesión al recargar nunca funcionó** en ninguna
+instalación real — con 1570 tests de backend y 148 de frontend en verde encima.
+
+Por eso `tests/e2e/run-e2e.sh` corre siempre contra `npm run preview` y **falla
+ruidosamente si se descubre same-origin** en vez de pasar callado. Si tocás auth,
+CORS o cookies, esa suite no es opcional: los tests unitarios no pueden ver esta
+clase de bug, por construcción.
+
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
 corre los tests con JRE 21. El comando completo está en
 [`CONTRIBUTING.md`](./CONTRIBUTING.md). `clean` no es opcional: sin él `mvn test`
@@ -611,7 +634,7 @@ el catálogo real primero.
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
-| La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | El cliente que puede ejercitarlas ya existe (`frontend-auth-ui`: `frontend/src/lib/authSession.js`), pero medirlas requiere la verificación manual con backend + browser reales (fase 8 de ese cambio, aún pendiente). Hasta entonces el número queda como está, documentado como propuesta |
+| La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | Ya no falta infraestructura: el cliente existe (`frontend/src/lib/authSession.js`) y `tests/e2e/run-e2e.sh` lo ejercita contra un backend real. Falta la medición en sí, que es un trabajo aparte — nadie corrió todavía refrescos concurrentes para ver dónde cae el número. Hasta entonces queda como está, documentado como propuesta |
 | Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev): 76 ms hash / 76 ms verify con `m=16384, t=2, p=1`. Falta la máquina que importa — el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
 
 ### Sin dueño
