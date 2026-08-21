@@ -61,4 +61,15 @@ class GymratTaggerTest {
         assertThat(tagger.esGymrat("Remera Basica Lisa", "tussy", "Remera", "", null))
                 .isFalse();
     }
+
+    @Test
+    void sitioQueContieneUnaEntradaDeGymSitiosComoSubstringNoEsGymrat() {
+        // Hypothetical site key "bulksupplements" contains GYM_SITIOS entry
+        // "bulks" as a substring but is NOT the Bulks store — exact-match only.
+        Allure.parameter("nombre", "Remera Basica Lisa");
+        Allure.parameter("sitioKey", "bulksupplements");
+        Allure.parameter("cat", "Remera");
+        assertThat(tagger.esGymrat("Remera Basica Lisa", "bulksupplements", "Remera", "", null))
+                .isFalse();
+    }
 }
