@@ -51,7 +51,7 @@ class SitiosRepository {
     static final Set<String> PLATAFORMAS_VALIDAS = Set.of(
             "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
             "monkyforce", "maximus", "fullh4rd", "compragamer",
-            "qloud", "oscommerce");
+            "qloud", "oscommerce", "morashop");
 
     private final DataSource dataSource;
     private final SiteRegistry siteRegistry;

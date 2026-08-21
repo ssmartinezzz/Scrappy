@@ -24,6 +24,21 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code oscommerce} are deleted BEFORE the CHECK narrows back to 9 values —
  * doing it the other way would, for an instant, leave a CHECK narrower than
  * data that still violates it.</p>
+ *
+ * <p><b>add-morashop-and-fix-entreno-pagination, {@code CODE-2} declared</b>:
+ * this test was edited by a later change that did not touch V24. V28 widens
+ * the same CHECK and seeds a {@code morashop} row, so two things moved here.
+ * The pre-state assertion goes from 11 values to 12, and V28's rollback now
+ * runs BEFORE V24's — rollbacks compose in reverse order, and V24's block
+ * cannot narrow past a row V28 planted. Nothing about V24's own behaviour
+ * changed: the post-rollback assertion is still the same 9 values and the
+ * seed-first ordering it exists to prove is untouched.
+ *
+ * <p>The rule this edit follows, so it does not erode into "edit whatever is
+ * red": a CLOSED-DOMAIN assertion may move from {@code n} to {@code n+1} when
+ * the domain legitimately grows, provided every behavioural assertion around
+ * it stays exactly as it was. Softening a {@code containsExactlyInAnyOrder}
+ * into a {@code contains} to make red go away would be the opposite.</p>
  */
 @Epic("Persistence")
 @Feature("Site")
@@ -40,9 +55,13 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
-                        "qloud", "oscommerce");
+                        "qloud", "oscommerce", "morashop");
                 assertThat(sitioKeys(st)).contains("rockethard", "venex");
 
+                // Rollbacks compose in reverse order: V28 widened this same
+                // CHECK and seeded a morashop row, so V24's rollback cannot
+                // narrow past it on its own.
+                st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(rollbackSql());
 
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(

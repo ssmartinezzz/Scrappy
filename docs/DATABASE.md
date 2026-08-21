@@ -1419,6 +1419,70 @@ dato que `url` no tenga ya.
 
 ---
 
+### `V28` — el dominio de `plataforma` suma `morashop`
+
+Morashop es un Tiendanube genuino: el extractor compartido lee sus cards sin un
+solo cambio. El valor propio de plataforma no está ahí por la extracción sino
+por el **ruteo**. Desde `V20` `ScraperFactory` elige la clase de scraper
+exclusivamente por `sitio.plataforma` vía `SiteRegistry`, y los name-sets en
+código se borraron (`CODE-6`). Morashop necesita su propia page —descubre las
+categorías hoja en runtime, porque la tienda no tiene URL de catálogo: su
+`/productos/` es una landing del tema con cero productos— y rutear eso por
+clave de sitio reintroduciría exactamente lo que `V20` sacó. `monkyforce` sentó
+el precedente: también Tiendanube, también un solo seam especializado, también
+valor propio.
+
+`rubro_forzado='suplementos'` como Entreno, el único otro sitio del rubro. No
+hace falta tocar `chk_productos_rubro_domain` ni `sitio_rubro_forzado_check`:
+`suplementos` ya es válido en los dos.
+
+> ⚠️ **Orden de merge.** `V28` se escribió sobre un baseline donde la última
+> migración es `V25` y el dominio tiene once valores. `V26`
+> (`feature/user-accounts-and-roles`) y `V27` (`feat/inpro-oficina`, que suma
+> `inpro` a este mismo CHECK) no estaban mergeadas. El orden acordado es
+> `V26 → V27 → V28`, y no es preferencia: `application.properties` no setea
+> `spring.flyway.out-of-order`, así que es `false`, y con `validateOnMigrate`
+> en `true` una versión menor que llega después de una mayor se rechaza.
+> **Quien aterrice segundo rebasea la lista del CHECK, no renumera** — todas
+> estas migraciones hacen `DROP` + `ADD` del dominio completo, así que la
+> colisión es de contenido. Con `V27` adentro, la lista pasa a ser sus doce
+> valores + `morashop`, y el bloque de abajo se rebasea igual.
+
+> El bloque de abajo lo ejecuta `V28RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte. El orden importa —
+> primero la fila de seed, después el `CHECK`— por lo mismo que en `V24`:
+> revertir al revés dejaría, por un instante, un `CHECK` más angosto que datos
+> que todavía lo violan.
+
+```sql
+-- >>> rollback:V28
+DELETE FROM sitio s WHERE s.plataforma = 'morashop'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce'));
+-- <<< rollback:V28
+```
+
+El `NOT EXISTS` es el mismo de `V24` y por el mismo motivo: `V23` le puso una
+FK a `productos.sitio_key -> sitio(sitio_key)`, así que si ya corrió un scrape
+de Morashop, borrar su fila de `sitio` rompería esa referencia.
+
+**Los rollbacks componen al revés, y esto obligó a tocar un test ajeno.**
+`V24RollbackRoundTripTest` afirmaba su pre-estado con `containsExactlyInAnyOrder`
+sobre los once valores del dominio. Con `V28` aplicada el dominio tiene doce,
+así que ese test se pone rojo sin que nada de `V24` haya cambiado. El arreglo
+—el mismo que `V27` ya tuvo que aplicarle— es ejecutar el rollback más NUEVO
+primero: `sqlFor("V28")` y después `sqlFor("V24")`, con el pre-estado en doce.
+Editar un test ajeno es legítimo acá y conviene saber por qué: una aserción de
+**dominio cerrado** pasa de `n` a `n+1` mientras **ninguna** aserción de
+comportamiento se toca. El olor que hay que evitar es ablandar un
+`containsExactlyInAnyOrder` a un `contains` para que deje de estar rojo.
+
+---
+
 ## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
 
 Los tres primeros items de esta lista **dejaron de ser non-goals**: el usuario
