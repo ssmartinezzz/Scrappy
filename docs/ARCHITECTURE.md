@@ -198,6 +198,28 @@ qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
 
 **Por qué un atributo visual vacío no penaliza**: vienen de un clasificador zero-shot que se abstiene cuando duda, así que buena parte del catálogo no los tiene. Una regla que castigara el dato faltante no estaría coordinando outfits: estaría degradando en silencio a todo producto que el clasificador salteó.
 
+### ¿Por qué Morashop tiene page y plataforma propias si es un Tiendanube común?
+
+Porque el valor de `plataforma` no describe la tienda, **rutea el scraper**. Desde `V20` `ScraperFactory` elige la clase leyendo `sitio.plataforma` vía `SiteRegistry`, y los name-sets en código se borraron (`CODE-6`). Morashop necesita una page propia, así que necesita un valor propio; rutearla por nombre de sitio reintroduciría exactamente lo que `V20` sacó. `monkyforce` ya había sentado el precedente. El costo aceptado es que `plataforma` sigue derivando hacia "discriminador de ruteo" más que hacia "qué software corre la tienda" — una deriva que ya existía con `vaypol` y `qloud`.
+
+La page propia **no toca la extracción**. El extractor compartido lee las cards de Morashop sin un solo cambio; se verificó corriendo `buildExtractorJs()` verbatim contra `/suplementos/proteinas/` en un Chrome real, con 50 productos limpios. Lo que cambia es la navegación, y por dos motivos distintos que conviene no mezclar:
+
+**Uno: la tienda no tiene URL de catálogo.** `/productos/` es una landing del tema con cero productos y `/suplementos/` es un índice de subcategorías, también cero. El catálogo vive un nivel más abajo. La convención de Tiendanube dice que `/productos/` lista todo; el tema puede pisarla, y cuando la pisa el fallo es de los caros: cero productos sin error y sin página vacía. Se evaluó y **descartó** el sitemap como fuente de enumeración: `/sitemap.xml` trae 1724 URLs, todas `/productos/{slug}/` planas y sin señal de categoría, así que acotar a suplementos exigiría visitar 1724 páginas de producto contra 12 listados.
+
+**Por qué se descubren las hojas en runtime y no se hardcodean las 12**: una lista fija es correcta el día que se escribe y se pudre en silencio el día que la tienda agrega la categoría 13. La alternativa barata —hardcodear más un test que pegue al landing y compare— habría metido el primer test con dependencia de red del repo, que se pone rojo cuando el sitio se cae y no cuando nosotros nos equivocamos. El descubrimiento se parte en un helper estático puro sobre hrefs (testeado con fixtures, sin browser, igual que `resolveNextPageFromHrefs`) más un borde de browser de una línea que no decide nada. Una sola regla hace todo el trabajo de alcance —una hoja es un path del mismo host exactamente un segmento debajo de la sección— y eso solo excluye el índice, las sub-subcategorías y las secciones hermanas, sin lista negra que mantener.
+
+**Dos: la API está apagada por correctitud, no por velocidad.** Hoy `/api/v1/{storeId}/products` da 404 en Morashop, igual que en Entreno, así que intentarla sólo desperdicia dos navegaciones. Pero Morashop además vende supermercado, electro-hogar y bodega, y esa API devuelve la tienda **entera** sin filtro por sección. Si el endpoint se habilitara del lado del servidor, una page que siguiera intentándolo importaría tres rubros que no tienen valor en el dominio de `rubro` — y meterlos a la fuerza haría justo lo que `V6` existe para impedir. Depender de que un endpoint ajeno siga roto no es un diseño; `usaApi()` lo apaga.
+
+**Por qué el descubrimiento vacío tira excepción en vez de devolver una lista vacía**: `SiteYieldGuard` detecta colapso comparando contra la corrida anterior, así que sólo ve **caídas**. Un sitio que rinde cero en su primera corrida —o que ya venía en cero— nunca lo despierta. Sin el throw, "cambió el markup del landing" es indistinguible de "la tienda está vacía". Mismo criterio y misma forma que `MaximusPayloadException`.
+
+### ¿Por qué el tope de páginas de Tiendanube pasó a ser configurable?
+
+Porque era un número sin dueño. El loop paraba en 25 páginas, un valor compartido por los trece sitios TN que nadie eligió pensando en ninguno de ellos. El catálogo real de Entreno son 53 páginas de 12 productos —la 54 devuelve cero— así que ese techo descartaba cerca de la mitad, ~313 de ~636, sin error y sin nada que un operador pudiera ver.
+
+**Por qué se subió el default global y no se le puso un caso especial a Entreno**: un override por sitio habría arreglado Entreno y dejado la bomba armada para el próximo catálogo que crezca. El tope nunca fue el mecanismo de corte real —quien corta es el chequeo de dos páginas vacías seguidas, que en Tiendanube funciona porque pasado el final sirve una página vacía en vez de repetir la última como hace osCommerce—, así que subirlo a 60 no cambia dónde termina ninguna corrida sana: sólo deja de truncar las que el techo cortaba. El override por sitio queda como escape, no como el arreglo.
+
+**El default vive en `TiendanubePage`, no en `ScraperConfig`**: `ar.scraper.pages` no importa `ar.scraper.config` y esa frontera valía la pena conservarla, pero tener el número dos veces valía menos. La solución es que la page sea dueña de la constante, que config sólo parsee el override, y que el scraper —el único que ya depende de las dos capas— les pase el fallback. Una definición sola (`CODE-6`) sin invertir la dependencia.
+
 ---
 
 ## Diagrama de capas y topología de servicios

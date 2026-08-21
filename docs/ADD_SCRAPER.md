@@ -109,6 +109,62 @@ costó los 0 productos de `forever`.
 
 **Nota**: si el sitio usa `/coleccion/`, `/indumentaria/` u otras rutas en lugar de `/productos/`, agregarlo al array `paths` en `TiendanubePage.buildExtractorJs()`.
 
+**Antes de dar la URL por buena, contá lo que sirve.** Que la tienda sea
+Tiendanube no garantiza que `/productos/` liste algo: el tema puede pisar esa
+ruta con una landing. Un chequeo de cinco segundos, sin browser, porque las
+páginas de categoría vienen server-rendered:
+
+```bash
+curl -sS -L "https://EL-SITIO/productos/" | rg -c 'data-product-id'
+```
+
+Cero ahí no significa "tienda vacía", significa "esta no es la URL del
+catálogo". Ver **Caso 2b**.
+
+---
+
+## Caso 2b: Tiendanube sin URL de catálogo (page propia)
+
+Cuando `/productos/` no lista productos y el catálogo vive repartido en
+categorías, el extractor compartido **igual sirve** — lo que cambia es la
+navegación. No se copia `TiendanubePage`: se hereda y se especializa un seam,
+como hacen `MonkyforcePage` (nombre) y `MorashopPage` (URLs de arranque).
+
+Los seams de `TiendanubePage`, todos `protected`:
+
+| Seam | Default | Para qué se overridea |
+|------|---------|----------------------|
+| `nombreSelectorJs()` | `h1,h2,h3,h4` y después `[class*=name]` | El tema mete otra cosa en el heading (Monkyforce: un `<h4>Sin stock</h4>` en cada card) |
+| `catalogoUrls()` | `List.of(baseUrl)` | La tienda no tiene una URL de catálogo única |
+| `usaApi()` | `true` | La API de TN devuelve la tienda **entera** sin filtro por sección: apagala si sólo querés una parte |
+
+Y `TiendanubeScraper.crearPage(Page)` es el Factory Method que la subclase de
+scraper overridea para devolver tu page. No reescribas `scrape()`.
+
+Tres reglas que Morashop dejó aprendidas:
+
+1. **Descubrí, no hardcodees.** Una lista fija de categorías se pudre en
+   silencio cuando el sitio agrega la número 13. Leé los hrefs del índice.
+2. **Partí en helper puro + borde de browser.** Toda la lógica va a un
+   `static` sobre `List<String>` de hrefs, testeable con fixtures y sin
+   Playwright (el precedente es `TiendanubePage.resolveNextPageFromHrefs`). El
+   borde queda en un `querySelectorAll` que no decide nada.
+3. **Vacío es error, no resultado.** Si el descubrimiento no encuentra nada,
+   **tirá excepción** y dejala propagar hasta `BaseScraper.ejecutar`, que la
+   convierte en `ScrapeResult.error` (`MorashopDiscoveryException`,
+   `MaximusPayloadException`). `SiteYieldGuard` no cubre esto: sólo alerta
+   cuando un sitio **cae** contra la corrida anterior, así que un sitio que
+   rinde cero desde la primera corrida nunca lo despierta.
+
+Una page propia necesita **valor de plataforma propio**, con las cuatro copias
+del vocabulario que lista el Caso 5 — desde `V20` el ruteo sale sólo de
+`sitio.plataforma`, y rutear por nombre de sitio reintroduce los name-sets que
+`V20` borró (`CODE-6`).
+
+**Tope de páginas.** Si el catálogo es grande, `sitio.<n>.max_paginas` sube el
+techo por sitio; el default es `TiendanubePage.MAX_PAGINAS_DEFAULT`. Casi nunca
+hace falta: el que corta de verdad es el chequeo de dos páginas vacías seguidas.
+
 ---
 
 ## Caso 3: Sitio VTEX
