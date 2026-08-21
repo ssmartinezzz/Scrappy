@@ -59,6 +59,43 @@ public class CategoryClassifier {
         return "Otros";
     }
 
+    /**
+     * Bloque del rubro {@code oficina} (add-inpro-office-store).
+     *
+     * <p>Orden interno, también load-bearing y también sacado de nombres
+     * reales:</p>
+     * <ol>
+     *   <li><b>Iluminación antes que Soporte Monitor</b> — "Lámpara de Monitor
+     *       LED" es una lámpara, no un brazo.</li>
+     *   <li><b>Soporte Laptop antes que Silla</b> — "Soporte de Notebook para
+     *       Silla Ergonómica" es un soporte, no una silla.</li>
+     *   <li><b>Organización antes que Escritorio</b> — "Cajón Standing Desk" y
+     *       "Soporte de CPU para Standing Desk" nombran el mueble al que se
+     *       enganchan, no lo que son.</li>
+     *   <li><b>Escritorio último</b>, y sólo si no es una PARTE ni un SERVICIO:
+     *       "Servicio de instalación de Standing Desk" ($60k), "Tapa Premium
+     *       Standing Desk" ($167k) y "Ruedas Standing Desk" ($50k) son tres
+     *       productos reales que, contados como escritorios, corren la mediana
+     *       de la categoría hacia abajo contra escritorios de $800k-$2.4M.</li>
+     * </ol>
+     *
+     * @return la categoría de oficina, o {@code ""} si el texto no es de
+     *         oficina — abstención, que deja seguir la cadena ({@code CODE-5}).
+     */
+    private String clasificarOficina(String t) {
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ILUMINACION))      return "Iluminación";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SOPORTE_MONITOR))  return "Soporte Monitor";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SOPORTE_LAPTOP))   return "Soporte Laptop";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ORGANIZACION))     return "Organización";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MAT_ESCRITORIO))   return "Mat Escritorio";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SILLA))            return "Silla";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ESCRITORIO)
+                && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ESCRITORIO_PARTE)) {
+            return "Escritorio";
+        }
+        return "";
+    }
+
     private boolean tieneIndicadorPeso(String nombre) {
         if (nombre == null || nombre.isBlank()) return false;
         return PESO_VOLUMEN.matcher(nombre.trim()).find();
@@ -102,6 +139,19 @@ public class CategoryClassifier {
         // bloque torso usado en (b): un traje siempre resuelve a "Traje".
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CONJUNTO)) return "Conjunto";
         if (matchesTorsoBlock(t) && matchesPiernasBlock(t)) return "Conjunto";
+
+        // ── OFICINA (ANTES de TECH — el orden es load-bearing) ──────────────
+        // Cuatro colisiones REALES del catálogo de INPRO obligan a que esto
+        // corra primero, y las cuatro son de sustantivos compartidos, no de
+        // keywords mal elegidas:
+        //   "Brazo de Monitor"                  contiene "monitor " -> KW_MONITOR
+        //   "Soporte de CPU para Standing Desk" contiene "cpu "     -> KW_CPU
+        // Un soporte de monitor NO es una pantalla y un soporte de CPU NO es un
+        // procesador: si el bloque TECH los ve primero, entran al catálogo con
+        // la categoría equivocada Y con la distribución de precios de otra
+        // categoría, que es de lo que se alimenta el pipeline ML.
+        String oficina = clasificarOficina(t);
+        if (!oficina.isEmpty()) return oficina;
 
         // ── TECH (antes de textil para evitar falsos positivos) ───────
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_NOTEBOOK))  return "Notebook";

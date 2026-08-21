@@ -22,6 +22,7 @@ import { formatFechaHora } from '../../lib/fechas';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
+import { PRECIO_MIN_DEFAULT, PRECIO_MAX_DEFAULT } from '../../lib/scrapeDefaults';
 
 const RUBRO_META = {
   indumentaria: { color: 'var(--p)',        label: 'Indumentaria' },
@@ -37,7 +38,7 @@ const STATUS_META = {
 };
 
 const EMPTY_FORM = {
-  name: '', precioMin: 0, precioMax: 300000, sitios: [],
+  name: '', precioMin: PRECIO_MIN_DEFAULT, precioMax: PRECIO_MAX_DEFAULT, sitios: [],
   forceRetrain: false, useGpu: true, cronExpr: '0 0 3 * * *', enabled: true,
 };
 

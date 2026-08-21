@@ -3,13 +3,8 @@ import { fetchMejores, fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
 import { CategoryCard } from './ui/category-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
+import { RUBROS } from '../lib/rubros';
 
-const RUBROS = [
-  { k:'',             icon:'🛍', l:'Todos'        },
-  { k:'indumentaria', icon:'👕', l:'Indumentaria' },
-  { k:'tecnologia',   icon:'💻', l:'Tecnología'   },
-  { k:'suplementos',  icon:'💊', l:'Suplementos'  },
-];
 
 const INITIAL_BATCH = 9;
 const BATCH_STEP     = 9;
@@ -212,9 +207,9 @@ export default function PicksPanel({ onProductClick }) {
           dashboard chrome, not part of the editorial gallery surface */}
       <div className="picks-rubro-bar">
         {RUBROS.map(r => (
-          <button key={r.k} onClick={() => setRubro(r.k)}
-            className={`picks-rubro-btn${rubro===r.k ? ' active' : ''}`}
-          >{r.icon} {r.l}</button>
+          <button key={r.key} onClick={() => setRubro(r.key)}
+            className={`picks-rubro-btn${rubro===r.key ? ' active' : ''}`}
+          >{r.icon} {r.label}</button>
         ))}
         <CategorySearchBar value={busq} onChange={setBusq} />
       </div>

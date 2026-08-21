@@ -14,7 +14,7 @@ public record Product(
         List<String> talles,
         MlScore ml,
         String marca,
-        String rubro,         // "indumentaria" | "tecnologia" | "suplementos"
+        String rubro,         // "indumentaria" | "tecnologia" | "suplementos" | "oficina"
         boolean gymrat,       // tag transversal aditivo (no altera categoria/rubro)
         boolean marcaPremium, // tag transversal aditivo (no altera categoria/rubro/badge)
         SenalCompra senal,    // precomputed buy-signal (mirrors MlScore precompute pattern)

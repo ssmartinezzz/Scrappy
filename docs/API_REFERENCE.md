@@ -142,7 +142,7 @@ visual (embeddings de imagen); un producto sin backfill de embeddings no matchea
   "meta": {
     "moneda": "ARS",
     "precioMin": 0,
-    "precioMax": 300000,
+    "precioMax": 5000000,
     "rangMin": 2999,
     "rangMax": 299999,
     "total": 1156,
@@ -335,7 +335,7 @@ Lista de sitios configurados + dinámicos.
   "base": [{"nombre": "Freres", "url": "https://..."}],
   "extras": [{"nombre": "MiMarca", "url": "https://...", "plataforma": "shopify"}],
   "precioMinimo": 0,
-  "precioMaximo": 300000,
+  "precioMaximo": 5000000,
   "moneda": "ARS"
 }
 ```

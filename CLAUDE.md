@@ -142,6 +142,7 @@ Scrappy/
 | compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (1389 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular. **650 productos** en un run real tras filtrar por stock/vendible y bandas de precio (2026-08-13). Dos claves del feed hay que reconstruirlas, no usarlas crudas: la imagen es `imagenes.compragamer.com/productos/compragamer_Imganen_general_{imagenes[].nombre}.jpg` (el typo `Imganen` es de ellos; sin el prefijo, el bucket S3 da `403 AccessDenied`), y la URL de producto es `/producto/{slug}_{id}` — el router de la SPA rutea por el sufijo `_{id}` y manda `/producto/{id}` pelado al home |
 | rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **503 productos** en un run real de sitio completo con las bandas de precio de producción (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
 | venex | osCommerce (propio) | tecnologia | Descubrimiento en dos niveles: categoría top → sub-categorías leaf en su landing (la landing muestra 12 productos no representativos, nunca se cuentan). `?page=N`, se detiene en página vacía **o** repetida — pasado el final real, Venex repite la última página en vez de devolver vacío. `page.content()` sirve el DOM re-serializado por Chromium (comillas dobles + entidad `&quot;`), no el HTML crudo del servidor (comillas simples) — el parser normaliza antes de matchear. El argumento de `enhancedClick` se lee **con Jackson**, no campo por campo con regex: los nombres traen la pulgada escapada (`15.6\"`) y un `"name":"([^"]*)"` se corta ahí y tira la card entera en silencio — medido en `/notebooks/`, eso costaba 20 de 47 productos únicos (2026-08-15). **1294 productos** en un run real de sitio completo (las 19 categorías top, 2026-08-13), sub-contado por esa pérdida |
+| inpro | Inpro (Tiendanube headless) | oficina | Sillas ergonómicas, standing desks, brazos de monitor, iluminación. **NO es plataforma `tiendanube`**: sirve los objetos crudos de la API de Tiendanube pero la vidriera es un Next.js propio en Vercel, y el storefront clásico no es alcanzable (`inpro.mitiendanube.com` redirige a *otra* tienda, `inproindumentaria.com.ar`; los slugs candidatos dan 410). El catálogo se lee del payload RSC (`self.__next_f`), no del DOM. Enumera por `/server-sitemap.xml` (106 productos, 16 categorías) → páginas de categoría (100 productos en 16 fetches) → los 6 handles que ninguna categoría mostró, de a uno. **101 productos** en una corrida real (2026-08-20); los 5 `pod-*` restantes son cabinas con `price: null`, se venden a consultar. El orden de las claves del JSON **no** es estable: en categoría el objeto abre con `id`, en producto con `name` — anclar en `{"id":` da 0 en la mitad de las superficies, en silencio |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -156,6 +157,7 @@ MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
 VAYPOL  → vaypol, city
 QLOUD   → rockethard
 OSCOMMERCE → venex
+INPRO   → inpro
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
 MONKYFORCE → monkyforce
@@ -191,7 +193,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V24` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V27` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -361,6 +363,14 @@ cantidadUnidades, subCategoria, visual (VisualAttrs)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
+`rubro` tiene **cuatro** valores desde `V27`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina`. Lo resuelve `RubroResolver` por
+`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
+tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
+esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
+manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
+sobre el rubro forzado del sitio.
+
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;
 `MlScore.EMPTY` es `scoreP=50` sin badges.
@@ -527,11 +537,28 @@ escrito para que no vuelva a proponerse.
 | `/api/outfits` y `/api/outfits/builder` rearman el `FeedbackModel` y pegan 2 queries a la DB en **cada** request — "candidato a cachear por corrida" | **No es un problema de performance** (medido 2026-08-18, catálogo de 6700): `FeedbackModels.build` 0,208 ms · 2 queries con pool HikariCP 0,429 ms · `OutfitService.armar` —el trabajo real del endpoint— 0,258 ms. Total ≈ 0,64 ms por request. La caché exigiría invalidar en cinco métodos de escritura, y si se escapa uno el like de un usuario deja de afectar los outfits en silencio: correctitud a cambio de 0,64 ms imperceptibles |
 | Idem, medido sin pool | ⚠️ **Trampa de medición, no un dato.** `PostgresTestBase` usa `SimpleDriverDataSource`, que abre una conexión nueva por llamada: las mismas 2 queries dan 13,5 ms así y 0,429 ms con HikariCP, 31x inflado. Cualquier medición de DB en este repo tiene que envolver el datasource de test en un `HikariDataSource` o el número es ficción |
 
-### Config vigente, no bug
+### La banda de precios: `precio.maximo=5000000`
 
-| | |
-|---------|--------|
-| `precio.maximo=300000` borra categorías enteras de tecnología. Medido sobre Maximus (2026-08-13): notebooks `CAT=56` conserva 0 de 16, computadoras armadas `CAT=68` 0 de 59, `CAT=48` (GPUs) 5 de 59 — 377 de 1122 productos filtrados, 34% | El scraper trae esos productos bien; el filtro los descarta después. Los conteos por sitio de la tabla de sitios **subestiman** la cobertura real |
+**Era `300000` hasta `add-inpro-office-store` (2026-08-20).** Esa banda no era un
+bug —filtraba lo que decía filtrar— pero borraba en silencio justo los productos
+caros de dos rubros enteros:
+
+| Sitio | Qué se perdía con 300.000 |
+|---|---|
+| Maximus (medido 2026-08-13) | notebooks `CAT=56` conservaba 0 de 16, computadoras armadas `CAT=68` 0 de 59, GPUs `CAT=48` 5 de 59 — **377 de 1122, 34%** |
+| INPRO (medido 2026-08-20) | **32 de 101, 32%**: TODAS las sillas ergonómicas de gama y TODOS los standing desks salvo los tres más baratos |
+
+Con `5000000`, INPRO entra entero: **101 de 101, 0% filtrado** (verificado contra
+el sitio en vivo). El producto más caro del catálogo es `LiberNovo Omni` a
+$2.999.000.
+
+| Lo que hay que saber | |
+|---|---|
+| **La banda es GLOBAL** | No hay override por sitio. `precio.maximo` sale de `config.properties`, lo lee `ScraperConfig`, y subirla alcanza a **todos** los sitios configurados — 26 con INPRO, 25 en `master`. Una banda por sitio sería una feature aparte |
+| **`PUT /api/config` NO persiste** | `ScraperConfig.setPrecioMaximo` sólo toca el `Properties` en memoria: lo que se cambia desde el dashboard se pierde al reiniciar. El valor durable es el del archivo |
+| **El número vive en cuatro lugares y tienen que decir lo mismo** | `config.properties` · el default de `ScraperConfig.getPrecioMaximo()` · `frontend/src/lib/scrapeDefaults.js` · y un test del frontend lee el `.properties` para que no puedan separarse |
+| ⚠️ **Los conteos por sitio de la tabla de sitios son con la banda VIEJA** | Están fechados y medidos a 300.000, así que **subestiman** la cobertura real de ahora. Re-medirlos es trabajo pendiente, no un dato que ya tengamos |
+| ⚠️ **Esto mueve las distribuciones de precio del pipeline ML** | Entran productos caros que antes no estaban, así que la mediana, el IQR y los percentiles por categoría se corren. Ver "Necesitan datos, no código" arriba: **no** recalibrar thresholds hasta tener badges de un run real con la banda nueva |
 
 Decisiones que antes vivían acá y ahora están donde corresponde:
 `/api/db/export`/`import` en 410 Gone → [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) ·

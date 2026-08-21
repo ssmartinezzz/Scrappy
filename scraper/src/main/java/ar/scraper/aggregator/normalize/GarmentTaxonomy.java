@@ -454,6 +454,67 @@ public final class GarmentTaxonomy {
         "portatil","computadora portatil"
     };
 
+    // ══════════════════════════════════════════════════════════════════
+    // OFICINA (add-inpro-office-store)
+    //
+    // Keywords derivadas del catálogo real de INPRO (100 productos leídos en
+    // vivo el 2026-08-19), no imaginadas. Van padded con espacios porque
+    // anyMatch es un contains() pelado sobre un texto que clasificar() ya
+    // padeó: el espacio ES el word boundary. Sacarlo hace que " mat " se
+    // coma "material" y " silla " se coma cualquier cosa que la contenga.
+    // ══════════════════════════════════════════════════════════════════
+
+    public static final String[] KW_SILLA = {
+        " silla ","sillas ","silla ergonomica","sillon ergonomico"," stool ","banqueta "
+    };
+
+    /**
+     * OJO: "escritorio" PELADO no puede entrar acá. {@code KW_PC} usa
+     * "computadora de escritorio" y "equipo de escritorio" — un keyword
+     * genérico le robaría al bloque TECH todas las PCs de escritorio del
+     * catálogo. Sólo formas que nombran el mueble sin ambigüedad.
+     */
+    public static final String[] KW_ESCRITORIO = {
+        "standing desk","escritorio elevable","escritorio regulable","escritorio ajustable"
+    };
+
+    /**
+     * Una PARTE o un SERVICIO de escritorio no es un escritorio. Sin esto,
+     * "Servicio de instalación de Standing Desk", "Tapa Premium Standing Desk"
+     * y "Ruedas Standing Desk" —tres productos reales— entrarían al catálogo
+     * como escritorios de 60k, 167k y 50k y ensuciarían toda la distribución
+     * de precios de la categoría, que es de lo que vive el pipeline ML.
+     */
+    public static final String[] KW_ESCRITORIO_PARTE = {
+        "servicio de ","servicio ","tapa "," ruedas ","ruedas "
+    };
+
+    public static final String[] KW_SOPORTE_MONITOR = {
+        "brazo de monitor","brazo monitor","soporte de monitor","soporte monitor",
+        "estante para monitor","soporte para monitor"
+    };
+
+    public static final String[] KW_SOPORTE_LAPTOP = {
+        "soporte para laptop","soporte de laptop","soporte laptop",
+        "soporte para notebook","soporte de notebook","soporte notebook",
+        "stand para laptop","laptop stand"
+    };
+
+    public static final String[] KW_ILUMINACION = {
+        "lampara"," lamp ","luminaria","paneles led","panel led","tira led","aro de luz"
+    };
+
+    public static final String[] KW_MAT_ESCRITORIO = {
+        "mat de escritorio","desk mat","mat antifatiga","alfombrilla de escritorio",
+        " mat board ","mousepad xl"
+    };
+
+    public static final String[] KW_ORGANIZACION = {
+        "organizador","pasacable","pasacables","cubre cable","cubrecable",
+        "portacables","porta cables","cable tray","pegboard","cajonera",
+        "cajon ","bandeja ","soporte de cpu","soporte cpu"
+    };
+
     public static final String[] KW_MONITOR = {
         "monitor ","pantalla pc","display pc","led gaming","monitor gaming",
         "monitor 4k","monitor curvo","monitor 144hz","monitor 27","monitor 24"
