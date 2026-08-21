@@ -86,6 +86,6 @@ describe('ForgotPassword — network error is distinguishable (mirrors Login.jsx
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'ana@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al backend/i));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al servidor/i));
   });
 });

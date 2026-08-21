@@ -78,7 +78,7 @@ export default function ResetPassword() {
       });
     } catch {
       setSubmitting(false);
-      setError('No se pudo contactar al backend. Revisá que el servidor esté corriendo.');
+      setError('No se pudo contactar al servidor.');
       return;
     }
     setSubmitting(false);

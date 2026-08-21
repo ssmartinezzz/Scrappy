@@ -137,7 +137,7 @@ describe('Login — network error is distinguishable from a rejected session', (
     global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     renderLogin();
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al backend/i));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al servidor/i));
   });
 });
 
@@ -155,7 +155,7 @@ describe('Login — one error at a time', () => {
 
     // The bootstrap failure has rendered the arrival banner.
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al backend/i));
+      expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al servidor/i));
 
     fireEvent.change(screen.getByLabelText(/usuario/i), { target: { value: 'valeria' } });
     fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'unapasslarga' } });
@@ -166,7 +166,7 @@ describe('Login — one error at a time', () => {
     await waitFor(() => {
       const alerts = screen.getAllByRole('alert');
       expect(alerts).toHaveLength(1);
-      expect(alerts[0]).toHaveTextContent(/no se pudo contactar al backend/i);
+      expect(alerts[0]).toHaveTextContent(/no se pudo contactar al servidor/i);
     });
   });
 });

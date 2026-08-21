@@ -40,7 +40,7 @@ export default function Login() {
       // unknown username, deactivated account, malformed body — same
       // message). A network error is the one thing kept distinguishable.
       setError(result.networkError
-        ? 'No se pudo contactar al backend. Revisá que el servidor esté corriendo.'
+        ? 'No se pudo contactar al servidor.'
         : 'Usuario o contraseña incorrectos.');
       return;
     }
@@ -68,7 +68,7 @@ export default function Login() {
           */}
           {failureReason === 'network_error' && !error && (
             <p role="alert" className="text-sm text-danger text-center">
-              No se pudo contactar al backend. Revisá que el servidor esté corriendo.
+              No se pudo contactar al servidor.
             </p>
           )}
 
