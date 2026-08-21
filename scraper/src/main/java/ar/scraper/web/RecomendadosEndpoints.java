@@ -31,13 +31,16 @@ class RecomendadosEndpoints {
     private final ScraperService service;
     private final ar.scraper.db.DatabaseService db;
     private final RecommendationService recommendationService;
+    private final ar.scraper.identity.ActorResolver actorResolver;
 
     RecomendadosEndpoints(ScraperService service,
                           ar.scraper.db.DatabaseService db,
-                          RecommendationService recommendationService) {
+                          RecommendationService recommendationService,
+                          ar.scraper.identity.ActorResolver actorResolver) {
         this.service = service;
         this.db = db;
         this.recommendationService = recommendationService;
+        this.actorResolver = actorResolver;
     }
 
     /**
@@ -102,8 +105,9 @@ class RecomendadosEndpoints {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        var feedbackRows = db.obtenerOutfitFeedback();
-        var dismissCats  = db.obtenerCategoriaDismiss();
+        java.util.UUID sujeto = Sujeto.de(actorResolver);
+        var feedbackRows = db.obtenerOutfitFeedback(sujeto);
+        var dismissCats  = db.obtenerCategoriaDismiss(sujeto);
         var feedback = FeedbackModels.build(feedbackRows, r.productos(), dismissCats);
 
         List<Product> candidatos = r.productos();
@@ -146,7 +150,8 @@ class RecomendadosEndpoints {
                     Object liked = m.get("liked");
                     if (url == null || liked == null) continue; // skip silencioso, mirrors outfits/feedback guard style
                     boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
-                    db.guardarOutfitFeedbackItem(genero, "catalog", String.valueOf(url), likedBool, "catalog");
+                    db.guardarOutfitFeedbackItem(Sujeto.de(actorResolver), genero, "catalog",
+                            String.valueOf(url), likedBool, "catalog");
                 }
             }
         }
@@ -163,14 +168,14 @@ class RecomendadosEndpoints {
             resp.put("mensaje", "categoria es obligatoria");
             return ResponseEntity.badRequest().body(resp);
         }
-        db.guardarCategoriaDismiss(categoria);
+        db.guardarCategoriaDismiss(Sujeto.de(actorResolver), categoria);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }
 
     ResponseEntity<ObjectNode> undismissCategoria(String categoria) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.borrarCategoriaDismiss(categoria);
+        db.borrarCategoriaDismiss(Sujeto.de(actorResolver), categoria);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }

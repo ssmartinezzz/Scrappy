@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchInflacion } from '../api';
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
+import { useAuth } from '../auth/AuthProvider';
 
 const RUBRO_DEF = [
   { key: '',              icon: '🛍', label: 'Todos'        },
@@ -14,7 +15,15 @@ export default function Topbar({
   meta, facets, sitioFiltro, rubroFiltro,
   onSitioChange, onRubroChange, onReScrape,
   gymrat, onGymratToggle,
+  // frontend-auth-ui Phase 7 (design D6): hidden, not disabled — a VIEWER
+  // never sees the scrape trigger, since POST /api/scrape is ADMIN
+  // (ApiRoutePolicy.TABLE). Defaults false so a caller that forgets the prop
+  // fails closed, not open.
+  canScrape = false,
 }) {
+  // Phase 5 built logout but gave it no home yet (tasks-part2 5.11) — this is
+  // its home: the user menu lives in the Topbar, next to the scrape control.
+  const { identity, logout } = useAuth();
   const sitioMap  = meta?.marcas        || {};
   const rubrosMap = facets?.rubros      || {};
   const total     = meta?.total         || 0;
@@ -137,13 +146,25 @@ export default function Topbar({
           </div>
         )}
 
-        {/* Re-scrape button */}
-        <div className="ml-auto">
-          <button onClick={onReScrape}
-            className="rounded-full border-[1.5px] border-border bg-transparent px-[10px] py-[4px]
-                       text-[.7rem] text-t4 cursor-pointer">
-            ↺ Nuevo scraping
-          </button>
+        {/* Re-scrape button + user menu */}
+        <div className="ml-auto flex items-center gap-2">
+          {canScrape && (
+            <button onClick={onReScrape}
+              className="rounded-full border-[1.5px] border-border bg-transparent px-[10px] py-[4px]
+                         text-[.7rem] text-t4 cursor-pointer">
+              ↺ Nuevo scraping
+            </button>
+          )}
+          {identity && (
+            <div className="flex items-center gap-[6px] rounded-full border-[1.5px] border-border px-[10px] py-[4px]">
+              <span className="text-[.68rem] font-semibold text-t2">{identity.username}</span>
+              <button onClick={logout}
+                className="rounded-full border-none bg-transparent px-[6px] py-[1px]
+                           text-[.66rem] text-t4 cursor-pointer hover:text-danger">
+                Cerrar sesión
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
