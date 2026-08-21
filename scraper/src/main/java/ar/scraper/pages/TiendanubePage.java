@@ -73,14 +73,22 @@ public class TiendanubePage extends BasePage {
         List<Product> result = new ArrayList<>();
 
         // Catálogo principal: API TN si está disponible, si no JS heurístico.
-        String homeUrl = domain(baseUrl);
-        List<Product> api = scrapeApi(homeUrl);
+        List<Product> api = List.of();
+        if (usaApi()) {
+            api = scrapeApi(domain(baseUrl));
+        } else {
+            log.debug("[{}] API deshabilitada para este sitio, directo a JS heuristico", sitio);
+        }
+
         if (!api.isEmpty()) {
             log.debug("[{}] API REST: {} productos", sitio, api.size());
             result.addAll(api);
         } else {
-            log.debug("[{}] API vacia, usando JS heuristico", sitio);
-            result.addAll(scrapeJs(baseUrl));
+            for (String cat : catalogoUrls()) {
+                if (cat == null || cat.isBlank()) continue;
+                log.debug("[{}] catalogo -> {}", sitio, cat);
+                result.addAll(scrapeJs(cat));
+            }
         }
 
         // Colecciones extra que el catálogo principal no cubre (ej. Harvey
@@ -422,6 +430,37 @@ public class TiendanubePage extends BasePage {
      * name extraction without touching the shared extractor. Must evaluate to a
      * DOM Element or {@code null}.
      */
+    /**
+     * URLs por las que arranca el catálogo principal, consumidas por
+     * {@link #scrapeAll()}. Extension seam (Template Method), hermano de
+     * {@link #nombreSelectorJs()}: la base devuelve la {@code baseUrl} sola,
+     * que es lo que sirve para toda tienda TN con una vidriera única.
+     *
+     * <p>Existe porque no todas la tienen. En morashop {@code /productos/} es
+     * una landing del tema con CERO productos y el catálogo real vive repartido
+     * en categorías hoja, así que su subclase devuelve las hojas que descubre.
+     * Distinto de {@code urls_extra}, que suma colecciones ADEMÁS del catálogo
+     * principal; esto ES el catálogo principal.
+     */
+    protected List<String> catalogoUrls() {
+        return List.of(baseUrl);
+    }
+
+    /**
+     * Si se intenta la API REST de Tiendanube antes de caer al JS heurístico.
+     * La base dice que sí: cuando responde es el camino rápido y completo.
+     *
+     * <p>Una subclase la apaga por CORRECTITUD, no por velocidad. La API
+     * devuelve la tienda ENTERA, sin filtro por sección — en una tienda
+     * multi-rubro como morashop (suplementos, pero también supermercado,
+     * electro-hogar y bodega) eso importaría productos de tres rubros que no
+     * tienen valor en el dominio de {@code rubro}. Hoy ese endpoint da 404 ahí,
+     * pero depender de que siga roto no es un diseño.
+     */
+    protected boolean usaApi() {
+        return true;
+    }
+
     protected String nombreSelectorJs() {
         return "el.querySelector('h1,h2,h3,h4')"
              + "||el.querySelector('[class*=name],[class*=title],[class*=nombre],[class*=tit]')";
