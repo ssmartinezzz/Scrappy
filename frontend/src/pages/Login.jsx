@@ -57,7 +57,16 @@ export default function Login() {
             <h1 className="text-3xl font-semibold text-t1">Iniciar sesión</h1>
           </div>
 
-          {failureReason === 'network_error' && (
+          {/*
+            Two different questions, and they can be true at once: this banner
+            answers "why am I on the login screen" (the session bootstrap could
+            not reach the backend), while the form error below answers "why did
+            my submit just fail". With the backend down, both fire with the same
+            text — two `role="alert"` nodes saying one thing, which a screen
+            reader announces twice. The fresh one wins: once the user has tried
+            and been told, the arrival banner has nothing left to add.
+          */}
+          {failureReason === 'network_error' && !error && (
             <p role="alert" className="text-sm text-danger text-center">
               No se pudo contactar al backend. Revisá que el servidor esté corriendo.
             </p>

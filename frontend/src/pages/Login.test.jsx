@@ -140,3 +140,33 @@ describe('Login — network error is distinguishable from a rejected session', (
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al backend/i));
   });
 });
+
+describe('Login — one error at a time', () => {
+  // The e2e suite caught this, but only by timing: for many green runs the
+  // bootstrap reached the backend before the test cut it, so the arrival banner
+  // was absent and only the form error showed. When a slow start made both
+  // render, Playwright's strict mode failed on a selector matching two nodes.
+  // The defect was there the whole time. This test pins it deterministically:
+  // two `role="alert"` nodes with identical text is a real flaw — a screen
+  // reader announces it twice — not a test artefact.
+  it('does not stack the arrival banner and the submit error when both blame the network', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    renderLogin();
+
+    // The bootstrap failure has rendered the arrival banner.
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo contactar al backend/i));
+
+    fireEvent.change(screen.getByLabelText(/usuario/i), { target: { value: 'valeria' } });
+    fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'unapasslarga' } });
+    fireEvent.click(screen.getByRole('button', { name: /ingresar/i }));
+
+    // The submit fails the same way. Exactly one alert survives, still naming
+    // the network — the fresher message wins, the duplicate does not appear.
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert');
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).toHaveTextContent(/no se pudo contactar al backend/i);
+    });
+  });
+});
