@@ -17,7 +17,7 @@ import {
   restaurarElBackend,
 } from './helpers.js';
 
-const MENSAJE_RED = /No se pudo contactar al backend/;
+const MENSAJE_RED = /No se pudo contactar al servidor/;
 const MENSAJE_CREDENCIALES = /Usuario o contraseña incorrectos/;
 
 test('an unreachable backend reads as "cannot reach it", not as "logged out"', async ({

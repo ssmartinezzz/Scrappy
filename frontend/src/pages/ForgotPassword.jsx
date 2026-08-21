@@ -58,7 +58,7 @@ export default function ForgotPassword() {
 
           {networkError && (
             <p role="alert" className="text-sm text-danger text-center">
-              No se pudo contactar al backend. Revisá que el servidor esté corriendo.
+              No se pudo contactar al servidor.
             </p>
           )}
 
