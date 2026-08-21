@@ -29,10 +29,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * than as a misconfiguration. It is the same first-match-wins hazard the
  * authorization route table has, in a second place.</p>
  *
- * <p><b>Credentials are true for exactly one path.</b> Everything else is a
- * pure bearer-header API and carries no ambient credential, so
+ * <p><b>Credentials are true for exactly two paths</b>, {@code /api/auth/login}
+ * and {@link RefreshCookie#PATH} — the two whose traffic carries the refresh
+ * cookie. Login is in the list because its <b>response</b> plants the cookie,
+ * and cross-origin a browser discards {@code Set-Cookie} from a response whose
+ * request was not made in credentials mode; see {@link #LOGIN_PATH}. Everything
+ * else is a pure bearer-header API carrying no ambient credential, so
  * {@code allowCredentials} stays {@code false} there. Turning it on globally
- * would be a broad grant bought for one endpoint's needs.</p>
+ * would be a broad grant bought for two endpoints' needs, and a third path is a
+ * security decision rather than a convenience.</p>
  *
  * <h3>Why the wildcard is rejected at startup</h3>
  *

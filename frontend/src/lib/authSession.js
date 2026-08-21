@@ -2,8 +2,9 @@
 //
 // This module owns the WHOLE session: the in-memory access token, the CSRF
 // nonce, the identity, the in-tab single-flight refresh promise, cross-tab
-// coordination, and the one and only place `credentials: 'include'` appears
-// in the entire frontend. Everything else — authedFetch.js, AuthProvider,
+// coordination, and the only two places `credentials: 'include'` appears in the
+// entire frontend — login (below) and refreshCookieFetch, the two calls whose
+// traffic carries the refresh cookie. Everything else — authedFetch.js, AuthProvider,
 // route guards, login/logout — is a consumer of this module.
 //
 // Deliberately NOT `useState`: useState is per-component-tree, so two
@@ -216,12 +217,18 @@ async function fetchIdentity() {
 }
 
 // ─── Refresh (D1: bootstrap-CSRF admission + D2: coordination) ─────────────
-// The ONLY place `credentials: 'include'` appears in the entire frontend
-// (design D3) — both refresh (POST, rotate) and logout (DELETE, revoke) hit
+// One of the TWO places `credentials: 'include'` appears in this frontend; the
+// other is login(). Both refresh (POST, rotate) and logout (DELETE, revoke) hit
 // this exact path, and both need the HttpOnly refresh cookie attached.
-// Credentialed CORS is scoped to this path alone (RefreshCookie.PATH,
-// CorsConfig.java:85-96); anywhere else it would be silently useless
+// Credentialed CORS covers exactly these two paths (RefreshCookie.PATH and
+// CorsConfig.LOGIN_PATH); anywhere else it would be silently useless
 // cross-origin and a needless widening same-origin.
+//
+// This comment used to say "the ONLY place", which stopped being true the
+// moment login() was fixed — in the same commit, fifty lines below. Three
+// separate sweeps missed it because the code was right and only the prose was
+// wrong. If you change the credentialed surface, grep for the claim, do not
+// just fix the site you are looking at.
 async function refreshCookieFetch(method, nonce) {
   const headers = {};
   if (nonce) headers['X-Refresh-CSRF'] = nonce;
