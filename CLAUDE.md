@@ -133,7 +133,8 @@ Scrappy/
 | midway, batuk, tussy, bulks, bullbenny, barnes, eldon | Tiendanube | moda | Batuk+Huoky misma tienda (huoky comentado) |
 | fuark, fursten | Tiendanube | gym | Fursten pagina solo vía fallback `?page=N`. No existe flag `GYM_SITIOS` |
 | monkyforce | Monkyforce (propio) | gym | |
-| entreno | Tiendanube | suplementos | |
+| entreno | Tiendanube | suplementos | **~636 productos**: 53 páginas de 12, la 54 devuelve 0 (medido 2026-08-20). Hasta el tope configurable rendía ~313 — el techo de 25 páginas cortaba a la mitad, en silencio. El scroll infinito corre **sólo** en `/productos/` pelado y se **apaga** con `?page=N` en la URL, así que lo que pagina de verdad es `?page=N`; `?mpage=N` es marcador client-side y no pagina nada en el HTML crudo. No tiene links de pager en el DOM: llega a la página 2 por el fallback que construye la URL |
+| morashop | Morashop (Tiendanube, page propia) | suplementos | Competidor directo de entreno, ~510 productos crudos en 12 categorías hoja. **NO es plataforma `tiendanube`** aunque la tienda lo sea: el extractor compartido le sirve tal cual, pero necesita page propia porque **no tiene URL de catálogo**. `/productos/` es una landing del tema con CERO productos y `/suplementos/` es un índice, también cero — apuntar a cualquiera de las dos da 0 en silencio (la clase de bug que cerró `V24`). `MorashopPage` descubre las hojas del landing en runtime y **tira `MorashopDiscoveryException`** si no encuentra ninguna. La API REST de TN da 404 acá, pero además está **apagada a propósito** (`usaApi()=false`): devuelve la tienda entera sin filtro por sección, y morashop además vende supermercado, electro-hogar y bodega, rubros que no tienen valor en el dominio. Sólo se crawlea `/suplementos/` |
 | sporting | VTEX | deportes | |
 | vaypol, city | Vaypol (Rails SSR custom) | deportes | |
 | dcshoes | WooCommerce | moda | |
@@ -159,6 +160,7 @@ OSCOMMERCE → venex
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
 MONKYFORCE → monkyforce
+MORASHOP → morashop
 default → TiendanubeScraper (JS heurístico)
 ```
 
@@ -430,6 +432,30 @@ la ruta del bucket alrededor de ese valor. Antes de dar por sentado que un sitio
 "no tiene imágenes", buscar en el payload la clave con la que el propio sitio
 arma su `<img>` — en Maximus el comentario del código afirmaba que no existía y
 sí existía (`item_code4web`), y eso dejó 745 productos sin imagen.
+
+**Un índice no es un catálogo, y `/productos/` no siempre es el catálogo:**
+en Tiendanube la convención es que `/productos/` liste todo, pero el tema
+puede pisarla. En Morashop `/productos/` es una landing de "8 CATEGORÍAS" con
+**cero** productos y `/suplementos/` es un índice de subcategorías, también
+cero; el catálogo entero vive un nivel más abajo. Configurar cualquiera de las
+dos rinde 0 productos sin error, sin página vacía y sin nada que un operador
+pueda ver — la clase de bug que cerró `V24`. Antes de dar por buena una URL de
+catálogo, contá los productos que sirve en crudo (`curl | rg -c data-product-id`),
+no asumas la convención. Y cuando el catálogo se descubre en runtime, que la
+falta de resultados **tire excepción**: `SiteYieldGuard` no puede cubrir el caso
+porque sólo alerta cuando un sitio **cae** contra la corrida anterior, así que
+un sitio que rinde cero en su primera corrida nunca lo despierta.
+
+**El tope de páginas de Tiendanube es configurable, y tenía DOS copias:**
+`MAX_PAGINAS_DEFAULT` (60) en `TiendanubePage`, con override opcional
+`sitio.<n>.max_paginas`. Era 25 hardcodeado y le cortaba el catálogo a entreno
+por la mitad. Lo importante para la próxima vez: el `25` estaba en **dos**
+lugares —el bound del loop y el fallback que construye la URL de la página
+siguiente— y tocar sólo el primero deja el arreglo a medias en silencio, porque
+sin URL nueva el loop se queda sin `nextUrl` y corta igual. El tope sigue siendo
+cinturón de seguridad; quien corta de verdad es el chequeo de dos páginas vacías
+seguidas, que en Tiendanube funciona porque pasado el final sirve una página
+vacía en vez de repetir la última como hace osCommerce.
 
 **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita
 el prefijo `jdbc:` (`jdbc:postgresql://…`); psycopg2 **no** lo entiende, solo
