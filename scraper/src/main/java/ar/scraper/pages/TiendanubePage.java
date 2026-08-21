@@ -19,12 +19,28 @@ public class TiendanubePage extends BasePage {
     private static final Set<String> PALABRAS_UNISEX = Set.of(
             "unisex","unisexo","neutro");
 
+    /**
+     * Techo de páginas del loop de paginación. ÚNICA definición del número
+     * ({@code CODE-6}): {@code ScraperConfig.getMaxPaginas} no lo conoce, lo
+     * recibe como fallback del scraper, que es quien depende de las dos capas.
+     *
+     * <p>Era 25 y estaba hardcodeado. El catálogo real de Entreno son 53
+     * páginas de 12 productos —la 54 devuelve cero— así que ese techo cortaba
+     * a la mitad y en silencio: ~313 de ~636. Sigue siendo un cinturón de
+     * seguridad, no el límite real; quien corta de verdad es el chequeo de dos
+     * páginas vacías seguidas de {@link #scrapeJs}, que en Tiendanube sí
+     * dispara porque pasado el final sirve una página vacía en vez de repetir
+     * la última como hace osCommerce.
+     */
+    public static final int MAX_PAGINAS_DEFAULT = 60;
+
     private final String sitio;
     private final String baseUrl;
     private final double precioMin;
     private final double precioMax;
     /** Colecciones adicionales a crawlear bajo el mismo sitio (ver config `urls_extra`). */
     private final List<String> extraUrls;
+    private final int maxPaginas;
 
     public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
                           double precioMin, double precioMax) {
@@ -33,12 +49,24 @@ public class TiendanubePage extends BasePage {
 
     public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
                           double precioMin, double precioMax, List<String> extraUrls) {
+        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, extraUrls, MAX_PAGINAS_DEFAULT);
+    }
+
+    public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
+                          double precioMin, double precioMax, List<String> extraUrls,
+                          int maxPaginas) {
         super(page, timeoutMs);
-        this.sitio     = sitio;
-        this.baseUrl   = baseUrl;
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
-        this.extraUrls = extraUrls != null ? extraUrls : List.of();
+        this.sitio      = sitio;
+        this.baseUrl    = baseUrl;
+        this.precioMin  = precioMin;
+        this.precioMax  = precioMax;
+        this.extraUrls  = extraUrls != null ? extraUrls : List.of();
+        this.maxPaginas = maxPaginas >= 1 ? maxPaginas : MAX_PAGINAS_DEFAULT;
+    }
+
+    /** Visible para test: prueba que el cap llegó hasta acá, que es lo que se rompe. */
+    int maxPaginas() {
+        return maxPaginas;
     }
 
     public List<Product> scrapeAll() {
@@ -310,7 +338,7 @@ public class TiendanubePage extends BasePage {
         int pagina = 1;
         int paginasSinProductos = 0;
 
-        while (url != null && pagina <= 25) {
+        while (url != null && pagina <= maxPaginas) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
             try {
                 navigateTo(url);
@@ -343,7 +371,7 @@ public class TiendanubePage extends BasePage {
             String nextUrl = nextPageUrl(startUrl, pagina);
 
             // Fallback: construir URL ?page=N / ?mpage=N si el DOM no tiene el link
-            if (nextUrl == null && pagina < 25) {
+            if (nextUrl == null && pagina < maxPaginas) {
                 String candidata = urlPagina(startUrl, pagina + 1);
                 // Solo usar si es diferente a la actual (evitar loops)
                 if (!candidata.equals(url)) {

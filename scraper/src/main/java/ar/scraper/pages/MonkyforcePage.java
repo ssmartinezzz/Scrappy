@@ -27,6 +27,12 @@ public class MonkyforcePage extends TiendanubePage {
         super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, extraUrls);
     }
 
+    public MonkyforcePage(Page page, int timeoutMs, String sitio, String baseUrl,
+                          double precioMin, double precioMax, List<String> extraUrls,
+                          int maxPaginas) {
+        super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, extraUrls, maxPaginas);
+    }
+
     @Override
     protected String nombreSelectorJs() {
         // Priorizar el hook de nombre del tema; el textContent del <a> js-item-name
