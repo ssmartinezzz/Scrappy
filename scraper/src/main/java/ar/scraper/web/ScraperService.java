@@ -59,6 +59,20 @@ public class ScraperService {
 
     private final DatabaseService db;
 
+    /**
+     * The run currently open, or null when nothing is running.
+     *
+     * <p>Slice 3 adds the cancellation flag to this record; it is deliberately
+     * absent rather than present-and-unused, so nothing can read a field that
+     * no writer sets yet.</p>
+     */
+    public record RunState(long runId, java.util.UUID scrapeUuid, java.time.Instant startedAt) {}
+
+    private final java.util.concurrent.atomic.AtomicReference<RunState> runState =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    public RunState getRunState() { return runState.get(); }
+
     public ScraperService(ScraperConfig config, ResultAggregator aggregator, DatabaseService db) {
         this.config     = config;
         this.aggregator = aggregator;
@@ -76,6 +90,21 @@ public class ScraperService {
             LOG.info("[DB] {} sitios dinámicos cargados", sitiosExtras.size());
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando sitios: {}", e.getMessage());
+        }
+
+        // scrape-run-persistence-and-resume slice 1: whatever the previous process
+        // left open is closed HERE, and only marked — this never starts a scrape.
+        // Marking is also what keeps the signal single-valued: without it a second
+        // restart finds two runs still claiming to be live and "the interrupted
+        // run" stops naming one thing.
+        try {
+            var interrumpidos = db.marcarRunsInterrumpidos(java.time.Instant.now());
+            if (!interrumpidos.isEmpty()) {
+                LOG.warn("[DB] {} corrida(s) quedaron interrumpidas por un cierre anterior: {}",
+                        interrumpidos.size(), interrumpidos);
+            }
+        } catch (Exception e) {
+            LOG.warn("[DB] No se pudo revisar corridas interrumpidas: {}", e.getMessage());
         }
 
         // Cargar último resultado de scraping
@@ -237,6 +266,7 @@ public class ScraperService {
             try { ejecutarScraping(sitiosSeleccionados); }
             catch (Exception e) {
                 RUN_LOG.error("[ERROR FATAL] {}", e.getMessage());
+                cerrarRun("ERROR", 0);
                 status.set(ScraperStatus.ERROR);
                 statusMsg.set("Error: " + e.getMessage());
             }
@@ -254,6 +284,8 @@ public class ScraperService {
 
         List<ScraperConfig.SiteConfig> todos = buildSiteList(sitiosSeleccionados);
         int totalSitios = todos.size();
+
+        abrirRun(todos);
 
         // Inicializar progreso
         List<SitioProgress> progSitios = Collections.synchronizedList(new ArrayList<>());
@@ -279,6 +311,7 @@ public class ScraperService {
 
             // Marcar como EN_CURSO al lanzar
             actualizarProgreso(progSitios, i, SitioEstado.EN_CURSO, 0, null, 0);
+            registrarSitioEnCurso(nombre);
             progressData = new ProgressData(totalSitios, 0, 0, List.copyOf(progSitios));
 
             final var site = todos.get(i);
@@ -342,6 +375,8 @@ public class ScraperService {
 
                 int idx = idxMap.getOrDefault(r.sitio(), -1);
                 if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
+                registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
+                        n, r.error());
 
                 int comp = completados.incrementAndGet();
                 int prods = productosAcumulados.addAndGet(n);
@@ -416,6 +451,8 @@ public class ScraperService {
                 RUN_LOG.warn("[SALUD]   {}", a.mensaje());
             }
         }
+        cerrarRun("COMPLETED", lastResult != null ? lastResult.productos().size() : 0);
+
         statusMsg.set("Entrenando modelo ML en background...");
         ultimasCategoriasRefinadas = aggregator.getLastCatRefinadas();
         long durMs = System.currentTimeMillis() - runStart;
@@ -453,6 +490,68 @@ public class ScraperService {
         if (idx < 0 || idx >= lista.size()) return;
         SitioProgress old = lista.get(idx);
         lista.set(idx, new SitioProgress(old.nombre(), estado, n, error, ms));
+    }
+
+    // ── Bookkeeping de la corrida (V29) ─────────────────────────────────────
+    //
+    // Las cuatro tragan su excepción a propósito. Registrar una corrida es
+    // contabilidad: que la contabilidad falle no puede abortar un scrape que
+    // por lo demás anda. La consecuencia se acepta explícitamente — si `abrirRun`
+    // falla, `runState` queda en null y las otras tres no hacen nada, así que
+    // esa corrida no queda registrada en vez de quedar registrada a medias.
+    // Media fila es peor que ninguna: la detección de interrumpidos la leería
+    // como una corrida viva que nadie va a cerrar nunca.
+
+    private void abrirRun(List<ScraperConfig.SiteConfig> sitios) {
+        try {
+            java.util.UUID uuid = java.util.UUID.randomUUID();
+            java.time.Instant arranque = java.time.Instant.now();
+            List<String> nombres = sitios.stream().map(ScraperConfig.SiteConfig::nombre).toList();
+            long runId = db.crearScrapeRun(uuid, arranque, null, null, nombres);
+            // El started_at que vale es el que quedó EN LA BASE, no el que mandamos:
+            // el repositorio lo trunca al segundo para que la cota de aislamiento
+            // case con la resolución de `touched_at`. Leerlo de vuelta evita que
+            // este objeto y la fila digan cosas distintas.
+            java.time.Instant persistido = db.startedAtDeRun(runId).orElse(arranque);
+            runState.set(new RunState(runId, uuid, persistido));
+            LOG.info("[RUN] corrida {} abierta con {} sitios", runId, nombres.size());
+        } catch (Exception e) {
+            runState.set(null);
+            LOG.warn("[RUN] no se pudo abrir la corrida, sigue sin registro: {}", e.getMessage());
+        }
+    }
+
+    private void registrarSitioEnCurso(String sitio) {
+        RunState estado = runState.get();
+        if (estado == null) return;
+        try {
+            db.marcarSitioEnCurso(estado.runId(), sitio, java.time.Instant.now());
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudo marcar '{}' en curso: {}", sitio, e.getMessage());
+        }
+    }
+
+    private void registrarSitioTerminado(String sitio, String status, int productos, String error) {
+        RunState estado = runState.get();
+        if (estado == null) return;
+        try {
+            db.marcarSitioTerminado(estado.runId(), sitio, status, productos, error,
+                    java.time.Instant.now());
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudo cerrar '{}': {}", sitio, e.getMessage());
+        }
+    }
+
+    private void cerrarRun(String status, int productos) {
+        RunState estado = runState.getAndSet(null);
+        if (estado == null) return;
+        try {
+            db.finalizarScrapeRun(estado.runId(), status, productos, java.time.Instant.now());
+            LOG.info("[RUN] corrida {} cerrada como {} con {} productos",
+                    estado.runId(), status, productos);
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudo cerrar la corrida {}: {}", estado.runId(), e.getMessage());
+        }
     }
 
     private List<ScraperConfig.SiteConfig> buildSiteList(Set<String> seleccionados) {

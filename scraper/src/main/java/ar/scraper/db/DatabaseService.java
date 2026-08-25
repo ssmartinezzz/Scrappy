@@ -61,6 +61,7 @@ public class DatabaseService {
     private final PreciosExternosRepository preciosExternosRepository;
     private final ProductRepository productRepository;
     private final CatalogQueryRepository catalogQueryRepository;
+    private final ScrapeRunRepository scrapeRunRepository;
     private final SiteRegistry siteRegistry;
 
     /**
@@ -93,6 +94,7 @@ public class DatabaseService {
         this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
         this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
         this.productRepository = new ProductRepository(dataSource, siteRegistry);
+        this.scrapeRunRepository = new ScrapeRunRepository(dataSource);
     }
 
     public SiteRegistry siteRegistry() {
@@ -220,6 +222,44 @@ public class DatabaseService {
      */
     public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size) {
         return catalogQueryRepository.buscar(filtro, orden, page, size);
+    }
+
+    // ── scrape_run / scrape_run_site (V29) ───────────────────────────────────
+    //
+    // Delegates rather than a getter: ScrapeRunRepository is package-private,
+    // like every other repository here, so `ar.scraper.web` cannot name the
+    // type. The facade is the seam.
+
+    /** Opens a run and enrolls its sites as PENDING, in one transaction. */
+    public long crearScrapeRun(java.util.UUID scrapeUuid, java.time.Instant startedAt,
+                               java.util.UUID triggeredBy, Long cronJobId,
+                               java.util.Collection<String> sitios) throws SQLException {
+        return scrapeRunRepository.crear(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios);
+    }
+
+    public void marcarSitioEnCurso(long runId, String sitio, java.time.Instant cuando)
+            throws SQLException {
+        scrapeRunRepository.marcarSitioEnCurso(runId, sitio, cuando);
+    }
+
+    public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
+                                     String error, java.time.Instant cuando) throws SQLException {
+        scrapeRunRepository.marcarSitioTerminado(runId, sitio, status, productosCount, error, cuando);
+    }
+
+    public void finalizarScrapeRun(long runId, String status, int productosCount,
+                                   java.time.Instant finishedAt) throws SQLException {
+        scrapeRunRepository.finalizar(runId, status, productosCount, finishedAt);
+    }
+
+    /** Marks whatever the previous process left open. Only marks — never starts a scrape. */
+    public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) throws SQLException {
+        return scrapeRunRepository.marcarInterrumpidosAlArrancar(cuando);
+    }
+
+    /** The reader-isolation bound for a run. Truncated to the second — see the repository. */
+    public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) throws SQLException {
+        return scrapeRunRepository.startedAtDe(runId);
     }
 
     /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
