@@ -31,6 +31,7 @@ public class MonkyforceScraper extends TiendanubeScraper {
                 sitio, baseUrl,
                 config.getPrecioMinimo(),
                 config.getPrecioMaximo(),
-                extraUrls);
+                extraUrls,
+                maxPaginas());
     }
 }
