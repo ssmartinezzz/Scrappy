@@ -16,6 +16,7 @@ import GpuTrainingOverlay from './GpuTrainingOverlay';
 import AgentChatPanel from './AgentChatPanel';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
+import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
@@ -79,7 +80,7 @@ const init = {
   scrapeStatus: 'IDLE',
   scrapeMsg:    '',
   progreso:     null,
-  config:       { precioMin: 0, precioMax: 300000 },
+  config:       CONFIG_DEFAULT,
 };
 
 function reducer(state, action) {

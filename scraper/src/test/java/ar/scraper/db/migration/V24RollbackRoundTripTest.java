@@ -24,10 +24,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code oscommerce} are deleted BEFORE the CHECK narrows back to 9 values —
  * doing it the other way would, for an instant, leave a CHECK narrower than
  * data that still violates it.</p>
+ *
+ * <p><b>add-inpro-office-store, {@code CODE-2} declared</b>: this test was
+ * edited, and that edit is a real behavior change, not a repair. {@code V27}
+ * widened {@code sitio_plataforma_check} to 12 values and seeded a row with
+ * {@code plataforma='inpro'}, so the pre-state this test asserts moved — and,
+ * more importantly, V24's rollback can no longer run on its own: narrowing the
+ * domain to 9 while V27's {@code inpro} row is alive violates the new CHECK.
+ * Rollbacks compose in reverse order, so the test now applies V27's block
+ * before V24's. That was always the semantics; nothing above V24 existed to
+ * make it visible until now.</p>
  */
 @Epic("Persistence")
 @Feature("Site")
-@Story("V24 rollback narrows the plataforma domain back to 9 values, seed-first")
+@Story("V24 rollback narrows the plataforma domain back to 9 values, seed-first, after V27")
 @DisplayName("V24 migration — the documented rollback actually runs")
 class V24RollbackRoundTripTest extends PostgresTestBase {
 
@@ -40,9 +50,12 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
-                        "qloud", "oscommerce");
+                        "qloud", "oscommerce", "inpro");
                 assertThat(sitioKeys(st)).contains("rockethard", "venex");
 
+                // Reverse order: V27 sits on top of V24 and left an `inpro` row
+                // behind. Narrowing straight to 9 would break against it.
+                st.execute(DocumentedRollback.sqlFor("V27"));
                 st.execute(rollbackSql());
 
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(

@@ -2,14 +2,9 @@ import { useState, useEffect } from 'react';
 import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchInflacion } from '../api';
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
+import { RUBROS } from '../lib/rubros';
 import { useAuth } from '../auth/AuthProvider';
 
-const RUBRO_DEF = [
-  { key: '',              icon: '🛍', label: 'Todos'        },
-  { key: 'indumentaria',  icon: '👕', label: 'Indumentaria' },
-  { key: 'tecnologia',    icon: '💻', label: 'Tecnología'   },
-  { key: 'suplementos',   icon: '💊', label: 'Suplementos'  },
-];
 
 export default function Topbar({
   meta, facets, sitioFiltro, rubroFiltro,
@@ -29,7 +24,7 @@ export default function Topbar({
   const total     = meta?.total         || 0;
 
   // Solo mostrar rubros que tienen productos (o todos por defecto)
-  const rubros = RUBRO_DEF.filter(r =>
+  const rubros = RUBROS.filter(r =>
     r.key === '' || (rubrosMap[r.key] || 0) > 0
   );
 

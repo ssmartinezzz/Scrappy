@@ -95,6 +95,43 @@ la práctica un producto con `ofertaReal=true` normalmente también tiene
 
 ---
 
+## Los thresholds no tienen escala — y eso es una invariante, no una casualidad
+
+**Ninguna condición de `assign_badges` está denominada en pesos.** Todas son
+posiciones sobre una distribución que se recalcula en cada corrida, por
+categoría + género:
+
+| Condición | Unidad |
+|---|---|
+| `comp <= 35 / 20 / 65 / 40`, `comp >= 80` | score compuesto 0-100 (40% percentil + 35% z-score modificado + 25% distancia a mediana/IQR) |
+| `mz <= -1.5` / `mz >= 1.5` | z-score modificado sobre MAD |
+| `cheap` / `exp` | cercos de Tukey, `q1 - 1.5*IQR` / `q3 + 1.5*IQR` |
+| `desc_pct < 12` | porcentaje |
+| `ratio > 1.0` | ratio |
+
+**La consecuencia práctica**: cambiar qué productos entran al catálogo —subir
+`precio.maximo`, agregar un sitio caro, sumar un rubro nuevo— corre las
+distribuciones, y los badges se acomodan solos. **No hay recalibración.**
+
+Se verificó ejercitando `PriceStats` y `assign_badges` reales sobre los precios
+de INPRO medidos en vivo, escalando las distribuciones ×10, ×100, ×1000 y
+×0,01: **88 combinaciones, cero cambios de badge**.
+`ml-tests/test_ml_pipeline_scale_invariance.py` lo fija.
+
+> ⚠️ **Al agregar un badge, mantené la propiedad.** Una condición como
+> "`below_market` si está $50.000 por debajo de la mediana" parece razonable y
+> rompe el pipeline en silencio: una remera de $30.000 y un standing desk de
+> $2.400.000 conviven en la misma base, y un umbral en pesos significa cosas
+> opuestas en cada una. Si necesitás una magnitud, expresala **relativa** —
+> fracción del IQR, puntos de percentil, porcentaje de la mediana.
+
+La única constante en pesos del archivo es el piso de `bin_size` en
+`_calc_mode` (`max(5000, iqr/5)`). Es la excepción y está acotada: `mode` se
+reporta en `to_dict()` y **no lo lee ningún score ni ningún badge**. Si algún
+día entra al scoring, ese es el lugar a revisar.
+
+---
+
 ## Cómo agregar un nuevo badge
 
 Los badges son un **set independiente**, no una cadena `elif`. Cada condición se
