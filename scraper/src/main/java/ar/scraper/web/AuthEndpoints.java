@@ -43,13 +43,22 @@ import java.util.Set;
  * aggregator or the catalogue, and threading it through a constructor that
  * already takes twelve collaborators would couple it to all of them for nothing.</p>
  *
- * <p><b>None of this gates anything yet.</b> No {@code SecurityFilterChain}
- * exists; tokens are minted and rotated, and no route checks one. The refresh
- * surface additionally has <b>no consumer at all</b> right now — the CLI
- * re-authenticates from its own {@code .env} and never holds a refresh token, so
- * this exists for a browser client that is a separate piece of work. It is built
- * ahead of that client on purpose, so the client is only ever a matter of
- * consuming it.</p>
+ * <p><b>This gates everything now.</b> When this class was first written nothing
+ * checked a token, and the paragraph here said so; that stopped being true two
+ * slices later and the comment did not follow. {@link ar.scraper.security.SecurityConfig}
+ * and {@code JwtAuthFilter} now gate every {@code /api/*} route through
+ * {@link ar.scraper.security.ApiRoutePolicy#TABLE}, which ends in
+ * {@code denyAll()} — a route with no row is refused, not allowed.</p>
+ *
+ * <p>The refresh surface <b>has a consumer</b>: the browser client at
+ * {@code frontend/src/lib/authSession.js} calls {@code POST} and
+ * {@code DELETE /api/auth/refresh}. What remains true is the CLI half — it
+ * re-authenticates from its own {@code .env} and never holds a refresh token.</p>
+ *
+ * <p>Kept as a warning rather than deleted: on an auth file, a comment that
+ * misdescribes the present is not a cosmetic problem. "None of this gates
+ * anything" makes deleting {@code SecurityConfig} look harmless to whoever
+ * refactors next.</p>
  *
  * <h3>Why every login failure looks identical</h3>
  *
