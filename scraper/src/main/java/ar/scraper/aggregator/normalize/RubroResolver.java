@@ -3,7 +3,7 @@ package ar.scraper.aggregator.normalize;
 import org.springframework.stereotype.Component;
 
 /**
- * Determina el rubro (tecnologia/suplementos/indumentaria) de un producto.
+ * Determina el rubro (tecnologia/suplementos/oficina/indumentaria) de un producto.
  *
  * <p>Extraído verbatim del bloque {@code rubro}/{@code catEsTextil}/
  * {@code catEsSuppl} en {@code NormalizerService.normalizarProducto} (Work
@@ -19,6 +19,21 @@ import org.springframework.stereotype.Component;
  * al del substring viejo sobre los 23 sitios reales × 81 categorías × 5
  * rubros previos — el conjunto de sitios donde había margen para que
  * cambiara.</p>
+ *
+ * <p>add-inpro-office-store: {@code oficina} entra como cuarto rubro, con una
+ * rama que es espejo EXACTO de la de {@code tecnologia}, guard
+ * {@code !catEsTextil} incluido. No es copiar y pegar: ese guard es lo que hace
+ * que una tienda de rubro único que además vende una remera con su logo
+ * clasifique esa remera como {@code indumentaria}. El sitio fuerza el rubro de
+ * lo que le es propio, no de todo lo que toca.</p>
+ *
+ * <p>Y va por {@code rubro_forzado}, nunca por la categoría: una silla la vende
+ * una tienda de oficina, pero que aparezca una silla en una tienda de ropa no
+ * convierte a esa tienda en otra cosa. Por eso
+ * {@code CategoryGroups.categoriasOficina()} existe para enumerar el
+ * vocabulario y NO se consulta acá — al revés de
+ * {@code esCategoriaSuplemento}, donde la categoría sí manda porque un
+ * suplemento es un suplemento lo venda quien lo venda.</p>
  */
 @Component
 public class RubroResolver {
@@ -44,6 +59,8 @@ public class RubroResolver {
 
         if ("tecnologia".equals(rubroForzado) && !catEsTextil) {
             return "tecnologia";
+        } else if ("oficina".equals(rubroForzado) && !catEsTextil && !catEsSuppl) {
+            return "oficina";
         } else if (catEsSuppl) {
             return "suplementos";
         } else if ("suplementos".equals(rubroForzado) && !catEsTextil) {

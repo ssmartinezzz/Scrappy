@@ -86,6 +86,9 @@ Scrappy/
 │   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
 ├── ml-tests/                    ← pytest del pipeline Python
 ├── tests/cli/                   ← pytest del CLI nativo
+├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
+│                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
+├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
 └── scraper/
     ├── pom.xml
     └── src/main/
@@ -104,6 +107,13 @@ Scrappy/
         │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
         │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
         │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
+        │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
+        │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
+        │   │                                  AdminSeeder (siembra + adopción)
+        │   │                                  ApiRoutePolicy (la matriz, como dato),
+        │   │                                  SecurityConfig + JwtAuthFilter (el gate)
+        │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
+        │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
         │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
         │   └── web/                        ← ApiController + *Endpoints + servicios
         │       ├── OutfitService           ←   armador aleatorio (Gym)
@@ -143,6 +153,7 @@ Scrappy/
 | compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (1389 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular. **650 productos** en un run real tras filtrar por stock/vendible y bandas de precio (2026-08-13). Dos claves del feed hay que reconstruirlas, no usarlas crudas: la imagen es `imagenes.compragamer.com/productos/compragamer_Imganen_general_{imagenes[].nombre}.jpg` (el typo `Imganen` es de ellos; sin el prefijo, el bucket S3 da `403 AccessDenied`), y la URL de producto es `/producto/{slug}_{id}` — el router de la SPA rutea por el sufijo `_{id}` y manda `/producto/{id}` pelado al home |
 | rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **503 productos** en un run real de sitio completo con las bandas de precio de producción (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
 | venex | osCommerce (propio) | tecnologia | Descubrimiento en dos niveles: categoría top → sub-categorías leaf en su landing (la landing muestra 12 productos no representativos, nunca se cuentan). `?page=N`, se detiene en página vacía **o** repetida — pasado el final real, Venex repite la última página en vez de devolver vacío. `page.content()` sirve el DOM re-serializado por Chromium (comillas dobles + entidad `&quot;`), no el HTML crudo del servidor (comillas simples) — el parser normaliza antes de matchear. El argumento de `enhancedClick` se lee **con Jackson**, no campo por campo con regex: los nombres traen la pulgada escapada (`15.6\"`) y un `"name":"([^"]*)"` se corta ahí y tira la card entera en silencio — medido en `/notebooks/`, eso costaba 20 de 47 productos únicos (2026-08-15). **1294 productos** en un run real de sitio completo (las 19 categorías top, 2026-08-13), sub-contado por esa pérdida |
+| inpro | Inpro (Tiendanube headless) | oficina | Sillas ergonómicas, standing desks, brazos de monitor, iluminación. **NO es plataforma `tiendanube`**: sirve los objetos crudos de la API de Tiendanube pero la vidriera es un Next.js propio en Vercel, y el storefront clásico no es alcanzable (`inpro.mitiendanube.com` redirige a *otra* tienda, `inproindumentaria.com.ar`; los slugs candidatos dan 410). El catálogo se lee del payload RSC (`self.__next_f`), no del DOM. Enumera por `/server-sitemap.xml` (106 productos, 16 categorías) → páginas de categoría (100 productos en 16 fetches) → los 6 handles que ninguna categoría mostró, de a uno. **101 productos** en una corrida real (2026-08-20); los 5 `pod-*` restantes son cabinas con `price: null`, se venden a consultar. El orden de las claves del JSON **no** es estable: en categoría el objeto abre con `id`, en producto con `name` — anclar en `{"id":` da 0 en la mitad de las superficies, en silencio |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -157,6 +168,7 @@ MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
 VAYPOL  → vaypol, city
 QLOUD   → rockethard
 OSCOMMERCE → venex
+INPRO   → inpro
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
 MONKYFORCE → monkyforce
@@ -171,9 +183,52 @@ default → TiendanubeScraper (JS heurístico)
 ## API REST
 
 Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
+Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md).
+
+> 🔒 **El API está cerrado.** Desde `user-accounts-and-roles` toda ruta `/api/*`
+> exige un access token salvo seis, y **una ruta sin fila en la tabla de política
+> se rechaza, no se permite** — `ApiRoutePolicy.TABLE` no tiene catch-all y
+> termina en `denyAll()`. Agregar un endpoint sin su fila lo deja en 403, y
+> `RouteCoverageTest` lo rompe en el build antes de que llegue a producción.
+>
+> **El dashboard React (`frontend/`) autentica**, desde `frontend-auth-ui`:
+> `frontend/src/lib/authSession.js` es el único módulo que sostiene el access
+> token, el nonce CSRF y la identidad, y `authedFetch` es el único punto por el
+> que pasan **todas** las llamadas de `api.js`. La sesión se recupera sola al
+> recargar la página (bootstrap sin nonce, ver
+> [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)), y la
+> UI es role-aware contra esta misma tabla — un VIEWER nunca ve un affordance
+> ADMIN en el DOM (hidden, no disabled).
+>
+> Permitidas sin credencial, y son todas: `OPTIONS /**` (preflight),
+> `POST /api/auth/login`, `POST`/`DELETE /api/auth/refresh`,
+> `POST /api/auth/password-reset/request` y `/confirm`, `GET /`.
+>
+> **401 y 403 no son lo mismo**: 401 es "no sé quién sos, autenticá"; 403 es "sé
+> quién sos y no podés". Un cliente que los confunde entra en loop de refresh o
+> muestra un error de permisos cuando sólo se le venció el token.
+>
+> 👤 **Los datos personales están scopeados por dueño.** `favoritos`,
+> `saved_outfits`, `outfit_feedback_item` y `categoria_dismiss` se leen y
+> escriben con `usuario_id` como **primer parámetro obligatorio**, y **no existe
+> ninguna variante sin scope** — un método que no existe no se puede llamar por
+> error, y eso lo verifica el compilador y no un reviewer. Un ADMIN corre el
+> MISMO SQL que un VIEWER con otro parámetro: el rol manda sobre el sistema, no
+> sobre los datos personales ajenos.
+>
+> **La excepción deliberada**: el guard de `DELETE /api/db/productos` cuenta los
+> favoritos de **todos**, no los del que llama. Scopearlo haría que un admin sin
+> favoritos propios pasara el chequeo justo cuando es más engañoso. Hay tests que
+> lo fijan para que nadie lo "haga consistente" con el resto.
+>
+> Una fila con `usuario_id IS NULL` queda **invisible para todos** (`NULL` no
+> matchea con nadie), no visible para todos. `UnownedRowsWarner` avisa al
+> arranque con los conteos por tabla y el SQL para adoptarlas.
 
 | Grupo | Endpoints |
 |-------|-----------|
+| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` · GET `/api/auth/me` · POST `/api/auth/password-reset/request` · `/confirm` |
+| Usuarios | GET/POST `/api/usuarios` · PUT `/api/usuarios/{username}/rol` · DELETE `/api/usuarios/{username}` · PUT `/api/usuarios/{username}/activar` — **ADMIN, sin UI** |
 | Scraping | GET `/api/status` · POST `/api/scrape` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
@@ -181,7 +236,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 | Financiación | CRUD `/api/financiacion/presets` · GET `/api/recomendacion` · `/api/inflacion` (INDEC) |
 | Outfits | GET `/api/outfits` · `/api/outfits/builder` · `/api/suplementos/builder` · `/api/suplementos/tipos` · POST `/api/outfits/feedback` · CRUD `/api/outfits/saved` |
 | Para ti | GET `/api/recomendados` · POST `/api/recomendados/feedback` · POST/DELETE `/api/recomendados/dismiss-categoria` |
-| Favoritos | GET/POST/DELETE `/api/favoritos` · POST `/api/favoritos/rescrape` |
+| Favoritos | GET/POST/DELETE `/api/favoritos` |
 | Picks/Marcas | GET `/api/mejores?rubro=` · `/api/marcas-browser` |
 | Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
 | Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
@@ -193,7 +248,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V24` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V27` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -206,6 +261,7 @@ Lo mínimo para no romper nada sin abrir ese archivo:
 | **Las dos funciones plpgsql se editan en su `R__`** | `sp_upsert_run` y `sp_soft_delete_ausentes`. Nunca una migración versionada nueva para tocarlas |
 | **El soft-delete está acotado a los sitios del batch** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15) |
 | **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
+| **`favoritos` ya no tiene PK sobre `url`** | Desde `V26` la PK es subrogada y la unicidad por url vive en un índice **parcial** (`WHERE usuario_id IS NULL`). Postgres no infiere un índice parcial solo: todo `ON CONFLICT (url)` tiene que repetir ese `WHERE` o rechaza la sentencia entera, primer insert incluido |
 | **`precio_historico` registra cambios, no avistajes** | Un producto que vuelve tras un soft-delete se trata por su precio, como cualquier fila existente — no como URL nueva |
 
 **Lecturas:** `/api/data` y `/api/facets` consultan SQL (18 filtros, orden y
@@ -363,6 +419,14 @@ cantidadUnidades, subCategoria, visual (VisualAttrs)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
+`rubro` tiene **cuatro** valores desde `V27`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina`. Lo resuelve `RubroResolver` por
+`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
+tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
+esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
+manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
+sobre el rubro forzado del sitio.
+
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;
 `MlScore.EMPTY` es `scoreP=50` sin badges.
@@ -398,6 +462,26 @@ a nivel `AppLayout`, no rutas.
 ---
 
 ## Gotchas
+
+**El entorno de desarrollo NO tiene la forma de ninguna instalación real, y eso
+esconde bugs de auth.** `vite dev` proxea `/api`, así que el frontend queda
+**same-origin** con el backend. Las dos vías que se instalan de verdad son
+**cross-origin**: portable/POSIX es `:5173 → :3000` y Docker es `:8080 → :3000`.
+Cualquier cosa que dependa de la relación entre orígenes —`Origin`,
+`Sec-Fetch-*`, `SameSite`, si el browser guarda una cookie— se comporta distinto
+en dev y en producción, **y dev es la topología que nunca se instala**.
+
+Esto ya costó dos veces. Primero se recomendó exigir `Sec-Fetch-Site:
+same-origin` para el refresh de bootstrap, que habría dado 403 en las dos
+instalaciones reales y sólo habría andado en dev. Después, y peor: el login se
+mandaba sin `credentials: 'include'`, así que el browser descartaba la cookie de
+refresh y **la recuperación de sesión al recargar nunca funcionó** en ninguna
+instalación real — con 1570 tests de backend y 148 de frontend en verde encima.
+
+Por eso `tests/e2e/run-e2e.sh` corre siempre contra `npm run preview` y **falla
+ruidosamente si se descubre same-origin** en vez de pasar callado. Si tocás auth,
+CORS o cookies, esa suite no es opcional: los tests unitarios no pueden ver esta
+clase de bug, por construcción.
 
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
 corre los tests con JRE 21. El comando completo está en
@@ -480,6 +564,16 @@ script ni respeta `PYTHONPATH`); `ml_pipeline.py` inserta su propio dir antes de
 importar `ml_embeddings`. Esto es **solo** del embeddable de ML (`_tools/python`) —
 `_tools/cli-venv` es un venv uv normal y no tiene el problema, por diseño.
 
+**El CLI se autentica solo, y falla fuerte si no puede:** desde
+`user-accounts-and-roles` fase 1, `RestClient` lee
+`CLI_SERVICE_ACCOUNT_USERNAME`/`_PASSWORD` del `.env`, hace `POST /api/auth/login`
+y adjunta `Authorization: Bearer`. Ante un 401 reautentica **una** vez y
+reintenta; si el segundo intento también da 401, levanta `RestError` — nunca un
+skip silencioso ni un loop de logins contra la cuenta que ya está fallando.
+**Nunca** toca `/api/auth/refresh` ni una cookie: esa superficie es del browser.
+Sin esas dos claves en el `.env` (instalación previa al cambio) el cliente se
+comporta exactamente como antes: sin login y sin header.
+
 **CLI (`_tools/cli-venv`):** si `import textual` falla, el instalador aborta con
 mensaje accionable. Para reprovisionar: borrar `_tools/uv` y `_tools/cli-venv` y
 re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
@@ -499,6 +593,47 @@ por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
 catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
 páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
 ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
+
+**Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
+
+- **`PostgresTestBase.truncateAll` es una lista a mano, no un barrido del
+  esquema.** Toda tabla nueva hay que agregarla ahí. Si te la olvidás no falla:
+  contamina otros tests y se ve como un bug en otro lado. `rol` está excluida a
+  propósito — es dato semilla de la migración, y truncarla deja el esquema sin
+  vocabulario de roles.
+- **Un test de esquema afirma el SQLState, no `SQLException`.** Un INSERT contra
+  una tabla que todavía no existe también tira `SQLException`, así que la versión
+  floja se pone verde ANTES de escribir la migración. `23514` = CHECK,
+  `23505` = UNIQUE.
+- **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
+  `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
+  BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
+- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
+  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
+  separan, el backend deja de negarse a sembrar con la password de ejemplo.
+- **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
+  los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
+  en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos
+  los cronjobs contra una config que se ve perfecta, porque el seeder nunca pisa
+  un hash existente.
+- **`@WebMvcTest` registra los `Filter` pero no los `@Component` comunes.** Un
+  test del slice de seguridad necesita importar `SecurityConfig`, `JwtAuthFilter`
+  **y** `TokenService`, o el contexto no carga.
+- **Un fixture tiene que sembrar el mismo rol que pone en el contexto de
+  seguridad.** El rol se lee de la BASE en cada request —el token no lo lleva—
+  así que decir ADMIN en el contexto y escribir VIEWER en la tabla da un sujeto
+  que la app trata como VIEWER, correctamente, y un test que falla por algo que
+  no tiene que ver con lo que quería probar.
+- **Los relojes fijos de los tests caen en segundos exactos.** Por eso los 1540
+  tests no vieron que `iat` (segundos) y `password_changed_at` (microsegundos)
+  se comparaban directo, rechazando el token del usuario que acababa de cambiar
+  su contraseña. **Todo cambio de auth se verifica además contra un proceso
+  real**: la verificación manual encontró tres bugs que la suite no podía ver
+  —dos que impedían arrancar y este—.
+- **Convención de commits de la cadena**: subject conventional (`COMMIT-1`) y
+  `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
+  rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
+  de `COMMIT-3`.
 
 **Docker:**
 - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
@@ -535,6 +670,8 @@ el catálogo real primero.
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
+| La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | Ya no falta infraestructura: el cliente existe (`frontend/src/lib/authSession.js`) y `tests/e2e/run-e2e.sh` lo ejercita contra un backend real. Falta la medición en sí, que es un trabajo aparte — nadie corrió todavía refrescos concurrentes para ver dónde cae el número. Hasta entonces queda como está, documentado como propuesta |
+| Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev): 76 ms hash / 76 ms verify con `m=16384, t=2, p=1`. Falta la máquina que importa — el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
 
 ### Sin dueño
 
@@ -553,11 +690,28 @@ escrito para que no vuelva a proponerse.
 | `/api/outfits` y `/api/outfits/builder` rearman el `FeedbackModel` y pegan 2 queries a la DB en **cada** request — "candidato a cachear por corrida" | **No es un problema de performance** (medido 2026-08-18, catálogo de 6700): `FeedbackModels.build` 0,208 ms · 2 queries con pool HikariCP 0,429 ms · `OutfitService.armar` —el trabajo real del endpoint— 0,258 ms. Total ≈ 0,64 ms por request. La caché exigiría invalidar en cinco métodos de escritura, y si se escapa uno el like de un usuario deja de afectar los outfits en silencio: correctitud a cambio de 0,64 ms imperceptibles |
 | Idem, medido sin pool | ⚠️ **Trampa de medición, no un dato.** `PostgresTestBase` usa `SimpleDriverDataSource`, que abre una conexión nueva por llamada: las mismas 2 queries dan 13,5 ms así y 0,429 ms con HikariCP, 31x inflado. Cualquier medición de DB en este repo tiene que envolver el datasource de test en un `HikariDataSource` o el número es ficción |
 
-### Config vigente, no bug
+### La banda de precios: `precio.maximo=5000000`
 
-| | |
-|---------|--------|
-| `precio.maximo=300000` borra categorías enteras de tecnología. Medido sobre Maximus (2026-08-13): notebooks `CAT=56` conserva 0 de 16, computadoras armadas `CAT=68` 0 de 59, `CAT=48` (GPUs) 5 de 59 — 377 de 1122 productos filtrados, 34% | El scraper trae esos productos bien; el filtro los descarta después. Los conteos por sitio de la tabla de sitios **subestiman** la cobertura real |
+**Era `300000` hasta `add-inpro-office-store` (2026-08-20).** Esa banda no era un
+bug —filtraba lo que decía filtrar— pero borraba en silencio justo los productos
+caros de dos rubros enteros:
+
+| Sitio | Qué se perdía con 300.000 |
+|---|---|
+| Maximus (medido 2026-08-13) | notebooks `CAT=56` conservaba 0 de 16, computadoras armadas `CAT=68` 0 de 59, GPUs `CAT=48` 5 de 59 — **377 de 1122, 34%** |
+| INPRO (medido 2026-08-20) | **32 de 101, 32%**: TODAS las sillas ergonómicas de gama y TODOS los standing desks salvo los tres más baratos |
+
+Con `5000000`, INPRO entra entero: **101 de 101, 0% filtrado** (verificado contra
+el sitio en vivo). El producto más caro del catálogo es `LiberNovo Omni` a
+$2.999.000.
+
+| Lo que hay que saber | |
+|---|---|
+| **La banda es GLOBAL** | No hay override por sitio. `precio.maximo` sale de `config.properties`, lo lee `ScraperConfig`, y subirla alcanza a **todos** los sitios configurados — 26 con INPRO, 25 en `master`. Una banda por sitio sería una feature aparte |
+| **`PUT /api/config` NO persiste** | `ScraperConfig.setPrecioMaximo` sólo toca el `Properties` en memoria: lo que se cambia desde el dashboard se pierde al reiniciar. El valor durable es el del archivo |
+| **El número vive en cuatro lugares y tienen que decir lo mismo** | `config.properties` · el default de `ScraperConfig.getPrecioMaximo()` · `frontend/src/lib/scrapeDefaults.js` · y un test del frontend lee el `.properties` para que no puedan separarse |
+| ⚠️ **Los conteos por sitio de la tabla de sitios son con la banda VIEJA** | Están fechados y medidos a 300.000, así que **subestiman** la cobertura real de ahora. Re-medirlos es trabajo pendiente, no un dato que ya tengamos |
+| **Mueve las distribuciones del ML, y no hay nada que recalibrar** | Entran productos caros que antes no estaban, así que mediana, IQR y percentiles por categoría se corren. Los thresholds **no se tocan**: ninguna condición de `assign_badges` está denominada en pesos — todas son posiciones sobre distribuciones que se recalculan por corrida (`comp` 0-100, z-score modificado, cercos de Tukey, porcentajes). Medido ejercitando el código real: 88 combinaciones, escalando las distribuciones x10/x100/x1000/x0.01, **cero cambios de badge**. Lo fija `ml-tests/test_ml_pipeline_scale_invariance.py`. La única constante en pesos del archivo es el piso de `bin_size` en `_calc_mode`, y `mode` se reporta sin alimentar ningún score |
 
 Decisiones que antes vivían acá y ahora están donde corresponde:
 `/api/db/export`/`import` en 410 Gone → [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) ·

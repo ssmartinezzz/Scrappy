@@ -25,24 +25,33 @@ import static org.assertj.core.api.Assertions.assertThat;
  * doing it the other way would, for an instant, leave a CHECK narrower than
  * data that still violates it.</p>
  *
- * <p><b>add-morashop-and-fix-entreno-pagination, {@code CODE-2} declared</b>:
- * this test was edited by a later change that did not touch V24. V28 widens
- * the same CHECK and seeds a {@code morashop} row, so two things moved here.
- * The pre-state assertion goes from 11 values to 12, and V28's rollback now
- * runs BEFORE V24's — rollbacks compose in reverse order, and V24's block
- * cannot narrow past a row V28 planted. Nothing about V24's own behaviour
- * changed: the post-rollback assertion is still the same 9 values and the
- * seed-first ordering it exists to prove is untouched.
+ * <p><b>add-inpro-office-store, {@code CODE-2} declared</b>: this test was
+ * edited, and that edit is a real behavior change, not a repair. {@code V27}
+ * widened {@code sitio_plataforma_check} to 12 values and seeded a row with
+ * {@code plataforma='inpro'}, so the pre-state this test asserts moved — and,
+ * more importantly, V24's rollback can no longer run on its own: narrowing the
+ * domain to 9 while V27's {@code inpro} row is alive violates the new CHECK.
+ * Rollbacks compose in reverse order, so the test now applies V27's block
+ * before V24's. That was always the semantics; nothing above V24 existed to
+ * make it visible until now.</p>
  *
- * <p>The rule this edit follows, so it does not erode into "edit whatever is
+ * <p><b>add-morashop-and-fix-entreno-pagination, {@code CODE-2} declared
+ * again</b>: the SECOND time this happened, which is what makes it a pattern
+ * rather than an anecdote. {@code V28} widens the same CHECK to 13 and seeds a
+ * {@code morashop} row, so the pre-state moved from 12 to 13 and V28's
+ * rollback now runs first — newest to oldest, V28 then V27 then V24.
+ *
+ * <p>The rule both edits follow, so this does not erode into "edit whatever is
  * red": a CLOSED-DOMAIN assertion may move from {@code n} to {@code n+1} when
  * the domain legitimately grows, provided every behavioural assertion around
- * it stays exactly as it was. Softening a {@code containsExactlyInAnyOrder}
- * into a {@code contains} to make red go away would be the opposite.</p>
+ * it stays exactly as it was. Here the post-rollback assertion is still the
+ * same 9 values and the seed-first ordering this test exists to prove is
+ * untouched. Softening a {@code containsExactlyInAnyOrder} into a
+ * {@code contains} to make red go away would be the opposite.</p>
  */
 @Epic("Persistence")
 @Feature("Site")
-@Story("V24 rollback narrows the plataforma domain back to 9 values, seed-first")
+@Story("V24 rollback narrows the plataforma domain back to 9 values, seed-first, after V27")
 @DisplayName("V24 migration — the documented rollback actually runs")
 class V24RollbackRoundTripTest extends PostgresTestBase {
 
@@ -55,13 +64,15 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
-                        "qloud", "oscommerce", "morashop");
+                        "qloud", "oscommerce", "inpro", "morashop");
                 assertThat(sitioKeys(st)).contains("rockethard", "venex");
 
-                // Rollbacks compose in reverse order: V28 widened this same
-                // CHECK and seeded a morashop row, so V24's rollback cannot
-                // narrow past it on its own.
+                // Rollbacks compose in reverse order, newest first: both V27
+                // and V28 sit on top of V24 and each left a row behind
+                // (`inpro`, `morashop`). Narrowing straight to 9 breaks
+                // against either one.
                 st.execute(DocumentedRollback.sqlFor("V28"));
+                st.execute(DocumentedRollback.sqlFor("V27"));
                 st.execute(rollbackSql());
 
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(

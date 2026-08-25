@@ -2,13 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { fetchMarcasBrowser, fetchData, fmt, BADGE_LABELS } from '../api';
 import { SEMANTIC } from '../lib/colors';
 import { getBrandLogoUrl, getBrandInitials, getBrandColor } from '../lib/brandLogos';
+import { RUBROS } from '../lib/rubros';
 
-const RUBROS = [
-  { k:'',             icon:'🛍', l:'Todas'       },
-  { k:'indumentaria', icon:'👕', l:'Indumentaria'},
-  { k:'tecnologia',   icon:'💻', l:'Tecnología'  },
-  { k:'suplementos',  icon:'💊', l:'Suplementos' },
-];
 
 const SORT_OPTS = [
   { v:'count',       l:'Más productos' },
@@ -256,11 +251,11 @@ export default function MarcasPanel({ onProductClick }) {
         {/* Rubro filter */}
         <div style={{ display:'flex', gap:4 }}>
           {RUBROS.map(r => (
-            <button key={r.k} onClick={() => setRubro(r.k)} style={{
+            <button key={r.key} onClick={() => setRubro(r.key)} style={{
               padding:'4px 9px', borderRadius:16, border:'none',
               cursor:'pointer', fontSize:'.7rem', fontWeight:700,
-              background: rubro===r.k ? 'var(--p)' : 'var(--s2)',
-              color: rubro===r.k ? '#fff' : 'var(--t4)',
+              background: rubro===r.key ? 'var(--p)' : 'var(--s2)',
+              color: rubro===r.key ? '#fff' : 'var(--t4)',
             }}>{r.icon}</button>
           ))}
         </div>

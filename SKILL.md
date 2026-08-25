@@ -24,6 +24,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | Doc | Qué cubre | Cuándo leerlo |
 |-----|-----------|---------------|
 | [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) | Todos los endpoints REST con params y responses | Al modificar la API o integrar con externos |
+| [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md) | Qué consume el frontend para autenticar, y las trampas ya conocidas. Punto de entrada del SDD de frontend |
 | [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md) | Paso a paso para agregar un sitio nuevo | Al agregar soporte para una tienda nueva |
 | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Pipeline ML: scoring, badges, clustering, stage 1b visual | Al modificar scoring, badges o atributos visuales |
 | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | El agente desde Java: costura `ChatProvider`, loop acotado, tools, y las 8 reglas que lo gobiernan | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |

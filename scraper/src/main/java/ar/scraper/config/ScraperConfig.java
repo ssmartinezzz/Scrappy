@@ -30,8 +30,19 @@ public class ScraperConfig {
         this.props.putAll(seed);
     }
 
+    /**
+     * Techo de precio, GLOBAL para los 24 sitios — no hay override por sitio.
+     *
+     * <p>El default tiene que decir lo mismo que {@code config.properties}: es
+     * el valor que rige si el archivo llega truncado, y si discrepan la banda
+     * cambia sin que nadie lo haya pedido.</p>
+     *
+     * <p>{@link #setPrecioMaximo} sólo toca el {@code Properties} en memoria —
+     * {@code PUT /api/config} NO persiste, se pierde al reiniciar. El valor
+     * durable es el del archivo.</p>
+     */
     public double getPrecioMaximo() {
-        return Double.parseDouble(props.getProperty("precio.maximo", "300000"));
+        return Double.parseDouble(props.getProperty("precio.maximo", "5000000"));
     }
     public void setPrecioMaximo(double v) {
         props.setProperty("precio.maximo", String.valueOf(v));

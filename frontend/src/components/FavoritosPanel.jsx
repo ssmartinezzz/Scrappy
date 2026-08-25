@@ -4,7 +4,7 @@ import BuySignal from './BuySignal';
 import { formatFecha } from '../lib/fechas';
 import { TiltCarousel } from './ui/tilt-carousel';
 import { ImageWithFallback } from './ui/image-with-fallback';
-import { rescrapeFavoritos, fmt } from '../api';
+import { fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
 
 // Shared fallback icon for every legacy-img spot below (spec: missing image
@@ -168,7 +168,7 @@ function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDetail }) {
 
 // ─── FavoritosPanel ───────────────────────────────────────────────────────────
 export default function FavoritosPanel({
-  favoritos, scrapeStatus, onOpenDetail, onStartPolling, onRefreshFavoritos, onSetScraping,
+  favoritos, onOpenDetail,
   savedOutfits, onDeleteSavedOutfit, onRenameSavedOutfit, onDeleteFavorito,
 }) {
   const items = favoritos || [];
@@ -240,14 +240,6 @@ export default function FavoritosPanel({
     return [...productSlides, ...outfitSlides];
   }, [items, outfits, onOpenDetail, expandedOutfitId]);
 
-  async function handleRefresh() {
-    const ok = await rescrapeFavoritos();
-    if (ok) {
-      onSetScraping?.();
-      onStartPolling?.(() => onRefreshFavoritos?.());
-    }
-  }
-
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
       {/* Header */}
@@ -300,20 +292,6 @@ export default function FavoritosPanel({
             </button>
           </div>
         )}
-
-        <button
-          onClick={handleRefresh}
-          disabled={scrapeStatus === 'RUNNING'}
-          style={{
-            marginLeft: isEmpty ? 'auto' : 0, padding:'5px 12px', borderRadius:16, border:'none',
-            cursor: scrapeStatus === 'RUNNING' ? 'default' : 'pointer',
-            fontSize:'.72rem', fontWeight:700,
-            background: scrapeStatus === 'RUNNING' ? 'var(--s2)' : 'var(--p)',
-            color: scrapeStatus === 'RUNNING' ? 'var(--t4)' : '#fff',
-            opacity: scrapeStatus === 'RUNNING' ? .6 : 1,
-          }}>
-          {scrapeStatus === 'RUNNING' ? 'Actualizando...' : '↻ Actualizar favoritos'}
-        </button>
       </div>
 
       {/* Body */}

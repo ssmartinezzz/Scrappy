@@ -222,11 +222,10 @@ public abstract class BasePage {
     }
 
     /**
-     * Helper público estático para extraer "scheme://host" de una URL.
-     * Usado por ScraperFactory.crearParaFavorito para resolver el dominio
-     * de un producto favorito sin depender de una instancia de BasePage.
+     * Helper estático para extraer "scheme://host" de una URL, sin depender
+     * de una instancia de BasePage.
      */
-    public static String dominioPublico(String url) {
+    static String dominioPublico(String url) {
         try {
             java.net.URI uri = java.net.URI.create(url);
             return uri.getScheme() + "://" + uri.getHost();

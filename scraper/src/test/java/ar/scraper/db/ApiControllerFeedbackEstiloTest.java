@@ -19,6 +19,8 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,6 +58,11 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
                 "Buzo", "hombre", List.of(), Product.MlScore.EMPTY, marca, "indumentaria", gymrat);
     }
 
+    @AfterEach
+    void limpiarContextoDeSeguridad() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
         wireController();
@@ -73,6 +80,8 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
         PythonRunner pythonRunner                   = mock(PythonRunner.class);
         RecommendationService recommendationService = new RecommendationService();
         OutfitService outfitService                 = new OutfitService(recommendationService);
+
+        SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
