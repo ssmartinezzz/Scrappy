@@ -1,54 +1,131 @@
 package ar.scraper.web;
 
+import ar.scraper.config.AllowedOrigins;
+import ar.scraper.security.RefreshCookie;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.Arrays;
-
 /**
  * CORS policy for the API-only backend (decouple-services-postgres, Batch 3,
- * design D6). The frontend is now its own independently-deployed service
- * (Vite dev server on {@code http://localhost:5173} in local dev; a real
- * origin in prod), so cross-origin requests to {@code /api/**} must be
- * explicitly allowed.
+ * design D6). The frontend is its own independently-deployed service (Vite dev
+ * server on {@code http://localhost:5173} in local dev; a real origin in prod),
+ * so cross-origin requests to {@code /api/**} must be explicitly allowed.
  *
  * <p>Origin allow-list comes from {@code app.cors.allowed-origins}
  * ({@code application.properties} resolves it from the
- * {@code APP_CORS_ALLOWED_ORIGINS} env var — task 3.1 spike outcome:
- * comma-separated list of origins, e.g.
- * {@code https://app.example.com,https://admin.example.com}). No credentials
- * (cookies/auth headers) exist in this API, so {@code allowCredentials} stays
- * {@code false} — this also means the allow-list may safely include multiple
- * origins without the stricter same-origin-echo requirement credentialed CORS
- * would impose.</p>
+ * {@code APP_CORS_ALLOWED_ORIGINS} env var): a comma-separated list of origins.</p>
  *
- * <p>No fallback default on the {@code @Value} below (scoped correction,
- * verify-report CRITICAL-1): a second silent default here would defeat
- * {@code RequiredEnvVarsGuard}/{@code application.properties}'s fail-fast
- * behavior for {@code APP_CORS_ALLOWED_ORIGINS}. Local dev fallback lives in
- * {@code application-dev.properties} (SPRING_PROFILES_ACTIVE=dev); tests that
- * import this config directly (e.g. {@code CorsConfigTest}) supply the
- * property explicitly via {@code @TestPropertySource}.</p>
+ * <h3>Two mappings, and the order is load-bearing</h3>
+ *
+ * <p>{@code UrlBasedCorsConfigurationSource} returns the <b>first</b> mapping
+ * that matches, so the specific refresh-path rule has to be registered before
+ * the {@code /**} catch-all. Registered the other way round it would never be
+ * consulted, credentials would silently stay off, and the browser would drop
+ * the refresh cookie on every cross-origin refresh — a session that expires
+ * every fifteen minutes with no error anywhere, which reads as a bug rather
+ * than as a misconfiguration. It is the same first-match-wins hazard the
+ * authorization route table has, in a second place.</p>
+ *
+ * <p><b>Credentials are true for exactly two paths</b>, {@code /api/auth/login}
+ * and {@link RefreshCookie#PATH} — the two whose traffic carries the refresh
+ * cookie. Login is in the list because its <b>response</b> plants the cookie,
+ * and cross-origin a browser discards {@code Set-Cookie} from a response whose
+ * request was not made in credentials mode; see {@link #LOGIN_PATH}. Everything
+ * else is a pure bearer-header API carrying no ambient credential, so
+ * {@code allowCredentials} stays {@code false} there. Turning it on globally
+ * would be a broad grant bought for two endpoints' needs, and a third path is a
+ * security decision rather than a convenience.</p>
+ *
+ * <h3>Why the wildcard is rejected at startup</h3>
+ *
+ * <p>Credentialed CORS forbids {@code Access-Control-Allow-Origin: *}, and
+ * Spring enforces that in {@code validateAllowCredentials()} — at <b>request</b>
+ * time. Left to Spring, a deployment with {@code APP_CORS_ALLOWED_ORIGINS=*}
+ * would boot happily and then answer 500 on the first login, with a stack trace
+ * pointing at CORS internals rather than at the variable. Failing at startup,
+ * naming the variable, costs nothing and turns a confusing outage into a
+ * message. {@code allowedHeaders("*")} is deliberately left alone: Spring echoes
+ * the concrete requested header names back, so it is valid under credentialed
+ * CORS.</p>
+ *
+ * <p>No fallback default on the {@code @Value} (scoped correction, verify-report
+ * CRITICAL-1): a silent default here would defeat
+ * {@code RequiredEnvVarsGuard}'s fail-fast for {@code APP_CORS_ALLOWED_ORIGINS}.</p>
+ *
+ * <h3>One parser, two callers — not one shared bean</h3>
+ *
+ * <p>The split/trim/filter and the empty/wildcard validation live once, as
+ * {@link AllowedOrigins#parsear} and {@link AllowedOrigins#validar}
+ * (frontend-auth-ui, Phase 1). This class calls those same static methods
+ * against its own {@code allowedOrigins} field rather than keeping a second
+ * copy of the algorithm; {@code ar.scraper.config.AllowedOrigins} (the
+ * {@code @Component}) calls them too, for the bootstrap-CSRF admission check
+ * (Phase 2) to consume. This class is deliberately <b>not</b> constructor-
+ * injected with that component: two existing tests — {@code CorsConfigTest}
+ * (a {@code @WebMvcTest} slice with a fixed {@code @Import} list) and
+ * {@code CorsCredentialsTest.Estructural} (which calls {@code new CorsConfig()}
+ * directly and reflects into the {@code allowedOrigins} field by name) — pin
+ * this class's no-arg constructor, its {@code String allowedOrigins} field,
+ * and its {@code validarOrigenes()} method by name. A bean dependency breaks
+ * both; a static call needs no bean and breaks neither.</p>
  */
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
+    private static final String[] METODOS =
+            {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"};
+
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    @PostConstruct
+    void validarOrigenes() {
+        AllowedOrigins.validar(AllowedOrigins.parsear(allowedOrigins));
+    }
+
+    /**
+     * The login path also needs credentialed CORS, and the reason is easy to
+     * miss: the <b>login response</b> is what plants the refresh cookie. A
+     * cross-origin response whose request was not made in credentials mode has
+     * its {@code Set-Cookie} discarded by the browser, so without this mapping
+     * the cookie is never stored, and session recovery on reload can never work
+     * — in every topology this project actually ships (SPA on :5173 or :8080,
+     * API on :3000). It looked fine only under {@code vite dev}, where the
+     * proxy makes login same-origin. Found by the Phase 8 browser suite, not by
+     * any unit test.
+     */
+    private static final String LOGIN_PATH = "/api/auth/login";
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        String[] origins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toArray(String[]::new);
+        String[] origins = origenes();
+
+        // FIRST — first match wins. See the class javadoc.
+        registry.addMapping(RefreshCookie.PATH)
+                .allowedOrigins(origins)
+                .allowedMethods(METODOS)
+                .allowedHeaders("*")
+                .allowCredentials(true);
+
+        // Also before the catch-all: see LOGIN_PATH's javadoc for why the
+        // credentialed surface is two paths and not one.
+        registry.addMapping(LOGIN_PATH)
+                .allowedOrigins(origins)
+                .allowedMethods(METODOS)
+                .allowedHeaders("*")
+                .allowCredentials(true);
 
         registry.addMapping("/**")
                 .allowedOrigins(origins)
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                .allowedMethods(METODOS)
                 .allowedHeaders("*")
                 .allowCredentials(false);
+    }
+
+    private String[] origenes() {
+        return AllowedOrigins.parsear(allowedOrigins).toArray(new String[0]);
     }
 }

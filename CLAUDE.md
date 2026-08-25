@@ -86,6 +86,9 @@ Scrappy/
 │   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
 ├── ml-tests/                    ← pytest del pipeline Python
 ├── tests/cli/                   ← pytest del CLI nativo
+├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
+│                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
+├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
 └── scraper/
     ├── pom.xml
     └── src/main/
@@ -104,6 +107,13 @@ Scrappy/
         │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
         │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
         │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
+        │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
+        │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
+        │   │                                  AdminSeeder (siembra + adopción)
+        │   │                                  ApiRoutePolicy (la matriz, como dato),
+        │   │                                  SecurityConfig + JwtAuthFilter (el gate)
+        │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
+        │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
         │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
         │   └── web/                        ← ApiController + *Endpoints + servicios
         │       ├── OutfitService           ←   armador aleatorio (Gym)
@@ -171,9 +181,52 @@ default → TiendanubeScraper (JS heurístico)
 ## API REST
 
 Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
+Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md).
+
+> 🔒 **El API está cerrado.** Desde `user-accounts-and-roles` toda ruta `/api/*`
+> exige un access token salvo seis, y **una ruta sin fila en la tabla de política
+> se rechaza, no se permite** — `ApiRoutePolicy.TABLE` no tiene catch-all y
+> termina en `denyAll()`. Agregar un endpoint sin su fila lo deja en 403, y
+> `RouteCoverageTest` lo rompe en el build antes de que llegue a producción.
+>
+> **El dashboard React (`frontend/`) autentica**, desde `frontend-auth-ui`:
+> `frontend/src/lib/authSession.js` es el único módulo que sostiene el access
+> token, el nonce CSRF y la identidad, y `authedFetch` es el único punto por el
+> que pasan **todas** las llamadas de `api.js`. La sesión se recupera sola al
+> recargar la página (bootstrap sin nonce, ver
+> [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)), y la
+> UI es role-aware contra esta misma tabla — un VIEWER nunca ve un affordance
+> ADMIN en el DOM (hidden, no disabled).
+>
+> Permitidas sin credencial, y son todas: `OPTIONS /**` (preflight),
+> `POST /api/auth/login`, `POST`/`DELETE /api/auth/refresh`,
+> `POST /api/auth/password-reset/request` y `/confirm`, `GET /`.
+>
+> **401 y 403 no son lo mismo**: 401 es "no sé quién sos, autenticá"; 403 es "sé
+> quién sos y no podés". Un cliente que los confunde entra en loop de refresh o
+> muestra un error de permisos cuando sólo se le venció el token.
+>
+> 👤 **Los datos personales están scopeados por dueño.** `favoritos`,
+> `saved_outfits`, `outfit_feedback_item` y `categoria_dismiss` se leen y
+> escriben con `usuario_id` como **primer parámetro obligatorio**, y **no existe
+> ninguna variante sin scope** — un método que no existe no se puede llamar por
+> error, y eso lo verifica el compilador y no un reviewer. Un ADMIN corre el
+> MISMO SQL que un VIEWER con otro parámetro: el rol manda sobre el sistema, no
+> sobre los datos personales ajenos.
+>
+> **La excepción deliberada**: el guard de `DELETE /api/db/productos` cuenta los
+> favoritos de **todos**, no los del que llama. Scopearlo haría que un admin sin
+> favoritos propios pasara el chequeo justo cuando es más engañoso. Hay tests que
+> lo fijan para que nadie lo "haga consistente" con el resto.
+>
+> Una fila con `usuario_id IS NULL` queda **invisible para todos** (`NULL` no
+> matchea con nadie), no visible para todos. `UnownedRowsWarner` avisa al
+> arranque con los conteos por tabla y el SQL para adoptarlas.
 
 | Grupo | Endpoints |
 |-------|-----------|
+| Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` · GET `/api/auth/me` · POST `/api/auth/password-reset/request` · `/confirm` |
+| Usuarios | GET/POST `/api/usuarios` · PUT `/api/usuarios/{username}/rol` · DELETE `/api/usuarios/{username}` · PUT `/api/usuarios/{username}/activar` — **ADMIN, sin UI** |
 | Scraping | GET `/api/status` · POST `/api/scrape` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
@@ -181,7 +234,7 @@ Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
 | Financiación | CRUD `/api/financiacion/presets` · GET `/api/recomendacion` · `/api/inflacion` (INDEC) |
 | Outfits | GET `/api/outfits` · `/api/outfits/builder` · `/api/suplementos/builder` · `/api/suplementos/tipos` · POST `/api/outfits/feedback` · CRUD `/api/outfits/saved` |
 | Para ti | GET `/api/recomendados` · POST `/api/recomendados/feedback` · POST/DELETE `/api/recomendados/dismiss-categoria` |
-| Favoritos | GET/POST/DELETE `/api/favoritos` · POST `/api/favoritos/rescrape` |
+| Favoritos | GET/POST/DELETE `/api/favoritos` |
 | Picks/Marcas | GET `/api/mejores?rubro=` · `/api/marcas-browser` |
 | Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
 | Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
@@ -206,6 +259,7 @@ Lo mínimo para no romper nada sin abrir ese archivo:
 | **Las dos funciones plpgsql se editan en su `R__`** | `sp_upsert_run` y `sp_soft_delete_ausentes`. Nunca una migración versionada nueva para tocarlas |
 | **El soft-delete está acotado a los sitios del batch** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15) |
 | **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
+| **`favoritos` ya no tiene PK sobre `url`** | Desde `V26` la PK es subrogada y la unicidad por url vive en un índice **parcial** (`WHERE usuario_id IS NULL`). Postgres no infiere un índice parcial solo: todo `ON CONFLICT (url)` tiene que repetir ese `WHERE` o rechaza la sentencia entera, primer insert incluido |
 | **`precio_historico` registra cambios, no avistajes** | Un producto que vuelve tras un soft-delete se trata por su precio, como cualquier fila existente — no como URL nueva |
 
 **Lecturas:** `/api/data` y `/api/facets` consultan SQL (18 filtros, orden y
@@ -407,6 +461,26 @@ a nivel `AppLayout`, no rutas.
 
 ## Gotchas
 
+**El entorno de desarrollo NO tiene la forma de ninguna instalación real, y eso
+esconde bugs de auth.** `vite dev` proxea `/api`, así que el frontend queda
+**same-origin** con el backend. Las dos vías que se instalan de verdad son
+**cross-origin**: portable/POSIX es `:5173 → :3000` y Docker es `:8080 → :3000`.
+Cualquier cosa que dependa de la relación entre orígenes —`Origin`,
+`Sec-Fetch-*`, `SameSite`, si el browser guarda una cookie— se comporta distinto
+en dev y en producción, **y dev es la topología que nunca se instala**.
+
+Esto ya costó dos veces. Primero se recomendó exigir `Sec-Fetch-Site:
+same-origin` para el refresh de bootstrap, que habría dado 403 en las dos
+instalaciones reales y sólo habría andado en dev. Después, y peor: el login se
+mandaba sin `credentials: 'include'`, así que el browser descartaba la cookie de
+refresh y **la recuperación de sesión al recargar nunca funcionó** en ninguna
+instalación real — con 1570 tests de backend y 148 de frontend en verde encima.
+
+Por eso `tests/e2e/run-e2e.sh` corre siempre contra `npm run preview` y **falla
+ruidosamente si se descubre same-origin** en vez de pasar callado. Si tocás auth,
+CORS o cookies, esa suite no es opcional: los tests unitarios no pueden ver esta
+clase de bug, por construcción.
+
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
 corre los tests con JRE 21. El comando completo está en
 [`CONTRIBUTING.md`](./CONTRIBUTING.md). `clean` no es opcional: sin él `mvn test`
@@ -464,6 +538,16 @@ script ni respeta `PYTHONPATH`); `ml_pipeline.py` inserta su propio dir antes de
 importar `ml_embeddings`. Esto es **solo** del embeddable de ML (`_tools/python`) —
 `_tools/cli-venv` es un venv uv normal y no tiene el problema, por diseño.
 
+**El CLI se autentica solo, y falla fuerte si no puede:** desde
+`user-accounts-and-roles` fase 1, `RestClient` lee
+`CLI_SERVICE_ACCOUNT_USERNAME`/`_PASSWORD` del `.env`, hace `POST /api/auth/login`
+y adjunta `Authorization: Bearer`. Ante un 401 reautentica **una** vez y
+reintenta; si el segundo intento también da 401, levanta `RestError` — nunca un
+skip silencioso ni un loop de logins contra la cuenta que ya está fallando.
+**Nunca** toca `/api/auth/refresh` ni una cookie: esa superficie es del browser.
+Sin esas dos claves en el `.env` (instalación previa al cambio) el cliente se
+comporta exactamente como antes: sin login y sin header.
+
 **CLI (`_tools/cli-venv`):** si `import textual` falla, el instalador aborta con
 mensaje accionable. Para reprovisionar: borrar `_tools/uv` y `_tools/cli-venv` y
 re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
@@ -483,6 +567,47 @@ por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
 catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
 páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
 ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
+
+**Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
+
+- **`PostgresTestBase.truncateAll` es una lista a mano, no un barrido del
+  esquema.** Toda tabla nueva hay que agregarla ahí. Si te la olvidás no falla:
+  contamina otros tests y se ve como un bug en otro lado. `rol` está excluida a
+  propósito — es dato semilla de la migración, y truncarla deja el esquema sin
+  vocabulario de roles.
+- **Un test de esquema afirma el SQLState, no `SQLException`.** Un INSERT contra
+  una tabla que todavía no existe también tira `SQLException`, así que la versión
+  floja se pone verde ANTES de escribir la migración. `23514` = CHECK,
+  `23505` = UNIQUE.
+- **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
+  `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
+  BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
+- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
+  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
+  separan, el backend deja de negarse a sembrar con la password de ejemplo.
+- **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
+  los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
+  en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos
+  los cronjobs contra una config que se ve perfecta, porque el seeder nunca pisa
+  un hash existente.
+- **`@WebMvcTest` registra los `Filter` pero no los `@Component` comunes.** Un
+  test del slice de seguridad necesita importar `SecurityConfig`, `JwtAuthFilter`
+  **y** `TokenService`, o el contexto no carga.
+- **Un fixture tiene que sembrar el mismo rol que pone en el contexto de
+  seguridad.** El rol se lee de la BASE en cada request —el token no lo lleva—
+  así que decir ADMIN en el contexto y escribir VIEWER en la tabla da un sujeto
+  que la app trata como VIEWER, correctamente, y un test que falla por algo que
+  no tiene que ver con lo que quería probar.
+- **Los relojes fijos de los tests caen en segundos exactos.** Por eso los 1540
+  tests no vieron que `iat` (segundos) y `password_changed_at` (microsegundos)
+  se comparaban directo, rechazando el token del usuario que acababa de cambiar
+  su contraseña. **Todo cambio de auth se verifica además contra un proceso
+  real**: la verificación manual encontró tres bugs que la suite no podía ver
+  —dos que impedían arrancar y este—.
+- **Convención de commits de la cadena**: subject conventional (`COMMIT-1`) y
+  `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
+  rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
+  de `COMMIT-3`.
 
 **Docker:**
 - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
@@ -519,6 +644,8 @@ el catálogo real primero.
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
+| La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | Ya no falta infraestructura: el cliente existe (`frontend/src/lib/authSession.js`) y `tests/e2e/run-e2e.sh` lo ejercita contra un backend real. Falta la medición en sí, que es un trabajo aparte — nadie corrió todavía refrescos concurrentes para ver dónde cae el número. Hasta entonces queda como está, documentado como propuesta |
+| Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev): 76 ms hash / 76 ms verify con `m=16384, t=2, p=1`. Falta la máquina que importa — el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
 
 ### Sin dueño
 

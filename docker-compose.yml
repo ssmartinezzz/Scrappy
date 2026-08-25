@@ -47,6 +47,35 @@ services:
       DATABASE_USERNAME: ${DATABASE_USERNAME:-postgres}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+      # Auth secrets. `RequiredEnvVarsGuard.REQUIRED_SECRETS` demands all five,
+      # present AND non-blank, under the default profile — without them the
+      # backend aborts at startup and the container crash-loops.
+      #
+      # `${VAR:?}` on purpose, not `:-`: compose refuses to start and names the
+      # missing variable, instead of handing the JVM a blank that fails later and
+      # deeper. There is no safe default to invent for a signing secret.
+      #
+      # These have to be listed HERE even though docker.env.example documents
+      # them: `.env` only interpolates `${...}` placeholders that literally
+      # appear in this file. Filling docker.env.example exactly as documented and
+      # running `docker compose up` used to crash-loop for precisely this reason.
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?falta AUTH_JWT_SECRET — copiá docker.env.example a .env}
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:?falta ADMIN_BOOTSTRAP_USERNAME}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?falta ADMIN_BOOTSTRAP_PASSWORD}
+      CLI_SERVICE_ACCOUNT_USERNAME: ${CLI_SERVICE_ACCOUNT_USERNAME:?falta CLI_SERVICE_ACCOUNT_USERNAME}
+      CLI_SERVICE_ACCOUNT_PASSWORD: ${CLI_SERVICE_ACCOUNT_PASSWORD:?falta CLI_SERVICE_ACCOUNT_PASSWORD}
+      # Reset links must point at the FRONTEND's Docker origin (:8080), not the
+      # :5173 of the portable install — a link to the wrong port is a reset that
+      # silently goes nowhere.
+      PASSWORD_RESET_CHANNEL: ${PASSWORD_RESET_CHANNEL:-console}
+      PASSWORD_RESET_LINK_BASE: ${PASSWORD_RESET_LINK_BASE:-http://localhost:8080}
+      # Ignored unless PASSWORD_RESET_CHANNEL=smtp; blank defaults keep the
+      # console channel working with nothing set.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
       SCRAPER_MODELS_ROOT: /models
       HF_HOME: /models/marqo
       LOG_DIR: /app/logs

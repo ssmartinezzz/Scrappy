@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +54,7 @@ class SavedOutfitItemsTest extends PostgresTestBase {
                  .append("\",\"sitio\":\"Sitio\",\"nombre\":\"Producto\",\"precio\":15000,")
                  .append("\"img\":\"i\",\"categoria\":\"Remera\",\"marca\":\"Nike\"}");
         }
-        return db.guardarOutfit(nombre, slots.append("]").toString(), null, 15000);
+        return db.guardarOutfit(yo(), nombre, slots.append("]").toString(), null, 15000);
     }
 
     @Test
@@ -118,7 +120,7 @@ class SavedOutfitItemsTest extends PostgresTestBase {
         int id = guardarOutfit("Mi outfit", "https://s.com/remera");
         assertThat(contarItems(id)).isEqualTo(1);
 
-        db.eliminarOutfitGuardado(id);
+        db.eliminarOutfitGuardado(yo(), id);
 
         assertThat(contarItems(id)).isZero();
     }
@@ -127,7 +129,7 @@ class SavedOutfitItemsTest extends PostgresTestBase {
 
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> slotsDe(String nombre) {
-        return db.obtenerOutfitsGuardados().stream()
+        return db.obtenerOutfitsGuardados(yo()).stream()
                 .filter(o -> nombre.equals(o.get("nombre")))
                 .map(o -> (List<Map<String, Object>>) o.get("slots"))
                 .findFirst().orElseThrow();
@@ -164,5 +166,17 @@ class SavedOutfitItemsTest extends PostgresTestBase {
                 categoria, "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
                 "indumentaria", false, false, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, 1);
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

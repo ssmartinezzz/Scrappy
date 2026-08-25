@@ -83,3 +83,14 @@ frontend/.env
 # datadir can also be created outside _tools/ during local dev/testing)
 pgdata/
 _pgdata/
+
+# frontend-auth-ui Phase 8: end-to-end runner state. `.e2e-secrets.env` holds
+# the generated JWT signing secret and the e2e bootstrap-admin password — it is
+# regenerated on first run and must never be committed. `.run/` holds one run's
+# backend jar output, the vite build/preview output and the backend log the
+# password-reset test reads its link out of.
+tests/e2e/.e2e-secrets.env
+tests/e2e/.run/
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/.artifacts/

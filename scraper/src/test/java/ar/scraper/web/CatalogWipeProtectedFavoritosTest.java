@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -15,6 +16,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +81,7 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
     void wipeBlockedByFavoritesReturns409AndDeletesNothing() throws Exception {
         String url = "https://site.com/wipe-blocked";
         db.upsertProductos(List.of(producto(url)));
-        db.guardarFavorito(url, "Sitio", "Producto");
+        db.guardarFavorito(yo(), url, "Sitio", "Producto");
 
         var resp = endpoints.limpiarProductos();
 
@@ -105,5 +107,17 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(contar("productos")).isZero();
         assertThat(contar("precio_historico")).isZero();
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

@@ -1419,6 +1419,98 @@ dato que `url` no tenga ya.
 
 ---
 
+### `V26` — cuentas, roles, tokens y el dueño de los datos personales
+
+**Decisión**: cinco tablas de identidad (`usuario`, `rol`, `usuario_rol`,
+`refresh_token`, `password_reset_token`) y una columna `usuario_id` **nullable**
+en las cuatro tablas de datos personales (`favoritos`, `saved_outfits`,
+`outfit_feedback_item`, `categoria_dismiss`).
+
+**Esta migración no cierra ninguna puerta.** Al terminar la fase 1 no existe
+ningún `SecurityFilterChain` y todos los endpoints siguen tan abiertos como
+hoy. Sin estas tablas no hay a quién autenticar, pero tenerlas no protege nada
+por sí solo.
+
+**Por qué el dueño es nullable.** Hay un orden que no se puede invertir: Flyway
+corre `V26` durante el arranque y la cuenta admin se siembra después, en un
+`ApplicationRunner` — la única etapa garantizada tras el refresh completo del
+contexto. En el momento en que la columna se crea todavía no existe ninguna
+fila de usuario a la que las favoritos existentes puedan pertenecer. De ahí
+salen las dos consecuencias que más chocan al leer el esquema:
+
+1. `usuario_id` es nullable porque no hay id que poner.
+2. La clave compuesta de `favoritos` viaja como `UNIQUE (usuario_id, url)`,
+   **no como PRIMARY KEY**: una PK prohíbe NULLs. Promoverla a PK compuesta
+   real, cuando toda fila ya tenga dueño, es una migración posterior.
+
+La adopción de las filas huérfanas la hace el seeder en código, en la misma
+transacción en que confirma la cuenta admin. Por eso el archivo no contiene ni
+una credencial ni un id literal — y hay un test que lo verifica sobre el texto
+del `.sql`, no sobre la base: una migración aplicada queda congelada byte a
+byte, así que un secreto escrito ahí no se puede sacar nunca más, y este
+repositorio es público.
+
+**El índice parcial no es decoración.** `favoritos.url` era PRIMARY KEY, así que
+la misma url no se podía guardar dos veces. Al soltar esa PK,
+`UNIQUE (usuario_id, url)` **no** alcanza para conservar la garantía: en SQL dos
+NULL son distintos entre sí, y mientras la aplicación siga escribiendo
+`usuario_id = NULL` los dos inserts de la misma url pasarían. Sería una
+regresión silenciosa introducida por la migración que se suponía aditiva.
+`uq_fav_unowned_url` conserva la garantía exactamente durante la ventana en que
+se puede violar. `NULLS NOT DISTINCT` de Postgres 15 lo diría en una cláusula,
+pero la versión del Postgres portable de `_tools/pgsql` no está fijada.
+
+**Consecuencia para todo upsert contra `favoritos`**: `ON CONFLICT (url)` no
+infiere un índice parcial solo. La cláusula tiene que repetir el
+`WHERE usuario_id IS NULL` del índice, o Postgres rechaza la sentencia entera —
+el primer insert incluido, no sólo el que conflictúa. `FavoritosRepository`
+loguea y se traga la excepción, así que ese error se ve como "no hay favoritos",
+no como un error.
+
+**Requisito de versión**: `gen_random_uuid()` es núcleo desde Postgres 13. No se
+usa `pgcrypto` para no depender de una extensión que puede pedir superusuario.
+
+```sql
+-- >>> rollback:V26
+-- 1. `favoritos` vuelve a su clave natural. La de-duplicación va PRIMERO y no
+--    es opcional: con dos dueños sobre la misma url, restaurar
+--    PRIMARY KEY (url) es imposible sin elegir qué fila sobrevive. Se conserva
+--    la más vieja.
+DELETE FROM favoritos f
+      USING favoritos otra
+      WHERE f.url = otra.url AND f.id > otra.id;
+
+DROP INDEX IF EXISTS uq_fav_unowned_url;
+ALTER TABLE favoritos DROP CONSTRAINT IF EXISTS uq_fav_owner_url;
+ALTER TABLE favoritos DROP COLUMN IF EXISTS id;
+ALTER TABLE favoritos ADD PRIMARY KEY (url);
+
+-- 2. Las columnas de dueño y sus índices.
+DROP INDEX IF EXISTS idx_fav_usuario;
+DROP INDEX IF EXISTS idx_saved_outfits_usuario;
+DROP INDEX IF EXISTS idx_ofi_usuario;
+DROP INDEX IF EXISTS idx_catdismiss_usuario;
+ALTER TABLE favoritos            DROP COLUMN IF EXISTS usuario_id;
+ALTER TABLE saved_outfits        DROP COLUMN IF EXISTS usuario_id;
+ALTER TABLE outfit_feedback_item DROP COLUMN IF EXISTS usuario_id;
+ALTER TABLE categoria_dismiss    DROP COLUMN IF EXISTS usuario_id;
+
+-- 3. Identidad.
+DROP TABLE IF EXISTS password_reset_token;
+DROP TABLE IF EXISTS refresh_token;
+DROP TABLE IF EXISTS usuario_rol;
+DROP TABLE IF EXISTS usuario;
+DROP TABLE IF EXISTS rol;
+-- <<< rollback:V26
+```
+
+**El rollback no es total, y la parte que pierde datos es el primer bloque.**
+Las cinco tablas de identidad se sueltan enteras; las columnas de dueño también.
+Lo que no se puede deshacer es la de-duplicación: si dos personas llegaron a
+marcar el mismo producto, volver a `PRIMARY KEY (url)` exige quedarse con una
+sola fila. Por eso este es el primer rollback de este cambio que hay que
+**ejecutar** antes de creerle — lo corre `V26RollbackRoundTripTest` contra un
+Postgres real, sobre un dataset que incluye ese caso.
 ### `V27` — `oficina` entra al dominio de `rubro`, e `inpro` al de `plataforma`
 
 `add-inpro-office-store`: INPRO (`inpro.ar`) vende sillas ergonómicas,

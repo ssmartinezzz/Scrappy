@@ -28,12 +28,25 @@ import java.util.List;
  * system property in {@code pom.xml}'s surefire config) respectively — this
  * guard simply skips its check when either profile is active.</p>
  *
- * <p><b>Presence, not blankness</b>: a variable counts as "set" if the
- * environment has it at all, even as an empty string. This matters for
- * {@code DATABASE_PASSWORD}: the installer intentionally writes an empty
- * value for local trust-auth Postgres ({@code _tools/pgsql}, {@code initdb -A
- * trust}) — that is an explicit configuration choice, not a silently-missing
- * resource, and must not be rejected by this guard.</p>
+ * <p><b>Presence, not blankness — for infrastructure variables</b>: a variable
+ * in {@link #REQUIRED_VARS} counts as "set" if the environment has it at all,
+ * even as an empty string. This matters for {@code DATABASE_PASSWORD}: the
+ * installer intentionally writes an empty value for local trust-auth Postgres
+ * ({@code _tools/pgsql}, {@code initdb -A trust}) — that is an explicit
+ * configuration choice, not a silently-missing resource, and must not be
+ * rejected by this guard.</p>
+ *
+ * <p><b>Blankness too — for the authentication secrets</b> in
+ * {@link #REQUIRED_SECRETS}. The trust-auth reasoning has no analogue there:
+ * there is no deployment in which an empty JWT signing secret or an empty
+ * bootstrap admin password is a deliberate choice. An empty signing secret is
+ * an unsigned token, and an empty admin password is an account anybody can log
+ * into. Both are the failure this guard exists to prevent, wearing a value's
+ * clothes, so blank counts as missing for these five and only for these five.</p>
+ *
+ * <p>Neither list may carry a default. This repository is public: a working
+ * default secret is shared by every clone, which is the same as having no
+ * secret at all.</p>
  */
 public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
 
@@ -43,6 +56,36 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
             "DATABASE_PASSWORD",
             "APP_CORS_ALLOWED_ORIGINS"
     );
+
+    /**
+     * Authentication secrets (user-accounts-and-roles, slice 2). Required
+     * <b>and non-blank</b>, unlike {@link #REQUIRED_VARS} above — see the
+     * class javadoc for why the two rules differ.
+     */
+    static final List<String> REQUIRED_SECRETS = List.of(
+            "AUTH_JWT_SECRET",
+            "ADMIN_BOOTSTRAP_USERNAME",
+            "ADMIN_BOOTSTRAP_PASSWORD",
+            "CLI_SERVICE_ACCOUNT_USERNAME",
+            "CLI_SERVICE_ACCOUNT_PASSWORD"
+    );
+
+    /**
+     * SMTP is required <b>conditionally</b> — only when the operator has selected
+     * that channel. Listing it unconditionally would force every installation to
+     * configure a mail server for a feature whose default adapter writes to the
+     * log and needs nothing, which is the opposite of what this project's
+     * zero-configuration install is for.
+     */
+    static final List<String> SMTP_VARS = List.of(
+            "SMTP_HOST",
+            "SMTP_PORT",
+            "SMTP_USERNAME",
+            "SMTP_PASSWORD",
+            "SMTP_FROM_ADDRESS"
+    );
+
+    private static final String SELECTOR_DE_CANAL = "PASSWORD_RESET_CHANNEL";
 
     private static final List<String> SKIP_PROFILES = List.of("dev", "test");
 
@@ -56,6 +99,20 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
         for (String key : REQUIRED_VARS) {
             if (!environment.containsProperty(key)) {
                 missing.add(key);
+            }
+        }
+        for (String key : REQUIRED_SECRETS) {
+            String value = environment.getProperty(key);
+            if (value == null || value.isBlank()) {
+                missing.add(key);
+            }
+        }
+        if ("smtp".equalsIgnoreCase(String.valueOf(environment.getProperty(SELECTOR_DE_CANAL)).trim())) {
+            for (String key : SMTP_VARS) {
+                String value = environment.getProperty(key);
+                if (value == null || value.isBlank()) {
+                    missing.add(key);
+                }
             }
         }
 
