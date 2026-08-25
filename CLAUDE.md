@@ -67,7 +67,7 @@ Scrappy/
 ├── CLAUDE.md                    ← Este archivo (estado)
 ├── CONTRIBUTING.md              ← Proceso: commits, PRs, TDD, docs — reglas con ID citable
 ├── .github/PULL_REQUEST_TEMPLATE.md
-├── .github/workflows/           ← backend-tests, cli-tests, frontend-tests, docker-smoke
+├── .github/workflows/           ← backend-tests, cli-tests, frontend-tests, ml-tests, docker-smoke
 ├── SKILL.md                     ← Índice de documentación
 ├── INSTALAR_Y_CORRER.bat        ← Windows: aprovisiona _tools/ e invoca `-m cli`
 ├── Ejecutar_instalar.sh         ← Mirror POSIX

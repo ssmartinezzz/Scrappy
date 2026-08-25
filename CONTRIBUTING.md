@@ -256,7 +256,11 @@ JAVA_HOME=/home/santiago/openjdk-24_linux-x64_bin/jdk-24 \
 # CLI nativo (206 tests)
 _tools/cli-venv/bin/python -m pytest tests/cli
 
-# Pipeline ML — necesita el Python de ML (numpy); cli-venv NO sirve, está aislado a propósito
+# Pipeline ML — la suite entera (113 tests) corre con pytest + numpy + psycopg2-binary.
+# Medido: sin psycopg2 fallan 12. NO hace falta scipy/scikit-learn/Pillow, que el
+# instalador sí provisiona para el RUNTIME — las deps pesadas de modelo viven detrás
+# del lazy-import de ml_embeddings y los tests las stubean. cli-venv NO sirve, está
+# aislado a propósito. Lo corre `ml-tests.yml` en CI desde add-inpro-office-store.
 pytest ml-tests
 
 # Frontend

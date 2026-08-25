@@ -1,0 +1,75 @@
+name: ML Tests
+
+# Runs the ML pipeline's pytest suite (ml-tests/). Mirrors the change-detection
+# shape of backend-tests.yml, cli-tests.yml and frontend-tests.yml so a PR that
+# touches only one subsystem does not pay for the others, while the check still
+# reports a result instead of going missing.
+#
+# WHY THIS EXISTS: ml-tests/ had no workflow at all. The suite was real and
+# green, but it only ran when somebody remembered to run it by hand — which is
+# worse than it sounds, because a test nobody runs automatically protects LESS
+# right after it is merged, when everyone assumes the coverage is already
+# there. It changes the perceived risk without changing the risk.
+#
+# DEPENDENCIES ARE DELIBERATELY MINIMAL AND WERE MEASURED, NOT COPIED.
+# INSTALAR_Y_CORRER.bat provisions numpy, scipy, scikit-learn and Pillow for
+# the runtime ML python, but the TEST suite does not need most of that: the
+# heavy model deps (open_clip, transformers, torch) sit behind ml_embeddings'
+# own lazy-import boundary and the tests stub them. Measured on the full suite:
+#
+#   pytest + numpy                    -> 101 passed, 12 failed
+#   pytest + numpy + psycopg2-binary  -> 113 passed, 0 failed
+#
+# So three packages cover everything and the job finishes in seconds. If a new
+# test needs more, add it here with the measurement that says why, rather than
+# installing the whole runtime list on the assumption that it is needed.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect ML changes
+        id: changes
+        run: |
+          # Both directories matter, and for different reasons: ml-tests/ is
+          # the suite itself, and scraper/src/main/resources/ml/ is the ONLY
+          # source of truth for the pipeline (the ml_*.py files next to the jar
+          # are gitignored runtime extraction artifacts, never edited).
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD \
+              | grep -qE '^ml-tests/|^scraper/src/main/resources/ml/|^\.github/workflows/ml-tests\.yml'; then
+            echo "ml=true" >> $GITHUB_OUTPUT
+          else
+            echo "ml=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        if: steps.changes.outputs.ml == 'true'
+        uses: actions/setup-python@v5
+        with:
+          # 3.11 to match the embeddable python the installer provisions for
+          # the ML runtime, so a version-dependent failure shows up here and
+          # not on a user's machine.
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        if: steps.changes.outputs.ml == 'true'
+        run: python -m pip install --quiet --upgrade pip pytest numpy psycopg2-binary
+
+      - name: Run pytest
+        if: steps.changes.outputs.ml == 'true'
+        # conftest.py puts scraper/src/main/resources/ml on sys.path, so the
+        # tests import ml_pipeline / ml_embeddings directly. No PYTHONPATH here.
+        run: python -m pytest ml-tests -q
+
+      - name: No ML changes
+        if: steps.changes.outputs.ml == 'false'
+        run: echo "No ml-tests/ or ml/ changes — ML tests skipped."
