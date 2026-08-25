@@ -183,7 +183,14 @@ public class RefreshTokenService {
             LOG.warn("[AUTH] refresh token reusado fuera de la ventana de gracia — se revoca la familia {}",
                     fila.familyId());
             repo.revocarFamilia(fila.familyId(), ahora);
-            replays.keySet().removeIf(hash -> true); // the family's successors must not replay either
+            // ONLY this family's successors stop replaying. The predicate used to
+            // be `hash -> true`, which cleared every family in the process: one
+            // user's reuse detection wiped the grace cache of everyone else, so
+            // an unrelated user presenting a rotated-but-in-grace token found
+            // replay == null, fell into the theft branch above, and was signed
+            // out of all their devices. The comment already claimed family scope;
+            // only the code disagreed.
+            olvidarReplaysDe(fila.familyId());
             return new ReusoDetectado();
         }
 
@@ -222,8 +229,19 @@ public class RefreshTokenService {
             return false;
         }
         repo.revocarFamilia(fila.familyId(), reloj.instant());
-        replays.clear();
+        // Scoped, for the same reason as the reuse branch: one user logging out
+        // must not evict every other family's cached successor.
+        olvidarReplaysDe(fila.familyId());
         return true;
+    }
+
+    /**
+     * Drops the grace-replay entries belonging to one family and nothing else.
+     * The cache is process-global and keyed by spent-token hash, so the only way
+     * to scope a wipe is by the successor session each entry carries.
+     */
+    private void olvidarReplaysDe(UUID familyId) {
+        replays.values().removeIf(replay -> replay.sesion().familyId().equals(familyId));
     }
 
     // ── internals ────────────────────────────────────────────────────────────
