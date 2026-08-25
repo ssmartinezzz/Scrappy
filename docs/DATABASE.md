@@ -1607,6 +1607,64 @@ fila, a costa de la clasificación.
 
 ---
 
+### `V28` — el dominio de `plataforma` suma `morashop`
+
+Morashop es un Tiendanube genuino: el extractor compartido lee sus cards sin un
+solo cambio. El valor propio de plataforma no está por la extracción sino por el
+**ruteo**. Desde `V20` `ScraperFactory` elige la clase leyendo
+`sitio.plataforma` vía `SiteRegistry`, y los name-sets en código se borraron
+(`CODE-6`). Morashop necesita page propia —descubre las categorías hoja en
+runtime, porque la tienda no tiene URL de catálogo: su `/productos/` es una
+landing del tema con cero productos— y rutear eso por clave de sitio
+reintroduciría exactamente lo que `V20` sacó. Mismo criterio que `monkyforce` y
+que `inpro` en `V27`.
+
+`rubro_forzado='suplementos'` como Entreno, el único otro sitio del rubro. No se
+toca `chk_productos_rubro_domain` ni `sitio_rubro_forzado_check`: `suplementos`
+ya es válido en los dos, y re-listarlos les borraría el `oficina` que agregó
+`V27`.
+
+**El dominio pasa de 12 a 13**, no de 11 a 12: esta migración se escribió contra
+un baseline sin `V27` y se rebaseó sobre el dominio ya mergeado al aterrizar.
+Es lo que su header pedía — rebasear la lista, nunca renumerar, porque todas
+estas migraciones hacen `DROP` + `ADD` del dominio completo y la colisión es de
+contenido.
+
+> El bloque de abajo lo ejecuta `V28RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte. El orden importa —
+> primero la fila de seed, después el `CHECK`— por lo mismo que en `V24` y
+> `V27`: al revés dejaría, por un instante, un `CHECK` más angosto que datos
+> que todavía lo violan. Y **restaura los doce de `V27`, no los once viejos**:
+> un rollback que devolviera el dominio de antes de `V27` borraría `inpro` de
+> abajo de una fila viva.
+
+```sql
+-- >>> rollback:V28
+DELETE FROM sitio s WHERE s.plataforma = 'morashop'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro'));
+-- <<< rollback:V28
+```
+
+El `NOT EXISTS` es el mismo de `V24` y `V27`, por la FK que `V23` le puso a
+`productos.sitio_key -> sitio(sitio_key)`.
+
+**Los rollbacks componen al revés, y ya van dos veces que eso obliga a tocar un
+test ajeno.** `V27` tuvo que editar el de `V24`; `V28` tuvo que editar los dos.
+Hoy `V24RollbackRoundTripTest` ejecuta `V28` → `V27` → `V24`, de más nuevo a más
+viejo, porque cada bloque encuentra vivas las filas que sembraron los de arriba.
+Editar un test ajeno es legítimo bajo una regla precisa, y conviene tenerla
+escrita para que no se degrade en "editá lo que esté rojo": **una aserción de
+dominio cerrado puede ir de `n` a `n+1` si toda aserción de comportamiento
+alrededor queda idéntica.** El olor inverso —ablandar un
+`containsExactlyInAnyOrder` a un `contains`— es justo lo que la regla atrapa.
+
+---
+
 ## Non-goals de `close-1nf-and-3nf-foundation` (explícitos, con motivo)
 
 Los tres primeros items de esta lista **dejaron de ser non-goals**: el usuario

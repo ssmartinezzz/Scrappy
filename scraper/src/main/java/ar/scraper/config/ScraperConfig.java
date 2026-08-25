@@ -1,5 +1,7 @@
 package ar.scraper.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -10,6 +12,8 @@ import java.util.Properties;
 
 @Component
 public class ScraperConfig {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ScraperConfig.class);
 
     private final Properties props = new Properties();
 
@@ -68,6 +72,40 @@ public class ScraperConfig {
             }
         }
         return list;
+    }
+
+    /**
+     * Tope de páginas para el sitio, desde {@code sitio.<nombre>.max_paginas}.
+     * Opcional: casi ningún sitio lo define y el {@code fallback} alcanza.
+     *
+     * <p>El default NO vive acá a propósito. Lo dueña la página que consume el
+     * tope ({@code TiendanubePage.MAX_PAGINAS_DEFAULT}) y el llamador lo pasa,
+     * así {@code ar.scraper.config} no depende de {@code ar.scraper.pages} y
+     * el número sigue teniendo UNA sola definición ({@code CODE-6}).
+     *
+     * <p>Un valor no numérico o {@code < 1} cae al fallback con un warning en
+     * vez de romper: un typo en config.properties no debe abortar un scrape, y
+     * un cap de 0 no traería ningún producto.
+     *
+     * @param nombreSitio nombre del sitio; se acepta el display name porque
+     *                    {@code ScraperFactory} lo deriva capitalizando la
+     *                    clave en minúscula, así que bajar a minúscula es exacto
+     */
+    public int getMaxPaginas(String nombreSitio, int fallback) {
+        String key = (nombreSitio != null ? nombreSitio : "").toLowerCase();
+        String raw = props.getProperty("sitio." + key + ".max_paginas");
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            if (parsed < 1) {
+                LOG.warn("sitio.{}.max_paginas={} no es >= 1, se usa el default {}", key, raw, fallback);
+                return fallback;
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            LOG.warn("sitio.{}.max_paginas={} no es un entero, se usa el default {}", key, raw, fallback);
+            return fallback;
+        }
     }
 
     /**

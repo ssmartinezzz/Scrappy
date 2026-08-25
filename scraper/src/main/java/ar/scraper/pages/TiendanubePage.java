@@ -19,12 +19,28 @@ public class TiendanubePage extends BasePage {
     private static final Set<String> PALABRAS_UNISEX = Set.of(
             "unisex","unisexo","neutro");
 
+    /**
+     * Techo de páginas del loop de paginación. ÚNICA definición del número
+     * ({@code CODE-6}): {@code ScraperConfig.getMaxPaginas} no lo conoce, lo
+     * recibe como fallback del scraper, que es quien depende de las dos capas.
+     *
+     * <p>Era 25 y estaba hardcodeado. El catálogo real de Entreno son 53
+     * páginas de 12 productos —la 54 devuelve cero— así que ese techo cortaba
+     * a la mitad y en silencio: ~313 de ~636. Sigue siendo un cinturón de
+     * seguridad, no el límite real; quien corta de verdad es el chequeo de dos
+     * páginas vacías seguidas de {@link #scrapeJs}, que en Tiendanube sí
+     * dispara porque pasado el final sirve una página vacía en vez de repetir
+     * la última como hace osCommerce.
+     */
+    public static final int MAX_PAGINAS_DEFAULT = 60;
+
     private final String sitio;
     private final String baseUrl;
     private final double precioMin;
     private final double precioMax;
     /** Colecciones adicionales a crawlear bajo el mismo sitio (ver config `urls_extra`). */
     private final List<String> extraUrls;
+    private final int maxPaginas;
 
     public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
                           double precioMin, double precioMax) {
@@ -33,26 +49,46 @@ public class TiendanubePage extends BasePage {
 
     public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
                           double precioMin, double precioMax, List<String> extraUrls) {
+        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, extraUrls, MAX_PAGINAS_DEFAULT);
+    }
+
+    public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
+                          double precioMin, double precioMax, List<String> extraUrls,
+                          int maxPaginas) {
         super(page, timeoutMs);
-        this.sitio     = sitio;
-        this.baseUrl   = baseUrl;
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
-        this.extraUrls = extraUrls != null ? extraUrls : List.of();
+        this.sitio      = sitio;
+        this.baseUrl    = baseUrl;
+        this.precioMin  = precioMin;
+        this.precioMax  = precioMax;
+        this.extraUrls  = extraUrls != null ? extraUrls : List.of();
+        this.maxPaginas = maxPaginas >= 1 ? maxPaginas : MAX_PAGINAS_DEFAULT;
+    }
+
+    /** Visible para test: prueba que el cap llegó hasta acá, que es lo que se rompe. */
+    int maxPaginas() {
+        return maxPaginas;
     }
 
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
 
         // Catálogo principal: API TN si está disponible, si no JS heurístico.
-        String homeUrl = domain(baseUrl);
-        List<Product> api = scrapeApi(homeUrl);
+        List<Product> api = List.of();
+        if (usaApi()) {
+            api = scrapeApi(domain(baseUrl));
+        } else {
+            log.debug("[{}] API deshabilitada para este sitio, directo a JS heuristico", sitio);
+        }
+
         if (!api.isEmpty()) {
             log.debug("[{}] API REST: {} productos", sitio, api.size());
             result.addAll(api);
         } else {
-            log.debug("[{}] API vacia, usando JS heuristico", sitio);
-            result.addAll(scrapeJs(baseUrl));
+            for (String cat : catalogoUrls()) {
+                if (cat == null || cat.isBlank()) continue;
+                log.debug("[{}] catalogo -> {}", sitio, cat);
+                result.addAll(scrapeJs(cat));
+            }
         }
 
         // Colecciones extra que el catálogo principal no cubre (ej. Harvey
@@ -310,7 +346,7 @@ public class TiendanubePage extends BasePage {
         int pagina = 1;
         int paginasSinProductos = 0;
 
-        while (url != null && pagina <= 25) {
+        while (url != null && pagina <= maxPaginas) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
             try {
                 navigateTo(url);
@@ -343,7 +379,7 @@ public class TiendanubePage extends BasePage {
             String nextUrl = nextPageUrl(startUrl, pagina);
 
             // Fallback: construir URL ?page=N / ?mpage=N si el DOM no tiene el link
-            if (nextUrl == null && pagina < 25) {
+            if (nextUrl == null && pagina < maxPaginas) {
                 String candidata = urlPagina(startUrl, pagina + 1);
                 // Solo usar si es diferente a la actual (evitar loops)
                 if (!candidata.equals(url)) {
@@ -394,6 +430,37 @@ public class TiendanubePage extends BasePage {
      * name extraction without touching the shared extractor. Must evaluate to a
      * DOM Element or {@code null}.
      */
+    /**
+     * URLs por las que arranca el catálogo principal, consumidas por
+     * {@link #scrapeAll()}. Extension seam (Template Method), hermano de
+     * {@link #nombreSelectorJs()}: la base devuelve la {@code baseUrl} sola,
+     * que es lo que sirve para toda tienda TN con una vidriera única.
+     *
+     * <p>Existe porque no todas la tienen. En morashop {@code /productos/} es
+     * una landing del tema con CERO productos y el catálogo real vive repartido
+     * en categorías hoja, así que su subclase devuelve las hojas que descubre.
+     * Distinto de {@code urls_extra}, que suma colecciones ADEMÁS del catálogo
+     * principal; esto ES el catálogo principal.
+     */
+    protected List<String> catalogoUrls() {
+        return List.of(baseUrl);
+    }
+
+    /**
+     * Si se intenta la API REST de Tiendanube antes de caer al JS heurístico.
+     * La base dice que sí: cuando responde es el camino rápido y completo.
+     *
+     * <p>Una subclase la apaga por CORRECTITUD, no por velocidad. La API
+     * devuelve la tienda ENTERA, sin filtro por sección — en una tienda
+     * multi-rubro como morashop (suplementos, pero también supermercado,
+     * electro-hogar y bodega) eso importaría productos de tres rubros que no
+     * tienen valor en el dominio de {@code rubro}. Hoy ese endpoint da 404 ahí,
+     * pero depender de que siga roto no es un diseño.
+     */
+    protected boolean usaApi() {
+        return true;
+    }
+
     protected String nombreSelectorJs() {
         return "el.querySelector('h1,h2,h3,h4')"
              + "||el.querySelector('[class*=name],[class*=title],[class*=nombre],[class*=tit]')";
