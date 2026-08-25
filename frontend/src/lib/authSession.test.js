@@ -381,3 +381,53 @@ describe('authSession — a tab resumed from bfcache or from the background reva
     expect(tab.getAccessToken()).toBe('tokRenovado');
   });
 });
+
+// ─── transient server faults are not auth verdicts ──────────────────────────
+// Found by the PR #152 adversarial review. Only 401/403 are decisions about who
+// you are; a 500 from a database blip with Tomcat still up was being routed to
+// endSession(), which cleared the session, broadcast 'ended' to every tab and
+// latched `ended` so no retry could recover — all with a refresh cookie still
+// valid for fourteen days. Connection-refused was absorbed correctly; the case
+// next door was not.
+describe('authSession — a 5xx during refresh is transient, not a logout', () => {
+  beforeEach(() => {
+    uninstallCoordinationPrimitives();
+    vi.resetModules();
+  });
+
+  it('keeps the session on a 500 and can still recover on the next attempt', async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+      .mockResolvedValueOnce(refreshOk('tokDespuesDelHipo', 'nonceNuevo'))
+      .mockResolvedValueOnce(jsonResponse({ username: 'ana', roles: ['ADMIN'] }));
+
+    const authSession = await import('./authSession');
+    authSession.__test.setSession({
+      accessToken: 'tokPrevio', nonce: 'n', receivedAt: 1, expiresAt: 9999999999999,
+    });
+
+    expect(await authSession.ensureFreshSession({ reason: 'test' })).toBe(false);
+    expect(authSession.getAccessToken())
+      .toBe('tokPrevio'); // NOT cleared — the cookie is still good
+
+    // The blip passes and the very next attempt succeeds. If `ended` had latched,
+    // ensureFreshSession would short-circuit and never reach the network.
+    expect(await authSession.ensureFreshSession({ reason: 'test' })).toBe(true);
+    expect(authSession.getAccessToken()).toBe('tokDespuesDelHipo');
+  });
+
+  it('still ends the session on a 401 — a real auth verdict is terminal', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }),
+    });
+
+    const authSession = await import('./authSession');
+    authSession.__test.setSession({
+      accessToken: 'tokPrevio', nonce: 'n', receivedAt: 1, expiresAt: 9999999999999,
+    });
+
+    expect(await authSession.ensureFreshSession({ reason: 'test' })).toBe(false);
+    expect(authSession.getAccessToken())
+      .toBeNull(); // the backend said who you are is no longer valid — that IS terminal
+  });
+});

@@ -271,6 +271,17 @@ async function attemptRefresh() {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // Only an explicit AUTH VERDICT ends a session. The refresh endpoint answers
+    // 200, 401 or 403 by contract; anything else — a 500 from a database blip
+    // while Tomcat is still up, a 502 from a proxy, a 504 — is the transport
+    // failing, not the backend deciding who you are. Treating those as terminal
+    // cleared a valid 14-day session and broadcast 'ended' to every tab over a
+    // hiccup, which is exactly the outcome the networkError branch already
+    // exists to prevent. Connection-refused was absorbed correctly; its
+    // next-door neighbour was not.
+    if (res.status !== 401 && res.status !== 403) {
+      return { ok: false, transient: true, reason: body.error || `http_${res.status}` };
+    }
     return { ok: false, reason: body.error || `http_${res.status}` };
   }
 
@@ -286,10 +297,13 @@ async function performRefresh() {
 
     const result = await attemptRefresh();
     if (!result.ok) {
-      if (result.networkError) {
-        // A stopped/unreachable backend is NOT "you were logged out" — do
-        // not clear the session or broadcast 'ended'; just fail this attempt.
-        lastFailureReason = 'network_error';
+      if (result.networkError || result.transient) {
+        // A stopped/unreachable backend, or one answering 5xx, is NOT "you were
+        // logged out" — do not clear the session or broadcast 'ended'; just fail
+        // this attempt and let the next one try again. The refresh cookie is
+        // still valid for up to fourteen days; throwing it away over a blip is
+        // the destructive move, not the safe one.
+        lastFailureReason = result.networkError ? 'network_error' : (result.reason || 'transient');
         return false;
       }
       endSession(result.reason);
