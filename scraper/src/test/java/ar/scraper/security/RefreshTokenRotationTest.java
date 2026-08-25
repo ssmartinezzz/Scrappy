@@ -61,7 +61,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     private UsuarioRepository usuarios;
     private RefreshTokenRepository refrescos;
     private RefreshTokenService service;
-    private UUID ana;
+    private UUID usuario;
 
     @BeforeEach
     void setUp() {
@@ -69,8 +69,8 @@ class RefreshTokenRotationTest extends PostgresTestBase {
         refrescos = new RefreshTokenRepository(dataSource());
         service = new RefreshTokenService(refrescos, new TokenService(SECRETO, reloj), reloj);
 
-        usuarios.crear("ana", null, "$argon2id$x", false);
-        ana = usuarios.buscarActivaPorUsername("ana").orElseThrow().id();
+        usuarios.crear("usuario", null, "$argon2id$x", false);
+        usuario = usuarios.buscarActivaPorUsername("usuario").orElseThrow().id();
     }
 
     // ── 4.1 · a valid token rotates ──────────────────────────────────────────
@@ -78,7 +78,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("a valid unused token rotates: new pair, same family, old one marked rotated")
     void aValidTokenRotates() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
 
         RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), inicial.csrfNonce());
 
@@ -97,7 +97,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("the new nonce differs from the old one")
     void rotationIssuesAFreshNonce() {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
 
         RefreshTokenService.Rotada ok =
                 (RefreshTokenService.Rotada) service.rotar(inicial.refreshToken(), inicial.csrfNonce());
@@ -110,7 +110,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("no row ever holds a raw token")
     void tokensAreOnlyEverStoredHashed() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
         service.rotar(inicial.refreshToken(), inicial.csrfNonce());
 
         List<String> hashes = todosLosHashes();
@@ -126,7 +126,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("reuse past the grace window invalidates the whole family")
     void reuseAfterTheGraceWindowBurnsTheFamily() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
         RefreshTokenService.Rotada primera =
                 (RefreshTokenService.Rotada) service.rotar(inicial.refreshToken(), inicial.csrfNonce());
 
@@ -146,7 +146,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("reuse inside the grace window replays the successor instead of crying theft")
     void reuseInsideTheGraceWindowReplays() {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
         RefreshTokenService.Rotada primera =
                 (RefreshTokenService.Rotada) service.rotar(inicial.refreshToken(), inicial.csrfNonce());
 
@@ -162,10 +162,87 @@ class RefreshTokenRotationTest extends PostgresTestBase {
                 .isEqualTo(primera.sesion().refreshToken());
     }
 
+    // ── the grace cache is per family, not global ────────────────────────────
+    //
+    // Both of these were red before the fix: the reuse branch cleared the cache
+    // with `replays.keySet().removeIf(hash -> true)` and `cerrar` called
+    // `replays.clear()`, so ANY user's reuse detection or logout evicted every
+    // other family's cached successor. The victim then presented a
+    // rotated-but-in-grace token, found no replay, fell into the theft branch,
+    // and was signed out of all their devices — for something a stranger did.
+
+    @Test
+    @DisplayName("one user's reuse detection does not burn an unrelated user's in-grace session")
+    void reuseDetectionIsScopedToItsOwnFamily() {
+        usuarios.crear("otro", null, "$argon2id$y", false);
+        UUID otroUsuario = usuarios.buscarActivaPorUsername("otro").orElseThrow().id();
+
+        // ORDER MATTERS, and getting it wrong makes this test vacuous. The first
+        // version cached the second account's replay AFTER the wipe, so the wipe
+        // could not possibly have touched it — and the test passed with the bug
+        // still in place. The entry has to exist BEFORE the incident and still be
+        // inside its own grace window when it is presented.
+
+        // Account one rotates, then ages past its grace window. Nothing belonging
+        // to account two exists yet, so this advance cannot expire anything of its.
+        RefreshTokenService.Sesion unoInicial = service.abrir(usuario);
+        service.rotar(unoInicial.refreshToken(), unoInicial.csrfNonce());
+        reloj.avanzar(RefreshTokenService.GRACIA.plusSeconds(1));
+
+        // NOW account two rotates: its successor is cached, valid for ten seconds.
+        RefreshTokenService.Sesion dosInicial = service.abrir(otroUsuario);
+        RefreshTokenService.Rotada dosPrimera = (RefreshTokenService.Rotada)
+                service.rotar(dosInicial.refreshToken(), dosInicial.csrfNonce());
+
+        // Account one, unrelated to account two, trips reuse detection on its own family.
+        assertThat(service.rotar(unoInicial.refreshToken(), unoInicial.csrfNonce()))
+                .isInstanceOf(RefreshTokenService.ReusoDetectado.class);
+
+        // Account two presents its spent token, still inside its own window. The
+        // other account's incident must be invisible to it.
+        reloj.avanzar(java.time.Duration.ofSeconds(2));
+        RefreshTokenService.Resultado dosSegunda =
+                service.rotar(dosInicial.refreshToken(), dosInicial.csrfNonce());
+
+        assertThat(dosSegunda)
+                .as("this account did nothing wrong; a stranger's incident must not sign it out")
+                .isInstanceOf(RefreshTokenService.Replay.class);
+        assertThat(((RefreshTokenService.Replay) dosSegunda).sesion().refreshToken())
+                .isEqualTo(dosPrimera.sesion().refreshToken());
+        assertThat(dosPrimera.sesion().familyId())
+                .as("sanity: the two accounts really are different families")
+                .isNotEqualTo(unoInicial.familyId());
+    }
+
+    @Test
+    @DisplayName("one user's logout does not evict an unrelated user's cached successor")
+    void logoutIsScopedToItsOwnFamily() {
+        usuarios.crear("otro", null, "$argon2id$y", false);
+        UUID otroUsuario = usuarios.buscarActivaPorUsername("otro").orElseThrow().id();
+
+        RefreshTokenService.Sesion dosInicial = service.abrir(otroUsuario);
+        RefreshTokenService.Rotada dosPrimera = (RefreshTokenService.Rotada)
+                service.rotar(dosInicial.refreshToken(), dosInicial.csrfNonce());
+
+        // Account one logs out — one family revoked, deliberately, by its own owner.
+        RefreshTokenService.Sesion unoInicial = service.abrir(usuario);
+        assertThat(service.cerrar(unoInicial.refreshToken(), unoInicial.csrfNonce())).isTrue();
+
+        reloj.avanzar(java.time.Duration.ofSeconds(2));
+
+        RefreshTokenService.Resultado dosSegunda =
+                service.rotar(dosInicial.refreshToken(), dosInicial.csrfNonce());
+        assertThat(dosSegunda)
+                .as("one account closing its own session cannot cost another account its own")
+                .isInstanceOf(RefreshTokenService.Replay.class);
+        assertThat(((RefreshTokenService.Replay) dosSegunda).sesion().refreshToken())
+                .isEqualTo(dosPrimera.sesion().refreshToken());
+    }
+
     @Test
     @DisplayName("a replay does not rotate again")
     void aReplayCreatesNoNewRow() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
         service.rotar(inicial.refreshToken(), inicial.csrfNonce());
         int filasAntes = contarFilas();
 
@@ -180,7 +257,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("an expired token is rejected without touching the family")
     void expiryIsNotTheft() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
 
         reloj.avanzar(RefreshTokenService.VIDA.plusSeconds(1));
         RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), inicial.csrfNonce());
@@ -203,7 +280,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("closing a session revokes the whole family")
     void closingRevokesTheFamily() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
         RefreshTokenService.Rotada primera =
                 (RefreshTokenService.Rotada) service.rotar(inicial.refreshToken(), inicial.csrfNonce());
 
@@ -231,7 +308,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("2.1 — bootstrapAdmitido=true admits a nonce-less refresh when the row has a stored nonce")
     void bootstrapAdmitidoTrueAdmitsANonceLessRefresh() {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
 
         RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), null, true);
 
@@ -244,7 +321,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("2.2 — bootstrapAdmitido=false still refuses a nonce-less refresh, token intact")
     void bootstrapAdmitidoFalseStillRefusesANonceLessRefresh() {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
 
         RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), null, false);
 
@@ -257,7 +334,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("2.3 — bootstrapAdmitido=true does not disturb the pre-existing null-stored-nonce path")
     void bootstrapAdmitidoTrueLeavesTheNullStoredNoncePathUntouched() throws Exception {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
         limpiarNonceAlmacenado(inicial.refreshToken());
 
         RefreshTokenService.Resultado resultado = service.rotar(inicial.refreshToken(), "cualquier-cosa", true);
@@ -271,7 +348,7 @@ class RefreshTokenRotationTest extends PostgresTestBase {
     @Test
     @DisplayName("2.8 — a wrong, non-null nonce is always 403, regardless of bootstrapAdmitido")
     void aWrongNonNullNonceIsAlwaysRejectedRegardlessOfBootstrapAdmitido() {
-        RefreshTokenService.Sesion inicial = service.abrir(ana);
+        RefreshTokenService.Sesion inicial = service.abrir(usuario);
 
         RefreshTokenService.Resultado resultado =
                 service.rotar(inicial.refreshToken(), "nonce-equivocado", true);
