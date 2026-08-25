@@ -43,6 +43,7 @@ justifica en el PR, no se hace en silencio.
 | `TEST-1` | Suite entera verde en CADA commit | MUST |
 | `TEST-2` | Los cuatro comandos | — |
 | `TEST-3` | Infra ausente se skipea, no rompe la suite | MUST |
+| `TEST-4` | Nombres inventados de persona en fixtures: PROHIBIDO | MUST |
 | **Documentación** | | |
 | `DOC-1` | Estado / proceso / por qué: cada dato en un solo lugar | MUST |
 | `DOC-2` | Qué doc actualizar con cada tipo de cambio | MUST |
@@ -268,6 +269,32 @@ cd frontend && npm test
 `_tools/pgsql`, y se skipea **con un mensaje que explica qué falta** si no hay
 ninguno. Un test nuevo que dependa de infra externa sigue ese patrón: nunca
 hacer fallar la suite entera por una dependencia que no está.
+
+### `TEST-4` · Nombres inventados de persona en fixtures: PROHIBIDO — MUST
+
+Nada de `ana`, `bruno`, `valeria`, `juan`, `ephraim` ni ningún otro nombre propio
+inventado en usuarios, cuentas, fixtures o prosa de tests. **Prohibido, no
+desaconsejado.**
+
+El nombre de una fixture es lo único que le dice al lector **qué papel cumple en
+el escenario**, y un nombre propio no dice ninguno. `ana` y `bruno` obligan a
+reconstruir de memoria cuál era el dueño de la sesión y cuál el tercero ajeno,
+en cada lectura, para siempre. `usuario` y `otroUsuario` lo dicen solos.
+
+Peor: la prosa se contamina con género y pronombres inventados —"her family",
+"his window"— sobre entidades que no tienen ninguno, y esas frases sobreviven a
+todos los renombres posteriores.
+
+**Usá el rol:** `usuario` / `otroUsuario` · `admin` / `viewer` · `dueño` /
+`ajeno` · `titular` / `tercero`. Si el escenario necesita tres, numerá:
+`usuarioUno`, `usuarioDos`.
+
+> ⚠️ **Deuda conocida, no ejemplo a seguir.** Al escribirse esta regla el repo
+> tenía ~238 ocurrencias en 20 archivos, casi todas en los tests de
+> `user-accounts-and-roles`. Están **grandfathereadas**: la regla rige para todo
+> test nuevo y para cualquier archivo que toques, y migrarlas en bloque es un
+> cambio aparte —mecánico y sin riesgo, pero que no tiene por qué viajar dentro
+> de un PR de otra cosa. Un archivo que edites, lo dejás limpio.
 
 ---
 
