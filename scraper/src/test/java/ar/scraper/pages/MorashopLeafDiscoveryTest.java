@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests for morashop's leaf-category discovery
@@ -128,10 +129,50 @@ class MorashopLeafDiscoveryTest {
     }
 
     @Test
-    @DisplayName("sin hojas devuelve vacio — quien decide que eso es un error es la page")
+    @DisplayName("sin hojas el helper devuelve vacio — quien decide que eso es un error es la page")
     void returnsEmptyWhenNothingMatches() {
         assertThat(MorashopPage.hojasDeCategoria(List.of("/account/login/", "#"), SECCION))
                 .isEmpty();
         assertThat(MorashopPage.hojasDeCategoria(List.of(), SECCION)).isEmpty();
+    }
+
+    // ─── el throw ──────────────────────────────────────────────────────────
+    // La propiedad de seguridad central de esta clase. Sin ella, un landing
+    // cuyo markup cambió se ve exactamente igual que una tienda vacía, y
+    // SiteYieldGuard no puede distinguirlos porque sólo alerta CAÍDAS contra
+    // la corrida anterior — un sitio que rinde cero desde la primera corrida
+    // nunca lo despierta. Se testea con Page = null: `hojasOFalla` no toca el
+    // browser, justamente para que esto sea verificable.
+
+    private MorashopPage page() {
+        return new MorashopPage(null, 0, "Morashop", SECCION, 0, Double.MAX_VALUE, List.of(), 60);
+    }
+
+    @Test
+    @DisplayName("descubrimiento vacio TIRA, nunca devuelve lista vacia")
+    void emptyDiscoveryThrows() {
+        assertThatThrownBy(() -> page().hojasOFalla(List.of()))
+                .isInstanceOf(MorashopDiscoveryException.class)
+                .hasMessageContaining(SECCION);
+    }
+
+    @Test
+    @DisplayName("un landing lleno de links que no son hojas tambien TIRA")
+    void landingWithNoLeavesThrows() {
+        // El caso realista: el tema cambió y las categorías ya no cuelgan de
+        // /suplementos/. Hay links de sobra, ninguno es una hoja.
+        assertThatThrownBy(() -> page().hojasOFalla(List.of(
+                "/account/login/",
+                "https://www.morashop.ar/supermercado/aceites-vinagres/",
+                "https://www.morashop.ar/bodega/vinos-tintos/",
+                "/productos/",
+                "#")))
+                .isInstanceOf(MorashopDiscoveryException.class);
+    }
+
+    @Test
+    @DisplayName("con hojas NO tira y devuelve las 12")
+    void discoveryWithLeavesDoesNotThrow() {
+        assertThat(page().hojasOFalla(landingHrefs())).hasSize(12);
     }
 }
