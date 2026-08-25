@@ -1045,7 +1045,8 @@ como una optimización aparte.
 
 ```sql
 -- >>> rollback:V18
-ALTER TABLE productos DROP CONSTRAINT IF EXISTS fk_productos_sitio;
+ALTER TABLE productos       DROP CONSTRAINT IF EXISTS fk_productos_sitio;
+ALTER TABLE scrape_run_site DROP CONSTRAINT IF EXISTS fk_scrape_run_site_sitio;
 DROP TABLE sitio;
 -- <<< rollback:V18
 ```
@@ -1058,6 +1059,17 @@ productos depends on table sitio"*. Se prefiere el `DROP CONSTRAINT` explícito
 antes que un `CASCADE`, que soltaría en silencio cualquier otra cosa que
 llegue a depender de la tabla más adelante. El `IF EXISTS` deja el bloque
 válido también en una base que quedó en `V18` sin llegar a `V23`.
+
+Y **volvió a dejar de ser trivial con `V29`**, que le agregó a `sitio` su
+segunda FK entrante (`fk_scrape_run_site_sitio`, desde `scrape_run_site`). El
+patrón se repite y conviene nombrarlo: **un rollback documentado no es
+estable, es una función del esquema que exista cuando corra.** Cada migración
+nueva que apunte a una tabla puede romper el rollback de la migración que la
+creó, y el rojo aparece en el test de la vieja, no en el de la nueva — que es
+justo donde nadie lo está buscando. Por eso `V29` bautiza su restricción en vez
+de dejar que Postgres la nombre: este bloque la suelta por nombre, y un nombre
+autogenerado metería un detalle de implementación del motor adentro de un
+documento que un test ejecuta.
 
 Que esto se haya detectado es mérito de `V18RollbackRoundTripTest`, que
 **ejecuta** el bloque en vez de sólo mostrarlo: un rollback documentado que ya
@@ -1498,6 +1510,11 @@ ALTER TABLE categoria_dismiss    DROP COLUMN IF EXISTS usuario_id;
 -- 3. Identidad.
 DROP TABLE IF EXISTS password_reset_token;
 DROP TABLE IF EXISTS refresh_token;
+-- `V29` le agregó a `usuario` una FK entrante desde `scrape_run`. Se suelta
+-- por nombre, no con CASCADE: un CASCADE acá arrastraría en silencio lo que
+-- llegue a depender de la tabla más adelante.
+ALTER TABLE scrape_run DROP CONSTRAINT IF EXISTS fk_scrape_run_usuario;
+
 DROP TABLE IF EXISTS usuario_rol;
 DROP TABLE IF EXISTS usuario;
 DROP TABLE IF EXISTS rol;
@@ -1662,6 +1679,179 @@ escrita para que no se degrade en "editá lo que esté rojo": **una aserción de
 dominio cerrado puede ir de `n` a `n+1` si toda aserción de comportamiento
 alrededor queda idéntica.** El olor inverso —ablandar un
 `containsExactlyInAnyOrder` a un `contains`— es justo lo que la regla atrapa.
+
+---
+
+## `V29` — `scrape_run` + `scrape_run_site`
+
+Una corrida deja de ser un estado en memoria y pasa a ser una entidad
+persistida y direccionable. De ese único hecho cuelga todo lo demás del cambio:
+`started_at` es la cota de aislamiento de lectura, las filas de
+`scrape_run_site` son el conjunto autoritativo de sitios para un resume, y una
+fila que quedó `RUNNING` con `finished_at IS NULL` es la señal de que el
+proceso anterior se murió a mitad.
+
+| Columna | Por qué |
+|---|---|
+| `scrape_uuid UUID UNIQUE` | Cómo se direcciona una corrida entre procesos |
+| `started_at TIMESTAMPTZ NOT NULL` | La cota. **Truncada al segundo**, ver abajo |
+| `finished_at TIMESTAMPTZ NULL` | `NULL` es "sigue viva", y el CHECK lo hace vinculante |
+| `triggered_by → usuario(id)` | Nullable: una corrida de cron no tiene humano |
+| `cron_job_id → cron_jobs(id)` | Nullable: una corrida manual no tiene job |
+| `status` | Dominio cerrado por CHECK |
+
+**`elapsed_time` no existe**, y no es un olvido: se deriva de
+`finished_at - started_at`. Guardarla sería una dependencia funcional sobre
+no-clave —3FN— y, peor que la teoría, una segunda cosa que mantener
+sincronizada: cualquier corrección de `finished_at` dejaría la duración
+mintiendo sin que nada lo señale.
+
+### El CHECK apareado es toda la detección de interrupciones
+
+```sql
+CHECK ((status = 'RUNNING') = (finished_at IS NULL))
+```
+
+En las **dos** direcciones, a propósito. La detección al arranque es "buscá una
+corrida `RUNNING` sin `finished_at`", y esa pregunta deja de significar algo en
+cuanto una sola escritura desalinea las columnas: un `COMPLETED` sin
+`finished_at` se lee como interrumpido en **cada** reinicio, para siempre, y un
+`RUNNING` con `finished_at` se esconde de la detección justo cuando hay que
+encontrarlo. Una sola dirección deja pasar el segundo caso, que es exactamente
+lo que produce un proceso muerto a mitad.
+
+### `started_at` está truncado al segundo, y eso no es cosmética
+
+`productos.touched_at` es `timestamptz` —microsegundos— pero **todo** valor que
+entra viene de `LocalDateTime.now().format("yyyy-MM-dd HH:mm:ss")`
+(`ProductRepository:44`, usado en `:71` y `:213`), así que en la práctica la
+columna sólo contiene `.000000`. Medido: 19 769 filas en la base real, cero con
+parte fraccionaria.
+
+Si `started_at` conservara precisión sub-segundo, `touched_at >= started_at`
+**dejaría afuera toda fila tocada durante el primer segundo de la propia
+corrida** — y la unión del soft-delete construida sobre ese predicado las leería
+como ausentes y las desactivaría. Por eso `ScrapeRunRepository.crear` trunca
+siempre, adentro, y **el llamador no tiene por dónde saltearlo**: la regla
+original ("el mismo reloj Java, nunca `DEFAULT now()`") se puede obedecer al pie
+de la letra con `Timestamp.from(Instant.now())` y llevarse el bug igual. Una
+regla que se puede cumplir y fallar no es una regla.
+
+Dos consecuencias, las dos aceptadas explícitamente:
+
+- **Ensancha la unión, no la angosta.** Con los dos lados en `:00.000000`, el
+  `>=` también captura filas tocadas por lo que haya corrido antes en ese mismo
+  segundo. Para el soft-delete esa es la dirección segura: protege de más, nunca
+  barre de más.
+- **El lector hereda una ventana de un segundo.** La cota de lectura es
+  `touched_at < started_at`, así que esas mismas filas quedan FUERA y un lector
+  las ve un instante antes de tiempo. Es una fuga de frescura al arranque de la
+  corrida —antes de que ningún sitio pueda haber terminado— y no pierde datos.
+  La alternativa era una columna `scrape_run_id` en `productos`, descartada por
+  tocar la tabla más caliente del esquema.
+
+### La FK de sitio va sobre la clave, no sobre el nombre
+
+`scrape_run_site.sitio_key → sitio(sitio_key)`, igual que `V23`, y por el mismo
+motivo: `sitio.nombre` es display (`'Vcp'`, `'Freres'`) y `sitio_key` es
+identidad (`'vcp'`, `'freres'`). Acá pesa todavía más, porque el valor sale de
+`buildSiteList` → `SiteConfig.nombre()`, que es la clave de config en minúscula
+(`ScraperConfig:66`): contra `sitio(nombre)` **cada insert violaría la FK en el
+arranque de la corrida**, antes de scrapear un solo producto.
+
+⚠️ **Esto NO es lo mismo que la unión del soft-delete**, que saca sus sitios de
+`productos.sitio` —la forma de display— porque `sp_soft_delete_ausentes` compara
+contra esa columna. Dos tablas, dos formas, las dos correctas donde están.
+Unificarlas por consistencia rompe una de las dos.
+
+Y hay una diferencia con `V23` que muerde: `productos.sitio_key` es
+`GENERATED ALWAYS AS ... STORED`, pero **`sitio.sitio_key` (`V18:29`) es una
+columna común**. Nadie la calcula sola. `ScrapeRunRepository` suministra el
+valor normalizándolo **en SQL**, con la misma expresión de
+`R__sp_upsert_run.sql:97`, y no con `SiteClassification.sitioKey()`: las dos
+copias **no** son equivalentes —Java baja a minúscula y después filtra contra
+`[a-z0-9]`, el SQL filtra contra `[a-zA-Z0-9]` y después baja— así que bajo
+locale turco `"INPRO"` da `npro` en Java e `inpro` en SQL. Usar la expresión SQL
+no evita "una tercera copia": hace **estructuralmente imposible** que
+`scrape_run_site.sitio_key` discrepe de `productos.sitio_key`.
+
+Además, esas filas se insertan **antes** de que corra ningún scrape, así que el
+get-or-create de `sitio` que hace `sp_upsert_run` todavía no pasó: el
+repositorio hace el suyo, o un sitio nuevo de `/api/sitios` impide arrancar la
+corrida.
+
+### `SET NULL` y no `CASCADE`, contra lo que hace todo `V26`
+
+Todas las FK a `usuario` de `V26` son `ON DELETE CASCADE`, y está bien: son los
+datos **personales** del usuario —favoritos, outfits, tokens— y dar de baja la
+cuenta tiene que borrarlos. Un `scrape_run` no es dato personal: es el registro
+**operativo** de lo que hizo el sistema. Cascadearlo borraría el historial de
+corridas porque se dio de baja a un admin. Se pierde la procedencia, se conserva
+el hecho, que es lo que se le pide a una bitácora. Igual con `cron_job_id`:
+borrar un job no puede borrar las corridas que produjo.
+
+La regla sigue la semántica de propiedad del dato, no un estilo de la casa.
+
+### El índice sobre `touched_at`: medido y NO agregado
+
+El diseño (D1) argumentó contra indexar `touched_at`, pero un argumento no es un
+número, así que `V29` ships con la **medición** en vez del índice.
+`ScrapeRunIndexBenchmarkTest` la corre: 20 000 filas, 60% tocadas después de la
+cota, 50 warmup + 200 medidas, y el datasource **envuelto en `HikariDataSource`**
+—no negociable: sin pool los tiempos de base salen inflados 31x en este repo, y
+un número así no es lento, es ficticio—.
+
+| Brazo | p50 | vs. sin cota |
+|---|---|---|
+| Sin cota | 5,911 ms | — |
+| Con cota, **sin** índice | 5,550 ms | **−6,1%** |
+| Con cota, **con** índice | 3,403 ms | −42% |
+
+`EXPLAIN (ANALYZE, BUFFERS)` con el índice presente: `Bitmap Index Scan on
+idx_prod_touched_at (rows=8000)`.
+
+**Decisión: sin índice.** La regla se fijó ANTES de medir y es conjuntiva —se
+agrega sólo si la cota es >10% más lenta **Y** el índice lo recupera **Y** el
+planner efectivamente lo elige—. Falla la primera condición, y por eso el índice
+no entra.
+
+⚠️ **Pero las dos premisas de D1 resultaron falsas, y eso importa más que la
+conclusión.** D1 decía que la cota sería de baja selectividad y que *"un btree
+que el planner no va a elegir es puro impuesto sobre el write-path"*. Medido:
+
+- **El planner SÍ lo elige** (`Bitmap Index Scan`, arriba).
+- **El índice SÍ ayuda**: 5,550 → 3,403 ms, 39% más rápido.
+- **Y la cota no cuesta nada**: es 6% más *rápida* que no tenerla, porque
+  descarta el 60% de las filas antes del `ORDER BY`/`LIMIT` — hay menos que
+  ordenar.
+
+O sea que el índice se rechaza **no porque no funcione, sino porque el problema
+que resolvería no existe**. Quien lea la justificación de D1 y quiera
+verificarla se va a encontrar con lo contrario, y quien agregue el índice
+"porque el planner lo usa" va a pagar ~20 000 actualizaciones de índice × 26
+sitios en cada corrida —`sp_upsert_run` toca `touched_at` en toda fila aunque el
+precio no haya cambiado (`V1:212`)— para acelerar una consulta que no está
+lenta.
+
+Si alguna vez la cota **sí** empieza a costar, los tres números están acá y la
+regla sigue siendo la misma. Re-medir, no deducir.
+
+> El bloque de abajo lo ejecuta `V29RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte.
+
+```sql
+-- >>> rollback:V29
+DROP TABLE scrape_run_site;
+DROP TABLE scrape_run;
+-- <<< rollback:V29
+```
+
+La hija primero: `ON DELETE CASCADE` gobierna filas, no `DROP TABLE`, así que
+soltar `scrape_run` con `scrape_run_site` viva falla. Y `V29` **obligó a editar
+el rollback de `V18`**, que hace `DROP TABLE sitio` y ahora se topa con una
+segunda FK entrante — la tercera vez en este esquema que una migración nueva
+rompe el rollback de una vieja. El rojo aparece en el test de la vieja, no en el
+de la nueva.
 
 ---
 
