@@ -57,9 +57,22 @@ public class MorashopPage extends TiendanubePage {
     @Override
     protected List<String> catalogoUrls() {
         navigateTo(seccionUrl);
-        List<String> hojas = hojasDeCategoria(harvestHrefs(), seccionUrl);
-        if (hojas.isEmpty()) throw new MorashopDiscoveryException(seccionUrl);
+        List<String> hojas = hojasOFalla(harvestHrefs());
         log.debug("[morashop] {} categorias hoja descubiertas bajo {}", hojas.size(), seccionUrl);
+        return hojas;
+    }
+
+    /**
+     * Aplica {@link #hojasDeCategoria} y convierte "no encontré nada" en un
+     * error explícito. Separado de {@link #catalogoUrls()} para que sea
+     * testeable sin browser: el throw es la propiedad de seguridad más
+     * importante de esta clase —lo que impide que un landing que cambió se vea
+     * igual que una tienda vacía— y un throw que nadie vio dispararse no está
+     * verificado.
+     */
+    List<String> hojasOFalla(List<String> hrefs) {
+        List<String> hojas = hojasDeCategoria(hrefs, seccionUrl);
+        if (hojas.isEmpty()) throw new MorashopDiscoveryException(seccionUrl);
         return hojas;
     }
 
