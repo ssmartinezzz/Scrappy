@@ -39,3 +39,61 @@ describe('every API call goes through the configured base URL', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * frontend-auth-ui design D3, amended by what the Phase 8 browser suite found:
+ * `credentials: 'include'` belongs to lib/authSession.js and nowhere else, and
+ * inside it there are exactly TWO cookie-bearing calls, not one.
+ *
+ * The design said one — the refresh — and that was wrong. The **login
+ * response** is what plants the refresh cookie, and cross-origin a browser
+ * discards `Set-Cookie` from a response whose request was not made in
+ * credentials mode. With login left out, the cookie was never stored at all
+ * and session recovery on reload could not work in any topology this project
+ * ships. It passed every unit test because `vite dev` proxies /api and makes
+ * login same-origin — the one topology that never ships.
+ *
+ * What has not changed is the part worth guarding: api.js's authedFetch() call
+ * sites must never set credentials themselves. authedFetch attaches the Bearer
+ * token, never cookies.
+ */
+describe('credentials: include is scoped to authSession.js alone', () => {
+  it('api.js never mentions credentials', () => {
+    const hits = readFileSync(join(srcDir, 'api.js'), 'utf8')
+      .split('\n')
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => /credentials/.test(line));
+
+    expect(hits).toEqual([]);
+  });
+
+  it('authedFetch.js never mentions credentials', () => {
+    const hits = readFileSync(join(srcDir, 'lib', 'authedFetch.js'), 'utf8')
+      .split('\n')
+      .map((line, i) => ({ line, n: i + 1 }))
+      .filter(({ line }) => /credentials/.test(line));
+
+    expect(hits).toEqual([]);
+  });
+
+  it("authSession.js is the only file using credentials: 'include', and uses it exactly twice", () => {
+    const occurrencesOutsideAuthSession = sourceFiles()
+      .filter(file => relative(srcDir, file) !== join('lib', 'authSession.js'))
+      .flatMap(file => {
+        const lines = readFileSync(file, 'utf8').split('\n');
+        return lines.filter(line => /credentials\s*:\s*['"`]include['"`]/.test(line));
+      });
+    expect(occurrencesOutsideAuthSession).toEqual([]);
+
+    // Only real code counts — the module's own comments explain the rule in
+    // prose and would otherwise inflate this count.
+    const codeHits = readFileSync(join(srcDir, 'lib', 'authSession.js'), 'utf8')
+      .split('\n')
+      .filter(line => !line.trim().startsWith('//'))
+      .filter(line => /credentials\s*:\s*['"`]include['"`]/.test(line));
+    // Two, and exactly two: the refresh/logout helper (refreshCookieFetch) and
+    // login. A third would mean a cookie is travelling somewhere the backend's
+    // credentialed-CORS mapping does not cover, which fails silently.
+    expect(codeHits).toHaveLength(2);
+  });
+});

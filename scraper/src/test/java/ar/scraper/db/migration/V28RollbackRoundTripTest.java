@@ -40,10 +40,14 @@ class V28RollbackRoundTripTest extends PostgresTestBase {
 
                 st.execute(DocumentedRollback.sqlFor("V28"));
 
+                // Vuelve al dominio de V27 — DOCE valores, con `inpro` — no al
+                // de once de antes de V27. Un rollback que devolviera el
+                // dominio anterior a V27 borraría `inpro` de abajo de una fila
+                // viva, y fallaría contra ella.
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
-                        "qloud", "oscommerce");
+                        "qloud", "oscommerce", "inpro");
                 assertThat(sitioKeys(st))
                         .as("morashop tenia 0 productos (nunca scrapeado) -> el NOT EXISTS lo deja borrar")
                         .doesNotContain("morashop");

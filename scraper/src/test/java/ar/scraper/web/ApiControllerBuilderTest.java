@@ -12,6 +12,8 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,13 +72,18 @@ class ApiControllerBuilderTest {
     private RecommendationService     recommendationService;
     private ApiController             controller;
 
+    @AfterEach
+    void limpiarContexto() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
         wireController();
 
         // Stubs used by the feedback-model builder inside outfitsBuilder()
-        when(db.obtenerOutfitFeedback()).thenReturn(List.of());
-        when(db.obtenerCategoriaDismiss()).thenReturn(Set.of());
+        when(db.obtenerOutfitFeedback(any())).thenReturn(List.of());
+        when(db.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
     }
 
     @Step("Wire ApiController with mocked collaborators")
@@ -91,6 +98,7 @@ class ApiControllerBuilderTest {
         outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
 
+        SujetoDePrueba.entrar("ADMIN");
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }

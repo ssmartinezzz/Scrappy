@@ -27,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * close-1nf-and-3nf-foundation, Phase 5 (V18, design DD3) — REWRITTEN by the
  * 3NF extension's Phase 1 (design E1, {@code CODE-2} declared), and
  * GENERALIZED by fix-zero-yield-tech-sites, C3 (design D6, {@code CODE-2}
- * declared again): parses V18 UNION V24, not V18 alone, because Rockethard
- * and Venex are seeded by V24, not V18. Adding
+ * declared again): parses V18 UNION V24 UNION V27, not V18 alone, because
+ * Rockethard and Venex are seeded by V24 and INPRO by V27, not V18. Adding
  * {@code sitio.rockethard.url}/{@code sitio.venex.url} to
  * {@code config.properties} without a matching seed row is the change's own
  * declared C3 red state (site configured, no seed row found yet) — this is
@@ -61,12 +61,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 ∪ V24 ∪ V28 seed covers every config.properties site")
-@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V28, no DB)")
+@Story("V18 ∪ V24 ∪ V27 ∪ V28 seed covers every config.properties site")
+@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28, no DB)")
 class SitioSeedSyncTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
     private static final String V24 = "/db/migration/V24__platform_vocabulary_qloud_oscommerce.sql";
+    private static final String V27 = "/db/migration/V27__rubro_oficina_and_inpro_platform.sql";
     private static final String V28 = "/db/migration/V28__morashop_platform.sql";
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
@@ -152,16 +153,17 @@ class SitioSeedSyncTest {
      * Parses the literal `INSERT INTO sitio (...) VALUES (...), (...), ...;`
      * rows out of every migration that seeds {@code sitio} — V18 (the
      * original 23-row seed) UNION V24 (Rockethard/Venex, fix-zero-yield-tech-sites
-     * C3). Each contributing migration adds exactly one such block; a
-     * migration with no matching block contributes nothing rather than
-     * failing, so this stays generic as more migrations seed the table.
+     * C3) UNION V27 (INPRO, add-inpro-office-store). Each contributing
+     * migration adds exactly one such block; a migration with no matching
+     * block contributes nothing rather than failing, so this stays generic
+     * as more migrations seed the table.
      */
     private static List<SeedRow> seedRows() {
         List<SeedRow> rows = new ArrayList<>();
-        for (String migration : List.of(V18, V24, V28)) {
+        for (String migration : List.of(V18, V24, V27, V28)) {
             rows.addAll(seedRowsFrom(migration));
         }
-        assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V28").isNotEmpty();
+        assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V27 ∪ V28").isNotEmpty();
         return rows;
     }
 

@@ -1419,40 +1419,224 @@ dato que `url` no tenga ya.
 
 ---
 
+### `V26` — cuentas, roles, tokens y el dueño de los datos personales
+
+**Decisión**: cinco tablas de identidad (`usuario`, `rol`, `usuario_rol`,
+`refresh_token`, `password_reset_token`) y una columna `usuario_id` **nullable**
+en las cuatro tablas de datos personales (`favoritos`, `saved_outfits`,
+`outfit_feedback_item`, `categoria_dismiss`).
+
+**Esta migración no cierra ninguna puerta.** Al terminar la fase 1 no existe
+ningún `SecurityFilterChain` y todos los endpoints siguen tan abiertos como
+hoy. Sin estas tablas no hay a quién autenticar, pero tenerlas no protege nada
+por sí solo.
+
+**Por qué el dueño es nullable.** Hay un orden que no se puede invertir: Flyway
+corre `V26` durante el arranque y la cuenta admin se siembra después, en un
+`ApplicationRunner` — la única etapa garantizada tras el refresh completo del
+contexto. En el momento en que la columna se crea todavía no existe ninguna
+fila de usuario a la que las favoritos existentes puedan pertenecer. De ahí
+salen las dos consecuencias que más chocan al leer el esquema:
+
+1. `usuario_id` es nullable porque no hay id que poner.
+2. La clave compuesta de `favoritos` viaja como `UNIQUE (usuario_id, url)`,
+   **no como PRIMARY KEY**: una PK prohíbe NULLs. Promoverla a PK compuesta
+   real, cuando toda fila ya tenga dueño, es una migración posterior.
+
+La adopción de las filas huérfanas la hace el seeder en código, en la misma
+transacción en que confirma la cuenta admin. Por eso el archivo no contiene ni
+una credencial ni un id literal — y hay un test que lo verifica sobre el texto
+del `.sql`, no sobre la base: una migración aplicada queda congelada byte a
+byte, así que un secreto escrito ahí no se puede sacar nunca más, y este
+repositorio es público.
+
+**El índice parcial no es decoración.** `favoritos.url` era PRIMARY KEY, así que
+la misma url no se podía guardar dos veces. Al soltar esa PK,
+`UNIQUE (usuario_id, url)` **no** alcanza para conservar la garantía: en SQL dos
+NULL son distintos entre sí, y mientras la aplicación siga escribiendo
+`usuario_id = NULL` los dos inserts de la misma url pasarían. Sería una
+regresión silenciosa introducida por la migración que se suponía aditiva.
+`uq_fav_unowned_url` conserva la garantía exactamente durante la ventana en que
+se puede violar. `NULLS NOT DISTINCT` de Postgres 15 lo diría en una cláusula,
+pero la versión del Postgres portable de `_tools/pgsql` no está fijada.
+
+**Consecuencia para todo upsert contra `favoritos`**: `ON CONFLICT (url)` no
+infiere un índice parcial solo. La cláusula tiene que repetir el
+`WHERE usuario_id IS NULL` del índice, o Postgres rechaza la sentencia entera —
+el primer insert incluido, no sólo el que conflictúa. `FavoritosRepository`
+loguea y se traga la excepción, así que ese error se ve como "no hay favoritos",
+no como un error.
+
+**Requisito de versión**: `gen_random_uuid()` es núcleo desde Postgres 13. No se
+usa `pgcrypto` para no depender de una extensión que puede pedir superusuario.
+
+```sql
+-- >>> rollback:V26
+-- 1. `favoritos` vuelve a su clave natural. La de-duplicación va PRIMERO y no
+--    es opcional: con dos dueños sobre la misma url, restaurar
+--    PRIMARY KEY (url) es imposible sin elegir qué fila sobrevive. Se conserva
+--    la más vieja.
+DELETE FROM favoritos f
+      USING favoritos otra
+      WHERE f.url = otra.url AND f.id > otra.id;
+
+DROP INDEX IF EXISTS uq_fav_unowned_url;
+ALTER TABLE favoritos DROP CONSTRAINT IF EXISTS uq_fav_owner_url;
+ALTER TABLE favoritos DROP COLUMN IF EXISTS id;
+ALTER TABLE favoritos ADD PRIMARY KEY (url);
+
+-- 2. Las columnas de dueño y sus índices.
+DROP INDEX IF EXISTS idx_fav_usuario;
+DROP INDEX IF EXISTS idx_saved_outfits_usuario;
+DROP INDEX IF EXISTS idx_ofi_usuario;
+DROP INDEX IF EXISTS idx_catdismiss_usuario;
+ALTER TABLE favoritos            DROP COLUMN IF EXISTS usuario_id;
+ALTER TABLE saved_outfits        DROP COLUMN IF EXISTS usuario_id;
+ALTER TABLE outfit_feedback_item DROP COLUMN IF EXISTS usuario_id;
+ALTER TABLE categoria_dismiss    DROP COLUMN IF EXISTS usuario_id;
+
+-- 3. Identidad.
+DROP TABLE IF EXISTS password_reset_token;
+DROP TABLE IF EXISTS refresh_token;
+DROP TABLE IF EXISTS usuario_rol;
+DROP TABLE IF EXISTS usuario;
+DROP TABLE IF EXISTS rol;
+-- <<< rollback:V26
+```
+
+**El rollback no es total, y la parte que pierde datos es el primer bloque.**
+Las cinco tablas de identidad se sueltan enteras; las columnas de dueño también.
+Lo que no se puede deshacer es la de-duplicación: si dos personas llegaron a
+marcar el mismo producto, volver a `PRIMARY KEY (url)` exige quedarse con una
+sola fila. Por eso este es el primer rollback de este cambio que hay que
+**ejecutar** antes de creerle — lo corre `V26RollbackRoundTripTest` contra un
+Postgres real, sobre un dataset que incluye ese caso.
+### `V27` — `oficina` entra al dominio de `rubro`, e `inpro` al de `plataforma`
+
+`add-inpro-office-store`: INPRO (`inpro.ar`) vende sillas ergonómicas,
+standing desks, brazos de monitor e iluminación de escritorio. Ninguna de esas
+cosas es indumentaria, ni tecnología, ni suplemento, y forzarla a uno de los
+tres sería precisamente lo que `V6` vino a impedir — un valor de dominio que
+miente sobre el producto. Así que el dominio se abre a un cuarto rubro en vez
+de reetiquetar el catálogo.
+
+Tres `CHECK` se amplían acá, y siguen siendo `CHECK` y no tabla de lookup por
+el criterio de `V6`/`V18`/`V24`: dominios chicos y cerrados (3, 2 y 11 valores
+antes de esto). La inversión de `V13` —81 valores, pasa a tabla— sigue sin
+aplicar.
+
+| Constraint | Antes | Después |
+|---|---|---|
+| `chk_productos_rubro_domain` | 3 valores | `+ 'oficina'` |
+| `sitio_rubro_forzado_check` | 2 valores | `+ 'oficina'` |
+| `sitio_plataforma_check` | 11 valores | `+ 'inpro'` |
+
+**Los tres nombres se confirmaron contra un Postgres real antes de escribir la
+migración** (`pg_constraint`), no se asumieron — mismo criterio que `V24`.
+`V6` nombra el suyo explícitamente; los dos de `V18` son `CHECK` inline y sin
+nombre, y Postgres los auto-nombró `sitio_plataforma_check` y
+`sitio_rubro_forzado_check`. Se mantienen esos nombres: renombrarlos haría que
+el bloque de rollback de abajo dejara de ser literal.
+
+**Por qué `inpro` es una plataforma propia y no `tiendanube`.** Los datos que
+sirve INPRO *son* los objetos crudos de la API de Tiendanube —`variants[]`,
+`compare_at_price`, `promotional_price`, `stock`, `sku`, imágenes en
+`acdn-us.mitiendanube.com`— pero la vidriera no lo es: es un Next.js propio
+hosteado en Vercel, y el storefront clásico no es alcanzable
+(`inpro.mitiendanube.com` redirige a **otra** tienda, `inproindumentaria.com.ar`;
+los slugs candidatos dan 410). Sembrarlo como `tiendanube` lo rutearía a
+`TiendanubeScraper`, que iría a buscar un DOM que en `inpro.ar` no existe: 0
+productos, en silencio. Es exactamente el bug que `V24` cerró para Rockethard y
+Venex, y la razón por la que la plataforma es un dato del sitio y no una
+heurística de URL.
+
+**Por qué `V27` y no `V26`.** La rama `feature/user-accounts-and-roles`, abierta
+en paralelo, ya tiene su propia `V26`. Este cambio sale de `master`, donde la
+última migración es `V25`, así que `V26` queda **reservada** para esa rama.
+El hueco es inocuo —Flyway aplica por orden de versión y tolera faltantes— pero
+el orden de merge no lo es: si este cambio entra primero, la `V26` de la otra
+rama queda *out-of-order* y `validateOnMigrate` la rechaza. **Mergear este
+cambio después de `user-accounts-and-roles`, o renumerar.**
+
+> El bloque de abajo lo ejecuta `V27RollbackRoundTripTest` contra el esquema
+> real, dentro de una transacción que siempre se revierte. El orden importa y
+> el test lo prueba: primero la fila de seed, después los tres `CHECK` —
+> revertir en el otro orden dejaría, por un instante, un `CHECK` más angosto
+> que datos que todavía lo violan.
+
+```sql
+-- >>> rollback:V27
+DELETE FROM sitio s WHERE s.plataforma = 'inpro'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+UPDATE productos SET rubro = NULL WHERE rubro = 'oficina';
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Silla','Escritorio','Soporte Monitor','Soporte Laptop',
+     'Iluminación','Mat Escritorio','Organización');
+DELETE FROM categoria WHERE nombre IN
+    ('Silla','Escritorio','Soporte Monitor','Soporte Laptop',
+     'Iluminación','Mat Escritorio','Organización');
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce'));
+ALTER TABLE sitio DROP CONSTRAINT sitio_rubro_forzado_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_rubro_forzado_check
+    CHECK (rubro_forzado IN ('tecnologia','suplementos'));
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos'));
+-- <<< rollback:V27
+```
+
+**El rollback sólo aplica antes del primer scrape, y eso está probado, no
+prometido.** El `NOT EXISTS` del `DELETE` existe por la FK que `V23` le puso a
+`productos.sitio_key`: con productos de INPRO vivos protege la fila de `sitio`
+— y entonces angostar `sitio_plataforma_check` choca contra esa misma fila y el
+bloque **falla entero**. `V27RollbackRoundTripTest` tiene un test por cada uno
+de los dos estados: round-trip limpio sin productos, y fallo ruidoso con
+productos. Pasado el primer scrape, retirar el sitio es `origen='historico'`
+(soft), no angostar el dominio — igual que en `V24`.
+
+El `UPDATE ... SET rubro = NULL` cubre el otro caso, el que sí sobrevive al
+`DELETE`: un producto de **otro** sitio que quedó en `rubro='oficina'` por una
+reclasificación manual del agente LLM. Degradarlo a `NULL` —la abstención que
+el propio dominio ya admite— lo deja pasar el `CHECK` angostado sin borrar la
+fila, a costa de la clasificación.
+
+---
+
 ### `V28` — el dominio de `plataforma` suma `morashop`
 
 Morashop es un Tiendanube genuino: el extractor compartido lee sus cards sin un
-solo cambio. El valor propio de plataforma no está ahí por la extracción sino
-por el **ruteo**. Desde `V20` `ScraperFactory` elige la clase de scraper
-exclusivamente por `sitio.plataforma` vía `SiteRegistry`, y los name-sets en
-código se borraron (`CODE-6`). Morashop necesita su propia page —descubre las
-categorías hoja en runtime, porque la tienda no tiene URL de catálogo: su
-`/productos/` es una landing del tema con cero productos— y rutear eso por
-clave de sitio reintroduciría exactamente lo que `V20` sacó. `monkyforce` sentó
-el precedente: también Tiendanube, también un solo seam especializado, también
-valor propio.
+solo cambio. El valor propio de plataforma no está por la extracción sino por el
+**ruteo**. Desde `V20` `ScraperFactory` elige la clase leyendo
+`sitio.plataforma` vía `SiteRegistry`, y los name-sets en código se borraron
+(`CODE-6`). Morashop necesita page propia —descubre las categorías hoja en
+runtime, porque la tienda no tiene URL de catálogo: su `/productos/` es una
+landing del tema con cero productos— y rutear eso por clave de sitio
+reintroduciría exactamente lo que `V20` sacó. Mismo criterio que `monkyforce` y
+que `inpro` en `V27`.
 
-`rubro_forzado='suplementos'` como Entreno, el único otro sitio del rubro. No
-hace falta tocar `chk_productos_rubro_domain` ni `sitio_rubro_forzado_check`:
-`suplementos` ya es válido en los dos.
+`rubro_forzado='suplementos'` como Entreno, el único otro sitio del rubro. No se
+toca `chk_productos_rubro_domain` ni `sitio_rubro_forzado_check`: `suplementos`
+ya es válido en los dos, y re-listarlos les borraría el `oficina` que agregó
+`V27`.
 
-> ⚠️ **Orden de merge.** `V28` se escribió sobre un baseline donde la última
-> migración es `V25` y el dominio tiene once valores. `V26`
-> (`feature/user-accounts-and-roles`) y `V27` (`feat/inpro-oficina`, que suma
-> `inpro` a este mismo CHECK) no estaban mergeadas. El orden acordado es
-> `V26 → V27 → V28`, y no es preferencia: `application.properties` no setea
-> `spring.flyway.out-of-order`, así que es `false`, y con `validateOnMigrate`
-> en `true` una versión menor que llega después de una mayor se rechaza.
-> **Quien aterrice segundo rebasea la lista del CHECK, no renumera** — todas
-> estas migraciones hacen `DROP` + `ADD` del dominio completo, así que la
-> colisión es de contenido. Con `V27` adentro, la lista pasa a ser sus doce
-> valores + `morashop`, y el bloque de abajo se rebasea igual.
+**El dominio pasa de 12 a 13**, no de 11 a 12: esta migración se escribió contra
+un baseline sin `V27` y se rebaseó sobre el dominio ya mergeado al aterrizar.
+Es lo que su header pedía — rebasear la lista, nunca renumerar, porque todas
+estas migraciones hacen `DROP` + `ADD` del dominio completo y la colisión es de
+contenido.
 
 > El bloque de abajo lo ejecuta `V28RollbackRoundTripTest` contra el esquema
 > real, dentro de una transacción que siempre se revierte. El orden importa —
-> primero la fila de seed, después el `CHECK`— por lo mismo que en `V24`:
-> revertir al revés dejaría, por un instante, un `CHECK` más angosto que datos
-> que todavía lo violan.
+> primero la fila de seed, después el `CHECK`— por lo mismo que en `V24` y
+> `V27`: al revés dejaría, por un instante, un `CHECK` más angosto que datos
+> que todavía lo violan. Y **restaura los doce de `V27`, no los once viejos**:
+> un rollback que devolviera el dominio de antes de `V27` borraría `inpro` de
+> abajo de una fila viva.
 
 ```sql
 -- >>> rollback:V28
@@ -1462,24 +1646,22 @@ ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
 ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
     CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
                           'monkyforce','maximus','fullh4rd','compragamer',
-                          'qloud','oscommerce'));
+                          'qloud','oscommerce','inpro'));
 -- <<< rollback:V28
 ```
 
-El `NOT EXISTS` es el mismo de `V24` y por el mismo motivo: `V23` le puso una
-FK a `productos.sitio_key -> sitio(sitio_key)`, así que si ya corrió un scrape
-de Morashop, borrar su fila de `sitio` rompería esa referencia.
+El `NOT EXISTS` es el mismo de `V24` y `V27`, por la FK que `V23` le puso a
+`productos.sitio_key -> sitio(sitio_key)`.
 
-**Los rollbacks componen al revés, y esto obligó a tocar un test ajeno.**
-`V24RollbackRoundTripTest` afirmaba su pre-estado con `containsExactlyInAnyOrder`
-sobre los once valores del dominio. Con `V28` aplicada el dominio tiene doce,
-así que ese test se pone rojo sin que nada de `V24` haya cambiado. El arreglo
-—el mismo que `V27` ya tuvo que aplicarle— es ejecutar el rollback más NUEVO
-primero: `sqlFor("V28")` y después `sqlFor("V24")`, con el pre-estado en doce.
-Editar un test ajeno es legítimo acá y conviene saber por qué: una aserción de
-**dominio cerrado** pasa de `n` a `n+1` mientras **ninguna** aserción de
-comportamiento se toca. El olor que hay que evitar es ablandar un
-`containsExactlyInAnyOrder` a un `contains` para que deje de estar rojo.
+**Los rollbacks componen al revés, y ya van dos veces que eso obliga a tocar un
+test ajeno.** `V27` tuvo que editar el de `V24`; `V28` tuvo que editar los dos.
+Hoy `V24RollbackRoundTripTest` ejecuta `V28` → `V27` → `V24`, de más nuevo a más
+viejo, porque cada bloque encuentra vivas las filas que sembraron los de arriba.
+Editar un test ajeno es legítimo bajo una regla precisa, y conviene tenerla
+escrita para que no se degrade en "editá lo que esté rojo": **una aserción de
+dominio cerrado puede ir de `n` a `n+1` si toda aserción de comportamiento
+alrededor queda idéntica.** El olor inverso —ablandar un
+`containsExactlyInAnyOrder` a un `contains`— es justo lo que la regla atrapa.
 
 ---
 

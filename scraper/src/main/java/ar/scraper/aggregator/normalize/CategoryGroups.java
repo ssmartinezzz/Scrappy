@@ -54,6 +54,23 @@ public final class CategoryGroups {
     );
 
     /**
+     * Office ({@code rubro=oficina}) canonical category names —
+     * {@code CategoryClassifier}, add-inpro-office-store.
+     *
+     * <p>Siete y no más: son los tipos de producto que el catálogo real de
+     * INPRO tiene (100 productos leídos en vivo el 2026-08-19), no una
+     * taxonomía de oficina imaginada. Lo que no cae en una de estas siete
+     * —cargadores, valijas, docking stations— cae en {@code Otros}, que es el
+     * "no sé" explícito y medible del vocabulario. Inventar una categoría por
+     * producto suelto es exactamente lo que {@code close-category-vocabulary}
+     * vino a cerrar.</p>
+     */
+    private static final Set<String> CATEGORIAS_OFICINA = Set.of(
+        "Silla", "Escritorio", "Soporte Monitor", "Soporte Laptop",
+        "Iluminación", "Mat Escritorio", "Organización"
+    );
+
+    /**
      * Standalone canonical categories not covered by the sets above.
      *
      * <p>{@code Otros} es el bucket EXPLÍCITO de "no sé": desde
@@ -78,6 +95,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_SUPLEMENTO);
         all.addAll(CATEGORIAS_CALZADO);
         all.addAll(CATEGORIAS_TECH);
+        all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_OTRAS);
         return java.util.Collections.unmodifiableSet(all);
     }
@@ -100,5 +118,18 @@ public final class CategoryGroups {
     /** Categorías resueltas por el clasificador que pertenecen al rubro suplementos/alimentos. */
     public static boolean esCategoriaSuplemento(String cat) {
         return cat != null && CATEGORIAS_SUPLEMENTO.contains(cat);
+    }
+
+    /**
+     * Las siete categorías del rubro {@code oficina}, enumerables.
+     *
+     * <p>A diferencia de {@code esIndumentariaOCalzado}/{@code esCategoriaSuplemento},
+     * esto NO alimenta ninguna decisión de rubro: {@link RubroResolver} resuelve
+     * {@code oficina} por {@code sitio.rubro_forzado}, nunca por la categoría.
+     * Una silla la vende una tienda de oficina; que aparezca una en una tienda
+     * de ropa no convierte a esa tienda en otra cosa.</p>
+     */
+    public static Set<String> categoriasOficina() {
+        return CATEGORIAS_OFICINA;
     }
 }

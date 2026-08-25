@@ -22,7 +22,7 @@ from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
-from cli.core.rest import RestClient
+from cli.core.rest import RestClient, build_rest_client
 
 # Grace period before believing a just-launched service, mirroring the
 # console's STARTUP_GRACE_SECONDS. Kept local so this module stays free
@@ -108,7 +108,7 @@ class PlainRunner:
         in_: TextIO = sys.stdin,
     ) -> None:
         self.cfg = cfg
-        self.rest = rest or RestClient(base_url=f"http://localhost:{cfg.ports.backend}")
+        self.rest = rest or build_rest_client(cfg)
         self.processes = processes or ProcessManager()
         self.out = out
         self.in_ = in_

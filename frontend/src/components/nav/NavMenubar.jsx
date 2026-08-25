@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import {
   Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarLabel,
 } from '../ui/menubar';
-import { NAV_CONFIG, isMenuActive } from './nav-config';
+import { NAV_CONFIG, isMenuActive, visibleNav } from './nav-config';
+import { useAuth } from '../../auth/AuthProvider';
 
 // Mirrors MenubarTrigger's visual language (px-3 py-1.5 text-sm rounded-btn)
 // so direct links and grouped triggers read as one consistent row.
@@ -25,8 +26,12 @@ const directLinkClass = ({ isActive }) =>
 
 export default function NavMenubar({ className }) {
   const location = useLocation();
-  const links = NAV_CONFIG.filter(node => node.kind === 'link');
-  const menus = NAV_CONFIG.filter(node => node.kind === 'menu');
+  // frontend-auth-ui Phase 7 (design D6): hidden, not disabled — a VIEWER
+  // never sees an ADMIN-only nav node in the DOM at all.
+  const { identity } = useAuth();
+  const config = visibleNav(NAV_CONFIG, identity?.roles || []);
+  const links = config.filter(node => node.kind === 'link');
+  const menus = config.filter(node => node.kind === 'menu');
 
   return (
     <div className={cn('flex items-center gap-1', className)}>

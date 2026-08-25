@@ -1,8 +1,9 @@
 """Template-driven `.env` generation (LD-2 / ADR-003, design.md §3).
 
 `.env.example` is the schema. The known ("computed") keys get real values
-derived from the resolved `Config`; every other key passes through with its
-example default. Generation is create-if-absent + additive-reconcile +
+derived from the resolved `Config`; the keys in `GENERATED_KEYS` get a freshly
+minted secret, sticky across regeneration; every other key passes through with
+its example default. Generation is create-if-absent + additive-reconcile +
 never-overwrite-existing-keys, with an explicit `--regenerate`/`--force`
 escape hatch. Secret values (`DATABASE_PASSWORD`) are written to disk but
 NEVER logged — only key *names* are ever logged, never values, which is a
@@ -12,6 +13,7 @@ DATABASE_PASSWORD value" requirement.
 from __future__ import annotations
 
 import logging
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
@@ -23,7 +25,32 @@ logger = logging.getLogger(__name__)
 
 # Credential-bearing keys — documented here so any future caller building a
 # custom logger knows which keys must never be logged by value.
-SECRET_KEYS = frozenset({"DATABASE_PASSWORD"})
+SECRET_KEYS = frozenset({
+    "DATABASE_PASSWORD",
+    "AUTH_JWT_SECRET",
+    "ADMIN_BOOTSTRAP_PASSWORD",
+    "CLI_SERVICE_ACCOUNT_PASSWORD",
+})
+
+# Secrets the installer MINTS instead of asking for, because nobody ever types
+# them: the backend signs with one and the CLI reads the other out of `.env`.
+# A placeholder in either would simply survive forever, and a placeholder
+# signing secret in a public repository is the same as no signature at all.
+#
+# `ADMIN_BOOTSTRAP_PASSWORD` is deliberately NOT here. A human has to choose it
+# and then log in with it; generating one would leave the operator holding an
+# account whose password lives only in a file nobody told them to open. The
+# backend refuses to seed while its placeholder is still in place.
+GENERATED_KEYS = frozenset({"AUTH_JWT_SECRET", "CLI_SERVICE_ACCOUNT_PASSWORD"})
+
+# 48 bytes of entropy, url-safe. HS256 wants at least 32 bytes of key; the
+# margin costs nothing and removes the question.
+_SECRET_BYTES = 48
+
+
+def generate_secret() -> str:
+    """A fresh high-entropy secret for one installation."""
+    return secrets.token_urlsafe(_SECRET_BYTES)
 
 
 @dataclass(frozen=True)
@@ -94,7 +121,11 @@ def compute_defaults(cfg: Config) -> dict[str, str]:
 
 
 def _resolve(key: str, default: str, computed: dict[str, str]) -> str:
-    return computed[key] if key in computed else default
+    if key in computed:
+        return computed[key]
+    if key in GENERATED_KEYS:
+        return generate_secret()
+    return default
 
 
 def generate_env(
@@ -114,13 +145,24 @@ def generate_env(
     schema = parse_keys(example_path)
 
     if force or not env_path.is_file():
+        # A regeneration must NOT rotate a secret that has already been issued.
+        # The backend's seeder never overwrites an existing password hash, so a
+        # rotated CLI_SERVICE_ACCOUNT_PASSWORD would leave this file and the
+        # database disagreeing and every cronjob failing to authenticate against
+        # a configuration that looks perfectly correct. Same for the signing
+        # secret: rotating it logs every session out with no explanation.
+        ya_emitidos = {
+            key: value
+            for key, value in parse_env(env_path).items()
+            if key in GENERATED_KEYS and value
+        }
         out_lines: list[str] = []
         touched_keys: list[str] = []
         for line in schema:
             if isinstance(line, _CommentLine):
                 out_lines.append(line.text)
                 continue
-            value = _resolve(line.key, line.default, computed)
+            value = ya_emitidos.get(line.key) or _resolve(line.key, line.default, computed)
             out_lines.append(f"{line.key}={value}")
             touched_keys.append(line.key)
         env_path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
