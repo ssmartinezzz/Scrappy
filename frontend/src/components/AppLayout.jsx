@@ -17,6 +17,7 @@ import AgentChatPanel from './AgentChatPanel';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
+import { useAuth } from '../auth/AuthProvider';
 
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
 const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
@@ -190,7 +191,7 @@ function reducer(state, action) {
 
 // ─── CatalogoRoute (eager) ─────────────────────────────────────────────────────
 function CatalogoRoute() {
-  const { S, set, setFilter, dispatch, loadNextPage, gpuTraining, triggerGpuTraining } = useOutletContext();
+  const { S, set, setFilter, dispatch, loadNextPage, gpuTraining, triggerGpuTraining, isAdmin } = useOutletContext();
   const { hidden: filterBarHidden, heroRef } = useStickyFilterBar();
 
   // Client-side gym subcat filter (ADR-3): filter after fetch when subcat is active
@@ -211,25 +212,32 @@ function CatalogoRoute() {
 
   return (
     <>
-      <div className="gpu-fab">
-        <button
-          onClick={triggerGpuTraining}
-          disabled={gpuRunning}
-          style={{
-            padding:'12px 20px', borderRadius:999,
-            border:'1px solid var(--p)',
-            background: gpuRunning ? 'var(--s3)' : 'var(--p)',
-            color: gpuRunning ? 'var(--t3)' : '#fff',
-            fontWeight:800, fontSize:'.82rem',
-            cursor: gpuRunning ? 'not-allowed' : 'pointer',
-            boxShadow:'0 4px 18px color-mix(in srgb, var(--p) 35%, transparent)',
-            animation: gpuRunning ? 'none' : 'gpu-btn-pulse 2.2s ease-in-out infinite',
-            transition:'opacity .15s',
-          }}
-        >
-          {gpuRunning ? 'Entrenando...' : 'Construir índice visual'}
-        </button>
-      </div>{/* .gpu-fab */}
+      {/* frontend-auth-ui Phase 7 audit finding: triggerGpuTraining calls
+          POST /api/ml/renormalizar + POST /api/ml/entrenar, both ADMIN in
+          ApiRoutePolicy.TABLE ("/api/ml/**" mutations row) — the design's
+          named-surfaces list (nav/Topbar/agent panel) didn't cover this
+          button; hidden, not disabled, same rule as everywhere else. */}
+      {isAdmin && (
+        <div className="gpu-fab">
+          <button
+            onClick={triggerGpuTraining}
+            disabled={gpuRunning}
+            style={{
+              padding:'12px 20px', borderRadius:999,
+              border:'1px solid var(--p)',
+              background: gpuRunning ? 'var(--s3)' : 'var(--p)',
+              color: gpuRunning ? 'var(--t3)' : '#fff',
+              fontWeight:800, fontSize:'.82rem',
+              cursor: gpuRunning ? 'not-allowed' : 'pointer',
+              boxShadow:'0 4px 18px color-mix(in srgb, var(--p) 35%, transparent)',
+              animation: gpuRunning ? 'none' : 'gpu-btn-pulse 2.2s ease-in-out infinite',
+              transition:'opacity .15s',
+            }}
+          >
+            {gpuRunning ? 'Entrenando...' : 'Construir índice visual'}
+          </button>
+        </div>
+      )}{/* .gpu-fab */}
 
       <SearchHero
         ref={heroRef}
@@ -252,7 +260,12 @@ function CatalogoRoute() {
         onToggleComparar={prod => dispatch({ type:'TOGGLE_COMPARAR', prod })}
         onToggleFavorito={prod => dispatch({ type:'TOGGLE_FAVORITO', prod })}
         onLoadMore={loadNextPage}
-        onDeleteProducto={handleDelete}
+        // frontend-auth-ui Phase 7 audit finding: DELETE /api/data is ADMIN
+        // in ApiRoutePolicy.TABLE ("soft-deletes a catalogue product — shared
+        // data, not personal"). ProductCard only renders its 🗑 button when
+        // onDelete is truthy, so `undefined` here is the hide, not a
+        // disabled prop threaded further down.
+        onDeleteProducto={isAdmin ? handleDelete : undefined}
       />
     </>
   );
@@ -301,16 +314,12 @@ function OportunidadesBadgeRoute() {
 }
 
 function FavoritosRoute() {
-  const { S, dispatch, startPolling, loadFavoritos, set } = useOutletContext();
+  const { S, dispatch } = useOutletContext();
   return (
     <FavoritosPanel
       favoritos={S.favoritos}
       savedOutfits={S.savedOutfits || []}
-      scrapeStatus={S.scrapeStatus}
       onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}
-      onStartPolling={startPolling}
-      onRefreshFavoritos={loadFavoritos}
-      onSetScraping={() => set({ scrapeStatus:'RUNNING' })}
       onDeleteFavorito={async (url) => {
         await removeFavorito(url);
         dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
@@ -390,6 +399,10 @@ export {
 
 // ─── AppLayout ───────────────────────────────────────────────────────────────
 export default function AppLayout() {
+  // frontend-auth-ui Phase 7 (design D6): the single isAdmin read for this
+  // whole tree — Topbar's canScrape, the AgentChatPanel mount, and the
+  // outlet context all derive from this one value.
+  const { isAdmin } = useAuth();
   const [S, dispatch] = useReducer(reducer, init);
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
@@ -656,6 +669,7 @@ export default function AppLayout() {
         onReScrape={onReScrape}
         gymrat={S.gymrat}
         onGymratToggle={() => setFilter({ gymrat: !S.gymrat })}
+        canScrape={isAdmin}
       />
       </div>{/* topbarRef wrapper */}
       <div className="layout">
@@ -667,6 +681,7 @@ export default function AppLayout() {
               S, set, setFilter, dispatch, loadNextPage, startPolling,
               loadFavoritos,
               gpuTraining, triggerGpuTraining,
+              isAdmin,
             }}/>
           </Suspense>
         </div>
@@ -691,8 +706,10 @@ export default function AppLayout() {
       )}
 
       {/* Mounted at layout level (not inside a route) so the conversation
-          survives navigation between views. */}
-      <AgentChatPanel />
+          survives navigation between views. frontend-auth-ui Phase 7 (design
+          D6): /api/agent/** is wholly ADMIN in ApiRoutePolicy.TABLE, so the
+          whole panel — not just its actions — is hidden for a VIEWER. */}
+      {isAdmin && <AgentChatPanel />}
     </div>
   );
 }

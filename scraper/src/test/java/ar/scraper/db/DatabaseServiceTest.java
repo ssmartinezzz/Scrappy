@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +56,7 @@ class DatabaseServiceTest extends PostgresTestBase {
     @DisplayName("producto + historial + favorito + cron_job persisten y se leen field-for-field")
     void fullTableRoundTrip() {
         db.upsertProductos(List.of(producto("https://site.com/rt", "Round Trip", 1999.0)));
-        db.guardarFavorito("https://site.com/rt", "Sitio", "Round Trip");
+        db.guardarFavorito(yo(), "https://site.com/rt", "Sitio", "Round Trip");
         long jobId = db.insertCronJob("Job RT", 100, 5000, List.of("Sitio"),
                 false, true, "0 0 3 * * *", true, "2026-08-01T03:00:00");
 
@@ -70,7 +72,7 @@ class DatabaseServiceTest extends PostgresTestBase {
         assertThat(hist).hasSize(1);
         assertThat(((Number) hist.get(0).get("precio")).doubleValue()).isEqualTo(1999.0);
 
-        assertThat(db.listarFavoritos()).hasSize(1);
+        assertThat(db.listarFavoritos(yo())).hasSize(1);
         assertThat(jobId).isGreaterThan(0);
         assertThat(db.getCronJob(jobId)).isPresent();
     }
@@ -205,5 +207,17 @@ class DatabaseServiceTest extends PostgresTestBase {
     void singlePointHistoryDoesNotError() {
         db.upsertProductos(List.of(producto("https://site.com/solo", "Solo", 50.0)));
         assertThat(db.cargarHistorial("https://site.com/solo")).hasSize(1);
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

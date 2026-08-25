@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,9 +54,9 @@ class DatabaseServiceFavoritosSitiosTest extends PostgresTestBase {
     @Test
     void guardarFavoritoWithNullUrlThrowsAndInsertsNothing() {
         assertThatNullPointerException()
-                .isThrownBy(() -> db.guardarFavorito(null, "sitio", "nombre"));
+                .isThrownBy(() -> db.guardarFavorito(yo(), null, "sitio", "nombre"));
 
-        assertThat(db.listarFavoritos()).isEmpty();
+        assertThat(db.listarFavoritos(yo())).isEmpty();
     }
 
     @Test
@@ -72,12 +74,12 @@ class DatabaseServiceFavoritosSitiosTest extends PostgresTestBase {
                 List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1)));
 
-        db.guardarFavorito("https://example.com/producto", "Freres", "Producto de prueba");
+        db.guardarFavorito(yo(), "https://example.com/producto", "Freres", "Producto de prueba");
 
-        assertThat(db.listarFavoritos()).hasSize(1);
-        assertThat(db.listarFavoritos().get(0).get("url")).isEqualTo("https://example.com/producto");
-        assertThat(db.listarFavoritos().get(0).get("sitio")).isEqualTo("Freres");
-        assertThat(db.listarFavoritos().get(0).get("nombre")).isEqualTo("Producto de prueba");
+        assertThat(db.listarFavoritos(yo())).hasSize(1);
+        assertThat(db.listarFavoritos(yo()).get(0).get("url")).isEqualTo("https://example.com/producto");
+        assertThat(db.listarFavoritos(yo()).get(0).get("sitio")).isEqualTo("Freres");
+        assertThat(db.listarFavoritos(yo()).get(0).get("nombre")).isEqualTo("Producto de prueba");
     }
 
     @Test
@@ -88,5 +90,17 @@ class DatabaseServiceFavoritosSitiosTest extends PostgresTestBase {
         assertThat(db.cargarSitiosDinamicos().get(0).get("nombre")).isEqualTo("MiSitio");
         assertThat(db.cargarSitiosDinamicos().get(0).get("url")).isEqualTo("https://misitio.com");
         assertThat(db.cargarSitiosDinamicos().get(0).get("plataforma")).isEqualTo("shopify");
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

@@ -107,6 +107,45 @@ class SpringWiringTest {
     }
 
     @Test
+    @DisplayName("un bean con varios constructores dice explícitamente cuál usar")
+    void unBeanConVariosConstructoresMarcaCual() throws Exception {
+        // Con un solo constructor Spring lo elige sin ayuda. Con dos o más y
+        // ninguno anotado, busca el vacío, no lo encuentra, y el contexto muere
+        // con "No default constructor found" — un arranque roto que ningún test
+        // unitario ve, porque cada colaborador se construye a mano.
+        //
+        // Pasó de verdad: PasswordResetService sumó un segundo constructor como
+        // seam de test y la aplicación dejó de arrancar con la suite en verde.
+        List<String> ambiguos = new ArrayList<>();
+
+        for (Class<?> bean : beansDeLaAplicacion()) {
+            Constructor<?>[] constructores = bean.getDeclaredConstructors();
+            if (constructores.length < 2) continue;
+
+            long anotados = java.util.Arrays.stream(constructores)
+                    .filter(c -> c.isAnnotationPresent(Autowired.class))
+                    .count();
+            boolean hayVacio = java.util.Arrays.stream(constructores)
+                    .anyMatch(c -> c.getParameterCount() == 0);
+
+            if (anotados == 0 && !hayVacio) {
+                ambiguos.add(String.format(
+                        "%s tiene %d constructores y ninguno marcado con @Autowired",
+                        bean.getSimpleName(), constructores.length));
+            }
+            if (anotados > 1) {
+                ambiguos.add(String.format(
+                        "%s marca %d constructores con @Autowired; sólo puede haber uno",
+                        bean.getSimpleName(), anotados));
+            }
+        }
+
+        assertThat(ambiguos)
+                .as("[constructores que Spring no podría elegir]")
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("ningún campo @Autowired apunta a una clase nuestra que no sea bean")
     void ningunCampoAutowiredApuntaAUnNoBean() throws Exception {
         List<Class<?>> beans = beansDeLaAplicacion();

@@ -7,6 +7,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import ar.scraper.db.UsuarioRepository;
+import ar.scraper.security.JwtAuthFilter;
+import ar.scraper.security.SecurityConfig;
+import ar.scraper.security.TokenService;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,12 +37,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>{@code GET /} returns a small JSON status payload ({@link RootController}),
  *       not the old SPA {@code index.html} forward.</li>
  * </ul>
- * {@code allowCredentials=false} throughout (no auth/session cookie exists in
- * this API), matching design D6.
+ * <p><b>The real {@link SecurityConfig} is imported since the enforcement slice</b>,
+ * so these assertions now run through the actual filter chain. That matters for
+ * {@code GET /}: it is on the permit list, so its 200 still holds — and it now
+ * <i>means</i> something, because the same request to any unlisted path would be
+ * refused. Without the import the chain here would be Boot's default one, and
+ * this test would be describing a configuration the application does not use.</p>
+ *
+ * <p>{@code allowCredentials=false} on {@code /**}; the refresh path is the one
+ * exception and has its own test in {@link CorsCredentialsTest}.</p>
  */
 @WebMvcTest(controllers = RootController.class)
-@Import(CorsConfig.class)
-@TestPropertySource(properties = "app.cors.allowed-origins=http://localhost:5173")
+@Import({CorsConfig.class, SecurityConfig.class, JwtAuthFilter.class, TokenService.class})
+@TestPropertySource(properties = {
+        "app.cors.allowed-origins=http://localhost:5173",
+        "auth.jwt.secret=un-secreto-de-al-menos-32-bytes-para-hs256"
+})
 @Epic("REST API")
 @Feature("CORS configuration")
 @Story("API-only backend cross-origin policy")
@@ -46,6 +61,10 @@ class CorsConfigTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    /** The filter chain needs it; what it returns is irrelevant to CORS. */
+    @MockBean
+    private UsuarioRepository usuarios;
 
     @Test
     @DisplayName("request from the configured allowed origin succeeds and echoes Access-Control-Allow-Origin")

@@ -59,44 +59,6 @@ public class ShopifyPage extends BasePage {
         return result;
     }
 
-    /**
-     * Extrae el handle de producto de una URL Shopify, p.ej.
-     * "https://dom.com/products/zapatilla-x?variant=123" -> "zapatilla-x"
-     */
-    public String extractHandle(String url) {
-        if (url == null) return "";
-        int idx = url.indexOf("/products/");
-        if (idx < 0) return "";
-        String rest = url.substring(idx + "/products/".length());
-        int cut = rest.length();
-        int q = rest.indexOf('?');
-        if (q >= 0 && q < cut) cut = q;
-        int h = rest.indexOf('#');
-        if (h >= 0 && h < cut) cut = h;
-        return rest.substring(0, cut);
-    }
-
-    /**
-     * Re-scrapea un único producto a partir de su URL canónica, usando el
-     * endpoint público "/products/{handle}.json" (wrapper singular "product").
-     */
-    public Optional<Product> scrapeOne(String url) {
-        String dom = domain(baseUrl);
-        String handle = extractHandle(url);
-        if (handle.isBlank()) return Optional.empty();
-        try {
-            navigateTo(dom + "/products/" + handle + ".json");
-            String body = (String) page.evaluate("document.body.innerText");
-            if (body == null || !body.contains("\"product\"")) return Optional.empty();
-            JsonNode prod = MAPPER.readTree(body).path("product");
-            if (prod.isMissingNode()) return Optional.empty();
-            return fromJson(prod, dom);
-        } catch (Exception e) {
-            log.warn("[{}] scrapeOne error url={}: {}", sitio, url, e.getMessage());
-            return Optional.empty();
-        }
-    }
-
     private Optional<Product> fromJson(JsonNode prod, String dom) {
         try {
             String nombre = prod.path("title").asText("").trim();

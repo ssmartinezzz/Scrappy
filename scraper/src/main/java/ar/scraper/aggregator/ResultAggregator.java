@@ -307,7 +307,7 @@ public class ResultAggregator {
         return FacetCalculator.calcular(productos);
     }
 
-    // Normalización rápida sin ML
+    // Normalización rápida sin ML — usada por la actualización progresiva por sitio
     public List<Product> normalizarSolo(List<Product> productos) {
         return normalizer.normalizar(productos);
     }
@@ -429,7 +429,7 @@ public class ResultAggregator {
 
     /**
      * Reconstruye un {@link AggregatedResult} desde productos cargados de la DB
-     * (startup/restart o tras un rescrape parcial de favoritos). A diferencia de
+     * (startup/restart o tras el upsert parcial de un sitio). A diferencia de
      * {@link #agregar}, este camino NO corre el pipeline ML — pero SÍ debe correr
      * {@link SenalEnricher} y {@link FinanciacionEnricher}, porque de lo
      * contrario sus badges quedarían vacíos en el grid hasta el próximo
