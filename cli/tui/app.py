@@ -44,7 +44,7 @@ from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
-from cli.core.rest import RestClient
+from cli.core.rest import RestClient, build_rest_client
 from cli.tui.widgets import (
     CommandSuggester,
     Console,
@@ -199,7 +199,7 @@ class ScrappyConsole(App):
     ) -> None:
         super().__init__()
         self.cfg = cfg
-        self.rest = rest or RestClient(base_url=f"http://localhost:{cfg.ports.backend}")
+        self.rest = rest or build_rest_client(cfg)
         self.processes = processes or ProcessManager()
         self.open_url = open_url
         self.opener = opener

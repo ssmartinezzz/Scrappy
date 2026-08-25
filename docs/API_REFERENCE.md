@@ -55,6 +55,8 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 | Grupo | Endpoints |
 |-------|-----------|
+| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `GET /auth/me` · `POST /auth/password-reset/request` · `/confirm` |
+| Usuarios | `GET`/`POST /usuarios` · `PUT /usuarios/{username}/rol` · `DELETE /usuarios/{username}` · `PUT /usuarios/{username}/activar` — **ADMIN, sin UI** |
 | Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
 | Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
 | Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
@@ -63,7 +65,7 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
 | Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `GET /suplementos/tipos` (subtipos ofrecibles + grupo de selector; taxonomía pura, responde sin catálogo) · `POST /outfits/feedback` · CRUD `/outfits/saved` |
 | Para ti | `GET /recomendados` · `POST /recomendados/feedback` · `POST`/`DELETE /recomendados/dismiss-categoria` |
-| Favoritos | `GET`/`POST`/`DELETE /favoritos` · `POST /favoritos/rescrape` |
+| Favoritos | `GET`/`POST`/`DELETE /favoritos` |
 | Picks/Marcas | `GET /mejores?rubro=` · `GET /marcas-browser` |
 | Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
 | Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |
@@ -71,6 +73,349 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 | LLM Agent | `POST /agent/chat` · `POST /agent/apply` · `GET /agent/models` |
 
 ---
+
+## POST /auth/login
+
+Autentica por **`username`** y devuelve un access token JWT de 15 minutos.
+
+> 🔒 **El token que emite acá sí se exige en todos lados.** Esta advertencia
+> decía lo contrario —"este endpoint no protege nada, no existe ningún
+> `SecurityFilterChain`"— y era cierta cuando se escribió, dos slices antes de
+> que existiera el gate. `SecurityConfig` + `JwtAuthFilter` filtran hoy toda ruta
+> `/api/*` contra `ApiRoutePolicy.TABLE`, que termina en `denyAll()`: una ruta
+> sin fila se rechaza, no se permite.
+
+**Request**
+
+```json
+{ "username": "admin", "password": "..." }
+```
+
+`email` **nunca** es identificador de login: es opcional, y ni la cuenta
+bootstrap ni la de servicio del CLI tienen uno.
+
+**200**
+
+```json
+{ "accessToken": "eyJhbGciOiJIUzI1NiJ9...", "tokenType": "Bearer", "expiresIn": 900 }
+```
+
+El token lleva `sub`, `iat`, `exp` y `jti`, y **nada más** — en particular, sin
+claim de rol. Un rol dentro de un token firmado no se puede revocar antes de que
+venza, así que el rol se relee de la base en cada request (fase 2).
+
+**401** — mismo status y mismo body para credencial equivocada, usuario
+inexistente, cuenta con `activo=FALSE` y body malformado:
+
+```json
+{ "error": "credenciales_invalidas", "mensaje": "Usuario o contraseña incorrectos" }
+```
+
+Distinguirlos convertiría al endpoint en un oráculo de qué usuarios existen. Por
+la misma razón el tiempo de respuesta tampoco los distingue: cuando el usuario no
+existe se verifica igual contra un hash señuelo, así que las dos ramas cuestan el
+mismo Argon2id (~76 ms) en vez de diferir en algo perfectamente medible por red.
+
+**Cuentas iniciales.** Se siembran al arrancar desde el entorno
+(`ADMIN_BOOTSTRAP_*`, `CLI_SERVICE_ACCOUNT_*`), de forma idempotente. El seeder
+**nunca pisa un hash existente**: cambiar la variable y reiniciar *no* cambia la
+password de una cuenta ya creada. Recuperarla es SQL directo.
+
+### Exponerlo fuera de localhost exige TLS
+
+El access token viaja como `Authorization: Bearer` en texto plano. Sobre HTTP sin
+cifrar es legible en tránsito por cualquiera en el camino, y con él se puede
+actuar como el usuario hasta que venza. Esta aplicación está pensada para correr
+en `localhost`; publicarla más allá **requiere TLS por delante**, no es una
+recomendación.
+
+
+## POST /auth/refresh · DELETE /auth/refresh
+
+Rotación de sesión y logout. El CLI se reautentica con sus credenciales del
+`.env` y nunca sostiene un refresh token — esta superficie es exclusivamente
+para un cliente de browser, y el dashboard React (`frontend/src/lib/authSession.js`)
+es ese consumidor: es el único módulo del frontend donde aparece
+`credentials: 'include'`.
+
+**Cómo viaja cada cosa, y por qué**
+
+| | Dónde viaja | Por qué |
+|---|---|---|
+| Access token | header `Authorization: Bearer`, en memoria | un header no se adjunta solo, así que ninguna página ajena puede hacer que el browser lo mande |
+| Refresh token | cookie `refresh`, `HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh` | es lo único que tiene que sobrevivir a un F5. En memoria muere con el reload; en `localStorage` sobrevive pero lo lee cualquier script inyectado. `HttpOnly` hace las dos |
+| Nonce CSRF | body JSON al recibirlo, header `X-Refresh-CSRF` al mandarlo | el browser no adjunta headers custom por su cuenta — eso es lo que lo hace una prueba de intención |
+
+**Por qué hace falta el nonce si ya está `SameSite=Strict`.** Porque *same-site
+ignora el puerto*. Cualquier página servida desde cualquier otro puerto de
+`localhost` es same-site con este backend y la cookie se le adjunta igual. En una
+app pensada para localhost eso no es un caso de borde, es el escenario normal.
+
+**El orden importa: el nonce se valida ANTES de consumir el token.** Al revés, un
+pedido forjado rotaría primero y fallaría el chequeo después — dejando al cliente
+real con un token ya gastado, cuyo próximo refresco dispara la detección de reuso
+y lo desloguea. Sería convertir un ataque bloqueado en una denegación de servicio
+exitosa.
+
+**`POST /auth/refresh`** — cookie + `X-Refresh-CSRF`
+
+- **200**: `{ "accessToken", "tokenType", "expiresIn", "csrfNonce" }` + `Set-Cookie` con el token sucesor. El refresh token **nunca** aparece en el body.
+- **403** `csrf_invalido`: falta o no coincide el nonce. El token presentado **queda intacto**.
+- **401** `refresh_invalido`: desconocido, vencido o revocado. Limpia la cookie.
+- **401** `sesion_invalidada`: el token se presentó dos veces pasada la ventana de gracia. **Toda la familia queda revocada** — no se puede saber cuál de los dos presentadores es el ladrón, así que ninguno conserva la sesión.
+
+**Ventana de gracia de 10 s.** Un cliente que dispara varios pedidos en paralelo
+recibe varios 401 y puede refrescar más de una vez con el mismo token. Sin la
+ventana eso es indistinguible de un robo, y el detector desloguearía al usuario
+por ser rápido. Dentro de la ventana se devuelve el mismo par sucesor, sin rotar
+de nuevo. **Los 10 s son una propuesta, no una medición** — medirlos requiere un
+cliente de browser, que todavía no existe.
+
+**`DELETE /auth/refresh`** (logout) — cookie + `X-Refresh-CSRF`
+
+Revoca la familia entera y limpia la cookie. Es `DELETE` sobre `/auth/refresh` y
+no `/auth/logout` por una razón mecánica: el `Path` de la cookie es
+`/api/auth/refresh`, así que el browser no la adjuntaría a otra ruta y el
+servidor no sabría qué familia revocar. Deslogearse en otro path limpiaría la
+copia del browser dejando la sesión viva en el servidor.
+
+La cookie se limpia **siempre**, incluso con un token desconocido: quien la tiene
+igual la quiere afuera, y no limpiarla lo deja reenviando algo que ya nunca va a
+funcionar.
+
+**Las cuentas de servicio no reciben sesión.** `POST /auth/login` con
+`es_servicio = TRUE` devuelve access token y ninguna cookie: el CLI se
+reautentica de su `.env`, así que una credencial de catorce días sería una
+credencial tirada al pedo.
+
+### Topología: dónde funciona y dónde no
+
+`SameSite` usa el dominio registrable e **ignora el puerto**; el esquema sí cuenta.
+
+| Topología | ¿Anda? |
+|---|---|
+| `localhost:5173` → `localhost:3000` | **Sí** |
+| `app.example.com` → `api.example.com` | **Sí** |
+| `app.example.com` → `api.example.net` | **No** — cross-site, se descarta la cookie |
+| `http://` front → `https://` back | **No** — cross-scheme |
+| Fuera de localhost por HTTP plano | **No** — `Secure` la descarta |
+
+Frontend y backend tienen que compartir dominio registrable (o ser los dos
+localhost); fuera de localhost, HTTPS en ambos. Si no, el refresco falla **en
+silencio** y al usuario lo desloguean cada quince minutos sin ningún error a la
+vista — parece un bug, no una mala configuración.
+
+**CORS con credenciales está acotado a DOS rutas: `/api/auth/login` y
+`/api/auth/refresh`.** Todo el resto sigue en `allowCredentials=false`, y sumar
+una tercera es una decisión de seguridad, no una comodidad.
+
+El login está en la lista porque **su respuesta es la que planta la cookie**, y
+cross-origin el browser descarta el `Set-Cookie` de una respuesta cuyo pedido no
+se hizo en modo credenciales. Sin eso la cookie no se guarda nunca y la sesión no
+se puede recuperar al recargar. Esto no se ve bajo `vite dev`, donde el proxy
+hace same-origin al login — se ve sólo en las topologías que se instalan de
+verdad, y lo encontró la suite de browser (`tests/e2e/run-e2e.sh`), no un test
+unitario.
+
+Los dos mapeos se registran **antes** del `/**` porque gana el primero que
+matchea; al revés nunca se consultarían y el browser descartaría la cookie. Y `APP_CORS_ALLOWED_ORIGINS=*`
+**aborta el arranque** nombrando la variable: el comodín está prohibido bajo CORS
+con credenciales, y dejárselo a Spring lo convierte en un 500 al hacer login.
+
+### Admisión de arranque en frío ("bootstrap") sin nonce
+
+Un reload no deja nonce en memoria — el cliente no tiene forma de mandar
+`X-Refresh-CSRF` en el primer refresh tras recargar la página. Un `POST
+/auth/refresh` que **no lleva ese header en absoluto** (bootstrap, distinto de
+llevarlo y que no matchee, que sigue siendo `403` sin excepción) se admite
+sólo si **las dos** condiciones valen:
+
+| # | Condición |
+|---|---|
+| 1 | `Origin` presente y coincide **exactamente** (string completo, con puerto) con una entrada de `APP_CORS_ALLOWED_ORIGINS` |
+| 2 | `Sec-Fetch-Site` presente y ∈ {`same-origin`, `same-site`} |
+
+Falta cualquiera de los dos headers, o no matchea el valor → **falla cerrado**,
+`403 csrf_invalido`, igual que hoy. El camino de bootstrap no relaja nada más:
+token vencido, revocado o reusado se comporta exactamente igual que con nonce.
+
+**`Sec-Fetch-Site: same-origin` solo no alcanza** — es la opción que este
+documento recomendaba antes de medir las topologías reales. Ninguna instalación
+que se shippea de esta app es same-origin: el SPA vive en `localhost:5173`
+(portable/POSIX) o `localhost:8080` (Docker), el backend en `localhost:3000`.
+Un refresh legítimo manda `Sec-Fetch-Site: same-site`, nunca `same-origin` —
+eso sólo ocurre bajo `vite dev`. Exigir `same-origin` habría rechazado el
+arranque en frío en las dos instalaciones que se shippean. Y como `same-site`
+es también lo que manda una página servida desde otro puerto de `localhost`
+—el atacante que el nonce existe para frenar—, `Sec-Fetch-Site` por sí solo no
+discrimina nada acá. `Origin` sí: lleva el puerto, es un forbidden header name
+que un script no puede forjar, y el backend ya valida ese allow-list al
+arrancar. Por eso `Origin` es el gate primario y `Sec-Fetch-Site` un segundo
+gate fail-closed, no la única señal.
+
+
+## GET /auth/me
+
+Devuelve el sujeto autenticado — `AUTHENTICATED`, no en la lista de rutas
+abiertas: contestar "quién sos" a un caller anónimo es un oráculo de qué
+usuarios existen, así que exige un access token válido como cualquier otra
+ruta cerrada.
+
+**200**
+
+```json
+{ "username": "valeria", "roles": ["VIEWER"] }
+```
+
+`roles` es un **array**, no un string: `usuario_rol` es una tabla de join que
+admite más de un rol por cuenta, y la API no colapsa esa cardinalidad. El rol
+se lee de la base en cada request — nunca del claim del JWT, que no lo lleva.
+
+**401** — sin access token, o vencido/inválido. Nunca 200 con datos vacíos.
+
+Zero queries nuevas: el filtro de seguridad ya hace la lectura por request que
+esto expone (`JwtAuthFilter`), así que el endpoint sólo formatea lo que el
+contexto de seguridad ya tiene.
+
+El cliente lo llama después de login, después de recuperar la sesión al
+recargar (bootstrap), y después de **cada** refresh exitoso — no sólo el de
+arranque — para que un cambio de rol server-side se vea dentro de una vida de
+token (15 min) en vez de recién en el próximo login.
+
+
+## POST /auth/password-reset/request · POST /auth/password-reset/confirm
+
+"Me olvidé la contraseña". Sin autenticación por diseño: quien lo usa es
+exactamente quien no puede entrar.
+
+### `/request` — siempre 202, siempre igual, siempre a la misma velocidad
+
+```json
+{ "email": "ana@example.com" }
+```
+
+Responde **202** con el mismo body para una dirección real, una inexistente, una
+malformada y una de cuenta de servicio:
+
+```json
+{ "mensaje": "Si la dirección corresponde a una cuenta, va a recibir un enlace." }
+```
+
+**La uniformidad no es cortesía.** Un formulario que contesta distinto para una
+dirección conocida es la lista de usuarios de este sistema, regalada a cualquiera
+con un diccionario.
+
+Y el body igual no alcanza: si la rama de la cuenta existente hiciera una lectura
+a la base, un hash y una vuelta a SMTP antes de contestar, **el reloj respondería
+lo que el body se niega a decir**. Por eso el hilo del request no hace *nada* que
+dependa de la cuenta: normaliza la dirección, la manda a un hilo virtual y
+retorna. La búsqueda, el rate-limit y el envío pasan todos después. Efecto lateral
+útil: una falla de envío es **estructuralmente incapaz** de llegar al que llamó,
+porque para cuando el `send` explota el 202 ya se escribió.
+
+**Las cuentas de servicio quedan afuera por el esquema, no por un `if`.** `V26`
+trae `CHECK (NOT es_servicio OR email IS NULL)`: no tienen dirección, y un flujo
+que busca *por* dirección no puede encontrarlas.
+
+**Rate-limit silencioso**, tres ventanas de una hora: 3 por dirección, 10 por IP,
+100 global. Un pedido limitado **igual devuelve 202** — un 429 sería un oráculo
+por cuenta: preguntá dos veces y la segunda respuesta te dice si la dirección
+existe. Los tres topes son **propuestas, no mediciones**.
+
+### `/confirm`
+
+```json
+{ "token": "…", "password": "la-nueva" }
+```
+
+- **200**: contraseña cambiada. **Todas** las sesiones del usuario quedan revocadas.
+- **400** `reseteo_invalido`: token desconocido, ya usado o vencido, o contraseña de menos de 8 caracteres. No se distinguen.
+
+Corre en **una** transacción: consumir el token, escribir el hash nuevo y
+`password_changed_at`, revocar todas las familias de refresh, anular los demás
+links pendientes. Que alguna de esas fallara sola dejaría un desastre con buena
+cara: un token quemado con la contraseña vieja todavía puesta, o una contraseña
+nueva con la sesión del intruso viva.
+
+El consumo es **una sola sentencia** (`UPDATE … WHERE consumed_at IS NULL AND
+expires_at > now() RETURNING usuario_id`). Leer-chequear-actualizar pasa todos
+los tests secuenciales y falla exactamente cuando llegan dos pedidos juntos, que
+es la carrera que un atacante corre y la que causa un doble click.
+
+### El link
+
+`{PASSWORD_RESET_LINK_BASE}/reset-password#token=…` — el token va en el
+**fragmento**, no en el query string. Un fragmento nunca llega al servidor, así
+que no puede terminar en un access log, y nunca viaja en `Referer`, así que no se
+filtra a los recursos de terceros que cargue la página.
+
+### Canales
+
+| | `console` (default) | `smtp` (opt-in) |
+|---|---|---|
+| Configuración | ninguna | las cinco `SMTP_*`, o el arranque aborta nombrándolas |
+| Entrega | escribe el link en `scraper.log` | manda el mail |
+
+El default es `console` a propósito: exigir un servidor de mail para recuperar
+una contraseña dejaría la función fuera de alcance para las instalaciones de un
+solo usuario que más la necesitan. **Pone un token vivo en el log** — trade-off
+real, acotado por el uso único y los 30 minutos, y por que quien lee el log ya
+puede leer `.env`.
+
+**Los rebotes son invisibles.** El log de ERROR cubre el rechazo sincrónico
+únicamente; un mail aceptado por el relay y rebotado después no deja línea en
+ningún lado, porque nada en este diseño recibe correo. Una dirección tipeada mal
+devuelve el mismo "fijate tu mail" y después silencio permanente — consecuencia
+directa de no ser un oráculo de enumeración. El diagnóstico del operador es
+consultar `password_reset_token`.
+
+
+## /usuarios — administración de cuentas
+
+**Sólo ADMIN, y sin interfaz.** Se maneja por `curl`; una pantalla es una
+decisión aparte con su propio diseño.
+
+**Nacieron gateados.** La regla ADMIN para `/api/usuarios/**` estaba en
+`ApiRoutePolicy.TABLE` desde el slice de enforcement, **matcheando nada**, un
+slice antes de que existieran las rutas. No hubo un instante en que un endpoint
+de creación de usuarios existiera sin una regla arriba — y eso importa porque un
+`POST /api/usuarios` abierto deja que cualquiera se cree una cuenta ADMIN, que es
+estrictamente peor que no tener la función.
+
+| | |
+|---|---|
+| `GET /usuarios` | Lista **todas** las cuentas, activas y desactivadas. Nunca devuelve el hash |
+| `POST /usuarios` | `{username, password, role, email?}` → **201**. `role` ∈ `ADMIN`/`VIEWER`; password mínimo 8 |
+| `PUT /usuarios/{username}/rol` | `{role}` — **reemplaza**, no acumula |
+| `DELETE /usuarios/{username}` | **Desactiva**, no borra |
+| `PUT /usuarios/{username}/activar` | Reactiva |
+
+**Errores**: `400 rol_invalido` (fuera del vocabulario cerrado) · `400 password_corta`
+· `400 faltan_campos` · `409 username_tomado` · `404 no_existe` · `409 ultimo_admin`.
+
+**Desactivar no es borrar.** Un DELETE real se llevaría por CASCADE los roles, los
+refresh tokens, los tokens de reseteo, el rastro de auditoría de lo que hizo esa
+persona, y —como el ownership cascadea— sus datos personales. La desactivación
+reusa el mecanismo de revocación que ya existe: el **próximo request** con su token
+todavía válido se rechaza, sin reemitir nada y sin mecanismo nuevo.
+
+**El crear es atómico**: cuenta + rol en una transacción. Las dos mitades no sirven
+por separado — una cuenta sin rol no autoriza nada (la consulta por request vuelve
+vacía y se lee como "desactivada"), así que media creación dejaría una cuenta que
+figura en la lista y no puede entrar, sin ninguna pista de por qué.
+
+**Y una cuenta duplicada no pisa la existente**: si el username está tomado
+devuelve 409 sin tocar nada. Si no, crear un duplicado sería una forma de
+resetearle la contraseña a otro.
+
+### La última cuenta ADMIN no se puede sacar
+
+Esto **no está en el spec** y lo agregué igual: desactivar o degradar al único
+ADMIN activo deja una aplicación que nadie puede administrar, y que sólo se
+recupera con SQL directo contra la base. Es un estado de un solo click,
+silencioso e irrecuperable por la API. Ambas rutas devuelven `409 ultimo_admin`,
+y el chequeo cuesta una consulta.
+
 
 ## GET /status
 

@@ -39,8 +39,29 @@ export const NAV_CONFIG = [
   // No hay grupo "Admin" todavía — un solo destino de administración no
   // amerita un menú agrupado propio, así que va como link directo (mismo
   // tratamiento que Catálogo/Picks/Para ti) al final de la fila/drawer.
-  { kind: 'link', label: 'Cronjobs', to: '/cronjobs', icon: Clock },
+  // frontend-auth-ui Phase 7 (design D6): `requires` marca un nodo como
+  // visible SOLO para ese rol — hidden, not disabled (spec
+  // frontend-role-awareness). `/api/cron/**` es ADMIN entero en
+  // ApiRoutePolicy.TABLE.
+  { kind: 'link', label: 'Cronjobs', to: '/cronjobs', icon: Clock, requires: 'ADMIN' },
 ];
+
+// frontend-auth-ui Phase 7 (design D6, tasks-part2 7.1/7.2). Single source of
+// truth for BOTH nav surfaces: filters `NAV_CONFIG` down to what `roles` may
+// see. A `menu` node whose `items` all filter out is dropped entirely — an
+// empty dropdown trigger is worse than no trigger at all.
+export function visibleNav(config, roles = []) {
+  const has = role => roles.includes(role);
+  return config.reduce((acc, node) => {
+    if (node.kind === 'link') {
+      if (!node.requires || has(node.requires)) acc.push(node);
+      return acc;
+    }
+    const items = node.items.filter(item => !item.requires || has(item.requires));
+    if (items.length > 0) acc.push({ ...node, items });
+    return acc;
+  }, []);
+}
 
 // Prefix match so nested routes (e.g. /picks/zapatillas) still activate
 // their parent destination — mirrors react-router NavLink's default

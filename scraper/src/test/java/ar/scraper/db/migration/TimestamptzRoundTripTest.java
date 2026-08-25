@@ -4,6 +4,7 @@ import ar.scraper.cron.CronExecution;
 import ar.scraper.cron.CronJob;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
@@ -54,10 +56,10 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
         // favoritos.url is FK-bound to productos(url) since V4 — the product
         // has to exist before it can be favourited.
         db.upsertProductos(List.of(producto("https://site.com/fav-ts")));
-        db.guardarFavorito("https://site.com/fav-ts", "Sitio", "Producto");
-        db.tocarFavorito("https://site.com/fav-ts");
+        db.guardarFavorito(yo(), "https://site.com/fav-ts", "Sitio", "Producto");
+        db.tocarFavorito(yo(), "https://site.com/fav-ts");
 
-        Map<String, String> fav = db.listarFavoritos().get(0);
+        Map<String, String> fav = db.listarFavoritos(yo()).get(0);
 
         assertThat(fav.get("added_at")).matches(ISO_UTC);
         assertThat(fav.get("last_checked_at")).matches(ISO_UTC);
@@ -68,9 +70,9 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
     @Test
     @DisplayName("saved_outfits.created_at comes back as UTC ISO-8601")
     void savedOutfitCreatedAtIsIsoUtc() {
-        db.guardarOutfit("Mi outfit", "[]", "[]", 1000.0);
+        db.guardarOutfit(yo(), "Mi outfit", "[]", "[]", 1000.0);
 
-        Map<String, Object> outfit = db.obtenerOutfitsGuardados().get(0);
+        Map<String, Object> outfit = db.obtenerOutfitsGuardados(yo()).get(0);
 
         assertThat((String) outfit.get("createdAt")).matches(ISO_UTC);
     }
@@ -147,4 +149,16 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
         }
     }
 
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
+    }
 }

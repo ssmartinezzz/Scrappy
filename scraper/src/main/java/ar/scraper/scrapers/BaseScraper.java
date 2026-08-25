@@ -12,10 +12,8 @@ public abstract class BaseScraper {
 
     /**
      * JS init script applied to every new page to spoof bot-detection fingerprints.
-     * Must be {@code public} so that {@link ar.scraper.web.ScraperService} (different
-     * package) can reference it at the second call-site in {@code rescrapearSitio()}.
      */
-    public static final String STEALTH_INIT_SCRIPT = """
+    static final String STEALTH_INIT_SCRIPT = """
             // Spoof: navigator.webdriver, navigator.plugins, navigator.languages, window.chrome
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
             Object.defineProperty(navigator, 'plugins',   {get: () => [1, 2, 3, 4, 5]});
@@ -36,7 +34,7 @@ public abstract class BaseScraper {
      * {@code data-src} attributes still parse, so extraction is unaffected
      * (verified: identical img/anchor counts with and without the flag).
      */
-    public static List<String> launchArgs() {
+    static List<String> launchArgs() {
         return List.of("--no-sandbox",
                        "--disable-dev-shm-usage",
                        "--disable-blink-features=AutomationControlled",
@@ -44,11 +42,9 @@ public abstract class BaseScraper {
     }
 
     /**
-     * Aborts requests that can never contribute to a product record. Shared so
-     * that the favourites re-scrape path in {@code ScraperService} cannot drift
-     * away from the main scrape path — it previously duplicated these rules.
+     * Aborts requests that can never contribute to a product record.
      */
-    public static void aplicarBloqueosDeRed(Page page) {
+    static void aplicarBloqueosDeRed(Page page) {
         page.route("**/*.{woff,woff2,ttf,otf}", r -> r.abort());
         page.route("**/analytics**", r -> r.abort());
         page.route("**/gtag**",       r -> r.abort());

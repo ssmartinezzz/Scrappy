@@ -147,9 +147,9 @@ public class ApiController {
                                                      agentConfig, actorResolver);
         this.financiacionEndpoints = new FinanciacionEndpoints(service, inflacionService,
                                                                db, aggregator);
-        this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService);
-        this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService);
-        this.favoritosEndpoints = new FavoritosEndpoints(service, db);
+        this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService, actorResolver);
+        this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService, actorResolver);
+        this.favoritosEndpoints = new FavoritosEndpoints(db, actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db, aggregator, pythonRunner);
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);
@@ -536,11 +536,6 @@ public class ApiController {
         return catalogoEndpoints.eliminarProducto(url);
     }
 
-    @PostMapping("/favoritos/rescrape")
-    public ResponseEntity<ObjectNode> rescrapeFavoritos() {
-        return favoritosEndpoints.rescrapeFavoritos();
-    }
-
     @GetMapping("/ml/estado")
     public ResponseEntity<Object> mlEstado() {
         return mlEndpoints.mlEstado();
@@ -638,4 +633,22 @@ public class ApiController {
         return agentEndpoints.agentApply(body);
     }
 
+
+    /**
+     * An owner-scoped surface reached with no authenticated subject.
+     *
+     * <p>Answered as 401 rather than as an empty list: showing a user nothing
+     * when their data is fine is a bug that looks like data loss, and answering
+     * with everybody's rows would be the leak. Refusing is the only honest
+     * option. In practice the filter chain already guarantees a subject on every
+     * one of these routes — this is what catches a future route added to the
+     * wrong band before it serves somebody else's data.</p>
+     */
+    @org.springframework.web.bind.annotation.ExceptionHandler(Sujeto.SinSujeto.class)
+    public ResponseEntity<ObjectNode> sinSujeto(Sujeto.SinSujeto e) {
+        ObjectNode resp = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+        resp.put("error", "no_autenticado");
+        resp.put("mensaje", "Esta operación es personal y necesita una sesión.");
+        return ResponseEntity.status(401).body(resp);
+    }
 }

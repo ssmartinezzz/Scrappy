@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 
 /**
@@ -39,18 +40,19 @@ class SavedOutfitsRepository {
      * <p>Cabecera e ítems se escriben en UNA transacción: un outfit a medias
      * —guardado pero sin prendas— es peor que no haberlo guardado.</p>
      */
-    int guardarOutfit(String nombre, String slotsJson, String suplementosJson, double total) {
+    int guardarOutfit(UUID usuarioId, String nombre, String slotsJson, String suplementosJson, double total) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
                 int id;
                 try (PreparedStatement ps = c.prepareStatement("""
-                        INSERT INTO saved_outfits (nombre, total_estimado, created_at)
-                        VALUES (?, ?, ?)
+                        INSERT INTO saved_outfits (usuario_id, nombre, total_estimado, created_at)
+                        VALUES (?, ?, ?, ?)
                         """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setString(1, nombre != null ? nombre : "Outfit");
-                    ps.setDouble(2, total);
-                    ps.setObject(3, Timestamps.now());
+                    ps.setObject(1, usuarioId);
+                    ps.setString(2, nombre != null ? nombre : "Outfit");
+                    ps.setDouble(3, total);
+                    ps.setObject(4, Timestamps.now());
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) { c.rollback(); return -1; }
@@ -109,13 +111,14 @@ class SavedOutfitsRepository {
     }
 
     /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
-    List<Map<String, Object>> obtenerOutfitsGuardados() {
+    List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
         List<Map<String, Object>> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
-             java.sql.Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
+             PreparedStatement ps = c.prepareStatement(
                 "SELECT id, nombre, total_estimado, created_at " +
-                "FROM saved_outfits ORDER BY created_at DESC")) {
+                "FROM saved_outfits WHERE usuario_id=? ORDER BY created_at DESC")) {
+            ps.setObject(1, usuarioId);
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id",            rs.getInt("id"));
@@ -126,6 +129,9 @@ class SavedOutfitsRepository {
                 row.put("suplementos", List.of());
                 result.add(row);
             }
+            }
+            // Los ítems se cargan sólo para los outfits ya filtrados por dueño,
+            // así que heredan el scope del padre sin repetir el WHERE.
             cargarItems(c, result);
         } catch (Exception e) {
             LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
@@ -179,11 +185,18 @@ class SavedOutfitsRepository {
     }
 
     /** Elimina un outfit guardado por id. Retorna true si existía. */
-    boolean eliminarOutfitGuardado(int id) {
+    /**
+     * @return {@code false} when the outfit does not exist <b>or belongs to
+     *         somebody else</b>. The two are one answer on purpose: telling a
+     *         caller "that exists but is not yours" confirms the existence of
+     *         another user's row, which is the disclosure the scoping prevents.
+     */
+    boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM saved_outfits WHERE id=?")) {
-            ps.setInt(1, id);
+                "DELETE FROM saved_outfits WHERE usuario_id=? AND id=?")) {
+            ps.setObject(1, usuarioId);
+            ps.setInt(2, id);
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
@@ -192,13 +205,14 @@ class SavedOutfitsRepository {
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
-    boolean renombrarOutfit(int id, String nombre) {
+    boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
         if (nombre == null || nombre.isBlank()) return false;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                "UPDATE saved_outfits SET nombre=? WHERE id=?")) {
+                "UPDATE saved_outfits SET nombre=? WHERE usuario_id=? AND id=?")) {
             ps.setString(1, nombre.trim());
-            ps.setInt(2, id);
+            ps.setObject(2, usuarioId);
+            ps.setInt(3, id);
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());

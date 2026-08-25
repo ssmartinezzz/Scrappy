@@ -71,6 +71,7 @@ class RequiredEnvVarsGuardTest {
         env.setProperty("DATABASE_USERNAME", "postgres");
         env.setProperty("DATABASE_PASSWORD", "");
         env.setProperty("APP_CORS_ALLOWED_ORIGINS", "http://localhost:5173");
+        conSecretosDeAuth(env);
 
         assertDoesNotThrow(() -> guard.postProcessEnvironment(env, null));
     }
@@ -83,6 +84,7 @@ class RequiredEnvVarsGuardTest {
         env.setProperty("DATABASE_USERNAME", "postgres");
         env.setProperty("DATABASE_PASSWORD", "postgres");
         env.setProperty("APP_CORS_ALLOWED_ORIGINS", "http://localhost:5173");
+        conSecretosDeAuth(env);
 
         assertDoesNotThrow(() -> guard.postProcessEnvironment(env, null));
     }
@@ -103,5 +105,21 @@ class RequiredEnvVarsGuardTest {
         env.setActiveProfiles("test");
 
         assertDoesNotThrow(() -> guard.postProcessEnvironment(env, null));
+    }
+
+    /**
+     * The five authentication secrets (user-accounts-and-roles, slice 2) joined
+     * {@code RequiredEnvVarsGuard} after these tests were written. The two
+     * "does not throw" cases below are about the infrastructure variables, so
+     * they set the auth ones out of the way here rather than restating the
+     * whole environment twice. Their own behaviour is covered by
+     * {@link RequiredEnvVarsGuardAuthTest}.
+     */
+    private static void conSecretosDeAuth(MockEnvironment env) {
+        env.setProperty("AUTH_JWT_SECRET", "un-secreto-de-al-menos-32-bytes-para-hs256");
+        env.setProperty("ADMIN_BOOTSTRAP_USERNAME", "admin");
+        env.setProperty("ADMIN_BOOTSTRAP_PASSWORD", "una-password-real");
+        env.setProperty("CLI_SERVICE_ACCOUNT_USERNAME", "cli");
+        env.setProperty("CLI_SERVICE_ACCOUNT_PASSWORD", "otra-password-real");
     }
 }
