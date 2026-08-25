@@ -11,6 +11,8 @@ import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
 import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,11 @@ class ApiControllerSavedOutfitsTest {
     private RecommendationService recommendationService;
     private ApiController controller;
 
+    @AfterEach
+    void limpiarContexto() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
         wireController();
@@ -55,6 +62,7 @@ class ApiControllerSavedOutfitsTest {
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
+        SujetoDePrueba.entrar("ADMIN");
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
@@ -63,7 +71,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void saveOutfitValidPayloadPersistsAndReturnsIdAndOk() {
-        when(db.guardarOutfit(eq("Test Outfit"), anyString(), any(), eq(50000.0))).thenReturn(1);
+        when(db.guardarOutfit(any(), eq("Test Outfit"), anyString(), any(), eq(50000.0))).thenReturn(1);
 
         ResponseEntity<?> resp = controller.saveOutfit(
                 Map.of("nombre", "Test Outfit", "slots", List.of(), "totalEstimado", 50000.0));
@@ -77,7 +85,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void saveOutfitDbFailureReturns500WithOkFalse() {
-        when(db.guardarOutfit(any(), anyString(), any(), anyDouble())).thenReturn(-1);
+        when(db.guardarOutfit(any(), any(), anyString(), any(), anyDouble())).thenReturn(-1);
 
         ResponseEntity<?> resp = controller.saveOutfit(
                 Map.of("nombre", "x", "slots", List.of(), "totalEstimado", 1000.0));
@@ -90,7 +98,7 @@ class ApiControllerSavedOutfitsTest {
     @Test
     void saveOutfitBlankNombreDefaultsToOutfit() {
         // blank nombre is trimmed; controller does not 400 on empty name
-        when(db.guardarOutfit(anyString(), anyString(), any(), eq(0.0))).thenReturn(1);
+        when(db.guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0))).thenReturn(1);
 
         ResponseEntity<?> resp = controller.saveOutfit(
                 Map.of("nombre", "  ", "slots", List.of(), "totalEstimado", 0));
@@ -98,7 +106,7 @@ class ApiControllerSavedOutfitsTest {
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isTrue();
-        verify(db).guardarOutfit(anyString(), anyString(), any(), eq(0.0));
+        verify(db).guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0));
     }
 
     // ── GET /api/outfits/saved ─────────────────────────────────────────────
@@ -107,7 +115,7 @@ class ApiControllerSavedOutfitsTest {
     void getSavedOutfitsReturnsListFromDb() {
         Map<String, Object> outfit1 = Map.of("id", 1, "nombre", "Outfit 1", "totalEstimado", 100.0);
         Map<String, Object> outfit2 = Map.of("id", 2, "nombre", "Outfit 2", "totalEstimado", 200.0);
-        when(db.obtenerOutfitsGuardados()).thenReturn(List.of(outfit1, outfit2));
+        when(db.obtenerOutfitsGuardados(any())).thenReturn(List.of(outfit1, outfit2));
 
         ResponseEntity<?> resp = controller.getSavedOutfits();
 
@@ -120,7 +128,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void deleteSavedOutfitFoundReturnsOkTrue() {
-        when(db.eliminarOutfitGuardado(3)).thenReturn(true);
+        when(db.eliminarOutfitGuardado(any(), eq(3))).thenReturn(true);
 
         ResponseEntity<?> resp = controller.deleteSavedOutfit(3);
 
@@ -132,7 +140,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void deleteSavedOutfitNotFoundReturns404WithOkFalse() {
-        when(db.eliminarOutfitGuardado(999)).thenReturn(false);
+        when(db.eliminarOutfitGuardado(any(), eq(999))).thenReturn(false);
 
         Allure.parameter("id", 999);
         ResponseEntity<?> resp = controller.deleteSavedOutfit(999);
@@ -146,14 +154,14 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void renameSavedOutfitValidPayloadUpdatesAndReturnsOk() {
-        when(db.renombrarOutfit(5, "Mi Outfit")).thenReturn(true);
+        when(db.renombrarOutfit(any(), eq(5), eq("Mi Outfit"))).thenReturn(true);
 
         ResponseEntity<?> resp = controller.renameSavedOutfit(5, Map.of("nombre", "Mi Outfit"));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isTrue();
-        verify(db).renombrarOutfit(5, "Mi Outfit");
+        verify(db).renombrarOutfit(any(), eq(5), eq("Mi Outfit"));
     }
 
     @Test
@@ -163,12 +171,12 @@ class ApiControllerSavedOutfitsTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).renombrarOutfit(anyInt(), anyString());
+        verify(db, never()).renombrarOutfit(any(), anyInt(), anyString());
     }
 
     @Test
     void renameSavedOutfitNotFoundReturns404() {
-        when(db.renombrarOutfit(99, "x")).thenReturn(false);
+        when(db.renombrarOutfit(any(), eq(99), eq("x"))).thenReturn(false);
 
         Allure.parameter("id", 99);
         ResponseEntity<?> resp = controller.renameSavedOutfit(99, Map.of("nombre", "x"));

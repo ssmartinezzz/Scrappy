@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.UsuarioDePrueba;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,11 +42,11 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
 
     @Test
     void estiloIsPersistedAndReadBack() {
-        db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/gym", true, "gym");
-        db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/casual", true, "casual");
-        db.guardarOutfitFeedbackItem("", "catalog", "https://t/feed", false, "catalog");
+        db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/gym", true, "gym");
+        db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/casual", true, "casual");
+        db.guardarOutfitFeedbackItem(yo(), "", "catalog", "https://t/feed", false, "catalog");
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback();
+        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
 
         assertThat(rows).hasSize(3);
         assertThat(rows).anySatisfy(r -> {
@@ -63,9 +65,9 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
 
     @Test
     void legacyOverloadDefaultsToGym() {
-        db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/legacy", true);
+        db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/legacy", true);
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback();
+        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).estilo()).isEqualTo("gym");
@@ -73,14 +75,14 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
 
     @Test
     void scopedResetClearsOnlyThatEstilo() {
-        db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/gym",     true, "gym");
-        db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/casual",  true, "casual");
-        db.guardarOutfitFeedbackItem("",       "catalog", "https://t/feed",  false, "catalog");
+        db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/gym",     true, "gym");
+        db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/casual",  true, "casual");
+        db.guardarOutfitFeedbackItem(yo(), "",       "catalog", "https://t/feed",  false, "catalog");
 
         Allure.parameter("estilo", "gym");
-        db.limpiarOutfitFeedback("gym");
+        db.limpiarOutfitFeedback(yo(), "gym");
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback();
+        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
         assertThat(rows).hasSize(2);
         assertThat(rows).noneSatisfy(r -> assertThat(r.estilo()).isEqualTo("gym"));
         assertThat(rows).anySatisfy(r -> assertThat(r.estilo()).isEqualTo("casual"));
@@ -89,13 +91,25 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
 
     @Test
     void scopedResetWithBlankEstiloIsNoOp() {
-        db.guardarOutfitFeedbackItem("hombre", "torso", "https://t/gym", true, "gym");
+        db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/gym", true, "gym");
 
         Allure.parameter("estilo", "");
-        db.limpiarOutfitFeedback("");
+        db.limpiarOutfitFeedback(yo(), "");
         Allure.parameter("estilo", null);
-        db.limpiarOutfitFeedback(null);
+        db.limpiarOutfitFeedback(yo(), null);
 
-        assertThat(db.obtenerOutfitFeedback()).hasSize(1);
+        assertThat(db.obtenerOutfitFeedback(yo())).hasSize(1);
+    }
+
+    /**
+     * The owner every personal read and write is scoped by since slice 8.
+     *
+     * <p>A method rather than a field: {@code PostgresTestBase} truncates between
+     * tests, so a cached id would point at a row that no longer exists. Seeding is
+     * idempotent, so calling it repeatedly costs three cheap queries and is always
+     * correct.</p>
+     */
+    private UUID yo() {
+        return UsuarioDePrueba.yo(dataSource());
     }
 }

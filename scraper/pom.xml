@@ -24,6 +24,13 @@
         <allure.version>2.29.1</allure.version>
         <aspectj.version>1.9.24</aspectj.version>
         <testcontainers.version>1.21.4</testcontainers.version>
+        <!-- BouncyCastle backs Argon2PasswordEncoder. Spring Boot 3.2.5's BOM
+             does not manage it, so it is pinned here like flyway-database-postgresql
+             below — an unpinned version is a build that changes under you. -->
+        <bouncycastle.version>1.76</bouncycastle.version>
+        <!-- HS256 access tokens. Boot 3.2.5's BOM does not manage a JWT library
+             either, so this is pinned for the same reason as BouncyCastle. -->
+        <nimbus.jwt.version>9.37.3</nimbus.jwt.version>
         <!-- Spring Boot 3.2.5's dependencyManagement does not pin flyway-database-postgresql
              (added to Boot's managed BOM in later 3.2.x/3.3 lines) — pin explicitly, matching
              the flyway-core version Boot 3.2.5 DOES manage (10.10.0). -->
@@ -97,6 +104,54 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
             <version>${flyway.version}</version>
+        </dependency>
+
+        <!-- Argon2id password hashing (user-accounts-and-roles slice 1).
+             spring-security-crypto + BouncyCastle instead of a native binding:
+             this project ships as a portable Windows installer, and a JNI
+             library would have to be vendored per-architecture. Pure Java has
+             no such tail. The full spring-boot-starter-security is not pulled
+             in — slice 1 has no filter chain and no HTTP surface at all. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+
+        <!-- Spring Security (slice 7). Pulled in only now, with the filter chain:
+             adding it earlier would have switched on Boot's default chain and
+             gated everything by accident, which is precisely the change this
+             slice makes deliberately and visibly. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- SMTP delivery for the opt-in password-reset channel (slice 6). The
+             console channel is the default and needs none of this; the starter
+             is here so choosing SMTP is a config change rather than a rebuild.
+             Version managed by spring-boot-starter-parent. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- JWT (user-accounts-and-roles slice 2). Nimbus rather than jjwt: one
+             artifact instead of three, and it is the library Spring Security
+             itself uses, so a later move to the starter finds it already here. -->
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>${nimbus.jwt.version}</version>
         </dependency>
 
         <!-- Testing (JUnit 5 + Mockito) -->
