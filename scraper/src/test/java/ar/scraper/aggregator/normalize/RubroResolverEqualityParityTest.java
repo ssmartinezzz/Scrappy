@@ -32,9 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code CODE-6} — never in {@code main}) across every {@code sitio_key}
  * parsed out of {@code V18__sitio_lookup_table.sql} (the same "read the
  * artifact, don't paraphrase it" mechanism {@code SitioSeedSyncTest} uses) ×
- * every {@link CategoryGroups#canonicalCategories()} category (81) × every
+ * every {@link CategoryGroups#canonicalCategories()} category (88 desde
+ * add-inpro-office-store; eran 81) × every
  * {@code rubroExistente} in {@code {null, "", "tecnologia", "suplementos",
- * "indumentaria"}} — 23 × 81 × 5 = 9,315 triples.
+ * "indumentaria"}} — 23 × 88 × 5 = 10,120 triples.
  *
  * <p>Any disagreement fails with the exact {@code (sitio, categoria,
  * rubroPrevio)} triple — the "set of affected products" made enumerable
@@ -79,7 +80,7 @@ class RubroResolverEqualityParityTest {
     }
 
     @Test
-    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 81 categorías x 5 rubros previos")
+    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 88 categorías x 5 rubros previos")
     void equalityAgreesWithOldSubstringOracleAcrossTheFullMatrix() {
         List<SeedRow> rows = seedRows();
         Map<String, SiteRegistry.Sitio> cache = new HashMap<>();
@@ -95,7 +96,13 @@ class RubroResolverEqualityParityTest {
         assertThat(sitioKeys).as("sitio_key entries parsed from " + V18).hasSize(23);
 
         Set<String> cats = CategoryGroups.canonicalCategories();
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(81);
+        // add-inpro-office-store, CODE-2 declarado: 81 -> 88. El canon CRECIÓ
+        // (siete categorías de oficina), no se movió: el oráculo de paridad de
+        // este test compara el substring viejo contra la igualdad nueva sobre
+        // los 23 sitios de V18, y ninguno de ellos tiene rubro_forzado='oficina',
+        // así que el resultado por sitio x categoría no cambia. Lo único que
+        // cambia es el tamaño del producto cartesiano que se recorre.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(88);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -115,7 +122,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 81 * 5);
+        assertThat(total).isEqualTo(23L * 88 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

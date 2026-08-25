@@ -21,6 +21,7 @@ import AppLayout, {
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
+import { CONFIG_DEFAULT } from './lib/scrapeDefaults';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import AuthGate from './auth/AuthGate';
 import RequireRole from './auth/RequireRole';
@@ -60,7 +61,7 @@ function SplashRoute() {
   const [progreso, setProgreso] = useState(null);
   const [prods, setProds] = useState([]);
   const [totalProds, setTotalProds] = useState(0);
-  const config = { precioMin: 0, precioMax: 300000 };
+  const config = CONFIG_DEFAULT;
 
   useEffect(() => {
     fetchStatus().then(st => {

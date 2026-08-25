@@ -106,6 +106,53 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 
 ---
 
+### ¿Por qué INPRO es su propia plataforma y no `tiendanube`?
+
+**Decisión** (`add-inpro-office-store`, 2026-08-20): `plataforma='inpro'`, con
+`InproPage`/`InproScraper` propios, aunque los datos que sirve son objetos
+crudos de la API de Tiendanube.
+
+**Razón**: la plataforma que importa es la de la **vidriera**, no la del
+backend. INPRO corre un Next.js propio en Vercel y el storefront clásico de
+Tiendanube no es alcanzable — `inpro.mitiendanube.com` redirige a otra tienda
+(`inproindumentaria.com.ar`) y los slugs candidatos dan 410. Rutearlo a
+`TiendanubeScraper` lo mandaría a buscar selectores de un tema que ahí no
+existe: **0 productos y ningún error**, que es el mismo modo de falla que `V24`
+cerró para Rockethard y Venex.
+
+Leer el payload RSC en vez del DOM además **gana** datos: precio de lista,
+precio promocional, precio comparado, stock por variante y SKU, todo lo que la
+vidriera no muestra.
+
+Esto generaliza: **"qué API sirve los datos" y "qué scraper hay que usar" son
+preguntas distintas**, y confundirlas produce sitios registrados que scrapean
+cero en silencio. El procedimiento de detección está en
+[`ADD_SCRAPER.md`, Caso 6](./ADD_SCRAPER.md).
+
+---
+
+### ¿Por qué `oficina` es un rubro nuevo y no se reusó uno existente?
+
+**Decisión**: abrir `productos.rubro` a un cuarto valor (`V27`) en vez de
+meter sillas y escritorios en `indumentaria`, `tecnologia` o `suplementos`.
+
+**Razón**: `V6` puso `CHECK` en esas columnas justamente para que un valor de
+dominio no pueda mentir sobre el producto. Una silla ergonómica clasificada
+como `tecnologia` no es un compromiso: es el dato roto que el `CHECK` existe
+para impedir, y además contamina las estadísticas por categoría de las que come
+el pipeline ML.
+
+El rubro se resuelve por `sitio.rubro_forzado` y **nunca** por la categoría —
+una silla la vende una tienda de oficina, pero una silla suelta en una tienda
+de ropa no convierte a esa tienda en otra cosa. `suplementos` es la excepción
+deliberada y ya existente: ahí la categoría gana sobre el sitio, porque un
+suplemento es un suplemento lo venda quien lo venda.
+
+El esquema, las tres ampliaciones de `CHECK` y su rollback están en
+[`DATABASE.md`, `V27`](./DATABASE.md).
+
+---
+
 ### Bloqueo conocido: Logg queda fuera de `fix-zero-yield-tech-sites`
 
 De los cinco sitios tech que scrapeaban 0 productos en el run del 2026-08-11
