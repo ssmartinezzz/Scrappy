@@ -78,10 +78,12 @@ convenciones (params server-side, respuestas JSON). Lista completa por grupo:
 
 Autentica por **`username`** y devuelve un access token JWT de 15 minutos.
 
-> ⚠️ **Este endpoint no protege nada.** Emite tokens; todavía no existe ningún
-> `SecurityFilterChain` que los exija. Todos los demás endpoints siguen tan
-> abiertos como antes de que este existiera. Quien despliegue esta fase creyendo
-> que ya tiene control de acceso, no lo tiene.
+> 🔒 **El token que emite acá sí se exige en todos lados.** Esta advertencia
+> decía lo contrario —"este endpoint no protege nada, no existe ningún
+> `SecurityFilterChain`"— y era cierta cuando se escribió, dos slices antes de
+> que existiera el gate. `SecurityConfig` + `JwtAuthFilter` filtran hoy toda ruta
+> `/api/*` contra `ApiRoutePolicy.TABLE`, que termina en `denyAll()`: una ruta
+> sin fila se rechaza, no se permite.
 
 **Request**
 
