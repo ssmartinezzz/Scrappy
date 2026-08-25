@@ -25,8 +25,9 @@ public final class SiteClassification {
     private SiteClassification() {}
 
     // Sitios 100% orientados a ropa/indumentaria de gimnasio
-    // Nota: la marca es "Monky" sin e — el key debe matchear el nombre
-    // configurado del sitio (sitioKey::contains en GymratTagger)
+    // Nota: la marca es "Monky" sin e — el key debe matchear EXACTO el nombre
+    // configurado del sitio (GYM_SITIOS.contains(sitioKey) en GymratTagger,
+    // no substring: un sitio hipotético "bulksupplements" no es Bulks)
     public static final Set<String> GYM_SITIOS = Set.of(
         "bulks", "fuark", "monkyforce", "fursten"
     );

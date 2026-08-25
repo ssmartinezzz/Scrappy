@@ -33,6 +33,17 @@ public class TiendanubeScraper extends BaseScraper {
                 sitio, baseUrl,
                 config.getPrecioMinimo(),
                 config.getPrecioMaximo(),
-                extraUrls);
+                extraUrls,
+                maxPaginas());
+    }
+
+    /**
+     * El scraper es quien une las dos capas: {@code ScraperConfig} parsea el
+     * override opcional por sitio y {@code TiendanubePage} es dueña del default,
+     * así ninguna de las dos depende de la otra y el número sigue definido una
+     * sola vez ({@code CODE-6}).
+     */
+    protected int maxPaginas() {
+        return config.getMaxPaginas(sitio, TiendanubePage.MAX_PAGINAS_DEFAULT);
     }
 }

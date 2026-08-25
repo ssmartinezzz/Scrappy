@@ -123,4 +123,50 @@ class BrandExtractorTest {
         Allure.parameter("sitio", "Harvey");
         assertThat(extractor.extraer("Soquete Harvey Willys Ozzy Black", "Harvey")).isEqualTo("Harvey Willys");
     }
+
+    // ── Morashop brand curation (sdd/add-morashop-and-fix-entreno-pagination,
+    //    brand-curation artifact): 24 tokens measured on the real 433-name
+    //    morashop catalogue, each with a hit count >= 3 and zero conflicts
+    //    with the existing MARCAS entries above. ────────────────────────────
+
+    @Test
+    void extraerMarcaReconoceLosVeinticuatroAgregadosDeMorashop() {
+        assertThat(extractor.extraer("Aminoacidos Labs Nutrition 300g", "Morashop")).isEqualTo("Labs Nutrition");
+        assertThat(extractor.extraer("Proteina Body Advance Whey 2kg", "Morashop")).isEqualTo("Body Advance");
+        assertThat(extractor.extraer("Creatina Grosz Nutrition 300g", "Morashop")).isEqualTo("Grosz Nutrition");
+        assertThat(extractor.extraer("Whey Gold Standard Optimum Nutrition 2kg", "Morashop")).isEqualTo("Optimum Nutrition");
+        assertThat(extractor.extraer("Creatina Universal Nutrition 300g", "Morashop")).isEqualTo("Universal Nutrition");
+        assertThat(extractor.extraer("Bcaa ETH Nutrition 200g", "Morashop")).isEqualTo("ETH Nutrition");
+        assertThat(extractor.extraer("Pre Entreno BSN N.O.-Xplode", "Morashop")).isEqualTo("BSN");
+        assertThat(extractor.extraer("Quemador Nutrex Lipo-6", "Morashop")).isEqualTo("Nutrex");
+        assertThat(extractor.extraer("Suplemento Leguilab Colageno", "Morashop")).isEqualTo("Leguilab");
+        assertThat(extractor.extraer("Vitaminas Innovanaturals Multi", "Morashop")).isEqualTo("Innovanaturals");
+        assertThat(extractor.extraer("Proteina Mervick Lab Whey", "Morashop")).isEqualTo("Mervick");
+        assertThat(extractor.extraer("Suplemento Granger Force", "Morashop")).isEqualTo("Granger");
+        assertThat(extractor.extraer("Barra Crudda Cacao", "Morashop")).isEqualTo("Crudda");
+        assertThat(extractor.extraer("Creatina Gentech Pro", "Morashop")).isEqualTo("Gentech");
+        assertThat(extractor.extraer("Proteina PGN Iso", "Morashop")).isEqualTo("PGN");
+        assertThat(extractor.extraer("Vitaminas Orihens Complex", "Morashop")).isEqualTo("Orihens");
+        assertThat(extractor.extraer("Suplemento Natulabs Omega3", "Morashop")).isEqualTo("Natulabs");
+        assertThat(extractor.extraer("Quemador AMPK Activator", "Morashop")).isEqualTo("AMPK");
+        assertThat(extractor.extraer("Suplemento Pont Colageno", "Morashop")).isEqualTo("Pont");
+        assertThat(extractor.extraer("Suplemento Natuliv Detox", "Morashop")).isEqualTo("Natuliv");
+        assertThat(extractor.extraer("Snack Entrenuts Mix", "Morashop")).isEqualTo("Entrenuts");
+        assertThat(extractor.extraer("Pre Entreno Cellucor C4", "Morashop")).isEqualTo("Cellucor");
+        assertThat(extractor.extraer("Proteina Diabla Whey", "Morashop")).isEqualTo("Diabla");
+        assertThat(extractor.extraer("Suplemento Muecas Whey", "Morashop")).isEqualTo("Muecas");
+    }
+
+    @Test
+    void extraerMarcaNoMatcheaTokensPeladosRechazadosPorAmbiguos() {
+        // Measured rejections (brand-curation artifact): each of these bare
+        // tokens is either a description, an adjective, or ambiguous across
+        // multiple real brands on the morashop catalogue — none is curated.
+        assertThat(extractor.extraer("Proteina Animal Whey Isolate", "Morashop")).isEqualTo("");
+        assertThat(extractor.extraer("The Protein Lab Whey", "Morashop")).isEqualTo("");
+        assertThat(extractor.extraer("Suplemento Nutrition Plus 500g", "Morashop")).isEqualTo("");
+        assertThat(extractor.extraer("Suplemento Super Mass 5kg", "Morashop")).isEqualTo("");
+        assertThat(extractor.extraer("Whey Protein Gold Standard 900g", "Morashop")).isEqualTo("");
+        assertThat(extractor.extraer("Musculosa All Star Tank", "Morashop")).isEqualTo("");
+    }
 }

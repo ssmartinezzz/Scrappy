@@ -35,6 +35,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * rollback <b>ya no está disponible</b>. Eso es prosa en {@code DATABASE.md} y
  * acá es ejecutable, que es la diferencia entre saberlo ahora y descubrirlo el
  * día que haya que revertir de verdad.</p>
+ *
+ * <p><b>add-morashop-and-fix-entreno-pagination, {@code CODE-2} declarado</b>:
+ * editado por un cambio posterior que no toca V27. {@code V28} ensancha el
+ * mismo CHECK a 13 y siembra una fila {@code morashop}, así que el bloque de
+ * V27 ya no puede angostar solo: los rollbacks componen al revés y el de V28
+ * corre primero, en los DOS tests.
+ *
+ * <p>En el segundo eso no es cosmético. Ese test afirma que el rollback falla
+ * <i>por un producto de INPRO vivo</i>; con V28 aplicada también fallaría por
+ * la fila {@code morashop}, y habría quedado en VERDE probando otra cosa. Un
+ * test vacío es peor que uno rojo, porque nadie lo mira. Sacar morashop antes
+ * —no tiene productos, sale limpio— deja que lo único que rompa sea INPRO.
+ *
+ * <p>Las aserciones de comportamiento no se tocaron: los tres dominios
+ * post-rollback siguen siendo los mismos y el {@code hasMessageContaining} es
+ * el mismo. Sólo se agregó una precondición y una aserción aditiva de
+ * pre-estado.</p>
  */
 @Epic("Persistence")
 @Feature("Site registry")
@@ -54,7 +71,12 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(domainOf(st, "sitio", "sitio_rubro_forzado_check")).contains("oficina");
                 assertThat(domainOf(st, "sitio", "sitio_plataforma_check")).contains("inpro");
                 assertThat(sitioKeys(st)).contains("inpro");
+                assertThat(domainOf(st, "sitio", "sitio_plataforma_check")).contains("morashop");
 
+                // Los rollbacks componen al revés: V28 ensanchó este mismo
+                // CHECK y sembró una fila `morashop`, así que el bloque de V27
+                // no puede angostar por encima de ella.
+                st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(DocumentedRollback.sqlFor("V27"));
 
                 assertThat(domainOf(st, "productos", "chk_productos_rubro_domain"))
@@ -100,6 +122,13 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(sitioKeyDe(st, INPRO_URL))
                         .as("la columna generada resuelve a la fila de sitio que V27 sembro")
                         .isEqualTo("inpro");
+
+                // Sin esto el test seria VACUO: con V28 aplicada, el bloque de
+                // V27 tambien tira por la fila `morashop`, y el assert de abajo
+                // pasaria verde sin probar nada sobre INPRO. Se saca morashop
+                // primero —no tiene productos, sale limpio— para que lo unico
+                // que quede rompiendo sea el producto de INPRO.
+                st.execute(DocumentedRollback.sqlFor("V28"));
 
                 assertThatThrownBy(() -> st.execute(DocumentedRollback.sqlFor("V27")))
                         .as("angostar el dominio con una fila plataforma='inpro' viva no puede pasar en silencio")

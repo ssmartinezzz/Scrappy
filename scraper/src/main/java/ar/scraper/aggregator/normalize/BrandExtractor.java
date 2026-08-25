@@ -44,7 +44,17 @@ public class BrandExtractor {
         // marca de SupplementCombo, que compara contra el nombre de la marca real.
         // Sólo formas que se sostienen solas: "Star"/"Gold" pelados matchearían
         // "All Star" y "Gold Standard", el mismo falso positivo que el de DC.
-        "Gold Nutrition","Star Nutrition","Xtrenght","ENA","BSA"
+        "Gold Nutrition","Star Nutrition","Xtrenght","ENA","BSA",
+        // Morashop (sdd/add-morashop-and-fix-entreno-pagination, brand-curation
+        // artifact): 24 tokens measured on the real 433-name morashop catalogue
+        // (27.9% -> 75.1% named coverage), each with a hit count >= 3, zero
+        // conflicts with the entries above. "Animal","Lab","Nutrition","Super",
+        // bare "Gold" and bare "Star" were measured and rejected — descriptions,
+        // adjectives, or ambiguous across multiple real brands (see artifact).
+        "Labs Nutrition","Body Advance","Grosz Nutrition","Optimum Nutrition",
+        "Universal Nutrition","ETH Nutrition","BSN","Nutrex","Leguilab",
+        "Innovanaturals","Mervick","Granger","Crudda","Gentech","PGN","Orihens",
+        "Natulabs","AMPK","Pont","Natuliv","Entrenuts","Cellucor","Diabla","Muecas"
     );
 
     // Word-boundary patterns (no substring matches) — evita falsos positivos
