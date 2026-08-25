@@ -56,6 +56,9 @@ public class ScraperFactory {
         if ("monkyforce".equals(plataforma))
             return new MonkyforceScraper(config, display, site.url(), site.extraUrls());
 
+        if ("morashop".equals(plataforma))
+            return new MorashopScraper(config, display, site.url(), site.extraUrls());
+
         return new TiendanubeScraper(config, display, site.url(), site.extraUrls());
     }
 }

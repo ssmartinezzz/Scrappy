@@ -32,8 +32,8 @@ public class GymratTagger {
 
         if (GarmentTaxonomy.anyMatch(n, GarmentTaxonomy.KW_TRAINING_ROPA)) return true;
         if (marca != null && SiteClassification.GYM_MARCAS.contains(marca.trim().toLowerCase())) return true;
-        if (SiteClassification.GYM_SITIOS.stream().anyMatch(sitioKey::contains)) return true;
-        if (sitioKey.contains("entreno")) return true;
+        if (SiteClassification.GYM_SITIOS.contains(sitioKey)) return true;
+        if ("entreno".equals(sitioKey)) return true;
         return false;
     }
 }

@@ -34,6 +34,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Rollbacks compose in reverse order, so the test now applies V27's block
  * before V24's. That was always the semantics; nothing above V24 existed to
  * make it visible until now.</p>
+ *
+ * <p><b>add-morashop-and-fix-entreno-pagination, {@code CODE-2} declared
+ * again</b>: the SECOND time this happened, which is what makes it a pattern
+ * rather than an anecdote. {@code V28} widens the same CHECK to 13 and seeds a
+ * {@code morashop} row, so the pre-state moved from 12 to 13 and V28's
+ * rollback now runs first — newest to oldest, V28 then V27 then V24.
+ *
+ * <p>The rule both edits follow, so this does not erode into "edit whatever is
+ * red": a CLOSED-DOMAIN assertion may move from {@code n} to {@code n+1} when
+ * the domain legitimately grows, provided every behavioural assertion around
+ * it stays exactly as it was. Here the post-rollback assertion is still the
+ * same 9 values and the seed-first ordering this test exists to prove is
+ * untouched. Softening a {@code containsExactlyInAnyOrder} into a
+ * {@code contains} to make red go away would be the opposite.</p>
  */
 @Epic("Persistence")
 @Feature("Site")
@@ -50,11 +64,14 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
-                        "qloud", "oscommerce", "inpro");
+                        "qloud", "oscommerce", "inpro", "morashop");
                 assertThat(sitioKeys(st)).contains("rockethard", "venex");
 
-                // Reverse order: V27 sits on top of V24 and left an `inpro` row
-                // behind. Narrowing straight to 9 would break against it.
+                // Rollbacks compose in reverse order, newest first: both V27
+                // and V28 sit on top of V24 and each left a row behind
+                // (`inpro`, `morashop`). Narrowing straight to 9 breaks
+                // against either one.
+                st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(DocumentedRollback.sqlFor("V27"));
                 st.execute(rollbackSql());
 
