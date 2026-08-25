@@ -128,6 +128,22 @@ public class ResultAggregator {
     ) {}
 
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain) {
+        return agregar(resultados, forceRetrain, null);
+    }
+
+    /**
+     * Igual, informando el {@code started_at} de la corrida para que el
+     * soft-delete se acote a lo que ella tocó y no a este batch (design D4).
+     *
+     * <p>El batch es la mitad reanudada cuando la corrida se retoma, así que
+     * sin este dato el barrido deja de cubrir los sitios de la mitad
+     * interrumpida y sus filas viejas quedan activas para siempre.</p>
+     *
+     * @param runStartedAt {@code null} cuando no hay corrida persistida — el
+     *                     alcance vuelve a derivarse del batch, como antes.
+     */
+    public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain,
+                                    java.time.Instant runStartedAt) {
         ValidationResult validacion = validarYContar(resultados);
         List<Product>    sorted     = deduplicarYOrdenar(validacion.todos());
 
@@ -135,7 +151,7 @@ public class ResultAggregator {
 
         persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
 
-        db.upsertProductos(pipeline.enriquecidos());
+        db.upsertProductos(pipeline.enriquecidos(), runStartedAt);
         db.guardarMlOutput(pipeline.mlOut());
         if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
             db.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));

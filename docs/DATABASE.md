@@ -157,9 +157,43 @@ miró: para uno que no se miró no hay evidencia de nada, y `activo=false` es un
 afirmación, no la falta de una. Sin esa cota, scrapear un rubro solo daba por
 desaparecido el catálogo entero — pasó de verdad (2026-08-15): un run de solo
 tecnología desactivó 5806 productos de 19 sitios no visitados, Sporting de 1860
-a 0. **El alcance se deriva del batch, no de la lista de sitios pedidos**: un
-sitio cuyo scraper se rompió llega con 0 productos, y "se rompió" no es "se
-vació" — para eso está `SiteYieldGuard`. Un batch vacío no desactiva nada.
+a 0. **El alcance nunca sale de la lista de sitios pedidos**: un sitio cuyo
+scraper se rompió llega con 0 productos, y "se rompió" no es "se vació" — para
+eso está `SiteYieldGuard`. Un batch vacío no desactiva nada.
+
+**De dónde sale el alcance, desde `scrape-run-persistence-and-resume` (D4).**
+Con una corrida persistida, los dos arrays salen de una sola consulta dentro de
+la transacción del upsert, después de `sp_upsert_run`:
+
+```sql
+SELECT url, sitio FROM productos WHERE touched_at >= <scrape_run.started_at>
+```
+
+Eso es "todo lo que esta corrida vio", y abarca las dos mitades de un resume
+porque `upsertParcial` va commiteando cada sitio a medida que termina. Sin
+corrida —un llamador sin `started_at`— el alcance vuelve a derivarse del batch,
+que es el comportamiento previo exacto.
+
+⚠️ **Los dos arrays se ensanchan juntos o ninguno.** Ensanchar `p_sitios` a
+todos los sitios de la corrida dejando `p_urls` con las URLs de una sola mitad
+haría que *todos* los productos de los demás sitios parezcan ausentes: los
+desactiva **enteros**, estrictamente peor que el bug que se quería arreglar. Por
+eso `ProductRepository` los devuelve en un único `record Alcance` y no como dos
+búsquedas separadas — el error deja de ser representable en vez de quedar
+desaconsejado en un comentario.
+
+**La cota es inclusiva (`>=`) a propósito.** `touched_at` se escribe con formato
+de segundo entero (`"yyyy-MM-dd HH:mm:ss"`) y `ScrapeRunRepository.crear`
+trunca `started_at` al segundo para que coincida. Las filas escritas durante el
+primer segundo de la corrida comparan iguales y quedan **dentro**. Con una cota
+exclusiva —o con un `started_at` con precisión sub-segundo— esas filas se leerían
+como ausentes y se soft-deletearían productos que la corrida acababa de escribir.
+Es la dirección opuesta a la cota del lector (`touched_at < started_at`), y la
+asimetría es deliberada: el barrido tiene que proteger de más, el lector puede
+mostrar una fila fresca de más.
+
+`R__sp_soft_delete_ausentes.sql` **no se tocó**: su contrato ya era correcto,
+lo que era demasiado angosto era la noción de "esta corrida" del llamador.
 
 ⚠️ **El upsert se traga los errores SQL**: `ProductRepository` loguea y
 devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error.
