@@ -44,7 +44,8 @@ class ScraperFactoryPlatformTest {
             "foreverbstrd", new SiteRegistry.Sitio("Foreverbstrd", "foreverbstrd", "tiendanube", false, null, "config"),
             "barnes", new SiteRegistry.Sitio("Barnes", "barnes", "tiendanube", false, null, "config"),
             "rockethard", new SiteRegistry.Sitio("Rockethard", "rockethard", "qloud", false, "tecnologia", "config"),
-            "venex", new SiteRegistry.Sitio("Venex", "venex", "oscommerce", false, "tecnologia", "config")
+            "venex", new SiteRegistry.Sitio("Venex", "venex", "oscommerce", false, "tecnologia", "config"),
+            "morashop", new SiteRegistry.Sitio("Morashop", "morashop", "morashop", false, "suplementos", "config")
     ));
 
     @Step("Create scraper for sitio={nombre}, url={url}")
@@ -82,6 +83,35 @@ class ScraperFactoryPlatformTest {
     void barnesStaysOnTiendanube() {
         assertThat(crear("barnes", "https://barnesindustries.com.ar"))
                 .isInstanceOf(TiendanubeScraper.class);
+    }
+
+    /**
+     * Pins the triple match that keeps morashop off the default branch: the
+     * V28 seed's {@code plataforma}, the {@code "morashop"} literal in
+     * {@link ScraperFactory#crear}, and {@code PLATAFORMAS_VALIDAS}. Correct
+     * today but unpinned until now — and unpinned is what matters, because
+     * drift here does not throw, it falls through to {@link TiendanubeScraper}.
+     *
+     * <p>For this site that fallback is the worst possible one. Morashop's
+     * configured URL is the {@code /suplementos/} section index, which serves
+     * ZERO products: the base page would scrape it happily and report an empty
+     * catalogue. Same silent-0 class as {@code forever} before V24, except
+     * nothing would even look wrong.
+     *
+     * <p>Gap found by the four-lens review of PR #151, which flagged the
+     * identical hole for {@code inpro}. Same fixture, same omission.
+     */
+    @Test
+    void morashopRoutesToItsOwnScraperAndNeverFallsThroughToTiendanube() {
+        BaseScraper scraper = crear("morashop", "https://www.morashop.ar/suplementos/");
+
+        assertThat(scraper).isInstanceOf(MorashopScraper.class);
+        // Explicit, because MorashopScraper IS a TiendanubeScraper: an
+        // isInstanceOf check alone would pass on the very regression this
+        // test exists to catch.
+        assertThat(scraper.getClass())
+                .as("caer al default seria 0 productos en silencio: /suplementos/ no lista nada")
+                .isNotEqualTo(TiendanubeScraper.class);
     }
 
     @Test
