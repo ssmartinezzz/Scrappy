@@ -92,6 +92,45 @@ class ScrapeControlEndpoints {
     }
 
     // ---------------------------------------------------------------
+    // Corrida interrumpida: ofrecerla y retomarla
+    // ---------------------------------------------------------------
+
+    /**
+     * Qué dejó abierto el proceso anterior. Sólo informa: detectar no reanuda.
+     */
+    ResponseEntity<ObjectNode> interrumpida() {
+        ObjectNode b = JsonNodeFactory.instance.objectNode();
+        var det = service.getInterrumpida();
+        b.put("hayInterrumpida", det != null);
+        if (det != null) {
+            b.put("uuid",      det.uuid().toString());
+            b.put("startedAt", det.startedAt().toString());
+            b.put("soloFaltaLaPasadaFinal", det.soloFaltaLaPasadaFinal());
+            ArrayNode at = b.putArray("atendidos");
+            det.atendidos().forEach(at::add);
+            ArrayNode pe = b.putArray("pendientes");
+            det.pendientes().forEach(pe::add);
+            // Los salteados se nombran a propósito: un sitio que salió del
+            // registro entre la caída y el reinicio no se puede retomar, y que
+            // desaparezca en silencio de una corrida que lo debía es peor que
+            // no retomarlo.
+            ArrayNode sk = b.putArray("salteados");
+            det.salteados().forEach(sk::add);
+        }
+        return ResponseEntity.ok(b);
+    }
+
+    ResponseEntity<ObjectNode> retomar() {
+        ObjectNode b = JsonNodeFactory.instance.objectNode();
+        boolean ok = service.reanudar();
+        b.put("retomando", ok);
+        b.put("mensaje", ok
+                ? "Retomando la corrida interrumpida"
+                : "No hay corrida interrumpida, o ya hay un scraping en curso");
+        return ResponseEntity.ok(b);
+    }
+
+    // ---------------------------------------------------------------
     // Cancelar
     // ---------------------------------------------------------------
     ResponseEntity<ObjectNode> cancelar() {
