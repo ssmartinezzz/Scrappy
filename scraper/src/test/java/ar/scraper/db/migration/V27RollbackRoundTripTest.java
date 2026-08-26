@@ -76,6 +76,13 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // Los rollbacks componen al revés: V28 ensanchó este mismo
                 // CHECK y sembró una fila `morashop`, así que el bloque de V27
                 // no puede angostar por encima de ella.
+                // add-zentra-and-mmartinez: V30 siembra Zentra con
+                // rubro_forzado='oficina'. Mientras esa fila viva, el bloque
+                // de V27 —que angosta sitio_rubro_forzado_check sacando justo
+                // ese valor— es RECHAZADO por Postgres, que valida las filas
+                // existentes al re-agregar el CHECK. Los rollbacks componen al
+                // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V30"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(DocumentedRollback.sqlFor("V27"));
 
@@ -128,6 +135,13 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // pasaria verde sin probar nada sobre INPRO. Se saca morashop
                 // primero —no tiene productos, sale limpio— para que lo unico
                 // que quede rompiendo sea el producto de INPRO.
+                // add-zentra-and-mmartinez: V30 siembra Zentra con
+                // rubro_forzado='oficina'. Mientras esa fila viva, el bloque
+                // de V27 —que angosta sitio_rubro_forzado_check sacando justo
+                // ese valor— es RECHAZADO por Postgres, que valida las filas
+                // existentes al re-agregar el CHECK. Los rollbacks componen al
+                // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V30"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
 
                 assertThatThrownBy(() -> st.execute(DocumentedRollback.sqlFor("V27")))
