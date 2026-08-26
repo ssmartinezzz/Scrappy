@@ -34,6 +34,10 @@ export function useScrapeStatusPolling() {
   const [progreso, setProgreso] = useState(null);
   const [totalProds, setTotalProds] = useState(0);
   const [backendUnreachable, setBackendUnreachable] = useState(false);
+  // Hay catálogo cargado, sea cual sea el estado de la corrida. Es lo que
+  // decide si /splash puede ofrecer una salida al catálogo: "¿hay algo a lo
+  // que volver?" es una pregunta distinta de "¿cuántos productos hay?".
+  const [tieneData, setTieneData] = useState(false);
   // A run already in flight when this mounts — after a resume, or a reload
   // mid-run. Raised ONCE by the mount read and never again: the interval
   // drives RUNNING on its own afterwards, and a flag that tracked the live
@@ -66,6 +70,8 @@ export function useScrapeStatusPolling() {
       setStatus(st.status || 'IDLE');
       setMensaje(st.mensaje || '');
       setProgreso(st.progreso || null);
+      setTieneData(!!st.tieneData);
+      if (st.tieneData) setTotalProds(st.total || 0);
       if (st.status === 'RUNNING') setPollingNeeded(true);
     });
     return () => { alive = false; };
@@ -85,7 +91,13 @@ export function useScrapeStatusPolling() {
 
       setBackendUnreachable(false);
       setStatus(st.status); setMensaje(st.mensaje); setProgreso(st.progreso);
-      if (st.status === 'RUNNING' && st.tieneData) setTotalProds(st.progreso?.total || 0);
+      // `st.total` es el tamaño del CATÁLOGO. `st.progreso.total` es la cantidad
+      // de SITIOS de la corrida (ProgressData(totalSitios, ...)), que es lo que
+      // esto leía — el botón decía "Ver N productos disponibles" mostrando 29.
+      // Y estaba gateado en RUNNING, así que en reposo quedaba en 0 y esa
+      // salida al catálogo no se dibujaba nunca.
+      setTieneData(!!st.tieneData);
+      if (st.tieneData) setTotalProds(st.total || 0);
       if (TERMINAL.has(st.status)) {
         stopPolling();
         onDone?.();
@@ -99,7 +111,7 @@ export function useScrapeStatusPolling() {
   }, []);
 
   return {
-    status, mensaje, progreso, totalProds, backendUnreachable, pollingNeeded,
+    status, mensaje, progreso, totalProds, tieneData, backendUnreachable, pollingNeeded,
     startPolling, stopPolling, markRunning,
   };
 }
