@@ -44,7 +44,7 @@ function Disclosure({ title, children, defaultOpen = false }) {
 }
 
 export default function SplashPanel({
-  config, scrapeStatus, scrapeMsg, progreso,
+  config, scrapeStatus, scrapeMsg, progreso, backendUnreachable = false,
   onScrapeStart, onStartPolling, onGoToApp, prods, totalProds,
 }) {
   const [sitios,    setSitios]    = useState([]);
@@ -57,7 +57,14 @@ export default function SplashPanel({
   const [clearMsg,     setClearMsg]     = useState('');
   const [clearOk,      setClearOk]      = useState(null);
   const pctRef    = useRef(5);
-  const isRunning = scrapeStatus === 'RUNNING';
+  // `scrapeStatus` mirrors the backend's own ScraperStatus, so this component
+  // never invents a value for it: when the poller cannot reach the backend, the
+  // last thing it said is still RUNNING. What that costs us is the right to
+  // keep DISPLAYING progress — an advancing bar over a backend that stopped
+  // answering is a screen that lies, which is the bug this slice closes. The
+  // launch controls stay locked meanwhile: as far as anyone knows a run is live.
+  const isRunning    = scrapeStatus === 'RUNNING';
+  const showProgress = isRunning && !backendUnreachable;
 
   useEffect(() => {
     fetchSitios().then(data => {
@@ -70,7 +77,7 @@ export default function SplashPanel({
 
   // Progress animation
   useEffect(() => {
-    if (!isRunning) return;
+    if (!showProgress) return;
     const t = setInterval(() => {
       const real = progreso?.total > 0
         ? Math.round((progreso.completados / progreso.total) * 92)
@@ -80,7 +87,7 @@ export default function SplashPanel({
       setPct(capped); pctRef.current = capped;
     }, 600);
     return () => clearInterval(t);
-  }, [isRunning, progreso]);
+  }, [showProgress, progreso]);
 
   async function handleScrape() {
     if (selected.length === 0) return;
@@ -244,8 +251,14 @@ export default function SplashPanel({
                 </div>
               )}
 
+              {isRunning && backendUnreachable && (
+                <p role="alert" className="text-center text-[.72rem] text-danger">
+                  No se pudo contactar al servidor.
+                </p>
+              )}
+
               {/* Progress bar */}
-              {isRunning && (
+              {showProgress && (
                 <div className="flex flex-col gap-1.5">
                   <div className="mb-0.5 flex justify-between text-[.7rem] text-t4">
                     <span>{scrapeMsg || 'Procesando...'}</span>
