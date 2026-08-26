@@ -446,6 +446,70 @@ tiene `run`.
 
 ---
 
+## GET /scrape/interrupted
+
+**ADMIN.** Qué dejó abierto el proceso anterior. **Sólo informa.**
+
+```json
+{
+  "hayInterrumpida": true,
+  "uuid": "f4dec74b-...",
+  "startedAt": "2026-08-25T22:54:59Z",
+  "soloFaltaLaPasadaFinal": false,
+  "atendidos":  ["freres", "midway"],
+  "pendientes": ["batuk", "tussy"],
+  "salteados":  []
+}
+```
+
+**Detectar no reanuda.** La detección corre en `cargarDesdeBD()`
+(`@PostConstruct`) y lo único que hace es levantar esta bandera. Un reinicio que
+retomara trabajo por su cuenta sería una falla peor que la caída que está
+atendiendo: nadie pidió ese scrape, y el servidor puede haberse reiniciado
+justo para dejar de hacerlo.
+
+Cómo se reparten los sitios:
+
+| Grupo | Qué es | Por qué |
+|---|---|---|
+| `atendidos` | `DONE` o `ERROR` | Ya tuvieron su turno. Un `ERROR` además reintentó tres veces adentro de la corrida, así que ofrecerlo de nuevo es ofrecer repetir un fallo |
+| `pendientes` | `PENDING` o `RUNNING` | Nunca arrancaron, o los agarró la caída a mitad — su resultado parcial murió con el proceso, así que se les debe lo mismo |
+| `salteados` | `SKIPPED` | Salieron del registro entre la caída y el reinicio. **Se nombran a propósito**: que desaparezcan en silencio de una corrida que los debía es peor que no retomarlos |
+
+`soloFaltaLaPasadaFinal` es el caso que se olvida: todos los sitios terminaron y
+la caída pegó durante la pasada de ML/agregación. Ahí re-scrapear es trabajo
+puro perdido.
+
+---
+
+## POST /scrape/resume
+
+**ADMIN.** Retoma la corrida interrumpida. Sólo los sitios que faltan.
+
+**Response:** `{"retomando": true, "mensaje": "..."}` · `false` cuando no hay
+nada que retomar o ya hay un scraping en curso.
+
+**Reusa la fila de corrida original, no abre una nueva**, y eso es lo que
+sostiene todo lo demás. `started_at` es a la vez la cota de aislamiento del
+lector y el alcance del barrido final. Con una fila nueva las dos nombrarían
+**sólo la mitad retomada**, y el barrido leería los productos de la primera
+mitad como ausentes y los desactivaría — estrictamente peor que la interrupción
+que venía a reparar. Preservarla también evita una columna `resumed_from` que no
+haría falta.
+
+Tres caídas, tres comportamientos:
+
+1. **A mitad de un sitio** → ese sitio vuelve a `PENDING` y se re-scrapea.
+2. **Después de varios** → sólo los que faltan.
+3. **Después de que todos terminaron** → **no se re-scrapea nada**: corre sólo
+   el barrido final, con el alcance derivado de `touched_at >= started_at`.
+
+⚠️ El caso 3 **no vuelve a correr el pipeline de ML**. Esa mitad se recupera
+sola en la próxima corrida normal. Lo que no se puede postergar es el barrido:
+sin él los productos ausentes quedan activos para siempre.
+
+---
+
 ## POST /scrape/cancel
 
 **ADMIN.** Pide que la corrida en curso se detenga. Idempotente.

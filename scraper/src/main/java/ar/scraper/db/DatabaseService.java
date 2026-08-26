@@ -270,6 +270,23 @@ public class DatabaseService {
         return scrapeRunRepository.marcarInterrumpidosAlArrancar(cuando);
     }
 
+    /** La corrida que dejó abierta un proceso muerto, con sus sitios ya separados. */
+    public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida()
+            throws SQLException {
+        return scrapeRunRepository.ultimaInterrumpida();
+    }
+
+    /** Reabre una corrida interrumpida EN SU LUGAR, conservando su started_at. */
+    public void reabrirScrapeRun(long runId) throws SQLException {
+        scrapeRunRepository.reabrir(runId);
+    }
+
+    /** Marca SKIPPED los sitios pendientes que ya no están en el registro y los devuelve. */
+    public java.util.List<String> marcarSitiosAusentesDelRegistro(
+            long runId, java.util.Collection<String> nombresActuales) throws SQLException {
+        return scrapeRunRepository.marcarAusentesDelRegistro(runId, nombresActuales);
+    }
+
     /** The reader-isolation bound for a run. Truncated to the second — see the repository. */
     public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) throws SQLException {
         return scrapeRunRepository.startedAtDe(runId);
