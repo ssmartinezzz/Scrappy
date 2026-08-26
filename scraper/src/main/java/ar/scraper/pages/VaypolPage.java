@@ -262,48 +262,13 @@ public class VaypolPage extends BasePage {
 
     private List<Product> extraerDeNextData(String base) {
         try {
-            // Extraer __NEXT_DATA__ completo Y hacer CDN scan para imágenes
-            String jsonResult = (String) page.evaluate(
+            String rawJson = (String) page.evaluate(
                 "(function() {" +
                 "  var el = document.getElementById('__NEXT_DATA__');" +
-                "  if (!el) return null;" +
-                "  var raw = el.textContent;" +
-                "  var data;" +
-                "  try { data = JSON.parse(raw); } catch(e) { return null; }" +
-                // Escanear TODO el JSON buscando URLs del CDN de Vaypol
-                "  var cdnRe = /production\\.cdn\\.vaypol\\.com\\/variants\\/([a-zA-Z0-9]+)\\/([a-f0-9]{60,})/g;" +
-                "  var cdnUrls = [];" +
-                "  var m;" +
-                "  var str = raw;" +
-                "  while ((m = cdnRe.exec(str)) !== null) {" +
-                "    cdnUrls.push('https://production.cdn.vaypol.com/variants/' + m[1] + '/' + m[2]);" +
-                "  }" +
-                "  return JSON.stringify({ raw: raw, cdnUrls: cdnUrls });" +
+                "  return el ? el.textContent : null;" +
                 "})()"
             );
-            if (jsonResult == null || jsonResult.isBlank()) return List.of();
-
-            JsonNode wrapper = MAPPER.readTree(jsonResult);
-            String rawJson   = wrapper.path("raw").asText("");
-            JsonNode cdnArr  = wrapper.path("cdnUrls");
-
-            // Armar mapa deduplicado de imágenes CDN encontradas
-            // El primero de cada hash diferente es la imagen del producto
-            // (los siguientes son diferentes variantes del mismo producto)
-            List<String> cdnImgs = new ArrayList<>();
-            Set<String> hashesVistas = new LinkedHashSet<>();
-            if (cdnArr.isArray()) {
-                for (JsonNode u : cdnArr) {
-                    String url = u.asText("");
-                    // El hash es la parte final (64 hex chars) — único por producto
-                    String[] parts = url.split("/");
-                    String hash = parts.length > 0 ? parts[parts.length - 1] : "";
-                    if (!hash.isBlank() && hashesVistas.add(hash)) {
-                        cdnImgs.add(url);
-                    }
-                }
-            }
-            log.info("[{}] __NEXT_DATA__ CDN scan: {} imágenes únicas", sitio, cdnImgs.size());
+            if (rawJson == null || rawJson.isBlank()) return List.of();
 
             // Parsear __NEXT_DATA__ para productos
             JsonNode root = MAPPER.readTree(rawJson);
@@ -317,12 +282,11 @@ public class VaypolPage extends BasePage {
             log.debug("[{}] __NEXT_DATA__ → {} productos", sitio, products.size());
 
             List<Product> result = new ArrayList<>();
-            int imgIdx = 0;
             for (JsonNode p : products) {
-                // Asignar imagen CDN por índice si está disponible
-                String imgOverride = (imgIdx < cdnImgs.size()) ? cdnImgs.get(imgIdx++) : "";
-                fromNextData(p, base, imgOverride).ifPresent(result::add);
+                fromNextData(p, base).ifPresent(result::add);
             }
+            log.info("[{}] __NEXT_DATA__ → {} productos, {} con imagen", sitio, result.size(),
+                    result.stream().filter(x -> x.imagenUrl() != null && !x.imagenUrl().isBlank()).count());
             return result;
 
         } catch (Exception e) {
@@ -376,7 +340,7 @@ public class VaypolPage extends BasePage {
         return null;
     }
 
-    private Optional<Product> fromNextData(JsonNode p, String base, String imgOverride) {
+    private Optional<Product> fromNextData(JsonNode p, String base) {
         try {
             // Nombre
             String nombre = p.path("name").asText("");
@@ -387,11 +351,25 @@ public class VaypolPage extends BasePage {
             String slug = p.path("slug").asText("");
             String url  = slug.isBlank() ? "" : base + "/" + slug;
 
-            // Imagen — usar override del CDN scan si disponible, sino buscar en campos
-            String img = (imgOverride != null && !imgOverride.isBlank()) ? imgOverride : "";
-            JsonNode imgNode = img.isBlank() ? p.path("image") : null;
-            if (imgNode == null) imgNode = MAPPER.createObjectNode();
-            if (!imgNode.isMissingNode()) {
+            // Imagen — `dummy_images` es el campo que Vaypol usa de verdad, y lo
+            // trae CADA producto. La versión anterior no lo miraba: escaneaba el
+            // JSON entero por URLs del CDN y las repartía POR ÍNDICE. Eso no puede
+            // alinear — una página trae 60 productos y ~133 URLs porque cada uno
+            // tiene varias variantes, así que el producto N se llevaba una imagen
+            // de otro. Leerla del propio nodo no necesita alinear nada.
+            String img = "";
+            JsonNode dummies = p.path("dummy_images");
+            if (dummies.isArray() && !dummies.isEmpty()) {
+                img = dummies.get(0).path("url").asText("");
+            }
+            if (img.isBlank()) {
+                // Cada rama sólo puede RELLENAR. La versión anterior entraba acá
+                // con un ObjectNode vacío cuando ya tenía imagen, y `isObject()`
+                // la mandaba a `path("url").asText("")` — que pisaba con "" la
+                // imagen que acababa de resolver. El override del CDN nunca
+                // sobrevivía a esta línea, y por eso el 100% de los productos
+                // salía sin foto y caía al fetch individual.
+                JsonNode imgNode = p.path("image");
                 if (imgNode.isTextual()) {
                     img = imgNode.asText("");
                 } else if (imgNode.isObject()) {
