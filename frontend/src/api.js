@@ -21,6 +21,23 @@ export async function startScrape({ precioMin, precioMax, sitios, forceRetrain =
   return r.ok ? r.json() : null;
 }
 
+// scrape-run-persistence-and-resume slice 6. Both routes are ADMIN in
+// ApiRoutePolicy.TABLE, so a VIEWER gets 403 and an expired token 401 —
+// neither is an interrupted run, and neither may take down the page the
+// banner sits on. Null means "no offer to show", same as an empty one.
+export async function fetchInterrumpida() {
+  const r = await authedFetch(`${BASE}/api/scrape/interrupted`);
+  return r.ok ? r.json() : null;
+}
+
+// Answers 200 with `retomando:false` when there is nothing to resume or a
+// scrape is already running. Reading only r.ok would send the user to a
+// progress screen for a run that never started.
+export async function retomarScrape() {
+  const r = await authedFetch(`${BASE}/api/scrape/resume`, { method: 'POST' });
+  return r.ok ? r.json() : null;
+}
+
 export async function limpiarCatalogo() {
   return authedFetch(`${BASE}/api/db/productos`, { method: 'DELETE' });
 }
