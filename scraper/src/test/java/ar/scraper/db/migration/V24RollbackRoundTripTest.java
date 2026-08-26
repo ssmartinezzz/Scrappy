@@ -71,6 +71,13 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 // and V28 sit on top of V24 and each left a row behind
                 // (`inpro`, `morashop`). Narrowing straight to 9 breaks
                 // against either one.
+                // add-zentra-and-mmartinez: V30 siembra Zentra con
+                // rubro_forzado='oficina'. Mientras esa fila viva, el bloque
+                // de V27 —que angosta sitio_rubro_forzado_check sacando justo
+                // ese valor— es RECHAZADO por Postgres, que valida las filas
+                // existentes al re-agregar el CHECK. Los rollbacks componen al
+                // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V30"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(DocumentedRollback.sqlFor("V27"));
                 st.execute(rollbackSql());
