@@ -242,6 +242,48 @@ class ScrapeRunRepositoryTest extends PostgresTestBase {
         assertThat(estadoDelRun(completado)).isEqualTo("COMPLETED");
     }
 
+    // ── the reader bound's suppression (D6) ─────────────────────────────────
+
+    @Test
+    @DisplayName("a fresh install has no completed run, so the reader bound stays off")
+    void frescoNoTieneCorridaCompletada() throws Exception {
+        assertThat(repo().existeCorridaCompletada()).isFalse();
+    }
+
+    @Test
+    @DisplayName("the run in flight does not count — that is the whole point of D6")
+    void unaCorridaEnCursoNoCuenta() throws Exception {
+        repo().crear(UUID.randomUUID(), Instant.now(), null, null, List.of(SITIO_CONOCIDO));
+
+        assertThat(repo().existeCorridaCompletada())
+                .as("with \"any run at all\" a fresh install whose FIRST run is in "
+                    + "flight would apply the bound, nothing would satisfy "
+                    + "touched_at < started_at, and the reader would get an empty "
+                    + "screen — exactly what the bound's suppression exists to prevent")
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("only COMPLETED counts: cancelled, interrupted and failed runs do not")
+    void soloCompletadaCuenta() throws Exception {
+        for (String terminal : List.of("CANCELLED", "INTERRUPTED", "ERROR")) {
+            long runId = repo().crear(UUID.randomUUID(), Instant.now(), null, null,
+                    List.of(SITIO_CONOCIDO));
+            repo().finalizar(runId, terminal, 0, Instant.now());
+
+            assertThat(repo().existeCorridaCompletada())
+                    .as("%s left the catalogue half-swept, so there is no clean "
+                        + "pre-run state for a reader to be held at", terminal)
+                    .isFalse();
+        }
+
+        long limpia = repo().crear(UUID.randomUUID(), Instant.now(), null, null,
+                List.of(SITIO_CONOCIDO));
+        repo().finalizar(limpia, "COMPLETED", 10, Instant.now());
+
+        assertThat(repo().existeCorridaCompletada()).isTrue();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /**

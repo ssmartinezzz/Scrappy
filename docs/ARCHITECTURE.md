@@ -267,6 +267,66 @@ Porque era un número sin dueño. El loop paraba en 25 páginas, un valor compar
 
 **El default vive en `TiendanubePage`, no en `ScraperConfig`**: `ar.scraper.pages` no importa `ar.scraper.config` y esa frontera valía la pena conservarla, pero tener el número dos veces valía menos. La solución es que la page sea dueña de la constante, que config sólo parsee el override, y que el scraper —el único que ya depende de las dos capas— les pase el fallback. Una definición sola (`CODE-6`) sin invertir la dependencia.
 
+### ¿Por qué un lector no ve la corrida que está en curso?
+
+Porque durante un scrape el catálogo no es un estado, es una transición. El
+soft-delete desactiva lo ausente, el upsert re-toca lo presente y
+`fromDBParcial` rearma el snapshot en memoria una vez por sitio terminado: entre
+el sitio 1 y el 26 el catálogo pasa por veintiséis formas intermedias, y ninguna
+es una foto de nada. Servir eso hace que un producto desaparezca de la búsqueda
+y reaparezca dos minutos después sin que nadie haya tocado nada.
+
+El aislamiento tiene **dos mitades** porque hay dos familias de lectores:
+
+| | Qué lee | Cómo se aísla |
+|---|---|---|
+| `/api/data`, `/api/facets` | SQL contra `productos` | Cota `touched_at < started_at` en los cinco predicados `activo` |
+| `/api/mejores`, `/api/grupos`, outfits, agente | El snapshot en memoria | `servedResult`: la referencia a `lastResult` tal como estaba al arrancar |
+
+**Por qué en memoria es una referencia y no una cota**: acotar el snapshot
+significa re-filtrar ~20k productos en cada request, y `/api/grupos` ya reagrupa
+el catálogo filtrado entero por request a través de `AccentStripper`, un hot path
+documentado. `AggregatedResult` ya es copy-on-write, así que retener la
+referencia vieja cuesta ~15 MB retenidos y **cero** en el pico — la corrida ya
+sostiene dos o tres catálogos profundos por sitio terminado. O(n) por request
+para ahorrar una referencia es el trade equivocado.
+
+**El lector se aísla del SCRAPE, no de sí mismo.** Los cuatro caminos por los que
+un usuario cambia el catálogo a mano —soft-delete manual, reclasificación del
+agente, activar un preset de financiación, y `DELETE /api/db/productos`— parchean
+**las dos** fotos bajo `catalogLock`. Olvidarse de uno no rompe nada visible: da
+un defecto que sólo existe mientras hay una corrida abierta, que es exactamente
+la clase de bug que ningún test de una sola foto puede ver.
+
+**Por qué la cota SQL se suprime hasta que haya una corrida `COMPLETED`**, y no
+"hasta que haya alguna corrida": en una instalación nueva la primera corrida *es*
+una corrida. Con la regla floja la cota se aplicaría, ninguna fila cumpliría
+`touched_at < started_at`, y el dashboard serviría una pantalla vacía durante todo
+el primer scrape — justo lo que la supresión existe para evitar. Los otros estados
+terminales (`CANCELLED`, `INTERRUPTED`, `ERROR`) tampoco cuentan: dejan el catálogo
+a medio barrer, o sea sin un estado previo limpio en el que sostener al lector.
+Ausencia de cota significa **servir todo**, nunca "cota = epoch, no servir nada".
+
+La foto en memoria no necesita ese guard porque degrada sola: sin catálogo previo
+`servedResult` queda null y el lector cae al vivo, que es precisamente ver el
+progreso. Queda una ventana angosta y aceptada —una instalación que ya tenía
+productos pero ninguna corrida registrada, o sea el primer scrape después de
+`V29`— en la que las superficies SQL muestran el movimiento y las de memoria no.
+Dura una corrida y se cierra sola.
+
+**`/api/producto/{key}` queda exento**, por el mismo motivo por el que ya está
+exento de `activo`: una ficha no puede tirar 404 a mitad de una corrida. No es una
+excepción escrita a mano — entra por `obtenerProductoPorKey`, que nunca pasa por
+`CatalogQueryRepository`, así que no hay nada de qué eximirlo. Hay un test que lo
+fija para que agregarle la cota rompa el build.
+
+**La cota es `<` estricto, deliberadamente al revés que el `>=` de la unión del
+soft-delete.** Es la misma columna en direcciones opuestas y las dos son
+correctas: el barrido tiene que **proteger** filas de ser borradas, así que
+incluye el segundo del arranque; el lector puede **ocultar** una fila fresca de
+más, que no le cuesta nada a nadie. Una fila tocada en el primer segundo de la
+corrida queda oculta, no visible temprano.
+
 ---
 
 ## Diagrama de capas y topología de servicios
