@@ -531,3 +531,49 @@ export async function applyProposal(proposal) {
   if (r.status === 409) return { scraping: true };
   return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
 }
+
+// ─── Administración de cuentas (ADMIN) ──────────────────────────────────────
+// Estas devuelven el body en el ÉXITO Y EN EL ERROR, a diferencia del
+// `r.ok ? r.json() : null` del resto del archivo. No es inconsistencia por
+// descuido: UsuarioAdminEndpoints responde 409 `ultimo_admin` con un mensaje
+// que explica por qué se negó y qué hacer antes de reintentar. Colapsarlo a
+// null convertiría la única guarda no recuperable por API en un error mudo.
+async function usuariosFetch(path, init) {
+  const r = await authedFetch(`${BASE}/api/usuarios${path}`, init);
+  let body = null;
+  try { body = await r.json(); } catch { /* sin cuerpo, o no es JSON */ }
+  return { ok: r.ok, status: r.status, body };
+}
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+/** → `[{ id, username, email, activo, esServicio, roles: [...] }]`, o null. */
+export async function fetchUsuarios() {
+  const { ok, body } = await usuariosFetch('', undefined);
+  return ok && Array.isArray(body) ? body : null;
+}
+
+export function crearUsuario({ username, password, email, role }) {
+  return usuariosFetch('', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ username, password, email, role }),
+  });
+}
+
+export function cambiarRolUsuario(username, role) {
+  return usuariosFetch(`/${encodeURIComponent(username)}/rol`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ role }),
+  });
+}
+
+/** Desactiva — el backend NO borra, para no arrastrar la auditoría. */
+export function desactivarUsuario(username) {
+  return usuariosFetch(`/${encodeURIComponent(username)}`, { method: 'DELETE' });
+}
+
+export function reactivarUsuario(username) {
+  return usuariosFetch(`/${encodeURIComponent(username)}/activar`, { method: 'PUT' });
+}
