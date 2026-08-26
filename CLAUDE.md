@@ -229,7 +229,7 @@ Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/F
 |-------|-----------|
 | Auth | POST `/api/auth/login` · POST/DELETE `/api/auth/refresh` · GET `/api/auth/me` · POST `/api/auth/password-reset/request` · `/confirm` |
 | Usuarios | GET/POST `/api/usuarios` · PUT `/api/usuarios/{username}/rol` · DELETE `/api/usuarios/{username}` · PUT `/api/usuarios/{username}/activar` — **ADMIN, sin UI** |
-| Scraping | GET `/api/status` · POST `/api/scrape` |
+| Scraping | GET `/api/status` · POST `/api/scrape` · POST `/api/scrape/cancel` |
 | Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
 | ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
 | Comparador | GET `/api/grupos` · `/api/buscar-externo` (MercadoLibre) |
@@ -482,6 +482,18 @@ Por eso `tests/e2e/run-e2e.sh` corre siempre contra `npm run preview` y **falla
 ruidosamente si se descubre same-origin** en vez de pasar callado. Si tocás auth,
 CORS o cookies, esa suite no es opcional: los tests unitarios no pueden ver esta
 clase de bug, por construcción.
+
+**`fetchStatus` devuelve `null` si la respuesta no es ok, pero *rechaza* si no
+hay nadie escuchando:** `authedFetch` llama a `fetch` pelado, así que un backend
+muerto nunca llega al `if (!st)` — la callback muere con una promesa rechazada y
+el último `RUNNING` bueno queda congelado en pantalla mientras la pestaña siga
+abierta. Todo lector de `api.js` tiene que cubrir **las dos formas**: `null` y
+excepción. El poller del splash lo hace en
+`frontend/src/hooks/useScrapeStatusPolling.js`, que las colapsa en "no hay
+status" y expone un `backendUnreachable` aparte: "no lo puedo contactar" y
+"sigue corriendo" son frases distintas, y la pantalla tiene que decir la
+correcta. Ese estado **no** se mete en `scrapeStatus`, que espeja el
+`ScraperStatus` del backend; lo que se apaga es el progreso, no el campo.
 
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
 corre los tests con JRE 21. El comando completo está en

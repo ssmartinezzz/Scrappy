@@ -32,6 +32,15 @@ public class ScraperService {
 
     private static final int TIMEOUT_GLOBAL_MIN  = 45;
     private static final int TIMEOUT_POR_SITIO_S = 600;
+
+    /**
+     * How often the cancellation flag gets a look while waiting for a site.
+     *
+     * <p>Five seconds is the responsiveness of cancel, not a timeout: the site
+     * budget above is untouched. See {@link #esperarResultado} for why this is
+     * NOT the same as shortening the budget.</p>
+     */
+    private static final long POLL_GRANULARIDAD_MS = 5_000;
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ScraperConfig    config;
@@ -53,6 +62,31 @@ public class ScraperService {
             java.util.Optional.empty();
     private volatile int ultimasCategoriasRefinadas = 0;
     private volatile boolean forceRetrain = false;
+
+    /**
+     * Set by {@code POST /api/scrape/cancel}, cleared when a run starts.
+     *
+     * <p>Deliberately a field on the service and NOT inside {@code RunState},
+     * which the design suggested: {@code RunState} is null whenever the run
+     * bookkeeping failed to open its row, and cancellation must keep working
+     * when the database does not. Cancelling is a safety control; it cannot
+     * depend on accounting.</p>
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean cancelado =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /**
+     * Every {@code Playwright} currently alive, so cancelling can close them.
+     *
+     * <p>Not a contingency: measured. Six chromium processes survived
+     * {@code exec.shutdownNow()} flat for six minutes, still parented to the
+     * JVM — a leak, not orphans, in a process that never restarts on a server.
+     * {@code shutdownNow} interrupts threads, and Playwright's transport blocks
+     * on pipe reads that are not guaranteed interruptible, so try-with-resources
+     * never gets to run its close.</p>
+     */
+    private final java.util.Set<Playwright> playwrightsVivos =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     // Lock compartido entre el pipeline de scraping (que muta lastResult desde
     // un hilo en background, progresivamente y al finalizar) y
@@ -334,6 +368,8 @@ public class ScraperService {
         List<ScraperConfig.SiteConfig> todos = buildSiteList(sitiosSeleccionados);
         int totalSitios = todos.size();
 
+        cancelado.set(false);
+        playwrightsVivos.clear();
         abrirRun(todos);
 
         // Inicializar progreso
@@ -368,11 +404,18 @@ public class ScraperService {
             ecs.submit(() -> {
                 try {
                     return withRetry(() -> {
-                        try (Playwright pw = Playwright.create()) {
+                        // Registrado ANTES de usarse y sacado en el finally: si
+                        // cancelar llega en el medio, tiene a quién cerrarle.
+                        Playwright pw = Playwright.create();
+                        playwrightsVivos.add(pw);
+                        try {
                             BaseScraper scraper = ScraperFactory.crear(config, site, db.siteRegistry());
                             return scraper.ejecutar(pw);
+                        } finally {
+                            playwrightsVivos.remove(pw);
+                            pw.close();
                         }
-                    }, 3, 2000);
+                    }, 3, 2000, cancelado::get);
                 } catch (Exception e) {
                     return new ScrapeResult(site.nombre(), List.of(), e.getMessage(), 0);
                 }
@@ -404,10 +447,17 @@ public class ScraperService {
             }
 
             try {
-                Future<ScrapeResult> f = ecs.poll(wait, TimeUnit.SECONDS);
+                long deadlineSitio = System.currentTimeMillis() + wait * 1000L;
+                Future<ScrapeResult> f =
+                        esperarResultado(ecs, deadlineSitio, POLL_GRANULARIDAD_MS, cancelado);
+
+                if (cancelado.get()) {
+                    RUN_LOG.warn("[CANCEL]  Cancelación pedida — se deja de esperar sitios");
+                    break;
+                }
                 if (f == null) {
-                    // Poll timed out — el sitio puede haber terminado justo ahora
-                    // Intentar un poll inmediato antes de abandonar
+                    // Gracia de 2s, igual que antes: un sitio puede terminar justo
+                    // sobre el vencimiento del presupuesto.
                     f = ecs.poll(2, TimeUnit.SECONDS);
                     if (f == null) {
                         RUN_LOG.warn("[ESPERA]  Sin respuesta en {}s, continuando...", wait);
@@ -468,6 +518,22 @@ public class ScraperService {
             }
         }
         exec.shutdownNow();
+
+        if (cancelado.get()) {
+            // `aggregator.agregar` NO corre, y eso es el punto entero. Adentro
+            // vive el soft-delete, que da por ausente todo lo que no vino en
+            // ESTA tanda de resultados — y una corrida cancelada tiene, por
+            // definición, sitios que nunca llegaron a hablar. Agregar acá
+            // desactivaría el catálogo de todos ellos. Cancelar deja el catálogo
+            // exactamente como estaba, que es lo que alguien espera al cancelar.
+            cerrarPlaywrightsHuerfanos();
+            cerrarRun("CANCELLED", 0);
+            status.set(ScraperStatus.DONE);
+            statusMsg.set("Cancelado — el catálogo quedó como estaba");
+            RUN_LOG.warn("[CANCEL]  Corrida cancelada: no se agregó ni se hizo soft-delete.");
+            RUN_LOG.info("════════════════════════════════════════════════════════");
+            return;
+        }
 
         // ── Agregación ───────────────────────────────────────────────────────
         statusMsg.set("Procesando y agregando resultados...");
@@ -547,6 +613,46 @@ public class ScraperService {
         if (idx < 0 || idx >= lista.size()) return;
         SitioProgress old = lista.get(idx);
         lista.set(idx, new SitioProgress(old.nombre(), estado, n, error, ms));
+    }
+
+    /**
+     * Asks the running scrape to stop. Idempotent; a no-op when nothing runs.
+     *
+     * @return false when there was nothing to cancel
+     */
+    public boolean cancelar() {
+        if (status.get() != ScraperStatus.RUNNING) return false;
+        cancelado.set(true);
+        statusMsg.set("Cancelando...");
+        RUN_LOG.warn("[CANCEL]  Cancelación pedida por el usuario");
+        return true;
+    }
+
+    public boolean estaCancelado() { return cancelado.get(); }
+
+    /**
+     * Closes whatever browsers outlived the executor.
+     *
+     * <p>The count is logged rather than assumed: this is the one place that can
+     * tell us whether the interrupt-based teardown ever starts working, and a
+     * silent close would hide both the leak and its eventual fix.</p>
+     */
+    private void cerrarPlaywrightsHuerfanos() {
+        int sobrevivientes = playwrightsVivos.size();
+        if (sobrevivientes == 0) {
+            LOG.info("[CANCEL] no quedaron instancias de Playwright vivas");
+            return;
+        }
+        LOG.warn("[CANCEL] cerrando {} instancia(s) de Playwright que sobrevivieron "
+                 + "a shutdownNow()", sobrevivientes);
+        for (Playwright pw : playwrightsVivos) {
+            try {
+                pw.close();
+            } catch (Exception e) {
+                LOG.warn("[CANCEL] no se pudo cerrar una instancia: {}", e.getMessage());
+            }
+        }
+        playwrightsVivos.clear();
     }
 
     // ── Bookkeeping de la corrida (V29) ─────────────────────────────────────
@@ -702,11 +808,73 @@ public class ScraperService {
      * <p>Package-private so {@code ScraperServiceRetryTest} (same package) can
      * call it directly without exposing it as a public API.</p>
      */
+    /**
+     * Waits for one site result, in short hops against an accumulated deadline.
+     *
+     * <p>The budget is unchanged — still per-site, still
+     * {@code min(TIMEOUT_POR_SITIO_S, global remaining)}. What changes is that
+     * the wait is no longer <b>one</b> blocking {@code poll} of up to ten
+     * minutes, so a cancellation flag is seen within a poll window instead of
+     * whenever the current site happens to finish.</p>
+     *
+     * <p><b>Do not "simplify" this back into a single short poll.</b> An empty
+     * poll returning to the caller makes it {@code continue}, and that
+     * {@code continue} advances the outer per-site loop — so every empty poll
+     * would spend a site's slot. At five seconds a run exhausts all 26 slots in
+     * about 130 seconds and finishes having collected almost nothing while every
+     * site is still working. Empty hops must cost nothing; only the deadline
+     * ends the wait. {@code ScraperServicePollGranularityTest} fixes this.</p>
+     *
+     * @return the completed site, or {@code null} if the budget ran out or the
+     *         run was cancelled — the caller distinguishes them by the flag.
+     */
+    static Future<ScrapeResult> esperarResultado(
+            ExecutorCompletionService<ScrapeResult> ecs, long deadlineMs,
+            long granularidadMs, java.util.concurrent.atomic.AtomicBoolean cancelado)
+            throws InterruptedException {
+        while (true) {
+            // Checked BEFORE polling, so a cancel arriving between sites is not
+            // made to sit through a poll window it did not need to.
+            if (cancelado.get()) return null;
+
+            long restanteMs = deadlineMs - System.currentTimeMillis();
+            if (restanteMs <= 0) return null;
+
+            Future<ScrapeResult> f =
+                    ecs.poll(Math.min(granularidadMs, restanteMs), TimeUnit.MILLISECONDS);
+            if (f != null) return f;
+        }
+    }
+
     static ScrapeResult withRetry(java.util.concurrent.Callable<ScrapeResult> task,
                                   int maxAttempts, long baseDelayMs)
             throws InterruptedException {
+        return withRetry(task, maxAttempts, baseDelayMs, () -> false);
+    }
+
+    /**
+     * Same, but abandons the retries once the run is cancelled.
+     *
+     * <p>This overload exists because cancelling closes surviving
+     * {@code Playwright} instances from the outside, which makes the blocking
+     * call in flight throw — and a retry loop reads a throw as "try again". Each
+     * attempt builds a fresh browser, so without this check <b>cancelling would
+     * open up to two more browsers per site instead of closing them</b>, and the
+     * more sites were in flight the worse it would get.</p>
+     *
+     * <p>The flag is read in two places on purpose: before the first attempt, so
+     * a site whose turn comes after the cancel never launches at all; and after a
+     * failure, so a cancellation arriving mid-attempt does not buy a retry.</p>
+     */
+    static ScrapeResult withRetry(java.util.concurrent.Callable<ScrapeResult> task,
+                                  int maxAttempts, long baseDelayMs,
+                                  java.util.function.BooleanSupplier cancelado)
+            throws InterruptedException {
         Exception last = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            if (cancelado.getAsBoolean()) {
+                return new ScrapeResult("", List.of(), "cancelado", 0);
+            }
             try {
                 return task.call();
             } catch (InterruptedException ie) {
@@ -714,6 +882,7 @@ public class ScraperService {
                 throw ie;
             } catch (Exception e) {
                 last = e;
+                if (cancelado.getAsBoolean()) break;
                 if (attempt < maxAttempts && baseDelayMs > 0) {
                     Thread.sleep(baseDelayMs * attempt);
                 }
