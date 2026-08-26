@@ -159,3 +159,49 @@ describe('startScrape', () => {
     expect(global.fetch.mock.calls.at(-1)[1]).toMatchObject({ method: 'POST' });
   });
 });
+
+describe('interrupted run: reading the offer and taking it (slice 6)', () => {
+  it('reads the interrupted run from GET /api/scrape/interrupted', async () => {
+    const { fetchInterrumpida } = await import('@/api');
+    global.fetch.mockResolvedValue(jsonResponse({
+      hayInterrumpida: true, atendidos: ['freres'], pendientes: ['vcp'], salteados: [],
+    }));
+
+    const r = await fetchInterrumpida();
+
+    expect(calledUrl().pathname).toBe('/api/scrape/interrupted');
+    expect(global.fetch.mock.calls.at(-1)[1]?.method ?? 'GET').toBe('GET');
+    expect(r.hayInterrumpida).toBe(true);
+  });
+
+  it('resolves null instead of throwing when the offer cannot be read', async () => {
+    // A VIEWER gets 403 here and an expired token gets 401. Neither is an
+    // interrupted run, and neither may take the screen down: the banner is an
+    // additive notice on top of a page that has its own job.
+    const { fetchInterrumpida } = await import('@/api');
+    global.fetch.mockResolvedValue({ ok: false, status: 403, json: async () => ({}) });
+
+    await expect(fetchInterrumpida()).resolves.toBeNull();
+  });
+
+  it('takes the offer with POST /api/scrape/resume', async () => {
+    const { retomarScrape } = await import('@/api');
+    global.fetch.mockResolvedValue(jsonResponse({ retomando: true, mensaje: 'Retomando…' }));
+
+    const r = await retomarScrape();
+
+    expect(calledUrl().pathname).toBe('/api/scrape/resume');
+    expect(global.fetch.mock.calls.at(-1)[1].method).toBe('POST');
+    expect(r.retomando).toBe(true);
+  });
+
+  it('reports a refused resume as retomando:false, never as a silent success', async () => {
+    // The backend answers 200 with `retomando:false` when another scrape got
+    // in first. Reading only r.ok would navigate to a progress screen for a
+    // run that was never started.
+    const { retomarScrape } = await import('@/api');
+    global.fetch.mockResolvedValue(jsonResponse({ retomando: false, mensaje: 'ya hay un scraping en curso' }));
+
+    await expect(retomarScrape()).resolves.toMatchObject({ retomando: false });
+  });
+});

@@ -18,6 +18,8 @@ import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
+import { useInterruptedRun } from '../hooks/useInterruptedRun';
+import InterruptedRunBanner from './InterruptedRunBanner';
 
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
 const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
@@ -403,6 +405,11 @@ export default function AppLayout() {
   // whole tree — Topbar's canScrape, the AgentChatPanel mount, and the
   // outlet context all derive from this one value.
   const { isAdmin } = useAuth();
+  // scrape-run-persistence-and-resume slice 6. Mounted at layout level, not on
+  // /splash: a run that crashed committed partial data, so `tieneData` is true
+  // and RootGate routes an ADMIN to the catalogue. A banner only /splash
+  // carried would never be seen in the one scenario it exists for.
+  const interrumpida = useInterruptedRun(isAdmin);
   const [S, dispatch] = useReducer(reducer, init);
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
@@ -675,6 +682,17 @@ export default function AppLayout() {
       <div className="layout">
         <div className="content">
           <PrimaryNav ref={tabbarRef} />
+
+          {/* An offer, never a hijack: the route under it is untouched and
+              nothing redirects (spec, "ADMIN progress routing without a hard
+              redirect"). Resuming is what sends the user to /splash. */}
+          <InterruptedRunBanner
+            run={interrumpida.run}
+            busy={interrumpida.busy}
+            error={interrumpida.error}
+            onDismiss={interrumpida.dismiss}
+            onRetomar={async () => { if (await interrumpida.retomar()) navigate('/splash'); }}
+          />
 
           <Suspense fallback={<RouteFallback/>}>
             <Outlet context={{
