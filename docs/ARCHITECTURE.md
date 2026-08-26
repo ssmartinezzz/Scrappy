@@ -320,6 +320,16 @@ excepción escrita a mano — entra por `obtenerProductoPorKey`, que nunca pasa 
 `CatalogQueryRepository`, así que no hay nada de qué eximirlo. Hay un test que lo
 fija para que agregarle la cota rompa el build.
 
+**Adoptar la corrida y aislar al lector son una sola operación** (`adoptarCorrida`),
+no dos que haya que acordarse de llamar juntas. Hay **tres** caminos que ponen una
+corrida en curso —la normal, la retomada, y la retoma que sólo debe el barrido
+final— y sólo el primero pasa por `abrirRun`. Con el aislamiento colgado de
+`abrirRun`, los otros dos servían el catálogo a medio rearmar durante todo el
+scrape, justo en el escenario donde más importa: una retoma corre sobre un
+catálogo que ya quedó a medias. Ninguna de las dos ramas podía verlo con sus
+propios tests —una no tenía aislamiento, la otra no tenía retoma— y las dos
+mitades de `ScraperService` auto-mergean limpio, así que git tampoco avisa.
+
 **La cota es `<` estricto, deliberadamente al revés que el `>=` de la unión del
 soft-delete.** Es la misma columna en direcciones opuestas y las dos son
 correctas: el barrido tiene que **proteger** filas de ser borradas, así que
