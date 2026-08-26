@@ -134,6 +134,9 @@ public final class ApiRoutePolicy {
             new RoutePolicy(CUALQUIERA, List.of("/api/db/**"), Access.ADMIN,
                     "includes GET /api/db/export — a bulk-exfiltration read, not a benign one"),
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape"), Access.ADMIN),
+            // Sin esta fila la ruta da 403 y RouteCoverageTest rompe el build:
+            // la tabla no tiene catch-all, termina en denyAll().
+            new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape/cancel"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.PUT), List.of("/api/config"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.POST, HttpMethod.DELETE),
                     List.of("/api/sitios", "/api/sitios/**"), Access.ADMIN,

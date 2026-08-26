@@ -427,9 +427,46 @@ Estado actual del scraper.
   "status": "IDLE | RUNNING | DONE | ERROR",
   "mensaje": "Completado: 3034 productos",
   "tieneData": true,
-  "total": 3034
+  "total": 3034,
+  "run": {
+    "uuid": "f4dec74b-8a28-49c9-b206-1301811fbfc8",
+    "startedAt": "2026-08-25T22:54:59Z",
+    "cancelando": false
+  }
 }
 ```
+
+**`run` es aditivo y sólo aparece mientras hay una corrida abierta** (`V29`).
+`status` **no** cambió y no va a cambiar: sigue siendo `IDLE | RUNNING | DONE |
+ERROR`, y **una corrida cancelada reporta `DONE`**, con el motivo en `mensaje`.
+Agregar `CANCELLED` al enum habría cambiado la superficie del contrato del CLI
+(`cli/core/rest.py`) sin ganar nada funcional — un cliente que sólo mira
+`status` ve una corrida que terminó, que es la verdad. El que quiera el detalle
+tiene `run`.
+
+---
+
+## POST /scrape/cancel
+
+**ADMIN.** Pide que la corrida en curso se detenga. Idempotente.
+
+**Response:** `{"cancelando": true, "mensaje": "..."}` · `cancelando: false`
+cuando no había nada corriendo.
+
+Qué hace, exactamente:
+
+- Deja de esperar sitios dentro de los **~5 s** del pedido. Antes de esto el
+  loop se bloqueaba hasta 600 s en un solo `poll`, así que una cancelación
+  podía tardar diez minutos en notarse.
+- **No corre la agregación**, y eso es el punto. Adentro vive la pasada de
+  soft-delete, que da por ausente todo lo que no vino en *esta* tanda de
+  resultados — y una corrida cancelada tiene, por definición, sitios que nunca
+  llegaron a hablar. Cancelar deja el catálogo **exactamente como estaba**.
+- Cierra los browsers que sobrevivieron. Medido contra proceso real: 24
+  chromium + 4 node durante una corrida de 4 sitios, **0 a los 10 s** del
+  cancel. Sin ese cierre sobreviven al `shutdownNow()` y quedan colgados del
+  JVM, que en un server no reinicia nunca.
+- Marca la corrida `CANCELLED` en `scrape_run`, con su `finished_at`.
 
 ---
 

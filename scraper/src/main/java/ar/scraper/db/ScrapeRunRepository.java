@@ -278,12 +278,24 @@ class ScrapeRunRepository {
      * still ship the bug, so the guarantee lives in code that callers cannot
      * route around.</p>
      *
-     * <p><b>The asymmetry this leaves, deliberately accepted:</b> the reader
-     * bound is {@code touched_at < started_at}, so rows written in that same
-     * first second fall OUTSIDE it — visible to a reader slightly early. That is
-     * a one-second freshness leak at the very start of a run, before any site
-     * can plausibly have finished, and it loses nobody any data. The alternative
-     * was a {@code scrape_run_id} column on {@code productos}, which the design
+     * <p><b>What the two predicates do with a first-second row, since it is easy
+     * to get backwards.</b> The soft-delete union is {@code touched_at >=
+     * started_at} and the reader bound is {@code touched_at < started_at}. A row
+     * touched in the run's own first second has {@code touched_at ==
+     * started_at}, so the union <b>includes</b> it and the reader
+     * <b>excludes</b> it. Both are right, and they agree: that row belongs to the
+     * in-flight run, which is exactly what the union has to sweep and exactly
+     * what the reader has to hide. Hiding it is the isolation working, not a
+     * gap — do not "fix" it.</p>
+     *
+     * <p><b>The one genuine asymmetry, accepted deliberately:</b> truncation
+     * WIDENS both predicates by up to a second, so a row written in the same
+     * second but <i>before</i> the run opened is also treated as the run's. For
+     * the union that direction is the safe one — it protects a row from the
+     * sweep, never sweeps an extra one. For the reader it means that row stays
+     * hidden until the run ends: a sub-second-old write, invisible for the
+     * duration. Nobody loses data, and the alternative was a
+     * {@code scrape_run_id} column on {@code productos}, which the design
      * rejected for touching the hottest table in the schema.</p>
      */
     private static Instant truncarAlSegundo(Instant instante) {
