@@ -18,6 +18,7 @@ import AppLayout, {
   RecomendadosPanelRoute,
   SuplementosPanelRoute,
   CronjobsPanelRoute,
+  UsuariosAdminPanelRoute,
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
@@ -142,6 +143,10 @@ export default function App() {
                 AccessDenied screen for a VIEWER, never a silent redirect —
                 the whole surface is ADMIN in ApiRoutePolicy.TABLE. */}
             <Route path="cronjobs"   element={<RequireRole role="ADMIN"><CronjobsPanelRoute/></RequireRole>}/>
+            {/* ABM de cuentas. Toda /api/usuarios/** es ADMIN en
+                ApiRoutePolicy.TABLE, así que el gate de ruta espeja la
+                política del backend en vez de esconder un botón. */}
+            <Route path="admin/manage/users" element={<RequireRole role="ADMIN"><UsuariosAdminPanelRoute/></RequireRole>}/>
             <Route path="*" element={<NotFound/>}/>
           </Route>
         </Routes>

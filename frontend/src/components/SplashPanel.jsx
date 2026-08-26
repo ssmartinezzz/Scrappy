@@ -93,8 +93,14 @@ export default function SplashPanel({
     if (selected.length === 0) return;
     setPct(5); pctRef.current = 5;
     onScrapeStart();
-    await startScrape({ precioMin, precioMax, sitios: selected, forceRetrain });
-    onStartPolling(() => onGoToApp());
+    // Armed in `finally`: a rejected POST may still have started the run
+    // (2026-08-26 it did). The backend's status is the truth, not this response.
+    try {
+      await startScrape({ precioMin, precioMax, sitios: selected, forceRetrain });
+    } catch { /* the poll reports what actually happened */ }
+    finally {
+      onStartPolling(() => onGoToApp());
+    }
   }
 
   async function handleBorrarCatalogo() {

@@ -34,6 +34,7 @@ const FinanPanel     = lazy(() => import('./FinanPanel'));
 const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
 const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
 const CronjobsPage      = lazy(() => import('./CronjobsPage'));
+const UsuariosAdminPanel = lazy(() => import('./UsuariosAdminPanel'));
 const PriceHistoryPage  = lazy(() => import('./PriceHistoryPage'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -384,6 +385,12 @@ function CronjobsRoute() {
   return <CronjobsPage/>;
 }
 
+// Igual que CronjobsRoute: el panel se trae sus propias cuentas, así que no
+// necesita nada del outlet context.
+function UsuariosAdminRoute() {
+  return <UsuariosAdminPanel/>;
+}
+
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
   CategoryPicksPageRoute,
@@ -397,6 +404,7 @@ export {
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
   SuplementosRoute as SuplementosPanelRoute,
   CronjobsRoute as CronjobsPanelRoute,
+  UsuariosAdminRoute as UsuariosAdminPanelRoute,
 };
 
 // ─── AppLayout ───────────────────────────────────────────────────────────────

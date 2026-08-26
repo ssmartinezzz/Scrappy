@@ -4,7 +4,7 @@
 import {
   ShoppingBag, Trophy, Sparkles,
   Compass, LineChart, Bookmark,
-  Tag, Pill, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock,
+  Tag, Pill, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock, Users,
 } from 'lucide-react';
 
 // kind: 'link'  → direct NavLink, no submenu
@@ -36,14 +36,18 @@ export const NAV_CONFIG = [
       { label: 'Outfits', to: '/outfits', icon: Shirt },
     ],
   },
-  // No hay grupo "Admin" todavía — un solo destino de administración no
-  // amerita un menú agrupado propio, así que va como link directo (mismo
-  // tratamiento que Catálogo/Picks/Para ti) al final de la fila/drawer.
+  // Los destinos de administración van como links directos al final de la
+  // fila/drawer, no agrupados bajo un menú "Admin". Con dos ya daría para
+  // agruparlos, y sigue sin hacerse a propósito: el label de primer nivel
+  // "Cronjobs" está fijado por nav-config.test.js, NavMenubar.test.jsx,
+  // NavDrawer.test.jsx y App.test.jsx, y agrupar es una decisión de
+  // navegación aparte — no el precio de sumar una pantalla.
   // frontend-auth-ui Phase 7 (design D6): `requires` marca un nodo como
   // visible SOLO para ese rol — hidden, not disabled (spec
-  // frontend-role-awareness). `/api/cron/**` es ADMIN entero en
-  // ApiRoutePolicy.TABLE.
+  // frontend-role-awareness). `/api/cron/**` y `/api/usuarios/**` son ADMIN
+  // enteros en ApiRoutePolicy.TABLE.
   { kind: 'link', label: 'Cronjobs', to: '/cronjobs', icon: Clock, requires: 'ADMIN' },
+  { kind: 'link', label: 'Cuentas', to: '/admin/manage/users', icon: Users, requires: 'ADMIN' },
 ];
 
 // frontend-auth-ui Phase 7 (design D6, tasks-part2 7.1/7.2). Single source of
