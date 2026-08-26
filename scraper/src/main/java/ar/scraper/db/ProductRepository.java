@@ -18,9 +18,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -68,6 +71,46 @@ class ProductRepository {
      * sinCambios, desactivados}.
      */
     DatabaseService.UpsertStats upsertProductos(List<Product> productos) {
+        return upsertProductos(productos, null);
+    }
+
+    /**
+     * Same merge, with the soft-delete scope derived from the run instead of
+     * from this batch (design D4).
+     *
+     * <p><b>The problem.</b> {@code aggregator.agregar} hands over only the
+     * results it holds. On a resumed run that is the resumed half alone, so a
+     * batch-derived scope stops sweeping every site the interrupted half had
+     * covered, and their stale rows stay {@code activo} forever.</p>
+     *
+     * <p><b>Why not simply widen {@code p_sitios}.</b> Widening the site list
+     * while {@code p_urls} still held only the resumed half's URLs would make
+     * every product of the other sites look absent, and
+     * {@code sp_soft_delete_ausentes} would deactivate them <i>entirely</i> —
+     * strictly worse than the bug being fixed. Both arrays have to widen
+     * together, which is exactly what deriving them from one query guarantees.</p>
+     *
+     * <p><b>Why {@code touched_at} and not a run id.</b> "Everything this run
+     * saw" is already recorded: {@code upsertParcial} commits each site's rows
+     * as it finishes, stamping {@code touched_at} from the same Java clock.
+     * Reading it back spans both halves without a {@code scrape_run_id} column
+     * on the hottest table in the schema, and without passing a run id into
+     * {@code sp_soft_delete_ausentes} — whose body stays byte-identical to
+     * {@code V5}, as {@code StoredProcedureDriftTest} asserts.</p>
+     *
+     * <p><b>The bound is inclusive on purpose.</b> {@code touched_at} is written
+     * through a whole-second format ({@link #DT}), and
+     * {@code ScrapeRunRepository.crear} truncates {@code started_at} to match.
+     * Rows written during the run's own first second therefore compare equal and
+     * {@code >=} keeps them. An exclusive bound — or a sub-second
+     * {@code started_at} — would read them as absent and soft-delete products
+     * the run had just written.</p>
+     *
+     * @param runStartedAt the run's {@code started_at}, or {@code null} when the
+     *                     caller has no run; then the scope falls back to the
+     *                     batch, behaving exactly as it did before this change.
+     */
+    DatabaseService.UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
@@ -90,17 +133,15 @@ class ProductRepository {
                     }
                 }
 
-                Set<String> urlsNuevoRun    = new LinkedHashSet<>();
-                Set<String> sitiosDelRun     = new LinkedHashSet<>();
-                for (Product p : productos) {
-                    if (p.url() == null || p.url().isBlank()) continue;
-                    urlsNuevoRun.add(p.url());
-                    if (p.sitio() != null && !p.sitio().isBlank()) sitiosDelRun.add(p.sitio());
-                }
-                // El alcance del soft-delete sale del batch, no de la lista de
-                // sitios pedidos: un sitio cuyo scraper se rompió llega con 0
+                // El alcance del soft-delete NO sale de la lista de sitios
+                // pedidos: un sitio cuyo scraper se rompió llega con 0
                 // productos, y no hay que confundir "se rompió" con "se vació".
-                int desactivados = softDeleteAusentes(c, urlsNuevoRun, now, sitiosDelRun);
+                // Sale de lo que la corrida efectivamente tocó — de la base
+                // cuando hay run, del batch cuando no.
+                Alcance alcance = runStartedAt != null
+                        ? alcanceDelRun(c, runStartedAt)
+                        : alcanceDelBatch(productos);
+                int desactivados = softDeleteAusentes(c, alcance.urls(), now, alcance.sitios());
 
                 purgarHistorialViejo(c);
 
@@ -171,6 +212,52 @@ class ProductRepository {
             row.put("fecha", fecha);
         }
         return MAPPER.writeValueAsString(arr);
+    }
+
+    /**
+     * The two arrays {@code sp_soft_delete_ausentes} takes, kept together
+     * because widening one without the other is the destructive failure the
+     * union exists to prevent.
+     */
+    private record Alcance(Set<String> urls, Set<String> sitios) {}
+
+    /**
+     * Everything the run has written so far, across every half it completed.
+     *
+     * <p>Read inside the caller's transaction and after {@code sp_upsert_run},
+     * so this batch's own rows are already stamped and included.</p>
+     */
+    private Alcance alcanceDelRun(Connection c, Instant runStartedAt) throws SQLException {
+        Set<String> urls   = new LinkedHashSet<>();
+        Set<String> sitios = new LinkedHashSet<>();
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT url, sitio FROM productos WHERE touched_at >= ?")) {
+            // Bound as a parameter at UTC: a formatted literal would be read in
+            // the session zone, which pgjdbc takes from the JVM, making the
+            // predicate depend on the machine the backend runs on.
+            ps.setObject(1, runStartedAt.truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String url   = rs.getString(1);
+                    String sitio = rs.getString(2);
+                    if (url != null && !url.isBlank()) urls.add(url);
+                    if (sitio != null && !sitio.isBlank()) sitios.add(sitio);
+                }
+            }
+        }
+        return new Alcance(urls, sitios);
+    }
+
+    /** Pre-D4 behaviour, kept for callers that have no run to scope by. */
+    private Alcance alcanceDelBatch(List<Product> productos) {
+        Set<String> urls   = new LinkedHashSet<>();
+        Set<String> sitios = new LinkedHashSet<>();
+        for (Product p : productos) {
+            if (p.url() == null || p.url().isBlank()) continue;
+            urls.add(p.url());
+            if (p.sitio() != null && !p.sitio().isBlank()) sitios.add(p.sitio());
+        }
+        return new Alcance(urls, sitios);
     }
 
     private int softDeleteAusentes(Connection c, Set<String> urlsPresentes, String now,
