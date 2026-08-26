@@ -228,6 +228,130 @@ class ScrapeRunRepository {
     }
 
     /**
+     * The most recent run marked INTERRUPTED, if any.
+     *
+     * <p>Most recent rather than "all of them": two interrupted runs mean two
+     * crashes, and resuming the older one would re-scrape against a bound a
+     * newer run already moved past.</p>
+     */
+    Optional<CorridaInterrumpida> ultimaInterrumpida() throws SQLException {
+        String sql = """
+            SELECT id, scrape_uuid, started_at FROM scrape_run
+             WHERE status = 'INTERRUPTED'
+             ORDER BY started_at DESC, id DESC
+             LIMIT 1
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (!rs.next()) return Optional.empty();
+            long runId = rs.getLong(1);
+            UUID uuid = (UUID) rs.getObject(2);
+            Instant startedAt = rs.getObject(3, OffsetDateTime.class).toInstant();
+            return Optional.of(new CorridaInterrumpida(
+                    runId, uuid, startedAt,
+                    sitiosEn(runId, "DONE", "ERROR"),
+                    sitiosEn(runId, "PENDING", "RUNNING"),
+                    sitiosEn(runId, "SKIPPED")));
+        }
+    }
+
+    private List<String> sitiosEn(long runId, String... estados) throws SQLException {
+        String sql = """
+            SELECT sitio_key FROM scrape_run_site
+             WHERE scrape_run_id = ? AND status = ANY (?)
+             ORDER BY sitio_key
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, runId);
+            ps.setArray(2, c.createArrayOf("text", estados));
+            try (ResultSet rs = ps.executeQuery()) {
+                List<String> out = new ArrayList<>();
+                while (rs.next()) out.add(rs.getString(1));
+                return out;
+            }
+        }
+    }
+
+    /**
+     * Puts an interrupted run back to RUNNING, <b>in place</b>.
+     *
+     * <p>{@code started_at} is untouched, and that is the entire point: it is the
+     * reader-isolation bound and the scope of the final soft-delete sweep. A new
+     * run row would make both name only the resumed half — the sweep would then
+     * see the first half's products as absent and deactivate them, which is
+     * strictly worse than the interruption it was meant to repair.</p>
+     *
+     * <p>Sites caught mid-scrape go back to PENDING: their partial result died
+     * with the process, so they are owed exactly as much as one that never
+     * started.</p>
+     */
+    void reabrir(long runId) throws SQLException {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = c.prepareStatement(
+                        "UPDATE scrape_run SET status = 'RUNNING', finished_at = NULL WHERE id = ?")) {
+                    ps.setLong(1, runId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement("""
+                        UPDATE scrape_run_site SET status = 'PENDING', started_at = NULL
+                         WHERE scrape_run_id = ? AND status = 'RUNNING'
+                        """)) {
+                    ps.setLong(1, runId);
+                    ps.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        }
+    }
+
+    /**
+     * Marks as SKIPPED any still-pending site that is no longer in the registry,
+     * and returns which ones.
+     *
+     * <p>The comparison runs <b>in SQL</b>, normalizing the current names with the
+     * same expression that produced the stored keys. Doing it in Java would
+     * reintroduce the divergence this class avoids everywhere else — and here it
+     * would not merely disagree, it would decide: a name that normalizes
+     * differently looks absent from the registry, gets marked SKIPPED, and is
+     * silently dropped from a resume that owed it.</p>
+     */
+    List<String> marcarAusentesDelRegistro(long runId, java.util.Collection<String> nombresActuales)
+            throws SQLException {
+        String sql = """
+            UPDATE scrape_run_site SET status = 'SKIPPED'
+             WHERE scrape_run_id = ?
+               AND status IN ('PENDING', 'RUNNING')
+               AND sitio_key <> ALL (
+                     SELECT lower(regexp_replace(n, '[^a-zA-Z0-9]', '', 'g'))
+                       FROM unnest(?::text[]) AS n)
+            RETURNING sitio_key
+            """;
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, runId);
+            ps.setArray(2, c.createArrayOf("text", nombresActuales.toArray()));
+            try (ResultSet rs = ps.executeQuery()) {
+                List<String> out = new ArrayList<>();
+                while (rs.next()) out.add(rs.getString(1));
+                if (!out.isEmpty()) {
+                    LOG.warn("[RUN] {} sitio(s) de la corrida interrumpida ya no están "
+                             + "en el registro, se marcan SKIPPED: {}", out.size(), out);
+                }
+                return out;
+            }
+        }
+    }
+
+    /**
      * Whether any run has ever closed cleanly — the reader bound's on/off switch.
      *
      * <p>{@code COMPLETED}, not "any run": on a fresh install the first run is

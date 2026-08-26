@@ -143,6 +143,13 @@ public class ScraperService {
                 LOG.warn("[DB] {} corrida(s) quedaron interrumpidas por un cierre anterior: {}",
                         interrumpidos.size(), interrumpidos);
             }
+            interrumpida.set(db.ultimaCorridaInterrumpida().orElse(null));
+            var det = interrumpida.get();
+            if (det != null) {
+                LOG.warn("[DB] corrida {} quedó interrumpida: {} sitio(s) atendidos, "
+                         + "{} pendiente(s). Se OFRECE retomarla; no se retoma sola.",
+                        det.runId(), det.atendidos().size(), det.pendientes().size());
+            }
         } catch (Exception e) {
             LOG.warn("[DB] No se pudo revisar corridas interrumpidas: {}", e.getMessage());
         }
@@ -362,6 +369,17 @@ public class ScraperService {
     }
 
     private void ejecutarScraping(Set<String> sitiosSeleccionados) throws Exception {
+        ejecutarScraping(sitiosSeleccionados, null);
+    }
+
+    /**
+     * @param adoptada cuando no es null, la corrida se RETOMA: no se abre una
+     *                 fila nueva y se conserva su {@code started_at}, que es la
+     *                 cota del lector y el alcance del barrido final. Abrir una
+     *                 corrida nueva haría que las dos nombraran sólo la mitad
+     *                 retomada, y el barrido daría por ausente la primera mitad.
+     */
+    private void ejecutarScraping(Set<String> sitiosSeleccionados, RunState adoptada) throws Exception {
         long runStart = System.currentTimeMillis();
         String ts = LocalDateTime.now().format(TS);
 
@@ -370,7 +388,13 @@ public class ScraperService {
 
         cancelado.set(false);
         playwrightsVivos.clear();
-        abrirRun(todos);
+        if (adoptada != null) {
+            adoptarCorrida(adoptada);
+            RUN_LOG.info("[RETOMA]  corrida {} retomada con {} sitio(s) pendientes",
+                    adoptada.runId(), totalSitios);
+        } else {
+            abrirRun(todos);
+        }
 
         // Inicializar progreso
         List<SitioProgress> progSitios = Collections.synchronizedList(new ArrayList<>());
@@ -616,6 +640,113 @@ public class ScraperService {
     }
 
     /**
+     * La corrida que un proceso muerto dejó abierta, detectada al arrancar.
+     *
+     * <p>Es una BANDERA, no un disparador. Detectar no reanuda: un reinicio que
+     * retomara trabajo solo sería una falla peor que la caída que está
+     * atendiendo — nadie pidió ese scrape, y arrancaría browsers en un servidor
+     * que quizá se reinició justo para dejar de hacerlo.</p>
+     */
+    private final java.util.concurrent.atomic.AtomicReference<
+            ar.scraper.db.CorridaInterrumpida> interrumpida =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    public ar.scraper.db.CorridaInterrumpida getInterrumpida() {
+        return interrumpida.get();
+    }
+
+    /**
+     * Retoma la corrida interrumpida: sólo los sitios que faltan.
+     *
+     * @return false si no hay nada que retomar o ya hay un scrape corriendo
+     */
+    public boolean reanudar() {
+        var det = interrumpida.get();
+        if (det == null) return false;
+        if (status.get() == ScraperStatus.RUNNING) return false;
+
+        try {
+            // Un sitio puede haber salido del registro entre la caída y el
+            // reinicio. Se marca SKIPPED y se NOMBRA: desaparecer en silencio de
+            // una corrida que lo debía es peor que no retomarlo.
+            List<String> nombresActuales = buildSiteList(null).stream()
+                    .map(ScraperConfig.SiteConfig::nombre).toList();
+            db.marcarSitiosAusentesDelRegistro(det.runId(), nombresActuales);
+
+            var actualizada = db.ultimaCorridaInterrumpida().orElse(det);
+            db.reabrirScrapeRun(det.runId());
+            interrumpida.set(null);
+
+            RunState adoptada = new RunState(det.runId(), det.uuid(), det.startedAt());
+            status.set(ScraperStatus.RUNNING);
+            cancelado.set(false);
+            playwrightsVivos.clear();
+
+            if (actualizada.pendientes().isEmpty()) {
+                statusMsg.set("Retomando: sólo la pasada final");
+                Thread.ofVirtual().start(() -> soloPasadaFinal(adoptada));
+            } else {
+                statusMsg.set("Retomando " + actualizada.pendientes().size() + " sitio(s)...");
+                Set<String> pendientes = new HashSet<>(actualizada.pendientes());
+                Thread.ofVirtual().start(() -> {
+                    try { ejecutarScraping(pendientes, adoptada); }
+                    catch (Exception e) {
+                        RUN_LOG.error("[ERROR FATAL] al retomar: {}", e.getMessage());
+                        cerrarRun("ERROR", 0);
+                        status.set(ScraperStatus.ERROR);
+                        statusMsg.set("Error al retomar: " + e.getMessage());
+                    }
+                });
+            }
+            return true;
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudo retomar la corrida {}: {}", det.runId(), e.getMessage());
+            status.set(ScraperStatus.ERROR);
+            statusMsg.set("No se pudo retomar: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * El caso que se olvida: la caída fue DESPUÉS de que todos los sitios
+     * terminaron, durante la pasada de ML/agregación. Re-scrapear acá es trabajo
+     * puro perdido — lo único que quedó debiendo es el barrido final.
+     *
+     * <p>Se llama a {@code upsertProductos} con lista VACÍA y el
+     * {@code started_at} de la corrida: con una cota presente el alcance del
+     * barrido se deriva de la base ({@code touched_at >= started_at}), no del
+     * batch, así que una lista vacía barre exactamente lo que la corrida vio en
+     * sus dos mitades. Y se reconstruye {@code lastResult} desde la base en vez
+     * de dejar que {@code agregar} lo arme con un batch vacío, que lo dejaría
+     * VACÍO — o sea, borraría el catálogo en memoria.</p>
+     *
+     * <p><b>Lo que esto NO hace</b>: no vuelve a correr el pipeline de ML. Esa
+     * mitad se recupera sola en la próxima corrida normal. Lo que no se puede
+     * postergar es el barrido: sin él, los productos ausentes quedan activos
+     * para siempre.</p>
+     */
+    private void soloPasadaFinal(RunState corrida) {
+        try {
+            adoptarCorrida(corrida);
+            statusMsg.set("Barrido final de la corrida retomada...");
+            db.upsertProductos(List.of(), corrida.startedAt());
+
+            List<ar.scraper.model.Product> prods = db.cargarProductos();
+            synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
+
+            cerrarRun("COMPLETED", prods.size());
+            status.set(ScraperStatus.DONE);
+            statusMsg.set("Corrida retomada y cerrada: " + prods.size() + " productos");
+            RUN_LOG.info("[RETOMA]  pasada final completada, {} productos", prods.size());
+        } catch (Exception e) {
+            RUN_LOG.error("[ERROR FATAL] en la pasada final: {}", e.getMessage());
+            cerrarRun("ERROR", 0);
+            status.set(ScraperStatus.ERROR);
+            statusMsg.set("Error en la pasada final: " + e.getMessage());
+        }
+    }
+
+    /**
      * Asks the running scrape to stop. Idempotent; a no-op when nothing runs.
      *
      * @return false when there was nothing to cancel
@@ -676,14 +807,31 @@ public class ScraperService {
             // case con la resolución de `touched_at`. Leerlo de vuelta evita que
             // este objeto y la fila digan cosas distintas.
             java.time.Instant persistido = db.startedAtDeRun(runId).orElse(arranque);
-            runState.set(new RunState(runId, uuid, persistido));
-            aislarLectores(persistido);
+            adoptarCorrida(new RunState(runId, uuid, persistido));
             LOG.info("[RUN] corrida {} abierta con {} sitios", runId, nombres.size());
         } catch (Exception e) {
             runState.set(null);
             liberarLectores();
             LOG.warn("[RUN] no se pudo abrir la corrida, sigue sin registro: {}", e.getMessage());
         }
+    }
+
+    /**
+     * El ÚNICO lugar donde una corrida pasa a ser la corrida en curso.
+     *
+     * <p>Son tres los caminos que abren una: la normal, la retomada, y la que
+     * sólo debe el barrido final. Entran los tres por acá porque de la apertura
+     * cuelga el aislamiento del lector, y tres {@code runState.set()} sueltos
+     * dejarían a dos de ellos sirviendo un catálogo a medio rearmar — justo en
+     * el escenario donde más importa, porque una retoma corre sobre un catálogo
+     * que ya quedó a medias.</p>
+     *
+     * <p>Adoptar la corrida y aislar al lector son <b>una sola operación</b>, no
+     * dos que hay que acordarse de llamar juntas.</p>
+     */
+    private void adoptarCorrida(RunState corrida) {
+        runState.set(corrida);
+        aislarLectores(corrida.startedAt());
     }
 
     /**
