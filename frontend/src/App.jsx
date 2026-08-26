@@ -22,6 +22,7 @@ import AppLayout, {
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
 import { CONFIG_DEFAULT } from './lib/scrapeDefaults';
+import { useScrapeStatusPolling } from './hooks/useScrapeStatusPolling';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import AuthGate from './auth/AuthGate';
 import RequireRole from './auth/RequireRole';
@@ -56,34 +57,17 @@ function SplashRoute() {
   // SplashPanel's only action is POST /api/scrape (ADMIN). A VIEWER on a
   // fresh install would otherwise land on a screen whose one button 403s.
   const { isAdmin } = useAuth();
-  const [scrapeStatus, setScrapeStatus] = useState('IDLE');
-  const [scrapeMsg, setScrapeMsg] = useState('');
-  const [progreso, setProgreso] = useState(null);
-  const [prods, setProds] = useState([]);
-  const [totalProds, setTotalProds] = useState(0);
+  // scrape-run-persistence-and-resume slice 0: the whole status state machine
+  // (mount read, interval, unreachable backend) lives in the hook now. What
+  // was here recreated `pollingRef = {current:null}` on EVERY render, so the
+  // clearInterval that was supposed to replace an interval read a fresh null
+  // and left the old one running; nothing cleaned up on unmount either.
+  const {
+    status: scrapeStatus, mensaje: scrapeMsg, progreso, totalProds,
+    backendUnreachable, startPolling, markRunning,
+  } = useScrapeStatusPolling();
+  const [prods] = useState([]);
   const config = CONFIG_DEFAULT;
-
-  useEffect(() => {
-    fetchStatus().then(st => {
-      setScrapeStatus(st?.status || 'IDLE');
-      setScrapeMsg(st?.mensaje || '');
-    });
-  }, []);
-
-  const pollingRef = { current: null };
-  const startPolling = (onDone) => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    pollingRef.current = setInterval(async () => {
-      const st = await fetchStatus();
-      if (!st) return;
-      setScrapeStatus(st.status); setScrapeMsg(st.mensaje); setProgreso(st.progreso);
-      if (st.status === 'RUNNING' && st.tieneData) setTotalProds(st.progreso?.total || 0);
-      if (st.status === 'DONE' || st.status === 'ERROR') {
-        clearInterval(pollingRef.current); pollingRef.current = null;
-        onDone?.();
-      }
-    }, 1800);
-  };
 
   if (!isAdmin) {
     return (
@@ -103,7 +87,8 @@ function SplashRoute() {
       scrapeStatus={scrapeStatus}
       scrapeMsg={scrapeMsg}
       progreso={progreso}
-      onScrapeStart={() => setScrapeStatus('RUNNING')}
+      backendUnreachable={backendUnreachable}
+      onScrapeStart={markRunning}
       onStartPolling={startPolling}
       onGoToApp={() => navigate('/catalogo')}
       prods={prods}
