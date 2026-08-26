@@ -134,3 +134,61 @@ describe('useScrapeStatusPolling — an unreachable backend is a state, not sile
     expect(result.current.status).toBe('IDLE');
   });
 });
+
+describe('useScrapeStatusPolling — a run already live at mount asks to be polled (slice 6, task 6.3)', () => {
+  it('flags that polling is needed when the mount read finds a run already RUNNING', async () => {
+    // Landing on /splash after a resume — or after a reload mid-run — finds a
+    // live run nobody in this tab started. Without this the mount read wrote
+    // RUNNING to the screen and stopped there: a frozen status, no progress,
+    // no completion, for as long as the tab stayed open.
+    fetchStatus.mockResolvedValue(RUNNING);
+
+    const { result } = await mountHook();
+
+    expect(result.current.pollingNeeded).toBe(true);
+  });
+
+  it('carries that run\'s progress in from the mount read, not one poll later', async () => {
+    // The bar is drawn from `progreso`. Without this the screen showed a live
+    // run with an empty bar until the first poll landed a full interval later.
+    fetchStatus.mockResolvedValue(RUNNING);
+
+    const { result } = await mountHook();
+
+    expect(result.current.progreso).toEqual(RUNNING.progreso);
+  });
+
+  it('does not flag it when the mount read finds no run in flight', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
+
+    const { result } = await mountHook();
+
+    expect(result.current.pollingNeeded).toBe(false);
+  });
+
+  it('does not flag it when the backend could not be reached at mount', async () => {
+    // Unreachable is not "running": the flag would start an interval on a
+    // guess, and `backendUnreachable` already says what actually happened.
+    fetchStatus.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const { result } = await mountHook();
+
+    expect(result.current.pollingNeeded).toBe(false);
+  });
+
+  it('is a one-shot start signal — a poll that reports RUNNING never re-raises it', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
+    const { result } = await mountHook();
+    expect(result.current.pollingNeeded).toBe(false);
+
+    // A scrape launched from this very tab: the poller drives RUNNING through
+    // the interval, and the flag must stay down or the effect watching it
+    // would re-arm the interval on every render that sees a live run.
+    fetchStatus.mockResolvedValue(RUNNING);
+    act(() => { result.current.startPolling(); });
+    await tick(2);
+
+    expect(result.current.status).toBe('RUNNING');
+    expect(result.current.pollingNeeded).toBe(false);
+  });
+});

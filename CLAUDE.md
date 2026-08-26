@@ -495,6 +495,19 @@ status" y expone un `backendUnreachable` aparte: "no lo puedo contactar" y
 correcta. Ese estado **no** se mete en `scrapeStatus`, que espeja el
 `ScraperStatus` del backend; lo que se apaga es el progreso, no el campo.
 
+**El poller del splash no se arma solo salvo por una bandera de un solo tiro:**
+sólo `handleScrape` armaba el intervalo, así que aterrizar en `/splash` con una
+corrida ya `RUNNING` —lo que pasa al **retomar** una corrida interrumpida, y
+también tras un reload a mitad de corrida— dejaba el status congelado sin
+progreso ni final. Lo dispara `pollingNeeded`, que **levanta la lectura de
+montaje y nadie más**: si espejara el status vivo, el efecto que la observa
+re-armaría el intervalo en cada render que viera una corrida en curso. Al
+tocarlo, acordate de que el test correspondiente **no puede vivir en
+`App.test.jsx`** — necesita fake timers y la cadena de bootstrap de auth no
+drena bajo ellos, así que la baseline lee cero y la aserción pasa midiendo la
+lectura de montaje en vez del poller. Vive en `src/SplashRoute.test.jsx`, que
+mockea `useAuth` y fija la baseline en 1 antes de medir.
+
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
 corre los tests con JRE 21. El comando completo está en
 [`CONTRIBUTING.md`](./CONTRIBUTING.md). `clean` no es opcional: sin él `mvn test`

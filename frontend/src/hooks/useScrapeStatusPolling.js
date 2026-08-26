@@ -34,6 +34,11 @@ export function useScrapeStatusPolling() {
   const [progreso, setProgreso] = useState(null);
   const [totalProds, setTotalProds] = useState(0);
   const [backendUnreachable, setBackendUnreachable] = useState(false);
+  // A run already in flight when this mounts — after a resume, or a reload
+  // mid-run. Raised ONCE by the mount read and never again: the interval
+  // drives RUNNING on its own afterwards, and a flag that tracked the live
+  // status would re-arm the interval on every render that saw one.
+  const [pollingNeeded, setPollingNeeded] = useState(false);
 
   // ONE ref for the whole mount. The previous code rebuilt `{current:null}` on
   // every render, and every poll re-renders, so the next `startPolling` read a
@@ -60,6 +65,8 @@ export function useScrapeStatusPolling() {
       setBackendUnreachable(false);
       setStatus(st.status || 'IDLE');
       setMensaje(st.mensaje || '');
+      setProgreso(st.progreso || null);
+      if (st.status === 'RUNNING') setPollingNeeded(true);
     });
     return () => { alive = false; };
   }, []);
@@ -92,7 +99,7 @@ export function useScrapeStatusPolling() {
   }, []);
 
   return {
-    status, mensaje, progreso, totalProds, backendUnreachable,
+    status, mensaje, progreso, totalProds, backendUnreachable, pollingNeeded,
     startPolling, stopPolling, markRunning,
   };
 }

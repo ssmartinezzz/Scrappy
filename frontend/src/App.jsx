@@ -50,7 +50,7 @@ function RootGate() {
 // ─── SplashRoute ────────────────────────────────────────────────────────────
 // Always renders SplashPanel — reachable both on first load with no data
 // (via RootGate) and explicitly via "nuevo scraping" even when data exists.
-function SplashRoute() {
+export function SplashRoute() {
   const navigate = useNavigate();
   // frontend-auth-ui Phase 7 (design D5 consequence, tasks-part2 7.9/7.10):
   // RootGate sends a first-time visitor with no data straight here, and
@@ -64,10 +64,19 @@ function SplashRoute() {
   // and left the old one running; nothing cleaned up on unmount either.
   const {
     status: scrapeStatus, mensaje: scrapeMsg, progreso, totalProds,
-    backendUnreachable, startPolling, markRunning,
+    backendUnreachable, pollingNeeded, startPolling, markRunning,
   } = useScrapeStatusPolling();
   const [prods] = useState([]);
   const config = CONFIG_DEFAULT;
+
+  // slice 6 (task 6.3): a run this tab never launched — landed on after a
+  // resume, or after a reload mid-run. Only handleScrape used to arm the
+  // poller, so the mount read wrote RUNNING to the screen and stopped there.
+  // `pollingNeeded` is raised once by that mount read and never again, so
+  // this cannot re-arm the interval on every render that sees a live run.
+  useEffect(() => {
+    if (pollingNeeded) startPolling(() => navigate('/catalogo'));
+  }, [pollingNeeded, startPolling, navigate]);
 
   if (!isAdmin) {
     return (
