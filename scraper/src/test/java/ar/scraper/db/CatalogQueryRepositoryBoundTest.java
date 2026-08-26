@@ -138,6 +138,23 @@ class CatalogQueryRepositoryBoundTest extends PostgresTestBase {
         assertThat(facetas.badges()).containsKey("BADGE-VIEJO").doesNotContainKey("BADGE-FRESCO");
     }
 
+    // ── Surface 5: contar(Where), pinned on its own ─────────────────────────
+
+    @Test
+    @DisplayName("the page's total is bounded independently of the page it counts")
+    void contarPorWhereRespetaLaCota() {
+        // A page of one hides the difference between the two overloads: the page
+        // is capped by LIMIT either way, so only `total` can disprove the count.
+        // With `contar(Where)` unbounded this reads 2 while the page serves the
+        // single old row — the pager offering a page that does not exist.
+        CatalogPage acotada = repo.buscar(CatalogFilter.todo(), null, 1, 1, Optional.of(runStart));
+
+        assertThat(acotada.productos()).hasSize(1);
+        assertThat(acotada.total())
+                .as("the count and the page must come from the same predicate")
+                .isEqualTo(1);
+    }
+
     // ── D6: absent means everything, never nothing ───────────────────────────
 
     @Test

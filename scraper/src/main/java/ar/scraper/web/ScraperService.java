@@ -45,6 +45,12 @@ public class ScraperService {
     // Progreso en tiempo real
     private volatile ProgressData progressData = null;
     private volatile AggregatedResult lastResult = null;
+    // Lo que ven los lectores mientras hay una corrida abierta: la referencia a
+    // lastResult tal como estaba al arrancar, no una copia — AggregatedResult ya
+    // es copy-on-write. Null = no hay corrida, se sirve el vivo.
+    private volatile AggregatedResult servedResult = null;
+    private volatile java.util.Optional<java.time.Instant> cotaDeLectura =
+            java.util.Optional.empty();
     private volatile int ultimasCategoriasRefinadas = 0;
     private volatile boolean forceRetrain = false;
 
@@ -139,12 +145,33 @@ public class ScraperService {
 
     public ScraperStatus    getStatus()       { return status.get(); }
     public String           getStatusMsg()    { return statusMsg.get(); }
-    public AggregatedResult getLastResult()            { return lastResult; }
+    /**
+     * El catálogo que se le sirve a un lector.
+     *
+     * <p>Durante una corrida es la foto previa: el rearmado progresivo muta
+     * {@code lastResult} sitio por sitio, y sin esto el dashboard ve el catálogo
+     * a medio reconstruir. Lo que el usuario hace él mismo sí llega — los cuatro
+     * caminos de escritura parchean las dos fotos.</p>
+     */
+    public AggregatedResult getLastResult() {
+        AggregatedResult servido = servedResult;
+        return servido != null ? servido : lastResult;
+    }
+
+    /** La cota SQL de aislamiento, o vacía cuando se sirve todo. */
+    public java.util.Optional<java.time.Instant> cotaDeLectura() { return cotaDeLectura; }
     public int  getUltimasCategoriasRefinadas()         { return ultimasCategoriasRefinadas; }
     public void setUltimasCategoriasRefinadas(int n)    { ultimasCategoriasRefinadas = n; }
     public ProgressData     getProgressData() { return progressData; }
     public List<SitioExtra> getSitiosExtras() { return Collections.unmodifiableList(sitiosExtras); }
-    public void             clearLastResult() { synchronized (catalogLock) { this.lastResult = null; } }
+    public void clearLastResult() {
+        synchronized (catalogLock) {
+            this.lastResult = null;
+            // DELETE /api/db/productos. Sin esta línea el lector sigue viendo,
+            // hasta que la corrida termine, un catálogo que ya no existe.
+            this.servedResult = null;
+        }
+    }
 
     /** Saca un producto del catálogo en memoria tras un soft-delete manual en DB
      *  (db.marcarDescontinuado ya puso activo=0; /api/data lee de lastResult, no de
@@ -160,7 +187,18 @@ public class ScraperService {
                     lastResult.erroresPorSitio(), lastResult.facets(),
                     lastResult.minPrecio(), lastResult.maxPrecio(),
                     lastResult.statsPorSitio());
+            servedResult = sinProducto(servedResult, url);
         }
+    }
+
+    /** Misma poda sobre la foto servida, si hay corrida abierta. */
+    private static AggregatedResult sinProducto(AggregatedResult foto, String url) {
+        if (foto == null) return null;
+        List<Product> filtrados = foto.productos().stream()
+                .filter(p -> !url.equals(p.url()))
+                .toList();
+        return new AggregatedResult(filtrados, foto.conteoPorSitio(), foto.erroresPorSitio(),
+                foto.facets(), foto.minPrecio(), foto.maxPrecio(), foto.statsPorSitio());
     }
 
     /** Reemplaza la clasificación de un producto en el catálogo en memoria tras
@@ -189,22 +227,29 @@ public class ScraperService {
                                             String genero, String subCategoria, String rubro) {
         synchronized (catalogLock) {
             if (lastResult == null || url == null) return;
-            List<Product> parcheados = lastResult.productos().stream()
-                    .map(p -> url.equals(p.url())
-                            ? new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
-                                    p.url(), p.imagenUrl(),
-                                    noVacio(categoria, p.categoria()), noVacio(genero, p.genero()),
-                                    p.talles(), p.ml(), noVacio(marca, p.marca()), noVacio(rubro, p.rubro()),
-                                    p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
-                                    p.cantidadUnidades(), noVacio(subCategoria, p.subCategoria()),
-                                    p.visual())
-                            : p)
-                    .toList();
-            lastResult = new AggregatedResult(parcheados, lastResult.conteoPorSitio(),
-                    lastResult.erroresPorSitio(), ResultAggregator.calcularFacets(parcheados),
-                    lastResult.minPrecio(), lastResult.maxPrecio(),
-                    lastResult.statsPorSitio());
+            lastResult = reclasificado(lastResult, url, categoria, marca, genero, subCategoria, rubro);
+            servedResult = reclasificado(servedResult, url, categoria, marca, genero, subCategoria, rubro);
         }
+    }
+
+    private static AggregatedResult reclasificado(AggregatedResult foto, String url,
+                                                  String categoria, String marca, String genero,
+                                                  String subCategoria, String rubro) {
+        if (foto == null) return null;
+        List<Product> parcheados = foto.productos().stream()
+                .map(p -> url.equals(p.url())
+                        ? new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
+                                p.url(), p.imagenUrl(),
+                                noVacio(categoria, p.categoria()), noVacio(genero, p.genero()),
+                                p.talles(), p.ml(), noVacio(marca, p.marca()), noVacio(rubro, p.rubro()),
+                                p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
+                                p.cantidadUnidades(), noVacio(subCategoria, p.subCategoria()),
+                                p.visual())
+                        : p)
+                .toList();
+        return new AggregatedResult(parcheados, foto.conteoPorSitio(), foto.erroresPorSitio(),
+                ResultAggregator.calcularFacets(parcheados), foto.minPrecio(), foto.maxPrecio(),
+                foto.statsPorSitio());
     }
 
     private static String noVacio(String nuevo, String anterior) {
@@ -240,12 +285,16 @@ public class ScraperService {
             AggregatedResult actual = this.lastResult;
             if (actual == null) return;
 
-            List<Product> reenriquecidos = aggregator.financiacionEnricher().enriquecer(actual.productos());
-            this.lastResult = new AggregatedResult(
-                    reenriquecidos, actual.conteoPorSitio(), actual.erroresPorSitio(),
-                    actual.facets(), actual.minPrecio(), actual.maxPrecio(),
-                    actual.statsPorSitio());
+            this.lastResult = refinanciado(actual, aggregator);
+            this.servedResult = refinanciado(this.servedResult, aggregator);
         }
+    }
+
+    private static AggregatedResult refinanciado(AggregatedResult foto, ResultAggregator aggregator) {
+        if (foto == null) return null;
+        List<Product> reenriquecidos = aggregator.financiacionEnricher().enriquecer(foto.productos());
+        return new AggregatedResult(reenriquecidos, foto.conteoPorSitio(), foto.erroresPorSitio(),
+                foto.facets(), foto.minPrecio(), foto.maxPrecio(), foto.statsPorSitio());
     }
 
     public void agregarSitio(String nombre, String url, String plataforma) {
@@ -510,7 +559,7 @@ public class ScraperService {
     // Media fila es peor que ninguna: la detección de interrumpidos la leería
     // como una corrida viva que nadie va a cerrar nunca.
 
-    private void abrirRun(List<ScraperConfig.SiteConfig> sitios) {
+    void abrirRun(List<ScraperConfig.SiteConfig> sitios) {
         try {
             java.util.UUID uuid = java.util.UUID.randomUUID();
             java.time.Instant arranque = java.time.Instant.now();
@@ -522,10 +571,48 @@ public class ScraperService {
             // este objeto y la fila digan cosas distintas.
             java.time.Instant persistido = db.startedAtDeRun(runId).orElse(arranque);
             runState.set(new RunState(runId, uuid, persistido));
+            aislarLectores(persistido);
             LOG.info("[RUN] corrida {} abierta con {} sitios", runId, nombres.size());
         } catch (Exception e) {
             runState.set(null);
+            liberarLectores();
             LOG.warn("[RUN] no se pudo abrir la corrida, sigue sin registro: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Congela lo que se sirve y arma la cota SQL, las dos mitades del mismo
+     * aislamiento (slice 4).
+     *
+     * <p>La cota se suprime hasta que exista una corrida COMPLETED: puesta antes
+     * de eso, nada cumple {@code touched_at < started_at} y la primera corrida de
+     * una instalación nueva sirve una pantalla vacía. La foto en memoria no
+     * necesita ese guard porque degrada sola — sin catálogo previo queda null y
+     * el lector cae al vivo, que es justamente ver el progreso.</p>
+     */
+    private void aislarLectores(java.time.Instant arranque) {
+        boolean hayCorridaCompletada;
+        try {
+            hayCorridaCompletada = db.existeCorridaCompletada();
+        } catch (Exception e) {
+            // Sin respuesta no se aísla: servir de más es recuperable, servir una
+            // pantalla vacía por un error de contabilidad no.
+            hayCorridaCompletada = false;
+            LOG.warn("[RUN] no se pudo resolver la cota de lectura, se sirve todo: {}",
+                    e.getMessage());
+        }
+        synchronized (catalogLock) {
+            servedResult = lastResult;
+            cotaDeLectura = hayCorridaCompletada
+                    ? java.util.Optional.of(arranque)
+                    : java.util.Optional.empty();
+        }
+    }
+
+    private void liberarLectores() {
+        synchronized (catalogLock) {
+            servedResult = null;
+            cotaDeLectura = java.util.Optional.empty();
         }
     }
 
@@ -550,8 +637,11 @@ public class ScraperService {
         }
     }
 
-    private void cerrarRun(String status, int productos) {
+    void cerrarRun(String status, int productos) {
         RunState estado = runState.getAndSet(null);
+        // Antes del early-return: si la contabilidad falló a mitad, el aislamiento
+        // igual tiene que soltarse o el lector queda congelado para siempre.
+        liberarLectores();
         if (estado == null) return;
         try {
             db.finalizarScrapeRun(estado.runId(), status, productos, java.time.Instant.now());

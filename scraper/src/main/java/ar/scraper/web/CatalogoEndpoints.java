@@ -72,10 +72,15 @@ class CatalogoEndpoints {
                 gymrat, pack, precioMin, precioMax, subCategoria,
                 fit, estampado, escote, colorDominante);
 
-        ar.scraper.db.CatalogResumen resumen = db.resumenCatalogo();
+        // La misma cota para el resumen y para la página: un resumen sin acotar
+        // gatillando una página acotada hace que el 204 y el contenido no digan
+        // lo mismo, y que las facetas ofrezcan filtros que la página no cumple.
+        java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
+
+        ar.scraper.db.CatalogResumen resumen = db.resumenCatalogo(cota);
         if (resumen.total() == 0) return ResponseEntity.noContent().build();
 
-        ar.scraper.db.CatalogPage paginaSql = db.buscarCatalogo(filtro, orden, page, size);
+        ar.scraper.db.CatalogPage paginaSql = db.buscarCatalogo(filtro, orden, page, size, cota);
 
         // senal y finan no se persisten — se recalculan, pero SOLO para los
         // productos de esta página, no para el catálogo entero como antes.
@@ -105,7 +110,7 @@ class CatalogoEndpoints {
         meta.put("totalPaginas", totalPaginas);
 
         // Facets sobre el dataset COMPLETO (sin filtrar) para que no desaparezcan pills
-        Facets facets = db.facetasCatalogo();
+        Facets facets = db.facetasCatalogo(cota);
         ObjectNode facetsNode = meta.putObject("facets");
         volcar(facetsNode.putObject("talles"),          facets.talles());
         volcar(facetsNode.putObject("generos"),         facets.generos());
@@ -239,10 +244,12 @@ class CatalogoEndpoints {
     // Facets sueltos (para cargar filtros sin productos)
     // ---------------------------------------------------------------
     ResponseEntity<ObjectNode> facets() {
-        ar.scraper.db.CatalogResumen resumen = db.resumenCatalogo();
+        java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
+
+        ar.scraper.db.CatalogResumen resumen = db.resumenCatalogo(cota);
         if (resumen.total() == 0) return ResponseEntity.noContent().build();
 
-        Facets facets = db.facetasCatalogo();
+        Facets facets = db.facetasCatalogo(cota);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         volcar(root.putObject("talles"),          facets.talles());
         volcar(root.putObject("generos"),         facets.generos());
