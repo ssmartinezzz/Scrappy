@@ -195,6 +195,16 @@ public class ApiController {
     // ScrapeControlEndpoints (backlog A3); the mappings stay here.
     // ─────────────────────────────────────────────────────────────────────
 
+    @GetMapping("/scrape/interrupted")
+    public ResponseEntity<ObjectNode> scrapeInterrumpido() {
+        return scrapeControlEndpoints.interrumpida();
+    }
+
+    @PostMapping("/scrape/resume")
+    public ResponseEntity<ObjectNode> retomarScrape() {
+        return scrapeControlEndpoints.retomar();
+    }
+
     @PostMapping("/scrape/cancel")
     public ResponseEntity<ObjectNode> cancelarScrape() {
         return scrapeControlEndpoints.cancelar();
