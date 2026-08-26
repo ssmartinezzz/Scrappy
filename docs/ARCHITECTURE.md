@@ -337,6 +337,44 @@ incluye el segundo del arranque; el lector puede **ocultar** una fila fresca de
 más, que no le cuesta nada a nadie. Una fila tocada en el primer segundo de la
 corrida queda oculta, no visible temprano.
 
+### ¿Por qué la oferta de retomar vive en el layout y no en `/splash`?
+
+Porque `/splash` es la pantalla que un ADMIN **no** ve después de una caída.
+
+Una corrida interrumpida commiteó los sitios que alcanzó a terminar, así que
+`GET /api/status` reporta `tieneData: true`, y `RootGate` —que rutea por
+exactamente ese campo— manda la primera visita a `/catalogo`. Un banner montado
+dentro de `SplashPanel` sólo aparecería si el operador navegara a `/splash` a
+mano, adivinando que hay algo ahí que mirar. Sería invisible justo en el único
+escenario para el que existe.
+
+Montarlo a nivel `AppLayout` lo pone en toda ruta de la app, sobre el read único
+de `isAdmin` que ese archivo ya hace. **Es una oferta, no un secuestro**: la ruta
+debajo no se toca y nada redirige, que es lo que pide la regla de que un ADMIN
+pueda estar donde quiera durante una corrida. Retomar es lo que navega a
+`/splash`, porque ahí es donde está el progreso.
+
+**El gate de rol es sobre la request, no sobre el render.** `GET /api/scrape/interrupted`
+y `POST /api/scrape/resume` son ADMIN en `ApiRoutePolicy.TABLE` —medido: VIEWER
+403 en las dos, anónimo 401— así que preguntar y esconder la respuesta compraría
+un 403 por una pregunta que no hay que hacer. Un VIEWER no emite la llamada.
+
+**No hay endpoint para descartar, y la UI lo dice en vez de disimularlo.**
+`ScraperService.interrumpida` se limpia únicamente dentro de `reanudar()`. El
+botón secundario dice **"Ocultar por ahora"**, nunca "Descartar": esconde el
+aviso en esta sesión y un reload lo trae de vuelta, porque la corrida sigue
+interrumpida. La alternativa —un "Descartar" que en realidad sólo oculta— sería
+un botón mintiendo sobre estado que el cliente no posee.
+
+**El poller no se arma solo, y eso era la mitad faltante.** Sólo el botón de
+lanzar armaba el intervalo, así que aterrizar en `/splash` con una corrida ya
+`RUNNING` —que es exactamente lo que pasa al retomar, y también tras un reload
+a mitad de corrida— escribía `RUNNING` en pantalla y se quedaba ahí: status
+congelado, sin progreso y sin completar, mientras la pestaña siguiera abierta.
+La bandera que lo dispara la levanta la lectura de montaje **una sola vez**; si
+espejara el status vivo, el efecto que la observa re-armaría el intervalo en
+cada render que viera una corrida en curso.
+
 ---
 
 ## Diagrama de capas y topología de servicios
