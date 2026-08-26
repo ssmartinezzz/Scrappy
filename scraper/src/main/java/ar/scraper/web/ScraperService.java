@@ -430,7 +430,15 @@ public class ScraperService {
         Set<String> sitiosDeEstaCorrida = resultados.stream()
                 .map(ScrapeResult::sitio).collect(Collectors.toSet());
 
-        synchronized (catalogLock) { lastResult = aggregator.agregar(resultados, forceRetrain); }
+        // El soft-delete se acota al started_at de la corrida, no a este batch:
+        // un resume trae sólo la mitad reanudada (design D4). Sin corrida
+        // persistida el alcance vuelve a derivarse del batch, como antes.
+        RunState corrida = runState.get();
+        java.time.Instant arranqueDeLaCorrida = corrida != null ? corrida.startedAt() : null;
+
+        synchronized (catalogLock) {
+            lastResult = aggregator.agregar(resultados, forceRetrain, arranqueDeLaCorrida);
+        }
 
         // ── Guardia de rendimiento por sitio ─────────────────────────────────
         // A broken scraper returns an empty or truncated list without throwing,

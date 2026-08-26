@@ -201,6 +201,19 @@ public class DatabaseService {
     }
 
     /**
+     * Igual, pero acotando el soft-delete a lo que tocó la corrida en lugar de
+     * a este batch (design D4). Un resume trae sólo la mitad reanudada, así que
+     * el alcance derivado del batch deja de barrer los sitios que cubrió la
+     * mitad interrumpida.
+     *
+     * @param runStartedAt el {@code started_at} de la corrida; {@code null}
+     *                     vuelve al alcance derivado del batch.
+     */
+    public UpsertStats upsertProductos(List<Product> productos, java.time.Instant runStartedAt) {
+        return productRepository.upsertProductos(productos, runStartedAt);
+    }
+
+    /**
      * Upsert parcial durante scraping progresivo. NUNCA hace soft-delete — solo
      * inserta/actualiza los productos dados. Columnas visuales excluidas a
      * propósito (VisualAttrs todavía no está poblado en esta etapa).
