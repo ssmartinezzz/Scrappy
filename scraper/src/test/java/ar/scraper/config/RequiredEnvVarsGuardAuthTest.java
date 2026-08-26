@@ -7,6 +7,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,10 +43,15 @@ class RequiredEnvVarsGuardAuthTest {
 
     private final RequiredEnvVarsGuard guard = new RequiredEnvVarsGuard();
 
-    private static final String[] AUTH_VARS = {
+    /**
+     * The four auth secrets that are unconditionally required. Admin password is
+     * conditional — it is only required when the admin account doesn't exist in
+     * the database yet — so it is tested separately in
+     * {@link #existingAdminSkipsPasswordRequirement}.
+     */
+    private static final String[] UNCONDITIONAL_AUTH_VARS = {
             "AUTH_JWT_SECRET",
             "ADMIN_BOOTSTRAP_USERNAME",
-            "ADMIN_BOOTSTRAP_PASSWORD",
             "CLI_SERVICE_ACCOUNT_USERNAME",
             "CLI_SERVICE_ACCOUNT_PASSWORD",
     };
@@ -57,7 +65,7 @@ class RequiredEnvVarsGuardAuthTest {
     }
 
     @Test
-    @DisplayName("a missing ADMIN_BOOTSTRAP_PASSWORD fails startup, naming it")
+    @DisplayName("a missing ADMIN_BOOTSTRAP_PASSWORD fails on a fresh install, naming it")
     void missingBootstrapPasswordFailsNamingIt() {
         MockEnvironment env = entornoSin("ADMIN_BOOTSTRAP_PASSWORD");
 
@@ -67,9 +75,9 @@ class RequiredEnvVarsGuardAuthTest {
     }
 
     @Test
-    @DisplayName("every one of the five is required, one at a time")
-    void eachAuthVariableIsRequiredOnItsOwn() {
-        for (String var : AUTH_VARS) {
+    @DisplayName("every unconditional auth variable is required, one at a time")
+    void eachUnconditionalAuthVariableIsRequiredOnItsOwn() {
+        for (String var : UNCONDITIONAL_AUTH_VARS) {
             MockEnvironment env = entornoSin(var);
 
             assertThatThrownBy(() -> guard.postProcessEnvironment(env, null))
@@ -80,9 +88,9 @@ class RequiredEnvVarsGuardAuthTest {
     }
 
     @Test
-    @DisplayName("a blank auth secret is rejected — unlike a blank DATABASE_PASSWORD")
-    void blankAuthSecretIsRejectedEvenThoughBlankDatabasePasswordIsNot() {
-        for (String var : AUTH_VARS) {
+    @DisplayName("a blank unconditional auth secret is rejected — unlike a blank DATABASE_PASSWORD")
+    void blankUnconditionalAuthSecretIsRejected() {
+        for (String var : UNCONDITIONAL_AUTH_VARS) {
             MockEnvironment env = entornoCompleto();
             env.setProperty(var, "   ");
 
@@ -121,6 +129,46 @@ class RequiredEnvVarsGuardAuthTest {
     }
 
     @Test
+    @DisplayName("when the admin already exists in the DB, ADMIN_BOOTSTRAP_PASSWORD is not required")
+    void existingAdminSkipsPasswordRequirement() throws Exception {
+        String jdbcUrl = "jdbc:postgresql://127.0.0.1:5432/scraper_test_guard";
+        String adminUsername = "admin-exists-guard-test";
+
+        try (Connection c = DriverManager.getConnection(jdbcUrl, "postgres", "postgres");
+             Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE IF NOT EXISTS usuario ("
+                    + "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), "
+                    + "username VARCHAR(255) UNIQUE NOT NULL, "
+                    + "email VARCHAR(255), "
+                    + "password_hash VARCHAR(255), "
+                    + "es_servicio BOOLEAN DEFAULT FALSE"
+                    + ")");
+            st.execute("DELETE FROM usuario WHERE username = '" + adminUsername + "'");
+            st.execute("INSERT INTO usuario (username, password_hash) VALUES ('" + adminUsername + "', 'hash')");
+        } catch (Exception e) {
+            // No local Postgres — skip this integration test
+            return;
+        }
+
+        try {
+            MockEnvironment env = entornoSin("ADMIN_BOOTSTRAP_PASSWORD");
+            env.setProperty("DATABASE_URL", jdbcUrl);
+            env.setProperty("DATABASE_USERNAME", "postgres");
+            env.setProperty("DATABASE_PASSWORD", "postgres");
+            env.setProperty("ADMIN_BOOTSTRAP_USERNAME", adminUsername);
+
+            assertThatCode(() -> guard.postProcessEnvironment(env, null))
+                    .as("an existing admin makes the bootstrap password inert")
+                    .doesNotThrowAnyException();
+        } finally {
+            try (Connection c = DriverManager.getConnection(jdbcUrl, "postgres", "postgres");
+                 Statement st = c.createStatement()) {
+                st.execute("DELETE FROM usuario WHERE username = '" + adminUsername + "'");
+            }
+        }
+    }
+
+    @Test
     @DisplayName("the message names every missing variable at once, not just the first")
     void theMessageNamesAllOfThem() {
         MockEnvironment env = entornoSin("AUTH_JWT_SECRET", "CLI_SERVICE_ACCOUNT_PASSWORD");
@@ -136,7 +184,7 @@ class RequiredEnvVarsGuardAuthTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static final Map<String, String> ENTORNO_COMPLETO = Map.of(
-            "DATABASE_URL", "jdbc:postgresql://127.0.0.1:5432/scraper",
+            "DATABASE_URL", "jdbc:postgresql://192.0.2.1:5432/no-existe",
             "DATABASE_USERNAME", "postgres",
             "DATABASE_PASSWORD", "postgres",
             "APP_CORS_ALLOWED_ORIGINS", "http://localhost:5173",
