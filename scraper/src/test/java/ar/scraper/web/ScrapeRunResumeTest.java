@@ -20,7 +20,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -140,6 +142,64 @@ class ScrapeRunResumeTest extends PostgresTestBase {
                 .as("the offer is consumed; a second click must not reopen a closed run")
                 .isFalse();
         assertThat(estadoDelRun(runId)).isEqualTo("COMPLETED");
+    }
+
+    /**
+     * El agujero que ninguna de las dos ramas podía ver sola: el slice 4 cuelga
+     * el aislamiento del lector de {@code abrirRun}, y una retoma no pasa por
+     * ahí. Sin esto, reanudar sirve el catálogo a medio rearmar durante todo el
+     * scrape — en el escenario donde más importa, porque una retoma corre sobre
+     * un catálogo que ya quedó a medias.
+     *
+     * <p>Se observa DURANTE la corrida retomada, no después: al cerrarla el
+     * aislamiento se suelta, así que un assert al final no distingue "aisló y
+     * soltó" de "nunca aisló".</p>
+     */
+    @Test
+    @DisplayName("a resumed run isolates the reader too, and on the ORIGINAL bound")
+    void unaRetomaTambienAislaAlLector() throws Exception {
+        // D6: la cota queda suprimida hasta que exista una corrida COMPLETED, o
+        // una instalación nueva serviría una pantalla vacía. Con la cota
+        // suprimida este test no probaría nada.
+        long previa = db.crearScrapeRun(UUID.randomUUID(),
+                Instant.parse("2026-08-24T10:00:00Z"), null, null, List.of("freres"));
+        db.finalizarScrapeRun(previa, "COMPLETED", 1, Instant.parse("2026-08-24T11:00:00Z"));
+
+        Instant arranque = Instant.parse("2026-08-25T10:00:00Z");
+        long runId = db.crearScrapeRun(UUID.randomUUID(), arranque, null, null,
+                List.of("freres"));
+        db.marcarSitioTerminado(runId, "freres", "DONE", 10, null, Instant.now());
+        service.cargarDesdeBD();
+
+        AggregatedResult fotoPrevia = new AggregatedResult(List.of(), Map.of(), Map.of(),
+                ResultAggregator.calcularFacets(List.of()), 0, 0);
+        service.setLastResultParaTest(fotoPrevia);
+
+        AggregatedResult rearmado = new AggregatedResult(List.of(), Map.of(), Map.of(),
+                ResultAggregator.calcularFacets(List.of()), 0, 0);
+        AtomicReference<Optional<Instant>> cotaDurante = new AtomicReference<>();
+        AtomicReference<AggregatedResult> servidoDurante = new AtomicReference<>();
+        Mockito.when(aggregator.fromDB(Mockito.anyList())).thenAnswer(inv -> {
+            cotaDurante.set(service.cotaDeLectura());
+            servidoDurante.set(service.getLastResult());
+            return rearmado;
+        });
+
+        assertThat(service.reanudar()).isTrue();
+        esperarA(ScraperService.ScraperStatus.DONE);
+
+        assertThat(cotaDurante.get())
+                .as("la cota es el started_at ORIGINAL, no uno nuevo: si no, nombraría "
+                    + "sólo la mitad retomada")
+                .contains(arranque.truncatedTo(ChronoUnit.SECONDS));
+        assertThat(servidoDurante.get())
+                .as("durante la retoma se sirve la foto previa, no el rearmado")
+                .isSameAs(fotoPrevia);
+
+        assertThat(service.cotaDeLectura())
+                .as("cerrada la corrida el aislamiento se suelta")
+                .isEmpty();
+        assertThat(service.getLastResult()).isSameAs(rearmado);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
