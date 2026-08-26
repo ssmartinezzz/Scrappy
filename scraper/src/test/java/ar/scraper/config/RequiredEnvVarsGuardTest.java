@@ -50,7 +50,7 @@ class RequiredEnvVarsGuardTest {
     @DisplayName("default profile + one required var missing → throws naming only that variable")
     void defaultProfileOneVarMissingThrows() {
         MockEnvironment env = new MockEnvironment();
-        env.setProperty("DATABASE_URL", "jdbc:postgresql://127.0.0.1:5432/scraper");
+        env.setProperty("DATABASE_URL", "jdbc:postgresql://192.0.2.1:5432/no-existe");
         env.setProperty("DATABASE_USERNAME", "postgres");
         env.setProperty("DATABASE_PASSWORD", ""); // explicit empty (trust-auth) — NOT "missing"
         // APP_CORS_ALLOWED_ORIGINS intentionally left unset
@@ -67,7 +67,7 @@ class RequiredEnvVarsGuardTest {
     @DisplayName("explicit empty DATABASE_PASSWORD (installer trust-auth convention) does not count as missing")
     void explicitEmptyPasswordIsNotMissing() {
         MockEnvironment env = new MockEnvironment();
-        env.setProperty("DATABASE_URL", "jdbc:postgresql://127.0.0.1:5432/scraper");
+        env.setProperty("DATABASE_URL", "jdbc:postgresql://192.0.2.1:5432/no-existe");
         env.setProperty("DATABASE_USERNAME", "postgres");
         env.setProperty("DATABASE_PASSWORD", "");
         env.setProperty("APP_CORS_ALLOWED_ORIGINS", "http://localhost:5173");
@@ -80,7 +80,7 @@ class RequiredEnvVarsGuardTest {
     @DisplayName("all required vars present → does not throw")
     void allVarsPresentDoesNotThrow() {
         MockEnvironment env = new MockEnvironment();
-        env.setProperty("DATABASE_URL", "jdbc:postgresql://127.0.0.1:5432/scraper");
+        env.setProperty("DATABASE_URL", "jdbc:postgresql://192.0.2.1:5432/no-existe");
         env.setProperty("DATABASE_USERNAME", "postgres");
         env.setProperty("DATABASE_PASSWORD", "postgres");
         env.setProperty("APP_CORS_ALLOWED_ORIGINS", "http://localhost:5173");

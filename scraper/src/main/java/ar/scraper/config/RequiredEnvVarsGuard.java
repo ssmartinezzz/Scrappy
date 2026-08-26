@@ -1,9 +1,15 @@
 package ar.scraper.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +55,8 @@ import java.util.List;
  * secret at all.</p>
  */
 public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
+
+    private static final Logger LOG = LoggerFactory.getLogger(RequiredEnvVarsGuard.class);
 
     static final List<String> REQUIRED_VARS = List.of(
             "DATABASE_URL",
@@ -102,6 +110,9 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
             }
         }
         for (String key : REQUIRED_SECRETS) {
+            if ("ADMIN_BOOTSTRAP_PASSWORD".equals(key) && adminExists(environment)) {
+                continue;
+            }
             String value = environment.getProperty(key);
             if (value == null || value.isBlank()) {
                 missing.add(key);
@@ -134,5 +145,42 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
             }
         }
         return false;
+    }
+
+    /**
+     * Checks whether the bootstrap admin account already exists in the database.
+     * When it does, {@code ADMIN_BOOTSTRAP_PASSWORD} is inert — the seeder's
+     * {@code ON CONFLICT DO NOTHING} won't consume it — so requiring it would
+     * block startup for no reason. A fresh install still needs it because the
+     * account doesn't exist yet.
+     *
+     * <p>On any failure (DB down, driver missing, query error) this returns
+     * {@code false} — the guard falls back to requiring the password, which is
+     * the safe default for a fresh install.</p>
+     */
+    private boolean adminExists(ConfigurableEnvironment environment) {
+        String url = environment.getProperty("DATABASE_URL");
+        String username = environment.getProperty("DATABASE_USERNAME");
+        String password = environment.getProperty("DATABASE_PASSWORD");
+        String adminUsername = environment.getProperty("ADMIN_BOOTSTRAP_USERNAME");
+
+        if (url == null || adminUsername == null) {
+            return false;
+        }
+
+        try (Connection c = DriverManager.getConnection(url,
+                username != null ? username : "",
+                password != null ? password : "")) {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT 1 FROM usuario WHERE username = ?")) {
+                ps.setString(1, adminUsername);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next();
+                }
+            }
+        } catch (Exception e) {
+            LOG.debug("[GUARD] Could not check admin existence, assuming fresh install: {}", e.getMessage());
+            return false;
+        }
     }
 }
