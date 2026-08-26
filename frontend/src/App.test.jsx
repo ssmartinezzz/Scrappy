@@ -43,7 +43,7 @@ const SIN_INTERRUMPIDA = { hayInterrumpida: false };
 const CON_INTERRUMPIDA = {
   hayInterrumpida: true,
   uuid: '4f1a2b3c-0000-4000-8000-000000000001',
-  startedAt: '2026-08-24T18:20:00Z',
+  startedAt: '2026-08-24T18:20:00.049704Z',
   soloFaltaLaPasadaFinal: false,
   atendidos: ['freres', 'vcp'],
   pendientes: ['entreno'],
