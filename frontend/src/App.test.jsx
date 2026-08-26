@@ -34,7 +34,7 @@ function refreshOk() {
 }
 
 function meWithRoles(roles) {
-  return jsonResponse({ username: roles.includes('ADMIN') ? 'admin' : 'valeria', roles });
+  return jsonResponse({ username: roles.includes('ADMIN') ? 'admin' : 'viewer', roles });
 }
 
 /** Router mock covering everything AppLayout/CronjobsPage/AgentChatPanel touch on mount. */
