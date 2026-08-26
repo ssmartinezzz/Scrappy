@@ -227,6 +227,24 @@ class ScrapeRunRepository {
         return ids;
     }
 
+    /**
+     * Whether any run has ever closed cleanly — the reader bound's on/off switch.
+     *
+     * <p>{@code COMPLETED}, not "any run": on a fresh install the first run is
+     * itself a run, so "any" would apply the bound while nothing can satisfy
+     * {@code touched_at < started_at} and the reader would get an empty screen.
+     * The other terminal states are excluded for the same reason — a cancelled
+     * or interrupted run leaves no clean pre-run catalogue to hold a reader at.</p>
+     */
+    boolean existeCorridaCompletada() throws SQLException {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT EXISTS (SELECT 1 FROM scrape_run WHERE status = 'COMPLETED')");
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() && rs.getBoolean(1);
+        }
+    }
+
     Optional<Instant> startedAtDe(long runId) throws SQLException {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(

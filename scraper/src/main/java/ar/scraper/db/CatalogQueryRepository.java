@@ -10,11 +10,15 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * `/api/data`'s catalog query, in SQL (`sql-catalog-filtering`).
@@ -51,7 +55,12 @@ class CatalogQueryRepository {
     }
 
     CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size) {
-        Where where = construirWhere(filtro);
+        return buscar(filtro, orden, page, size, Optional.empty());
+    }
+
+    /** @param desde the run's {@code started_at}; empty serves the whole catalogue. */
+    CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
+        Where where = construirWhere(filtro, cotaDe(desde));
         try (Connection c = dataSource.getConnection()) {
             int total = contar(c, where);
             int paginaClamped = Math.max(page, 1);
@@ -83,20 +92,26 @@ class CatalogQueryRepository {
      * por conteo descendente.</p>
      */
     ar.scraper.aggregator.ResultAggregator.Facets facetas() {
+        return facetas(Optional.empty());
+    }
+
+    /** @param desde the run's {@code started_at}; empty counts the whole catalogue. */
+    ar.scraper.aggregator.ResultAggregator.Facets facetas(Optional<Instant> desde) {
+        Cota cota = cotaDe(desde);
         try (Connection c = dataSource.getConnection()) {
             Map<String, Long> talles = ar.scraper.aggregator.FacetCalculator.sortTalles(
-                    contarHija(c, "producto_talle", "talle"));
-            Map<String, Long> badges = contarHija(c, "producto_badge", "badge");
+                    contarHija(c, "producto_talle", "talle", cota));
+            Map<String, Long> badges = contarHija(c, "producto_badge", "badge", cota);
 
-            Map<String, Long> generos = contar(c, "lower(btrim(genero))");
+            Map<String, Long> generos = contar(c, "lower(btrim(genero))", cota);
             Map<String, Long> categorias = contar(c,
-                    "upper(left(btrim(categoria),1)) || lower(substr(btrim(categoria),2))");
-            Map<String, Long> marcas = limitar(contar(c, "btrim(marca)"), 30);
-            Map<String, Long> subCategorias = ordenarPorClave(contar(c, "btrim(sub_categoria)"));
-            Map<String, Long> fits = contar(c, "btrim(fit)");
-            Map<String, Long> estampados = contar(c, "btrim(estampado)");
-            Map<String, Long> escotes = contar(c, "btrim(escote)");
-            Map<String, Long> colores = contar(c, "btrim(color_dominante)");
+                    "upper(left(btrim(categoria),1)) || lower(substr(btrim(categoria),2))", cota);
+            Map<String, Long> marcas = limitar(contar(c, "btrim(marca)", cota), 30);
+            Map<String, Long> subCategorias = ordenarPorClave(contar(c, "btrim(sub_categoria)", cota));
+            Map<String, Long> fits = contar(c, "btrim(fit)", cota);
+            Map<String, Long> estampados = contar(c, "btrim(estampado)", cota);
+            Map<String, Long> escotes = contar(c, "btrim(escote)", cota);
+            Map<String, Long> colores = contar(c, "btrim(color_dominante)", cota);
 
             return new ar.scraper.aggregator.ResultAggregator.Facets(
                     talles, generos, categorias, marcas, badges, subCategorias,
@@ -110,6 +125,17 @@ class CatalogQueryRepository {
     }
 
     CatalogResumen resumen() {
+        return resumen(Optional.empty());
+    }
+
+    /**
+     * @param desde the run's {@code started_at}; empty summarises the whole
+     *              catalogue. Bounding this and leaving it out of {@code buscar}
+     *              — or the reverse — is what makes the 204 check and the page
+     *              contents disagree, so both go through the same {@link Cota}.
+     */
+    CatalogResumen resumen(Optional<Instant> desde) {
+        Cota cota = cotaDe(desde);
         double min = 0, max = 0;
         long conteoGymrat = 0, conteoPacks = 0;
         int total = 0;
@@ -119,8 +145,9 @@ class CatalogQueryRepository {
             try (PreparedStatement ps = c.prepareStatement(
                     "SELECT coalesce(min(precio),0), coalesce(max(precio),0), COUNT(*), "
                             + "count(*) FILTER (WHERE gymrat), count(*) FILTER (WHERE cantidad_unidades > 1) "
-                            + "FROM productos WHERE activo");
-                 ResultSet rs = ps.executeQuery()) {
+                            + "FROM productos WHERE activo" + cota.sqlAnd(""))) {
+                cota.bind(ps, 1);
+                ResultSet rs = ps.executeQuery();
                 if (rs.next()) {
                     min = rs.getDouble(1);
                     max = rs.getDouble(2);
@@ -129,8 +156,8 @@ class CatalogQueryRepository {
                     conteoPacks = rs.getLong(5);
                 }
             }
-            porSitio = contar(c, "sitio");
-            rubros = contar(c, "coalesce(nullif(btrim(rubro),''),'indumentaria')");
+            porSitio = contar(c, "sitio", cota);
+            rubros = contar(c, "coalesce(nullif(btrim(rubro),''),'indumentaria')", cota);
         } catch (Exception e) {
             LOG.error("[DB] Error calculando el resumen del catálogo: {}", e.getMessage(), e);
         }
@@ -138,13 +165,17 @@ class CatalogQueryRepository {
     }
 
     /** GROUP BY sobre una expresión de `productos`, descartando el blanco, por conteo descendente. */
-    private Map<String, Long> contar(Connection c, String expresion) throws SQLException {
+    private Map<String, Long> contar(Connection c, String expresion, Cota cota) throws SQLException {
         Map<String, Long> conteo = new java.util.LinkedHashMap<>();
         String sql = "SELECT " + expresion + " AS clave, COUNT(*) FROM productos "
-                + "WHERE activo AND coalesce(btrim(" + expresion + "), '') <> '' "
-                + "GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
-        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
+                + "WHERE activo AND coalesce(btrim(" + expresion + "), '') <> ''"
+                + cota.sqlAnd("")
+                + " GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            cota.bind(ps, 1);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
+            }
         }
         return conteo;
     }
@@ -153,14 +184,23 @@ class CatalogQueryRepository {
      * Igual pero sobre una tabla hija: un producto cuenta UNA VEZ POR VALOR que
      * tiene, no una sola vez — es la semántica multi-badge que la spec pide.
      */
-    private Map<String, Long> contarHija(Connection c, String tabla, String columna) throws SQLException {
+    private Map<String, Long> contarHija(Connection c, String tabla, String columna, Cota cota)
+            throws SQLException {
         Map<String, Long> conteo = new java.util.LinkedHashMap<>();
+        // The bound qualifies `p`, the parent: a child row is in scope exactly
+        // when its product is. Leaving this one unbounded is invisible from
+        // `buscar` — the page shrinks correctly while the talles and badges
+        // filters keep offering values only the held-back products carry.
         String sql = "SELECT btrim(h." + columna + ") AS clave, COUNT(*) FROM " + tabla + " h "
                 + "JOIN productos p ON p.url = h.url "
-                + "WHERE p.activo AND btrim(h." + columna + ") <> '' "
-                + "GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
-        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
+                + "WHERE p.activo AND btrim(h." + columna + ") <> ''"
+                + cota.sqlAnd("p.")
+                + " GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            cota.bind(ps, 1);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
+            }
         }
         return conteo;
     }
@@ -185,11 +225,66 @@ class CatalogQueryRepository {
     private record Where(String sql, List<Object> params) {
     }
 
+    /**
+     * The reader bound: while a run is in flight, hold back the rows it has
+     * already re-touched so a reader sees the catalogue as it stood before the
+     * run started, instead of a half-rescraped mix (design D1/D6).
+     *
+     * <p><b>Absent means serve everything</b>, never "bound = epoch, serve
+     * nothing". A fresh install with no completed run behind it must show its
+     * progress, not an empty screen.</p>
+     *
+     * <p><b>Exclusive on purpose, and the mirror image of the soft-delete
+     * union.</b> {@code touched_at} only ever holds whole seconds and
+     * {@code ScrapeRunRepository.crear} truncates {@code started_at} to match,
+     * so a row written during the run's own first second compares equal and
+     * fails {@code <} — it is held back. That is a row hidden one second early,
+     * before any site can plausibly have finished, and it loses nobody any data.
+     * The sweep's bound is {@code >=} because it must protect rows from being
+     * deleted; this one is {@code <} because it may hide a fresh row. The two
+     * directions are deliberate and opposite.</p>
+     *
+     * <p>Rendering and binding live together here on purpose: the predicate has
+     * to reach <b>four</b> separate {@code activo} clauses — {@code construirWhere},
+     * {@code resumen}'s aggregate, the {@code contar(String)} GROUP BY overload
+     * and {@code contarHija}'s JOIN. Four hand-written copies is four chances to
+     * miss one, and missing one is invisible from {@code buscar}: the page shrinks
+     * correctly while the facets keep advertising values it cannot show.</p>
+     */
+    private record Cota(Optional<Instant> desde) {
+
+        static final Cota SIN_COTA = new Cota(Optional.empty());
+
+        /** {@code " AND <alias>touched_at < ?"}, or nothing when absent. */
+        String sqlAnd(String alias) {
+            return desde.isEmpty() ? "" : " AND " + alias + "touched_at < ?";
+        }
+
+        /** Binds this bound's parameter, if any, and returns the next free index. */
+        int bind(PreparedStatement ps, int idx) throws SQLException {
+            if (desde.isEmpty()) return idx;
+            ps.setObject(idx, desde.get().truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
+            return idx + 1;
+        }
+    }
+
+    private static Cota cotaDe(Optional<Instant> desde) {
+        return desde == null || desde.isEmpty() ? Cota.SIN_COTA : new Cota(desde);
+    }
+
     private Where construirWhere(CatalogFilter f) {
+        return construirWhere(f, Cota.SIN_COTA);
+    }
+
+    private Where construirWhere(CatalogFilter f, Cota cota) {
         List<String> cond = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
         cond.add("p.activo");
+        if (cota.desde().isPresent()) {
+            cond.add("p.touched_at < ?");
+            params.add(cota.desde().get().truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
+        }
 
         if (noVacio(f.sitio())) {
             cond.add("lower(coalesce(p.sitio,'')) = lower(?)");
