@@ -58,6 +58,32 @@ public abstract class PostgresTestBase {
         return sharedDataSource;
     }
 
+    /**
+     * The same database, behind a real connection pool. <b>Use this for any
+     * timing measurement.</b>
+     *
+     * <p>{@link #dataSource()} is a {@link SimpleDriverDataSource}, which opens a
+     * brand-new connection on every single call. That is fine for correctness
+     * tests and ruinous for measurement: this repo has a recorded case where the
+     * same two queries timed <b>31x slower</b> unpooled (13.5 ms) than through
+     * HikariCP (0.429 ms), which is what production actually uses. A number taken
+     * without the pool is not a slow number, it is a fictional one — it measures
+     * connection setup, and a conclusion drawn from it can be exactly backwards.</p>
+     *
+     * <p>It lives here rather than in each benchmark so the correct thing is the
+     * easy thing. Callers must close the returned pool.</p>
+     */
+    protected static com.zaxxer.hikari.HikariDataSource pooledDataSource() {
+        SimpleDriverDataSource simple = (SimpleDriverDataSource) sharedDataSource;
+        com.zaxxer.hikari.HikariConfig cfg = new com.zaxxer.hikari.HikariConfig();
+        cfg.setJdbcUrl(simple.getUrl());
+        cfg.setUsername(simple.getUsername());
+        cfg.setPassword(simple.getPassword());
+        cfg.setMaximumPoolSize(10);
+        cfg.setPoolName("benchmark");
+        return new com.zaxxer.hikari.HikariDataSource(cfg);
+    }
+
     @BeforeEach
     void postgresTestBaseSetUp() throws Exception {
         DataSource ds = resolveDataSource();
@@ -274,6 +300,12 @@ public abstract class PostgresTestBase {
                     outfit_feedback_item, categoria_dismiss,
                     financiacion_presets, saved_outfits, cron_executions, cron_jobs,
                     agent_reclassify_audit,
+                    -- scrape-run-persistence-and-resume (V29). `scrape_run_site`
+                    -- would go with its run by CASCADE, but it is named anyway:
+                    -- this list is hand-maintained, and an omission here does not
+                    -- fail — it leaks residue into an unrelated test and reads as
+                    -- a bug somewhere else entirely.
+                    scrape_run_site, scrape_run,
                     -- user-accounts-and-roles (V26). `rol` is deliberately absent:
                     -- it is seed data the migration itself inserts, not test
                     -- residue, and truncating it would leave the schema with no
