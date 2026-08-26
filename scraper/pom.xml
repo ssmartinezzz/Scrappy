@@ -253,6 +253,31 @@
                              (and any future @SpringBootTest) skips the fail-fast required-env-var
                              check without needing real DATABASE_URL/etc. in the test environment. -->
                         <spring.profiles.active>test</spring.profiles.active>
+                        <!--
+                            scrape-run-persistence-and-resume, slice 1. DO NOT REMOVE as
+                            "unnecessary": without it this suite is not reproducible
+                            between machines.
+
+                            pgjdbc sends `SET TimeZone` with the JVM's default zone when
+                            it connects, so a zoneless literal cast to `timestamptz` —
+                            `'2026-08-25 10:00:00'::timestamptz` — lands at 13:00Z on a
+                            developer machine at -03 and at 10:00Z on CI (ubuntu-latest,
+                            UTC). Same source, two different instants, and the only
+                            variable is who ran it. A timestamp test tuned green locally
+                            can go red on CI, and a genuine CI red is then trivially
+                            dismissed as flakiness.
+
+                            Pinning UTC does not introduce a new regime: CI already runs
+                            this whole suite under UTC and green. It makes the local run
+                            behave like CI.
+
+                            This does NOT replace writing an explicit offset in the
+                            literals themselves. They fix different things — this fixes
+                            reproducibility across machines, the offset fixes each test's
+                            correctness and survives being run from an IDE, where surefire
+                            is not involved.
+                        -->
+                        <user.timezone>UTC</user.timezone>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
