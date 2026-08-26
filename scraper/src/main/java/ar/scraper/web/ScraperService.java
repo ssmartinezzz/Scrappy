@@ -340,7 +340,7 @@ public class ScraperService {
         cancelado.set(false);
         playwrightsVivos.clear();
         if (adoptada != null) {
-            runState.set(adoptada);
+            adoptarCorrida(adoptada);
             RUN_LOG.info("[RETOMA]  corrida {} retomada con {} sitio(s) pendientes",
                     adoptada.runId(), totalSitios);
         } else {
@@ -678,7 +678,7 @@ public class ScraperService {
      */
     private void soloPasadaFinal(RunState corrida) {
         try {
-            runState.set(corrida);
+            adoptarCorrida(corrida);
             statusMsg.set("Barrido final de la corrida retomada...");
             db.upsertProductos(List.of(), corrida.startedAt());
 
@@ -758,12 +758,26 @@ public class ScraperService {
             // case con la resolución de `touched_at`. Leerlo de vuelta evita que
             // este objeto y la fila digan cosas distintas.
             java.time.Instant persistido = db.startedAtDeRun(runId).orElse(arranque);
-            runState.set(new RunState(runId, uuid, persistido));
+            adoptarCorrida(new RunState(runId, uuid, persistido));
             LOG.info("[RUN] corrida {} abierta con {} sitios", runId, nombres.size());
         } catch (Exception e) {
             runState.set(null);
             LOG.warn("[RUN] no se pudo abrir la corrida, sigue sin registro: {}", e.getMessage());
         }
+    }
+
+    /**
+     * El ÚNICO lugar donde una corrida pasa a ser la corrida en curso.
+     *
+     * <p>Son tres los caminos que abren una: la normal, la retomada, y la que
+     * sólo debe el barrido final. Entran los tres por acá porque de la apertura
+     * cuelga el aislamiento del lector, y tres {@code runState.set()} sueltos
+     * dejarían a dos de ellos sirviendo un catálogo a medio rearmar — justo en
+     * el escenario donde más importa, porque una retoma corre sobre un catálogo
+     * que ya quedó a medias.</p>
+     */
+    private void adoptarCorrida(RunState corrida) {
+        runState.set(corrida);
     }
 
     private void registrarSitioEnCurso(String sitio) {
