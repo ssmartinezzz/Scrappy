@@ -1777,10 +1777,16 @@ Dos consecuencias, las dos aceptadas explícitamente:
   `>=` también captura filas tocadas por lo que haya corrido antes en ese mismo
   segundo. Para el soft-delete esa es la dirección segura: protege de más, nunca
   barre de más.
-- **El lector hereda una ventana de un segundo.** La cota de lectura es
-  `touched_at < started_at`, así que esas mismas filas quedan FUERA y un lector
-  las ve un instante antes de tiempo. Es una fuga de frescura al arranque de la
-  corrida —antes de que ningún sitio pueda haber terminado— y no pierde datos.
+- **El lector las OCULTA, y está bien.** La cota de lectura es
+  `touched_at < started_at`, y una fila del primer segundo tiene
+  `touched_at == started_at`, así que no se sirve. Los dos predicados coinciden:
+  esa fila es de la corrida en vuelo, que es justo lo que la unión tiene que
+  barrer y lo que el lector tiene que esconder. **Ocultarla es el aislamiento
+  funcionando, no un agujero** — no lo "arregles".
+- **La asimetría real** es que ensanchar alcanza también a lo escrito en ese
+  mismo segundo *antes* de que la corrida abriera: para la unión eso protege de
+  más, y para el lector significa que una escritura de menos de un segundo de
+  antigüedad queda invisible hasta que la corrida termina. Nadie pierde datos.
   La alternativa era una columna `scrape_run_id` en `productos`, descartada por
   tocar la tabla más caliente del esquema.
 
