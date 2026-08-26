@@ -124,13 +124,33 @@ class ScrapeRunResumeRepositoryTest extends PostgresTestBase {
                 List.of("freres", "midway"));
         repo().marcarInterrumpidosAlArrancar(Instant.now());
 
-        repo().marcarSitiosSalteados(runId, List.of("midway"));
+        assertThat(repo().marcarAusentesDelRegistro(runId, List.of("freres")))
+                .as("devuelve cuáles fueron, para poder nombrarlos")
+                .containsExactly("midway");
 
         assertThat(sitiosConEstado(runId, "SKIPPED")).containsExactly("midway");
         assertThat(repo().ultimaInterrumpida().orElseThrow().pendientes())
                 .as("no se ofrece retomar un sitio que ya no existe, y el operador "
                     + "tiene que enterarse de cuál fue en vez de que desaparezca")
                 .containsExactly("freres");
+    }
+
+    @Test
+    @DisplayName("the registry comparison normalizes, so a site with punctuation is not dropped")
+    void theRegistryComparisonNormalizes() throws Exception {
+        long runId = repo().crear(UUID.randomUUID(), Instant.now(), null, null,
+                List.of("Full H4rd"));
+        repo().marcarInterrumpidosAlArrancar(Instant.now());
+
+        // El registro devuelve el nombre para mostrar, no la clave. Si la
+        // comparación no normalizara, "Full H4rd" no matchearía con la clave
+        // guardada `fullh4rd`, el sitio se marcaría SKIPPED y desaparecería en
+        // silencio de una retoma que lo debía.
+        assertThat(repo().marcarAusentesDelRegistro(runId, List.of("Full H4rd")))
+                .as("mismo sitio, misma clave: no falta del registro")
+                .isEmpty();
+        assertThat(repo().ultimaInterrumpida().orElseThrow().pendientes())
+                .containsExactly("fullh4rd");
     }
 
     @Test

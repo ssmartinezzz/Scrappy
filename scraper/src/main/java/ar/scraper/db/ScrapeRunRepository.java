@@ -313,22 +313,6 @@ class ScrapeRunRepository {
         }
     }
 
-    /** Marks sites gone from the registry, so they get named instead of silently dropped. */
-    void marcarSitiosSalteados(long runId, java.util.Collection<String> sitioKeys)
-            throws SQLException {
-        if (sitioKeys.isEmpty()) return;
-        String sql = """
-            UPDATE scrape_run_site SET status = 'SKIPPED'
-             WHERE scrape_run_id = ? AND sitio_key = ANY (?)
-            """;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, runId);
-            ps.setArray(2, c.createArrayOf("text", sitioKeys.toArray()));
-            ps.executeUpdate();
-        }
-    }
-
     /**
      * Marks as SKIPPED any still-pending site that is no longer in the registry,
      * and returns which ones.
