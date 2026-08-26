@@ -148,6 +148,16 @@ describe('useScrapeStatusPolling — a run already live at mount asks to be poll
     expect(result.current.pollingNeeded).toBe(true);
   });
 
+  it('carries that run\'s progress in from the mount read, not one poll later', async () => {
+    // The bar is drawn from `progreso`. Without this the screen showed a live
+    // run with an empty bar until the first poll landed a full interval later.
+    fetchStatus.mockResolvedValue(RUNNING);
+
+    const { result } = await mountHook();
+
+    expect(result.current.progreso).toEqual(RUNNING.progreso);
+  });
+
   it('does not flag it when the mount read finds no run in flight', async () => {
     fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
 
