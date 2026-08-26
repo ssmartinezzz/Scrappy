@@ -443,6 +443,52 @@ public class VaypolPage extends BasePage {
 
     // ─── Estrategia 2: Links fallback (sin imágenes reales) ─────────────────
 
+    /**
+     * slug → imagen, leído de {@code __NEXT_DATA__}.
+     *
+     * <p>La vidriera renderiza sus {@code <img>} del lado del cliente, así que
+     * el DOM que ve el scraper no tiene ninguna. El payload sí: cada producto
+     * de {@code initialReduxState.products.items} trae su propia
+     * {@code dummy_images}. Sin este mapa, cada producto sale con imagen vacía
+     * y termina en el fetch individual de og:image — 1896 requests, 22 minutos.
+     */
+    private Map<String, String> imagenesPorSlug() {
+        try {
+            String raw = (String) page.evaluate(
+                "(function(){var el=document.getElementById('__NEXT_DATA__');" +
+                "return el?el.textContent:null;})()");
+            if (raw == null || raw.isBlank()) return Map.of();
+
+            JsonNode items = MAPPER.readTree(raw)
+                    .path("props").path("pageProps").path("initialReduxState")
+                    .path("products").path("items");
+            if (!items.isArray()) return Map.of();
+
+            Map<String, String> porSlug = new HashMap<>();
+            for (JsonNode it : items) {
+                String slug = it.path("url").asText("");   // el campo `url` ES el slug
+                JsonNode imgs = it.path("dummy_images");
+                if (slug.isBlank() || !imgs.isArray() || imgs.isEmpty()) continue;
+                String img = imgs.get(0).path("url").asText("");
+                if (!img.isBlank()) porSlug.put(slug, img);
+            }
+            return porSlug;
+        } catch (Exception e) {
+            log.debug("[{}] no pude leer imágenes de __NEXT_DATA__: {}", sitio, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    /** Último segmento de la URL, sin query ni barra final — el slug del producto. */
+    private static String slugDeUrl(String url) {
+        String s = url;
+        int q = s.indexOf('?');
+        if (q >= 0) s = s.substring(0, q);
+        while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        int barra = s.lastIndexOf('/');
+        return barra >= 0 ? s.substring(barra + 1) : s;
+    }
+
     private List<Product> extraerDeLinks(String base) {
         try {
             String json = (String) page.evaluate(buildLinksJs());
@@ -451,6 +497,7 @@ public class VaypolPage extends BasePage {
             JsonNode arr = MAPPER.readTree(json);
             if (!arr.isArray()) return List.of();
 
+            Map<String, String> imgPorSlug = imagenesPorSlug();
             List<Product> result = new ArrayList<>();
             for (JsonNode n : arr) {
                 String nombre = n.path("nombre").asText("").trim();
@@ -462,9 +509,13 @@ public class VaypolPage extends BasePage {
                 String href    = n.path("url").asText("");
                 String url     = href.startsWith("http") ? href : base + href;
                 String genero  = normalizarGenero(n.path("genero").asText(""));
+                String img     = imgPorSlug.getOrDefault(slugDeUrl(url), "");
                 result.add(new Product(sitio, nombre, precio.get(), precioOrig,
-                        url, "", "", genero, List.of()));
+                        url, img, "", genero, List.of()));
             }
+            long conImg = result.stream()
+                    .filter(p -> p.imagenUrl() != null && !p.imagenUrl().isBlank()).count();
+            log.debug("[{}] links → {} productos, {} con imagen", sitio, result.size(), conImg);
             return result;
         } catch (Exception e) {
             return List.of();
