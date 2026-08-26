@@ -237,6 +237,12 @@ public class DatabaseService {
         return catalogQueryRepository.buscar(filtro, orden, page, size);
     }
 
+    /** @param cota the open run's started_at; empty serves the whole catalogue. */
+    public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size,
+                                      java.util.Optional<java.time.Instant> cota) {
+        return catalogQueryRepository.buscar(filtro, orden, page, size, cota);
+    }
+
     // ── scrape_run / scrape_run_site (V29) ───────────────────────────────────
     //
     // Delegates rather than a getter: ScrapeRunRepository is package-private,
@@ -292,14 +298,30 @@ public class DatabaseService {
         return scrapeRunRepository.startedAtDe(runId);
     }
 
+    /** Whether the reader bound may apply at all — see the repository for why COMPLETED. */
+    public boolean existeCorridaCompletada() throws SQLException {
+        return scrapeRunRepository.existeCorridaCompletada();
+    }
+
     /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
     public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo() {
         return catalogQueryRepository.facetas();
     }
 
+    /** @param cota the open run's started_at; empty counts the whole catalogue. */
+    public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo(
+            java.util.Optional<java.time.Instant> cota) {
+        return catalogQueryRepository.facetas(cota);
+    }
+
     /** Rango de precios, conteo por sitio/rubro, gymrat y packs del catálogo persistido. */
     public CatalogResumen resumenCatalogo() {
         return catalogQueryRepository.resumen();
+    }
+
+    /** @param cota the open run's started_at; empty summarises the whole catalogue. */
+    public CatalogResumen resumenCatalogo(java.util.Optional<java.time.Instant> cota) {
+        return catalogQueryRepository.resumen(cota);
     }
 
     public java.util.Optional<Product> obtenerProducto(String url) {
