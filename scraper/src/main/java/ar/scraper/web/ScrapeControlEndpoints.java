@@ -56,6 +56,19 @@ class ScrapeControlEndpoints {
             }
         }
 
+        // El run persistido (V29), ADITIVO: `status` sigue siendo IDLE|RUNNING|
+        // DONE|ERROR y una corrida cancelada reporta DONE. Meter CANCELLED en el
+        // enum cambiaría la superficie del contrato del CLI (`cli/core/rest.py`)
+        // sin ganar nada funcional; un campo nuevo es invisible para los
+        // consumidores viejos y le da `run.status` al que lo quiera.
+        var rs = service.getRunState();
+        if (rs != null) {
+            ObjectNode run = b.putObject("run");
+            run.put("uuid",      rs.scrapeUuid().toString());
+            run.put("startedAt", rs.startedAt().toString());
+            run.put("cancelando", service.estaCancelado());
+        }
+
         // Progreso en tiempo real
         ScraperService.ProgressData pd = service.getProgressData();
         if (pd != null) {
@@ -75,6 +88,19 @@ class ScrapeControlEndpoints {
                             ? sp.error().substring(0, 60) + "..." : sp.error());
             }
         }
+        return ResponseEntity.ok(b);
+    }
+
+    // ---------------------------------------------------------------
+    // Cancelar
+    // ---------------------------------------------------------------
+    ResponseEntity<ObjectNode> cancelar() {
+        ObjectNode b = JsonNodeFactory.instance.objectNode();
+        boolean ok = service.cancelar();
+        b.put("cancelando", ok);
+        b.put("mensaje", ok
+                ? "Cancelando: se deja de esperar sitios y el catálogo queda como está"
+                : "No hay ningún scraping en curso");
         return ResponseEntity.ok(b);
     }
 
