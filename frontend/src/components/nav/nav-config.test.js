@@ -68,4 +68,24 @@ describe('visibleNav — role-based filtering (design D6)', () => {
     expect(viewerLabels).not.toContain('Cronjobs');
     expect(adminLabels).toContain('Cronjobs');
   });
+
+  it('the real NAV_CONFIG hides Cuentas for a VIEWER and shows it for an ADMIN', () => {
+    const viewerLabels = visibleNav(NAV_CONFIG, ['VIEWER']).map(n => n.label);
+    const adminLabels = visibleNav(NAV_CONFIG, ['ADMIN']).map(n => n.label);
+
+    expect(viewerLabels).not.toContain('Cuentas');
+    expect(adminLabels).toContain('Cuentas');
+  });
+
+  // Un `requires` que se cae del literal deja el link visible para todos, y la
+  // aserción por label de arriba seguiría pasando porque un ADMIN igual lo ve.
+  it('every admin destination in the real NAV_CONFIG is gated behind ADMIN', () => {
+    const rutasAdmin = ['/cronjobs', '/admin/manage/users'];
+    const visiblesParaViewer = visibleNav(NAV_CONFIG, ['VIEWER'])
+      .flatMap(n => (n.kind === 'link' ? [n.to] : n.items.map(i => i.to)));
+
+    for (const ruta of rutasAdmin) {
+      expect(visiblesParaViewer).not.toContain(ruta);
+    }
+  });
 });
