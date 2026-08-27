@@ -1995,3 +1995,93 @@ gusto: sin sacar la fila primero, el `ALTER` no puede aplicarse en ninguna base.
 Sigue valiendo la misma regla acotada para editar el test de otro: **una
 aserción de dominio cerrado puede ir de `n` a `n+1` si toda aserción de
 comportamiento alrededor queda idéntica.**
+
+---
+
+## `V31` — quince categorías nuevas de tecnología y deporte
+
+Un solo `INSERT` a la tabla lookup de `V13`. **No toca ningún CHECK ni ningún
+dominio**, así que no hereda el problema de `V24`/`V27`/`V28`, donde re-listar
+un dominio completo borra lo que agregó la migración anterior.
+
+**Por qué hace falta la migración y no alcanza con el código:**
+`productos.categoria` tiene FK a `categoria(nombre)` desde `V13`. Sin estas
+filas, todo producto que el clasificador mande a una de ellas viola la FK en el
+upsert — y como `ProductRepository` **se traga los errores SQL** y devuelve
+`UpsertStats(0,0,0,0)`, el síntoma no sería un error sino `"0 nuevos"` en una
+corrida que se ve perfectamente sana.
+`CategoriaLookupTableTest.laTablaYElCanonDeJavaNoPuedenDiverger` exige que esta
+tabla y `CategoryGroups.canonicalCategories()` sean el **mismo** conjunto,
+exactamente para que esto no se pueda olvidar.
+
+**De dónde salió la lista: de contar, no de imaginar.** Medido sobre las 16.830
+filas activas, `Otros` tenía 2.974 productos —14% del catálogo— y adentro había
+453 teclados, 302 mouses, 285 fuentes, 231 discos, 161 productos de red, 130
+cables, 101 de impresión, 89 pelotas y 88 mousepads. No estaban mal
+clasificados: **ningún keyword los nombraba**. `KW_TECLADO` no tenía la palabra
+`teclado` pelada, sólo `"teclado gamer"`/`"teclado mecanico"`. El criterio de
+alta fue ≥20 productos reales, sustantivo propio, y ninguna categoría existente
+donde entren sin mentir.
+
+| Categoría | Rubro | De dónde salió |
+|---|---|---|
+| `Cooler` | tecnología | **De adentro de `CPU`**, no de `Otros` — ver abajo |
+| `Fuente` · `Motherboard` · `Red` · `Cable` · `Impresión` · `Mousepad` · `Joystick` · `Micrófono` · `UPS` · `Tablet` · `Cámara` · `Reloj` | tecnología | `Otros` |
+| `Pelota` · `Paleta` | deporte | `Otros` |
+
+El piso de 20 no es arbitrario y se eligió mirando el consumidor, no la
+estética: `ml_pipeline.py` usa `MIN_GROUP = 10` para decidir si calcula stats
+sobre la categoría o cae al padre, y `MIN_SAMPLE = 3` para z-score y cercos de
+Tukey. Una categoría de 20 productos entra con margen sobre los dos; una de 5
+habría entrado al vocabulario para producir estadística de ruido.
+
+`Almacenamiento` **no está** en `V31`: entró al canon y a esta tabla en `V13`.
+Lo que le faltaba era un keyword que la produjera, y eso es código, no esquema —
+231 discos vivían en `Otros` mientras la categoría existía y estaba vacía.
+
+### `Cooler` es la que más importaba, y no venía de `Otros`
+
+De las 646 filas de `CPU`, **321 eran disipadores** — la mitad de la categoría.
+`KW_CPU` declaraba `"cpu "` sin espacio adelante, así que `"Cooler CPU
+ID-Cooling SE-214-XT"` matcheaba igual que `"Procesador Intel Core i5"`.
+
+Media categoría a un orden de magnitud de precio de la otra media no le miente a
+un filtro del dashboard: le miente a la **distribución** de la que vive el
+pipeline ML. Mediana, IQR, percentiles y cercos de Tukey de `CPU` se calculaban
+sobre dos poblaciones distintas mezcladas, y de ahí salen los badges.
+
+### Las categorías nuevas no son de indumentaria, y eso es deliberado
+
+`Pelota` y `Paleta` viven en su propio set (`CATEGORIAS_DEPORTE`), **fuera** de
+`INDUMENTARIA_O_CALZADO_EXTRA`. Si entraran ahí, `GymratTagger` las taggearía y
+los tres armadores de outfits considerarían una pelota una prenda vestible.
+
+### Rollback
+
+```sql
+-- >>> rollback:V31
+UPDATE productos SET categoria = 'Otros'
+ WHERE categoria IN ('Cooler','Fuente','Motherboard','Red','Cable','Impresión',
+                     'Mousepad','Joystick','Micrófono','UPS','Tablet','Cámara',
+                     'Reloj','Pelota','Paleta');
+DELETE FROM categoria_stats
+ WHERE categoria IN ('Cooler','Fuente','Motherboard','Red','Cable','Impresión',
+                     'Mousepad','Joystick','Micrófono','UPS','Tablet','Cámara',
+                     'Reloj','Pelota','Paleta');
+DELETE FROM categoria
+ WHERE nombre IN ('Cooler','Fuente','Motherboard','Red','Cable','Impresión',
+                  'Mousepad','Joystick','Micrófono','UPS','Tablet','Cámara',
+                  'Reloj','Pelota','Paleta');
+-- <<< rollback:V31
+```
+
+**El orden de las tres sentencias es obligatorio, no estético.** `productos.categoria`
+(`V13`) y `categoria_stats.categoria` (`V16`) tienen FK a esta tabla: borrar la
+fila de lookup con productos todavía apuntándole falla, y el `UPDATE` a `'Otros'`
+es lo que los suelta primero. Es el mismo motivo por el que el `DELETE` de
+sitios de `V24`/`V27`/`V28`/`V30` lleva su `NOT EXISTS`.
+
+A diferencia de esos cuatro, **este rollback no obliga a tocar ningún test
+ajeno**: `V31` no angosta ni ensancha un dominio cerrado, así que ninguna
+migración anterior deja de aplicar mientras sus filas sigan vivas.
+

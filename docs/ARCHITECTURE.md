@@ -211,6 +211,74 @@ qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
 
 ---
 
+### ¿Por qué el vocabulario de categorías creció de 88 a 103, y por qué el orden del clasificador es dato y no estilo?
+
+**Decisión** (`richer-category-taxonomy`, 2026-08-27): quince categorías nuevas
+—trece de tecnología (`Cooler`, `Fuente`, `Motherboard`, `Red`, `Cable`,
+`Impresión`, `Mousepad`, `Joystick`, `Micrófono`, `UPS`, `Tablet`, `Cámara`,
+`Reloj`) y dos de equipamiento deportivo (`Pelota`, `Paleta`)— entran al canon,
+y el orden del bloque tech de `CategoryClassifier` pasa a estar justificado
+producto por producto en su propio javadoc.
+
+**Razón**: `Otros` tenía 2.974 de las 16.830 filas activas — el 14% del
+catálogo. La lectura fácil era "hay productos raros"; la medición dijo otra
+cosa. Adentro había 453 teclados, 302 mouses, 285 fuentes y 231 discos, y no
+estaban mal clasificados: **ningún keyword los nombraba**. `KW_TECLADO` no tenía
+la palabra `teclado` pelada, sólo `"teclado gamer"` y `"teclado mecanico"`.
+`Almacenamiento` llevaba desde `V13` en el canon y en la tabla lookup con cero
+keywords que la produjeran: una categoría que existía y estaba vacía.
+
+`Otros` es el "no sé" explícito que dejó `close-category-vocabulary`, y esa
+decisión se sostiene: **es medible, y esto es lo que se pudo medir**. Un
+vocabulario abierto habría escondido los mismos 2.974 productos detrás de
+categorías inventadas por cada tienda.
+
+**El criterio de alta fue ≥20 productos reales** con sustantivo propio y ninguna
+categoría existente donde entren sin mentir. El piso no es estético: se eligió
+mirando al consumidor. `ml_pipeline.py` usa `MIN_GROUP = 10` para decidir si
+calcula estadística sobre la categoría o cae al padre, y `MIN_SAMPLE = 3` para
+z-score y cercos de Tukey. Una categoría de 20 entra con margen sobre los dos;
+una de 5 habría entrado al vocabulario sólo para producir ruido estadístico.
+
+#### El orden del bloque tech es una decisión, no un accidente de tipeo
+
+`clasificar` es una cadena de `if` donde el primero que matchea gana, así que
+**el orden ES la regla de desempate**. La doctrina que lo gobierna es una sola:
+**el contenedor gana sobre lo que contiene**. Cada posición tiene productos
+reales detrás, contados sobre el catálogo:
+
+| Regla de orden | Cuántos productos la obligan |
+|---|---|
+| Gabinete antes que Fuente | 23 gabinetes vienen con fuente incluida |
+| Gabinete antes que Cooler | 268 gabinetes nombran sus fans |
+| Fuente antes que Cooler | 27 fuentes nombran su cooler |
+| Cooler antes que CPU | **321 de las 646 filas de `CPU` eran disipadores** |
+| Cámara antes que Monitor | "Camara Wifi Ezviz BM1 Baby Call **Monitor**" |
+| Mousepad antes que Mouse | "Mouse Pad Fantech MP64" |
+
+`Cable` es la única que **no** se resuelve por aparición sino por sustantivo
+LÍDER: "Fuente Segotep 500W ATX **Cables** Largos" nombra los suyos y no es un
+cable, mientras que 130 de los 136 cables reales lo tienen como primera palabra.
+
+**Lo que NO cambió, y estuvo cerca**: `Pelota` y `Paleta` viven en su propio set
+(`CATEGORIAS_DEPORTE`), **fuera** de `INDUMENTARIA_O_CALZADO_EXTRA`. Meterlas
+ahí habría sido lo natural —las vende una tienda de deportes— y habría hecho que
+`GymratTagger` las taggeara y que los tres armadores consideraran una pelota una
+prenda vestible. Es el mismo criterio por el que `RubroResolver` no deriva el
+rubro de la categoría: qué **es** un producto y en qué **slot** entra son dos
+preguntas distintas.
+
+**Cómo se verificó que no rompe lo que ya andaba**: no alcanzaba con la suite.
+Se corrió el clasificador viejo y el nuevo sobre las mismas 16.830 filas y se
+diffearon los resultados. 3.295 productos cambian de categoría, **sólo 15 salen
+hacia `Otros`** y las seis clases son correcciones. Ese diff —y no los tests—
+encontró las tres regresiones que se arreglaron antes de mergear: "Zapatillas
+Footy Mickey Mouse" y "Mochila Adidas Disney Minnie Mouse" entrando como
+periférico, y `"core i"` comiéndose "Cloud Stinger **Core I**nalámbrico", un
+auricular archivado como procesador.
+
+---
+
 ### ¿Por qué React + Vite en el frontend?
 
 **Decisión**: SPA en React 18 + Vite 5, servida como su **propio servicio** (no más static resource embebido en el JAR).
