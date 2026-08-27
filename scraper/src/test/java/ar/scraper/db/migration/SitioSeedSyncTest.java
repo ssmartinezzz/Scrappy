@@ -61,14 +61,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 ∪ V24 ∪ V27 ∪ V28 seed covers every config.properties site")
-@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28, no DB)")
+@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 seed covers every config.properties site")
+@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30, no DB)")
 class SitioSeedSyncTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
     private static final String V24 = "/db/migration/V24__platform_vocabulary_qloud_oscommerce.sql";
     private static final String V27 = "/db/migration/V27__rubro_oficina_and_inpro_platform.sql";
     private static final String V28 = "/db/migration/V28__morashop_platform.sql";
+    private static final String V30 = "/db/migration/V30__seed_zentra_mmartinez.sql";
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
                             boolean esPremium, String rubroForzado, String origen) {
@@ -160,7 +161,7 @@ class SitioSeedSyncTest {
      */
     private static List<SeedRow> seedRows() {
         List<SeedRow> rows = new ArrayList<>();
-        for (String migration : List.of(V18, V24, V27, V28)) {
+        for (String migration : List.of(V18, V24, V27, V28, V30)) {
             rows.addAll(seedRowsFrom(migration));
         }
         assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V27 ∪ V28").isNotEmpty();

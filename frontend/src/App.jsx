@@ -65,7 +65,7 @@ export function SplashRoute() {
   // and left the old one running; nothing cleaned up on unmount either.
   const {
     status: scrapeStatus, mensaje: scrapeMsg, progreso, totalProds,
-    backendUnreachable, pollingNeeded, startPolling, markRunning,
+    backendUnreachable, tieneData, pollingNeeded, startPolling, markRunning,
   } = useScrapeStatusPolling();
   const [prods] = useState([]);
   const config = CONFIG_DEFAULT;
@@ -98,6 +98,7 @@ export function SplashRoute() {
       scrapeMsg={scrapeMsg}
       progreso={progreso}
       backendUnreachable={backendUnreachable}
+      tieneData={tieneData}
       onScrapeStart={markRunning}
       onStartPolling={startPolling}
       onGoToApp={() => navigate('/catalogo')}

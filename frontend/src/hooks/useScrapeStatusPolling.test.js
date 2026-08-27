@@ -192,3 +192,39 @@ describe('useScrapeStatusPolling — a run already live at mount asks to be poll
     expect(result.current.pollingNeeded).toBe(false);
   });
 });
+
+describe('useScrapeStatusPolling — totalProds es el CATÁLOGO, no la cantidad de sitios', () => {
+  // `progreso.total` es ProgressData(totalSitios, ...) — la cantidad de sitios
+  // de la corrida. Leer de ahí hacía que el botón dijera "Ver 3 productos
+  // disponibles" con 8000 productos en la base.
+  it('lee st.total y NO st.progreso.total', async () => {
+    fetchStatus.mockResolvedValue({
+      status: 'DONE', mensaje: 'Listo', tieneData: true,
+      total: 8000, progreso: { total: 3, completados: 3 },
+    });
+
+    const { result } = await mountHook();
+
+    expect(result.current.totalProds).toBe(8000);
+    expect(result.current.tieneData).toBe(true);
+  });
+
+  // Estaba gateado en RUNNING, así que en reposo quedaba 0 y la salida al
+  // catálogo del splash no se dibujaba nunca.
+  it('lo levanta en la lectura de montaje, sin corrida en curso', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true, total: 1234 });
+
+    const { result } = await mountHook();
+
+    expect(result.current.totalProds).toBe(1234);
+  });
+
+  it('sin catálogo, tieneData es false y no inventa un total', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: false });
+
+    const { result } = await mountHook();
+
+    expect(result.current.tieneData).toBe(false);
+    expect(result.current.totalProds).toBe(0);
+  });
+});
