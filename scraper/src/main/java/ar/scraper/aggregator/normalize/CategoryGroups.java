@@ -44,13 +44,43 @@ public final class CategoryGroups {
         "Botines","Borcego","Botas","Ojotas","Sandalia","Mocasin","Zapato","Pantufla"
     );
 
-    /** Tech ("rubro=tecnologia") canonical category names — {@code CategoryClassifier}. */
+    /**
+     * Tech ("rubro=tecnologia") canonical category names — {@code CategoryClassifier}.
+     *
+     * <p>Las 13 nuevas de {@code richer-category-taxonomy} no son una taxonomía
+     * de hardware imaginada: cada una salió de contar cuántos productos reales
+     * caían en {@code Otros} sin tener dónde ir. {@code Otros} tenía 2.974
+     * filas —14% del catálogo— y adentro había 453 teclados, 302 mouses, 285
+     * fuentes, 231 discos, 161 productos de red y 130 cables. El criterio de
+     * alta fue el mismo de siempre: ≥20 productos reales, sustantivo propio, y
+     * ninguna categoría existente donde entren sin mentir.</p>
+     *
+     * <p>{@code Cooler} es la excepción a esa regla y la más cara de todas: no
+     * venía de {@code Otros} sino de adentro de {@code CPU}, donde 321 de 646
+     * filas eran disipadores. Una categoría con la mitad de sus productos a un
+     * orden de magnitud de precio de la otra mitad no le miente a un filtro —
+     * le miente al pipeline ML, que vive de esa distribución.</p>
+     */
     private static final Set<String> CATEGORIAS_TECH = Set.of(
         "Notebook","PC","Monitor","GPU","CPU","RAM","Gabinete","Teclado","Mouse","Auricular","Webcam",
         // Almacenamiento faltaba en el canon y sin embargo la base tiene 57
         // productos ahí (HDDs y SSDs de Fullh4rd): era una categoría REAL que
         // el vocabulario no reconocía, no basura de breadcrumb.
-        "Almacenamiento"
+        "Almacenamiento",
+        // richer-category-taxonomy
+        "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
+        "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj"
+    );
+
+    /**
+     * Equipamiento deportivo — {@code richer-category-taxonomy}.
+     *
+     * <p>Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota
+     * no es ropa. Si entrara ahí, {@code GymratTagger} la taggearía y los tres
+     * armadores de outfits la considerarían una prenda vestible.</p>
+     */
+    private static final Set<String> CATEGORIAS_DEPORTE = Set.of(
+        "Pelota","Paleta"
     );
 
     /**
@@ -95,6 +125,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_SUPLEMENTO);
         all.addAll(CATEGORIAS_CALZADO);
         all.addAll(CATEGORIAS_TECH);
+        all.addAll(CATEGORIAS_DEPORTE);
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_OTRAS);
         return java.util.Collections.unmodifiableSet(all);

@@ -43,7 +43,11 @@ class CategoryVocabularyIsClosedTest {
         "'Mini',                    'Mini Morral Lindor Goma Militar',            Bolso",
         "'Neceser',                 'Neceser Tromso Goma Negro',                  Bolso",
         "'Porta',                   'Porta Celular URL PU Negro',                 Otros",
-        "'Cooling',                 'ADAPTADOR COOLERMASTER 90 3X8 PIN PCIE',     Otros",
+        // richer-category-taxonomy: sigue sin inventar categoría desde el
+        // breadcrumb "Cooling" — pero ya no cae en Otros, porque `Cable` entró
+        // al canon y un adaptador ES un adaptador. La aserción de este test es
+        // que el resultado esté en el vocabulario cerrado, y lo está.
+        "'Cooling',                 'ADAPTADOR COOLERMASTER 90 3X8 PIN PCIE',     Cable",
         "'Tarjetas',                'Gift Cards VCP',                             Otros",
         "'VCP > Lo que sea nuevo',  'Producto sin keyword conocido',              Otros"
     })

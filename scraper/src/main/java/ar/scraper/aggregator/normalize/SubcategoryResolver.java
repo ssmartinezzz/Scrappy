@@ -96,7 +96,125 @@ public class SubcategoryResolver {
         ));
         SUBCATEG_TIER1.put("Mochila", Arrays.<String[]>asList(
             new String[]{"trekking",  "trekking", "hiking", "outdoor"},
-            new String[]{"deportiva", "deportiva", "gym", "sport"}
+            new String[]{"deportiva", "deportiva", "gym", "sport"},
+            new String[]{"notebook",  "notebook", "laptop", "portanotebook"}
+        ));
+
+        // ── richer-category-taxonomy: subcategorías de las categorías nuevas ──
+        // Ninguna de estas es un default incondicional (entrada de un solo
+        // elemento): una subcategoría que no se puede leer del nombre tiene que
+        // quedar VACÍA, no adivinada. Ese es el mismo criterio con el que se
+        // abstiene el clasificador visual — "" significa "no sé", no "genérico".
+        SUBCATEG_TIER1.put("Almacenamiento", Arrays.<String[]>asList(
+            new String[]{"nvme",      "nvme", "m.2"},
+            new String[]{"ssd",       "ssd"},
+            new String[]{"hdd",       "hdd", "rigido", "duro"},
+            new String[]{"pendrive",  "pendrive"},
+            new String[]{"microsd",   "microsd", "micro sd", "sd"}
+        ));
+        SUBCATEG_TIER1.put("Red", Arrays.<String[]>asList(
+            new String[]{"router",     "router"},
+            new String[]{"switch",     "switch"},
+            new String[]{"repetidor",  "repetidor", "extensor"},
+            new String[]{"adaptador",  "adaptador", "placa", "antena"}
+        ));
+        SUBCATEG_TIER1.put("Cable", Arrays.<String[]>asList(
+            new String[]{"video",   "hdmi", "displayport", "display port", "vga", "dvi"},
+            new String[]{"red",     "rj45", "rj-45", "patchcord", "ethernet"},
+            new String[]{"usb",     "usb"},
+            new String[]{"poder",   "power", "alimentacion", "poder"}
+        ));
+        SUBCATEG_TIER1.put("Impresión", Arrays.<String[]>asList(
+            new String[]{"impresora", "impresora", "multifuncion"},
+            new String[]{"toner",     "toner"},
+            new String[]{"tinta",     "tinta", "cartucho"}
+        ));
+        SUBCATEG_TIER1.put("Cooler", Arrays.<String[]>asList(
+            // "liquida" primero: un AIO dice "water cooler" Y "cooler".
+            new String[]{"líquida",  "water", "aio", "liquida", "watercooling"},
+            new String[]{"gabinete", "gabinete", "case"},
+            new String[]{"pasta",    "grasa", "pasta"},
+            new String[]{"aire",     "aire", "torre", "disipador"}
+        ));
+        SUBCATEG_TIER1.put("Fuente", Arrays.<String[]>asList(
+            new String[]{"modular",  "modular"},
+            new String[]{"80 plus",  "plus", "bronze", "gold", "platinum"}
+        ));
+        SUBCATEG_TIER1.put("Teclado", Arrays.<String[]>asList(
+            new String[]{"mecánico",     "mecanico", "mechanical"},
+            new String[]{"inalámbrico",  "inalambrico", "wireless", "bluetooth"},
+            new String[]{"gamer",        "gamer", "gaming"}
+        ));
+        SUBCATEG_TIER1.put("Mouse", Arrays.<String[]>asList(
+            new String[]{"inalámbrico", "inalambrico", "wireless", "bluetooth"},
+            new String[]{"gamer",       "gamer", "gaming"}
+        ));
+        SUBCATEG_TIER1.put("Monitor", Arrays.<String[]>asList(
+            new String[]{"curvo",   "curvo", "curved"},
+            new String[]{"gaming",  "gaming", "gamer", "144hz", "165hz", "240hz"},
+            new String[]{"4k",      "4k", "uhd", "qhd"}
+        ));
+        SUBCATEG_TIER1.put("Notebook", Arrays.<String[]>asList(
+            new String[]{"gamer",   "gamer", "gaming"},
+            new String[]{"oficina", "oficina", "business"}
+        ));
+        SUBCATEG_TIER1.put("Reloj", Arrays.<String[]>asList(
+            new String[]{"smartwatch", "smartwatch", "smart", "inteligente"},
+            new String[]{"deportivo",  "deportivo", "running", "gps"}
+        ));
+        SUBCATEG_TIER1.put("Joystick", Arrays.<String[]>asList(
+            new String[]{"volante",   "volante", "racing", "driving"},
+            new String[]{"gamepad",   "gamepad", "joystick", "control"}
+        ));
+        SUBCATEG_TIER1.put("Cámara", Arrays.<String[]>asList(
+            new String[]{"exterior",  "exterior"},
+            new String[]{"interior",  "interior"},
+            new String[]{"wifi",      "wifi", "ip"}
+        ));
+        SUBCATEG_TIER1.put("Paleta", Arrays.<String[]>asList(
+            new String[]{"ping pong", "ping", "pong", "tenis de mesa"}
+            // pádel lo resuelve el tier 2 transversal, que ya tiene "padel"
+        ));
+
+        // ── richer-category-taxonomy: más subcategorías de indumentaria ──────
+        SUBCATEG_TIER1.put("Remera", Arrays.<String[]>asList(
+            new String[]{"deportiva",   "deportiva", "gym", "training", "entrenamiento",
+                                        "compression", "compresion", "dri-fit"},
+            new String[]{"manga larga", "larga"},
+            new String[]{"oversize",    "oversize", "oversized", "boxy", "remeron"},
+            new String[]{"estampada",   "estampada", "print", "estampado"}
+        ));
+        SUBCATEG_TIER1.put("Camisa", Arrays.<String[]>asList(
+            new String[]{"lino",     "lino"},
+            new String[]{"cuadros",  "cuadros", "flannel", "lumberjack", "checked"},
+            new String[]{"oxford",   "oxford", "chambray"},
+            new String[]{"denim",    "denim", "jean"}
+        ));
+        SUBCATEG_TIER1.put("Jean", Arrays.<String[]>asList(
+            new String[]{"cargo",   "cargo"},
+            new String[]{"mom",     "mom"},
+            new String[]{"skinny",  "skinny", "chupin"},
+            new String[]{"recto",   "recto", "straight"}
+        ));
+        SUBCATEG_TIER1.put("Pantalón", Arrays.<String[]>asList(
+            new String[]{"cargo",   "cargo"},
+            new String[]{"vestir",  "vestir", "sastrero", "sastre"},
+            new String[]{"jogger",  "jogger", "joggers"},
+            new String[]{"lino",    "lino"}
+        ));
+        SUBCATEG_TIER1.put("Gorra", Arrays.<String[]>asList(
+            new String[]{"trucker",  "trucker"},
+            new String[]{"snapback", "snapback"},
+            new String[]{"visera",   "visera"}
+        ));
+        SUBCATEG_TIER1.put("Vestido", Arrays.<String[]>asList(
+            new String[]{"largo",  "largo", "maxi"},
+            new String[]{"corto",  "corto", "mini"},
+            new String[]{"fiesta", "fiesta", "noche"}
+        ));
+        SUBCATEG_TIER1.put("Botines", Arrays.<String[]>asList(
+            new String[]{"futsal",  "futsal", "papi", "salon", "ic"},
+            new String[]{"campo",   "campo", "fg", "cesped"}
         ));
     }
 

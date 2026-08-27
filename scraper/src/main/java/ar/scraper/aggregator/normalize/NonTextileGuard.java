@@ -17,8 +17,18 @@ public final class NonTextileGuard {
      */
     private static final String[] NO_TEXTIL_INICIO = {
         // Deportes / equipamiento
-        "pelota","balon","ball ","palo ","stick ","raqueta","bate ","arco ",
-        "red ","valla ","cono ","bolsa deportiva","costurero",
+        // "pelota"/"balon" salieron de esta lista: desde richer-category-taxonomy
+        // tienen categoría propia (Pelota). Frenarlos acá devolvía "" y los
+        // mandaba a Otros — 89 filas activas. El guard existe para que un
+        // producto no-textil no se clasifique como ROPA, no para dejarlo sin
+        // clasificar cuando ya tiene dónde ir.
+        "ball ","palo ","stick ","raqueta","bate ","arco ",
+        // "red de " y no "red " pelado: la forma corta bloqueaba por COLOR.
+        // "Mouse Logitech M110 Silent Red" y "Cable de Red RJ-45 2M" entran los
+        // dos en los primeros 35 caracteres que este guard mira, así que un
+        // mouse rojo y un cable de red quedaban sin clasificar. En el catálogo
+        // no hay una sola red deportiva; la forma larga la sigue cubriendo.
+        "red de ","valla ","cono ","bolsa deportiva","costurero",
         "guantes boxing","guantes portero","casco bici","casco skate",
         // Joyería / bijouterie
         "cadena ","collar ","pulsera ","anillo ","aros ","aro ","colgante ",
@@ -27,8 +37,13 @@ public final class NonTextileGuard {
         "maletin","valija","paraguas","bastón","baston ","cinturon portaherramientas",
         // Cosméticos / higiene (perfume/colonia/desodorante ahora tienen categoría propia)
         "crema ","locion ","loción ","gel ","shampoo","jabon ","jabón ","protector solar",
-        // Equipos / electrónica
-        "router ","teclado mecanico","mouse gamer","monitor led","fuente atx",
+        // Equipos / electrónica — la sección quedó VACÍA a propósito.
+        // Tenía "router ", "teclado mecanico", "mouse gamer", "monitor led" y
+        // "fuente atx". Los cinco tienen categoría tech propia desde
+        // richer-category-taxonomy, y el bloque TECH corre antes que el de
+        // ropa: el guard ya no los protegía de nada, sólo les bloqueaba la
+        // clasificación correcta. Un "Router Wireless Mercusys" salía de acá
+        // con "" y terminaba en Otros.
     };
 
     /**
