@@ -615,6 +615,32 @@ re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.
 
+**En la taxonomía de categorías, el ESPACIO es el word boundary — y un keyword
+sin él se come palabras enteras en silencio.** `GarmentTaxonomy.anyMatch` es un
+`contains()` pelado sobre un texto que `CategoryClassifier` ya padeó con
+espacios. Un keyword declarado `"ram "` en vez de `" ram "` matchea adentro de
+cualquier palabra terminada en ram: *D*ram, *S*ram, In*gram*, Mono*gram*. Lo
+mismo `"malla"` con "Mallado", `"bra "` con "Hem*bra*" (adaptadores HDMI
+archivados como corpiños), `"bano "` con "Urb*ano*", `"hat "` con "T*hat*"
+(zapatillas de básquet como Gorra), `"rx "` con "Me*rx*"/"Hype*rX*", y
+`"set "`/`"kit "`/`"pack "` con Sun*set*/Wind*kit*/Doy*pack*. Nada falla, nada se
+loguea: el producto entra al catálogo con otra categoría **y con la distribución
+de precios de otra categoría**, que es de lo que se alimenta el pipeline ML.
+
+El barrido que los encontró es mecánico y se repite igual: buscar en los arrays
+`KW_*` los keywords que terminan en espacio pero **no** empiezan con uno, y
+contar los nombres reales donde el token aparece como substring pero no como
+palabra. Padear es un angostamiento, así que sólo se padea lo que tiene
+misclasificación **medida** — una forma padeada deja de matchear pegada a
+puntuación (`"(pack de 4)"`).
+
+**`NonTextileGuard` corre ANTES que todo y devuelve `""`, que el llamador no
+distingue de "ningún keyword matcheó".** Puede vetar una clasificación correcta
+sin dejar rastro. Tenía `"red "` para redes deportivas y mira los primeros 35
+caracteres: "Mouse Logitech M110 Silent Red" entra entero en esa ventana, así
+que un mouse **rojo** quedaba sin clasificar. En el catálogo no hay una sola red
+deportiva.
+
 **`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
 por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
 catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre

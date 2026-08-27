@@ -18,7 +18,14 @@ public final class NonTextileGuard {
     private static final String[] NO_TEXTIL_INICIO = {
         // Deportes / equipamiento
         "pelota","balon","ball ","palo ","stick ","raqueta","bate ","arco ",
-        "red ","valla ","cono ","bolsa deportiva","costurero",
+        // "red de " y no "red " pelado: la forma corta bloqueaba por COLOR.
+        // Este guard mira los primeros 35 caracteres y devuelve "", que el
+        // llamador no distingue de "ningún keyword matcheó": "Mouse Logitech
+        // M110 Silent Red" y "Cable de Red RJ-45 2M" entran enteros en esa
+        // ventana, así que un mouse rojo y un cable de red quedaban sin
+        // clasificar. En el catálogo no hay una sola red deportiva; la forma
+        // larga la sigue cubriendo.
+        "red de ","valla ","cono ","bolsa deportiva","costurero",
         "guantes boxing","guantes portero","casco bici","casco skate",
         // Joyería / bijouterie
         "cadena ","collar ","pulsera ","anillo ","aros ","aro ","colgante ",
