@@ -72,8 +72,13 @@ public final class GarmentTaxonomy {
         "half cab","full cab"
     };
 
+    // "patinaje" es GENERICO, no MODELO, y la distinción importa: dcshoes lo
+    // usa como prefijo de catálogo en gorras ("Patinaje Dc Shoes University
+    // Cap"), gorros y baggies, no sólo en calzado. Como GENERICO sólo cuenta
+    // junto a esZapatilla, y el fallback de calzado corre último, esos tres
+    // siguen resolviendo a Gorra/Gorro/Baggy.
     public static final String[] KW_SKATE_GENERICO = {
-        "skate","skateboarding"
+        "skate","skateboarding","patinaje"
     };
 
     public static final String[] KW_URBANA_MODELO = {
@@ -305,11 +310,23 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_REMERA = {
-        "remera","t-shirt","tee","camiseta","top cuello","manga corta","basic tee"
+        "remera","t-shirt","t shirt","tshirt"," shirt ","tee","camiseta",
+        "top cuello","manga corta","basic tee"
     };
 
+    /**
+     * Camisa se NOMBRA. "shirt" pelado ya no vive acá: este bloque corre antes
+     * que {@code KW_REMERA}, así que se llevaba toda remera en inglés a camisa
+     * formal — 23 filas reales, 20 de ellas remeras de gym de Monkyforce
+     * ("MKF Compression Shirt", "Over Gym Shirt", "Gash Shirt") y una que
+     * literalmente decía "Remera Fila Round Neck T Shirt". El " shirt " sin
+     * calificador se mudó a {@code KW_REMERA}, que es el default honesto: si
+     * nada en el nombre dice camisa, no hay razón para archivarla como camisa.
+     */
     public static final String[] KW_CAMISA = {
-        "camisa","shirt","oxford","flannel","chambray","denim shirt"
+        "camisa","camisaco","oxford","flannel","chambray","denim shirt",
+        "dress shirt","lumberjack","camisa lenador","button down","overshirt",
+        "over shirt"
     };
 
     public static final String[] KW_CORPINO = {
@@ -324,9 +341,7 @@ public final class GarmentTaxonomy {
     };
 
     // " malla "/"mallas " padeado: "malla" pelado se comía "Mallado" — "Cable
-    // Splitter PWM Mallado para Fan Cooler" entraba al catálogo como traje de
-    // baño. Y " bano " padeado: "bano " se comía "Urb(ano)" y "Hab(ano)", que
-    // archivaban un buzo y unos zapatos como ropa de playa.
+    // Splitter PWM Mallado para Fan Cooler" entraba al catálogo como traje de baño.
     public static final String[] KW_MALLA = {
         " malla ","mallas ","malla de bano","malla enteriza",
         "bikini","traje de bano"," bano ","banos ",
@@ -528,14 +543,32 @@ public final class GarmentTaxonomy {
         "monitor 4k","monitor curvo","monitor 144hz","monitor 27","monitor 24"
     };
 
+    // " teclado " pelado FALTABA: 453 teclados vivían en `Otros` porque
+    // "Teclado Logitech K120 USB" no matcheaba ninguna de las formas compuestas.
     public static final String[] KW_TECLADO = {
-        "teclado mecanico","teclado gamer","keyboard","mechanical keyboard",
-        "teclado rgb","teclado inalambrico","teclado bluetooth"
+        " teclado ","teclados ","teclado mecanico","teclado gamer","keyboard",
+        "mechanical keyboard","teclado rgb","teclado inalambrico","teclado bluetooth"
     };
 
+    // Las formas COMPUESTAS no necesitan guard: nombran el periférico solas.
     public static final String[] KW_MOUSE = {
         "mouse gamer","mouse gaming","raton gamer","gaming mouse",
         "mouse inalambrico","mouse bluetooth","mouse rgb"
+    };
+
+    /**
+     * Tier B: " mouse " pelado FALTABA (302 filas en {@code Otros}), pero pelado
+     * también se lleva puesto un ratón que no es un periférico. Los tres casos
+     * reales del catálogo: "Zapatillas Footy Mickey Mouse", "Mochila Adidas
+     * Disney Minnie Mouse" y un "GAINER WHEY PROTEIN MOUSE DE CHOCOLATE" que
+     * quiso escribir mousse. El bloque TECH corre antes que el de ropa, así que
+     * sin guard esas tres se archivaban como periférico.
+     */
+    public static final String[] KW_MOUSE_GENERICO = { " mouse " };
+
+    /** Lo que NUNCA es un mouse aunque diga mouse. Guard de {@link #KW_MOUSE_GENERICO}. */
+    public static final String[] KW_MOUSE_VETO = {
+        "mickey","minnie","disney","mouse de "
     };
 
     public static final String[] KW_AURICULAR = {
@@ -544,14 +577,15 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_WEBCAM = {
-        "webcam","camara web","web cam"
+        "webcam","camara web","web cam","facecam"
     };
 
     public static final String[] KW_GPU = {
         "gpu","tarjeta de video","video card","graphics card",
-        // Padeados: "rx " se comía "Me(rx)", "A(rx)" y "Hype(rX)", y archivaba
-        // como GPU un teclado, una memoria RAM, un gabinete y unos auriculares.
-        " rtx "," gtx "," rx ","radeon","geforce"," arc "
+        // Padeados: "rx " se comía "Me(rx)" y "A(rx)" y archivaba como GPU un
+        // teclado, una memoria RAM y un gabinete.
+        " rtx "," gtx "," rx ","radeon","geforce"," arc ",
+        "placa de video","placa video"
     };
 
     // " ram " padeado, no "ram " pelado: `anyMatch` es un contains crudo sobre
@@ -564,9 +598,14 @@ public final class GarmentTaxonomy {
         "memoria ddr","modulo ram"
     };
 
+    // Corre DESPUÉS de KW_COOLER: un cooler de CPU no es un CPU. Ver KW_COOLER.
     public static final String[] KW_CPU = {
-        "procesador","cpu ","core i","ryzen ","intel ","amd ",
-        "i3 ","i5 ","i7 ","i9 ","threadripper"
+        // "core i" abierto se comía "Cloud Stinger (Core I)nalámbrico" y los
+        // "Master Liquid 360 (Core I)I" — un auricular y un water cooler como
+        // procesadores. Los cinco sufijos reales, explícitos.
+        "procesador"," cpu ","core i3","core i5","core i7","core i9","core ultra",
+        " ryzen "," intel "," amd ",
+        " i3 "," i5 "," i7 "," i9 ","threadripper"
     };
 
     public static final String[] KW_GABINETE = {
@@ -684,6 +723,179 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PERFUME = {
         "perfume","colonia","eau de toilette","eau de parfum","fragancia",
         "desodorante ","antitranspirante","splash","body mist"
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // TECH — segunda tanda (richer-category-taxonomy)
+    //
+    // Medido sobre las 16.830 filas activas: `Otros` tenía 2.974 productos
+    // (14% del catálogo) y adentro había 453 teclados, 302 mouses, 285
+    // fuentes y 231 discos. No estaban mal clasificados: NINGÚN keyword los
+    // nombraba. `KW_TECLADO` no tenía la palabra "teclado" pelada — sólo
+    // "teclado gamer"/"teclado mecanico" — así que un "Teclado Logitech K120"
+    // no matcheaba nada.
+    //
+    // Los sets de acá abajo van padeados con espacios por la misma razón que
+    // los de oficina: `anyMatch` es un contains() pelado sobre un texto que
+    // `clasificar` ya padeó, así que el espacio ES el word boundary.
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Cable/adaptador se reconocen por SUSTANTIVO LÍDER, no por aparición.
+     *
+     * <p>La diferencia no es estilística: "Fuente Segotep 500W ATX Cables
+     * Largos 23a Cooler 120mm" y "Cable Splitter PWM Mallado para Fan Cooler"
+     * contienen los dos la palabra cable, y sólo el segundo ES un cable. Un
+     * `contains` suelto convertiría en cable a toda fuente que publicite el
+     * largo de los suyos. Medido: 130 de los 136 productos con "cable" en
+     * `Otros` lo tienen como primera palabra.</p>
+     *
+     * <p>Lo consume {@code CategoryClassifier.esCableLider}, que compara
+     * contra el ARRANQUE del texto padeado, no contra el texto entero.</p>
+     */
+    public static final String[] KW_CABLE_LIDER = {
+        " cable ", " cables ", " adaptador ", " adaptadores ", " ficha ",
+        " patchcord ", " conversor ", " prolongador ", " extension usb "
+    };
+
+    /**
+     * Redes. NO tiene "red" pelado a propósito: "red" es un color en inglés y
+     * el nombre de un switch mecánico de teclado — "Teclado Mecánico Raptor
+     * Fireclaw M87 Red Red Switch" tiene las dos palabras y no es un router.
+     * Los sustantivos de acá se nombran solos; "switch" es el único ambiguo y
+     * va aparte, en {@link #KW_RED_SWITCH}, con guard de contexto.
+     */
+    public static final String[] KW_RED = {
+        "router","modem","repetidor","access point","placa de red",
+        "extensor de rango","adaptador wifi","adaptador usb wifi",
+        "adaptador de red","adaptador bluetooth","antena wifi","powerline",
+        "placa wifi"
+    };
+
+    /** Tier B: "switch" sólo es de red cuando hay señal de red. Ver {@code esContextoRed}. */
+    public static final String[] KW_RED_SWITCH = { " switch " };
+
+    /** Guard de {@link #KW_RED_SWITCH}: lo que un switch de red dice y un teclado no. */
+    public static final String[] KW_RED_CONTEXTO = {
+        "gigabit","puerto","puertos","poe","ethernet","10/100","rj45","rj-45","omada"
+    };
+
+    public static final String[] KW_MOTHERBOARD = {
+        "motherboard"," mother ","placa madre","mainboard"," mobo "
+    };
+
+    public static final String[] KW_FUENTE = {
+        "fuente atx","fuente de alimentacion"," fuente ","fuentes ",
+        " psu ","fuente modular","fuente 80 plus"
+    };
+
+    /**
+     * Refrigeración. Corre DESPUÉS de Gabinete y Fuente y ANTES de CPU, y las
+     * tres posiciones están medidas, no elegidas:
+     *
+     * <ul>
+     *   <li><b>Después de Gabinete</b>: 268 gabinetes activos nombran
+     *       "cooler"/"fan" en el título ("Gabinete Elite 302 TG 3FAN ARGB",
+     *       "Gabinete Cooler Master"). Un gabinete con tres fans es un
+     *       gabinete.</li>
+     *   <li><b>Después de Fuente</b>: 27 fuentes nombran su cooler ("Fuente
+     *       Magnum Tech 600W Cooler 120mm").</li>
+     *   <li><b>Antes de CPU</b>: era el bug. 321 de las 646 filas de `CPU`
+     *       eran disipadores — la mitad de la categoría, a un orden de
+     *       magnitud de precio del procesador que decían ser.</li>
+     * </ul>
+     *
+     * <p>" fan " pelado NO entra: "Remera Fiume Sport Linea Fan Godoy Cruz" y
+     * "Short Le Coq Sportif Pumas Titular Fan 2025" son dos productos reales
+     * donde fan quiere decir hincha.</p>
+     */
+    public static final String[] KW_COOLER = {
+        "cooler","watercooling","water cooling","refrigeracion liquida",
+        "disipador"," aio ","fan cooler","ventilador de gabinete",
+        "ventilador para gabinete","grasa termica","pasta termica"
+    };
+
+    public static final String[] KW_ALMACENAMIENTO = {
+        " ssd "," hdd ","disco solido","disco rigido","disco duro",
+        " nvme ","pendrive","memoria microsd","microsd","micro sd",
+        "tarjeta de memoria"," m.2 ","disco externo","carry disk"
+    };
+
+    public static final String[] KW_IMPRESION = {
+        "impresora","impresoras","toner","cartucho","tinta alternativa",
+        "botella tinta","botella de tinta","multifuncion laser","sistema continuo"
+    };
+
+    public static final String[] KW_UPS = {
+        " ups ","estabilizador de tension"
+    };
+
+    public static final String[] KW_TABLET = {
+        " tablet ","tablets "
+    };
+
+    /** Corre ANTES de Mouse: "Mouse Pad Fantech MP64" es un pad, no un mouse. */
+    public static final String[] KW_MOUSEPAD = {
+        "mouse pad","mousepad","pad mouse","alfombrilla mouse","mouse-pad"
+    };
+
+    public static final String[] KW_JOYSTICK = {
+        "joystick","gamepad","racing wheel","driving force","pedalera",
+        "palanca de cambios","control xbox","control ps4","control ps5"
+    };
+
+    /**
+     * Tier B: " volante " es tanto un volante de simulador como un VUELO de
+     * tela ("vestido con volantes"). Sólo cuenta con contexto de gaming/racing.
+     */
+    public static final String[] KW_VOLANTE_GENERICO = { " volante ", " volantes " };
+
+    public static final String[] KW_VOLANTE_CONTEXTO = {
+        "pedalera","racing","driving","simulador","logitech","thermaltake",
+        "ps4","ps5","xbox","cockpit"
+    };
+
+    public static final String[] KW_MICROFONO = {
+        "microfono","microfonos"," mic "," mic-"
+    };
+
+    /**
+     * Cámaras de seguridad/IP. NO tiene "camara" pelado: la webcam ya tiene su
+     * categoría y "cámara" suelta también nombra la cámara de una cubierta.
+     * Corre ANTES de Monitor porque "Camara Wifi Ezviz BM1 2mp Baby Call
+     * Monitor" —un producto real— termina en la palabra monitor.
+     */
+    public static final String[] KW_CAMARA = {
+        "camara ip","camara wifi","camara de seguridad","camara seguridad",
+        "camara exterior","camara interior","camara de vigilancia",
+        "camara domo","camara bullet"
+    };
+
+    public static final String[] KW_RELOJ = {
+        "smartwatch","smart watch","reloj inteligente","smart band","smartband",
+        " reloj ","relojes "
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // EQUIPAMIENTO DEPORTIVO (richer-category-taxonomy)
+    //
+    // Corre en el mismo tramo temprano que TECH, antes del bloque de ropa:
+    // "Paleta De Pádel adidas Adipower Ctrl Team 3.3" caía en `Zapatilla
+    // Entrenamiento` porque "adipower" es un KW_TRAINING_MODELO y el fallback
+    // de calzado la agarraba primero.
+    //
+    // OJO: `NonTextileGuard` tenía "pelota" y "balon" en NO_TEXTIL_INICIO y
+    // cortaba la clasificación entera antes de llegar acá. Se sacaron los dos
+    // — ya no hacen falta para frenarlos: ahora tienen categoría propia.
+    // ══════════════════════════════════════════════════════════════════
+
+    public static final String[] KW_PELOTA = {
+        "pelota","pelotas","balon","balones"
+    };
+
+    public static final String[] KW_PALETA = {
+        " paleta ","paletas ","paleta de padel","paleta de ping pong",
+        "paleta de tenis de mesa"
     };
 
     // ══════════════════════════════════════════════════════════════════

@@ -73,7 +73,7 @@ class KeywordBoundaryContaminationTest {
     @ParameterizedTest(name = "[{index}] \"{0}\" -> {1}")
     @CsvSource({
         // "bra " se comía "Hembra": los adaptadores HDMI entraban como corpiños
-        "'Adaptador Hdmi Hembra A Mini Hdmi',                   Otros",
+        "'Adaptador Hdmi Hembra A Mini Hdmi',                   Cable",
         "'Antiparras Arena Cobra Core Swipe Mirror',            Lentes",
         "'Toalla adidas de Microfibra Magnética Players Cart',  Otros",
         // ...y el corpiño de verdad sigue siendo Corpino
@@ -82,6 +82,52 @@ class KeywordBoundaryContaminationTest {
     })
     @DisplayName("'bra' no se come Hembra, Cobra ni Microfibra")
     void braNoContaminaHembraNiCobra(String nombre, String esperado) {
+        assertThat(cat(nombre)).isEqualTo(esperado);
+    }
+
+    @ParameterizedTest(name = "[{index}] \"{0}\" -> {1}")
+    @CsvSource({
+        // Un cooler de CPU no es un CPU. Eran 321 de las 646 filas de la
+        // categoría: la MITAD, a un orden de magnitud de precio del procesador
+        // que decían ser. Padear "cpu " no alcanzaba — hacía falta que Cooler
+        // existiera y corriera antes.
+        "'Cooler CPU ID-Cooling SE-214-XT ARGB',                Cooler",
+        "'Cpu Cooler Aerocool Verkho A',                        Cooler",
+        "'CPU Cooler Cooler Master Hyper 212 Spectrum V3 ARGB',  Cooler",
+        "'Cooler CPU Cougar Poseidon Ultra ARGB 360 Water Cooler',  Cooler",
+        // ...y el procesador de verdad sigue siendo CPU, incluso diciendo "sin cooler"
+        "'Procesador AMD Ryzen 9 9900X3D 5.5GHz Turbo AM5',     CPU",
+        "'Procesador Intel Core i5 12400F',                     CPU",
+    })
+    @DisplayName("Un cooler de CPU es un Cooler, no un CPU")
+    void coolerDeCpuNoEsCpu(String nombre, String esperado) {
+        assertThat(cat(nombre)).isEqualTo(esperado);
+    }
+
+    @ParameterizedTest(name = "[{index}] \"{0}\" -> {1}")
+    @CsvSource({
+        // "shirt" pelado vivía en KW_CAMISA, que corre ANTES de KW_REMERA:
+        // toda remera en inglés terminaba archivada como camisa formal.
+        "'MKF Adjustable T-shirt',                              Remera",
+        "'Remera Fila Round Neck T Shirt',                      Remera",
+        "'MKF Compression Shirt Men',                           Remera",
+        "'Over Gym Shirt',                                      Remera",
+        "'Gash Shirt',                                          Remera",
+        "'Tournament Shirt',                                    Remera",
+        // ...y la camisa de verdad, la que se nombra a sí misma, sigue siendo Camisa
+        "'Camisa Manga Larga Oxford Celeste',                   Camisa",
+        "'Lumberjack Shirt',                                    Camisa",
+        "'Flannel Shirt Cuadros',                               Camisa",
+        "'Chambray Shirt Celeste',                              Camisa",
+        // OJO, y es PREVIO a este cambio: "Denim Shirt" NO da Camisa sino
+        // Conjunto. "denim" está en KW_JEAN (piernas) y la camisa está en el
+        // bloque torso, así que el detector de combo de ADR-4 dispara antes que
+        // cualquier bloque de prenda. Pasaba igual cuando "denim shirt" vivía en
+        // KW_CAMISA. Se deja fijado para que no se lea como regresión de acá.
+        "'Denim Shirt Azul',                                    Conjunto",
+    })
+    @DisplayName("Un 'shirt' sin calificador es una remera; la camisa se nombra")
+    void shirtDeportivaNoEsCamisaFormal(String nombre, String esperado) {
         assertThat(cat(nombre)).isEqualTo(esperado);
     }
 

@@ -182,12 +182,14 @@ class OfficeCategoryClassifierTest {
                 "'Monitor Samsung 24 pulgadas',        Monitor",
                 "'Procesador Intel Core i5 12400F',    CPU",
                 "'Teclado Gamer RGB',                  Teclado",
-                // OJO: "Teclado Mecanico RGB" da "Otros", no "Teclado" — la
-                // frase esta en NO_TEXTIL_INICIO de NonTextileGuard, que hace
-                // abstener a clasificar() ANTES de que KW_TECLADO la vea. Es un
-                // bug preexistente y ajeno a este cambio; se fija acá el
-                // comportamiento REAL para que el dia que se arregle se vea.
-                "'Teclado Mecanico RGB',               Otros",
+                // Este caso pedía ser actualizado y hoy se actualizó: decía
+                // "Otros" porque "teclado mecanico" estaba en NO_TEXTIL_INICIO
+                // de NonTextileGuard y hacía abstener a clasificar() ANTES de
+                // que KW_TECLADO la viera. richer-category-taxonomy sacó del
+                // guard las cinco frases de electrónica que ya tienen categoría
+                // tech propia — el guard existe para que un producto no-textil
+                // no entre como ROPA, no para dejarlo sin clasificar.
+                "'Teclado Mecanico RGB',               Teclado",
                 "'Notebook Lenovo IdeaPad',            Notebook",
                 // KW_PC usa "computadora de escritorio"/"equipo de escritorio":
                 // por eso "escritorio" pelado NO puede ser keyword de Escritorio.
