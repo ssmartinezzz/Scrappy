@@ -103,7 +103,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_SNEAKER_GENERICO = {
-        "hype","retro","og ","collab","limited","drop","release","sneaker"
+        "hype","retro"," og ","collab","limited","drop","release","sneaker"
     };
 
     // Tier A — unambiguous, distinctive football-boot tokens. Plain contains()
@@ -196,7 +196,10 @@ public final class GarmentTaxonomy {
     // Combo/multi-pieza — ver ADR-4. Variantes con espacio/"de" en set/kit/pack
     // evitan falsos positivos por substring ("settler", "kitsch", "package").
     public static final String[] KW_CONJUNTO = {
-        "conjunto","combo","set ","set de","kit ","pack ","dos piezas","2 piezas"
+        // Los tres padeados: "set "/"kit "/"pack " sin espacio adelante se comían
+        // "Sun(set)", "Mind(set)", "Wind(kit)", "Triple(kit)" y "Doy(pack)" — un
+        // doypack de creatina y una campera rompeviento entraban como Conjunto.
+        "conjunto","combo"," set ","set de"," kit "," pack ","dos piezas","2 piezas"
     };
 
     public static final String[] KW_PUFFER = {
@@ -310,7 +313,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_CORPINO = {
-        "corpino","corpino","bralette","bra ","sosten",
+        "corpino","corpino","bralette"," bra ","sosten",
         "top interior","ropa interior femenina","sujetador","bikini top"
     };
 
@@ -320,8 +323,13 @@ public final class GarmentTaxonomy {
         "underwear","jockstrap","cueca"
     };
 
+    // " malla "/"mallas " padeado: "malla" pelado se comía "Mallado" — "Cable
+    // Splitter PWM Mallado para Fan Cooler" entraba al catálogo como traje de
+    // baño. Y " bano " padeado: "bano " se comía "Urb(ano)" y "Hab(ano)", que
+    // archivaban un buzo y unos zapatos como ropa de playa.
     public static final String[] KW_MALLA = {
-        "malla","bikini","traje de bano","bano ","bano ",
+        " malla ","mallas ","malla de bano","malla enteriza",
+        "bikini","traje de bano"," bano ","banos ",
         "one piece","swimsuit","swimwear","beachwear","tankini",
         "ropa de playa","pileta"
     };
@@ -415,7 +423,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_GORRA = {
-        "gorra","cap ","hat ","sombrero","boina","snapback",
+        "gorra"," cap "," hat ","sombrero","boina","snapback",
         "bucket hat","buff","balaclava","vincha","visera","dad hat"
     };
 
@@ -541,11 +549,18 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_GPU = {
         "gpu","tarjeta de video","video card","graphics card",
-        "rtx ","gtx ","rx ","radeon","geforce","arc "
+        // Padeados: "rx " se comía "Me(rx)", "A(rx)" y "Hype(rX)", y archivaba
+        // como GPU un teclado, una memoria RAM, un gabinete y unos auriculares.
+        " rtx "," gtx "," rx ","radeon","geforce"," arc "
     };
 
+    // " ram " padeado, no "ram " pelado: `anyMatch` es un contains crudo sobre
+    // el título ya padeado, así que la forma abierta matcheaba DENTRO de
+    // cualquier palabra terminada en "ram" — "Camisa Lino (D)ram", "Pastillas
+    // De Freno (S)ram", "Calza (In)gram", "Bikini Mono(gram)". Misma convención
+    // que ya usa " mani " en KW_COMIDA.
     public static final String[] KW_RAM = {
-        "ram ","memoria ram","dimm","ddr4","ddr5","sodimm",
+        " ram ","memoria ram","dimm","ddr4","ddr5","sodimm",
         "memoria ddr","modulo ram"
     };
 
