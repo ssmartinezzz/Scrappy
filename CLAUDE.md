@@ -305,6 +305,16 @@ zero-shot con prompts en inglés y labels en español, abstención por margen.
 Cache en `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` =
 `<SCRAPER_MODELS_ROOT>/marqo`.
 
+**Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
+**103 valores** en `richer-category-taxonomy`, y vive en DOS lugares que no
+pueden divergir — `CategoryGroups.canonicalCategories()` y la tabla `categoria`.
+Dar de alta una categoría son **dos** cambios: el keyword que la produce y la
+migración que la inserta. Si falta la migración, la FK rechaza cada producto,
+pero `ProductRepository` se traga los errores SQL: el síntoma es `"0 nuevos"` en
+una corrida sana, no un error. Detalle y porqué en
+[`docs/DATABASE.md`](./docs/DATABASE.md) (`V31`) y
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
 **Clustering:** `cluster_productos` usa norms cacheadas + índice invertido
 término→cluster + conteos O(1). Al tocarlo, construí los corpus de test con
 tokens **alfabéticos**: el tokenizer descarta dígitos, así que un vocabulario
@@ -614,6 +624,55 @@ re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
 **Tests contra Postgres:** `PostgresTestBase` auto-selecciona Testcontainers (si
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.
+
+**En la taxonomía de categorías, el ESPACIO es el word boundary — y un keyword
+sin él se come palabras enteras en silencio.** `GarmentTaxonomy.anyMatch` es un
+`contains()` pelado sobre un texto que `CategoryClassifier` ya padeó con
+espacios. Un keyword declarado `"ram "` en vez de `" ram "` matchea adentro de
+cualquier palabra terminada en ram: *D*ram, *S*ram, In*gram*, Mono*gram*. Lo
+mismo `"malla"` con "Mallado", `"bra "` con "Hem*bra*" (adaptadores HDMI
+archivados como corpiños), `"bano "` con "Urb*ano*", `"hat "` con "T*hat*"
+(zapatillas de básquet como Gorra), `"rx "` con "Me*rx*"/"Hype*rX*", y
+`"set "`/`"kit "`/`"pack "` con Sun*set*/Wind*kit*/Doy*pack*. Nada falla, nada se
+loguea: el producto entra al catálogo con otra categoría **y con la distribución
+de precios de otra categoría**, que es de lo que se alimenta el pipeline ML.
+
+El barrido que los encontró es mecánico y se repite igual: buscar en los arrays
+`KW_*` los keywords que terminan en espacio pero **no** empiezan con uno, y
+contar los nombres reales donde el token aparece como substring pero no como
+palabra. Padear es un angostamiento, así que sólo se padea lo que tiene
+misclasificación **medida** — una forma padeada deja de matchear pegada a
+puntuación (`"(pack de 4)"`).
+
+**`NonTextileGuard` corre ANTES que todo y devuelve `""`, que el llamador no
+distingue de "ningún keyword matcheó".** Puede vetar una clasificación correcta
+sin dejar rastro. Tenía `"red "` para redes deportivas y mira los primeros 35
+caracteres: "Mouse Logitech M110 Silent Red" entra entero en esa ventana, así
+que un mouse **rojo** quedaba sin clasificar. En el catálogo no hay una sola red
+deportiva.
+
+Lo más caro de esa clase de bug no fue la contaminación sino la **ausencia**:
+hasta `richer-category-taxonomy`, `KW_TECLADO` no tenía la palabra `teclado`
+pelada —sólo `"teclado gamer"`/`"teclado mecanico"`— y 453 teclados vivían en
+`Otros`. Un set demasiado angosto no se ve como un bug; se ve como un catálogo
+con muchos productos raros.
+
+**El orden del bloque tech es dato medido, no prolijidad.** El contenedor gana
+sobre lo que contiene, y cada posición tiene un producto real detrás: Gabinete
+antes que Fuente (23 gabinetes traen fuente), Fuente antes que Cooler (27
+fuentes nombran su cooler), Gabinete antes que Cooler (268 nombran sus fans),
+Cooler antes que CPU (**321 de 646 filas de `CPU` eran disipadores**), Cámara
+antes que Monitor ("Camara Wifi Ezviz Baby Call *Monitor*"), Mousepad antes que
+Mouse. `Cable` no se detecta por aparición sino por **sustantivo líder**: "Fuente
+Segotep 500W ATX *Cables* Largos" nombra los suyos y no es un cable.
+
+**Y el guard tampoco es el lugar para frenar lo que ya tiene categoría.**
+`NonTextileGuard` listaba `"router "`, `"teclado mecanico"`, `"mouse gamer"`,
+`"monitor led"` y `"fuente atx"` — los cinco productos que nombra tienen
+categoría tech propia y el bloque TECH corre antes que el de ropa, así que no los
+protegía de nada: les bloqueaba la clasificación correcta. El guard existe para
+que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
+Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
 
 **`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
 por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el

@@ -65,8 +65,17 @@ class GarmentTaxonomyFlatDerivationGuardTest {
          "pique polo","lacoste polo","fred perry polo"},
         {"musculosa","tank top","camiseta de tirantes","sin mangas",
          "top deportivo","sports bra","corpino deportivo"," top "},
-        {"camisa","shirt","oxford","flannel","chambray","denim shirt"},
-        {"remera","t-shirt","tee","camiseta","top cuello","manga corta","basic tee"}
+        // richer-category-taxonomy — snapshot ACTUALIZADO a conciencia, que es
+        // exactamente para lo que este guard existe. "shirt" pelado se mudó de
+        // KW_CAMISA a KW_REMERA: KW_CAMISA corre ANTES que KW_REMERA en el
+        // clasificador, así que se llevaba toda remera en inglés a camisa
+        // formal — 23 filas reales, 20 remeras de gym de Monkyforce y una que
+        // decía "Remera Fila Round Neck T Shirt".
+        {"camisa","camisaco","oxford","flannel","chambray","denim shirt",
+         "dress shirt","lumberjack","camisa lenador","button down","overshirt",
+         "over shirt"},
+        {"remera","t-shirt","t shirt","tshirt"," shirt ","tee","camiseta",
+         "top cuello","manga corta","basic tee"}
     };
 
     // Frozen snapshot — mirrors NormalizerService's pre-extraction

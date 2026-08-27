@@ -154,17 +154,16 @@ public class CategoryClassifier {
         if (!oficina.isEmpty()) return oficina;
 
         // ── TECH (antes de textil para evitar falsos positivos) ───────
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_NOTEBOOK))  return "Notebook";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PC))        return "PC";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MONITOR))   return "Monitor";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GPU))       return "GPU";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CPU))       return "CPU";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))       return "RAM";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GABINETE))  return "Gabinete";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_TECLADO))   return "Teclado";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOUSE))     return "Mouse";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_AURICULAR)) return "Auricular";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_WEBCAM))    return "Webcam";
+        // El ORDEN de acá abajo es load-bearing y está MEDIDO contra las 16.830
+        // filas activas, no elegido por prolijidad. Ver `clasificarTech`.
+        String tech = clasificarTech(t);
+        if (!tech.isEmpty()) return tech;
+
+        // ── EQUIPAMIENTO DEPORTIVO (antes del bloque de ropa Y del fallback
+        // de calzado): "Paleta De Pádel adidas Adipower Ctrl Team 3.3" caía en
+        // Zapatilla Entrenamiento porque "adipower" es un KW_TRAINING_MODELO.
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PELOTA))    return "Pelota";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PALETA))    return "Paleta";
 
         // ── CALZADO (más específico primero) ──────────────────────────
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_BOTIN))     return "Botines";
@@ -250,6 +249,9 @@ public class CategoryClassifier {
 
         boolean esZapatilla = t.contains("zapatilla") || t.contains("sneaker")
                 || t.contains("calzado") || (" " + t + " ").contains(" shoe ")
+                // " shoes " en plural faltaba, y era la única señal de calzado
+                // en los 40 "Patinaje Dc Shoes <modelo>" que quedaban en Otros.
+                || t.contains(" shoes ")
                 || t.contains("tenis") || t.contains("footwear");
 
         boolean shoe = esZapatilla
@@ -267,6 +269,115 @@ public class CategoryClassifier {
         }
 
         return "";
+    }
+
+    /**
+     * Bloque del rubro {@code tecnologia} (richer-category-taxonomy).
+     *
+     * <p><b>El orden es dato medido, no estilo.</b> Cada posición de abajo
+     * corrige una colisión real de las 16.830 filas activas:</p>
+     *
+     * <ol>
+     *   <li><b>Red antes que Cable</b> — un "Adaptador Wifi" es de red; el
+     *       resto de los adaptadores son cables.</li>
+     *   <li><b>Cable por sustantivo LÍDER</b> ({@link #esCableLider}) y no por
+     *       aparición: "Fuente Segotep 500W ATX <i>Cables</i> Largos" nombra
+     *       los suyos y no es un cable. 130 de los 136 productos con "cable"
+     *       en {@code Otros} lo tienen como primera palabra.</li>
+     *   <li><b>Cámara antes que Monitor</b> — "Camara Wifi Ezviz BM1 2mp Baby
+     *       Call <i>Monitor</i>" termina en la palabra monitor.</li>
+     *   <li><b>Gabinete antes que Fuente antes que Cooler</b> — 268 gabinetes
+     *       nombran sus fans, 23 traen fuente incluida, 27 fuentes nombran su
+     *       cooler. El contenedor gana sobre lo que contiene.</li>
+     *   <li><b>Cooler antes que CPU</b> — era el bug: 321 de las 646 filas de
+     *       {@code CPU} eran disipadores.</li>
+     *   <li><b>Mousepad antes que Mouse</b> — "Mouse Pad Fantech MP64".</li>
+     *   <li><b>Teclado antes que el switch de red</b> ya no hace falta porque
+     *       {@code KW_RED_SWITCH} está gateado, pero el guard es el que
+     *       protege: "Teclado Mecánico Raptor Fireclaw M87 Red Red Switch" no
+     *       es un switch de red.</li>
+     * </ol>
+     *
+     * @return la categoría tech, o {@code ""} si el texto no es tech —
+     *         abstención, que deja seguir la cadena ({@code CODE-5}).
+     */
+    private String clasificarTech(String t) {
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED)
+                || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED_SWITCH) && esContextoRed(t)))
+            return "Red";
+        if (esCableLider(t))                                                  return "Cable";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_NOTEBOOK))         return "Notebook";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_TABLET))           return "Tablet";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CAMARA))           return "Cámara";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PC))               return "PC";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MONITOR))          return "Monitor";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GPU))              return "GPU";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOTHERBOARD))      return "Motherboard";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GABINETE))         return "Gabinete";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUENTE))           return "Fuente";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COOLER))           return "Cooler";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CPU))              return "CPU";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))              return "RAM";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ALMACENAMIENTO))   return "Almacenamiento";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_IMPRESION))        return "Impresión";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_UPS))              return "UPS";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_JOYSTICK)
+                || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_VOLANTE_GENERICO) && esContextoVolante(t)))
+            return "Joystick";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MICROFONO))        return "Micrófono";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_WEBCAM))           return "Webcam";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_AURICULAR))        return "Auricular";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOUSEPAD))         return "Mousepad";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_TECLADO))          return "Teclado";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOUSE)
+                || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOUSE_GENERICO) && !esRatonDeDisney(t)))
+            return "Mouse";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RELOJ))            return "Reloj";
+        return "";
+    }
+
+    /**
+     * ¿El texto ARRANCA con un sustantivo de cable/adaptador?
+     *
+     * <p>Deliberadamente no es un {@code anyMatch}: "cable" adentro del título
+     * describe un accesorio del producto, no al producto. El texto ya llega
+     * padeado con un espacio adelante, así que los keywords de
+     * {@code KW_CABLE_LIDER} vienen padeados de los dos lados y esto es un
+     * {@code startsWith} exacto sobre palabra completa.</p>
+     */
+    private boolean esCableLider(String t) {
+        for (String kw : GarmentTaxonomy.KW_CABLE_LIDER) {
+            if (t.startsWith(kw)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Guard de {@code KW_RED_SWITCH} (Tier B). "switch" es tanto un switch de
+     * red como el tipo de switch de un teclado mecánico — "Teclado Mecánico
+     * Raptor Fireclaw M87 Red Red Switch" tiene las dos palabras y no es un
+     * router. Sólo cuenta con señal de red en el mismo título.
+     */
+    private boolean esContextoRed(String t) {
+        return GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED_CONTEXTO);
+    }
+
+    /**
+     * Guard de {@code KW_VOLANTE_GENERICO} (Tier B). Un "volante" es tanto el
+     * de un simulador de carreras como el vuelo de tela de un vestido.
+     */
+    private boolean esContextoVolante(String t) {
+        return GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_VOLANTE_CONTEXTO);
+    }
+
+    /**
+     * Veto de {@code KW_MOUSE_GENERICO} (Tier B). Un ratón de Disney no es un
+     * periférico, y "mouse de chocolate" quiso decir mousse. El bloque TECH
+     * corre antes que el de ropa, así que sin este veto una zapatilla de Mickey
+     * y una mochila de Minnie entraban al catálogo como mouse.
+     */
+    private boolean esRatonDeDisney(String t) {
+        return GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOUSE_VETO);
     }
 
     /**

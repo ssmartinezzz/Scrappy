@@ -32,10 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code CODE-6} — never in {@code main}) across every {@code sitio_key}
  * parsed out of {@code V18__sitio_lookup_table.sql} (the same "read the
  * artifact, don't paraphrase it" mechanism {@code SitioSeedSyncTest} uses) ×
- * every {@link CategoryGroups#canonicalCategories()} category (88 desde
- * add-inpro-office-store; eran 81) × every
+ * every {@link CategoryGroups#canonicalCategories()} category (103 desde
+ * richer-category-taxonomy; eran 88, y 81 antes de eso) × every
  * {@code rubroExistente} in {@code {null, "", "tecnologia", "suplementos",
- * "indumentaria"}} — 23 × 88 × 5 = 10,120 triples.
+ * "indumentaria"}} — 23 × 103 × 5 = 11,845 triples.
  *
  * <p>Any disagreement fails with the exact {@code (sitio, categoria,
  * rubroPrevio)} triple — the "set of affected products" made enumerable
@@ -80,7 +80,7 @@ class RubroResolverEqualityParityTest {
     }
 
     @Test
-    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 88 categorías x 5 rubros previos")
+    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 103 categorías x 5 rubros previos")
     void equalityAgreesWithOldSubstringOracleAcrossTheFullMatrix() {
         List<SeedRow> rows = seedRows();
         Map<String, SiteRegistry.Sitio> cache = new HashMap<>();
@@ -102,7 +102,12 @@ class RubroResolverEqualityParityTest {
         // los 23 sitios de V18, y ninguno de ellos tiene rubro_forzado='oficina',
         // así que el resultado por sitio x categoría no cambia. Lo único que
         // cambia es el tamaño del producto cartesiano que se recorre.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(88);
+        //
+        // richer-category-taxonomy, CODE-2 declarado: 88 -> 103. Mismo
+        // argumento y mismo resultado. Las quince nuevas son de tecnología y
+        // equipamiento deportivo, y RubroResolver no deriva el rubro de la
+        // categoría salvo para suplementos — ninguna de las quince lo es.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(103);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -122,7 +127,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 88 * 5);
+        assertThat(total).isEqualTo(23L * 103 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();
