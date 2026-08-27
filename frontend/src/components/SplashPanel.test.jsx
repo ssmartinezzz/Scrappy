@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import SplashPanel from './SplashPanel';
@@ -43,5 +44,33 @@ describe('SplashPanel — an unreachable backend stops the screen claiming progr
     // that keeps advancing on a dead backend is a screen that lies.
     expect(screen.getByText(/no se pudo contactar/i)).toBeInTheDocument();
     expect(screen.queryByText('Scrapeando entreno')).not.toBeInTheDocument();
+  });
+});
+
+describe('SplashPanel — /splash siempre tiene salida al catálogo (breadcrumb)', () => {
+  it('ofrece el breadcrumb cuando hay catálogo, aunque no haya corrida ni conteo', () => {
+    // El caso que no tenía salida: catálogo cargado, nada corriendo, y
+    // totalProds en 0 — que es como queda en reposo.
+    renderSplash({ scrapeStatus: 'DONE', tieneData: true, totalProds: 0 });
+
+    expect(screen.getByRole('navigation', { name: /migas de pan/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Catálogo' })).toBeInTheDocument();
+  });
+
+  it('lleva al catálogo al clickearlo', async () => {
+    const onGoToApp = vi.fn();
+    const user = userEvent.setup();
+    renderSplash({ scrapeStatus: 'DONE', tieneData: true, totalProds: 0, onGoToApp });
+
+    await user.click(screen.getByRole('button', { name: 'Catálogo' }));
+
+    expect(onGoToApp).toHaveBeenCalled();
+  });
+
+  // Sin catálogo no hay a dónde volver: el link mandaría a una pantalla vacía.
+  it('no lo ofrece cuando todavía no hay catálogo', () => {
+    renderSplash({ scrapeStatus: 'IDLE', tieneData: false });
+
+    expect(screen.queryByRole('navigation', { name: /migas de pan/i })).not.toBeInTheDocument();
   });
 });

@@ -1948,3 +1948,50 @@ FILTROS, no el orden, que es lo que permitió arreglar de paso dos bugs viejos
 sin que el propio oráculo los defendiera: `orden=ml_score` mostraba los peores
 scores primero, y `orden=desc_pct` filtraba adentro del comparador, así que
 cambiar el orden cambiaba el total y la cantidad de páginas.
+
+---
+
+## `V30` — seed de Zentra y MMartinez
+
+Dos sitios Tiendanube genuinos. **No hay plataforma nueva ni CHECK tocado**:
+`'tiendanube'` es válido desde `V6` y `'oficina'` desde `V27`, así que la
+migración es un solo `INSERT`. Re-listar cualquiera de esos dominios acá
+borraría lo que agregaron `V27` y `V28`, porque cada una hace `DROP` + `ADD`
+del dominio **completo**.
+
+| Sitio | `plataforma` | `rubro_forzado` | Por qué |
+|---|---|---|---|
+| Zentra | `tiendanube` | `oficina` | Sillas ergonómicas y standing desks, el mismo catálogo que INPRO |
+| Mmartinez | `tiendanube` | `NULL` | Calzado — cae en el default de indumentaria, como Harvey o Midway |
+
+Medido contra los sitios en vivo antes de escribir la migración, que es
+exactamente el paso que se salteó el bug que cerró `V24`: Zentra sirve 44
+productos en una sola página y `?page=2` viene vacía (el corte por dos vacías
+seguidas de `TiendanubePage` la ve y para); MMartinez sirve 37 de a 12 y
+`?page=N` pagina de verdad, mientras `?mpage=N` devuelve la página 1 — marcador
+client-side, igual que en `entreno`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V30
+DELETE FROM sitio s WHERE s.sitio_key IN ('zentra','mmartinez')
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V30
+```
+
+El `NOT EXISTS` es el mismo de `V24`, `V27` y `V28`, por la FK que `V23` le puso
+a `productos.sitio_key -> sitio(sitio_key)`. No hay bloque de CHECK que
+restaurar porque esta migración no angostó ni ensanchó ninguno.
+
+**Y van tres veces que los rollbacks al revés obligan a tocar un test ajeno.**
+`V27` editó el de `V24`; `V28` editó los dos; `V30` vuelve a editar esos dos.
+Hoy `V24RollbackRoundTripTest` ejecuta `V30` → `V28` → `V27` → `V24`. El motivo
+es concreto y vale anotarlo porque no es el mismo que las veces anteriores: la
+fila de Zentra lleva `rubro_forzado='oficina'`, así que el bloque de `V27` —que
+angosta `sitio_rubro_forzado_check` sacando justo ese valor— es rechazado por
+Postgres mientras esa fila siga viva. No es que el test se ponga rojo por
+gusto: sin sacar la fila primero, el `ALTER` no puede aplicarse en ninguna base.
+Sigue valiendo la misma regla acotada para editar el test de otro: **una
+aserción de dominio cerrado puede ir de `n` a `n+1` si toda aserción de
+comportamiento alrededor queda idéntica.**

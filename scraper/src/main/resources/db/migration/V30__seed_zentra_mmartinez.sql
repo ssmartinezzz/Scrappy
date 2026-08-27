@@ -1,0 +1,52 @@
+-- V30__seed_zentra_mmartinez.sql — add-zentra-and-mmartinez
+--
+-- Dos sitios Tiendanube genuinos, sin plataforma nueva y sin código nuevo.
+-- `sitio_plataforma_check` NO se toca: 'tiendanube' ya es válido desde V6, y
+-- re-listar el dominio acá le borraría a V27 su 'oficina' y a V28 su
+-- 'morashop' — cada una de esas migraciones hace DROP + ADD del dominio
+-- COMPLETO, así que tocarlo de nuevo sin rebasear es una regresión silenciosa.
+-- Lo mismo vale para `chk_productos_rubro_domain` y
+-- `sitio_rubro_forzado_check`: 'oficina' ya entró en V27, alcanza con usarlo.
+--
+-- POR QUÉ ESTOS DOS NO NECESITAN UNA PAGE PROPIA. Medido contra el sitio en
+-- vivo antes de escribir esto, que es la parte que se saltea el bug de V24:
+--
+--   zentra.com.ar/productos/     44 productos en UNA página; ?page=2 sirve una
+--                                página vacía, así que el corte por dos vacías
+--                                seguidas de TiendanubePage la ve y para.
+--   mmartinez.com.ar/productos/  37 productos, 12 por página; ?page=N pagina
+--                                de verdad (page 2 trae 12 ids que no están en
+--                                page 1). ?mpage=N devuelve la página 1, o sea
+--                                que es marcador client-side — igual que en
+--                                entreno.
+--
+-- Ninguno expone `meta[name=store-id]`, así que no aplica el camino por API
+-- REST de Tiendanube y entra el cascade DOM de `buildExtractorJs()`. Los dos
+-- sirven cards con `[data-product-id]`, nombre en un `[class*=name]` y la
+-- imagen SÓLO en `data-srcset` (el `src` es un GIF base64 de lazy-load, en
+-- 44/44 de las cards de Zentra). El extractor ya prueba `data-srcset` antes
+-- que `src` y descarta lo que huela a base64/placeholder, así que las levanta
+-- sin tocar nada: verificado en un browser real, 44/45 con imagen (la 45 es el
+-- template oculto del tema).
+--
+-- LA TRAMPA DE MMARTINEZ, POR SI VUELVE. Sus cards traen SEIS elementos de
+-- precio: un contenedor con todo concatenado, un `js-compare-price-display`
+-- que dice "$0" y está oculto, el precio real, dos de descuento por
+-- transferencia y uno de cuota. El extractor toma la primera HOJA cuyo texto
+-- arranca en '$' y parsea a > 0, así que el "$0" se saltea solo y agarra el
+-- precio real — medido: 12/12 correctos. Y ese "$0" además llega a `compare`,
+-- pero `PrecioParser` excluye el 0 del intervalo válido y devuelve empty, así
+-- que `precioOriginal` queda NULL (D1: "no había") en vez de fabricar un
+-- descuento contra cero. Las dos cosas se comprobaron ejecutando el código,
+-- no leyendo su javadoc.
+--
+-- rubro_forzado: 'oficina' para Zentra —sillas ergonómicas y standing desks,
+-- el mismo catálogo que INPRO— y NULL para MMartinez, que es calzado y cae en
+-- el default de indumentaria como Harvey, Midway o Dcshoes. `origen='config'`
+-- en ambos porque tienen entrada en config.properties, que es lo que
+-- SitioSeedSyncTest exige. ON CONFLICT DO NOTHING: un re-run no puede pisar
+-- una fila que un commit posterior o el dashboard ya hayan tocado.
+INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) VALUES
+    ('Zentra',    'zentra',    'tiendanube', false, 'oficina', 'config'),
+    ('Mmartinez', 'mmartinez', 'tiendanube', false, NULL,      'config')
+ON CONFLICT (nombre) DO NOTHING;

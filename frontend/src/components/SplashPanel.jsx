@@ -45,7 +45,7 @@ function Disclosure({ title, children, defaultOpen = false }) {
 
 export default function SplashPanel({
   config, scrapeStatus, scrapeMsg, progreso, backendUnreachable = false,
-  onScrapeStart, onStartPolling, onGoToApp, prods, totalProds,
+  onScrapeStart, onStartPolling, onGoToApp, prods, totalProds, tieneData,
 }) {
   const [sitios,    setSitios]    = useState([]);
   const [selected,  setSelected]  = useState([]);
@@ -136,6 +136,30 @@ export default function SplashPanel({
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-start overflow-y-auto bg-bg p-4">
+
+      {/* Breadcrumb — la salida al catálogo. Las dos que ya existían viven
+          dentro de la card y están gateadas por `totalProds`, así que si el
+          catálogo estaba cargado pero ninguna corrida en curso, /splash no
+          ofrecía NINGUNA forma de volver. Ésta se dibuja sobre `tieneData`:
+          "hay algo a lo que volver" es la condición correcta, y no depende de
+          cuántos productos sean ni del estado de la corrida. */}
+      {tieneData && (
+        <nav aria-label="Migas de pan" className="w-full max-w-[580px] self-center">
+          <ol className="flex items-center gap-1 text-[.78rem] text-t4">
+            <li>
+              <button
+                className="cursor-pointer rounded-btn bg-transparent px-1 py-0.5 font-semibold text-primary2 transition-colors hover:text-primary"
+                onClick={onGoToApp}
+                type="button"
+              >
+                Catálogo
+              </button>
+            </li>
+            <li aria-hidden="true">/</li>
+            <li aria-current="page" className="text-t2">Scraping</li>
+          </ol>
+        </nav>
+      )}
 
       <div className="my-auto flex w-full flex-col items-center gap-5">
       {/* ── Header ─────────────────────────────────────────────── */}
