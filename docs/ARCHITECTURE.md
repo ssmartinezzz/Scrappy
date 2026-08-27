@@ -268,6 +268,22 @@ prenda vestible. Es el mismo criterio por el que `RubroResolver` no deriva el
 rubro de la categoría: qué **es** un producto y en qué **slot** entra son dos
 preguntas distintas.
 
+#### Las subcategorías nuevas se abstienen; sólo `Gorro` adivina
+
+Las veintitrés reglas tier-1 que se sumaron —quince para las categorías nuevas y
+ocho para indumentaria que no tenía— **ninguna trae entrada default
+incondicional**. Sólo `Gorro` la tiene, de antes: si nada matchea, devuelve
+`invierno`.
+
+La diferencia importa porque `sub_categoria` alimenta filtros. Un `""` dice "el
+nombre no lo aclara" y un filtro lo puede excluir; un valor adivinado dice algo
+falso con la misma cara que uno leído. Es el mismo criterio con el que
+`VisualAttrs.EMPTY` significa "el clasificador se abstuvo" y no "malo".
+
+La cobertura pasó de 750 a 3.460 productos con subcategoría, y el diff viejo
+contra nuevo muestra el costo real: gana 2.710, **pierde 9** —todas consecuencia
+de productos que dejaron de ser `Conjunto`— y sólo 2 cambian de valor.
+
 **Cómo se verificó que no rompe lo que ya andaba**: no alcanzaba con la suite.
 Se corrió el clasificador viejo y el nuevo sobre las mismas 16.830 filas y se
 diffearon los resultados. 3.295 productos cambian de categoría, **sólo 15 salen
