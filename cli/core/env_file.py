@@ -13,6 +13,7 @@ DATABASE_PASSWORD value" requirement.
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,14 +110,24 @@ def compute_defaults(cfg: Config) -> dict[str, str]:
     ports) — the set named in env-file-generation's "Create-If-Absent Env
     Generation" requirement."""
     models_root = cfg.repo_root / "scraper" / "_models"
+    # Origins are overridable so the same generator serves a loopback install
+    # and one reached over TLS from another device. FRONTEND accepts a
+    # comma-separated list (CORS allow-list); APP_OPEN_URL takes its first
+    # entry, since a browser can only be pointed at one.
+    frontend = os.environ.get(
+        "SCRAPPY_FRONTEND_ORIGIN", f"http://localhost:{cfg.ports.frontend}"
+    ).strip()
+    backend = os.environ.get(
+        "SCRAPPY_BACKEND_ORIGIN", f"http://localhost:{cfg.ports.backend}"
+    ).strip()
     return {
         "DATABASE_URL": f"jdbc:postgresql://localhost:{cfg.ports.postgres}/scraper",
         "DATABASE_USERNAME": "postgres",
         "DATABASE_PASSWORD": "",  # portable Postgres is provisioned with `initdb -A trust`
         "SCRAPER_MODELS_ROOT": str(models_root),
-        "APP_CORS_ALLOWED_ORIGINS": f"http://localhost:{cfg.ports.frontend}",
-        "VITE_API_BASE_URL": f"http://localhost:{cfg.ports.backend}",
-        "APP_OPEN_URL": f"http://localhost:{cfg.ports.frontend}",
+        "APP_CORS_ALLOWED_ORIGINS": frontend,
+        "VITE_API_BASE_URL": backend,
+        "APP_OPEN_URL": frontend.split(",")[0].strip(),
     }
 
 
