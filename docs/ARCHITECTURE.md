@@ -489,6 +489,47 @@ ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,
 la misma clase de trabajo que `/api/grupos` hace por request.
 
+### ¿Por qué el backend no sirve TLS y sólo le cree al proxy de loopback?
+
+Porque el que termina TLS es otro proceso, y decidir *a quién* creerle es la
+única parte que no se puede delegar.
+
+El backend escucha HTTP en claro y siempre lo hizo. Con un terminador adelante
+—`tailscale serve`, nginx, un LB— el request que llega a Tomcat es HTTP, así
+que sin configuración `request.isSecure()` es `false` para siempre y
+`getRemoteAddr()` devuelve la IP del proxy en vez de la del cliente. Eso último
+no es cosmético: es lo que colapsa la ventana per-IP de `ResetRateLimiter` en un
+único balde compartido por todos, en silencio y sin fallar. `LoginRateLimiter`
+no tiene el problema porque deliberadamente no usa IP.
+
+`server.forward-headers-strategy=NATIVE` hace que Tomcat lea
+`X-Forwarded-Proto/For/Host`. Pero un header es una afirmación del cliente, no
+un hecho, así que la pregunta real es a quién se le cree.
+
+**El default de Tomcat confía en todo rango privado, y esa es exactamente la
+forma equivocada acá.** En una LAN el propio cliente vive adentro de
+`192.168/16`: cualquiera en la wifi manda un `X-Forwarded-For` inventado y se
+mueve de balde en el rate limit a voluntad. Por eso
+`server.tomcat.remoteip.internal-proxies` queda restringido a **loopback** —
+sólo un proxy corriendo en esta misma máquina—, que es la allowlist concreta que
+el javadoc de `LoginRateLimiter` venía pidiendo. Se abre con
+`APP_TRUSTED_PROXIES` el día que el proxy viva en otro host, y ese día el valor
+es la IP de ese proxy, no un rango.
+
+**Medido contra un proceso real** (jar levantado en un puerto aparte, 2026-08-28),
+usando `Strict-Transport-Security` como sonda —Spring Security sólo lo emite
+cuando el request es seguro—:
+
+| Peer | `X-Forwarded-Proto: https` | HSTS |
+|---|---|---|
+| `127.0.0.1` | sí | **presente** — el header se creyó |
+| `192.168.100.200` | sí, el mismo | **ausente** — se ignoró |
+
+No hay test automatizado de esto: `@WebMvcTest` usa MockMvc y no levanta Tomcat,
+así que el valve no corre, y un test que afirme la string de la property se
+pondría verde sin ejercitar el mecanismo. Vale la regla que este repo ya
+aprendió con auth: la verificación es contra un proceso real.
+
 ---
 
 ## Diagrama de capas y topología de servicios
