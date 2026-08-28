@@ -21,6 +21,9 @@ set -euo pipefail
 CONTAINER="${PG_CONTAINER:-fashion-scraper-pg}"
 IMAGE="${PG_IMAGE:-postgres:16-alpine}"
 PG_PORT="${PG_PORT:-5432}"
+# Loopback-only: the container runs with trust auth (no password), so a
+# bind to 0.0.0.0 hands the whole database to anyone on the LAN.
+PG_BIND="${PG_BIND:-127.0.0.1}"
 PG_DB="${PG_DB:-scraper}"
 PG_USER="${PG_USER:-postgres}"
 PG_VOLUME="${PG_VOLUME:-fashion-scraper-pgdata}"
@@ -60,7 +63,7 @@ create_container() {
   docker run -d \
     --name "$CONTAINER" \
     --restart no \
-    -p "${PG_PORT}:5432" \
+    -p "${PG_BIND}:${PG_PORT}:5432" \
     -e POSTGRES_USER="$PG_USER" \
     -e POSTGRES_DB="$PG_DB" \
     -e POSTGRES_HOST_AUTH_METHOD=trust \
