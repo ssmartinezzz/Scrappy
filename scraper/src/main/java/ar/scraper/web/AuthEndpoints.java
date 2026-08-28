@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.config.AllowedOrigins;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.security.AuthenticatedSubject;
+import ar.scraper.security.LoginRateLimiter;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.security.RefreshCookie;
 import ar.scraper.security.RefreshTokenService;
@@ -88,6 +89,8 @@ public class AuthEndpoints {
     private final RefreshTokenService sesiones;
     private final PasswordResetService reseteos;
     private final AllowedOrigins allowedOrigins;
+    /** Ausente en los slices de @WebMvcTest que no lo registran: ahí no hay freno. */
+    private final LoginRateLimiter limiteLogin;
 
     /**
      * A real Argon2id hash of a value nobody knows, verified against when the
@@ -115,13 +118,15 @@ public class AuthEndpoints {
                          TokenService tokens,
                          RefreshTokenService sesiones,
                          PasswordResetService reseteos,
-                         ObjectProvider<AllowedOrigins> allowedOrigins) {
+                         ObjectProvider<AllowedOrigins> allowedOrigins,
+                         ObjectProvider<LoginRateLimiter> limiteLogin) {
         this.usuarios = usuarios;
         this.hasher = hasher;
         this.tokens = tokens;
         this.sesiones = sesiones;
         this.reseteos = reseteos;
         this.allowedOrigins = allowedOrigins.getIfAvailable();
+        this.limiteLogin = limiteLogin.getIfAvailable();
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
@@ -145,6 +150,7 @@ public class AuthEndpoints {
         this.sesiones = sesiones;
         this.reseteos = reseteos;
         this.allowedOrigins = null;
+        this.limiteLogin = null;
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
@@ -162,6 +168,11 @@ public class AuthEndpoints {
             return rechazar();
         }
 
+        if (limiteLogin != null && !limiteLogin.permitir(username)) {
+            LOG.info("[AUTH] login frenado por rate limit");
+            return demasiadosIntentos();
+        }
+
         Optional<UsuarioRepository.Cuenta> cuenta = usuarios.buscarActivaPorUsername(username);
 
         // The lookup already excludes activo = FALSE, so a disabled account is
@@ -172,10 +183,14 @@ public class AuthEndpoints {
 
         if (cuenta.isEmpty() || !coincide) {
             LOG.info("[AUTH] login rechazado para '{}'", username);
+            // Se cuenta el username enviado exista o no la cuenta: contar sólo
+            // las reales haría del 429 un oráculo de qué cuentas existen.
+            if (limiteLogin != null) limiteLogin.registrarFallo(username);
             return rechazar();
         }
 
         UsuarioRepository.Cuenta usuario = cuenta.get();
+        if (limiteLogin != null) limiteLogin.limpiarCuenta(username);
         ObjectNode resp = cuerpoDeAcceso(tokens.emitir(usuario.id()));
 
         // A service account gets no rotating session: the CLI re-authenticates
@@ -400,6 +415,14 @@ public class AuthEndpoints {
 
     private static ResponseEntity<ObjectNode> rechazar() {
         return error(401, "credenciales_invalidas", "Usuario o contraseña incorrectos");
+    }
+
+    private static ResponseEntity<ObjectNode> demasiadosIntentos() {
+        return ResponseEntity.status(429)
+                .header("Retry-After", String.valueOf(LoginRateLimiter.VENTANA.toSeconds()))
+                .body(cuerpoDeError("demasiados_intentos",
+                        "Demasiados intentos fallidos. Probá de nuevo en "
+                        + LoginRateLimiter.VENTANA.toMinutes() + " minutos."));
     }
 
     private static ResponseEntity<ObjectNode> error(int status, String codigo, String mensaje) {
