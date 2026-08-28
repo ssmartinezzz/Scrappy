@@ -616,6 +616,24 @@ mensaje accionable. Para reprovisionar: borrar `_tools/uv` y `_tools/cli-venv` y
 re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
 **no** `cli/__main__.py` directo, que falla por los imports absolutos `cli.*`.
 
+**El Postgres de dev corre con `trust` — sin password — así que el bind importa
+más que de costumbre.** `scripts/dev-db.sh` mapea `127.0.0.1:5432` a propósito
+(`PG_BIND`): con el `-p 5432:5432` que tenía antes, Docker publicaba en
+`0.0.0.0` y cualquiera en la misma red entraba a la base entera sin credencial —
+usuarios y hashes incluidos. El único consumidor es el backend, que corre en el
+host, así que loopback no le saca nada a nadie. **El mapeo se fija al crear el
+contenedor**: cambiar la variable no alcanza, hay que recrearlo (`down` + `up`;
+el volumen es nombrado y los datos sobreviven).
+
+**Los orígenes del `.env` ya no están clavados en `localhost`.**
+`SCRAPPY_FRONTEND_ORIGIN` y `SCRAPPY_BACKEND_ORIGIN` (leídas por
+`cli/core/env_file.py` al generar) fijan `APP_CORS_ALLOWED_ORIGINS`,
+`VITE_API_BASE_URL` y `APP_OPEN_URL`. La primera acepta lista separada por
+comas; `APP_OPEN_URL` toma la primera. Sin ellas, todo se comporta igual que
+antes. Ojo con `VITE_API_BASE_URL`: es **build-time**, así que cambiarla exige
+rebuildear el frontend, y la generación del `.env` es create-if-absent — sobre
+un `.env` que ya existe no pisa nada.
+
 **Postgres portable:** vive en `_tools/pgsql` (binarios) + `_tools/pgdata`
 (`initdb -A trust`, sin password local). Queda corriendo entre ejecuciones;
 `pg_ctl status` chequea antes de re-arrancar. Para dev sin el instalador:
