@@ -10,14 +10,12 @@ const INITIAL_BATCH = 9;
 const BATCH_STEP     = 9;
 
 // ─── Banner de categoría (shadcn-style CategoryCard — image top, content below) ─
-function CategoryBanner({ cat, onClick, cardRef }) {
+function CategoryBanner({ cat, onClick }) {
   const pick1 = cat.picks?.[0];
   const img   = cat.imgCat || pick1?.img || '';
 
   return (
     <CategoryCard
-      ref={cardRef}
-      data-cat={cat.categoria}
       imageUrl={img}
       title={cat.categoria}
       subtitle={tagline(cat.categoria, pick1, cat.mediana)}
@@ -49,31 +47,9 @@ function CategorySearchBar({ value, onChange }) {
   );
 }
 
-// ─── Scroll-spy index ─────────────────────────────────────────────────────────
-function CategoryIndex({ cats, activeCat, onJump }) {
-  if (!cats.length) return null;
-  return (
-    <nav className="picks-index" aria-label="Índice de categorías">
-      {cats.map(cat => (
-        <button
-          key={cat.categoria}
-          type="button"
-          className={`picks-index-item ${activeCat === cat.categoria ? 'active' : ''}`}
-          onClick={() => onJump(cat.categoria)}
-        >
-          {cat.categoria}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-// ─── Gallery: hero + grid + search + scroll-spy, con reveal progresivo ──────
+// ─── Gallery: hero + grid + search, con reveal progresivo ────────────────────
 function PicksGallery({ cats, busq, onSelectCat }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
-  const [activeCat, setActiveCat]       = useState(null);
-
-  const cardRefs   = useRef(new Map());
   const sentinelRef = useRef(null);
 
   const filtered = useMemo(() => (
@@ -87,12 +63,7 @@ function PicksGallery({ cats, busq, onSelectCat }) {
     setVisibleCount(INITIAL_BATCH);
   }, [filtered]);
 
-  const visible  = filtered.slice(0, visibleCount);
-
-  function setCardRef(catKey, el) {
-    if (el) cardRefs.current.set(catKey, el);
-    else cardRefs.current.delete(catKey);
-  }
+  const visible = filtered.slice(0, visibleCount);
 
   // Sentinel observer — grows visibleCount, no-ops once everything is revealed
   useEffect(() => {
@@ -112,33 +83,6 @@ function PicksGallery({ cats, busq, onSelectCat }) {
     return () => observer.disconnect();
   }, [visibleCount, filtered.length]);
 
-  // Scroll-spy observer — single shared observer over all currently-rendered cards
-  useEffect(() => {
-    const entries = Array.from(cardRefs.current.entries());
-    if (!entries.length) return;
-
-    const observer = new IntersectionObserver(
-      (observedEntries) => {
-        let best = null;
-        for (const entry of observedEntries) {
-          if (entry.isIntersecting && (!best || entry.intersectionRatio > best.intersectionRatio)) {
-            best = entry;
-          }
-        }
-        if (best) setActiveCat(best.target.dataset.cat);
-      },
-      { rootMargin: '-10% 0px -60% 0px', threshold: [0, .25, .5, .75, 1] }
-    );
-
-    entries.forEach(([, el]) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [visible.length, filtered]);
-
-  function handleJump(catKey) {
-    const el = cardRefs.current.get(catKey);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
   return (
     <div className="picks-immersive">
       <div className="picks-header">
@@ -146,32 +90,23 @@ function PicksGallery({ cats, busq, onSelectCat }) {
         <div className="picks-subtitle">El mejor de cada categoría según precio/calidad</div>
       </div>
 
-      <div className="picks-body">
-        <div className="picks-main">
-          {filtered.length === 0 ? (
-            <div className="picks-empty">
-              Sin resultados para "{busq}". Probá otra búsqueda.
+      <div className="picks-main">
+        {filtered.length === 0 ? (
+          <div className="picks-empty">
+            Sin resultados para "{busq}". Probá otra búsqueda.
+          </div>
+        ) : (
+          <>
+            <div className="picks-grid">
+              {visible.map(cat => (
+                <CategoryBanner key={cat.categoria} cat={cat} onClick={onSelectCat} />
+              ))}
             </div>
-          ) : (
-            <>
-              <div className="picks-grid">
-                {visible.map(cat => (
-                  <CategoryBanner
-                    key={cat.categoria}
-                    cat={cat}
-                    onClick={onSelectCat}
-                    cardRef={el => setCardRef(cat.categoria, el)}
-                  />
-                ))}
-              </div>
-              {visibleCount < filtered.length && (
-                <div ref={sentinelRef} className="picks-sentinel" />
-              )}
-            </>
-          )}
-        </div>
-
-        <CategoryIndex cats={filtered} activeCat={activeCat} onJump={handleJump} />
+            {visibleCount < filtered.length && (
+              <div ref={sentinelRef} className="picks-sentinel" />
+            )}
+          </>
+        )}
       </div>
     </div>
   );

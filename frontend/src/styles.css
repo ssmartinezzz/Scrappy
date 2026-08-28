@@ -686,10 +686,7 @@ body { overflow-x: hidden; }
 .picks-search::placeholder { color: var(--t4); }
 .picks-search:focus-visible { border-color: var(--p); box-shadow: 0 0 0 3px rgba(196,80,46,.35); }
 
-/* picks-body: single column on phone, row at sm+ */
-.picks-body { display: flex; gap: 0; align-items: flex-start; flex-direction: column; }
-@media (min-width: 560px) { .picks-body { flex-direction: row; } }
-.picks-main { flex: 1; min-width: 0; padding: 1rem 1.25rem; }
+.picks-main { min-width: 0; padding: 1rem 1.25rem; }
 
 /* Dynamic column count — mobile-first breakpoints. Base gives 2-up at 375px
    (2*160+10=330 <= 335px content width). Bumps to 220 at sm for tablet and
@@ -793,18 +790,6 @@ body { overflow-x: hidden; }
 
 .picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
 
-/* Scroll-spy index — hidden on phone, visible at sm+ */
-.picks-index { position: sticky; top: 0; z-index: var(--z-chrome-sub);
-  flex-shrink: 0; width: 160px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto;
-  padding: 1rem .75rem; display: none; flex-direction: column; gap: 2px; }
-@media (min-width: 560px) { .picks-index { display: flex; } }
-.picks-index-item { background: none; border: none; text-align: left;
-  color: var(--t3); font: 600 .68rem/1.3 var(--font); padding: 5px 8px;
-  border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; transition: background .15s, color .15s; }
-.picks-index-item:hover { background: var(--s2); color: var(--t2); }
-.picks-index-item.active { background: var(--s3); color: var(--p); font-weight: 800; }
-.picks-index-item:focus-visible { outline: 2px solid var(--p); outline-offset: 1px; }
 
 /* ===== FAVORITOS CAROUSEL (favoritos-carousel-view) =====
    FavoritosPanel.jsx keeps its 100%-inline-style convention; these two
