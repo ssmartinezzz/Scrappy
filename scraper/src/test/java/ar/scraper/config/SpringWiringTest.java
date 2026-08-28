@@ -107,6 +107,18 @@ class SpringWiringTest {
     }
 
     @Test
+    @DisplayName("los colaboradores que llegan por ObjectProvider igual tienen que ser beans")
+    void losColaboradoresOpcionalesSonBeans() throws Exception {
+        // AuthEndpoints los recibe como ObjectProvider y getIfAvailable() devuelve
+        // null cuando no están, sin fallar. Eso es deliberado — varios slices de
+        // @WebMvcTest construyen el controller sin ellos — pero significa que
+        // sacarles el @Component apaga la protección en producción y no rompe nada.
+        assertThat(beansDeLaAplicacion())
+                .as("un ObjectProvider vacío en producción es una protección apagada en silencio")
+                .contains(ar.scraper.security.LoginRateLimiter.class);
+    }
+
+    @Test
     @DisplayName("un bean con varios constructores dice explícitamente cuál usar")
     void unBeanConVariosConstructoresMarcaCual() throws Exception {
         // Con un solo constructor Spring lo elige sin ayuda. Con dos o más y

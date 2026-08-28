@@ -116,6 +116,28 @@ la misma razón el tiempo de respuesta tampoco los distingue: cuando el usuario 
 existe se verifica igual contra un hash señuelo, así que las dos ramas cuestan el
 mismo Argon2id (~76 ms) en vez de diferir en algo perfectamente medible por red.
 
+**429** — cinco fallos sobre la misma cuenta en 15 minutos, o cien en total:
+
+```json
+{ "error": "demasiados_intentos", "mensaje": "Demasiados intentos fallidos. Probá de nuevo en 15 minutos." }
+```
+
+Con `Retry-After` en segundos. Se cuentan **fallos, no intentos**: un login
+exitoso limpia el contador de esa cuenta, así que abrir cinco pestañas no te
+echa. El techo global, en cambio, no lo limpia nadie — si lo hiciera, alguien
+con una credencial válida resetearía el presupuesto de todos entre tanda y tanda
+de adivinanzas.
+
+El username se cuenta **exista o no la cuenta**: si sólo se contaran las reales,
+el 429 sería el oráculo de existencia que el 401 de arriba se toma tanto trabajo
+en no ser.
+
+No hay límite por IP a propósito. `getRemoteAddr()` devuelve la IP del proxy en
+cuanto haya uno adelante, y ahí todos los clientes caen en el mismo balde sin que
+nada falle — la clave por IP se agrega junto con la allowlist de proxies de
+confianza, no antes. Los dos techos y la ventana son **propuestas, no
+mediciones**.
+
 **Cuentas iniciales.** Se siembran al arrancar desde el entorno
 (`ADMIN_BOOTSTRAP_*`, `CLI_SERVICE_ACCOUNT_*`), de forma idempotente. El seeder
 **nunca pisa un hash existente**: cambiar la variable y reiniciar *no* cambia la
