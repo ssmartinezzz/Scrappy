@@ -712,6 +712,11 @@ body { overflow-x: hidden; }
 .picks-rubro-btn { padding: 4px 10px; border-radius: 16px; border: none; cursor: pointer;
   font-size: .72rem; font-weight: 700; background: var(--s2); color: var(--t4); }
 .picks-rubro-btn.active { background: var(--p); color: #fff; }
+.picks-rubro-back { padding: 4px 10px; border-radius: 16px; border: 1px solid var(--bd2);
+  background: var(--s2); color: var(--t2); font: 700 .72rem var(--font); cursor: pointer;
+  flex-shrink: 0; }
+.picks-rubro-back:hover { background: var(--s3); color: var(--t1); }
+.picks-rubro-back:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
 
 /* CatDetail header */
 .picks-catdetail { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
@@ -790,6 +795,56 @@ body { overflow-x: hidden; }
 
 .picks-empty { color: var(--t4); text-align: center; padding: 3.5rem 1rem; font: .8rem var(--font); }
 
+
+/* ===== RUBRO ENTRY CARDS (ui/rubro-card.jsx, /picks carousel step) =====
+   Full-bleed cover + a gradient veil built from --rubro-theme, an HSL triple
+   the consumer sets per rubro. Lives here rather than in Tailwind arbitrary
+   values because every rule below is a gradient/shadow over that custom
+   property, which reads as noise inline. */
+.picks-rubro-carousel .picks-carousel-item { display: flex; }
+.rubro-card {
+  --rubro-theme: 14 62% 47%;
+  position: relative; display: flex; width: 100%; overflow: hidden;
+  aspect-ratio: 4 / 5; max-height: 340px; min-height: 220px;
+  border-radius: var(--rc); cursor: pointer; isolation: isolate;
+  background: hsl(var(--rubro-theme));
+  box-shadow: 0 6px 24px -14px hsl(var(--rubro-theme) / .7);
+  transition: transform .35s ease, box-shadow .35s ease;
+}
+.rubro-card:hover { transform: translateY(-4px);
+  box-shadow: 0 18px 46px -18px hsl(var(--rubro-theme) / .75); }
+.rubro-card:focus-visible { outline: 2px solid var(--p); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .rubro-card, .rubro-card-img, .rubro-card-arrow { transition: none; }
+  .rubro-card:hover { transform: none; }
+}
+
+.rubro-card-img { position: absolute; inset: 0; background-size: cover;
+  background-position: center; transition: transform .5s ease; }
+.rubro-card:hover .rubro-card-img { transform: scale(1.07); }
+.rubro-card-veil { position: absolute; inset: 0;
+  background: linear-gradient(to top,
+    hsl(var(--rubro-theme) / .95) 0%,
+    hsl(var(--rubro-theme) / .62) 38%,
+    hsl(var(--rubro-theme) / .12) 72%,
+    transparent 100%); }
+
+.rubro-card-body { position: relative; display: flex; flex-direction: column;
+  justify-content: flex-end; width: 100%; padding: 1.1rem; color: #fff; gap: 2px; }
+.rubro-card-title { font: 800 1.15rem/1.2 var(--font); letter-spacing: -.01em;
+  text-shadow: 0 1px 10px rgba(0,0,0,.35); }
+.rubro-card-stats { font: 600 .72rem/1.3 var(--font); color: rgba(255,255,255,.82); }
+.rubro-card-cta { margin-top: .9rem; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px;
+  padding: .55rem .8rem; border-radius: var(--rb);
+  background: hsl(var(--rubro-theme) / .35); border: 1px solid rgba(255,255,255,.28);
+  backdrop-filter: blur(6px);
+  font: 700 .74rem var(--font); letter-spacing: .02em;
+  transition: background .3s ease, border-color .3s ease; }
+.rubro-card:hover .rubro-card-cta { background: hsl(var(--rubro-theme) / .55);
+  border-color: rgba(255,255,255,.45); }
+.rubro-card-arrow { flex-shrink: 0; transition: transform .3s ease; }
+.rubro-card:hover .rubro-card-arrow { transform: translateX(3px); }
 
 /* ===== FAVORITOS CAROUSEL (favoritos-carousel-view) =====
    FavoritosPanel.jsx keeps its 100%-inline-style convention; these two
