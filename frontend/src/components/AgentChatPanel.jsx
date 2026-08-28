@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useDragControls, useMotionValue } from 'framer-motion';
 import { MessageSquare, X, Sparkles, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { renderRichText } from '@/lib/richText';
@@ -309,6 +309,59 @@ export default function AgentChatPanel() {
   const [notice, setNotice] = useState(null);
   const scrollRef = useRef(null);
 
+  // ── Draggable dock ────────────────────────────────────────────────────────
+  // The widget floats anywhere on screen: `boundsRef` is a full-viewport,
+  // click-through surface used as the drag constraint, and only the FAB starts
+  // a drag (dragListener={false} + dragControls) so text selection and
+  // scrolling inside the open panel keep working.
+  const boundsRef = useRef(null);
+  const dockRef = useRef(null);
+  const dragControls = useDragControls();
+  const draggingRef = useRef(false);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const [flipped, setFlipped] = useState(false);
+
+  /** Keeps the dock fully on screen — the drag constraint only applies while
+   * dragging, so a resize, a rotation or the panel opening can still strand it. */
+  const clampIntoView = () => {
+    const el = dockRef.current;
+    if (!el || typeof el.getBoundingClientRect !== 'function') return;
+    const r = el.getBoundingClientRect();
+    if (!r.width && !r.height) return;
+    const m = 8;
+    let dx = 0;
+    let dy = 0;
+    if (r.right > window.innerWidth - m) dx = window.innerWidth - m - r.right;
+    if (r.left + dx < m) dx += m - (r.left + dx);
+    if (r.bottom > window.innerHeight - m) dy = window.innerHeight - m - r.bottom;
+    if (r.top + dy < m) dy += m - (r.top + dy);
+    if (dx) x.set(x.get() + dx);
+    if (dy) y.set(y.get() + dy);
+  };
+
+  /** Opening upwards from the top half would push the panel off screen, so the
+   * stack flips to render below the FAB once it is dropped up there. */
+  const endDrag = () => {
+    const r = dockRef.current?.getBoundingClientRect?.();
+    if (r) setFlipped(r.top + r.height / 2 < window.innerHeight / 2);
+    // Cleared after the click event this pointer-up also fires, so a drag
+    // never toggles the panel; a plain click never reaches this handler.
+    setTimeout(() => { draggingRef.current = false; }, 0);
+  };
+
+  const toggleOpen = () => {
+    if (draggingRef.current) return;
+    setOpen(o => !o);
+  };
+
+  useEffect(() => {
+    window.addEventListener('resize', clampIntoView);
+    return () => window.removeEventListener('resize', clampIntoView);
+  }, []);
+
+  useLayoutEffect(() => { clampIntoView(); }, [open]);
+
   useEffect(() => {
     fetchAgentModels().then(m => {
       if (!m) return;
@@ -487,10 +540,23 @@ export default function AgentChatPanel() {
   );
 
   return (
-    <div
-      className="fixed right-6 z-[60] flex flex-col items-end gap-3"
-      style={{ bottom: 'calc(88px + var(--compare-bar-h, 0px))' }}
-    >
+    <div ref={boundsRef} className="pointer-events-none fixed inset-0 z-[60]">
+      <motion.div
+        ref={dockRef}
+        drag
+        dragListener={false}
+        dragControls={dragControls}
+        dragConstraints={boundsRef}
+        dragElastic={0}
+        dragMomentum={false}
+        onDragStart={() => { draggingRef.current = true; }}
+        onDragEnd={endDrag}
+        style={{ x, y, bottom: 'calc(88px + var(--compare-bar-h, 0px))' }}
+        className={cn(
+          'pointer-events-auto absolute right-4 flex w-max items-end gap-3 sm:right-6',
+          flipped ? 'flex-col-reverse' : 'flex-col',
+        )}
+      >
       <AnimatePresence>
         {open && (
           <motion.div
@@ -499,7 +565,7 @@ export default function AgentChatPanel() {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="flex max-h-[70vh] w-[380px] flex-col overflow-hidden rounded-card border border-border bg-s2 shadow-2xl"
+            className="flex max-h-[70vh] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-card border border-border bg-s2 shadow-2xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between gap-2 border-b border-border bg-s1 px-4 py-3">
@@ -637,19 +703,22 @@ export default function AgentChatPanel() {
         )}
       </AnimatePresence>
 
-      {/* FAB */}
+      {/* FAB — also the drag handle for the whole widget */}
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setOpen(o => !o)}
+        onPointerDown={e => dragControls.start(e)}
+        onClick={toggleOpen}
         title="Ask Agent"
+        style={{ touchAction: 'none' }}
         className={cn(
-          'flex h-14 w-14 items-center justify-center rounded-full text-white shadow-2xl transition-colors',
+          'flex h-14 w-14 cursor-grab items-center justify-center rounded-full text-white shadow-2xl transition-colors active:cursor-grabbing',
           open ? 'bg-danger' : 'bg-primary hover:bg-primary2',
         )}
       >
         {open ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
       </motion.button>
+      </motion.div>
     </div>
   );
 }
