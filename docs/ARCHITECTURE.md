@@ -530,6 +530,36 @@ así que el valve no corre, y un test que afirme la string de la property se
 pondría verde sin ejercitar el mecanismo. Vale la regla que este repo ya
 aprendió con auth: la verificación es contra un proceso real.
 
+### ¿Por qué el CLI levanta el terminador TLS y no un script aparte?
+
+Porque un modo que depende de que alguien haya corrido otra cosa antes no es un
+modo: es una convención, y una convención que nadie recuerda falla en silencio.
+
+`start lan` necesitaba tres pasos previos —generar el certificado, levantar el
+proxy, exportar dos variables— y si faltaba alguno el resultado no era un error
+sino una app que carga y no anda **en el otro dispositivo**, que es donde menos
+se puede diagnosticar. Ahora `start lan` detecta la IP, genera el certificado,
+levanta el proxy y deriva los orígenes; `stop` lo baja.
+
+**El backend sigue sin servir TLS, y ahí está el punto.** La alternativa era que
+Vite preview y Spring Boot sirvieran HTTPS ellos mismos: menos piezas, cero
+Docker, y ningún proxy que administrar. Se descartó porque agrega **otra**
+divergencia entre desarrollo y producción, en un repo donde eso ya escondió dos
+bugs de auth —`vite dev` es same-origin y ninguna instalación real lo es—. Con
+el proxy, la topología de `lan` es la misma que la de un deploy: TLS afuera,
+HTTP adentro, `X-Forwarded-*` en el medio. Lo que se prueba en el celular es lo
+que se va a instalar.
+
+El costo, explícito: **el modo `lan` necesita Docker**. `local` no, y es el
+default. Sin Docker el modo falla nombrando la causa en vez de arrancar a medias.
+
+**La IP se detecta abriendo un socket UDP que no envía nada.** Enumerar
+interfaces obligaría a adivinar entre `docker0`, `lxcbr0` y `virbr0`, ninguna
+alcanzable desde un celular; dejar que el kernel elija la ruta hacia afuera da
+la única que sirve. `SCRAPPY_LAN_IP` la pisa, y `SCRAPPY_*_ORIGIN` siguen
+ganando sobre todo, para un túnel o un deploy cuyo nombre esta máquina no puede
+deducir.
+
 ### ¿Por qué el origen del backend se resuelve en runtime y no en el build?
 
 Porque "a qué backend le habla el frontend" es una propiedad del **arranque**,
