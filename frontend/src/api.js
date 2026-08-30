@@ -6,7 +6,14 @@
 // unless the var is explicitly set.
 import { authedFetch } from './lib/authedFetch';
 
-const BASE = import.meta.env.VITE_API_BASE_URL || '';
+// Runtime first, build-time second. `window.__API_BASE__` is set by /config.js,
+// which the launcher rewrites per run — so one dist/ serves localhost, a LAN
+// origin behind TLS, or a deployment, without rebuilding. A blank value means
+// "not configured" (an untouched placeholder included), never a literal host.
+const BASE =
+  (typeof window !== 'undefined' && window.__API_BASE__) ||
+  import.meta.env.VITE_API_BASE_URL ||
+  '';
 
 export async function fetchStatus() {
   const r = await authedFetch(`${BASE}/api/status`);

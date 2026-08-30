@@ -45,6 +45,7 @@ from cli.core.errors import CliError
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient, build_rest_client
+from cli.core.runtime_config import LOCAL, apply_mode
 from cli.tui.widgets import (
     CommandSuggester,
     Console,
@@ -202,6 +203,7 @@ class ScrappyConsole(App):
         self.rest = rest or build_rest_client(cfg)
         self.processes = processes or ProcessManager()
         self.open_url = open_url
+        self.active_origins = None  # set by `start`; see _cmd_open
         self.opener = opener
         # Socket probe used by the status strip; injectable so tests never
         # touch a real port (defaults to a real TCP connect).
@@ -367,7 +369,7 @@ class ScrappyConsole(App):
     def _cmd_start(self, args: list[str]) -> None:
         self._run_core("start", self._start_services)
 
-    def _start_services(self) -> str:
+    def _start_services(self, mode: str = LOCAL) -> str:
         from cli.core import builder
         from cli.core.env_file import parse_env
 
@@ -379,6 +381,10 @@ class ScrappyConsole(App):
             self.call_from_thread(self._refresh_health)
 
         env = parse_env(self.cfg.repo_root / ".env")
+        # After the build: apply_mode writes into frontend/dist.
+        origins = apply_mode(self.cfg, mode, env)
+        self.active_origins = origins
+        self.call_from_thread(self._emit, "info", f"modo {mode} — API en {origins.backend}")
         self.processes.launch_backend(
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )
@@ -451,7 +457,13 @@ class ScrappyConsole(App):
             self._emit("raw", line)
 
     def _cmd_open(self, args: list[str]) -> None:
-        url = self.open_url or f"http://localhost:{self.cfg.ports.frontend}"
+        # The active mode wins over APP_OPEN_URL: that records whatever the
+        # .env was last frozen at, not where this run actually serves.
+        url = (
+            self.active_origins.frontend
+            if self.active_origins
+            else self.open_url or f"http://localhost:{self.cfg.ports.frontend}"
+        )
         self.opener(url)
         self._emit("out", f"abriendo {url}")
 
