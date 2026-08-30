@@ -29,6 +29,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Pipeline ML: scoring, badges, clustering, stage 1b visual | Al modificar scoring, badges o atributos visuales |
 | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | El agente desde Java: costura `ChatProvider`, loop acotado, tools, y las 8 reglas que lo gobiernan | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |
 | [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) | Instalar Ollama y configurar las variables `LLM_*` | Al levantar el agente por primera vez o cambiar de proveedor |
+| [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) | Servir el dashboard a un celular u otro dispositivo de la red, por HTTPS: certificado, proxy que termina TLS, los **dos** `.env` de orígenes | Al probar desde otro dispositivo, o antes de armar el TLS de un deploy real |
 
 ## Código con identidad propia
 
