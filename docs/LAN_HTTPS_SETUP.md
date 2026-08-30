@@ -30,146 +30,91 @@ va directo al camino que funciona.
 
 ---
 
-## 2. Prerequisitos
+## 2. El camino corto: `start lan`
 
-| | |
+```
+./Ejecutar_instalar.sh
+# y en el CLI:
+start lan
+```
+
+Eso es todo. El CLI detecta la IP de la red, genera el certificado, levanta el
+terminador TLS, deriva los orígenes y arranca backend y frontend. `stop` baja
+también el proxy, y `start` a secas vuelve a local sin reconstruir nada.
+
+Al arrancar imprime la línea que confirma que agarró:
+
+```
+modo lan — API en https://192.0.2.10:8444
+```
+
+**Si no ves esa línea, el modo no se aplicó** y estás en local.
+
+| Requisito | |
 |---|---|
-| Docker | Para el proxy y, si la usás, la base de desarrollo |
-| `mkcert` | `sudo apt install mkcert`. Sin esto el certificado es autofirmado y el dispositivo va a advertir en cada puerto |
-| `openssl` | Para convertir el CA a DER (iOS lo necesita) |
-| La app instalada | `./Ejecutar_instalar.sh` corrido al menos una vez, para que exista el `.env` |
-
-Averiguá la IP de tu máquina en la LAN:
-
-```bash
-ip route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p'
-```
-
-Las direcciones de Docker, LXC o libvirt (`172.17.x`, `10.0.3.x`, `192.168.122.x`)
-**no** sirven: desde el celular no se llega a ninguna.
+| Docker | Sólo para `lan`; el terminador corre en un contenedor. `local` no lo necesita |
+| `mkcert` | Opcional pero recomendado: `sudo apt install mkcert`. Sin él el certificado es autofirmado y el dispositivo advierte en cada puerto |
 
 ---
 
-## 3. El certificado
+## 3. Qué hace por debajo
 
-```bash
-mkcert -cert-file dev-lan.crt -key-file dev-lan.key \
-  192.0.2.10 localhost 127.0.0.1
+No hace falta para usarlo; sirve para diagnosticar, y para armar el TLS de un
+deploy real, donde el proxy lo vas a escribir vos.
 
-# el CA que el dispositivo va a tener que confiar
-cp "$(mkcert -CAROOT)/rootCA.pem" .
+**La IP** se detecta abriendo un socket UDP que no envía nada: sólo hace que el
+kernel elija la interfaz por la que rutearía hacia afuera. Enumerar interfaces
+obligaría a adivinar entre `docker0`, `lxcbr0` y `virbr0`, ninguna alcanzable
+desde un celular. `SCRAPPY_LAN_IP` la pisa.
 
-# iOS no abre un PEM: necesita DER servido bajo una URL .cer
-openssl x509 -in rootCA.pem -outform der -out dev-ca.cer
-```
+**El certificado** lo firma el CA local de `mkcert` cuando está instalado, así el
+dispositivo puede confiar en él de verdad en vez de que le digas que ignore su
+propia advertencia. El CA se copia en dos formatos: PEM para Android y **DER
+bajo una URL `.cer`**, porque iOS no abre un PEM y sin eso Safari nunca ofrece
+instalar el perfil.
 
-Guardalos en un directorio que git ignore. `_tools/` sirve: está ignorado entero.
+**El proxy** es un nginx que termina TLS en `8443` (frontend) y `8444` (backend),
+y sirve el CA por HTTP plano en `8081` — tiene que ser plano: el dispositivo
+necesita bajar el CA *antes* de poder confiar en algo. Ese puerto responde 404 a
+todo lo demás.
 
-> **La clave privada del CA (`rootCA-key.pem`) se queda donde `mkcert` la puso.**
-> No la copies al directorio que vas a montar en el proxy. Es la única pieza
-> secreta de todo esto: quien la tenga puede firmar certificados que tus
-> dispositivos van a creer, para cualquier sitio.
+Tres detalles del proxy que no son cosméticos, y que valen para cualquier
+terminador que escribas después:
 
----
+- **`--network host`, no una red bridge.** El backend sólo le cree a los headers
+  `X-Forwarded-*` que vengan de loopback
+  (`server.tomcat.remoteip.internal-proxies`, ver [`ARCHITECTURE.md`](./ARCHITECTURE.md)).
+  En bridge el peer es una dirección `172.x`, todos los headers se descartan,
+  `isSecure()` queda en `false` y la cookie `Secure` no pega nunca. El síntoma es
+  idéntico al de HTTP plano.
+- **`X-Forwarded-Proto: https`** es lo que hace que el backend se vea a sí mismo
+  como seguro. Sin eso, todo lo demás es decoración.
+- **`error_page 497`** convierte el "HTTP plano contra un puerto HTTPS" de nginx
+  en un redirect. Escribir la IP pelada hace que el navegador intente `http://`
+  primero, y el 400 crudo no dice nada útil en un celular.
 
-## 4. El proxy TLS
-
-```nginx
-events {}
-http {
-  proxy_http_version 1.1;
-  proxy_set_header Host              $host;
-  proxy_set_header X-Real-IP         $remote_addr;
-  proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto https;
-  proxy_set_header X-Forwarded-Host  $host;
-  proxy_set_header Upgrade           $http_upgrade;
-  proxy_set_header Connection        "upgrade";
-  client_max_body_size 25m;
-
-  # HTTP plano, sólo para entregar el CA: el dispositivo tiene que poder
-  # descargarlo ANTES de confiar en nada de este proxy. Todo lo demás, 404.
-  server {
-    listen 8081;
-    location = /rootCA.pem { alias /certs/rootCA.pem; default_type application/x-x509-ca-cert; }
-    location = /dev-ca.cer { alias /certs/dev-ca.cer; default_type application/x-x509-ca-cert; }
-    location / { return 404; }
-  }
-
-  server {
-    listen 8443 ssl;
-    ssl_certificate     /certs/dev-lan.crt;
-    ssl_certificate_key /certs/dev-lan.key;
-    # 497 es el código interno de nginx para "HTTP plano contra un puerto HTTPS".
-    # Escribir la IP pelada hace que el navegador intente http:// primero, y sin
-    # esto el celular queda en un 400 que no explica nada.
-    error_page 497 =301 https://$host:8443$request_uri;
-    location / { proxy_pass http://127.0.0.1:5173; }
-  }
-
-  server {
-    listen 8444 ssl;
-    ssl_certificate     /certs/dev-lan.crt;
-    ssl_certificate_key /certs/dev-lan.key;
-    error_page 497 =301 https://$host:8444$request_uri;
-    location / { proxy_pass http://127.0.0.1:3000; }
-  }
-}
-```
-
-```bash
-docker run -d --name dev-lan-tls --network host \
-  -v "$PWD/nginx.conf:/etc/nginx/nginx.conf:ro" \
-  -v "$PWD:/certs:ro" \
-  nginx:1.27-alpine
-```
-
-> **`--network host` es obligatorio, no una comodidad.** El backend sólo le cree
-> a los headers `X-Forwarded-*` que vengan de **loopback**
-> (`server.tomcat.remoteip.internal-proxies`, ver
-> [`ARCHITECTURE.md`](./ARCHITECTURE.md)). En una red bridge el peer sería una
-> dirección `172.x`, todos los headers se descartarían, `isSecure()` quedaría en
-> `false` y la cookie `Secure` no pegaría nunca. El síntoma sería idéntico al de
-> HTTP plano.
-
----
-
-## 5. Los orígenes: dos exports, y nada en disco
-
-```bash
-export SCRAPPY_FRONTEND_ORIGIN="https://192.0.2.10:8443"
-export SCRAPPY_BACKEND_ORIGIN="https://192.0.2.10:8444"
-```
-
-Después, en el CLI: **`start lan`**. Eso fija las tres cosas que tienen que
-viajar juntas o el modo miente — el origen que el bundle llama, la URL que abre
-el navegador, y el allow-list de CORS, que **suma** en vez de reemplazar para no
-dejar afuera a la máquina que está corriendo todo esto.
-
-`start` a secas vuelve a local. **No hace falta reconstruir para cambiar de
-modo**: el mismo `dist/` sirve los dos.
+**Los orígenes** salen de la IP y esos puertos. `SCRAPPY_FRONTEND_ORIGIN` y
+`SCRAPPY_BACKEND_ORIGIN` los pisan, para un túnel o un deploy cuyo nombre esta
+máquina no puede deducir.
 
 > **El modo no se guarda en ningún archivo, y es deliberado.** `apply_mode`
 > (`cli/core/runtime_config.py`) muta el `.env` ya parseado, nunca el archivo.
 > Antes esto se resolvía parcheando `.env` y `frontend/.env`, y esa escritura
 > persistente dejaba la app apuntando a un proxy apagado cuando el proxy bajaba:
 > el backend arrancaba bien, el frontend respondía 200, y la app no andaba.
-> Un modo guardado en disco es un estado que sobrevive al contexto que lo
-> justificaba.
 
-> **`lan` sin esas dos variables falla ruidosamente**, en vez de caer a
-> localhost. Un bundle que desde un celular llama a `localhost:3000` está
-> llamando al celular: la app carga, no anda, y nada en pantalla lo explica.
+> **`lan` nunca cae a localhost.** Un bundle que desde un celular llama a
+> `localhost:3000` está llamando al celular: la app carga, no anda, y nada en
+> pantalla lo explica.
 
-Cómo funciona por debajo: `frontend/src/api.js` lee `window.__API_BASE__` y cae
-a `VITE_API_BASE_URL` sólo si está vacío. Ese global lo setea `dist/config.js`,
-que el CLI reescribe en cada `start`. El valor de build sigue siendo el
-fallback, así que un `npm run build` a mano desde `frontend/` se comporta igual
-que siempre.
+Cómo llega el origen al bundle: `frontend/src/api.js` lee `window.__API_BASE__` y
+cae a `VITE_API_BASE_URL` sólo si está vacío. Ese global lo setea
+`dist/config.js`, que el CLI reescribe en cada `start` — por eso **un solo build
+sirve los dos modos** y cambiar de modo no reconstruye nada.
 
 ---
 
-## 6. Confiar en el CA desde el dispositivo
+## 4. Confiar en el CA desde el dispositivo
 
 Abrí el archivo con el **navegador del sistema** — en iOS tiene que ser Safari,
 Chrome no dispara el instalador de perfiles:
@@ -214,7 +159,7 @@ Cuando el dispositivo ya confía, el puerto `8081` no hace falta más.
 
 ---
 
-## 7. Verificar que quedó bien
+## 5. Verificar que quedó bien
 
 ```bash
 # 1. El redirect de http:// a https://
@@ -246,7 +191,7 @@ página.** Si seguís adentro, la cookie viajó.
 
 ---
 
-## 8. Qué cambia en una VPS
+## 6. Qué cambia en una VPS
 
 Se conserva la forma: proxy que termina TLS, backend en HTTP detrás,
 `forward-headers-strategy` y la allowlist de proxies. Lo que cambia:
@@ -267,13 +212,14 @@ Se conserva la forma: proxy que termina TLS, backend en HTTP detrás,
 
 ---
 
-## 9. Problemas frecuentes
+## 7. Problemas frecuentes
 
 | Síntoma | Causa |
 |---|---|
-| `400 Bad Request: plain HTTP request was sent to HTTPS port` | Escribiste la IP pelada y el navegador probó `http://`. Lo cubre el `error_page 497` de [§4](#4-el-proxy-tls) |
+| `400 Bad Request: plain HTTP request was sent to HTTPS port` | Escribiste la IP pelada y el navegador probó `http://`. Lo cubre el `error_page 497`, ver [§3](#3-qué-hace-por-debajo) |
 | La app carga pero todo queda vacío o cargando | El navegador no confía en el certificado del **backend**. Con excepciones manuales hay que aceptarlas puerto por puerto; con el CA confiado no pasa |
 | Login OK, pero al recargar te expulsa | La cookie `Secure` no viaja: o estás en HTTP plano, o el proxy no corre en loopback y los `X-Forwarded-*` se descartaron |
-| El bundle sigue llamando a `localhost:3000` | Arrancaste con `start` en vez de `start lan`, o las dos variables no estaban exportadas en ese shell. Ver [§5](#5-los-orígenes-dos-exports-y-nada-en-disco) |
-| Cambiaste la IP y no pasa nada | Re-exportá las variables y volvé a hacer `start lan`. No hace falta reconstruir: el origen se lee de `dist/config.js`, que se reescribe en cada arranque |
+| El bundle sigue llamando a `localhost:3000` | Arrancaste con `start` en vez de `start lan`. La línea `modo lan — API en …` al arrancar es la confirmación de que agarró |
+| Cambiaste de red y no anda | `stop` y `start lan` de nuevo: la IP se detecta en cada arranque. No hace falta reconstruir |
+| `lan` falla diciendo que no encuentra Docker | El terminador TLS corre en un contenedor. Instalá Docker, o usá `start` (local), que no lo necesita |
 | El bind de Postgres sigue abierto | El mapeo de puertos se fija al **crear** el contenedor: hay que recrearlo (`docker rm -f` + `scripts/dev-db.sh up`). El volumen es nombrado, los datos sobreviven |

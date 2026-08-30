@@ -625,6 +625,12 @@ host, así que loopback no le saca nada a nadie. **El mapeo se fija al crear el
 contenedor**: cambiar la variable no alcanza, hay que recrearlo (`down` + `up`;
 el volumen es nombrado y los datos sobreviven).
 
+**`start lan` levanta todo solo**: detecta la IP de la LAN, genera el
+certificado (mkcert si está, autofirmado si no), levanta el terminador TLS en un
+contenedor y deriva los orígenes. `stop` lo baja. **Necesita Docker** — `local`,
+que es el default, no. El backend sigue sirviendo HTTP: el TLS lo termina el
+proxy, igual que en un deploy, para no agregar otra divergencia dev/prod.
+
 **El origen del backend se elige al arrancar, no al compilar.** `start` acepta
 `local` (default) o `lan`, y `cli/core/runtime_config.py` reescribe
 `frontend/dist/config.js` con ese origen; `api.js` lee `window.__API_BASE__` y
