@@ -23,6 +23,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete window.__API_BASE__;
   vi.unstubAllEnvs();
   vi.resetModules();
 });
@@ -50,6 +51,33 @@ describe('BASE resolution from import.meta.env', () => {
 
     expect(global.fetch.mock.calls.at(-1)[0])
       .toMatch(/^https:\/\/api\.example\.test\/api\/data/);
+  });
+
+  // Runtime override: the bundle is built once and the launcher decides which
+  // backend it talks to, so a single dist/ serves local, LAN and a deploy.
+  it('prefers the runtime origin over the baked-in one', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://baked.example.test');
+    window.__API_BASE__ = 'https://runtime.example.test';
+    vi.resetModules();
+    const { fetchData: freshFetchData } = await import('@/api');
+
+    await freshFetchData({});
+
+    expect(global.fetch.mock.calls.at(-1)[0])
+      .toMatch(/^https:\/\/runtime\.example\.test\/api\/data/);
+  });
+
+  // An unreplaced placeholder must not become a literal request host.
+  it('falls back to the baked-in origin when the runtime one is blank', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://baked.example.test');
+    window.__API_BASE__ = '';
+    vi.resetModules();
+    const { fetchData: freshFetchData } = await import('@/api');
+
+    await freshFetchData({});
+
+    expect(global.fetch.mock.calls.at(-1)[0])
+      .toMatch(/^https:\/\/baked\.example\.test\/api\/data/);
   });
 });
 
