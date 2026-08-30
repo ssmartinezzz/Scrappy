@@ -134,33 +134,38 @@ docker run -d --name dev-lan-tls --network host \
 
 ---
 
-## 5. Los orígenes: **dos** archivos `.env`, no uno
+## 5. Los orígenes: dos exports, y nada en disco
 
-Esta es la parte donde es fácil equivocarse en silencio.
+```bash
+export SCRAPPY_FRONTEND_ORIGIN="https://192.0.2.10:8443"
+export SCRAPPY_BACKEND_ORIGIN="https://192.0.2.10:8444"
+```
 
-| Archivo | Clave | Valor |
-|---|---|---|
-| `.env` | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,https://192.0.2.10:8443` |
-| `.env` | `APP_OPEN_URL` | `https://192.0.2.10:8443` |
-| `.env` | `PASSWORD_RESET_LINK_BASE` | `https://192.0.2.10:8443` |
-| **`frontend/.env`** | `VITE_API_BASE_URL` | `https://192.0.2.10:8444` |
+Después, en el CLI: **`start lan`**. Eso fija las tres cosas que tienen que
+viajar juntas o el modo miente — el origen que el bundle llama, la URL que abre
+el navegador, y el allow-list de CORS, que **suma** en vez de reemplazar para no
+dejar afuera a la máquina que está corriendo todo esto.
 
-> **`VITE_API_BASE_URL` en el `.env` raíz no hace nada.** El `.env.example` raíz
-> la menciona sólo en prosa, así que la generación por plantilla nunca la emite
-> como clave. La real vive en `frontend/.env.example`, y
-> `cli/core/builder.py` mergea `{**os.environ, **raíz, **frontend}` — **gana
-> frontend**. Un parcheo sólo en el raíz queda pisado con `localhost:3000` en el
-> siguiente build, y el bundle sale llamando a una dirección que en el celular
-> es el celular.
+`start` a secas vuelve a local. **No hace falta reconstruir para cambiar de
+modo**: el mismo `dist/` sirve los dos.
 
-Alternativa a editar a mano, si el `.env` todavía no existe: el generador acepta
-`SCRAPPY_FRONTEND_ORIGIN` y `SCRAPPY_BACKEND_ORIGIN` (`cli/core/env_file.py`).
-La de frontend acepta lista separada por comas; `APP_OPEN_URL` toma la primera.
+> **El modo no se guarda en ningún archivo, y es deliberado.** `apply_mode`
+> (`cli/core/runtime_config.py`) muta el `.env` ya parseado, nunca el archivo.
+> Antes esto se resolvía parcheando `.env` y `frontend/.env`, y esa escritura
+> persistente dejaba la app apuntando a un proxy apagado cuando el proxy bajaba:
+> el backend arrancaba bien, el frontend respondía 200, y la app no andaba.
+> Un modo guardado en disco es un estado que sobrevive al contexto que lo
+> justificaba.
 
-Después de tocar los orígenes, **hay que reconstruir el frontend**:
-`VITE_API_BASE_URL` se hornea en el bundle. Alcanza con borrar `frontend/dist`:
-`is_built()` exige `scraper/scraper.jar` **y** `frontend/dist`, así que el
-próximo arranque del CLI reconstruye por el camino normal.
+> **`lan` sin esas dos variables falla ruidosamente**, en vez de caer a
+> localhost. Un bundle que desde un celular llama a `localhost:3000` está
+> llamando al celular: la app carga, no anda, y nada en pantalla lo explica.
+
+Cómo funciona por debajo: `frontend/src/api.js` lee `window.__API_BASE__` y cae
+a `VITE_API_BASE_URL` sólo si está vacío. Ese global lo setea `dist/config.js`,
+que el CLI reescribe en cada `start`. El valor de build sigue siendo el
+fallback, así que un `npm run build` a mano desde `frontend/` se comporta igual
+que siempre.
 
 ---
 
@@ -226,8 +231,9 @@ curl -sk -i -X OPTIONS https://192.0.2.10:8444/api/auth/login \
   -H 'Origin: https://192.0.2.10:8443' \
   -H 'Access-Control-Request-Method: POST' | grep -i access-control-allow
 
-# 4. El bundle llama al backend, no a localhost
-grep -o 'https://[0-9.]*:[0-9]*' frontend/dist/assets/*.js | sort -u
+# 4. A qué backend apunta ESTA corrida. Ya no está en el bundle: lo reescribe
+#    el CLI en cada `start`, así que este archivo es la fuente de verdad.
+cat frontend/dist/config.js
 ```
 
 El control negativo importa tanto como el positivo: pedile lo mismo que (2) a la
@@ -268,6 +274,6 @@ Se conserva la forma: proxy que termina TLS, backend en HTTP detrás,
 | `400 Bad Request: plain HTTP request was sent to HTTPS port` | Escribiste la IP pelada y el navegador probó `http://`. Lo cubre el `error_page 497` de [§4](#4-el-proxy-tls) |
 | La app carga pero todo queda vacío o cargando | El navegador no confía en el certificado del **backend**. Con excepciones manuales hay que aceptarlas puerto por puerto; con el CA confiado no pasa |
 | Login OK, pero al recargar te expulsa | La cookie `Secure` no viaja: o estás en HTTP plano, o el proxy no corre en loopback y los `X-Forwarded-*` se descartaron |
-| El bundle sigue llamando a `localhost:3000` | Parcheaste sólo el `.env` raíz, o no se reconstruyó el frontend. Ver [§5](#5-los-orígenes-dos-archivos-env-no-uno) |
-| Cambiaste la IP y no pasa nada | El CLI saltea el build entero si ya existen `scraper.jar` **y** `frontend/dist`. Borrá `dist` |
+| El bundle sigue llamando a `localhost:3000` | Arrancaste con `start` en vez de `start lan`, o las dos variables no estaban exportadas en ese shell. Ver [§5](#5-los-orígenes-dos-exports-y-nada-en-disco) |
+| Cambiaste la IP y no pasa nada | Re-exportá las variables y volvé a hacer `start lan`. No hace falta reconstruir: el origen se lee de `dist/config.js`, que se reescribe en cada arranque |
 | El bind de Postgres sigue abierto | El mapeo de puertos se fija al **crear** el contenedor: hay que recrearlo (`docker rm -f` + `scripts/dev-db.sh up`). El volumen es nombrado, los datos sobreviven |
