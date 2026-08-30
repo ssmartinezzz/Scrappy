@@ -44,8 +44,8 @@ COMMANDS: tuple[Command, ...] = (
     Command("build", "compila frontend (npm) + backend (mvn) y copia el jar"),
     Command(
         "start",
-        "levanta backend + frontend; buildea si falta. El modo elige a qué origen "
-        "apunta el bundle: local (default) o lan (usa SCRAPPY_*_ORIGIN)",
+        "levanta backend + frontend; buildea si falta. "
+        "Modo: local (default) o lan (SCRAPPY_*_ORIGIN)",
         args="[local|lan]",
         aliases=("up",),
     ),
