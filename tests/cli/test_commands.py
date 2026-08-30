@@ -90,3 +90,25 @@ def test_menu_text_lists_every_command():
     text = menu_text()
     for cmd in COMMANDS:
         assert cmd.name in text
+
+
+def test_help_names_the_aliases_a_command_actually_accepts():
+    """`find()` accepts them, so a help that hides them is withholding what the
+    CLI already does. Completions still teach the canonical name only."""
+    fila = next(l for l in help_lines() if l.startswith("start "))
+    assert "(alias: up)" in fila
+
+    salir = next(l for l in help_lines() if l.startswith("quit "))
+    assert "(alias: q, exit)" in salir
+
+
+def test_help_leaves_alias_less_commands_untouched():
+    fila = next(l for l in help_lines() if l.startswith("build "))
+    assert "alias" not in fila
+
+
+def test_the_canonical_name_still_leads_the_usage_column():
+    """The alias goes in the help text, never into the usage column: the name
+    the suggester teaches has to be the first thing read."""
+    for cmd in COMMANDS:
+        assert "alias" not in cmd.usage

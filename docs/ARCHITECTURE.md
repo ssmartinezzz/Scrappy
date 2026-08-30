@@ -530,6 +530,47 @@ así que el valve no corre, y un test que afirme la string de la property se
 pondría verde sin ejercitar el mecanismo. Vale la regla que este repo ya
 aprendió con auth: la verificación es contra un proceso real.
 
+### ¿Por qué el origen del backend se resuelve en runtime y no en el build?
+
+Porque "a qué backend le habla el frontend" es una propiedad del **arranque**,
+no del artefacto, y tratarla como propiedad del artefacto congelaba una decisión
+de arquitectura en el momento más temprano y menos informado posible.
+
+Vite hornea `VITE_API_BASE_URL` en el bundle. Con eso solo, elegir entre
+"localhost" y "alcanzable desde otro dispositivo" vivía en dos archivos
+persistentes —`.env` y `frontend/.env`— y cambiar de idea costaba editar los dos
+y reconstruir. Peor: el `.env` quedaba apuntando a una infraestructura que podía
+no estar levantada, y entonces la app local arrancaba rota **sin decir por qué**
+—el bundle llamando a un proxy apagado— que es exactamente cómo se descubrió
+esto.
+
+Ahora `frontend/src/api.js` lee `window.__API_BASE__` primero y cae al valor de
+build sólo si está vacío. Ese global lo setea `dist/config.js`, que
+`cli/core/runtime_config.py` reescribe en cada `start`. **Un build sirve
+loopback, un origen de LAN detrás de TLS y un deploy**: `start local` y
+`start lan` producen el mismo `dist/` byte a byte y sólo cambian ese archivo
+—verificado comparando el md5 del bundle entre modos—.
+
+**El modo no se persiste en ningún lado, y es a propósito.** `apply_mode` muta el
+dict del `.env` ya parseado, nunca el archivo. Un modo guardado en disco es la
+misma trampa de nuevo: un estado que sobrevive al proceso que lo justificaba y
+que después nadie recuerda haber elegido.
+
+**Tres cosas viajan juntas o el modo miente**: el origen que el bundle llama, la
+URL que el navegador abre (`APP_OPEN_URL`) y el allow-list de CORS. Las tres las
+fija `apply_mode`, y la de CORS **suma en vez de reemplazar** — pisarla dejaría
+afuera a la máquina que está corriendo todo esto.
+
+**`lan` sin `SCRAPPY_*_ORIGIN` falla ruidosamente** en vez de caer a localhost. Un
+bundle que desde un celular llama a `localhost:3000` está llamando al celular:
+la app carga, no anda, y nada en pantalla lo explica. El fallback silencioso
+sería la falla que este mecanismo existe para evitar.
+
+El valor de build sigue siendo el fallback, así que un `npm run build` corrido a
+mano desde `frontend/` se comporta igual que antes, y `frontend/public/config.js`
+es un archivo inerte que Vite copia a `dist/` para que un build no gestionado
+sirva algo válido en vez de un 404.
+
 ---
 
 ## Diagrama de capas y topología de servicios

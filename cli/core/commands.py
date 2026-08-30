@@ -42,7 +42,13 @@ class Command:
 
 COMMANDS: tuple[Command, ...] = (
     Command("build", "compila frontend (npm) + backend (mvn) y copia el jar"),
-    Command("start", "levanta backend (:3000) + frontend (:5173); buildea si falta", aliases=("up",)),
+    Command(
+        "start",
+        "levanta backend + frontend; buildea si falta. "
+        "Modo: local (default) o lan (SCRAPPY_*_ORIGIN)",
+        args="[local|lan]",
+        aliases=("up",),
+    ),
     Command("stop", "baja backend + frontend sin salir de la consola", aliases=("down",)),
     Command("status", "GET /api/status", aliases=("st",)),
     Command("scrape", "POST /api/scrape — dispara un run de scraping"),
@@ -78,9 +84,21 @@ def complete(prefix: str) -> list[str]:
 
 
 def help_lines() -> list[str]:
-    """One `usage  ·  help` row per command, usage column padded to align."""
+    """One `usage  ·  help` row per command, usage column padded to align.
+
+    Aliases are named at the end of the help text, never in the usage column:
+    `find()` accepts them, so hiding them withholds what the CLI already does,
+    but the canonical name has to stay the first thing read — which is also why
+    `complete()` keeps offering it alone.
+    """
     width = max(len(c.usage) for c in COMMANDS)
-    return [f"{c.usage.ljust(width)}   {c.help}" for c in COMMANDS]
+    filas = []
+    for c in COMMANDS:
+        ayuda = c.help
+        if c.aliases:
+            ayuda += f"  (alias: {', '.join(c.aliases)})"
+        filas.append(f"{c.usage.ljust(width)}   {ayuda}")
+    return filas
 
 
 def menu_text() -> str:
