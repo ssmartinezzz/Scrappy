@@ -367,7 +367,8 @@ class ScrappyConsole(App):
         self._run_core("build", lambda: (build_project(self.cfg), "build listo")[1])
 
     def _cmd_start(self, args: list[str]) -> None:
-        self._run_core("start", self._start_services)
+        mode = args[0] if args else LOCAL
+        self._run_core("start", lambda: self._start_services(mode))
 
     def _start_services(self, mode: str = LOCAL) -> str:
         from cli.core import builder
