@@ -625,6 +625,15 @@ host, así que loopback no le saca nada a nadie. **El mapeo se fija al crear el
 contenedor**: cambiar la variable no alcanza, hay que recrearlo (`down` + `up`;
 el volumen es nombrado y los datos sobreviven).
 
+**El origen del backend se elige al arrancar, no al compilar.** `start` acepta
+`local` (default) o `lan`, y `cli/core/runtime_config.py` reescribe
+`frontend/dist/config.js` con ese origen; `api.js` lee `window.__API_BASE__` y
+cae a `VITE_API_BASE_URL` sólo si está vacío. **El mismo `dist/` sirve los dos
+modos** — cambiar de modo no rebuildea. El modo **no se persiste**: `apply_mode`
+muta el `.env` ya parseado, nunca el archivo. `lan` exige `SCRAPPY_*_ORIGIN` y
+**falla ruidosamente** si faltan, porque caer a `localhost` sirve un bundle que
+desde otro dispositivo se llama a sí mismo.
+
 **Los orígenes del `.env` ya no están clavados en `localhost`.**
 `SCRAPPY_FRONTEND_ORIGIN` y `SCRAPPY_BACKEND_ORIGIN` (leídas por
 `cli/core/env_file.py` al generar) fijan `APP_CORS_ALLOWED_ORIGINS`,

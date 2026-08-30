@@ -20,6 +20,7 @@ from cli.core.builder import build_project, is_built
 from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
+from cli.core.runtime_config import LOCAL, Origins, apply_mode
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient, build_rest_client
@@ -106,12 +107,17 @@ class PlainRunner:
         processes: Optional[ProcessManager] = None,
         out: TextIO = sys.stdout,
         in_: TextIO = sys.stdin,
+        opener: Callable[[str], object] = webbrowser.open,
     ) -> None:
         self.cfg = cfg
         self.rest = rest or build_rest_client(cfg)
         self.processes = processes or ProcessManager()
         self.out = out
         self.in_ = in_
+        self.opener = opener
+        # Set by `start`. `open` follows it instead of APP_OPEN_URL, which
+        # records whatever the .env was last frozen at, not this run.
+        self.active_origins: Optional[Origins] = None
 
     def _print(self, text: str) -> None:
         print(text, file=self.out)
@@ -142,10 +148,15 @@ class PlainRunner:
                 build_project(self.cfg)
                 self._print("Build complete.")
             elif name == "start":
+                mode = args[0] if args else LOCAL
                 if not is_built(self.cfg):
                     self._print("jar/frontend ausente — compilando primero…")
                     build_project(self.cfg)
                 env = self._env()
+                # After the build: apply_mode writes into frontend/dist.
+                origins = apply_mode(self.cfg, mode, env)
+                self.active_origins = origins
+                self._print(f"modo {mode} — API en {origins.backend}")
                 self.processes.launch_backend(
                     self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
                 )
@@ -177,7 +188,8 @@ class PlainRunner:
             elif name == "logs":
                 self._print(cmd_logs(self.cfg, *args[:2]))
             elif name == "open":
-                self._print(cmd_open_dashboard(self.cfg))
+                url = self.active_origins.frontend if self.active_origins else None
+                self._print(cmd_open_dashboard(self.cfg, url, self.opener))
             elif name == "help":
                 self._print(MENU)
             elif name == "clear":
