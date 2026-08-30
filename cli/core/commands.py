@@ -84,9 +84,21 @@ def complete(prefix: str) -> list[str]:
 
 
 def help_lines() -> list[str]:
-    """One `usage  ·  help` row per command, usage column padded to align."""
+    """One `usage  ·  help` row per command, usage column padded to align.
+
+    Aliases are named at the end of the help text, never in the usage column:
+    `find()` accepts them, so hiding them withholds what the CLI already does,
+    but the canonical name has to stay the first thing read — which is also why
+    `complete()` keeps offering it alone.
+    """
     width = max(len(c.usage) for c in COMMANDS)
-    return [f"{c.usage.ljust(width)}   {c.help}" for c in COMMANDS]
+    filas = []
+    for c in COMMANDS:
+        ayuda = c.help
+        if c.aliases:
+            ayuda += f"  (alias: {', '.join(c.aliases)})"
+        filas.append(f"{c.usage.ljust(width)}   {ayuda}")
+    return filas
 
 
 def menu_text() -> str:
