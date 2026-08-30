@@ -39,16 +39,21 @@ def test_lan_mode_reads_the_env_overrides(cfg, monkeypatch):
     assert origins.frontend == "https://192.0.2.10:8443"
 
 
-def test_lan_mode_without_overrides_fails_loudly(cfg, monkeypatch):
-    """Silently falling back to localhost would serve a bundle that calls the
-    phone itself — the failure this whole mechanism exists to prevent."""
-    monkeypatch.delenv("SCRAPPY_BACKEND_ORIGIN", raising=False)
+def test_lan_never_falls_back_to_localhost(cfg, monkeypatch):
+    """The invariant this mode exists for: a bundle that calls localhost:3000
+    is, on a phone, calling the phone. The app loads, nothing works, and
+    nothing on screen explains it. Deriving from the LAN address is fine;
+    landing on loopback never is."""
     monkeypatch.delenv("SCRAPPY_FRONTEND_ORIGIN", raising=False)
+    monkeypatch.delenv("SCRAPPY_BACKEND_ORIGIN", raising=False)
+    monkeypatch.delenv("SCRAPPY_LAN_IP", raising=False)
 
-    with pytest.raises(UnknownMode) as exc:
-        resolve_origins("lan", cfg)
+    origins = resolve_origins("lan", cfg)
 
-    assert "SCRAPPY_BACKEND_ORIGIN" in str(exc.value)
+    for origen in (origins.frontend, origins.backend):
+        assert "localhost" not in origen
+        assert "127.0.0.1" not in origen
+        assert origen.startswith("https://")
 
 
 def test_an_unknown_mode_names_the_valid_ones(cfg):
@@ -152,3 +157,27 @@ def test_open_without_a_start_falls_back_to_localhost(cfg):
     runner.dispatch("open")
 
     assert abiertas == [f"http://localhost:{cfg.ports.frontend}"]
+
+
+def test_lan_derives_its_origins_from_the_detected_ip(cfg, monkeypatch):
+    """No exports required: the whole point is that the CLI does it."""
+    monkeypatch.delenv("SCRAPPY_FRONTEND_ORIGIN", raising=False)
+    monkeypatch.delenv("SCRAPPY_BACKEND_ORIGIN", raising=False)
+    monkeypatch.setenv("SCRAPPY_LAN_IP", "192.0.2.10")
+
+    origins = resolve_origins("lan", cfg)
+
+    assert origins.frontend == "https://192.0.2.10:8443"
+    assert origins.backend == "https://192.0.2.10:8444"
+
+
+def test_explicit_origins_still_win_over_the_detected_ip(cfg, monkeypatch):
+    """Kept for a tunnel or a deployment, where the reachable name is not an
+    address this machine can detect."""
+    monkeypatch.setenv("SCRAPPY_LAN_IP", "192.0.2.10")
+    monkeypatch.setenv("SCRAPPY_FRONTEND_ORIGIN", "https://host.example.ts.net")
+    monkeypatch.setenv("SCRAPPY_BACKEND_ORIGIN", "https://host.example.ts.net:8444")
+
+    origins = resolve_origins("lan", cfg)
+
+    assert origins.frontend == "https://host.example.ts.net"

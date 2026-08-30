@@ -44,6 +44,7 @@ from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
+from cli.core.lan_proxy import stop_proxy
 from cli.core.rest import RestClient, build_rest_client
 from cli.core.runtime_config import LOCAL, apply_mode
 from cli.tui.widgets import (
@@ -406,7 +407,13 @@ class ScrappyConsole(App):
         return "backend + frontend arriba — su salida va a `logs` (no a esta consola)"
 
     def _cmd_stop(self, args: list[str]) -> None:
-        self._run_core("stop", lambda: (self.processes.shutdown_all(), "servicios bajados")[1])
+        def _stop() -> str:
+            self.processes.shutdown_all()
+            stop_proxy(self.cfg)
+            self.active_origins = None
+            return "servicios bajados"
+
+        self._run_core("stop", _stop)
 
     def _cmd_scrape(self, args: list[str]) -> None:
         self._run_core("scrape", self.rest.scrape)

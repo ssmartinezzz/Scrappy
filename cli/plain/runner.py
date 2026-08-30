@@ -20,6 +20,7 @@ from cli.core.builder import build_project, is_built
 from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
+from cli.core.lan_proxy import stop_proxy
 from cli.core.runtime_config import LOCAL, Origins, apply_mode
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
@@ -176,6 +177,8 @@ class PlainRunner:
                     self._print("Backend + frontend started. Su salida va a `logs`.")
             elif name == "stop":
                 self.processes.shutdown_all()
+                stop_proxy(self.cfg)
+                self.active_origins = None
                 self._print("Backend + frontend stopped.")
             elif name == "scrape":
                 self._print(cmd_scrape(self.rest))
