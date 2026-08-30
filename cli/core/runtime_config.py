@@ -62,14 +62,17 @@ def resolve_origins(mode: str, cfg: Config) -> Origins:
             backend=f"http://localhost:{cfg.ports.backend}",
         )
 
+    # Explicit origins still win: a tunnel or a deployment is reachable by a
+    # name this machine cannot detect. Otherwise the CLI derives them from the
+    # LAN address and the ports its own TLS terminator listens on.
     frontend = os.environ.get("SCRAPPY_FRONTEND_ORIGIN", "").strip()
     backend = os.environ.get("SCRAPPY_BACKEND_ORIGIN", "").strip()
     if not frontend or not backend:
-        raise UnknownMode(
-            "el modo 'lan' necesita SCRAPPY_FRONTEND_ORIGIN y SCRAPPY_BACKEND_ORIGIN. "
-            "Sin ellas no hay a dónde apuntar, y caer a localhost serviría un bundle "
-            "que desde otro dispositivo se llama a sí mismo."
-        )
+        from cli.core import lan_proxy
+
+        ip = lan_proxy.detect_lan_ip()
+        frontend = frontend or f"https://{ip}:{lan_proxy.TLS_FRONTEND_PORT}"
+        backend = backend or f"https://{ip}:{lan_proxy.TLS_BACKEND_PORT}"
     return Origins(frontend=frontend, backend=backend)
 
 
@@ -82,6 +85,15 @@ def apply_mode(cfg: Config, mode: str, env: dict) -> Origins:
     whatever it had.
     """
     origins = resolve_origins(mode, cfg)
+    if mode == LAN:
+        # The terminator has to be up before the browser is pointed at it;
+        # a failure here must stop the start, not leave the app served on an
+        # origin nothing is listening on.
+        from cli.core import lan_proxy
+
+        ip = lan_proxy.detect_lan_ip()
+        lan_proxy.ensure_cert(cfg, ip)
+        lan_proxy.start_proxy(cfg, ip)
     write_runtime_config(cfg, origins.backend)
     env["APP_OPEN_URL"] = origins.frontend
     env["APP_CORS_ALLOWED_ORIGINS"] = _allow(
