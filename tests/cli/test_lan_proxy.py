@@ -117,3 +117,24 @@ def test_ensure_cert_writes_a_cert_and_key(cfg):
 
     assert bundle.cert.is_file() and bundle.key.is_file()
     assert bundle.cert.parent == state
+
+
+def test_stop_touches_no_container_when_this_repo_never_started_one(cfg):
+    """The test suite exercises `stop`, and `stop` calls this. Without a guard
+    it would run `docker rm -f` for real against the developer's machine —
+    which is exactly what happened before this test existed."""
+    docker = FakeDocker()
+
+    stop_proxy(cfg, runner=docker)
+
+    assert docker.calls == []
+
+
+def test_stop_removes_the_container_once_this_repo_started_one(cfg):
+    docker = FakeDocker()
+    start_proxy(cfg, ip="192.0.2.10", runner=docker)
+    docker.calls.clear()
+
+    stop_proxy(cfg, runner=docker)
+
+    assert [c[1] for c in docker.calls] == ["rm"]

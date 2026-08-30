@@ -215,7 +215,15 @@ def start_proxy(
 
 def stop_proxy(cfg: Config, *, runner: Runner = _run_docker) -> None:
     """Best-effort: `stop` runs this unconditionally, and not having a proxy up
-    is the normal case, not an error worth reporting."""
+    is the normal case, not an error worth reporting.
+
+    Does nothing unless this working tree actually started one. Reaching for
+    Docker on every `stop` would mean the test suite — which exercises `stop` —
+    removes a container on the developer's machine, and it would also let one
+    checkout kill a proxy another one is using.
+    """
+    if not (state_dir(cfg) / "nginx.conf").is_file():
+        return
     try:
         runner(["docker", "rm", "-f", CONTAINER])
     except Exception:
