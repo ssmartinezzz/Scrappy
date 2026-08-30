@@ -785,3 +785,34 @@ async def test_start_reports_success_when_both_services_survive(tmp_path, monkey
     async with app.run_test() as pilot:
         await _submit(app, pilot, "start")
         assert "arriba" in _console_text(app)
+
+
+@pytest.mark.asyncio
+async def test_start_passes_its_mode_through(tmp_path, monkeypatch):
+    """`start lan` en la consola tiene que llegar como modo. Tragarse el
+    argumento arranca en local sin decirlo, y el síntoma aparece recién en el
+    otro dispositivo: la app carga y no anda."""
+    app, _, _ = _make_app(tmp_path)
+    vistos: list[str] = []
+    monkeypatch.setattr(
+        app, "_start_services", lambda mode="local": vistos.append(mode) or "ok"
+    )
+
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start lan")
+
+    assert vistos == ["lan"]
+
+
+@pytest.mark.asyncio
+async def test_start_without_a_mode_stays_local(tmp_path, monkeypatch):
+    app, _, _ = _make_app(tmp_path)
+    vistos: list[str] = []
+    monkeypatch.setattr(
+        app, "_start_services", lambda mode="local": vistos.append(mode) or "ok"
+    )
+
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+
+    assert vistos == ["local"]
