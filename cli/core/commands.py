@@ -42,7 +42,13 @@ class Command:
 
 COMMANDS: tuple[Command, ...] = (
     Command("build", "compila frontend (npm) + backend (mvn) y copia el jar"),
-    Command("start", "levanta backend (:3000) + frontend (:5173); buildea si falta", aliases=("up",)),
+    Command(
+        "start",
+        "levanta backend + frontend; buildea si falta. El modo elige a qué origen "
+        "apunta el bundle: local (default) o lan (usa SCRAPPY_*_ORIGIN)",
+        args="[local|lan]",
+        aliases=("up",),
+    ),
     Command("stop", "baja backend + frontend sin salir de la consola", aliases=("down",)),
     Command("status", "GET /api/status", aliases=("st",)),
     Command("scrape", "POST /api/scrape — dispara un run de scraping"),

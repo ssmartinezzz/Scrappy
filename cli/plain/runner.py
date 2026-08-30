@@ -20,6 +20,7 @@ from cli.core.builder import build_project, is_built
 from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
+from cli.core.runtime_config import LOCAL, apply_mode
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient, build_rest_client
@@ -142,10 +143,14 @@ class PlainRunner:
                 build_project(self.cfg)
                 self._print("Build complete.")
             elif name == "start":
+                mode = args[0] if args else LOCAL
                 if not is_built(self.cfg):
                     self._print("jar/frontend ausente — compilando primero…")
                     build_project(self.cfg)
                 env = self._env()
+                # After the build: apply_mode writes into frontend/dist.
+                origins = apply_mode(self.cfg, mode, env)
+                self._print(f"modo {mode} — API en {origins.backend}")
                 self.processes.launch_backend(
                     self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
                 )
