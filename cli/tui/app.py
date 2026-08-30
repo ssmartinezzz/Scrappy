@@ -45,6 +45,7 @@ from cli.core.errors import CliError
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.rest import RestClient, build_rest_client
+from cli.core.runtime_config import LOCAL, apply_mode
 from cli.tui.widgets import (
     CommandSuggester,
     Console,
@@ -367,7 +368,7 @@ class ScrappyConsole(App):
     def _cmd_start(self, args: list[str]) -> None:
         self._run_core("start", self._start_services)
 
-    def _start_services(self) -> str:
+    def _start_services(self, mode: str = LOCAL) -> str:
         from cli.core import builder
         from cli.core.env_file import parse_env
 
@@ -379,6 +380,9 @@ class ScrappyConsole(App):
             self.call_from_thread(self._refresh_health)
 
         env = parse_env(self.cfg.repo_root / ".env")
+        # After the build: apply_mode writes into frontend/dist.
+        origins = apply_mode(self.cfg, mode, env)
+        self.call_from_thread(self._emit, "info", f"modo {mode} — API en {origins.backend}")
         self.processes.launch_backend(
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )
