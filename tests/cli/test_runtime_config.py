@@ -122,3 +122,33 @@ def test_apply_mode_does_not_duplicate_an_origin_already_allowed(cfg):
     apply_mode(cfg, "local", env)
 
     assert env["APP_CORS_ALLOWED_ORIGINS"] == f"http://localhost:{cfg.ports.frontend}"
+
+
+def test_open_follows_the_mode_of_the_last_start(cfg, monkeypatch, tmp_path):
+    """`open` has to land where THIS run serves. Reading APP_OPEN_URL off the
+    .env would send the browser to whatever the file was last frozen at."""
+    from cli.plain.runner import PlainRunner
+
+    monkeypatch.setenv("SCRAPPY_FRONTEND_ORIGIN", "https://192.0.2.10:8443")
+    monkeypatch.setenv("SCRAPPY_BACKEND_ORIGIN", "https://192.0.2.10:8444")
+    (cfg.repo_root / "frontend" / "dist").mkdir(parents=True)
+    (cfg.repo_root / ".env").write_text("APP_OPEN_URL=http://localhost:5173\n")
+
+    abiertas: list[str] = []
+    runner = PlainRunner(cfg, opener=abiertas.append)
+    runner.active_origins = resolve_origins("lan", cfg)
+
+    runner.dispatch("open")
+
+    assert abiertas == ["https://192.0.2.10:8443"]
+
+
+def test_open_without_a_start_falls_back_to_localhost(cfg):
+    from cli.plain.runner import PlainRunner
+
+    abiertas: list[str] = []
+    runner = PlainRunner(cfg, opener=abiertas.append)
+
+    runner.dispatch("open")
+
+    assert abiertas == [f"http://localhost:{cfg.ports.frontend}"]
