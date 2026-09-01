@@ -20,6 +20,7 @@ import {
   login,
   readAccounts,
   recolectar401,
+  cerrarSesion,
 } from './helpers.js';
 
 test('a cold reload recovers the session with no login prompt', async ({ page }) => {
@@ -88,7 +89,7 @@ test('logging out and reloading does NOT silently restore the session', async ({
   const { viewer } = readAccounts();
   await login(page, viewer);
 
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await cerrarSesion(page);
   await page.waitForURL(/\/login$/);
 
   await page.reload();

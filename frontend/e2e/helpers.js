@@ -31,8 +31,35 @@ export function marcadorApp(page) {
   return page.getByText('Catálogo').first();
 }
 
+/**
+ * This tab knows WHO it is — the avatar trigger, which only renders once
+ * `identity` is set.
+ *
+ * It used to be the logout button itself, back when that button sat bare in the
+ * topbar row. It does not any more: logout moved inside the avatar dropdown,
+ * and Radix does not mount `DropdownMenuContent` until the menu is opened, so
+ * the old locator matched nothing on a perfectly healthy session. Twenty-one
+ * specs died in `login()` on a timeout, none of them about logging out.
+ *
+ * The trigger is the better marker anyway: it is the thing that is *visible*
+ * when a tab has an identity, and asserting it needs no interaction. Use
+ * `cerrarSesion` to actually log out.
+ */
 export function marcadorAutenticado(page) {
-  return page.getByRole('button', { name: 'Cerrar sesión' });
+  return page.getByRole('button', { name: /^Sesión de / });
+}
+
+/**
+ * Log out through the real control: open the avatar dropdown, then choose the
+ * item. Two steps, because that is what a person does now.
+ *
+ * The item is a `menuitem`, NOT a `button` — asking for the wrong role here
+ * fails with "element(s) not found" even while the menu is open on screen,
+ * which reads like a broken app instead of a wrong selector.
+ */
+export async function cerrarSesion(page) {
+  await page.getByRole('button', { name: /^Sesión de / }).click();
+  await page.getByRole('menuitem', { name: 'Cerrar sesión' }).click();
 }
 
 export async function esperarQueAsiente(page) {

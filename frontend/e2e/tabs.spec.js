@@ -17,6 +17,7 @@ import {
   login,
   readAccounts,
   recolectar401,
+  cerrarSesion,
 } from './helpers.js';
 
 test('a second tab adopts the running session instead of refreshing', async ({ context }) => {
@@ -114,7 +115,7 @@ test('logout in one tab closes the other without a doomed request', async ({ con
 
   const golpesEnB = recolectar401(tabB);
 
-  await tabA.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await cerrarSesion(tabA);
   await tabA.waitForURL(/\/login$/);
 
   await esperarDeslogueado(

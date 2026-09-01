@@ -7,26 +7,14 @@
 // the fix is testable directly instead of through three layers of splash UI.
 // Second, slice 6 wires a resume action onto this same poller.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchStatus } from '../api';
+// The status read that never rejects. It moved to lib/ because this hook was
+// not the only place that needed it: AppLayout has a second poller and two
+// mount reads, and they were all still calling `fetchStatus` bare.
+import { readStatus } from '../lib/readStatus';
 
 export const POLL_INTERVAL_MS = 1800;
 
 const TERMINAL = new Set(['DONE', 'ERROR']);
-
-/**
- * A status read that never rejects. `fetchStatus` resolves to null on a non-ok
- * response, but `authedFetch` calls raw `fetch`, which REJECTS when nothing is
- * listening — so a dead backend never reached the `!st` branch at all, it just
- * killed the interval callback with an unhandled rejection. Both shapes mean
- * the same thing here: no status.
- */
-async function readStatus() {
-  try {
-    return await fetchStatus();
-  } catch {
-    return null;
-  }
-}
 
 export function useScrapeStatusPolling() {
   const [status, setStatus]     = useState('IDLE');
