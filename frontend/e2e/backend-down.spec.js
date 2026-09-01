@@ -15,6 +15,7 @@ import {
   login,
   readAccounts,
   restaurarElBackend,
+  cerrarSesion,
 } from './helpers.js';
 
 const MENSAJE_RED = /No se pudo contactar al servidor/;
@@ -47,7 +48,7 @@ test('a genuine logout does NOT claim the backend is unreachable', async ({ page
   const { viewer } = readAccounts();
   await login(page, viewer);
 
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await cerrarSesion(page);
   await page.waitForURL(/\/login$/);
   await esperarDeslogueado(page, 'logout should land on the login screen');
 
