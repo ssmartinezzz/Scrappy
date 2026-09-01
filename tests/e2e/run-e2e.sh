@@ -24,6 +24,7 @@
 #   tests/e2e/run-e2e.sh              # everything: backend + preview + both suites
 #   tests/e2e/run-e2e.sh --api        # layer 1 only (pytest, tests/e2e/)
 #   tests/e2e/run-e2e.sh --browser    # layer 2 only (Playwright, frontend/e2e/)
+#   tests/e2e/run-e2e.sh --smoke      # the login smoke only — what CI runs
 #   tests/e2e/run-e2e.sh --no-build   # reuse scraper/target/*.jar and frontend/dist
 #   tests/e2e/run-e2e.sh --keep-up    # leave backend + preview running afterwards
 #
@@ -64,11 +65,31 @@ RUN_API=1
 RUN_BROWSER=1
 DO_BUILD=1
 KEEP_UP=0
+SMOKE=0
+
+# The login smoke: the slice CI runs on every PR that could plausibly break
+# signing in. Deliberately NOT the whole browser suite — a smoke that takes as
+# long as the thing it is smoke-testing stops being run.
+#
+# Why these three and not others:
+#   session      — log in, survive a reload, log out. The path itself.
+#   login-cookie — the refresh cookie is actually STORED by the browser. This is
+#                  the bug that shipped once: login was sent without
+#                  `credentials: 'include'`, so session recovery never worked in
+#                  any real install, with the unit suites fully green.
+#   topology     — the run is cross-origin. Every auth assertion below it is
+#                  worthless if the suite quietly went same-origin, which is the
+#                  one topology that never ships.
+#
+# Adding a spec here is cheap; adding one that does not fail when login breaks
+# is what makes a smoke stop meaning anything.
+SMOKE_SPECS=(e2e/session.spec.js e2e/login-cookie.spec.js e2e/topology.spec.js)
 
 for arg in "$@"; do
   case "$arg" in
     --api)      RUN_BROWSER=0 ;;
     --browser)  RUN_API=0 ;;
+    --smoke)    RUN_API=0; SMOKE=1 ;;
     --no-build) DO_BUILD=0 ;;
     --keep-up)  KEEP_UP=1 ;;
     -h|--help)  sed -n '2,50p' "${BASH_SOURCE[0]}"; exit 0 ;;
@@ -208,8 +229,13 @@ fi
 
 # ── Layer 2 — browser suite ─────────────────────────────────────────────────
 if [ "$RUN_BROWSER" = "1" ]; then
-  say "layer 2 — browser suite (Playwright) against $APP_ORIGIN"
-  ( cd "$REPO_ROOT/frontend" && npm run test:e2e ) || STATUS=1
+  if [ "$SMOKE" = "1" ]; then
+    say "layer 2 — login smoke (Playwright) against $APP_ORIGIN"
+    ( cd "$REPO_ROOT/frontend" && npm run test:e2e -- "${SMOKE_SPECS[@]}" ) || STATUS=1
+  else
+    say "layer 2 — browser suite (Playwright) against $APP_ORIGIN"
+    ( cd "$REPO_ROOT/frontend" && npm run test:e2e ) || STATUS=1
+  fi
 fi
 
 exit $STATUS
