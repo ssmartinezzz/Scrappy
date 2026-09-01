@@ -1,0 +1,121 @@
+name: E2E Login Smoke
+
+# The login path, end to end, against the topology that actually ships.
+#
+# WHY THIS EXISTS: nothing in CI ran tests/e2e until now. CLAUDE.md calls that
+# suite non-optional when you touch auth, CORS or cookies — because unit tests
+# cannot see that class of bug by construction — and a non-optional suite that
+# nothing runs automatically is a suite that gets skipped. It did: PR #179 moved
+# logout inside a dropdown and merged with every check green, leaving the
+# browser suite at 21 failures of 26 that nobody saw for hours.
+#
+# WHY A SMOKE AND NOT THE WHOLE SUITE: the full browser run is 26 specs; this is
+# 8 (see SMOKE_SPECS in run-e2e.sh for why those). A check that costs as much as
+# the thing it guards is a check people start routing around.
+#
+# WHY IT IS NOT NARROWER: it would be tempting to fire this only when
+# "login files" change. That filter would NOT have caught PR #179, which touched
+# the topbar and the user menu — no auth code at all — and broke every login in
+# the suite. The blast radius of the login path is the whole frontend plus the
+# security and web layers of the backend, so that is the filter.
+#
+# The pytest layer is deliberately absent: `--smoke` turns it off. The browser
+# talks to a real backend, so a server-side auth break still fails this job.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Trust auth with no password, matching scripts/dev-db.sh: the runner
+        # exports an empty DATABASE_PASSWORD, and RequiredEnvVarsGuard counts
+        # empty as present. Only a wholly absent var aborts startup.
+        image: postgres:16
+        env:
+          POSTGRES_DB: scraper
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes that can break signing in
+        id: changes
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD \
+              | grep -qE '^frontend/|^tests/e2e/|^scraper/src/main/java/ar/scraper/(security|web)/|^\.github/workflows/e2e-login-smoke\.yml'; then
+            echo "relevant=true" >> $GITHUB_OUTPUT
+          else
+            echo "relevant=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK 21
+        if: steps.changes.outputs.relevant == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Set up Node
+        if: steps.changes.outputs.relevant == 'true'
+        uses: actions/setup-node@v4
+        with:
+          # Same constraint as frontend-tests.yml: Node 20 is not viable.
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.changes.outputs.relevant == 'true'
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chromium
+        if: steps.changes.outputs.relevant == 'true'
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the backend jar
+        if: steps.changes.outputs.relevant == 'true'
+        # run-e2e.sh never builds this one — it only checks that it is there and
+        # tells you this exact command. The SPA it does build itself, with
+        # VITE_API_BASE_URL pointing at the backend, which is what makes the run
+        # cross-origin.
+        run: mvn -B -DskipTests package -f scraper/pom.xml
+
+      - name: Run the login smoke
+        if: steps.changes.outputs.relevant == 'true'
+        # Secrets are generated on first run into a gitignored file; on a fresh
+        # CI checkout that is always the first run, so the admin it seeds and
+        # the password it logs in with are the same ones, every time.
+        run: tests/e2e/run-e2e.sh --smoke
+
+      - name: Upload traces and backend log on failure
+        if: failure() && steps.changes.outputs.relevant == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-login-smoke-failure
+          path: |
+            frontend/e2e/.artifacts/
+            tests/e2e/.run/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Nothing that can break signing in
+        if: steps.changes.outputs.relevant == 'false'
+        run: echo "No frontend, e2e or backend security/web changes — login smoke skipped."
