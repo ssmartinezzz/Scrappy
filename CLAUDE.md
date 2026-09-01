@@ -446,6 +446,8 @@ adapter hoy: `OpenAiCompatProvider` (Ollama).
 
 **Exactamente 3 herramientas, TODAS de solo lectura**, dentro de un loop acotado
 (`MAX_ITERATIONS=6`): `search_products`, `view_product`, `propose_reclassify`.
+
+**`search_products` filtra en el catálogo, no en la prosa del modelo.** Acepta `query` (texto libre sobre nombre/marca), `categoria` (enum cerrado contra el canon), `genero`, `excluir` (lista de términos vetados en el nombre) y `precioMin`/`precioMax`; todos se aplican en conjunción y hace falta al menos uno además de `excluir`. Dos razones para que sean parámetros y no texto: (1) **la categoría no es una palabra del nombre** — una "Remera sin mangas Dry Fit" clasificada `Musculosa` era invisible a `query=musculosa`, y un producto cuyo nombre no coincide con su categoría es justo el que hay que revisar, así que el punto ciego se superponía con el propósito del tool; y (2) si el modelo filtra en su respuesta en vez de en la llamada, **la barrera de grounding no lo puede ver**: hubo una tool call real con filas reales, así que el turno pasa igual. Una llamada vacía es error, no el catálogo entero cortado a 10.
 La reclasificación es **two-phase propose/confirm** — `propose_reclassify` valida
 y devuelve un diff, nunca escribe. El único write real es `POST /api/agent/apply`,
 fuera del loop, tras confirmación humana explícita y re-validando server-side.
