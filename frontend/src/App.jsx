@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { fetchStatus } from './api';
 import SplashPanel from './components/SplashPanel';
 import AppLayout, {
   CatalogoPanelRoute,
@@ -24,6 +23,7 @@ import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
 import { CONFIG_DEFAULT } from './lib/scrapeDefaults';
 import { useScrapeStatusPolling } from './hooks/useScrapeStatusPolling';
+import { readStatus } from './lib/readStatus';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import AuthGate from './auth/AuthGate';
 import RequireRole from './auth/RequireRole';
@@ -39,7 +39,12 @@ function RootGate() {
   const [gate, setGate] = useState('checking');
 
   useEffect(() => {
-    fetchStatus().then(st => {
+    // `readStatus`, not `fetchStatus`: a backend that is not listening REJECTS,
+    // and a bare `.then()` never ran its callback — `gate` stayed 'checking' and
+    // `/` rendered the fallback forever. A read that failed cannot claim there
+    // is a catalogue, so it goes to splash, which already knows how to say the
+    // backend is unreachable.
+    readStatus().then(st => {
       setGate(st?.tieneData ? 'toCatalogo' : 'toSplash');
     });
   }, []);

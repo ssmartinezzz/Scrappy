@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, Outlet, useOutletContext } from 'react-router-dom';
-import { fetchData, fetchStatus, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
+import { readStatus } from '../lib/readStatus';
+import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
          fetchTendencias } from '../api';
@@ -547,7 +548,7 @@ export default function AppLayout() {
   // On mount: check if we already have data → load facets/favoritos/first page
   useEffect(() => {
     loadSavedOutfits();
-    fetchStatus().then(st => {
+    readStatus().then(st => {
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
         loadFirstPage();
@@ -654,7 +655,11 @@ export default function AppLayout() {
   const startPolling = useCallback((onDone) => {
     if (pollingRef.current) clearInterval(pollingRef.current);
     pollingRef.current = setInterval(async () => {
-      const st = await fetchStatus();
+      // `readStatus` and not `fetchStatus`: this is the SECOND poller in the
+      // app, and the first copy of this fix only reached the splash one. A bare
+      // await here died with an unhandled rejection on every tick against a
+      // dead backend, and the interval kept firing and kept dying.
+      const st = await readStatus();
       if (!st) return;
       set({ scrapeStatus:st.status, scrapeMsg:st.mensaje, progreso:st.progreso });
       if (st.status === 'RUNNING' && st.tieneData) loadFirstPage();
