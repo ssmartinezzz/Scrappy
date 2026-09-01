@@ -9,6 +9,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Three sliding windows over reset requests, consulted <b>inside</b> the async
@@ -36,6 +37,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * be a list of everyone who has recently asked for a reset, sitting in memory
  * for an hour.</p>
  *
+ * <p><b>Y una hora es todo lo que dura.</b> Las claves vencidas se desalojan, y
+ * eso no es prolijidad: el endpoint es público, sin credencial, y quien llama
+ * elige la dirección y (con la IP) las dos claves que se crean. El tope global
+ * no acota este mapa — una request rechazada por el tope crea su clave igual,
+ * porque los tres contadores se consumen a propósito. Sin desalojo, cualquiera
+ * desde afuera hace crecer memoria del proceso sin techo y para siempre,
+ * mientras cada una de sus requests es correctamente rechazada.</p>
+ *
  * <p><b>The three ceilings are proposals, not measurements.</b> Validating them
  * needs real traffic, and this deployment has none yet. They are deliberately
  * loose enough that a real person cannot hit them by accident.</p>
@@ -48,10 +57,12 @@ public class ResetRateLimiter {
     public static final int GLOBAL_POR_HORA = 100;
 
     private static final Duration VENTANA = Duration.ofHours(1);
+    private static final Duration INTERVALO_LIMPIEZA = Duration.ofMinutes(1);
     private static final String CLAVE_GLOBAL = "\0global";
 
     private final Clock reloj;
     private final Map<String, Deque<Instant>> ventanas = new ConcurrentHashMap<>();
+    private final AtomicReference<Instant> ultimaLimpieza = new AtomicReference<>(Instant.MIN);
 
     public ResetRateLimiter(Clock reloj) {
         this.reloj = reloj;
@@ -63,6 +74,7 @@ public class ResetRateLimiter {
      */
     public boolean permitir(String direccion, String ip) {
         Instant ahora = reloj.instant();
+        desalojarVencidas(ahora);
         // Every counter is consumed, not short-circuited: an attacker must not be
         // able to keep their IP budget intact by tripping the address limit first.
         boolean direccionOk = registrar("d:" + hash(direccion), POR_DIRECCION_POR_HORA, ahora);
@@ -71,19 +83,59 @@ public class ResetRateLimiter {
         return direccionOk && ipOk && globalOk;
     }
 
+    /**
+     * Todo pasa adentro de {@code compute}: el candado por bin del mapa es la
+     * única sincronización que hace falta, y es el mismo que usa el desalojo, así
+     * que no puede borrarse una ventana que otro hilo está por escribir. Devolver
+     * null BORRA la clave — una ventana que quedó vacía no es un límite, es una
+     * entrada de mapa.
+     */
     private boolean registrar(String clave, int tope, Instant ahora) {
-        Deque<Instant> ventana = ventanas.computeIfAbsent(clave, k -> new ArrayDeque<>());
-        synchronized (ventana) {
-            Instant corte = ahora.minus(VENTANA);
-            while (!ventana.isEmpty() && ventana.peekFirst().isBefore(corte)) {
-                ventana.pollFirst();
+        boolean[] admitido = { false };
+        ventanas.compute(clave, (k, ventana) -> {
+            Deque<Instant> v = podar(ventana, ahora);
+            if (v.size() < tope) {
+                v.addLast(ahora);
+                admitido[0] = true;
             }
-            if (ventana.size() >= tope) {
-                return false;
-            }
-            ventana.addLast(ahora);
-            return true;
+            return v.isEmpty() ? null : v;
+        });
+        return admitido[0];
+    }
+
+    /**
+     * Barre las claves cuya ventana entera venció. Sin esto sólo se poda la clave
+     * que vuelve a consultarse, y la que no vuelve —que es justo la que fabrica
+     * quien recorre direcciones— no se poda nunca.
+     *
+     * <p>Va con throttle porque el barrido es O(claves) y bajo una avalancha se
+     * llama una vez por request: sin el intervalo, el costo de defenderse crece
+     * al cuadrado con el ataque. Con él, el mapa retiene a lo sumo la ventana más
+     * el intervalo, y drena solo.</p>
+     */
+    private void desalojarVencidas(Instant ahora) {
+        Instant previa = ultimaLimpieza.get();
+        if (ahora.isBefore(previa.plus(INTERVALO_LIMPIEZA))) return;
+        // Un solo hilo barre; el resto sigue de largo en vez de hacer la misma
+        // pasada tres veces.
+        if (!ultimaLimpieza.compareAndSet(previa, ahora)) return;
+        for (String clave : ventanas.keySet()) {
+            ventanas.computeIfPresent(clave, (k, v) -> podar(v, ahora).isEmpty() ? null : v);
         }
+    }
+
+    private Deque<Instant> podar(Deque<Instant> ventana, Instant ahora) {
+        if (ventana == null) return new ArrayDeque<>();
+        Instant corte = ahora.minus(VENTANA);
+        while (!ventana.isEmpty() && ventana.peekFirst().isBefore(corte)) {
+            ventana.pollFirst();
+        }
+        return ventana;
+    }
+
+    /** Cuántas claves ocupa el limiter ahora mismo. Sólo para tests. */
+    int clavesEnMemoria() {
+        return ventanas.size();
     }
 
     /** Keeps the map from becoming a list of who recently asked for a reset. */

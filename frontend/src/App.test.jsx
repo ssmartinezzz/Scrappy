@@ -128,6 +128,30 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
   });
 });
 
+describe('App — RootGate survives a backend that is not listening', () => {
+  it('lands on /splash instead of hanging on the route fallback forever', async () => {
+    // `fetchStatus` resolves to null on a non-ok response, but REJECTS when
+    // nothing is listening. RootGate only used `.then()`, so a dead backend
+    // never reached its callback: `gate` stayed 'checking' and `/` rendered the
+    // fallback for as long as the tab stayed open. The entry point of the whole
+    // app, bricked by the one failure mode a local install hits most.
+    global.fetch = vi.fn().mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes('/api/auth/refresh')) return Promise.resolve(refreshOk());
+      if (u.includes('/api/auth/me')) return Promise.resolve(meWithRoles(['VIEWER']));
+      if (u.includes('/api/status')) return Promise.reject(new TypeError('Failed to fetch'));
+      if (u.includes('/api/scrape/interrupted')) return Promise.resolve(jsonResponse(SIN_INTERRUMPIDA));
+      return Promise.resolve(jsonResponse({}));
+    });
+
+    renderApp('/');
+
+    // Unknowable data means "send them to splash", which already knows how to
+    // say the backend is unreachable — not "decide nothing, forever".
+    expect(await screen.findByText(/todavía no hay datos/i)).toBeInTheDocument();
+  });
+});
+
 describe('App — AuthGate wraps the tree above <Routes> (design D5)', () => {
   it('never calls GET /api/status before bootstrap settles — RootGate cannot mount early', async () => {
     let resolveRefresh;
