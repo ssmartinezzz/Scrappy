@@ -84,6 +84,47 @@ class DatabaseServiceReclasificacionAuditadaTest extends PostgresTestBase {
         }
     }
 
+    /** La marca cruda tal cual quedó en la columna — "" y NULL NO son lo mismo acá. */
+    private String leerMarcaCruda(String url) throws Exception {
+        try (Connection c = dataSource().getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT marca FROM productos WHERE url=?")) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                return rs.getString(1); // null si la columna es NULL
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("una marca vacía se guarda como NULL — '' no es una marca que la FK pueda referenciar")
+    void marcaVaciaSeGuardaComoNullYNoRompeLaFk() throws Exception {
+        // Reproduce un fallo real de producción (backend.log, 2026-09-01):
+        //   ERROR: insert or update on table "productos" violates foreign key
+        //   constraint "fk_productos_marca"
+        //   Detail: Key (marca)=() is not present in table "marca".
+        //
+        // "" es el centinela de abstención de BrandExtractor, y V21 fijó el contrato
+        // en su propio header: «NULL in the DB, "" at the Java boundary». sp_upsert_run
+        // lo cumple con nullif(r->>'marca',''); este write path escribía "" literal, así
+        // que reclasificar cualquier producto cuya marca el extractor no pudo determinar
+        // reventaba contra la FK.
+        Product previo = producto("https://site.com/sin-marca", "Remera", "", "hombre", List.of("M"));
+        db.upsertProductos(List.of(previo));
+
+        boolean applied = db.aplicarReclasificacionAuditada(
+                "https://site.com/sin-marca", "Musculosa", "", "hombre", List.of("M"),
+                "urbano", previo, "local");
+
+        assertThat(applied).as("la reclasificación tiene que aplicarse, no reventar").isTrue();
+        assertThat(leerMarcaCruda("https://site.com/sin-marca"))
+                .as("abstención se guarda como NULL, nunca como la cadena vacía")
+                .isNull();
+        // Y sigue leyéndose como "" del lado Java: el centinela vive en el borde.
+        assertThat(db.obtenerProducto("https://site.com/sin-marca")).isPresent();
+        assertThat(db.obtenerProducto("https://site.com/sin-marca").get().marca()).isEmpty();
+    }
+
     @Test
     @DisplayName("success: UPDATE applied + exactly one audit row with old and new values")
     void successWritesUpdateAndAuditRow() throws Exception {

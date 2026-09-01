@@ -509,7 +509,18 @@ class ProductRepository {
                 + (respectLock ? " AND bloqueado_por IS NULL" : "");
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, categoria != null ? categoria : "");
-            ps.setString(2, marca != null ? marca : "");
+            // marca: "" es el centinela de abstención de BrandExtractor, y la FK
+            // fk_productos_marca (V21) no puede referenciarlo — una FK afirma una
+            // REFERENCIA, y no hay marca que referenciar cuando el extractor no supo.
+            // El contrato lo fija el header de V21: NULL en la base, "" en el borde
+            // Java, y es exactamente lo que hace sp_upsert_run con
+            // nullif(r->>'marca',''). Este path escribía "" literal, así que
+            // reclasificar un producto sin marca reventaba contra la FK y el rollback
+            // devolvía false — el agente "confirmaba" un cambio que nunca ocurría.
+            // isBlank() y no isEmpty(): " " tampoco es una fila de `marca`, así que
+            // dejarla pasar sería el mismo choque por otra puerta.
+            if (marca == null || marca.isBlank()) ps.setNull(2, java.sql.Types.VARCHAR);
+            else ps.setString(2, marca);
             ps.setString(3, genero != null ? genero : "");
             ps.setString(4, subCategoria != null ? subCategoria : "");
             ps.setString(5, url);
