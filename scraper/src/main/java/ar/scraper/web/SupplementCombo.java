@@ -387,9 +387,13 @@ class SupplementCombo {
     }
 
     /**
-     * Vetos por subtipo. El mecanismo es general; hoy sólo lo usa "Proteína en Polvo",
-     * que es el único bucket cuyas keywords ("proteina", "protein") aparecen en
-     * productos de otro formato por el simple hecho de declarar su composición.
+     * Vetos por subtipo: el predicado que descalifica un match de keywords que la
+     * forma del nombre delata como otra cosa.
+     *
+     * <p>Quién tiene veto y por qué vive en {@link #compilarVetos()}, que es donde se
+     * arma. Tenerlo en un solo lugar es el punto: esta línea llegó a afirmar que el
+     * mecanismo "hoy sólo lo usa Proteína en Polvo" mientras cuatro líneas más abajo
+     * los doce subtipos de comida ya heredaban el suyo.</p>
      */
     private static final Map<String, Predicate<String>> VETO_POR_SUBTIPO = compilarVetos();
 
