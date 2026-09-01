@@ -863,6 +863,7 @@ Dos cosas que se rompen en silencio si se tocan:
 
 | Problema | Estado |
 |---------|--------|
+| `ResetRateLimiter` y `LoginRateLimiter` deciden lo OPUESTO sobre la clave por IP | `LoginRateLimiter` no tiene clave por IP **a propósito**, y su javadoc explica por qué: `getRemoteAddr()` devuelve la IP del proxy en cuanto haya uno adelante, y ahí todos los clientes caen en el mismo balde sin que nada falle. `ResetRateLimiter` sí la tiene, y la alimenta con ese mismo `getRemoteAddr()`. Detrás de un proxy su tope de 10/h pasa a ser global de hecho, y frena los resets de todos. Hoy es latente —ninguna de las tres vías de instalación proxea `/api`— pero las dos clases no pueden seguir contestando distinto a la misma pregunta. El arreglo es el que su hermana ya describe: allowlist de proxies de confianza antes de mirar `X-Forwarded-For`, nunca confiar en el header a ciegas |
 | `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
 
 ### Necesitan datos, no código
