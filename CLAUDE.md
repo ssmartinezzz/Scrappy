@@ -792,6 +792,28 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
   rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
   de `COMMIT-3`.
 
+**El picker de categorías del outfit scrollea adentro de su tarjeta, y sus chips
+tienen que ser únicos entre grupos.** `OutfitsPanel` usa el mismo
+`MultiSelectTags` que el armador de suplementos, con `stickySelected` y
+`max-h-[min(56vh,440px)] overflow-y-auto bg-s1`. Antes eran cuatro acordeones
+colapsables, que cambiaban un problema por otro: colapsados no se veía qué estaba
+seleccionado sin abrir cada grupo; expandidos, 43 chips empujaban presupuesto,
+botón y outfit abajo del fold. Medido en un viewport de 430×860: 693px de
+contenido dentro de 440px de picker, y la página **no** scrollea.
+
+Dos cosas que se rompen en silencio si se tocan:
+
+- **`bg-s1` va en el picker, no sólo en la tarjeta.** La fila "Seleccionados" usa
+  `bg-inherit`, que hereda el color **computado** del padre: sin fondo propio en
+  esa raíz resuelve a transparente y los chips se ven pasar por debajo. Verificado
+  con `getComputedStyle`: tiene que dar un color, no `rgba(0,0,0,0)`.
+- **`MultiSelectTags` anima con `layoutId={tag}`**, que exige que cada tag esté
+  montado en **exactamente un** lugar. `PICKER_GROUPS` se **deriva** de
+  `BUILDER_GROUPS` en vez de escribirse a mano, y hoy ninguna categoría se repite
+  entre grupos. Duplicar una rompe el invariante sin error: el síntoma es un chip
+  que deja de animar. Los dos `OutfitPanel` (gym/casual) no colisionan porque la
+  barra de tabs monta uno solo (`tab === 'outfit' && ...`).
+
 **Docker:**
 - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
 - En `DATABASE_URL` el host es **`postgres`** (nombre del servicio), no `localhost`.
