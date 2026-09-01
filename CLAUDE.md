@@ -264,6 +264,7 @@ Lo mínimo para no romper nada sin abrir ese archivo:
 | **El soft-delete está acotado a los sitios del batch** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15) |
 | **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
 | **`favoritos` ya no tiene PK sobre `url`** | Desde `V26` la PK es subrogada y la unicidad por url vive en un índice **parcial** (`WHERE usuario_id IS NULL`). Postgres no infiere un índice parcial solo: todo `ON CONFLICT (url)` tiene que repetir ese `WHERE` o rechaza la sentencia entera, primer insert incluido |
+| **`marca` vacía se guarda NULL, nunca `''`** | `''` es el centinela de abstención de `BrandExtractor` y `fk_productos_marca` no puede referenciarlo — el header de `V21` fija el contrato: NULL en la base, `""` en el borde Java. `sp_upsert_run` lo cumple con `nullif(r->>'marca','')`; `updateNormalizacion` escribía `''` literal y **reventaba la FK al reclasificar cualquier producto sin marca**. Dos write paths a la misma columna tienen que escribir con la misma regla |
 | **`precio_historico` registra cambios, no avistajes** | Un producto que vuelve tras un soft-delete se trata por su precio, como cualquier fila existente — no como URL nueva |
 
 **Lecturas:** `/api/data` y `/api/facets` consultan SQL (18 filtros, orden y
