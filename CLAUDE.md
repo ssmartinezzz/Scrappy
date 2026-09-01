@@ -554,11 +554,22 @@ hay nadie escuchando:** `authedFetch` llama a `fetch` pelado, así que un backen
 muerto nunca llega al `if (!st)` — la callback muere con una promesa rechazada y
 el último `RUNNING` bueno queda congelado en pantalla mientras la pestaña siga
 abierta. Todo lector de `api.js` tiene que cubrir **las dos formas**: `null` y
-excepción. El poller del splash lo hace en
-`frontend/src/hooks/useScrapeStatusPolling.js`, que las colapsa en "no hay
-status" y expone un `backendUnreachable` aparte: "no lo puedo contactar" y
-"sigue corriendo" son frases distintas, y la pantalla tiene que decir la
-correcta. Ese estado **no** se mete en `scrapeStatus`, que espeja el
+excepción. Las colapsa en "no hay status" **un solo lector**,
+`frontend/src/lib/readStatus.js`, y todo call site pasa por ahí.
+
+Vivió un tiempo adentro de `useScrapeStatusPolling.js`, y ahí estaba el
+problema: **hay DOS pollers y tres lecturas de montaje**, y el fix sólo llegó a
+uno. Los otros tres seguían llamando `fetchStatus` pelado. `AppLayout` tenía la
+copia idéntica del bug original —`await` sin try/catch adentro de un
+`setInterval`, muriendo cada 1800 ms contra un backend caído sin limpiar nunca
+el intervalo— y `RootGate` era peor: `.then()` sin `.catch()` en la ruta `/`,
+así que un backend que no escucha dejaba `gate` en `'checking'` y **la puerta de
+entrada de la app renderizaba el fallback para siempre**. Los 239 tests del
+frontend estaban en verde.
+
+Aparte de eso, `useScrapeStatusPolling` expone un `backendUnreachable`: "no lo
+puedo contactar" y "sigue corriendo" son frases distintas, y la pantalla tiene
+que decir la correcta. Ese estado **no** se mete en `scrapeStatus`, que espeja el
 `ScraperStatus` del backend; lo que se apaga es el progreso, no el campo.
 
 **El poller del splash no se arma solo salvo por una bandera de un solo tiro:**
