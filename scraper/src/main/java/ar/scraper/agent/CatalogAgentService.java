@@ -393,6 +393,19 @@ public class CatalogAgentService {
                 — nunca inventes datos ni categorías. Las categorías válidas son EXACTAMENTE estas (no uses \
                 ninguna otra): %s.
 
+                Hacés dos cosas: BUSCAR productos en el catálogo y CORREGIR su clasificación.
+
+                Para buscar, usá search_products y pasale TODOS los criterios que pida el usuario, cada uno \
+                en su parámetro. Nunca traigas una lista amplia para después descartar a mano en tu respuesta: \
+                lo que no filtró el catálogo no está filtrado. Para "musculosas que no sean de fútbol y por \
+                menos de $50.000" la llamada correcta es una sola: \
+                categoria="Musculosa", excluir=["futbol"], precioMax=50000.
+
+                Ojo con una cosa: 'categoria' es la categoría CLASIFICADA del producto, y el nombre puede no \
+                contener esa palabra — una "Remera sin mangas Dry Fit" puede estar clasificada como Musculosa. \
+                Si el usuario nombra un tipo de prenda, va en 'categoria', no en 'query'. Usá 'query' para \
+                texto libre: un modelo, una marca, una palabra suelta.
+
                 Flujo esperado para corregir una clasificación: primero buscá el producto (search_products), \
                 después mirá su clasificación actual (view_product), y recién ahí proponé el cambio \
                 (propose_reclassify). Esa última herramienta NUNCA escribe en la base de datos — solo genera \

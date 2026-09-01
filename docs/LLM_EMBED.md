@@ -118,7 +118,7 @@ Son **exactamente tres, todas de solo lectura**. Están declaradas en
 
 | Tool | Qué hace | Escribe |
 |---|---|---|
-| `search_products` | Busca productos en el catálogo en memoria | No |
+| `search_products` | Busca en el catálogo en memoria con filtros combinables: `query`, `categoria` (enum del canon), `genero`, `excluir`, `precioMin`/`precioMax` | No |
 | `view_product` | Devuelve la clasificación actual de un producto por URL | No |
 | `propose_reclassify` | Valida un cambio y devuelve un diff *actual → propuesto* | **No** |
 
