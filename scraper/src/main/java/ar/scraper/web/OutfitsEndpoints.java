@@ -88,7 +88,12 @@ class OutfitsEndpoints {
             n.put("marca",     safe(pick.marca()));
         }
 
-        var suplementosList = outfitService.armarComboSuplementos(r.productos(), presupuestoSuplementos);
+        // Los tipos van explícitos: sin ellos el combo se arma con TODOS los subtipos, así
+        // que cada categoría de comida nueva le agregaba una tarjeta a esta grilla sin que
+        // nadie lo decidiera. Acá el stack es una sugerencia fija; elegir es el trabajo de
+        // /suplementos, que sí los ofrece completos.
+        var suplementosList = outfitService.armarComboSuplementos(
+                r.productos(), presupuestoSuplementos, SupplementCombo.TIPOS_COMBO_OUTFIT);
         double totalSuplementos = suplementosList.stream()
                 .mapToDouble(OutfitService.SupplementPick::precio).sum();
         root.put("totalSuplementos", totalSuplementos);
