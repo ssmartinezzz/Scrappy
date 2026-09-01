@@ -337,6 +337,20 @@ auricular archivado como procesador.
 
 **Por qué un atributo visual vacío no penaliza**: vienen de un clasificador zero-shot que se abstiene cuando duda, así que buena parte del catálogo no los tiene. Una regla que castigara el dato faltante no estaría coordinando outfits: estaría degradando en silencio a todo producto que el clasificador salteó.
 
+### ¿Por qué el combo de suplementos clasifica comida con una regla de ORDEN y no con una lista de sustantivos?
+
+**Decisión**: el builder de `/suplementos` tiene 12 subtipos de comida (pasta de maní, avena, granola, galletas, fideos, snack salado, frutos secos, infusiones, bebida y postre proteicos, mermelada, miel) y cada uno lleva el veto `esElSaborDeUnPolvo`, que es el espejo exacto del que ya protegía a `Proteína en Polvo`.
+
+**Qué había antes**: nada. Todo lo que el clasificador tagea `Alimentos` llegaba al pool —esa categoría siempre estuvo en el whitelist— pero ningún subtipo lo reclamaba, así que era invisible. Peor: los productos que `FORMATO_NO_POLVO` vetaba del bucket de proteína ("Leche con Proteína", "Avena Alta en Proteína", "Pan Proteico") quedaban vetados del único subtipo que podía tenerlos y sin ningún otro donde caer. El veto era correcto y el efecto neto era que el producto desaparecía.
+
+**Por qué el riesgo es simétrico**: un sustantivo culinario también es como un polvo nombra su **sabor**. Agregar "dulce de leche", "chips", "granola" o "avena" como keywords le habría robado a `Proteína en Polvo` justo los sabores más comunes del catálogo — el mismo bug que `FORMATO_NO_POLVO` cerró, reintroducido desde el otro lado.
+
+**Por qué el orden y no una lista**: enumerar sabores pierde para siempre, igual que enumerar conectores. Lo estable es que un polvo se nombra por la cabeza y el sabor va detrás ("Whey Protein sabor Dulce de Leche"), mientras que un alimento arranca por el alimento y menciona la proteína después, como claim ("Leche con Proteína", "Avena Alta en Proteína"). `esProteinaAgregadaAUnAlimento` ya leía ese orden para vetar polvos; `esElSaborDeUnPolvo` lee el mismo orden para vetar comida. Son la misma observación desde los dos lados, así que **no pueden contradecirse**: ningún producto puede quedar vetado de los dos buckets ni aceptado por ambos.
+
+**Por qué el veto se deriva de una bandera y no se lista a mano**: `SubtipoSuplemento.comida(...)` lo aplica sola. Un mapa escrito a mano deja al subtipo nuevo sin veto, y la falla no es visible — el producto no falta, aparece uno de más en el lugar equivocado.
+
+**Por qué la comida no entra al combo del outfit de Gym**: ese combo se armaba con TODOS los subtipos, así que cada tipo nuevo le agregaba una tarjeta a una grilla que ya tenía 21 — el crecimiento de 17 a 21 que figuraba como pendiente nunca fue una decisión, fue un efecto. Ahora `OutfitsEndpoints` pide `TIPOS_COMBO_OUTFIT` explícito: ahí el stack es una sugerencia fija, y elegir es el trabajo de `/suplementos`, que sí los ofrece completos.
+
 ### ¿Por qué Morashop tiene page y plataforma propias si es un Tiendanube común?
 
 Porque el valor de `plataforma` no describe la tienda, **rutea el scraper**. Desde `V20` `ScraperFactory` elige la clase leyendo `sitio.plataforma` vía `SiteRegistry`, y los name-sets en código se borraron (`CODE-6`). Morashop necesita una page propia, así que necesita un valor propio; rutearla por nombre de sitio reintroduciría exactamente lo que `V20` sacó. `monkyforce` ya había sentado el precedente. El costo aceptado es que `plataforma` sigue derivando hacia "discriminador de ruteo" más que hacia "qué software corre la tienda" — una deriva que ya existía con `vaypol` y `qloud`.

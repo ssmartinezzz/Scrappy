@@ -59,8 +59,27 @@ class SupplementCombo {
      * Y de los grupos, así que cada subtipo nuevo había que agregarlo dos veces — y un
      * olvido dejaba un tipo que el builder devuelve y la UI no puede seleccionar.</p>
      */
-    private record SubtipoSuplemento(String tipo, String grupo, String[] keywords) {
-        SubtipoSuplemento(String tipo, String[] keywords) { this(tipo, null, keywords); }
+    private record SubtipoSuplemento(String tipo, String grupo, boolean comida, String[] keywords) {
+        SubtipoSuplemento(String tipo, String[] keywords) { this(tipo, null, false, keywords); }
+        SubtipoSuplemento(String tipo, String grupo, String[] keywords) { this(tipo, grupo, false, keywords); }
+
+        /**
+         * Un subtipo de COMIDA. La bandera arrastra dos consecuencias, y las dos salen
+         * del mismo hecho — es un alimento, no un suplemento:
+         *
+         * <ol>
+         *   <li>queda fuera del combo que acompaña al outfit de Gym
+         *       ({@link #TIPOS_COMBO_OUTFIT}). Ese combo se arma con TODOS los subtipos,
+         *       así que cada tipo nuevo le agrega una tarjeta a una grilla que ya tiene
+         *       21: el stack sugerido dejaría de ser una sugerencia. El builder de
+         *       {@code /suplementos}, donde el usuario elige, los ofrece completos;</li>
+         *   <li>hereda el veto de sabor ({@link #esElSaborDeUnPolvo}): sus keywords son
+         *       sustantivos culinarios, y un polvo los usa para nombrar su gusto.</li>
+         * </ol>
+         */
+        static SubtipoSuplemento comida(String tipo, String grupo, String[] keywords) {
+            return new SubtipoSuplemento(tipo, grupo, true, keywords);
+        }
     }
 
     /**
@@ -154,8 +173,73 @@ class SupplementCombo {
                     "maple", "maple fit", "maple sin azucar", "maple zero",
                     "jarabe de arce", "sirope", "sirope fit", "sirope zero",
                     "sirope sin azucar"
+            }),
+            SubtipoSuplemento.comida("Mermelada / Dulce", "Aderezos", new String[]{
+                    "mermelada", "jalea", "dulce de leche", "dulce de membrillo",
+                    "untable", "crema untable"
+            }),
+            SubtipoSuplemento.comida("Miel / Endulzante", "Aderezos", new String[]{
+                    "miel ", "endulzante", "edulcorante", "stevia", "sucralosa",
+                    "eritritol", "monk fruit"
+            }),
+            SubtipoSuplemento.comida("Postre Proteico", "Proteína", new String[]{
+                    "postre proteico", "flan proteico", "helado proteico",
+                    "mousse proteico", "gelatina proteica",
+                    "yogur proteico", "yoghurt proteico", "yogur con proteina"
+            }),
+            SubtipoSuplemento.comida("Bebida Proteica", "Bebidas", new String[]{
+                    "bebida proteica", "agua proteica",
+                    "leche proteica", "leche con proteina", "leche alta en proteina",
+                    "listo para tomar", "listo para beber", "ready to drink",
+                    "bebida deportiva", "isotonica"
+            }),
+            SubtipoSuplemento.comida("Infusiones", "Bebidas", new String[]{
+                    "yerba", "mate ", "te verde", "matcha", "infusion",
+                    // "cafe" pelado NO: es uno de los sabores más comunes de un whey.
+                    // Las tres formas de abajo nombran al café como producto.
+                    "cafe molido", "cafe en grano", "cafe instantaneo"
+            }),
+            SubtipoSuplemento.comida("Pasta de Maní", "Alimentos", new String[]{
+                    "pasta de mani", "manteca de mani", "mantequilla de mani",
+                    "crema de mani", "pasta de almendra", "manteca de almendra",
+                    "mantequilla de almendra"
+                    // "peanut butter" NO: en este catálogo aparece como SABOR de un
+                    // isolate ("RAW Proteína Itholate … CHOCOLATE PEANUT BUTTER") tanto
+                    // como en un frasco. El veto de sabor ya lo resolvería, pero la
+                    // forma castellana es la que nombra al frasco y alcanza.
+            }),
+            SubtipoSuplemento.comida("Avena / Harina", "Alimentos", new String[]{
+                    "avena", "harina de avena", "harina integral", "harina de almendra",
+                    "oatmeal", "porridge"
+            }),
+            SubtipoSuplemento.comida("Granola / Cereal", "Alimentos", new String[]{
+                    "granola", "cereal", "muesli", "copos de"
+            }),
+            SubtipoSuplemento.comida("Galletas / Tostadas", "Alimentos", new String[]{
+                    "galletita", "galleta", "tostada", "rice cake",
+                    "pan proteico", "pan integral", "tortita de arroz"
+            }),
+            SubtipoSuplemento.comida("Fideos / Arroz", "Alimentos", new String[]{
+                    "fideos", "arroz", "konjac", "noodles"
+            }),
+            SubtipoSuplemento.comida("Snack Salado", "Alimentos", new String[]{
+                    "palmito", "chips", "snack saludable", "tostaditas",
+                    "pochoclo", "popcorn"
+            }),
+            SubtipoSuplemento.comida("Frutos Secos", "Alimentos", new String[]{
+                    "frutos secos", "almendra", "nueces", "nuez ", "castanas",
+                    "castaña de caju", "pistacho", "mani ", "semillas", "chia "
             })
     );
+
+    /**
+     * Los subtipos que arma el combo que acompaña al outfit de Gym — todos menos los
+     * de comida. Ver {@link SubtipoSuplemento#comida}.
+     */
+    static final Set<String> TIPOS_COMBO_OUTFIT = SUPLEMENTO_SUBTIPOS.stream()
+            .filter(s -> !s.comida())
+            .map(SubtipoSuplemento::tipo)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
 
     /**
      * Orden de clasificación — de específico a genérico, y deliberadamente distinto
@@ -175,6 +259,15 @@ class SupplementCombo {
             "Multivitamínico", "Vitamina C", "Vitamina D", "Complejo B",
             "Omega 3", "Zinc", "Magnesio",
             "Mayonesa", "Ketchup / Salsa", "Mostaza", "Maple / Sirope",
+            "Mermelada / Dulce", "Miel / Endulzante",
+            // Los subtipos de comida corren DESPUÉS de todo suplemento y ANTES del polvo.
+            // Entre ellos el orden también es semántico, y cada par tiene un producto real
+            // detrás: "Pasta de Maní" antes que "Frutos Secos" (un frasco de pasta de maní
+            // dice "mani"), "Avena / Harina" antes que "Frutos Secos" ("Harina de Almendras"
+            // es harina) y antes que "Granola / Cereal" ("Cereal de Avena" es avena).
+            "Postre Proteico", "Bebida Proteica", "Infusiones",
+            "Pasta de Maní", "Avena / Harina", "Granola / Cereal",
+            "Galletas / Tostadas", "Fideos / Arroz", "Snack Salado", "Frutos Secos",
             // Proteína en Polvo va al final, y Colágeno DESPUÉS todavía: hay whey
             // fortificada con colágeno y es whey. Un colágeno puro no nombra proteína,
             // así que no matchea el bucket de polvo y cae acá igual. Es el mismo
@@ -259,6 +352,30 @@ class SupplementCombo {
         return alimento >= 0 && alimento < proteina;
     }
 
+    /**
+     * Espejo exacto de {@link #esProteinaAgregadaAUnAlimento}, para los subtipos de
+     * comida: si el nombre arranca por la cabeza de un polvo y ningún sustantivo de
+     * comida la precede, el sustantivo culinario que matcheó es el SABOR del polvo y no
+     * el producto.
+     *
+     * <p>Es la misma observación de orden, leída del otro lado, y por eso las dos reglas
+     * no pueden contradecirse: "Whey Protein sabor Leche Chocolatada" no es una bebida
+     * láctea, "Proteína Whey sabor Yogur Griego" no es un postre y "Whey sabor Chocolate
+     * Chips" no es un snack salado — en las tres la proteína se nombra primero. Al revés,
+     * "Leche con Proteína 1L" y "Avena Alta en Proteína 500g" arrancan por el alimento,
+     * así que el veto no dispara y el subtipo de comida se los queda.</p>
+     *
+     * <p>Sin esta regla, cada sustantivo de comida agregado acá le robaba productos al
+     * bucket de proteína en polvo — el mismo bug que {@code FORMATO_NO_POLVO} cerró en
+     * la otra dirección, reintroducido desde el lado de los alimentos.</p>
+     */
+    private static boolean esElSaborDeUnPolvo(String nombreNormalizado) {
+        int proteina = primeraAparicion(nombreNormalizado, CABEZA_PROTEINA);
+        if (proteina < 0) return false;
+        int alimento = primeraAparicion(nombreNormalizado, FORMATO_ALIMENTO);
+        return alimento < 0 || alimento > proteina;
+    }
+
     /** Índice de la primera de estas palabras en el nombre padeado, o -1. */
     private static int primeraAparicion(String nombreNormalizado, String[] palabras) {
         int mejor = -1;
@@ -274,11 +391,25 @@ class SupplementCombo {
      * que es el único bucket cuyas keywords ("proteina", "protein") aparecen en
      * productos de otro formato por el simple hecho de declarar su composición.
      */
-    private static final Map<String, Predicate<String>> VETO_POR_SUBTIPO = Map.of(
-            "Proteína en Polvo",
-            vetoDeFrases(FORMATO_NO_POLVO).or(SupplementCombo::esProteinaAgregadaAUnAlimento));
+    private static final Map<String, Predicate<String>> VETO_POR_SUBTIPO = compilarVetos();
 
-    /** Ningún veto — el caso de los 20 subtipos que no necesitan uno. */
+    /**
+     * "Proteína en Polvo" tiene el suyo — es el único bucket cuyas keywords aparecen en
+     * productos de otro formato por el solo hecho de declarar su composición — y cada
+     * subtipo de comida hereda el espejo, {@link #esElSaborDeUnPolvo}. Se deriva de la
+     * bandera y no se lista a mano: un subtipo de comida nuevo no puede olvidarse el veto.
+     */
+    private static Map<String, Predicate<String>> compilarVetos() {
+        Map<String, Predicate<String>> vetos = new HashMap<>();
+        vetos.put("Proteína en Polvo",
+                vetoDeFrases(FORMATO_NO_POLVO).or(SupplementCombo::esProteinaAgregadaAUnAlimento));
+        for (SubtipoSuplemento subtipo : SUPLEMENTO_SUBTIPOS) {
+            if (subtipo.comida()) vetos.put(subtipo.tipo(), SupplementCombo::esElSaborDeUnPolvo);
+        }
+        return Map.copyOf(vetos);
+    }
+
+    /** Ningún veto — el caso de los subtipos de suplemento, que no necesitan uno. */
     private static final Predicate<String> SIN_VETO = n -> false;
 
     /**

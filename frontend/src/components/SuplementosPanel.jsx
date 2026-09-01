@@ -121,12 +121,27 @@ export default function SuplementosPanel() {
         <p className="mb-[6px] text-eyebrow uppercase text-t3">Armador</p>
         <h1 className="mb-[24px] text-display-2 text-t1">Stack de suplementos</h1>
 
-        {/* Type selector */}
-        <div className="mb-[16px] rounded-card bg-s1 px-[24px] py-[20px]">
+        {/* Type selector.
+            El picker scrollea adentro de su propia tarjeta en vez de estirar la página.
+            Con 33 subtipos en 6 grupos, dejarlo crecer libre empuja el presupuesto, el
+            botón y los resultados abajo de todo: en un viewport de teléfono son ~1000px
+            de chips que hay que recorrer de nuevo en cada "Regenerar". El tope está en
+            vh para que no recorte de más en pantallas bajas, y "Seleccionados" queda
+            fijo arriba porque es el resumen de lo que se está eligiendo. */}
+        <div className="mb-[16px] rounded-card bg-s1 px-[20px] py-[20px] sm:px-[24px]">
           <p className="mb-[14px] text-[.85rem] font-semibold text-t2">
             ¿Qué suplementos necesitás?
           </p>
-          <MultiSelectTags groups={groups} selected={tipos} onToggle={toggleTipo} />
+          {/* bg-s1 en el picker y no sólo en la tarjeta: el header fijo usa `bg-inherit`,
+              que hereda el color COMPUTADO del padre — sin un fondo propio en esta raíz
+              resolvería a transparente y los chips pasarían por debajo a la vista. */}
+          <MultiSelectTags
+            groups={groups}
+            selected={tipos}
+            onToggle={toggleTipo}
+            stickySelected
+            className="max-h-[min(56vh,440px)] overflow-y-auto bg-s1"
+          />
         </div>
 
         {/* Budget + generate */}

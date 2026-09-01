@@ -402,11 +402,24 @@ entra en el pool barajado" — ignorando el score que acababa de calcular.
 `Botines` fuera de calzado · marca `DC` fuera de calzado en Gym · el par
 `marca|categoria` con dislike queda excluido de forma permanente.
 
-**Combo de suplementos** (`SupplementCombo`): cada producto se asigna a
-**exactamente un** subtipo en una pasada por precedencia (específico antes que
-genérico — una barra de proteína es una barra, no un polvo). El nombre manda;
-`p.categoria()` es fallback. Ranking del pick: marca preferida → precio por
-unidad de medida → `baseMlScore` → url.
+**Combo de suplementos** (`SupplementCombo`): **33 subtipos** en 6 grupos
+(Proteína · Vitaminas · Aderezos · Bebidas · Alimentos · Otros). Cada producto se
+asigna a **exactamente un** subtipo en una pasada por precedencia (específico
+antes que genérico — una barra de proteína es una barra, no un polvo). El nombre
+manda; `p.categoria()` es fallback. Ranking del pick: marca preferida → precio
+por unidad de medida → `baseMlScore` → url.
+
+**Los 12 subtipos de comida se declaran con `SubtipoSuplemento.comida(...)`, y la
+bandera arrastra dos consecuencias**: (1) quedan fuera del combo que acompaña al
+outfit de Gym —`OutfitsEndpoints` pide `TIPOS_COMBO_OUTFIT` explícito, así que esa
+grilla ya no crece sola con cada tipo nuevo—, y (2) heredan el veto
+`esElSaborDeUnPolvo`. Ese veto es el **espejo exacto** de
+`esProteinaAgregadaAUnAlimento`: un sustantivo culinario detrás de la cabeza de
+proteína es el SABOR del polvo, no el producto ("Whey Protein sabor Dulce de
+Leche" no es una mermelada). Sin él, cada keyword de comida le robaba productos al
+bucket de proteína. Se deriva de la bandera y **no se lista a mano** a propósito:
+un subtipo de comida nuevo no puede olvidarse el veto. Porqué completo en
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 La **marca preferida** es un orden, no un conjunto: ENA → Gold Nutrition →
 Star Nutrition → BSA → Xtrenght. Compara contra `Product.marca()`, que sale de
@@ -745,6 +758,17 @@ protegía de nada: les bloqueaba la clasificación correcta. El guard existe par
 que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
 Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
 
+**El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
+depende de un `bg-s1` que no se ve.** Con 33 subtipos, dejar crecer el picker
+empuja presupuesto, botón y resultados abajo de todo — en un teléfono son ~1000px
+de chips que hay que recorrer de nuevo en cada "Regenerar". `SuplementosPanel` le
+pasa `max-h-[min(56vh,440px)] overflow-y-auto bg-s1` y `stickySelected`.
+Ese `bg-s1` **no es decorativo**: la fila "Seleccionados" usa `bg-inherit`, que
+hereda el color **computado** del padre, así que sin fondo propio en esa raíz
+resuelve a transparente y los chips pasan por debajo a la vista. `stickySelected`
+es opt-in en `MultiSelectTags` por la misma razón: un `sticky` sin contenedor con
+scroll se pega al viewport de la página, que no es lo que nadie quiere.
+
 **`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
 por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
 catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
@@ -837,7 +861,6 @@ Dos cosas que se rompen en silencio si se tocan:
 | Problema | Estado |
 |---------|--------|
 | `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
-| `OutfitsEndpoints.outfits` pide TODOS los subtipos, así que el combo creció de 17 a 21 filas al agregar BCAA/Pre-Workout/Gainer/Colágeno | Solo crece donde el catálogo tiene esos productos; nunca fue una decisión explícita |
 
 ### Necesitan datos, no código
 
