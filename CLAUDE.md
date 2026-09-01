@@ -18,7 +18,7 @@
 > Se carga en contexto en cada sesión, así que tiene que ser navegable: preferí
 > una tabla y un puntero antes que un párrafo.
 >
-> Última actualización integral: 2026-08-18.
+> Última actualización integral: 2026-09-01.
 
 ---
 
@@ -529,6 +529,21 @@ a nivel `AppLayout`, no rutas.
 
 ## Gotchas
 
+> Cada uno de estos costó al menos una sesión. Están agrupados por **cuándo te
+> los cruzás**, no por subsistema, porque la pregunta que traés no es "¿de qué
+> módulo es esto?" sino "¿por qué no anda lo que acabo de tocar?".
+>
+> | Si estás tocando… | Andá a |
+> |---|---|
+> | auth, CORS, cookies, sesión, el status de una corrida | [Frontend ↔ backend](#frontend--backend-sesión-orígenes-y-status) |
+> | el toolchain, un jar, el venv, la base de dev, arrancar los servicios | [Entorno y procesos](#entorno-procesos-y-config) |
+> | un scraper, una page, una URL de catálogo o de imagen | [Leer un sitio](#leer-un-sitio) |
+> | keywords, categorías, el guard no-textil, normalización | [Taxonomía y clasificación](#taxonomía-y-clasificación) |
+> | un picker, una tarjeta que scrollea, chips animados | [Frontend: layout](#frontend-layout) |
+> | `docker-compose.yml`, el Dockerfile, los orígenes | [Docker](#docker) |
+
+### Frontend ↔ backend: sesión, orígenes y status
+
 **El entorno de desarrollo NO tiene la forma de ninguna instalación real, y eso
 esconde bugs de auth.** `vite dev` proxea `/api`, así que el frontend queda
 **same-origin** con el backend. Las dos vías que se instalan de verdad son
@@ -585,6 +600,49 @@ drena bajo ellos, así que la baseline lee cero y la aserción pasa midiendo la
 lectura de montaje en vez del poller. Vive en `src/SplashRoute.test.jsx`, que
 mockea `useAuth` y fija la baseline en 1 antes de medir.
 
+**Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
+
+- **`PostgresTestBase.truncateAll` es una lista a mano, no un barrido del
+  esquema.** Toda tabla nueva hay que agregarla ahí. Si te la olvidás no falla:
+  contamina otros tests y se ve como un bug en otro lado. `rol` está excluida a
+  propósito — es dato semilla de la migración, y truncarla deja el esquema sin
+  vocabulario de roles.
+- **Un test de esquema afirma el SQLState, no `SQLException`.** Un INSERT contra
+  una tabla que todavía no existe también tira `SQLException`, así que la versión
+  floja se pone verde ANTES de escribir la migración. `23514` = CHECK,
+  `23505` = UNIQUE.
+- **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
+  `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
+  BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
+- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
+  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
+  separan, el backend deja de negarse a sembrar con la password de ejemplo.
+- **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
+  los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
+  en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos
+  los cronjobs contra una config que se ve perfecta, porque el seeder nunca pisa
+  un hash existente.
+- **`@WebMvcTest` registra los `Filter` pero no los `@Component` comunes.** Un
+  test del slice de seguridad necesita importar `SecurityConfig`, `JwtAuthFilter`
+  **y** `TokenService`, o el contexto no carga.
+- **Un fixture tiene que sembrar el mismo rol que pone en el contexto de
+  seguridad.** El rol se lee de la BASE en cada request —el token no lo lleva—
+  así que decir ADMIN en el contexto y escribir VIEWER en la tabla da un sujeto
+  que la app trata como VIEWER, correctamente, y un test que falla por algo que
+  no tiene que ver con lo que quería probar.
+- **Los relojes fijos de los tests caen en segundos exactos.** Por eso los 1540
+  tests no vieron que `iat` (segundos) y `password_changed_at` (microsegundos)
+  se comparaban directo, rechazando el token del usuario que acababa de cambiar
+  su contraseña. **Todo cambio de auth se verifica además contra un proceso
+  real**: la verificación manual encontró tres bugs que la suite no podía ver
+  —dos que impedían arrancar y este—.
+- **Convención de commits de la cadena**: subject conventional (`COMMIT-1`) y
+  `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
+  rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
+  de `COMMIT-3`.
+
+### Entorno, procesos y config
+
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
 corre los tests con JRE 21. El comando completo está en
 [`CONTRIBUTING.md`](./CONTRIBUTING.md). `clean` no es opcional: sin él `mvn test`
@@ -593,55 +651,6 @@ puede pasar contra clases viejas y fingir verde.
 **Jar stale:** `cli/core/builder.py` saltea el build si `scraper/scraper.jar`
 existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.0.jar`
 → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
-
-**`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
-descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
-`curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles
-literales adentro) parseaba perfecto en test y rendía **0 productos en un run
-real**. Chromium normaliza los atributos a comillas dobles y escapa las
-comillas internas como `&quot;` al serializar `document.documentElement.outerHTML`
-(que es lo que `page.content()` devuelve). Cualquier parser que lea un
-atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
-entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
-
-**Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
-cada reader tenía su propia junta inline y cada una se quedaba en un punto
-distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
-que un sitio que sirve `src="/img/..."` guardaba un path pelado en
-`productos.imagen_url` en **todas** sus filas. Un path relativo no es una imagen
-peor: no es una imagen. `ImageUrl.absolutize` devuelve `""` cuando no puede
-resolver, que es lo que el pipeline ya lee como abstención (`CODE-5`).
-
-**Una clave del feed no es una URL:** Compragamer y Maximus exponen el
-identificador de la imagen, no su dirección. Los dos necesitan que se reconstruya
-la ruta del bucket alrededor de ese valor. Antes de dar por sentado que un sitio
-"no tiene imágenes", buscar en el payload la clave con la que el propio sitio
-arma su `<img>` — en Maximus el comentario del código afirmaba que no existía y
-sí existía (`item_code4web`), y eso dejó 745 productos sin imagen.
-
-**Un índice no es un catálogo, y `/productos/` no siempre es el catálogo:**
-en Tiendanube la convención es que `/productos/` liste todo, pero el tema
-puede pisarla. En Morashop `/productos/` es una landing de "8 CATEGORÍAS" con
-**cero** productos y `/suplementos/` es un índice de subcategorías, también
-cero; el catálogo entero vive un nivel más abajo. Configurar cualquiera de las
-dos rinde 0 productos sin error, sin página vacía y sin nada que un operador
-pueda ver — la clase de bug que cerró `V24`. Antes de dar por buena una URL de
-catálogo, contá los productos que sirve en crudo (`curl | rg -c data-product-id`),
-no asumas la convención. Y cuando el catálogo se descubre en runtime, que la
-falta de resultados **tire excepción**: `SiteYieldGuard` no puede cubrir el caso
-porque sólo alerta cuando un sitio **cae** contra la corrida anterior, así que
-un sitio que rinde cero en su primera corrida nunca lo despierta.
-
-**El tope de páginas de Tiendanube es configurable, y tenía DOS copias:**
-`MAX_PAGINAS_DEFAULT` (60) en `TiendanubePage`, con override opcional
-`sitio.<n>.max_paginas`. Era 25 hardcodeado y le cortaba el catálogo a entreno
-por la mitad. Lo importante para la próxima vez: el `25` estaba en **dos**
-lugares —el bound del loop y el fallback que construye la URL de la página
-siguiente— y tocar sólo el primero deja el arreglo a medias en silencio, porque
-sin URL nueva el loop se queda sin `nextUrl` y corta igual. El tope sigue siendo
-cinturón de seguridad; quien corta de verdad es el chequeo de dos páginas vacías
-seguidas, que en Tiendanube funciona porque pasado el final sirve una página
-vacía en vez de repetir la última como hace osCommerce.
 
 **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita
 el prefijo `jdbc:` (`jdbc:postgresql://…`); psycopg2 **no** lo entiende, solo
@@ -723,6 +732,65 @@ un `.env` que ya existe no pisa nada.
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.
 
+### Leer un sitio
+
+**`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
+descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
+`curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles
+literales adentro) parseaba perfecto en test y rendía **0 productos en un run
+real**. Chromium normaliza los atributos a comillas dobles y escapa las
+comillas internas como `&quot;` al serializar `document.documentElement.outerHTML`
+(que es lo que `page.content()` devuelve). Cualquier parser que lea un
+atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
+entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
+
+**Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
+cada reader tenía su propia junta inline y cada una se quedaba en un punto
+distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
+que un sitio que sirve `src="/img/..."` guardaba un path pelado en
+`productos.imagen_url` en **todas** sus filas. Un path relativo no es una imagen
+peor: no es una imagen. `ImageUrl.absolutize` devuelve `""` cuando no puede
+resolver, que es lo que el pipeline ya lee como abstención (`CODE-5`).
+
+**Una clave del feed no es una URL:** Compragamer y Maximus exponen el
+identificador de la imagen, no su dirección. Los dos necesitan que se reconstruya
+la ruta del bucket alrededor de ese valor. Antes de dar por sentado que un sitio
+"no tiene imágenes", buscar en el payload la clave con la que el propio sitio
+arma su `<img>` — en Maximus el comentario del código afirmaba que no existía y
+sí existía (`item_code4web`), y eso dejó 745 productos sin imagen.
+
+**Un índice no es un catálogo, y `/productos/` no siempre es el catálogo:**
+en Tiendanube la convención es que `/productos/` liste todo, pero el tema
+puede pisarla. En Morashop `/productos/` es una landing de "8 CATEGORÍAS" con
+**cero** productos y `/suplementos/` es un índice de subcategorías, también
+cero; el catálogo entero vive un nivel más abajo. Configurar cualquiera de las
+dos rinde 0 productos sin error, sin página vacía y sin nada que un operador
+pueda ver — la clase de bug que cerró `V24`. Antes de dar por buena una URL de
+catálogo, contá los productos que sirve en crudo (`curl | rg -c data-product-id`),
+no asumas la convención. Y cuando el catálogo se descubre en runtime, que la
+falta de resultados **tire excepción**: `SiteYieldGuard` no puede cubrir el caso
+porque sólo alerta cuando un sitio **cae** contra la corrida anterior, así que
+un sitio que rinde cero en su primera corrida nunca lo despierta.
+
+**El tope de páginas de Tiendanube es configurable, y tenía DOS copias:**
+`MAX_PAGINAS_DEFAULT` (60) en `TiendanubePage`, con override opcional
+`sitio.<n>.max_paginas`. Era 25 hardcodeado y le cortaba el catálogo a entreno
+por la mitad. Lo importante para la próxima vez: el `25` estaba en **dos**
+lugares —el bound del loop y el fallback que construye la URL de la página
+siguiente— y tocar sólo el primero deja el arreglo a medias en silencio, porque
+sin URL nueva el loop se queda sin `nextUrl` y corta igual. El tope sigue siendo
+cinturón de seguridad; quien corta de verdad es el chequeo de dos páginas vacías
+seguidas, que en Tiendanube funciona porque pasado el final sirve una página
+vacía en vez de repetir la última como hace osCommerce.
+
+### Taxonomía y clasificación
+
+**`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
+por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
+catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
+páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
+ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
+
 **En la taxonomía de categorías, el ESPACIO es el word boundary — y un keyword
 sin él se come palabras enteras en silencio.** `GarmentTaxonomy.anyMatch` es un
 `contains()` pelado sobre un texto que `CategoryClassifier` ya padeó con
@@ -772,6 +840,8 @@ protegía de nada: les bloqueaba la clasificación correcta. El guard existe par
 que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
 Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
 
+### Frontend: layout
+
 **El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
 depende de un `bg-s1` que no se ve.** Con 33 subtipos, dejar crecer el picker
 empuja presupuesto, botón y resultados abajo de todo — en un teléfono son ~1000px
@@ -782,53 +852,6 @@ hereda el color **computado** del padre, así que sin fondo propio en esa raíz
 resuelve a transparente y los chips pasan por debajo a la vista. `stickySelected`
 es opt-in en `MultiSelectTags` por la misma razón: un `sticky` sin contenedor con
 scroll se pega al viewport de la página, que no es lo que nadie quiere.
-
-**`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
-por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
-catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
-páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
-ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
-
-**Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
-
-- **`PostgresTestBase.truncateAll` es una lista a mano, no un barrido del
-  esquema.** Toda tabla nueva hay que agregarla ahí. Si te la olvidás no falla:
-  contamina otros tests y se ve como un bug en otro lado. `rol` está excluida a
-  propósito — es dato semilla de la migración, y truncarla deja el esquema sin
-  vocabulario de roles.
-- **Un test de esquema afirma el SQLState, no `SQLException`.** Un INSERT contra
-  una tabla que todavía no existe también tira `SQLException`, así que la versión
-  floja se pone verde ANTES de escribir la migración. `23514` = CHECK,
-  `23505` = UNIQUE.
-- **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
-  `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
-  BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
-- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
-  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
-  separan, el backend deja de negarse a sembrar con la password de ejemplo.
-- **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
-  los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
-  en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos
-  los cronjobs contra una config que se ve perfecta, porque el seeder nunca pisa
-  un hash existente.
-- **`@WebMvcTest` registra los `Filter` pero no los `@Component` comunes.** Un
-  test del slice de seguridad necesita importar `SecurityConfig`, `JwtAuthFilter`
-  **y** `TokenService`, o el contexto no carga.
-- **Un fixture tiene que sembrar el mismo rol que pone en el contexto de
-  seguridad.** El rol se lee de la BASE en cada request —el token no lo lleva—
-  así que decir ADMIN en el contexto y escribir VIEWER en la tabla da un sujeto
-  que la app trata como VIEWER, correctamente, y un test que falla por algo que
-  no tiene que ver con lo que quería probar.
-- **Los relojes fijos de los tests caen en segundos exactos.** Por eso los 1540
-  tests no vieron que `iat` (segundos) y `password_changed_at` (microsegundos)
-  se comparaban directo, rechazando el token del usuario que acababa de cambiar
-  su contraseña. **Todo cambio de auth se verifica además contra un proceso
-  real**: la verificación manual encontró tres bugs que la suite no podía ver
-  —dos que impedían arrancar y este—.
-- **Convención de commits de la cadena**: subject conventional (`COMMIT-1`) y
-  `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
-  rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
-  de `COMMIT-3`.
 
 **El picker de categorías del outfit scrollea adentro de su tarjeta, y sus chips
 tienen que ser únicos entre grupos.** `OutfitsPanel` usa el mismo
@@ -851,6 +874,8 @@ Dos cosas que se rompen en silencio si se tocan:
   entre grupos. Duplicar una rompe el invariante sin error: el síntoma es un chip
   que deja de animar. Los dos `OutfitPanel` (gym/casual) no colisionan porque la
   barra de tabs monta uno solo (`tab === 'outfit' && ...`).
+
+### Docker
 
 **Docker:**
 - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
