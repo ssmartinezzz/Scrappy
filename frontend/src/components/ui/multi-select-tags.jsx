@@ -53,6 +53,11 @@ const MultiSelectTags = React.forwardRef(({
   selected,
   onToggle,
   selectedLabel = 'Seleccionados',
+  // Opt-in: pins the "Seleccionados" row to the top while the groups scroll under it.
+  // Only meaningful when the consumer puts this component inside a scroll container —
+  // it is the nearest scrolling ancestor that a sticky element sticks to. Off by
+  // default so a consumer that scrolls with the page keeps the plain flow.
+  stickySelected = false,
   id,
   className,
   ...props
@@ -62,7 +67,7 @@ const MultiSelectTags = React.forwardRef(({
 
   return (
     <div ref={ref} id={id} className={cn('flex flex-col gap-[16px]', className)} {...props}>
-      <div>
+      <div className={cn(stickySelected && 'sticky top-0 z-[1] bg-inherit pb-[8px]')}>
         <p className="mb-[8px] text-[.72rem] font-bold uppercase tracking-[.1em] text-t4">
           {selectedLabel}
         </p>
