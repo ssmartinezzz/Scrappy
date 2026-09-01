@@ -720,6 +720,17 @@ protegía de nada: les bloqueaba la clasificación correcta. El guard existe par
 que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
 Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
 
+**El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
+depende de un `bg-s1` que no se ve.** Con 33 subtipos, dejar crecer el picker
+empuja presupuesto, botón y resultados abajo de todo — en un teléfono son ~1000px
+de chips que hay que recorrer de nuevo en cada "Regenerar". `SuplementosPanel` le
+pasa `max-h-[min(56vh,440px)] overflow-y-auto bg-s1` y `stickySelected`.
+Ese `bg-s1` **no es decorativo**: la fila "Seleccionados" usa `bg-inherit`, que
+hereda el color **computado** del padre, así que sin fondo propio en esa raíz
+resuelve a transparente y los chips pasan por debajo a la vista. `stickySelected`
+es opt-in en `MultiSelectTags` por la misma razón: un `sticky` sin contenedor con
+scroll se pega al viewport de la página, que no es lo que nadie quiere.
+
 **`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
 por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
 catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
