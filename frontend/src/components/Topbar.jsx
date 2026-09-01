@@ -3,7 +3,7 @@ import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchInflacion } from '..
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
-import { useAuth } from '../auth/AuthProvider';
+import UserMenu from './UserMenu';
 
 
 export default function Topbar({
@@ -16,9 +16,6 @@ export default function Topbar({
   // fails closed, not open.
   canScrape = false,
 }) {
-  // Phase 5 built logout but gave it no home yet (tasks-part2 5.11) — this is
-  // its home: the user menu lives in the Topbar, next to the scrape control.
-  const { identity, logout } = useAuth();
   const sitioMap  = meta?.marcas        || {};
   const rubrosMap = facets?.rubros      || {};
   const total     = meta?.total         || 0;
@@ -67,20 +64,28 @@ export default function Topbar({
 
   return (
     <div className="topbar-root flex-shrink-0 bg-s1 border-b border-border">
-      {/* Row 1: Logo + Rubro tabs */}
+      {/* Row 1: Logo + Rubro tabs.
+          The row does not wrap and `body` is `overflow-x: hidden`, so anything
+          past the viewport is CLIPPED, not scrollable — and the identity
+          control sits last. Measured at 390px with five rubros: the tabs alone
+          run 660px and pushed the user menu to x=752, entirely off a phone
+          screen, i.e. no way to log out. The tab strip is the only elastic
+          part, so it is the part that scrolls (`min-w-0` is what actually lets
+          a flex child shrink below its content); the brand and the right-hand
+          cluster stay pinned and visible. */}
       <div className="flex items-center gap-1 px-2 py-[.45rem] border-b border-s3">
-        <span className="text-base mr-[4px]">🛒</span>
-        <strong className="text-[.85rem] text-primary2 mr-[12px]">Scraper AR</strong>
+        <span className="text-base mr-[4px] shrink-0">🛒</span>
+        <strong className="hidden text-[.85rem] text-primary2 mr-[12px] shrink-0 sm:inline">Scraper AR</strong>
 
         {/* Rubro tabs */}
-        <div className="flex gap-[3px]">
+        <div className="flex min-w-0 flex-1 gap-[3px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {rubros.map(r => {
             const count = r.key ? rubrosMap[r.key] || 0 : total;
             const active = rubroFiltro === r.key;
             return (
               <button key={r.key} onClick={() => onRubroChange(r.key)}
                 className={cn(
-                  'flex items-center gap-[4px] rounded-full border-none px-[10px] py-[4px]',
+                  'flex shrink-0 items-center gap-[4px] whitespace-nowrap rounded-full border-none px-[10px] py-[4px]',
                   'cursor-pointer text-[.72rem] font-bold transition-all duration-150',
                   active ? 'bg-primary text-white' : 'bg-transparent text-t4'
                 )}>
@@ -142,24 +147,16 @@ export default function Topbar({
         )}
 
         {/* Re-scrape button + user menu */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2 pl-1">
           {canScrape && (
             <button onClick={onReScrape}
-              className="rounded-full border-[1.5px] border-border bg-transparent px-[10px] py-[4px]
-                         text-[.7rem] text-t4 cursor-pointer">
-              ↺ Nuevo scraping
+              title="Nuevo scraping"
+              className="shrink-0 whitespace-nowrap rounded-full border-[1.5px] border-border bg-transparent
+                         px-[10px] py-[4px] text-[.7rem] text-t4 cursor-pointer">
+              ↺<span className="hidden sm:inline"> Nuevo scraping</span>
             </button>
           )}
-          {identity && (
-            <div className="flex items-center gap-[6px] rounded-full border-[1.5px] border-border px-[10px] py-[4px]">
-              <span className="text-[.68rem] font-semibold text-t2">{identity.username}</span>
-              <button onClick={logout}
-                className="rounded-full border-none bg-transparent px-[6px] py-[1px]
-                           text-[.66rem] text-t4 cursor-pointer hover:text-danger">
-                Cerrar sesión
-              </button>
-            </div>
-          )}
+          <UserMenu />
         </div>
       </div>
 
