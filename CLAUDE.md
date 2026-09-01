@@ -335,10 +335,41 @@ Dos algoritmos con objetivos distintos, ambos leyendo el catálogo en memoria
 | Algoritmo | Muestreo aleatorio ponderado | MCKP con branch-and-bound (+ modo greedy) |
 | Slots | torso, piernas, calzado + accesorio best-effort | Sub-slots: torso-base/outer, piernas, calzado, accesorio-head/feet/body |
 
-**El peso de `armar` es el producto de cuatro factores, todos neutros en 1.0
-cuando no hay señal:** cercanía a la mediana de la banda de precio (±30%) ×
-boost de likes (cap 4.0) × `mlFactor` (oportunidad ML, cap 2.5) ×
-`VisualCoherence` (estampado/fit/color). Ninguno es un filtro.
+**Los dos armadores comparten UNA política de pesos, y vive en `OutfitRules`.**
+Todos los factores son neutros en 1.0 cuando no hay señal y ninguno es un filtro:
+cercanía a un centro de precio (±30%) × boost de likes (cap 4.0) × `mlFactor`
+(oportunidad ML, cap 2.5) × `VisualCoherence` (estampado/fit/color) ×
+`diversidadDeMarca` (×0.7 por marca repetida en el outfit). Lo único que cambia
+entre armadores es cuál es el centro de precio: en `armar` es la mediana del pool
+elegible; en el builder es **`presupuesto / slots abiertos`**, el reparto
+equitativo de lo que queda por gastar.
+
+⚠️ **Hasta `outfit-builder-pick-quality` el builder por presupuesto NO seguía esa
+política**: maximizaba `baseMlScore` **crudo**, sin acotar. Y `baseMlScore` es
+`(100 - scoreP) + bonus`, donde `scoreP` es el **percentil de PRECIO** dentro de
+categoría+género y los cuatro bonus son también observaciones de precio. O sea que
+la única función objetivo de una superficie cuyo punto entero es gastar un
+presupuesto era *"qué tan barato está esto para su categoría"*. Tres consecuencias
+que nadie pidió, y las tres se veían como "el builder elige cualquier cosa":
+
+1. **El presupuesto quedaba sin usar.** Cada peso de más BAJABA el objetivo, así
+   que el techo era algo que el solver tenía incentivo a esquivar. Con $100.000 y
+   dos candidatos —uno de $10.000 y uno de $95.000— elegía el de $10.000. Está
+   fijado en `OutfitBudgetBuilderPickQualityTest`.
+2. **Los likes no existían.** `RecommendationService` tiene dos scores:
+   `baseMlScore` (público) y `finalScore` (privado, = base × boost de likes). El
+   builder llamaba al primero, así que `boostLikeCount` llegaba adentro del
+   `FeedbackModel` y se descartaba. Los dislikes sí andaban —son vetos duros
+   aguas arriba—, con lo cual el feedback era **asimétrico**: se podía sacar, no
+   se podía pedir.
+3. **Cero diversidad de marca**, y el objetivo empujaba justo para el otro lado:
+   el sitio más agresivo del catálogo se llevaba los cuatro slots.
+
+**El término de presupuesto vive en el score cacheado, no en `aporte`** — y no es
+prolijidad. Depende sólo del precio del candidato, así que meterlo ahí arregla
+además el **pool**: rankear el top-60 por ML crudo lo llenaba con la cola más
+barata de cada categoría, y ningún término posterior puede elegir un producto que
+nunca llegó a ser candidato.
 
 `mlFactor` = `clamp(baseMlScore(p)/50.0, 0.5, 2.5)`. **50.0 es
 `baseMlScore(MlScore.EMPTY)`** — anclar ahí hace que un producto sin datos de ML
@@ -355,9 +386,16 @@ rosa`, circular; armonía = distancia ≤ 2). Los neutros (`negro blanco gris be
 marron`) no tienen posición en la rueda y combinan con todo. Un atributo vacío
 **nunca** dispara una regla: vienen de un clasificador que se abstiene.
 
-En el MCKP la penalización se aplica como **resta de un monto no-negativo**, así
-que la cota superior del branch-and-bound sigue siendo válida y no se poda
-ninguna rama óptima.
+En el MCKP las penalizaciones de coordinación (coherencia visual × diversidad de
+marca) se aplican como **resta de un monto no-negativo**, así que la cota superior
+del branch-and-bound sigue siendo válida y no se poda ninguna rama óptima. Todo
+término que se agregue a `aporte` en el futuro tiene que conservar esa propiedad:
+un factor que pueda pasar de 1.0 empieza a podar el óptimo **en silencio**.
+
+El greedy también rankeaba mal: elegía por **coherencia sola** entre los
+asequibles y cortaba en el primero perfectamente coherente. Como la mayoría del
+catálogo se abstiene en atributos visuales, en la práctica era "el primero que
+entra en el pool barajado" — ignorando el score que acababa de calcular.
 
 **Vetos duros** (estos sí son filtros, y corren aguas arriba del peso):
 `genero=infantil` nunca es elegible · `Mochila`/`Bolso` fuera de accesorio ·
@@ -777,6 +815,28 @@ ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
   `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
   rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
   de `COMMIT-3`.
+
+**El picker de categorías del outfit scrollea adentro de su tarjeta, y sus chips
+tienen que ser únicos entre grupos.** `OutfitsPanel` usa el mismo
+`MultiSelectTags` que el armador de suplementos, con `stickySelected` y
+`max-h-[min(56vh,440px)] overflow-y-auto bg-s1`. Antes eran cuatro acordeones
+colapsables, que cambiaban un problema por otro: colapsados no se veía qué estaba
+seleccionado sin abrir cada grupo; expandidos, 43 chips empujaban presupuesto,
+botón y outfit abajo del fold. Medido en un viewport de 430×860: 693px de
+contenido dentro de 440px de picker, y la página **no** scrollea.
+
+Dos cosas que se rompen en silencio si se tocan:
+
+- **`bg-s1` va en el picker, no sólo en la tarjeta.** La fila "Seleccionados" usa
+  `bg-inherit`, que hereda el color **computado** del padre: sin fondo propio en
+  esa raíz resuelve a transparente y los chips se ven pasar por debajo. Verificado
+  con `getComputedStyle`: tiene que dar un color, no `rgba(0,0,0,0)`.
+- **`MultiSelectTags` anima con `layoutId={tag}`**, que exige que cada tag esté
+  montado en **exactamente un** lugar. `PICKER_GROUPS` se **deriva** de
+  `BUILDER_GROUPS` en vez de escribirse a mano, y hoy ninguna categoría se repite
+  entre grupos. Duplicar una rompe el invariante sin error: el síntoma es un chip
+  que deja de animar. Los dos `OutfitPanel` (gym/casual) no colisionan porque la
+  barra de tabs monta uno solo (`tab === 'outfit' && ...`).
 
 **Docker:**
 - `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
