@@ -1,5 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { fetchOutfit, sendOutfitFeedback, fetchOutfitBuilder, resetOutfitFeedback, fmt } from '../api';
+import { MultiSelectTags } from './ui/multi-select-tags';
+import { MoneyInput } from './ui/money-input';
+import { cn } from '@/lib/utils';
 
 // Orden real en que se compone un outfit (de torso a calzado, accesorio al final) —
 // el índice no es decorativo, refleja la secuencia con la que te vestís.
@@ -165,6 +168,16 @@ const BUILDER_GROUPS = [
   },
 ];
 
+// BUILDER_GROUPS in the shape MultiSelectTags speaks. Derived rather than a second
+// hand-written list: the taxonomy above stays the single owner, so a category added
+// there shows up in the picker without a matching edit here.
+//
+// The picker relies on tags being unique across ALL groups — it drives framer-motion's
+// shared-element animation with `layoutId={tag}`, which needs each tag mounted in
+// exactly one place. Duplicating a category across two groups would break that
+// silently, as a chip that refuses to animate.
+const PICKER_GROUPS = BUILDER_GROUPS.map(g => ({ label: g.label, tags: g.cats }));
+
 // Default gym categories pre-selected on mount (UOB-03, UOB-05)
 const GYM_DEFAULT_CATS = new Set([
   'Remera', 'Buzo', 'Musculosa', 'Campera',                                    // torso
@@ -195,16 +208,15 @@ const STYLE_CONFIG = {
 // live outfit result card with re-roll variety logic (MCKP → greedy after 10).
 function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, onSaveOutfit }) {
   const styleConfig = STYLE_CONFIG[style] || STYLE_CONFIG.gym;
+  const presupuestoId = `presupuesto-outfit-${style}`;
   const [genero, setGenero]                     = useState('hombre');
   const [selectedCats, setSelectedCats]         = useState(new Set(styleConfig.defaultCats));
   const [presupuesto, setPresupuesto]           = useState('');
-  const [presupuestoSuplementos, setPresupuestoSuplementos] = useState('');
   const [attemptCount, setAttemptCount]         = useState(0);
   const [currentOutfitUrls, setCurrentOutfitUrls] = useState([]);
   const [result, setResult]                     = useState(null);
   const [loading, setLoading]                   = useState(false);
   const [error, setError]                       = useState(null);
-  const [expanded, setExpanded]                 = useState({ torso:true, piernas:true, calzado:true, accesorio:false });
   const [sentSlots, setSentSlots]               = useState(() => new Set());
   const [removedSlots, setRemovedSlots]         = useState(() => new Set());
   const [saving, setSaving]                     = useState(false);
@@ -299,10 +311,6 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
     setGreedyExcluded([]);
   }
 
-  function toggleGroup(key) {
-    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
-  }
-
   // Budget change: reset counter and exclusions (UOB-07)
   function handlePresupuestoChange(v) {
     setPresupuesto(v);
@@ -388,105 +396,104 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
         </div>
       )}
 
-      {/* Gender tabs — Hombre / Mujer only (UOB-02) */}
-      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-        <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Género:</span>
-        {['hombre', 'mujer'].map(g => (
-          <button key={g} onClick={() => handleGeneroChange(g)}
-            className={`genero-pill ${genero === g ? 'active' : ''}`}>{g}</button>
-        ))}
-        <button
-          onClick={handleResetFeedback}
-          disabled={resetting}
-          title="Borra el historial de Me gusta / No me gusta para que el generador empiece desde cero"
-          style={{
-            marginLeft:'auto', padding:'3px 10px', borderRadius:6, fontSize:'.72rem',
-            fontWeight:600, cursor: resetting ? 'default' : 'pointer',
-            background:'var(--s3)', border:'1px solid var(--bd)',
-            color:'var(--t2)', opacity: resetting ? .5 : 1,
-          }}>
-          {resetting ? 'Reseteando...' : '↺ Resetear gustos'}
-        </button>
-      </div>
+      {/* Form — same language as the supplements builder: design tokens instead of
+          inline styles, one card per decision, and a picker that scrolls inside its
+          own card rather than stretching the page.
 
-      {/* Category picker — 4 collapsible groups (UOB-04) */}
-      {BUILDER_GROUPS.map(group => (
-        <div key={group.key} style={{ borderRadius:8, border:'1px solid var(--bd)', overflow:'hidden' }}>
+          The four groups used to be collapsible accordions, which traded one problem
+          for another: collapsed, you could not see what was selected without opening
+          each group; expanded, 43 chips pushed the budget, the button and the outfit
+          itself below the fold. The scrolling card with a pinned "Seleccionados" row
+          answers both — the summary is always visible and the page never grows.
+
+          Not carried over: the commented-out "presupuesto suplementos" input. It was
+          dead markup behind dead state — /api/outfits/builder still has no supplement
+          budget to send it to, and SuplementosPanel is where that decision lives now. */}
+      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+        {/* Gender tabs — Hombre / Mujer only (UOB-02) */}
+        <div className="flex flex-wrap items-center gap-[8px]">
+          <span className="text-[.72rem] font-semibold text-t4">Género:</span>
+          {['hombre', 'mujer'].map(g => (
+            <button
+              key={g}
+              onClick={() => handleGeneroChange(g)}
+              aria-pressed={genero === g}
+              className={cn(
+                'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem] capitalize',
+                '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                genero === g
+                  ? 'border border-transparent bg-primary text-white'
+                  : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
+              )}
+            >
+              {g}
+            </button>
+          ))}
           <button
-            onClick={() => toggleGroup(group.key)}
-            style={{
-              width:'100%', textAlign:'left', padding:'.5rem .75rem',
-              background:'var(--s1)', border:'none', cursor:'pointer',
-              fontSize:'.75rem', fontWeight:700, color:'var(--t2)',
-              display:'flex', justifyContent:'space-between', alignItems:'center',
-            }}>
-            <span>{group.label}</span>
-            <span style={{ fontSize:'.65rem', color:'var(--t4)' }}>
-              {expanded[group.key] ? '▲' : '▼'}
-            </span>
+            onClick={handleResetFeedback}
+            disabled={resetting}
+            title="Borra el historial de Me gusta / No me gusta para que el generador empiece desde cero"
+            className={cn(
+              'ml-auto inline-flex min-h-[44px] items-center rounded-btn border border-bd2 bg-s2 px-[14px] py-[8px]',
+              'text-[.8rem] font-semibold text-t3 transition-colors',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+              resetting ? 'cursor-default opacity-50' : 'cursor-pointer hover:border-primary'
+            )}
+          >
+            {resetting ? 'Reseteando...' : '↺ Resetear gustos'}
           </button>
-
-          {expanded[group.key] && (
-            <div style={{ padding:'.5rem .75rem', display:'flex', flexWrap:'wrap', gap:6 }}>
-              {group.cats.map(cat => {
-                const active = selectedCats.has(cat);
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => toggleCat(cat)}
-                    style={{
-                      padding:'3px 10px', borderRadius:20, fontSize:'.7rem', fontWeight:600,
-                      cursor:'pointer',
-                      border: active ? '1.5px solid var(--p2)' : '1px solid var(--bd)',
-                      background: active ? 'var(--p2)' : 'var(--s2)',
-                      color: active ? '#fff' : 'var(--t3)',
-                    }}>
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
-      ))}
 
-      {/* Budget inputs (UOB-08, UOB-09) */}
-      <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto outfit:</span>
-          <input
-            type="number"
-            placeholder="Sin límite"
-            value={presupuesto}
-            onChange={e => handlePresupuestoChange(e.target.value)}
-            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
-                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
+        {/* Category picker (UOB-04) */}
+        <div className="rounded-card bg-s1 px-[20px] py-[20px] sm:px-[24px]">
+          <p className="mb-[14px] text-[.85rem] font-semibold text-t2">
+            ¿Qué prendas querés en el outfit?
+          </p>
+          {/* bg-s1 on the picker and not only on the card: the pinned header uses
+              `bg-inherit`, which inherits the COMPUTED colour of its parent — without
+              a background of its own on this root it resolves to transparent and the
+              chips scroll visibly underneath it. */}
+          <MultiSelectTags
+            data-testid="cat-picker"
+            groups={PICKER_GROUPS}
+            selected={selectedCats}
+            onToggle={toggleCat}
+            stickySelected
+            className="max-h-[min(56vh,440px)] overflow-y-auto bg-s1"
           />
         </div>
-        {/* TODO: supplement budget — wire to builder endpoint when /api/outfits/builder supports supplements
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <span style={{ fontSize:'.72rem', color:'var(--t4)', fontWeight:600 }}>Presupuesto suplementos (opcional):</span>
-          <input
-            type="number"
-            placeholder="Sin límite"
-            value={presupuestoSuplementos}
-            onChange={e => setPresupuestoSuplementos(e.target.value)}
-            style={{ width:130, padding:'3px 8px', fontSize:'.78rem', borderRadius:4,
-                     border:'1px solid var(--bd)', background:'var(--s2)', color:'var(--t1)' }}
-          />
+
+        {/* Budget + generate (UOB-08, UOB-09) */}
+        <div className="flex flex-wrap items-end gap-[12px]">
+          <div className="min-w-[200px] flex-1">
+            <label
+              htmlFor={presupuestoId}
+              className="mb-[6px] block text-[.8rem] font-semibold text-t3"
+            >
+              Presupuesto del outfit (opcional)
+            </label>
+            <MoneyInput
+              id={presupuestoId}
+              value={presupuesto}
+              onChange={handlePresupuestoChange}
+              placeholder="Ej: 150.000"
+            />
+          </div>
+          <button
+            onClick={() => { setAttemptCount(0); setCurrentOutfitUrls([]); load([], false); }}
+            disabled={loading || !selectedCats.size}
+            className={cn(
+              'inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-btn px-[28px]',
+              'text-[.9rem] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+              (loading || !selectedCats.size)
+                ? 'cursor-not-allowed bg-s3 text-t3'
+                : 'cursor-pointer bg-primary text-white hover:bg-primary2'
+            )}
+          >
+            {loading ? 'Buscando...' : 'Armar'}
+          </button>
         </div>
-        */}
-        <button
-          onClick={() => { setAttemptCount(0); setCurrentOutfitUrls([]); load([], false); }}
-          disabled={loading || !selectedCats.size}
-          style={{
-            padding:'5px 18px', borderRadius:8, border:'1px solid var(--p)',
-            background:'var(--p)', color:'#fff', fontSize:'.78rem', fontWeight:700,
-            cursor: (loading || !selectedCats.size) ? 'default' : 'pointer',
-            opacity: (loading || !selectedCats.size) ? .7 : 1,
-          }}>
-          {loading ? 'Buscando...' : 'Armar'}
-        </button>
       </div>
 
       {/* Re-roll counter indicator */}

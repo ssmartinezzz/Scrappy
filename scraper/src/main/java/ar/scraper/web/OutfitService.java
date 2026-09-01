@@ -59,15 +59,15 @@ public class OutfitService {
     // Banda de precio: ±30% alrededor de la mediana del pool elegible.
     // Elegido como compromiso entre coherencia visual/económica del outfit
     // y disponibilidad de candidatos en catálogos chicos (ver tasks.md 1.4).
-    private static final double PRICE_BAND_PCT = 0.30;
+    private static final double PRICE_BAND_PCT = OutfitRules.PRICE_BAND_PCT;
 
     // Boost de feedback (ADR-2 en design.md de outfit-recommendation-quality):
     // cada like sobre un par marca|categoria suma FEEDBACK_BOOST_STEP al multiplicador
     // de peso en weightedRandomPick, hasta un máximo de FEEDBACK_BOOST_CAP likes contados
     // (boostFactor ∈ [1.0, 1 + CAP*STEP] = [1.0, 4.0] con los defaults). Tunables documentados
     // igual que PRICE_BAND_PCT — ver Open Question 0.2 en tasks.md.
-    private static final double FEEDBACK_BOOST_STEP = 1.0;
-    private static final int    FEEDBACK_BOOST_CAP   = 3;
+    private static final double FEEDBACK_BOOST_STEP = OutfitRules.FEEDBACK_BOOST_STEP;
+    private static final int    FEEDBACK_BOOST_CAP   = OutfitRules.FEEDBACK_BOOST_CAP;
 
     // Factor de oportunidad ML en weightedRandomPick. El armador aleatorio pesaba
     // solo por distancia de precio y likes: dentro de una misma banda, un
@@ -80,9 +80,9 @@ public class OutfitService {
     //
     // El techo queda POR DEBAJO del de FEEDBACK_BOOST (4.0) a propósito: un like es
     // una declaración de gusto, un badge es una observación de precio.
-    private static final double ML_SCORE_NEUTRO = 50.0;
-    private static final double ML_FACTOR_MIN   = 0.5;
-    private static final double ML_FACTOR_MAX   = 2.5;
+    private static final double ML_SCORE_NEUTRO = OutfitRules.ML_SCORE_NEUTRO;
+    private static final double ML_FACTOR_MIN   = OutfitRules.ML_FACTOR_MIN;
+    private static final double ML_FACTOR_MAX   = OutfitRules.ML_FACTOR_MAX;
 
     /** categoria → slot, por taxonomía de design.md / spec.md. */
     private static final Map<String, String> CATEGORIA_SLOT = buildCategoriaSlotMap();
@@ -697,8 +697,7 @@ public class OutfitService {
      * de probabilidad pero nunca queda excluido, que es lo que mantiene la variedad.</p>
      */
     private double mlFactor(Product p) {
-        double base = recommendationService.baseMlScore(p);
-        return Math.clamp(base / ML_SCORE_NEUTRO, ML_FACTOR_MIN, ML_FACTOR_MAX);
+        return OutfitRules.mlFactor(recommendationService.baseMlScore(p));
     }
 
     // ─── Budget Builder (MCKP). Bodies in OutfitBudgetBuilder (backlog A3);
