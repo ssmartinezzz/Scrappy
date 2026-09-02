@@ -59,9 +59,9 @@ class SupplementComboRankingTest {
 
     @Test
     void preferredBrandStillOutranksValue() {
-        // Deliberate: SUPLEMENTO_MARCA_PRIORIDAD is a user-confirmed preference, so it
-        // stays the outermost key. Value ranks WITHIN the preferred brand, it does not
-        // override it. Swapping the two keys is a one-line change if that ever flips.
+        // Deliberate: SUPLEMENTO_MARCAS_PREFERIDAS is a user-confirmed preference and
+        // stays a HARD filter against unlisted brands. Value ranks within the preferred
+        // group, it does not let an unknown brand in.
         var ena      = suplemento("Whey ENA 1kg", 20000, "ENA");
         var generica = suplemento("Whey Generica 2kg", 10000, "");
 
@@ -71,25 +71,25 @@ class SupplementComboRankingTest {
     }
 
     @Test
-    void preferredBrandsAreRankedAmongThemselves() {
-        // The list is an ORDER, not a set: ENA over Gold Nutrition over Star Nutrition
-        // over BSN over BSA over Xtrenght. Value only breaks ties inside the winning
-        // brand, so the cheapest-per-gram jar here still loses for being the last brand
-        // listed. BSN is covered in SupplementComboProteinaPrioridadTest — it is the
-        // one with catalog rows behind it; BSA has matched zero since it was added.
+    void preferredBrandsHaveNoRankAmongThemselves() {
+        // The preferred brands used to be an ORDER and mejorGrupoDeMarca kept the first
+        // one with stock, so the brands further down could never win however good their
+        // price. They are a SET now: every one competes and price per unit decides.
+        // Here Xtrenght is 5.000/kg against everyone else's 20.000/kg — under the old
+        // contract ENA won for being listed first and the cheapest jar never got looked
+        // at.
         var xtrenght = suplemento("Whey Xtrenght 2kg", 10000, "Xtrenght");
-        var bsa      = suplemento("Whey BSA 1kg", 20000, "BSA");
         var star     = suplemento("Whey Star 1kg", 20000, "Star Nutrition");
         var gold     = suplemento("Whey Gold 1kg", 20000, "Gold Nutrition");
         var ena      = suplemento("Whey ENA 1kg", 20000, "ENA");
 
-        assertThat(pick(List.of(xtrenght, bsa, star, gold, ena)).marca()).isEqualTo("ENA");
-        assertThat(pick(List.of(xtrenght, bsa, star, gold)).marca()).isEqualTo("Gold Nutrition");
-        assertThat(pick(List.of(xtrenght, bsa, star)).marca()).isEqualTo("Star Nutrition");
-        assertThat(pick(List.of(xtrenght, bsa)).marca()).isEqualTo("BSA");
-        assertThat(pick(List.of(xtrenght)).marca()).isEqualTo("Xtrenght");
-    }
+        assertThat(pick(List.of(xtrenght, star, gold, ena)).marca()).isEqualTo("Xtrenght");
 
+        // ...and with the value evened out, any of them can still be the pick — the
+        // point is that no brand is structurally excluded any more.
+        var enaBarata = suplemento("Whey ENA 4kg", 20000, "ENA");
+        assertThat(pick(List.of(xtrenght, star, gold, enaBarata)).marca()).isEqualTo("ENA");
+    }
     @Test
     void ranksByValueWithinThePreferredBrand() {
         var enaCara   = suplemento("Whey ENA Chica 1kg", 20000, "ENA");
