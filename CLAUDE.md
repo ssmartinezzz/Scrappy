@@ -444,12 +444,23 @@ sólo tenga vegetal devuelve un pick en vez de dejar el slot vacío, igual que
 `mejorGrupoDeMarca` cae a todos los candidatos cuando ninguna marca preferida
 tiene stock. Para Creatina, Magnesio y el resto es un no-op.
 
-La **marca preferida** es un orden, no un conjunto: ENA → Gold Nutrition →
-Star Nutrition → BSN → BSA → Xtrenght. ⚠️ **`BSA` no matchea un solo producto
-del catálogo** (medido 2026-09-02: cero filas con esa marca y cero que la
-nombren). Es casi seguro un typo de `BSN`, que sí existe con 24 filas y estuvo
-mudo hasta que se agregó; se dejaron las dos porque borrar la entrada de alguien
-es decisión de producto, no un arreglo. Compara contra `Product.marca()`, que sale de
+La **marca preferida es un CONJUNTO, no un orden**: ENA · Gold Nutrition ·
+Star Nutrition · BSN · Xtrenght, más la **línea** Syntha-6. Todas compiten entre
+sí y **el precio por unidad de medida decide** cuál gana. Sigue siendo un filtro
+DURO contra las no listadas —una marca de confianza le gana a una desconocida
+por barata que esté— pero entre las de confianza no hay jerarquía.
+
+Era un orden hasta `feat/supplement-pick-by-price-per-gram`, y ahí estaba el
+problema: `mejorGrupoDeMarca` se quedaba con la primera marca **con stock**, así
+que con una sola whey de ENA en el pool, Star, Gold y BSN quedaban descartadas
+**antes de que el $/g las mirara**.
+
+⚠️ **Syntha-6 es una LÍNEA, no una marca**, y por eso vive en un array aparte
+(`SUPLEMENTO_LINEAS_PREFERIDAS`) que matchea contra el nombre normalizado:
+`Product.marca()` de un Syntha-6 dice `BSN`, que es quien lo fabrica, así que
+meterla en el conjunto de marcas arrastraría el catálogo entero de BSN con ella.
+`BSA` salió del conjunto — el usuario confirmó que fue un typo, y no matcheaba
+un solo producto del catálogo. Compara contra `Product.marca()`, que sale de
 `BrandExtractor` — así que una marca sólo puede ganar acá si además está en
 `BrandExtractor.MARCAS`. Las dos listas viajan juntas o la preferencia es código
 muerto (lo fue: hasta 2026-08-11 la lista curada no tenía ni una marca de
