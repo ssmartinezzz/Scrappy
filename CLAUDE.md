@@ -434,8 +434,22 @@ bucket de proteína. Se deriva de la bandera y **no se lista a mano** a propósi
 un subtipo de comida nuevo no puede olvidarse el veto. Porqué completo en
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
+**El pick de proteína elige primero la CATEGORÍA y recién adentro la marca.**
+Desde `V32` hay tres (`Proteína Isolada` · `Proteína` · `Proteína Vegetal`) y no
+son intercambiables para quien compra: `SUPLEMENTO_CATEGORIA_PRIORIDAD` pone la
+isolada arriba y `SUPLEMENTO_CATEGORIA_ULTIMO_RECURSO` deja la vegetal para
+cuando no hay ninguna otra cosa en el pool. **La vegetal es de-preferencia, no
+veto** — con 21 filas contra 143 no gana nunca en la práctica, pero un pool que
+sólo tenga vegetal devuelve un pick en vez de dejar el slot vacío, igual que
+`mejorGrupoDeMarca` cae a todos los candidatos cuando ninguna marca preferida
+tiene stock. Para Creatina, Magnesio y el resto es un no-op.
+
 La **marca preferida** es un orden, no un conjunto: ENA → Gold Nutrition →
-Star Nutrition → BSA → Xtrenght. Compara contra `Product.marca()`, que sale de
+Star Nutrition → BSN → BSA → Xtrenght. ⚠️ **`BSA` no matchea un solo producto
+del catálogo** (medido 2026-09-02: cero filas con esa marca y cero que la
+nombren). Es casi seguro un typo de `BSN`, que sí existe con 24 filas y estuvo
+mudo hasta que se agregó; se dejaron las dos porque borrar la entrada de alguien
+es decisión de producto, no un arreglo. Compara contra `Product.marca()`, que sale de
 `BrandExtractor` — así que una marca sólo puede ganar acá si además está en
 `BrandExtractor.MARCAS`. Las dos listas viajan juntas o la preferencia es código
 muerto (lo fue: hasta 2026-08-11 la lista curada no tenía ni una marca de
