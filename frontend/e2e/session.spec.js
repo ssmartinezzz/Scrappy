@@ -21,11 +21,15 @@ import {
   readAccounts,
   recolectar401,
   cerrarSesion,
+  irAlShell,
 } from './helpers.js';
 
 test('a cold reload recovers the session with no login prompt', async ({ page }) => {
   const { viewer } = readAccounts();
   await login(page, viewer);
+  // The username this asserts lives in the topbar, which only the app shell
+  // has — on an empty database login lands on /splash, which has none.
+  await irAlShell(page);
   const dondeEstaba = new URL(page.url()).pathname;
 
   // The access token and the nonce both live in module memory, and the reload
@@ -89,6 +93,8 @@ test('logging out and reloading does NOT silently restore the session', async ({
   const { viewer } = readAccounts();
   await login(page, viewer);
 
+  // Logout lives in the topbar's avatar dropdown — the shell, again.
+  await irAlShell(page);
   await cerrarSesion(page);
   await page.waitForURL(/\/login$/);
 
