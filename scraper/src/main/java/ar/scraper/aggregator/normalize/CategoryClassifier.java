@@ -429,7 +429,8 @@ public class CategoryClassifier {
             return "Proteína Vegetal";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA)
                 || (cabezaDeProteina
-                    && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_PROCESO)))
+                    && (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_PROCESO)
+                     || GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_MARCA))))
             return "Proteína Isolada";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA))        return "Proteína";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COLAGENO))        return "Colágeno";

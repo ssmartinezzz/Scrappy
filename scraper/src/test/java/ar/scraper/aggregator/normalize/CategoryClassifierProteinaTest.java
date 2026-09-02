@@ -262,6 +262,47 @@ class CategoryClassifierProteinaTest {
         }
     }
 
+    /**
+     * A product line whose NAME means "isolated protein" does not have to spell
+     * "isolate". Three of the catalog's isolates were invisible to the keyword set
+     * for that reason, and one of them was the only isolate ENA sells — which made
+     * the top preferred brand permanently unable to win the protein pick.
+     */
+    @Nested
+    @DisplayName("Isolate product lines that never say \"isolate\"")
+    class LineasDeProductoIsoladas {
+
+        @Test
+        @DisplayName("ENA Isoprot is ENA's only isolate, and it sat in Otros")
+        void isoprotEsProteinaIsolada() {
+            assertThat(clasificar("ENA Isoprot 2,05 LB")).isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        void isoProteinEsProteinaIsolada() {
+            assertThat(clasificar("Iso Protein Gold Nutriton Sabor Gourmet 908g"))
+                    .isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        void isopureEsProteinaIsolada() {
+            assertThat(clasificar("Isopure Zero Carb Protein 450 GS")).isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        @DisplayName("Isopure sells collagen too, so the brand alone must not classify")
+        void isopureCollagenSigueSiendoColageno() {
+            assertThat(clasificar("Isopure Collagen 364 GS")).isEqualTo("Colágeno");
+        }
+
+        @Test
+        @DisplayName("...and its plant version is still plant protein")
+        void isopurePlantBasedSigueSiendoVegetal() {
+            assertThat(clasificar("Isopure Protein Powder Plant Based Vegan 521 GS"))
+                    .isEqualTo("Proteína Vegetal");
+        }
+    }
+
     @Nested
     @DisplayName("The new categories are supplements everywhere they are asked")
     class CanonYRubro {
