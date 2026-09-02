@@ -144,8 +144,11 @@ class TechCategoryClassifierTest {
         // entraban al catálogo como mouse. Son productos reales.
         assertThat(cat("Zapatillas Footy Mickey Mouse")).isEqualTo("Zapatilla");
         assertThat(cat("Mochila Adidas Disney Minnie Mouse")).isEqualTo("Mochila");
+        // El producto dice GAINER y ahora se clasifica como tal: KW_GAINERS sólo
+        // tenía "mass gainer", así que caía en Proteína. Lo que este test fija
+        // sigue intacto — el mousse de chocolate no es un mouse.
         assertThat(cat("DULKRE SPORT GAINER WHEY PROTEIN MOUSE DE CHOCOLATE 1.5KG"))
-                .isEqualTo("Proteína");
+                .isEqualTo("Gainer");
         // ...y el periférico de verdad sigue siendo Mouse
         assertThat(cat("Mouse Logitech M90 Black USB")).isEqualTo("Mouse");
     }

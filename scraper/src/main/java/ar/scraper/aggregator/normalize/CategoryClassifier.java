@@ -414,7 +414,8 @@ public class CategoryClassifier {
      * proteína en un BCAA. Un BCAA o un colágeno que NO nombra proteína ya clasificaba
      * bien desde acá abajo.</p>
      */
-    private String clasificarNutricion(String t) {
+    private String clasificarNutricion(String texto) {
+        String t = sinMarcasQueNombranProteina(texto);
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CREATINA))         return "Creatina";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_BARRA))  return "Barra Proteica";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_PANCAKE)) return "Pancake Proteico";
@@ -430,6 +431,25 @@ public class CategoryClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO))      return "Suplemento";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA))          return "Alimentos";
         return "";
+    }
+
+    /**
+     * Borra del texto los nombres de marca que contienen una palabra de proteína
+     * ({@code KW_MARCA_CON_PROTEINA_EN_EL_NOMBRE}) antes de resolver la
+     * subcategoría de nutrición. Sin esto, quien vende decide la categoría: 30
+     * de las 201 filas de "Proteína" eran magnesio, omega 3, vitamina C, taurina
+     * y hasta un shaker de 600 ml, todas de "MYPROTEIN" o "Natural Whey"
+     * (medido sobre el catálogo vivo, 2026-09-02).
+     *
+     * <p>Se reemplaza por un espacio, no por vacío: unir los caracteres vecinos
+     * fabricaría palabras que el título no dice.</p>
+     */
+    private String sinMarcasQueNombranProteina(String t) {
+        String limpio = t;
+        for (String marca : GarmentTaxonomy.KW_MARCA_CON_PROTEINA_EN_EL_NOMBRE) {
+            if (limpio.contains(marca)) limpio = limpio.replace(marca, " ");
+        }
+        return limpio;
     }
 
     /**

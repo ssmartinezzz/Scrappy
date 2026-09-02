@@ -642,9 +642,13 @@ public final class GarmentTaxonomy {
         "creatina","creatine","monohidrato de creatina"
     };
 
+    // "barrita" y el plural son formas reales del catálogo, no variantes teóricas:
+    // MRS TASTE publica sus 13 SKUs como "Caja Barritas de Proteína" y B3ST como
+    // "Barras Proteina", y ninguna de las dos matcheaba una forma singular.
     public static final String[] KW_PROTEINA_BARRA = {
         "barra proteica","protein bar","barra de proteina","barita proteica",
-        "bar proteico"
+        "bar proteico","barrita proteica","barrita de proteina","barritas de proteina",
+        "barras de proteina","barras proteina","barra de whey","crisp bar","layered bar"
     };
 
     public static final String[] KW_PROTEINA_PANCAKE = {
@@ -654,12 +658,39 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_PROTEINA_SNACK = {
         "snack proteico","cookie proteica","galleta proteica","brownie proteico",
-        "muffin proteico","torta de arroz proteica","snack fit"
+        "muffin proteico","torta de arroz proteica","snack fit",
+        "alfajor proteico","protein cookie"
     };
 
+    /**
+     * {@code " protein "} va padeado de los DOS lados y no es prolijidad: sin el
+     * espacio de adelante se metía adentro de "MYPROTEIN" y "The Protein Lab",
+     * y archivaba como proteína un shaker de 600 ml, un omega 3 y un zinc — 17
+     * filas medidas sobre el catálogo vivo (2026-09-02).
+     *
+     * <p>{@code "concentrate"} salió de la lista: describe una dosis, no una
+     * proteína ("Lipo6 Black Ultra Concentrate", "HMB Ultra Concentrated"). En
+     * las cuatro filas legítimas donde aparecía, {@code "whey"} ya matcheaba,
+     * así que sacarlo no cuesta ningún producto.</p>
+     */
     public static final String[] KW_PROTEINA = {
-        "proteina ","protein ","whey","isolate","concentrate","caseina","casein",
+        " proteina "," protein ","whey","isolate","caseina","casein",
         "proteina isolada","proteina hidrolizada"
+    };
+
+    /**
+     * Marcas cuyo NOMBRE contiene una palabra de proteína sin que el producto lo
+     * sea. Se borran del texto antes de clasificar nutrición, así que lo que
+     * decide es lo que el título dice del producto, no cómo se llama quien lo
+     * vende. "Natural Whey" es el caso extremo: 16 filas en el catálogo, cero
+     * whey — magnesio, taurina, vitamina C, colágeno, potasio, ashwagandha.
+     *
+     * <p>Borrar la marca es más seguro que vetar el producto: "MYPROTEIN Impact
+     * Whey Protein" sigue matcheando {@code "whey"} en el resto del título y
+     * sigue siendo Proteína, que es lo correcto.</p>
+     */
+    public static final String[] KW_MARCA_CON_PROTEINA_EN_EL_NOMBRE = {
+        "natural whey","myprotein","my protein","the protein lab"
     };
 
     public static final String[] KW_COLAGENO = {
@@ -678,17 +709,26 @@ public final class GarmentTaxonomy {
         "bcaa","aminoacido","amino acid","glutamina","glutamine"
     };
 
+    // El plural es una forma que el catálogo usa y ninguna singular matchea:
+    // "MYPROTEIN Vitamins D3", "Vitaminas C y D" — 10 filas medidas (2026-09-02).
     public static final String[] KW_VITAMINAS = {
-        "vitamina ","vitamin ","multivitaminico","omega 3","omega3","omega-3"
+        "vitamina ","vitamin ","vitaminas ","vitamins ",
+        "multivitaminico","omega 3","omega3","omega-3"
     };
 
+    // Lipo-6 (Nutrex) es una línea termogénica y ningún token genérico la nombra:
+    // 8 filas medidas (2026-09-02). El dígito es lo que la hace segura — "lipo"
+    // pelado matchearía "liposoluble", que es vocabulario de vitaminas.
     public static final String[] KW_QUEMADORES = {
         "quemador de grasa","fat burner","termogenico","l-carnitina","l carnitina",
-        "carnitina","cla "
+        "carnitina","cla ","lipo6","lipo 6","lipo-6"
     };
 
+    // "gainer" pelado y "true-mass" son formas reales: DULKRE publica "GAINER WHEY
+    // PROTEIN" y BSN "True-mass 1200", y con sólo "mass gainer" los tres caían en
+    // Proteína — que es justo lo que el orden Gainer-antes-que-Proteína evita.
     public static final String[] KW_GAINERS = {
-        "mass gainer","hipercalorico"
+        "mass gainer","hipercalorico","gainer","true-mass","true mass"
     };
 
     public static final String[] KW_SUPLEMENTO = {
