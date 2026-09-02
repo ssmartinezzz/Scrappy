@@ -73,8 +73,10 @@ class SupplementComboRankingTest {
     @Test
     void preferredBrandsAreRankedAmongThemselves() {
         // The list is an ORDER, not a set: ENA over Gold Nutrition over Star Nutrition
-        // over BSA over Xtrenght. Value only breaks ties inside the winning brand, so
-        // the cheapest-per-gram jar here still loses for being the last brand listed.
+        // over BSN over BSA over Xtrenght. Value only breaks ties inside the winning
+        // brand, so the cheapest-per-gram jar here still loses for being the last brand
+        // listed. BSN is covered in SupplementComboProteinaPrioridadTest — it is the
+        // one with catalog rows behind it; BSA has matched zero since it was added.
         var xtrenght = suplemento("Whey Xtrenght 2kg", 10000, "Xtrenght");
         var bsa      = suplemento("Whey BSA 1kg", 20000, "BSA");
         var star     = suplemento("Whey Star 1kg", 20000, "Star Nutrition");

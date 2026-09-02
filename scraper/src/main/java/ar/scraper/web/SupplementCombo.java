@@ -515,9 +515,30 @@ class SupplementCombo {
      * versión anterior de esta lista ("ENA", "STAR", "BCC") no matcheaba nada porque
      * esa lista curada no conocía ni una marca de suplementos, así que toda marca
      * caía al nombre del sitio y esta preferencia era código muerto.</p>
+     *
+     * <p><b>{@code "BSA"} sigue acá y no matchea nada</b>: medido sobre el catálogo
+     * vivo el 2026-09-02, cero productos con esa marca y cero que la nombren. Lo
+     * más probable es que sea un typo de {@code "BSN"} —24 filas, 5 de ellas en
+     * las categorías de proteína— que quedó mudo desde entonces. Se agregó
+     * {@code "BSN"} en vez de reescribir {@code "BSA"} porque borrar la entrada de
+     * alguien es una decisión de producto, no un arreglo: si BSA nunca fue lo que
+     * se quiso escribir, sacarla es una línea.</p>
      */
+    /**
+     * Orden de preferencia de CATEGORÍA de proteína, pedido por el usuario. Mismo
+     * contrato que {@link #SUPLEMENTO_MARCA_PRIORIDAD}: es un ORDEN, no un conjunto,
+     * y los strings tienen que ser categorías canónicas de
+     * {@code CategoryGroups.canonicalCategories()} — salen de `V32`.
+     */
+    private static final List<String> SUPLEMENTO_CATEGORIA_PRIORIDAD =
+            List.of("Proteína Isolada");
+
+    /** Categorías que sólo se eligen cuando no hay ninguna otra cosa en el pool. */
+    private static final Set<String> SUPLEMENTO_CATEGORIA_ULTIMO_RECURSO =
+            Set.of("Proteína Vegetal");
+
     private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD =
-            List.of("ENA", "Gold Nutrition", "Star Nutrition", "BSA", "Xtrenght");
+            List.of("ENA", "Gold Nutrition", "Star Nutrition", "BSN", "BSA", "Xtrenght");
 
     /**
      * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice
@@ -538,6 +559,10 @@ class SupplementCombo {
      */
     private static final Map<String, String> SUBTIPO_POR_CATEGORIA = Map.ofEntries(
             Map.entry("Proteína",         "Proteína en Polvo"),
+            // El split de V32 no cambia el combo: los tres siguen siendo polvo,
+            // y el subtipo que el usuario elige es el formato, no el origen.
+            Map.entry("Proteína Isolada", "Proteína en Polvo"),
+            Map.entry("Proteína Vegetal", "Proteína en Polvo"),
             Map.entry("Barra Proteica",   "Barra Proteica"),
             Map.entry("Pancake Proteico", "Pancake / Waffle"),
             Map.entry("Snack Proteico",   "Snack Proteico"),
@@ -565,7 +590,13 @@ class SupplementCombo {
             "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos",
             // Nutrition subcategories the classifier can assign directly — must be
             // whitelisted here or the product is filtered out before subtype matching.
-            "Snack Proteico", "Pancake Proteico", "Barra Proteica"
+            "Snack Proteico", "Pancake Proteico", "Barra Proteica",
+            // El split de V32. Sin estas dos, el guard estático de abajo tira
+            // IllegalStateException en class-init — que es exactamente lo que
+            // tiene que pasar: un producto de una categoría no whitelisteada se
+            // filtra ANTES de clasificar subtipo, así que el combo simplemente
+            // dejaría de ofrecer proteína vegetal sin un solo error.
+            "Proteína Isolada", "Proteína Vegetal"
     );
 
     static {
@@ -754,7 +785,41 @@ class SupplementCombo {
      * catálogo por encima de la marca de confianza.</p>
      */
     private Product elegirPick(List<Product> candidatos) {
-        return mejorValor(mejorGrupoDeMarca(candidatos));
+        return mejorValor(mejorGrupoDeMarca(mejorGrupoDeCategoria(candidatos)));
+    }
+
+    /**
+     * Preferencia de CATEGORÍA, y corre por fuera de la de marca: primero se elige
+     * qué clase de proteína, y recién adentro de esa clase manda la marca y después
+     * el valor. Antes de `V32` esto no existía porque no podía: las tres eran una
+     * sola categoría.
+     *
+     * <p>Un aislado, una whey concentrada y una proteína de arveja no son
+     * intercambiables para quien compra, así que rankearlas en un pool único hacía
+     * que el $/g decidiera entre productos que no compiten entre sí.</p>
+     *
+     * <p><b>La vegetal es de-preferencia, no veto</b>, y la diferencia importa: con
+     * 21 filas contra 143, en la práctica no gana nunca — pero un pool que sólo
+     * tenga vegetal sigue devolviendo un pick en vez de dejar el slot vacío. Es el
+     * mismo criterio con el que {@link #mejorGrupoDeMarca} cae a todos los
+     * candidatos cuando ninguna marca preferida tiene stock. Vetarla de verdad es
+     * cambiar el último {@code return} por la lista filtrada.</p>
+     *
+     * <p>Para todo subtipo que no sea proteína esto es un no-op: ningún candidato
+     * de Creatina o Magnesio tiene una de estas categorías, así que las dos etapas
+     * caen a la lista completa sin tocar el orden.</p>
+     */
+    private List<Product> mejorGrupoDeCategoria(List<Product> candidatos) {
+        for (String categoria : SUPLEMENTO_CATEGORIA_PRIORIDAD) {
+            List<Product> delGrupo = candidatos.stream()
+                    .filter(p -> categoria.equals(p.categoria()))
+                    .collect(Collectors.toList());
+            if (!delGrupo.isEmpty()) return delGrupo;
+        }
+        List<Product> sinUltimoRecurso = candidatos.stream()
+                .filter(p -> !SUPLEMENTO_CATEGORIA_ULTIMO_RECURSO.contains(p.categoria()))
+                .collect(Collectors.toList());
+        return sinUltimoRecurso.isEmpty() ? candidatos : sinUltimoRecurso;
     }
 
     /** Candidatos de la marca preferida de mayor prioridad presente; si no hay, todos. */

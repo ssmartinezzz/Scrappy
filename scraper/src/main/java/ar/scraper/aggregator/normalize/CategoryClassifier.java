@@ -414,13 +414,23 @@ public class CategoryClassifier {
      * proteína en un BCAA. Un BCAA o un colágeno que NO nombra proteína ya clasificaba
      * bien desde acá abajo.</p>
      */
-    private String clasificarNutricion(String t) {
+    private String clasificarNutricion(String texto) {
+        String t = sinMarcasQueNombranProteina(texto);
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CREATINA))         return "Creatina";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_BARRA))  return "Barra Proteica";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_PANCAKE)) return "Pancake Proteico";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_SNACK))  return "Snack Proteico";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GAINERS))         return "Gainer";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PRE_WORKOUT_SUP)) return "Pre-Workout";
+        boolean cabezaDeProteina = esContextoProteina(t);
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_VEGETAL)
+                || (cabezaDeProteina
+                    && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_VEGETAL_RECLAMO)))
+            return "Proteína Vegetal";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA)
+                || (cabezaDeProteina
+                    && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_PROCESO)))
+            return "Proteína Isolada";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA))        return "Proteína";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COLAGENO))        return "Colágeno";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MAGNESIO))        return "Magnesio";
@@ -430,6 +440,44 @@ public class CategoryClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO))      return "Suplemento";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA))          return "Alimentos";
         return "";
+    }
+
+    /**
+     * Borra del texto los nombres de marca que contienen una palabra de proteína
+     * ({@code KW_MARCA_CON_PROTEINA_EN_EL_NOMBRE}) antes de resolver la
+     * subcategoría de nutrición. Sin esto, quien vende decide la categoría: 30
+     * de las 201 filas de "Proteína" eran magnesio, omega 3, vitamina C, taurina
+     * y hasta un shaker de 600 ml, todas de "MYPROTEIN" o "Natural Whey"
+     * (medido sobre el catálogo vivo, 2026-09-02).
+     *
+     * <p>Se reemplaza por un espacio, no por vacío: unir los caracteres vecinos
+     * fabricaría palabras que el título no dice.</p>
+     */
+    /**
+     * Guard de los Tier B de {@code Proteína Vegetal} e {@code Proteína Isolada}:
+     * ¿el texto nombra una proteína, y no sólo un atributo del envase?
+     *
+     * <p>Los dos Tier B son adjetivos, no sustantivos de producto: "vegano" es
+     * un reclamo dietario que llevan cápsulas de magnesio y galletas, e
+     * "hidrolizado" es un proceso que el colágeno usa más que la whey. Sin este
+     * guard, la salsa de soja de MRS TASTE entraba como proteína vegetal y los
+     * 11 colágenos hidrolizados del catálogo como proteína aislada — le robaban
+     * las filas a {@code Colágeno}, que corre debajo de {@code KW_PROTEINA} a
+     * propósito porque hay whey fortificada con colágeno.</p>
+     *
+     * <p>Es el mismo patrón que {@link #esContextoBotin}/{@link #esContextoOjota}:
+     * un token ambiguo clasifica sólo cuando co-ocurre la señal específica.</p>
+     */
+    private boolean esContextoProteina(String t) {
+        return GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA);
+    }
+
+    private String sinMarcasQueNombranProteina(String t) {
+        String limpio = t;
+        for (String marca : GarmentTaxonomy.KW_MARCA_CON_PROTEINA_EN_EL_NOMBRE) {
+            if (limpio.contains(marca)) limpio = limpio.replace(marca, " ");
+        }
+        return limpio;
     }
 
     /**

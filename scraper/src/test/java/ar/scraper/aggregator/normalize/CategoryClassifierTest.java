@@ -329,7 +329,10 @@ class CategoryClassifierTest {
     void wheyProteinEsProteina() {
         Allure.parameter("raw", (String) null);
         Allure.parameter("nombre", "Whey Protein Isolate 2kg Vanilla");
-        assertThat(classifier.normalizarCategoria(null, "Whey Protein Isolate 2kg Vanilla")).isEqualTo("Proteína");
+        // V32 partió el bucket: un isolate ya no es el genérico, es su propia
+        // categoría. Ver CategoryClassifierProteinaTest para el split completo.
+        assertThat(classifier.normalizarCategoria(null, "Whey Protein Isolate 2kg Vanilla"))
+                .isEqualTo("Proteína Isolada");
     }
 
     // ── "tiene proteína" ≠ "es proteína" ──────────────────────────────

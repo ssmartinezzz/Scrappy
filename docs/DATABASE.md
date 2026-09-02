@@ -2085,3 +2085,114 @@ A diferencia de esos cuatro, **este rollback no obliga a tocar ningún test
 ajeno**: `V31` no angosta ni ensancha un dominio cerrado, así que ninguna
 migración anterior deja de aplicar mientras sus filas sigan vivas.
 
+
+---
+
+## `V32` — el split de `Proteína`: aislada y vegetal
+
+Un solo `INSERT` a la tabla lookup de `V13`, misma forma que `V31`: **no toca
+ningún CHECK ni ningún dominio cerrado**, así que no hereda el problema de
+`V24`/`V27`/`V28` donde re-listar un dominio completo borra lo que agregó la
+migración anterior.
+
+| Categoría | Rubro | De dónde salió |
+|---|---|---|
+| `Proteína Isolada` | suplementos | **De adentro de `Proteína`** (30 filas) |
+| `Proteína Vegetal` | suplementos | **De adentro de `Proteína`** (22 filas) |
+
+**Por qué hace falta la migración y no alcanza con el código:** igual que en
+`V31`, `productos.categoria` tiene FK a `categoria(nombre)` desde `V13`. Sin
+estas filas, todo producto que el clasificador mande a una de ellas viola la FK
+en el upsert — y como `ProductRepository` **se traga los errores SQL**, el
+síntoma sería `"0 nuevos"` en una corrida sana, no un error.
+
+### De dónde salió: de contar, no de imaginar
+
+Medido sobre el catálogo vivo el **2026-09-02**, `Proteína` tenía **201 filas
+activas** en rubro `suplementos` — la categoría más grande del rubro, y la
+primera que muestra `/api/mejores`. Adentro había 30 aislados/hidrolizados y 22
+proteínas vegetales, las dos por encima del piso de ≥20 que ya usó `V31`.
+
+**La caseína quedó afuera a propósito: una sola fila.** El piso no es estético —
+`ml_pipeline.py` usa `MIN_GROUP = 10` para decidir si calcula stats sobre la
+categoría o cae al padre, y `MIN_SAMPLE = 3` para z-score y cercos de Tukey. Una
+categoría de 1 producto entra al vocabulario a producir estadística de ruido.
+
+### Lo que esta migración NO hace: renombrar `Proteína`
+
+Renombrarla a `"Proteína en Polvo"` movería 201 filas, la fila semilla de `V13`
+y el mapeo de `SupplementCombo.SUBTIPO_POR_CATEGORIA`, a cambio de nada que el
+usuario no lea igual: **con el aislado y el vegetal afuera, `Proteína` ya
+significa whey/concentrado en polvo.** El subtipo del combo sigue llamándose
+`"Proteína en Polvo"` y las tres categorías mapean a él — el combo ofrece
+formato, no origen.
+
+### El orden del clasificador es dato, no prolijidad
+
+`KW_PROTEINA_VEGETAL` corre **antes** que `KW_PROTEINA_ISOLADA`. Un aislado de
+arveja es las dos cosas a la vez —`"GOLD NUTRITION Vegetal Protein Isolate"`— y
+para quien compra manda el origen: la restricción alimentaria decide la compra,
+el grado de filtrado sólo la matiza.
+
+### El split no era el problema principal — la contaminación sí
+
+**61 de esas 201 filas (30%) no eran proteína**, y splitear sin limpiar habría
+dado sub-baldes sucios. Tres familias de token, y dos son **marcas** que llevan
+una palabra de proteína en el nombre:
+
+| Causa | Qué archivaba como proteína | Filas |
+|---|---|---|
+| `"protein "` sin espacio adelante | `MYPROTEIN`, `The Protein Lab` → un shaker de 600 ml, omega 3, zinc, vitamina D3 | 17 |
+| `"whey"` | la marca `Natural Whey`, que en este catálogo vende **cero** whey: magnesio, taurina, vitamina C, colágeno, potasio, ashwagandha | 13 |
+| `"concentrate"` | `"Lipo6 Black Ultra Concentrate"`, `"HMB Ultra Concentrated"` | 4 |
+| `KW_PROTEINA_BARRA` sin la forma `"barrita"` | las 13 barritas de MRS TASTE, más barras y un alfajor | 25 |
+| `KW_GAINERS` sólo con `"mass gainer"` | `"DULKRE GAINER WHEY PROTEIN"`, `"True-mass 1200"` | 3 |
+
+### Los dos Tier B: un reclamo dietario tampoco es un sustantivo
+
+Las dos ramas del split se atraparon robando filas **durante el mismo cambio que
+las creó**, y por el mismo motivo que existe el ticket entero: un adjetivo del
+envase decidiendo la categoría.
+
+| Rama | Token | Qué se llevaba |
+|---|---|---|
+| `Proteína Isolada` | `"hidroliz"` | los **11 colágenos hidrolizados** del catálogo. `Colágeno` corre debajo de `KW_PROTEINA` **a propósito** —hay whey fortificada con colágeno— y esta rama nueva se metió por encima |
+| `Proteína Vegetal` | `" vegano "`, `"de soja"` | citrato de magnesio "60 Cápsulas Vegano", galletas "Plant Based", barritas "Sin Tacc Vegan" y la **salsa de soja** de MRS TASTE |
+
+Por eso cada rama está partida en dos tiers, igual que `KW_BOTIN_GENERICO` y
+`KW_OJOTA_MARCA`: el Tier A nombra la proteína y clasifica solo; el Tier B sólo
+clasifica cuando co-ocurre una cabeza de proteína
+(`CategoryClassifier.esContextoProteina`). `"Colágeno Hidrolizado Puro"` no
+nombra ninguna, así que pasa de largo; `"ISO Gold Protein Hidrolized"` sí, y se
+queda.
+
+Las marcas **se borran del texto** antes de clasificar nutrición
+(`CategoryClassifier.sinMarcasQueNombranProteina`), no se vetan: así
+`"MYPROTEIN Impact Whey Protein"` sigue matcheando `"whey"` en el resto del
+título y sigue siendo `Proteína`, que es lo correcto. Vetar el producto habría
+costado los whey legítimos de esas mismas marcas.
+
+### Rollback
+
+```sql
+-- >>> rollback:V32
+UPDATE productos SET categoria = 'Proteína'
+ WHERE categoria IN ('Proteína Isolada','Proteína Vegetal');
+DELETE FROM categoria_stats
+ WHERE categoria IN ('Proteína Isolada','Proteína Vegetal');
+DELETE FROM categoria
+ WHERE nombre IN ('Proteína Isolada','Proteína Vegetal');
+-- <<< rollback:V32
+```
+
+**El orden de las tres sentencias es obligatorio**, por el mismo motivo que en
+`V31`: `productos.categoria` (`V13`) y `categoria_stats.categoria` (`V16`)
+tienen FK a esta tabla.
+
+**El destino del `UPDATE` es `'Proteína'` y no `'Otros'` como en `V31`**, y la
+diferencia importa: acá las filas no vienen de estar sin clasificar, vienen de
+adentro de una categoría que sigue existiendo. Mandarlas a `Otros` no sería
+revertir el split — sería perder la clasificación que ya tenían antes de él.
+
+Igual que `V31`, **este rollback no obliga a tocar ningún test ajeno**: `V32` no
+angosta ni ensancha un dominio cerrado.
