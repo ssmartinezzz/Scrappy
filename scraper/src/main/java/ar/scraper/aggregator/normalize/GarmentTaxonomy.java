@@ -695,7 +695,7 @@ public final class GarmentTaxonomy {
      * quedaban en el bucket genérico.
      */
     public static final String[] KW_PROTEINA_ISOLADA = {
-        "isolate","isolada","aislada","itholate","iso whey","whey iso"
+        "isolate","isolada","aislada","itholate","iso whey","whey iso","isoprot"
     };
 
     /**
@@ -710,6 +710,26 @@ public final class GarmentTaxonomy {
      */
     public static final String[] KW_PROTEINA_ISOLADA_PROCESO = {
         "hidroliz","hydroliz","hydro whey"
+    };
+
+    /**
+     * Líneas de producto cuyo NOMBRE significa "proteína aislada" sin decir
+     * "isolate". Mismo guard que {@link #KW_PROTEINA_ISOLADA_PROCESO}: sólo
+     * clasifican con una cabeza de proteína presente.
+     *
+     * <p>El guard hace falta por la misma razón de siempre — son MARCAS, y una
+     * marca vende más de una cosa: "Isopure Collagen" es colágeno y
+     * "Isopure Protein Powder Plant Based Vegan" es proteína vegetal. Ninguna de
+     * las dos nombra proteína de suero, así que ninguna dispara.</p>
+     *
+     * <p>{@code "isoprot"} NO está acá sino en el Tier A, y no es inconsistencia:
+     * "ENA Isoprot 2,05 LB" es el nombre completo del producto y no trae ninguna
+     * otra palabra de proteína, así que un guard de cabeza lo dejaría afuera. El
+     * token es inequívoco —una sola fila en el catálogo, y la línea de aislado de
+     * ENA— así que se sostiene solo.</p>
+     */
+    public static final String[] KW_PROTEINA_ISOLADA_MARCA = {
+        "isopure","iso protein","iso gold"
     };
 
     /**
