@@ -2166,6 +2166,18 @@ clasifica cuando co-ocurre una cabeza de proteína
 nombra ninguna, así que pasa de largo; `"ISO Gold Protein Hidrolized"` sí, y se
 queda.
 
+### Una línea de producto puede significar "aislada" sin decir "isolate"
+
+Tres aislados del catálogo eran invisibles para el set de keywords porque su
+nombre comercial no usa la palabra, y **uno de ellos era el único que vende
+ENA** — la primera marca de `SUPLEMENTO_MARCA_PRIORIDAD`, que por eso no podía
+ganar nunca el pick de proteína.
+
+| Token | Dónde vive | Por qué ahí |
+|---|---|---|
+| `"isoprot"` | Tier A | `"ENA Isoprot 2,05 LB"` es el nombre completo y no trae ninguna otra palabra de proteína: un guard de cabeza lo dejaría afuera. El token es inequívoco —una fila, y es la línea de aislado de ENA— así que se sostiene solo |
+| `"isopure"` · `"iso protein"` · `"iso gold"` | Tier B (`KW_PROTEINA_ISOLADA_MARCA`) | Son **marcas**, y una marca vende más de una cosa: `"Isopure Collagen"` es colágeno y `"Isopure Protein Powder Plant Based Vegan"` es proteína vegetal. Ninguna nombra suero, así que ninguna dispara |
+
 Las marcas **se borran del texto** antes de clasificar nutrición
 (`CategoryClassifier.sinMarcasQueNombranProteina`), no se vetan: así
 `"MYPROTEIN Impact Whey Protein"` sigue matcheando `"whey"` en el resto del
