@@ -107,7 +107,14 @@ class RubroResolverEqualityParityTest {
         // argumento y mismo resultado. Las quince nuevas son de tecnología y
         // equipamiento deportivo, y RubroResolver no deriva el rubro de la
         // categoría salvo para suplementos — ninguna de las quince lo es.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(103);
+        //
+        // V32: 103 -> 105. Estas DOS sí son de suplementos ("Proteína Isolada",
+        // "Proteína Vegetal"), así que a diferencia de las quince anteriores el
+        // oráculo sí las mira. La paridad se sostiene igual porque las dos
+        // entraron a CATEGORIAS_SUPLEMENTO junto con la categoría: la igualdad
+        // nueva las reconoce, y el substring viejo también las reconocía por
+        // contener "Proteína". El barrido completo de abajo es lo que lo prueba.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(105);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -127,7 +134,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 103 * 5);
+        assertThat(total).isEqualTo(23L * 105 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

@@ -28,7 +28,11 @@ public final class CategoryGroups {
     private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(
         "Suplemento","Alimentos","Creatina","Proteína","Colágeno",
         "Magnesio","Pre-Workout","BCAA","Vitaminas","Quemadores","Gainer",
-        "Barra Proteica","Pancake Proteico","Snack Proteico"
+        "Barra Proteica","Pancake Proteico","Snack Proteico",
+        // "Proteína" quedó como el bucket de whey/concentrado: el aislado y el
+        // vegetal salieron a categoría propia porque son ejes de compra, no
+        // matices de etiqueta. Ver V32.
+        "Proteína Isolada","Proteína Vegetal"
     );
 
     /**

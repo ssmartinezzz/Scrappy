@@ -157,4 +157,125 @@ class CategoryClassifierProteinaTest {
                     .isEqualTo("Gainer");
         }
     }
+
+    @Nested
+    @DisplayName("The split: isolate and plant protein leave the generic bucket")
+    class SplitDeProteina {
+
+        @Test
+        void wheyIsolateEsProteinaIsolada() {
+            assertThat(clasificar("OPTIMUM NUTRITION 100% Whey Gold ISOLATE 1.5 LB"))
+                    .isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        void hidrolizadaEsProteinaIsolada() {
+            assertThat(clasificar("GOLD NUTRITION ISO Gold Protein Hidrolized 2 LB"))
+                    .isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        @DisplayName("RAW ships five rows spelled \"Itholate\"")
+        void itholateEsProteinaIsolada() {
+            assertThat(clasificar("RAW Proteína Itholate 2lb 825G - 25 Serv - BIRTHDAY CAKE"))
+                    .isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        void plantProteinEsProteinaVegetal() {
+            assertThat(clasificar("ENA Plant Protein 375 GRS")).isEqualTo("Proteína Vegetal");
+        }
+
+        @Test
+        void proteinaVegetalEsProteinaVegetal() {
+            assertThat(clasificar("DIABLA Súper Proteína Vegetal 660g")).isEqualTo("Proteína Vegetal");
+        }
+
+        @Test
+        void proteinaDeArvejaEsProteinaVegetal() {
+            assertThat(clasificar("GRANGER Proteína de Arveja Pura 80% 750g")).isEqualTo("Proteína Vegetal");
+        }
+
+        @Test
+        @DisplayName("Plant origin outranks filtration grade: a vegan isolate is vegetal")
+        void vegetalGanaSobreIsolada() {
+            assertThat(clasificar("GOLD NUTRITION Vegetal Protein Isolate 2 LB"))
+                    .isEqualTo("Proteína Vegetal");
+        }
+
+        @Test
+        @DisplayName("Plain whey concentrate keeps the base bucket")
+        void wheyPeladaSigueSiendoProteina() {
+            assertThat(clasificar("OPTIMUM NUTRITION 100% Whey Gold 2 LB")).isEqualTo("Proteína");
+        }
+    }
+
+    /**
+     * Both branches of the split were caught stealing rows during the same change
+     * that introduced them, and both for the same reason the whole ticket exists:
+     * an adjective on the packaging is not a product noun. They now need a protein
+     * head to co-occur ({@code esContextoProteina}).
+     */
+    @Nested
+    @DisplayName("A dietary claim is not a product noun either")
+    class TierBNecesitaCabezaDeProteina {
+
+        @Test
+        @DisplayName("\"hidrolizado\" is a process, and collagen is sold hydrolyzed — 11 rows")
+        void colagenoHidrolizadoSigueSiendoColageno() {
+            assertThat(clasificar("GRANGER Colágeno Hidrolizado Puro 250g")).isEqualTo("Colágeno");
+            assertThat(clasificar("STAR NUTRITION Collagen Hidrolizado 210gr")).isEqualTo("Colágeno");
+        }
+
+        @Test
+        @DisplayName("...but a hydrolyzed WHEY is an isolate")
+        void wheyHidrolizadaSiEsIsolada() {
+            assertThat(clasificar("DULKRE SPORT HYDRO WHEY PROTEIN CHOCO 15 Sobres 34g"))
+                    .isEqualTo("Proteína Isolada");
+        }
+
+        @Test
+        @DisplayName("A vegan capsule is not a plant protein")
+        void magnesioVeganoSigueSiendoMagnesio() {
+            assertThat(clasificar("Citrato de Magnesio 800mg NatuLabs 60 Cápsulas Vegano"))
+                    .isEqualTo("Magnesio");
+        }
+
+        @Test
+        @DisplayName("Soy sauce is not soy protein")
+        void salsaDeSojaNoEsProteinaVegetal() {
+            assertThat(clasificar("MRS TASTE Salsa de Soja Reducida en Sodio 160 ml"))
+                    .isNotEqualTo("Proteína Vegetal");
+        }
+
+        @Test
+        void galletaPlantBasedNoEsProteinaVegetal() {
+            assertThat(clasificar("DIABLA Super Cookie 43g Plant Based x5"))
+                    .isNotEqualTo("Proteína Vegetal");
+        }
+
+        @Test
+        @DisplayName("...but a vegan whey-shaped protein is plant protein")
+        void proteinaVeganaSiEsProteinaVegetal() {
+            assertThat(clasificar("GHOST Vegan V2 25g Proteina 2,5 LB - 28 Serv / Sin TACC"))
+                    .isEqualTo("Proteína Vegetal");
+        }
+    }
+
+    @Nested
+    @DisplayName("The new categories are supplements everywhere they are asked")
+    class CanonYRubro {
+
+        @Test
+        void ambasEstanEnElCanon() {
+            assertThat(CategoryGroups.canonicalCategories())
+                    .contains("Proteína Isolada", "Proteína Vegetal");
+        }
+
+        @Test
+        void ambasSonCategoriaDeSuplemento() {
+            assertThat(CategoryGroups.esCategoriaSuplemento("Proteína Isolada")).isTrue();
+            assertThat(CategoryGroups.esCategoriaSuplemento("Proteína Vegetal")).isTrue();
+        }
+    }
 }
