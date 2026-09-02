@@ -28,7 +28,27 @@ export const CAMPO_LOGIN = '#login-username';
  * of at the assertion that names what is wrong.
  */
 export function marcadorApp(page) {
-  return page.getByText('Catálogo').first();
+  // ALL THREE post-login screens, because RootGate picks by whether the
+  // database has products and SplashRoute then picks by role:
+  //
+  //   productos  → /catalogo             → "Catálogo"
+  //   vacía, ADMIN  → /splash panel      → "Scraper Ropa AR"
+  //   vacía, VIEWER → /splash empty state → "Sin datos todavía"
+  //
+  // This used to be `Catálogo` alone, which quietly required a SEEDED database.
+  // Locally there always is one, so it passed for as long as anyone had run it;
+  // on a fresh CI checkout the database is empty, every spec that logs in as
+  // the viewer lands on that third screen, and all seven hung for 25s waiting
+  // for a word that was never going to render.
+  //
+  // None of those three is a failure — `login()` already documents that the
+  // landing screen is not this helper's business. This is the assertion
+  // catching up with the contract the helper above it already declared.
+  return page
+    .getByText('Catálogo')
+    .or(page.getByRole('heading', { name: 'Scraper Ropa AR' }))
+    .or(page.getByText('Sin datos todavía'))
+    .first();
 }
 
 /**
@@ -95,6 +115,35 @@ export async function login(page, cuenta) {
   // A tab that logged in for itself always has an identity: `login()` awaits
   // `fetchIdentity()`. Asserted here so the tab specs can attribute a MISSING
   // identity to adoption and to nothing else.
+  //
+  // Only where it is observable, though. The avatar lives in the topbar, and
+  // the topbar is part of AppLayout — neither /splash screen has one. On an
+  // empty database every login lands there, and asserting a control that the
+  // rendered screen does not contain turns "no products yet" into a failed
+  // login. The claim is about identity, not about a widget; where no widget
+  // shows it, there is nothing to check and nothing broken.
+  if (new URL(page.url()).pathname.startsWith('/catalogo')) {
+    await expect(marcadorAutenticado(page)).toBeVisible();
+  }
+}
+
+/**
+ * Put the tab on the app shell, whatever the database happens to hold.
+ *
+ * `login()` deliberately does not care which screen it lands on, but the topbar
+ * — the username, the avatar, logout — is part of AppLayout, and neither
+ * /splash screen has one. A spec that needs to SEE the identity, or to click
+ * logout, needs the shell; on an empty database login does not land there.
+ *
+ * This is navigation, not a workaround: /catalogo renders its shell with an
+ * empty catalogue perfectly well, and the thing under test in those specs is
+ * session recovery and logout, not what the catalogue contains.
+ */
+export async function irAlShell(page) {
+  if (!new URL(page.url()).pathname.startsWith('/catalogo')) {
+    await page.goto('/catalogo');
+    await esperarSesionViva(page, 'navigating to the app shell dropped to the login form');
+  }
   await expect(marcadorAutenticado(page)).toBeVisible();
 }
 

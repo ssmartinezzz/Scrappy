@@ -128,6 +128,25 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
   });
 });
 
+describe('App — a fresh install with no data still knows its ADMIN is an ADMIN', () => {
+  it('an ADMIN landing on /splash sees the scrape panel, not the VIEWER empty state', async () => {
+    // The path a real first install takes: log in, no products yet, RootGate
+    // sends you to /splash. SplashRoute renders its empty state under
+    // `!isAdmin` — the screen that tells you to go ask an administrator. An
+    // admin reading that about themselves is the whole bug.
+    //
+    // No test covered this: SplashRoute.test.jsx mocks useAuth to a fixed
+    // `isAdmin: true`, and the only /splash case in this file is a VIEWER. The
+    // real auth chain landing on that route had never been exercised.
+    global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: false });
+
+    renderApp('/');
+
+    expect(await screen.findByText(/iniciar scraping/i)).toBeInTheDocument();
+    expect(screen.queryByText(/pedile a un administrador/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('App — RootGate survives a backend that is not listening', () => {
   it('lands on /splash instead of hanging on the route fallback forever', async () => {
     // `fetchStatus` resolves to null on a non-ok response, but REJECTS when
