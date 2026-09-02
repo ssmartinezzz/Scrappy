@@ -251,7 +251,7 @@ Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/F
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V27` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V32` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -308,14 +308,25 @@ Cache en `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` =
 `<SCRAPER_MODELS_ROOT>/marqo`.
 
 **Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
-**103 valores** en `richer-category-taxonomy`, y vive en DOS lugares que no
-pueden divergir — `CategoryGroups.canonicalCategories()` y la tabla `categoria`.
-Dar de alta una categoría son **dos** cambios: el keyword que la produce y la
-migración que la inserta. Si falta la migración, la FK rechaza cada producto,
-pero `ProductRepository` se traga los errores SQL: el síntoma es `"0 nuevos"` en
-una corrida sana, no un error. Detalle y porqué en
-[`docs/DATABASE.md`](./docs/DATABASE.md) (`V31`) y
+103 valores en `richer-category-taxonomy` y a **105** en `V32`, y vive en DOS
+lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la
+tabla `categoria`. Dar de alta una categoría son **dos** cambios: el keyword que
+la produce y la migración que la inserta. Si falta la migración, la FK rechaza
+cada producto, pero `ProductRepository` se traga los errores SQL: el síntoma es
+`"0 nuevos"` en una corrida sana, no un error. Detalle y porqué en
+[`docs/DATABASE.md`](./docs/DATABASE.md) (`V31`, `V32`) y
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+**Un nombre de marca no es un sustantivo de producto.** `Proteína` era la
+categoría más grande del rubro suplementos y **61 de sus 201 filas no eran
+proteína** (medido 2026-09-02): `"protein "` sin espacio adelante se metía
+adentro de `MYPROTEIN` y `The Protein Lab`, y `"whey"` se comía la marca
+`Natural Whey`, que en este catálogo vende cero whey. `V32` limpió eso —
+`CategoryClassifier.sinMarcasQueNombranProteina` **borra** esas marcas del texto
+antes de clasificar nutrición, en vez de vetar el producto, para no perder los
+whey legítimos de esas mismas marcas— y recién después splitteó la categoría en
+`Proteína Isolada` y `Proteína Vegetal`. El orden importa: splitear un balde
+sucio da sub-baldes sucios.
 
 **Clustering:** `cluster_productos` usa norms cacheadas + índice invertido
 término→cluster + conteos O(1). Al tocarlo, construí los corpus de test con

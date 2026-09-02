@@ -663,6 +663,56 @@ public final class GarmentTaxonomy {
     };
 
     /**
+     * Origen vegetal, Tier A — el token nombra la proteína, así que clasifica
+     * solo. Corre ANTES de {@link #KW_PROTEINA_ISOLADA} y de {@link #KW_PROTEINA}:
+     * un aislado de arveja es las dos cosas, y para quien compra manda el origen.
+     * La restricción alimentaria decide la compra; el grado de filtrado la matiza.
+     */
+    public static final String[] KW_PROTEINA_VEGETAL = {
+        "proteina vegetal","proteina vegana","vegetal protein","plant protein",
+        "pea protein","proteina de arveja","proteina de soja","proteina de arroz"
+    };
+
+    /**
+     * Origen vegetal, Tier B — RECLAMOS DIETARIOS, no sustantivos de producto.
+     * Sólo clasifican cuando co-ocurre una cabeza de proteína
+     * ({@code CategoryClassifier.esContextoProteina}).
+     *
+     * <p>Sin ese guard se comen productos que sólo declaran ser aptos: un citrato
+     * de magnesio "60 Cápsulas Vegano", una galleta "Plant Based", barritas
+     * "Sin Tacc Vegan" y —el caso que lo deja claro— la <b>salsa de soja</b> de
+     * MRS TASTE. Es la misma clase de bug que el espacio ausente en
+     * {@code "protein "}: un adjetivo del envase decidiendo la categoría.</p>
+     */
+    public static final String[] KW_PROTEINA_VEGETAL_RECLAMO = {
+        " vegana "," vegano "," vegan "," veggie ","plant based",
+        "de arveja","de soja"
+    };
+
+    /**
+     * Grado de filtrado, Tier A. {@code "itholate"} no es un typo nuestro: RAW
+     * publica así sus cinco SKUs ("RAW Proteína Itholate 2lb"), y sin el token
+     * quedaban en el bucket genérico.
+     */
+    public static final String[] KW_PROTEINA_ISOLADA = {
+        "isolate","isolada","aislada","itholate","iso whey","whey iso"
+    };
+
+    /**
+     * Grado de filtrado, Tier B — la hidrólisis es un PROCESO, y el colágeno se
+     * vende hidrolizado. Sólo clasifica con una cabeza de proteína presente
+     * ({@code CategoryClassifier.esContextoProteina}).
+     *
+     * <p>Sin el guard esta rama le robaba 11 filas a {@code Colágeno}, que corre
+     * deliberadamente DEBAJO de {@link #KW_PROTEINA} porque hay whey fortificada
+     * con colágeno. "Colágeno Hidrolizado Puro" no nombra ninguna proteína, así
+     * que el guard lo deja pasar; "ISO Gold Protein Hidrolized" sí, y se queda.</p>
+     */
+    public static final String[] KW_PROTEINA_ISOLADA_PROCESO = {
+        "hidroliz","hydroliz","hydro whey"
+    };
+
+    /**
      * {@code " protein "} va padeado de los DOS lados y no es prolijidad: sin el
      * espacio de adelante se metía adentro de "MYPROTEIN" y "The Protein Lab",
      * y archivaba como proteína un shaker de 600 ml, un omega 3 y un zinc — 17

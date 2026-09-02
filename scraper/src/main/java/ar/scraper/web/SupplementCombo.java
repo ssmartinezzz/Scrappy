@@ -538,6 +538,10 @@ class SupplementCombo {
      */
     private static final Map<String, String> SUBTIPO_POR_CATEGORIA = Map.ofEntries(
             Map.entry("Proteína",         "Proteína en Polvo"),
+            // El split de V32 no cambia el combo: los tres siguen siendo polvo,
+            // y el subtipo que el usuario elige es el formato, no el origen.
+            Map.entry("Proteína Isolada", "Proteína en Polvo"),
+            Map.entry("Proteína Vegetal", "Proteína en Polvo"),
             Map.entry("Barra Proteica",   "Barra Proteica"),
             Map.entry("Pancake Proteico", "Pancake / Waffle"),
             Map.entry("Snack Proteico",   "Snack Proteico"),
@@ -565,7 +569,13 @@ class SupplementCombo {
             "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos",
             // Nutrition subcategories the classifier can assign directly — must be
             // whitelisted here or the product is filtered out before subtype matching.
-            "Snack Proteico", "Pancake Proteico", "Barra Proteica"
+            "Snack Proteico", "Pancake Proteico", "Barra Proteica",
+            // El split de V32. Sin estas dos, el guard estático de abajo tira
+            // IllegalStateException en class-init — que es exactamente lo que
+            // tiene que pasar: un producto de una categoría no whitelisteada se
+            // filtra ANTES de clasificar subtipo, así que el combo simplemente
+            // dejaría de ofrecer proteína vegetal sin un solo error.
+            "Proteína Isolada", "Proteína Vegetal"
     );
 
     static {
