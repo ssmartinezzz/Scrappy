@@ -1,0 +1,50 @@
+-- V32__categorias_proteina_isolada_vegetal.sql
+--
+-- Dos categorías nuevas entran a la tabla lookup de V13: `Proteína Isolada` y
+-- `Proteína Vegetal`.
+--
+-- POR QUÉ HACE FALTA ESTA MIGRACIÓN: `productos.categoria` tiene FK a
+-- `categoria(nombre)` desde V13. Sin estas filas, TODO producto que el
+-- clasificador mande a una de ellas viola la FK en el upsert — y como
+-- `ProductRepository` se traga los errores SQL y devuelve UpsertStats(0,0,0,0),
+-- el síntoma NO sería un error sino "0 nuevos" en un run que se ve sano.
+-- `CategoriaLookupTableTest.laTablaYElCanonDeJavaNoPuedenDiverger` exige que
+-- esta tabla y `CategoryGroups.canonicalCategories()` sean el MISMO conjunto.
+--
+-- DE DÓNDE SALIÓ LA LISTA: de contar, no de imaginar. Medido sobre el catálogo
+-- vivo el 2026-09-02, `Proteína` tenía 201 filas activas en rubro
+-- `suplementos` — la categoría más grande del rubro y la que Picks muestra
+-- primero. Adentro había 30 aislados/hidrolizados y 22 proteínas vegetales,
+-- las dos por encima del piso de ≥20 productos con sustantivo propio que ya
+-- usó V31. La caseína quedó AFUERA a propósito: una sola fila.
+--
+-- QUÉ NO HACE ESTA MIGRACIÓN: no renombra `Proteína` a "Proteína en Polvo".
+-- Renombrarla movería 201 filas, la fila semilla de V13 y el mapeo de
+-- `SupplementCombo.SUBTIPO_POR_CATEGORIA`, a cambio de nada que el usuario no
+-- lea igual: con el aislado y el vegetal afuera, `Proteína` ya significa
+-- whey/concentrado en polvo.
+--
+-- EL ORDEN DEL CLASIFICADOR ES DATO, NO PROLIJIDAD: `KW_PROTEINA_VEGETAL`
+-- corre ANTES que `KW_PROTEINA_ISOLADA`. Un aislado de arveja es las dos
+-- cosas ("GOLD NUTRITION Vegetal Protein Isolate"), y para quien compra manda
+-- el origen: la restricción alimentaria decide la compra, el grado de filtrado
+-- sólo la matiza.
+--
+-- ROLLBACK (documentado, no ejecutable como parte de la migración — una
+-- migración aplicada es byte-frozen, ver docs/DATABASE.md):
+--
+--   UPDATE productos SET categoria = 'Proteína'
+--    WHERE categoria IN ('Proteína Isolada','Proteína Vegetal');
+--   DELETE FROM categoria_stats WHERE categoria IN ('Proteína Isolada','Proteína Vegetal');
+--   DELETE FROM categoria        WHERE nombre    IN ('Proteína Isolada','Proteína Vegetal');
+--
+-- El UPDATE va PRIMERO y los DELETE después: `productos.categoria` y
+-- `categoria_stats.categoria` tienen FK a esta tabla (V13 y V16), así que
+-- borrar la fila de lookup con productos todavía apuntándole falla. Y el
+-- destino del UPDATE es 'Proteína' y no 'Otros' como en V31: acá las filas no
+-- vienen de estar sin clasificar, vienen de adentro de una categoría que
+-- sigue existiendo.
+
+INSERT INTO categoria (nombre) VALUES
+    ('Proteína Isolada'), ('Proteína Vegetal')
+ON CONFLICT (nombre) DO NOTHING;
