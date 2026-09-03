@@ -1,0 +1,41 @@
+change: openapi-swagger-docs
+artifact_store: hybrid
+engram_project_key: scrappy
+status: applied
+phases_completed:
+  - explore
+  - propose
+  - spec
+  - design
+  - tasks
+  - apply
+phases_pending:
+  - verify
+  - archive
+delivery_strategy: single-pr
+review_budget_lines: 800
+execution_mode: interactive
+created_at: "2026-09-03"
+notes: >
+  Explore persisted by the orchestrator: the phase agent ran without Write or
+  mem_save tools. Its three load-bearing claims were independently verified
+  against the tree before persisting (zero concrete DTO return types in the web
+  layer, RouteCoverageTest scan scoped to ar.scraper at line 166, hasSize(6) at
+  line 90, ApiRoutePolicy.coincide public static at line 229).
+  Headline finding: OpenAPI retires only ~33% of the 1454 documentation lines;
+  ~67% is rationale that DOC-1 relocates to docs/ARCHITECTURE.md.
+
+size_exception: accepted
+chain_strategy: n/a — single PR with an accepted size exception
+open_decisions: []
+resolved_after_propose:
+  - "Q1 — org.yaml:snakeyaml:2.2 already on the compile classpath transitively (mvn dependency:tree). No new dependency; explicit test scoping is an sdd-design call."
+  - "Guard direction 2 corrected: scan controller annotations via rutasDeLaAplicacion(), NOT ApiRoutePolicy.TABLE — ten wildcard patterns would have exempted the agent, DB and user-admin surfaces."
+  - "Q4 RESOLVED by the user: size:exception accepted for slice 1 rather than shipping a temporarily weakened guard."
+  - "User confirmed the interactive UI is the actual goal. Change 2 reshaped: Swagger UI renders THIS change's hand-written openapi.yaml via springdoc.swagger-ui.urls[].url with api-docs.enabled=false (verified against springdoc docs). No typed-DTO refactor is a precondition, and slice 1 is not throwaway work."
+  - "Spec/design collision reconciled by the orchestrator: the spec had required RouteCoverageTest to stay unmodified, which design.md ADR-2 needs to violate by extracting LiveRoutes. Design wins — duplicating the scanner leaves direction 2 fail-open. The spec now permits the extraction under CODE-2 with an exact allowed diff shape and forbids any assertion change."
+  - "Two factual errors corrected in the spec: RouteCoverageTest has EIGHT @Test methods, not six (six is the permit-band hasSize(6), a different thing)."
+  - "Design strengthened direction 1: every operation carries x-access mirroring ApiRoutePolicy.Access, asserted for EQUALITY against ApiRoutePolicy.resolver (public static, line 213) rather than mere non-null."
+  - "APPLY DONE: commits 8c18a7d (A) + e86c7e3 (B) on feat/openapi-contract-and-drift-guard. NOT pushed, no PR. Suite verified independently by the orchestrator: 2008 -> 2013, 0 failures, BUILD SUCCESS."
+  - "Runtime ledger unblocked with sdd-attempt reset (maintainer-attributed): settle hit blocked:maintainer_decision because actual 2310 changed lines exceeded the orchestrator's forecast max of 1900. rescope cannot raise a ceiling, only narrow."
+  - "OPEN DEFECT for verify: docs/API_REFERENCE.md:17 says the contract is 'generados a partir de los controllers reales'. It is hand-maintained and GUARDED against them, not generated — as written it implies a regeneration command that does not exist."
