@@ -804,3 +804,28 @@ allure serve scraper/target/allure-results
 ```
 
 **Trade-off**: la versión del CLI (`allure-commandline` 2.29.0) se versiona **aparte** de las libs Java (`allure-bom` 2.29.1) — no existe un `allure-commandline` 2.29.1; el formato de `allure-results` es estable entre versiones de CLI, así que la diferencia es inocua. La coexistencia del `-javaagent` de AspectJ con el inline-mock-maker de Mockito 5 se verificó explícitamente en PR0.
+
+### Why no springdoc for the interactive API console (`swagger-ui-admin-gated`)
+
+**Decision**: `GET /api/openapi.yaml` streams the hand-written `docs/openapi.yaml`
+from a classpath resource via one small `ar.scraper.web` controller. No
+springdoc, no `@Schema`/`@ApiResponse`, no `OpenAPI` bean.
+
+**Why not springdoc.** ADMIN-gating cannot be enforced on a static asset in
+`dist/`, so a backend endpoint is needed either way — at which point
+springdoc's only job left is vendoring assets `swagger-ui-react` (the
+frontend dependency this change adds) already ships. The cost would have
+been a new dependency, extra `ApiRoutePolicy` rows, and a permanent blind
+spot in `RouteCoverageTest`/`OpenApiRouteCoverageTest`: springdoc registers
+under `org.springdoc.*`, outside the `ar.scraper` scan both guards rely on.
+
+**Classpath bundling, not a runtime `docs/` walk.** A path relative to
+`user.dir` only works because Maven's test JVM sits one hop below the repo
+root; it breaks in Docker, where no `docs/` exists. `pom.xml` gained a
+`copy-resources` execution bundling the file at `contract/openapi.yaml` — a
+neutral prefix, never `static/`/`public/`/`resources/`/`META-INF/resources/`,
+which Boot serves directly and would bypass `ApiRoutePolicy`. `Dockerfile`
+gained a matching `COPY docs/openapi.yaml` before `mvn package`, since
+`copy-resources` over a missing source dir only warns and still succeeds.
+`OpenApiRouteCoverageTest` gained one additive byte-identity test closing
+that silent-failure path.

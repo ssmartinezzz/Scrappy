@@ -9,6 +9,8 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 COPY scraper/pom.xml scraper/pom.xml
 COPY scraper/src scraper/src
+# pom.xml's copy-resources reads ${project.basedir}/../docs (/build/docs here)
+COPY docs/openapi.yaml docs/openapi.yaml
 
 RUN mvn -f scraper/pom.xml -B package -DskipTests
 
