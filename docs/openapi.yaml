@@ -1,0 +1,1367 @@
+openapi: 3.1.0
+info:
+  title: Fashion Scraper Argentina API
+  version: "1.0.0"
+  description: >-
+    The mechanical HTTP surface of the backend: path, method, auth requirement
+    and status codes, generated from the live controllers and cross-checked
+    against `ApiRoutePolicy` by `OpenApiRouteCoverageTest`.
+
+
+    Guard limit — read this before trusting a green build for more than it
+    proves: this contract and its test guarantee path, method and access-level
+    parity ONLY. They never assert response-shape accuracy. Every handler in
+    this codebase returns an untyped `ObjectNode`/`Object`, so no test can
+    check that a response actually matches what is written here — only a
+    human review of the shapes below can. Rationale (the "why" behind auth
+    semantics, per-owner scoping, and specific status codes) lives in
+    `docs/API_REFERENCE.md`, not here.
+servers:
+  - url: http://localhost:3000
+    description: Default local backend (portable/POSIX install)
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Usuarios
+  - name: Scraping
+  - name: Catálogo
+  - name: ML
+  - name: Comparador
+  - name: Financiación
+  - name: Outfits
+  - name: Para ti
+  - name: Favoritos
+  - name: Picks/Marcas
+  - name: Sitios
+  - name: Config
+  - name: Cron
+  - name: DB
+  - name: LLM Agent
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        The default scheme for every gated route. `x-access: AUTHENTICATED`
+        accepts any valid subject (ADMIN or VIEWER); `x-access: ADMIN` further
+        requires the ADMIN role, re-read from the database on every request —
+        never from a JWT claim.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh
+      description: >-
+        `HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh`. Used
+        instead of `bearerAuth` on the two `/api/auth/refresh` operations.
+        Also requires the `X-Refresh-CSRF` header (see the `RefreshCsrf`
+        parameter) except on the documented cold-boot admission path — see
+        `docs/API_REFERENCE.md`.
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, default: 1 }
+      description: Page number.
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, default: 24 }
+      description: Items per page.
+    Orden:
+      name: orden
+      in: query
+      schema: { type: string, enum: [precio_asc, precio_desc, nombre], default: precio_asc }
+    Talle:
+      name: talle
+      in: query
+      schema: { type: array, items: { type: string } }
+      description: Multi-select size filter (OR within the group).
+    Genero:
+      name: genero
+      in: query
+      schema: { type: string, enum: [hombre, mujer, unisex] }
+    Categoria:
+      name: categoria
+      in: query
+      schema: { type: array, items: { type: string } }
+    Q:
+      name: q
+      in: query
+      schema: { type: string }
+      description: Free-text search over the product name.
+    Sitio:
+      name: sitio
+      in: query
+      schema: { type: string }
+      description: Exact site/store name.
+    Marca:
+      name: marca
+      in: query
+      schema: { type: array, items: { type: string } }
+      description: Normalized brand.
+    Badge:
+      name: badge
+      in: query
+      schema: { type: string }
+      description: >-
+        ML badge — membership in the badge set, not exact equality with the
+        primary badge.
+    Segment:
+      name: segment
+      in: query
+      schema: { type: string, enum: [budget, standard, premium, luxury] }
+    Rubro:
+      name: rubro
+      in: query
+      schema: { type: string }
+    Gymrat:
+      name: gymrat
+      in: query
+      schema: { type: boolean }
+    Pack:
+      name: pack
+      in: query
+      schema: { type: boolean }
+      description: Only packs/combos (`cantidadUnidades > 1`).
+    PrecioMin:
+      name: precioMin
+      in: query
+      schema: { type: number }
+    PrecioMax:
+      name: precioMax
+      in: query
+      schema: { type: number }
+    SubCategoria:
+      name: subCategoria
+      in: query
+      schema: { type: array, items: { type: string } }
+    Fit:
+      name: fit
+      in: query
+      schema: { type: string }
+      description: Visual attribute (image-embedding index); single-select.
+    Estampado:
+      name: estampado
+      in: query
+      schema: { type: string }
+    Escote:
+      name: escote
+      in: query
+      schema: { type: string }
+    ColorDominante:
+      name: colorDominante
+      in: query
+      schema: { type: string }
+    RefreshCsrf:
+      name: X-Refresh-CSRF
+      in: header
+      required: false
+      schema: { type: string }
+      description: >-
+        Required except on the documented cold-boot admission path (no
+        header at all, plus `Origin` + `Sec-Fetch-Site` checks) — see
+        `docs/API_REFERENCE.md`.
+  responses:
+    Unauthorized:
+      description: Missing, expired or invalid access token.
+    Forbidden:
+      description: Valid token, but the resolved role does not satisfy `x-access`.
+    NotFound:
+      description: The referenced resource does not exist.
+    Conflict:
+      description: >-
+        The request conflicts with current state (a business rule, or a
+        scrape run in progress gating this route).
+    Gone:
+      description: >-
+        Retired permanently. Use `pg_dump`/`pg_restore` against
+        `DATABASE_URL` instead.
+    TooManyRequests:
+      description: Rate limit exceeded.
+paths:
+  # ── Auth ────────────────────────────────────────────────────────────────
+
+  /:
+    get:
+      tags: [Auth]
+      summary: Liveness / root probe.
+      x-access: PERMIT
+      security: []
+      responses:
+        "200":
+          description: "`{ service, status }`"
+
+  /**:
+    options:
+      tags: [Auth]
+      summary: >-
+        CORS preflight. NOT reflection-visible: Spring answers this via CORS
+        machinery, not a controller `@RequestMapping`, so it is invisible to
+        `LiveRoutes`' scan and therefore excluded from direction 2 (live-but-
+        undocumented) by construction. Documented here only so direction 1
+        (documented-but-denied) has something to resolve against
+        `ApiRoutePolicy.TABLE`'s `OPTIONS /**` row.
+      x-access: PERMIT
+      security: []
+      responses:
+        "200":
+          description: Preflight response, no body.
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate by username; issues a 15-minute access token.
+      x-access: PERMIT
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: "`{ accessToken, tokenType, expiresIn }`"
+        "401":
+          description: >-
+            Same status and body for wrong credential, unknown user,
+            deactivated account, or malformed body — never distinguished.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate the refresh-token family; issues a successor access token.
+      x-access: PERMIT
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: "#/components/parameters/RefreshCsrf"
+      responses:
+        "200":
+          description: "`{ accessToken, tokenType, expiresIn, csrfNonce }` + `Set-Cookie`"
+        "401":
+          description: "`refresh_invalido` or `sesion_invalidada`"
+        "403":
+          description: "`csrf_invalido` — missing/mismatched nonce; the presented token is left intact."
+    delete:
+      tags: [Auth]
+      summary: Logout — revokes the entire refresh-token family.
+      x-access: PERMIT
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: "#/components/parameters/RefreshCsrf"
+      responses:
+        "200":
+          description: Cookie cleared unconditionally, even for an unknown token.
+        "403":
+          description: "`csrf_invalido`"
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: The authenticated subject.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`{ username, roles: string[] }`"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/password-reset/request:
+    post:
+      tags: [Auth]
+      summary: "\"Forgot password\" — always 202, same body, same speed."
+      x-access: PERMIT
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+      responses:
+        "202":
+          description: Identical body for a real, unknown, malformed or service-account address.
+
+  /api/auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Consume a reset token and set a new password.
+      x-access: PERMIT
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Password changed; every session for the user is revoked.
+        "400":
+          description: "`reseteo_invalido` — unknown, used, expired token, or password under 8 chars."
+
+  # ── Usuarios ────────────────────────────────────────────────────────────
+
+  /api/usuarios:
+    get:
+      tags: [Usuarios]
+      summary: List every account, active and deactivated. Never returns the hash.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: Array of account records.
+    post:
+      tags: [Usuarios]
+      summary: Create an account (atomic with its role).
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, role]
+              properties:
+                username: { type: string }
+                password: { type: string, minLength: 8 }
+                role: { type: string, enum: [ADMIN, VIEWER] }
+                email: { type: string }
+      responses:
+        "201":
+          description: Account created.
+        "400":
+          description: "`faltan_campos` · `password_corta` · `rol_invalido`"
+        "409":
+          description: "`username_tomado`"
+
+  /api/usuarios/{username}/rol:
+    put:
+      tags: [Usuarios]
+      summary: Replace (not accumulate) an account's role.
+      x-access: ADMIN
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [ADMIN, VIEWER] }
+      responses:
+        "200":
+          description: Role updated.
+        "400":
+          description: "`rol_invalido`"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "`ultimo_admin` — would leave zero active ADMIN accounts."
+
+  /api/usuarios/{username}:
+    delete:
+      tags: [Usuarios]
+      summary: Deactivate (never deletes) an account.
+      x-access: ADMIN
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deactivated; the account's next request is refused.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "`ultimo_admin`"
+
+  /api/usuarios/{username}/activar:
+    put:
+      tags: [Usuarios]
+      summary: Reactivate a deactivated account.
+      x-access: ADMIN
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Reactivated.
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Scraping ────────────────────────────────────────────────────────────
+
+  /api/status:
+    get:
+      tags: [Scraping]
+      summary: Current scraper status. Gated deliberately, not on the permit list.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`{ status, mensaje, tieneData, total, run? }`"
+
+  /api/scrape:
+    post:
+      tags: [Scraping]
+      summary: Launch scraping asynchronously. Returns immediately.
+      x-access: ADMIN
+      parameters:
+        - name: precioMin
+          in: query
+          schema: { type: number }
+        - name: precioMax
+          in: query
+          schema: { type: number }
+        - name: precio
+          in: query
+          schema: { type: number }
+          description: Legacy alias.
+        - name: sitios
+          in: query
+          schema: { type: array, items: { type: string } }
+        - name: forceRetrain
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: "`{ iniciado: true, mensaje }`"
+
+  /api/scrape/cancel:
+    post:
+      tags: [Scraping]
+      summary: Request the running scrape to stop. Idempotent.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ cancelando, mensaje }`"
+
+  /api/scrape/interrupted:
+    get:
+      tags: [Scraping]
+      summary: What the previous process left open. Read-only.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ hayInterrumpida, uuid, atendidos, pendientes, salteados, soloFaltaLaPasadaFinal }`"
+
+  /api/scrape/resume:
+    post:
+      tags: [Scraping]
+      summary: Resume the interrupted run — only the sites still missing.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ retomando: boolean, mensaje }`"
+
+  # ── Catálogo ────────────────────────────────────────────────────────────
+
+  /api/data:
+    get:
+      tags: [Catálogo]
+      summary: Paginated, filtered product listing (server-side).
+      x-access: AUTHENTICATED
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Talle"
+        - $ref: "#/components/parameters/Genero"
+        - $ref: "#/components/parameters/Categoria"
+        - $ref: "#/components/parameters/Q"
+        - $ref: "#/components/parameters/Sitio"
+        - $ref: "#/components/parameters/Marca"
+        - $ref: "#/components/parameters/Badge"
+        - $ref: "#/components/parameters/Segment"
+        - $ref: "#/components/parameters/Rubro"
+        - $ref: "#/components/parameters/Gymrat"
+        - $ref: "#/components/parameters/Orden"
+        - $ref: "#/components/parameters/Pack"
+        - $ref: "#/components/parameters/PrecioMin"
+        - $ref: "#/components/parameters/PrecioMax"
+        - $ref: "#/components/parameters/SubCategoria"
+        - $ref: "#/components/parameters/Fit"
+        - $ref: "#/components/parameters/Estampado"
+        - $ref: "#/components/parameters/Escote"
+        - $ref: "#/components/parameters/ColorDominante"
+      responses:
+        "200":
+          description: "`{ meta, productos[] }`"
+    delete:
+      tags: [Catálogo]
+      summary: Soft-delete a catalog product (shared data, not personal).
+      x-access: ADMIN
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Product marked absent.
+
+  /api/facets:
+    get:
+      tags: [Catálogo]
+      summary: Facets only, no products (for fast filter loading).
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Same shape as `/api/data`'s `meta.facets`.
+
+  /api/csv:
+    get:
+      tags: [Catálogo]
+      summary: Full unfiltered CSV export, with BOM for Excel.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`Content-Disposition: attachment; filename=ofertas.csv`"
+
+  /api/producto/{key}:
+    get:
+      tags: [Catálogo]
+      summary: A product and its price history in one response.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+          description: 16-hex `producto_key`, not the raw URL.
+      responses:
+        "200":
+          description: "`{ producto, historial }`"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── ML ──────────────────────────────────────────────────────────────────
+
+  /api/tendencias:
+    get:
+      tags: [ML]
+      summary: ML pipeline output for the Tendencias panel.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`{ categoriaStats, topProductos, trendingClusters, totalProductos, fecha }`"
+
+  /api/historial:
+    get:
+      tags: [ML]
+      summary: Price history for one product (sparkline widgets).
+      x-access: AUTHENTICATED
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: "`{ puntos[], min, max, avg, deltaPct }`"
+        "204":
+          description: No price points recorded yet.
+
+  /api/ml/estado:
+    get:
+      tags: [ML]
+      summary: State of the ML models and the visual index. Polled by the ML panel.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`{ hasTextModel, hasImageModel, training, embeddingsCount, totalProductos, coveragePct }`"
+
+  /api/ml/resultado:
+    get:
+      tags: [ML]
+      summary: Short training-status snapshot.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`{ running, phase, pct, msg, done }`"
+
+  /api/ml/aplicar:
+    post:
+      tags: [ML]
+      summary: Apply computed ML results to the in-memory catalog.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: Applied.
+
+  /api/ml/renormalizar:
+    post:
+      tags: [ML]
+      summary: Re-apply current NormalizerService rules over the persisted catalog.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ totalRevisados, categoriaCambiada, marcaCambiada, escrituras* }`"
+
+  /api/ml/entrenar:
+    post:
+      tags: [ML]
+      summary: Launch text (and optionally image) retraining in the background.
+      x-access: ADMIN
+      parameters:
+        - name: images
+          in: query
+          schema: { type: boolean, default: false }
+        - name: epochs
+          in: query
+          schema: { type: integer, default: 8 }
+      responses:
+        "200":
+          description: "`{ status: \"started\" }`"
+        "400":
+          description: Training already running (pre-check).
+        "409":
+          description: Lost the race against a simultaneous POST — nothing started.
+
+  # ── Comparador ──────────────────────────────────────────────────────────
+
+  /api/grupos:
+    get:
+      tags: [Comparador]
+      summary: Cross-site product groups (comparator).
+      x-access: AUTHENTICATED
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: sitio
+          in: query
+          schema: { type: string }
+        - name: categoria
+          in: query
+          schema: { type: string }
+        - name: rubro
+          in: query
+          schema: { type: string }
+        - name: minSitios
+          in: query
+          schema: { type: integer, default: 2 }
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Grouped products.
+
+  /api/buscar-externo:
+    get:
+      tags: [Comparador]
+      summary: External search (MercadoLibre).
+      x-access: AUTHENTICATED
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: url
+          in: query
+          schema: { type: string }
+        - name: sitio
+          in: query
+          schema: { type: string, default: mercadolibre }
+      responses:
+        "200":
+          description: External search results.
+
+  # ── Financiación ────────────────────────────────────────────────────────
+
+  /api/financiacion/presets:
+    get:
+      tags: [Financiación]
+      summary: List financing presets.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Preset array.
+    post:
+      tags: [Financiación]
+      summary: Create a financing preset.
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Preset created.
+
+  /api/financiacion/presets/{id}:
+    put:
+      tags: [Financiación]
+      summary: Edit a financing preset.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Preset updated.
+    delete:
+      tags: [Financiación]
+      summary: Delete a financing preset.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Preset removed.
+
+  /api/financiacion/presets/{id}/activar:
+    put:
+      tags: [Financiación]
+      summary: >-
+        Activate a preset. One `activo` flag changes everyone's calculation —
+        shared config, not personal.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Preset activated.
+
+  /api/recomendacion:
+    get:
+      tags: [Financiación]
+      summary: "\"Does it pay off in installments\" recommendation for a product."
+      x-access: AUTHENTICATED
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Recommendation payload.
+
+  /api/inflacion:
+    get:
+      tags: [Financiación]
+      summary: INDEC inflation series.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Inflation series.
+
+  # ── Outfits ─────────────────────────────────────────────────────────────
+
+  /api/outfits:
+    get:
+      tags: [Outfits]
+      summary: Random weighted outfit assembly (Gym), for variety between reloads.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: genero
+          in: query
+          schema: { type: string }
+        - name: presupuesto
+          in: query
+          schema: { type: number, default: 0 }
+        - name: excluir
+          in: query
+          schema: { type: string, default: "" }
+        - name: presupuestoSuplementos
+          in: query
+          schema: { type: number, default: 0 }
+      responses:
+        "200":
+          description: Assembled outfit.
+
+  /api/outfits/builder:
+    get:
+      tags: [Outfits]
+      summary: Budget-optimal outfit assembly (MCKP with a greedy fallback).
+      x-access: AUTHENTICATED
+      parameters:
+        - name: categorias
+          in: query
+          schema: { type: string }
+        - name: presupuesto
+          in: query
+          schema: { type: number, default: 0 }
+        - name: genero
+          in: query
+          schema: { type: string }
+        - name: excluir
+          in: query
+          schema: { type: string, default: "" }
+        - name: pin
+          in: query
+          schema: { type: string, default: "" }
+        - name: greedy
+          in: query
+          schema: { type: boolean, default: false }
+        - name: estilo
+          in: query
+          schema: { type: string, default: gym }
+      responses:
+        "200":
+          description: Assembled outfit under budget.
+
+  /api/suplementos/tipos:
+    get:
+      tags: [Outfits]
+      summary: Offerable supplement subtypes + selector group (pure taxonomy).
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Subtype list. Responds without a loaded catalog.
+
+  /api/suplementos/builder:
+    get:
+      tags: [Outfits]
+      summary: Supplement combo builder.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: tipos
+          in: query
+          schema: { type: string }
+        - name: presupuesto
+          in: query
+          schema: { type: number, default: 0 }
+        - name: excluir
+          in: query
+          schema: { type: string, default: "" }
+      responses:
+        "200":
+          description: Assembled combo.
+
+  /api/outfits/feedback:
+    post:
+      tags: [Outfits]
+      summary: Like/dislike a slot pick. Own rows only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Feedback recorded.
+    delete:
+      tags: [Outfits]
+      summary: Reset outfit feedback for a style.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: estilo
+          in: query
+          schema: { type: string, default: gym }
+      responses:
+        "200":
+          description: Feedback reset.
+
+  /api/outfits/save:
+    post:
+      tags: [Outfits]
+      summary: Save an assembled outfit. Own rows only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Outfit saved.
+
+  /api/outfits/saved:
+    get:
+      tags: [Outfits]
+      summary: List saved outfits. Own rows only.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Saved outfit array.
+
+  /api/outfits/saved/{id}:
+    delete:
+      tags: [Outfits]
+      summary: Delete a saved outfit. Own rows only.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted.
+
+  /api/outfits/saved/{id}/nombre:
+    patch:
+      tags: [Outfits]
+      summary: Rename a saved outfit. Own rows only.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Renamed.
+
+  # ── Para ti ─────────────────────────────────────────────────────────────
+
+  /api/recomendados:
+    get:
+      tags: [Para ti]
+      summary: "\"For you\" personalized feed."
+      x-access: AUTHENTICATED
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - name: genero
+          in: query
+          schema: { type: string }
+        - name: categoria
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Recommended product feed.
+
+  /api/recomendados/feedback:
+    post:
+      tags: [Para ti]
+      summary: Like/dislike a recommended product. Own rows only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Feedback recorded.
+
+  /api/recomendados/dismiss-categoria:
+    post:
+      tags: [Para ti]
+      summary: Dismiss a category from the feed. Own rows only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                categoria: { type: string }
+      responses:
+        "200":
+          description: Category dismissed.
+    delete:
+      tags: [Para ti]
+      summary: Un-dismiss a category. Own rows only.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: categoria
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Category restored.
+
+  # ── Favoritos ───────────────────────────────────────────────────────────
+
+  /api/favoritos:
+    get:
+      tags: [Favoritos]
+      summary: List the caller's favorites. Own rows only.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Favorite array.
+    post:
+      tags: [Favoritos]
+      summary: Add a favorite. Own rows only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string }
+      responses:
+        "200":
+          description: Favorite added.
+    delete:
+      tags: [Favoritos]
+      summary: Remove a favorite. Own rows only.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Favorite removed.
+
+  # ── Picks/Marcas ────────────────────────────────────────────────────────
+
+  /api/mejores:
+    get:
+      tags: [Picks/Marcas]
+      summary: Best picks per category.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: rubro
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Picks by category.
+
+  /api/marcas-browser:
+    get:
+      tags: [Picks/Marcas]
+      summary: Brand browser.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: rubro
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, default: count }
+      responses:
+        "200":
+          description: Brand list.
+
+  # ── Sitios ──────────────────────────────────────────────────────────────
+
+  /api/sitios:
+    get:
+      tags: [Sitios]
+      summary: List configured + dynamic sites.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`{ base, extras, precioMinimo, precioMaximo, moneda }`"
+    post:
+      tags: [Sitios]
+      summary: Add a dynamic site (persisted in DB).
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                url: { type: string }
+                plataforma: { type: string }
+      responses:
+        "200":
+          description: Site added.
+
+  /api/sitios/{nombre}:
+    delete:
+      tags: [Sitios]
+      summary: Remove a dynamic site from DB and memory.
+      x-access: ADMIN
+      parameters:
+        - name: nombre
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Site removed.
+
+  # ── Config ──────────────────────────────────────────────────────────────
+
+  /api/config:
+    put:
+      tags: [Config]
+      summary: Update runtime configuration (in memory; does not persist).
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                precioMinimo: { type: number }
+                precioMaximo: { type: number }
+      responses:
+        "200":
+          description: Configuration updated.
+
+  # ── Cron ────────────────────────────────────────────────────────────────
+
+  /api/cron:
+    get:
+      tags: [Cron]
+      summary: List cron jobs.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ jobs: [] }`"
+    post:
+      tags: [Cron]
+      summary: Create a cron job.
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Job created.
+        "400":
+          description: Missing fields, or `cronExpr` does not parse.
+
+  /api/cron/{id}:
+    get:
+      tags: [Cron]
+      summary: Get one cron job.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Job detail.
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Cron]
+      summary: Update a cron job.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Job updated.
+        "400":
+          description: Missing fields, or `cronExpr` does not parse.
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Cron]
+      summary: Delete a cron job.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Job deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/cron/{id}/executions:
+    get:
+      tags: [Cron]
+      summary: List a cron job's execution history.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: "`{ executions: [] }`"
+
+  /api/cron/{id}/run-now:
+    post:
+      tags: [Cron]
+      summary: >-
+        Manual trigger. Non-blocking — dispatches on a virtual thread and
+        returns immediately.
+      x-access: ADMIN
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "202":
+          description: Execution started.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A scrape is already running.
+
+  # ── DB ──────────────────────────────────────────────────────────────────
+
+  /api/db/export:
+    get:
+      tags: [DB]
+      summary: Retired. Use `pg_dump` against `DATABASE_URL`.
+      x-access: ADMIN
+      responses:
+        "410":
+          $ref: "#/components/responses/Gone"
+
+  /api/db/import:
+    post:
+      tags: [DB]
+      summary: Retired. Use `pg_restore` against `DATABASE_URL`.
+      x-access: ADMIN
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "410":
+          $ref: "#/components/responses/Gone"
+
+  /api/db/productos:
+    delete:
+      tags: [DB]
+      summary: >-
+        Empty the catalog (cascades price history). Blocked while favorites
+        reference a live product — counts favorites across ALL users, on
+        purpose, never only the caller's own (see `docs/API_REFERENCE.md`).
+      x-access: ADMIN
+      responses:
+        "200":
+          description: Catalog cleared.
+        "409":
+          description: >-
+            Blocking favorites exist, named with a count. No `?force=`
+            override — the user must unmark them first.
+
+  /api/db/ml:
+    delete:
+      tags: [DB]
+      summary: Clear ML-derived data.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: ML data cleared.
+
+  # ── LLM Agent ───────────────────────────────────────────────────────────
+
+  /api/agent/chat:
+    post:
+      tags: [LLM Agent]
+      summary: >-
+        Chat turn with the read-only LLM catalog agent. Gated by scraping,
+        like `DELETE /api/db/productos` (avoids VRAM contention).
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                messages: { type: array, items: { type: object } }
+                model: { type: string }
+      responses:
+        "200":
+          description: "`{ assistantText, outcome, proposals, trace }`"
+        "400":
+          description: Empty/missing `messages`, or unknown `model`.
+        "409":
+          description: A scrape is running.
+        "502":
+          description: "`proveedor_no_disponible` — the LLM provider is down."
+
+  /api/agent/models:
+    get:
+      tags: [LLM Agent]
+      summary: Discover models available from the active provider. NOT gated by scraping.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ available: string[], default }`"
+
+  /api/agent/apply:
+    post:
+      tags: [LLM Agent]
+      summary: >-
+        Confirm a reclassification proposal, outside the agent loop. Re-
+        validates server-side, including a staleness guard against the DB.
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, categoriaPropuesta]
+              properties:
+                url: { type: string }
+                nombreProducto: { type: string }
+                categoriaActual: { type: string }
+                categoriaPropuesta: { type: string }
+                subCategoriaPropuesta: { type: string }
+                marcaPropuesta: { type: string }
+                generoPropuesto: { type: string }
+      responses:
+        "200":
+          description: "`{ ok: true, applied, mensaje }`"
+        "400":
+          description: Missing required field, invalid category, or unknown URL.
+        "409":
+          description: A scrape is running.
+        "422":
+          description: "`conflicto_stale` — the product changed since the proposal was generated."
+        "500":
+          description: The write failed (0 rows affected, or an exception). Never reported as applied.
