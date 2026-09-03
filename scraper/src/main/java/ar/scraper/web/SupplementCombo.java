@@ -506,29 +506,10 @@ class SupplementCombo {
     }
 
     /**
-     * Orden de preferencia de marca para el combo de suplementos, confirmado por el
-     * usuario. Es un ORDEN, no un conjunto: {@link #mejorGrupoDeMarca} se queda con
-     * el primero que tenga stock, y recién ahí el valor desempata.
-     *
-     * <p>Los strings tienen que coincidir con los que emite
-     * {@code BrandExtractor.MARCAS} — es de donde sale {@code Product.marca()}. La
-     * versión anterior de esta lista ("ENA", "STAR", "BCC") no matcheaba nada porque
-     * esa lista curada no conocía ni una marca de suplementos, así que toda marca
-     * caía al nombre del sitio y esta preferencia era código muerto.</p>
-     *
-     * <p><b>{@code "BSA"} sigue acá y no matchea nada</b>: medido sobre el catálogo
-     * vivo el 2026-09-02, cero productos con esa marca y cero que la nombren. Lo
-     * más probable es que sea un typo de {@code "BSN"} —24 filas, 5 de ellas en
-     * las categorías de proteína— que quedó mudo desde entonces. Se agregó
-     * {@code "BSN"} en vez de reescribir {@code "BSA"} porque borrar la entrada de
-     * alguien es una decisión de producto, no un arreglo: si BSA nunca fue lo que
-     * se quiso escribir, sacarla es una línea.</p>
-     */
-    /**
      * Orden de preferencia de CATEGORÍA de proteína, pedido por el usuario. Mismo
-     * contrato que {@link #SUPLEMENTO_MARCA_PRIORIDAD}: es un ORDEN, no un conjunto,
-     * y los strings tienen que ser categorías canónicas de
-     * {@code CategoryGroups.canonicalCategories()} — salen de `V32`.
+     * contrato que {@link #SUPLEMENTO_MARCAS_PREFERIDAS}: los strings tienen que ser
+     * categorías canónicas de {@code CategoryGroups.canonicalCategories()} — salen
+     * de `V32`. A diferencia de las marcas, esto SÍ es un orden.
      */
     private static final List<String> SUPLEMENTO_CATEGORIA_PRIORIDAD =
             List.of("Proteína Isolada");
@@ -537,8 +518,45 @@ class SupplementCombo {
     private static final Set<String> SUPLEMENTO_CATEGORIA_ULTIMO_RECURSO =
             Set.of("Proteína Vegetal");
 
-    private static final List<String> SUPLEMENTO_MARCA_PRIORIDAD =
-            List.of("ENA", "Gold Nutrition", "Star Nutrition", "BSN", "BSA", "Xtrenght");
+    /**
+     * Marcas preferidas para el combo de suplementos, confirmadas por el usuario.
+     * Es un CONJUNTO, no un orden: todas compiten entre sí y el precio por unidad
+     * de medida decide cuál gana — {@link #mejorGrupoDeMarca} las junta a todas y
+     * {@link #mejorValor} elige.
+     *
+     * <p><b>Antes era un ORDEN</b>, y {@code mejorGrupoDeMarca} se quedaba con la
+     * primera que tuviera stock: con una sola whey de ENA en el pool, Star, Gold y
+     * BSN quedaban descartadas antes de que el $/g las mirara, por buena que fuera
+     * su relación precio/tamaño.</p>
+     *
+     * <p>Los strings tienen que coincidir con los que emite
+     * {@code BrandExtractor.MARCAS} — es de donde sale {@code Product.marca()}. La
+     * versión anterior de esta lista ("ENA", "STAR", "BCC") no matcheaba nada porque
+     * esa lista curada no conocía ni una marca de suplementos, así que toda marca
+     * caía al nombre del sitio y esta preferencia era código muerto.</p>
+     *
+     * <p>{@code "BSA"} salió: el usuario confirmó que fue un typo. Medido sobre el
+     * catálogo vivo el 2026-09-02, cero productos con esa marca y cero cuyo nombre
+     * contuviera siquiera esa cadena.</p>
+     */
+    private static final Set<String> SUPLEMENTO_MARCAS_PREFERIDAS =
+            Set.of("ENA", "Gold Nutrition", "Star Nutrition", "BSN", "Xtrenght");
+
+    /**
+     * Líneas de producto preferidas, con el mismo peso que una marca de
+     * {@link #SUPLEMENTO_MARCAS_PREFERIDAS} y compitiendo con ellas por $/g.
+     *
+     * <p>Viven aparte porque una línea NO es una marca: {@code Product.marca()} de
+     * un Syntha-6 dice {@code "BSN"}, que es quien lo fabrica. Meter la línea en el
+     * conjunto de marcas arrastraría el catálogo entero de BSN con ella.</p>
+     *
+     * <p>Se comparan contra el nombre normalizado por {@link #normalizar}, que
+     * colapsa la puntuación a espacios: por eso {@code " syntha 6 "} cubre
+     * "Syntha-6", "SYNTHA 6" y "Syntha 6" con un solo token.</p>
+     */
+    private static final String[] SUPLEMENTO_LINEAS_PREFERIDAS = {
+        " syntha 6 "
+    };
 
     /**
      * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice
@@ -772,17 +790,18 @@ class SupplementCombo {
      *
      * <p>Claves de orden, de mayor a menor peso:</p>
      * <ol>
-     *   <li>marca preferida ({@link #SUPLEMENTO_MARCA_PRIORIDAD}) — es una preferencia
-     *       confirmada por el usuario, así que sigue mandando sobre el valor;</li>
+     *   <li>marca o línea preferida ({@link #SUPLEMENTO_MARCAS_PREFERIDAS},
+     *       {@link #SUPLEMENTO_LINEAS_PREFERIDAS}) — es un FILTRO, no un orden: una
+     *       marca de confianza le gana a una desconocida, pero entre las de
+     *       confianza no hay jerarquía;</li>
      *   <li>precio por unidad de medida ($/g, $/ml, $/cápsula) ascendente, entre los
      *       candidatos de unidad comparable;</li>
      *   <li>{@code baseMlScore} descendente, para los que no declaran tamaño;</li>
      *   <li>url ascendente, para que el pick sea estable entre requests.</li>
      * </ol>
      *
-     * <p>Que la marca gane sobre el valor es deliberado, no un descuido: invertir las
-     * dos primeras claves es mover una línea, el día que se prefiera el mejor $/kg del
-     * catálogo por encima de la marca de confianza.</p>
+     * <p>Que la marca le gane al valor frente a una marca desconocida sigue siendo
+     * deliberado. Lo que cambió es que entre las preferidas ya no hay orden.</p>
      */
     private Product elegirPick(List<Product> candidatos) {
         return mejorValor(mejorGrupoDeMarca(mejorGrupoDeCategoria(candidatos)));
@@ -822,15 +841,32 @@ class SupplementCombo {
         return sinUltimoRecurso.isEmpty() ? candidatos : sinUltimoRecurso;
     }
 
-    /** Candidatos de la marca preferida de mayor prioridad presente; si no hay, todos. */
+    /**
+     * Candidatos de CUALQUIER marca o línea preferida; si no hay ninguno, todos.
+     *
+     * <p>Devuelve el grupo entero y no la marca de mayor prioridad porque la
+     * preferencia dejó de ser un orden: todas compiten y {@link #mejorValor} decide
+     * por precio por unidad de medida. Sigue siendo un filtro DURO contra las no
+     * listadas —una marca de confianza le gana a una desconocida por barata que
+     * esté—, pero entre las de confianza manda el valor.</p>
+     */
     private List<Product> mejorGrupoDeMarca(List<Product> candidatos) {
-        for (String marca : SUPLEMENTO_MARCA_PRIORIDAD) {
-            List<Product> delGrupo = candidatos.stream()
-                    .filter(p -> marca.equalsIgnoreCase(p.marca()))
-                    .collect(Collectors.toList());
-            if (!delGrupo.isEmpty()) return delGrupo;
+        List<Product> preferidos = candidatos.stream()
+                .filter(this::esPreferido)
+                .collect(Collectors.toList());
+        return preferidos.isEmpty() ? candidatos : preferidos;
+    }
+
+    private boolean esPreferido(Product p) {
+        if (p.marca() != null && SUPLEMENTO_MARCAS_PREFERIDAS.stream()
+                .anyMatch(m -> m.equalsIgnoreCase(p.marca()))) {
+            return true;
         }
-        return candidatos;
+        String nombre = normalizar(p.nombre() == null ? "" : p.nombre());
+        for (String linea : SUPLEMENTO_LINEAS_PREFERIDAS) {
+            if (nombre.contains(linea)) return true;
+        }
+        return false;
     }
 
     /**
