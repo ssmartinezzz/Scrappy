@@ -10,6 +10,45 @@ Base URL: `http://localhost:3000/api`
 > endpoint is ever invoked. Supersedes the retired `menu.ps1`/`menu.sh`
 > (`interactive-cli-launcher`, PR #108), which carried the same contract.
 
+## El contrato mecánico vive en `docs/openapi.yaml`
+
+Desde `openapi-swagger-docs`, path, método, nivel de acceso (`x-access`) y
+código de status de cada endpoint están en
+[`docs/openapi.yaml`](./openapi.yaml). **Ese archivo se escribe a mano** — no
+hay comando que lo regenere — y lo sostiene `OpenApiRouteCoverageTest`, que lo
+contrasta contra los `@*Mapping` reales en las dos direcciones
+(documentado-pero-denegado, y vivo-pero-no-documentado). **Ese guard prueba
+únicamente path + método + nivel de acceso — nunca la forma de la respuesta.**
+Todo handler de este backend devuelve un `ObjectNode`/`Object` sin tipar, así
+que ningún test puede confirmar que una respuesta documentada coincide con lo
+que el handler realmente emite; eso se revisa a ojo. Lo que queda en este
+archivo es el "por qué" que ningún contrato generado puede cargar: semántica
+de auth, decisiones de diseño, y los casos borde que un test de forma no
+puede expresar.
+
+## Postura de seguridad, en general
+
+**El dashboard React (`frontend/`) autentica.** `frontend/src/lib/authSession.js`
+es el único módulo que sostiene el access token, el nonce CSRF y la identidad,
+y `authedFetch` es el único punto por el que pasan **todas** las llamadas de
+`api.js`. La sesión se recupera sola al recargar la página (bootstrap sin
+nonce, ver [`FRONTEND_AUTH_CONTRACT.md`](./FRONTEND_AUTH_CONTRACT.md)), y la
+UI es role-aware contra la misma tabla de política — un VIEWER nunca ve un
+affordance ADMIN en el DOM (hidden, no disabled).
+
+**Los datos personales están scopeados por dueño.** `favoritos`,
+`saved_outfits`, `outfit_feedback_item` y `categoria_dismiss` se leen y
+escriben con `usuario_id` como **primer parámetro obligatorio**, y **no existe
+ninguna variante sin scope** — un método que no existe no se puede llamar por
+error, y eso lo verifica el compilador y no un reviewer. Un ADMIN corre el
+MISMO SQL que un VIEWER con otro parámetro: el rol manda sobre el sistema, no
+sobre los datos personales ajenos. La única excepción deliberada es
+`DELETE /api/db/productos`'s favourites guard, ver más abajo.
+
+Una fila con `usuario_id IS NULL` queda **invisible para todos** (`NULL` no
+matchea con nadie), no visible para todos. `UnownedRowsWarner` avisa al
+arranque con los conteos por tabla y el SQL para adoptarlas.
+
 ## CORS e integración externa
 
 Desde `decouple-services-postgres`, el backend es **API-only** (no sirve la SPA).
@@ -48,30 +87,6 @@ alinea el resto de la API con lo que ese campo hacía desde siempre.
 `POST /cron` y `PUT /cron/{id}` siguen aceptando lo de antes: el `nextRunAt` lo
 calcula el backend, no lo manda el cliente.
 
-## Índice de endpoints
-
-Las secciones detalladas de abajo cubren el núcleo. El resto sigue las mismas
-convenciones (params server-side, respuestas JSON). Lista completa por grupo:
-
-| Grupo | Endpoints |
-|-------|-----------|
-| Auth | `POST /auth/login` · `POST`/`DELETE /auth/refresh` · `GET /auth/me` · `POST /auth/password-reset/request` · `/confirm` |
-| Usuarios | `GET`/`POST /usuarios` · `PUT /usuarios/{username}/rol` · `DELETE /usuarios/{username}` · `PUT /usuarios/{username}/activar` — **ADMIN, sin UI** |
-| Scraping | `GET /status` · `POST /scrape?precioMin&precioMax&sitios&forceRetrain` |
-| Catálogo | `GET /data` · `GET /facets` · `GET /csv` · `DELETE /data?url=` (soft-delete) |
-| Catálogo | `GET /producto/{key}` (producto + historial, 404 si no existe) |
-| ML | `GET /tendencias` · `GET /historial?url=` (204 sin puntos) · `POST /ml/aplicar` · `POST /ml/renormalizar` · `GET /ml/estado` · `POST /ml/entrenar` · `GET /ml/resultado` |
-| Comparador | `GET /grupos` · `GET /buscar-externo` (MercadoLibre) |
-| Financiación | CRUD `/financiacion/presets` · `GET /recomendacion?url=` · `GET /inflacion` (INDEC) |
-| Outfits | `GET /outfits` · `GET /outfits/builder` · `GET /suplementos/builder` · `GET /suplementos/tipos` (subtipos ofrecibles + grupo de selector; taxonomía pura, responde sin catálogo) · `POST /outfits/feedback` · CRUD `/outfits/saved` |
-| Para ti | `GET /recomendados` · `POST /recomendados/feedback` · `POST`/`DELETE /recomendados/dismiss-categoria` |
-| Favoritos | `GET`/`POST`/`DELETE /favoritos` |
-| Picks/Marcas | `GET /mejores?rubro=` · `GET /marcas-browser` |
-| Sitios/Config | `GET`/`POST`/`DELETE /sitios` · `PUT /config` |
-| Cron | `GET`/`POST /cron` · `GET`/`PUT`/`DELETE /cron/{id}` · `GET /cron/{id}/executions` · `POST /cron/{id}/run-now` |
-| DB | `GET /db/export` · `POST /db/import` (ambos **410 Gone** — usar `pg_dump`/`pg_restore` contra `DATABASE_URL`) · `DELETE /db/productos` (**409** si hay favoritos protegidos, ver detalle abajo) · `DELETE /db/ml` |
-| LLM Agent | `POST /agent/chat` · `POST /agent/apply` · `GET /agent/models` |
-
 ---
 
 ## POST /auth/login
@@ -85,20 +100,8 @@ Autentica por **`username`** y devuelve un access token JWT de 15 minutos.
 > `/api/*` contra `ApiRoutePolicy.TABLE`, que termina en `denyAll()`: una ruta
 > sin fila se rechaza, no se permite.
 
-**Request**
-
-```json
-{ "username": "admin", "password": "..." }
-```
-
 `email` **nunca** es identificador de login: es opcional, y ni la cuenta
 bootstrap ni la de servicio del CLI tienen uno.
-
-**200**
-
-```json
-{ "accessToken": "eyJhbGciOiJIUzI1NiJ9...", "tokenType": "Bearer", "expiresIn": 900 }
-```
 
 El token lleva `sub`, `iat`, `exp` y `jti`, y **nada más** — en particular, sin
 claim de rol. Un rol dentro de un token firmado no se puede revocar antes de que
@@ -116,13 +119,8 @@ la misma razón el tiempo de respuesta tampoco los distingue: cuando el usuario 
 existe se verifica igual contra un hash señuelo, así que las dos ramas cuestan el
 mismo Argon2id (~76 ms) en vez de diferir en algo perfectamente medible por red.
 
-**429** — cinco fallos sobre la misma cuenta en 15 minutos, o cien en total:
-
-```json
-{ "error": "demasiados_intentos", "mensaje": "Demasiados intentos fallidos. Probá de nuevo en 15 minutos." }
-```
-
-Con `Retry-After` en segundos. Se cuentan **fallos, no intentos**: un login
+**429** — cinco fallos sobre la misma cuenta en 15 minutos, o cien en total, con
+`Retry-After` en segundos. Se cuentan **fallos, no intentos**: un login
 exitoso limpia el contador de esa cuenta, así que abrir cinco pestañas no te
 echa. El techo global, en cambio, no lo limpia nadie — si lo hiciera, alguien
 con una credencial válida resetearía el presupuesto de todos entre tanda y tanda
@@ -283,12 +281,6 @@ abiertas: contestar "quién sos" a un caller anónimo es un oráculo de qué
 usuarios existen, así que exige un access token válido como cualquier otra
 ruta cerrada.
 
-**200**
-
-```json
-{ "username": "valeria", "roles": ["VIEWER"] }
-```
-
 `roles` es un **array**, no un string: `usuario_rol` es una tabla de join que
 admite más de un rol por cuenta, y la API no colapsa esa cardinalidad. El rol
 se lee de la base en cada request — nunca del claim del JWT, que no lo lleva.
@@ -312,16 +304,8 @@ exactamente quien no puede entrar.
 
 ### `/request` — siempre 202, siempre igual, siempre a la misma velocidad
 
-```json
-{ "email": "ana@example.com" }
-```
-
 Responde **202** con el mismo body para una dirección real, una inexistente, una
-malformada y una de cuenta de servicio:
-
-```json
-{ "mensaje": "Si la dirección corresponde a una cuenta, va a recibir un enlace." }
-```
+malformada y una de cuenta de servicio.
 
 **La uniformidad no es cortesía.** Un formulario que contesta distinto para una
 dirección conocida es la lista de usuarios de este sistema, regalada a cualquiera
@@ -345,10 +329,6 @@ por cuenta: preguntá dos veces y la segunda respuesta te dice si la dirección
 existe. Los tres topes son **propuestas, no mediciones**.
 
 ### `/confirm`
-
-```json
-{ "token": "…", "password": "la-nueva" }
-```
 
 - **200**: contraseña cambiada. **Todas** las sesiones del usuario quedan revocadas.
 - **400** `reseteo_invalido`: token desconocido, ya usado o vencido, o contraseña de menos de 8 caracteres. No se distinguen.
@@ -404,17 +384,6 @@ de creación de usuarios existiera sin una regla arriba — y eso importa porque
 `POST /api/usuarios` abierto deja que cualquiera se cree una cuenta ADMIN, que es
 estrictamente peor que no tener la función.
 
-| | |
-|---|---|
-| `GET /usuarios` | Lista **todas** las cuentas, activas y desactivadas. Nunca devuelve el hash |
-| `POST /usuarios` | `{username, password, role, email?}` → **201**. `role` ∈ `ADMIN`/`VIEWER`; password mínimo 8 |
-| `PUT /usuarios/{username}/rol` | `{role}` — **reemplaza**, no acumula |
-| `DELETE /usuarios/{username}` | **Desactiva**, no borra |
-| `PUT /usuarios/{username}/activar` | Reactiva |
-
-**Errores**: `400 rol_invalido` (fuera del vocabulario cerrado) · `400 password_corta`
-· `400 faltan_campos` · `409 username_tomado` · `404 no_existe` · `409 ultimo_admin`.
-
 **Desactivar no es borrar.** Un DELETE real se llevaría por CASCADE los roles, los
 refresh tokens, los tokens de reseteo, el rastro de auditoría de lo que hizo esa
 persona, y —como el ownership cascadea— sus datos personales. La desactivación
@@ -441,23 +410,6 @@ y el chequeo cuesta una consulta.
 
 ## GET /status
 
-Estado actual del scraper.
-
-**Response:**
-```json
-{
-  "status": "IDLE | RUNNING | DONE | ERROR",
-  "mensaje": "Completado: 3034 productos",
-  "tieneData": true,
-  "total": 3034,
-  "run": {
-    "uuid": "f4dec74b-8a28-49c9-b206-1301811fbfc8",
-    "startedAt": "2026-08-25T22:54:59Z",
-    "cancelando": false
-  }
-}
-```
-
 **`run` es aditivo y sólo aparece mientras hay una corrida abierta** (`V29`).
 `status` **no** cambió y no va a cambiar: sigue siendo `IDLE | RUNNING | DONE |
 ERROR`, y **una corrida cancelada reporta `DONE`**, con el motivo en `mensaje`.
@@ -471,18 +423,6 @@ tiene `run`.
 ## GET /scrape/interrupted
 
 **ADMIN.** Qué dejó abierto el proceso anterior. **Sólo informa.**
-
-```json
-{
-  "hayInterrumpida": true,
-  "uuid": "f4dec74b-...",
-  "startedAt": "2026-08-25T22:54:59Z",
-  "soloFaltaLaPasadaFinal": false,
-  "atendidos":  ["freres", "midway"],
-  "pendientes": ["batuk", "tussy"],
-  "salteados":  []
-}
-```
 
 **Detectar no reanuda.** La detección corre en `cargarDesdeBD()`
 (`@PostConstruct`) y lo único que hace es levantar esta bandera. Un reinicio que
@@ -507,9 +447,6 @@ puro perdido.
 ## POST /scrape/resume
 
 **ADMIN.** Retoma la corrida interrumpida. Sólo los sitios que faltan.
-
-**Response:** `{"retomando": true, "mensaje": "..."}` · `false` cuando no hay
-nada que retomar o ya hay un scraping en curso.
 
 **Reusa la fila de corrida original, no abre una nueva**, y eso es lo que
 sostiene todo lo demás. `started_at` es a la vez la cota de aislamiento del
@@ -536,9 +473,6 @@ sin él los productos ausentes quedan activos para siempre.
 
 **ADMIN.** Pide que la corrida en curso se detenga. Idempotente.
 
-**Response:** `{"cancelando": true, "mensaje": "..."}` · `cancelando: false`
-cuando no había nada corriendo.
-
 Qué hace, exactamente:
 
 - Deja de esperar sitios dentro de los **~5 s** del pedido. Antes de esto el
@@ -556,105 +490,7 @@ Qué hace, exactamente:
 
 ---
 
-## POST /scrape
-
-Lanza scraping async. Retorna inmediatamente.
-
-**Query params:**
-| Param | Tipo | Default | Descripción |
-|-------|------|---------|-------------|
-| `precioMin` | double | config | Precio mínimo |
-| `precioMax` | double | config | Precio máximo |
-| `sitios` | string[] | todos | Nombres de sitios a scrapear |
-
-**Ejemplo:** `POST /api/scrape?precioMin=0&precioMax=200000&sitios=Freres&sitios=Sporting`
-
-**Response:** `{"iniciado": true, "mensaje": "Scraping iniciado"}`
-
----
-
 ## GET /data
-
-Productos con filtros y paginación server-side.
-
-**Query params:**
-| Param | Tipo | Default | Descripción |
-|-------|------|---------|-------------|
-| `page` | int | 1 | Página |
-| `size` | int | 24 | Productos por página |
-| `q` | string | - | Búsqueda full-text en nombre |
-| `sitio` | string | - | Filtrar por tienda (exacto) |
-| `marca` | string | - | Filtrar por marca normalizada |
-| `badge` | string | - | Filtrar por badge ML — pertenencia al set (`badges`), no igualdad exacta con el principal. Keys: `all_time_low`, `below_market`, `verified_deal`, `trending`, `price_dropping`, `above_market`, `fake_discount` |
-| `genero` | string | - | `hombre` / `mujer` / `unisex` |
-| `categoria` | string[] | - | Multi-select categoría |
-| `talle` | string[] | - | Multi-select talle |
-| `fit` | string | - | Atributo visual: fit de la prenda (ej. `oversize`, `slim`) |
-| `estampado` | string | - | Atributo visual: estampado (ej. `liso`, `rayado`) |
-| `escote` | string | - | Atributo visual: escote (ej. `redondo`, `en v`) |
-| `colorDominante` | string | - | Atributo visual: color dominante de la foto |
-| `subCategoria` | string[] | - | Multi-select subcategoría |
-| `rubro` | string | - | `moda` / `gym` / `suplementos` / `deportes` / `tecnologia` |
-| `gymrat` | boolean | - | Solo productos tagueados gymrat |
-| `pack` | boolean | - | Solo packs/combos (`cantidadUnidades > 1`) |
-| `segment` | string | - | `budget` / `standard` / `premium` / `luxury` |
-| `precioMin` / `precioMax` | double | - | Rango de precio |
-| `orden` | string | `precio_asc` | `precio_asc` / `precio_desc` / `nombre` |
-
-Los cuatro filtros de atributos visuales son single-select y provienen del índice
-visual (embeddings de imagen); un producto sin backfill de embeddings no matchea.
-
-**Response:**
-```json
-{
-  "meta": {
-    "moneda": "ARS",
-    "precioMin": 0,
-    "precioMax": 5000000,
-    "rangMin": 2999,
-    "rangMax": 299999,
-    "total": 1156,
-    "pagina": 1,
-    "pageSize": 24,
-    "totalPaginas": 49,
-    "facets": {
-      "talles": {"S": 45, "M": 67},
-      "generos": {"hombre": 120},
-      "categorias": {"Zapatillas": 500},
-      "marcas": {"Nike": 342, "Adidas": 280},
-      "badges": {"below_market": 89, "verified_deal": 45},
-      "fits": {"oversize": 120, "slim": 85},
-      "estampados": {"liso": 900, "rayado": 40},
-      "escotes": {"redondo": 300, "en v": 55},
-      "colorDominantes": {"negro": 800, "blanco": 420}
-    },
-    "marcas": {"Freres": 136, "Sporting": 2444}
-  },
-  "productos": [
-    {
-      "sitio": "Sporting",
-      "nombre": "Zapatillas Nike Vomero 17",
-      "precio": 247999,
-      "precioOrig": 309999,
-      "descuento": true,
-      "url": "https://...",
-      "img": "https://...",
-      "categoria": "Zapatillas",
-      "genero": "hombre",
-      "marca": "Nike",
-      "talles": ["39","40","41","42","43"],
-      "ml": {
-        "badge": "verified_deal",
-        "badges": ["verified_deal", "trending"],
-        "scoreP": 28,
-        "ofertaReal": true,
-        "tendencia": "bajando",
-        "pctil": 28
-      }
-    }
-  ]
-}
-```
 
 `precioOrig` es `number | null` (`close-1nf-and-3nf-foundation`, D1) — antes
 era `string`. Un valor no parseable es `null`, nunca un string vacío ni `"0"`.
@@ -663,41 +499,12 @@ result set vacío, sin el viejo fallback marca→sitio.
 
 ---
 
-## GET /facets
-
-Solo facets, sin productos (para cargar filtros rápido).
-
-**Response:** igual al objeto `meta.facets` de `/data`. `badges` cuenta un producto
-una vez POR CADA badge que tiene en su set (multi-badge) — la suma de todos los
-conteos puede superar el total de productos.
-
----
-
 ## GET /tendencias
 
-Output del pipeline ML para el panel de Tendencias.
-
-**Response:**
-```json
-{
-  "categoriaStats": [
-    {"categoria": "Zapatillas", "count": 1173, "avgPrecio": 129837}
-  ],
-  "topProductos": [
-    {"url": "...", "nombre": "...", "precio": 2999, "img": "...", "sitio": "...", "marca": "..."}
-  ],
-  "trendingClusters": [
-    {"cluster": 5, "label": "Remera Nike", "size": 183}
-  ],
-  "totalProductos": 3034,
-  "fecha": "2026-05-29"
-}
-```
-
-Cuando hay `categoria_stats` persistidas, la response incluye además
-`distribucionCategorias.<categoria>` con 12 campos (`n, mean, median, mode,
-std, cv, q1, q3, iqr, mad, fence_low, fence_high`; `cv` a 1 decimal, el resto
-enteros). La clave es la categoria **canónica** (`"Medias"`, Title Case),
+Cuando hay `categoria_stats` persistidas, la response de este endpoint incluye
+además `distribucionCategorias.<categoria>` con 12 campos (`n, mean, median,
+mode, std, cv, q1, q3, iqr, mad, fence_low, fence_high`; `cv` a 1 decimal, el
+resto enteros). La clave es la categoria **canónica** (`"Medias"`, Title Case),
 `close-1nf-and-3nf-foundation` V16 — no la salida de `norm_cat`. Ausente
 (no la clave `{}`) hasta el próximo run de ML tras la migración, que
 regenera la tabla entera.
@@ -705,11 +512,6 @@ regenera la tabla entera.
 ---
 
 ## GET /historial?url=URL
-
-Historial de precios de un producto, para los widgets que lo resumen (el
-sparkline de `BuySignal`, el del `DetailPanel`).
-
-**Query params:** `url` (required) — URL canónica del producto
 
 **`204 No Content`** cuando el producto no tiene puntos registrados: un
 sparkline sin nada que dibujar no dibuja nada. Una página que igual tiene que
@@ -721,20 +523,6 @@ observación no tiene mínimo, máximo ni variación: tiene un precio. El cuerpo
 arma `HistorialJson`, compartido con `GET /producto` para que las dos rutas no
 puedan divergir.
 
-**Response:**
-```json
-{
-  "puntos": [
-    {"fecha": "2026-05-20", "precio": 15990},
-    {"fecha": "2026-05-28", "precio": 14990}
-  ],
-  "min": 14990,
-  "max": 15990,
-  "avg": 15490,
-  "deltaPct": -6.3
-}
-```
-
 ---
 
 ## GET /producto/{key}
@@ -742,7 +530,7 @@ puedan divergir.
 Un producto y su historial en una sola respuesta. Es la lectura detrás de la
 vista dedicada de historial de precios (`/historial?url=` en el frontend).
 
-**Path params:** `key` (required) — el handle corto del producto: 16 hex de
+**Path params:** `key` — el handle corto del producto: 16 hex de
 `productos.producto_key`, la columna generada de `V25`. Viene ya calculado en
 el campo `key` de cada fila de `GET /data`, así que el frontend nunca tiene que
 derivarlo ni ir a buscarlo.
@@ -762,98 +550,9 @@ cuando su historial es interesante.
   Deliberadamente **no** es un `204`: la página tiene que renderizar el producto
   igual y decir que la serie no está.
 
-**Response:**
-```json
-{
-  "producto": {
-    "key": "6f1c2b8a4d3e5079",
-    "url": "https://site.com/remera-negra",
-    "sitio": "Freres",
-    "nombre": "Remera Negra",
-    "precio": 15990,
-    "precioOrig": 19990,
-    "descuento": true,
-    "img": "https://...",
-    "categoria": "Remera",
-    "genero": "hombre",
-    "marca": "Nike",
-    "rubro": "indumentaria",
-    "cantidadUnidades": 1,
-    "esPack": false,
-    "precioUnitario": 15990,
-    "talles": ["M", "L"],
-    "ml": { "badge": "", "badges": [], "scoreP": 50 }
-  },
-  "historial": {
-    "puntos": [{"fecha": "2026-05-20", "precio": 15990}],
-    "min": 14990, "max": 15990, "avg": 15490, "deltaPct": -6.3
-  }
-}
-```
-
----
-
-## GET /sitios
-
-Lista de sitios configurados + dinámicos.
-
-**Response:**
-```json
-{
-  "base": [{"nombre": "Freres", "url": "https://..."}],
-  "extras": [{"nombre": "MiMarca", "url": "https://...", "plataforma": "shopify"}],
-  "precioMinimo": 0,
-  "precioMaximo": 5000000,
-  "moneda": "ARS"
-}
-```
-
----
-
-## POST /sitios
-
-Agrega sitio dinámico (persiste en DB).
-
-**Body:** `{"nombre": "MiMarca", "url": "https://...", "plataforma": "tiendanube"}`
-
----
-
-## DELETE /sitios/{nombre}
-
-Elimina sitio dinámico de DB y memoria.
-
----
-
-## PUT /config
-
-Actualiza configuración en runtime.
-
-**Body:** `{"precioMinimo": 0, "precioMaximo": 200000}`
-
 ---
 
 ## GET /ml/estado
-
-Estado de los modelos ML y del índice visual. Pensado para polling desde el panel.
-
-**Response:**
-```json
-{
-  "hasTextModel": true,
-  "hasImageModel": false,
-  "textMeta": {"...": "contenido de _models/text_meta.json si existe"},
-  "training": {
-    "running": true,
-    "phase": "training | embedding | idle | timeout | error",
-    "pct": 40,
-    "msg": "...",
-    "startedAt": "2026-07-12T16:00:00Z"
-  },
-  "embeddingsCount": 2100,
-  "totalProductos": 3034,
-  "coveragePct": 69.2
-}
-```
 
 `embeddingsCount` / `totalProductos` / `coveragePct` reportan la cobertura del
 índice visual (tabla `image_embeddings` vs catálogo en memoria). Son campos
@@ -867,25 +566,14 @@ Lanza en background (un solo thread, secuencial): re-entrenamiento del
 clasificador de texto y luego backfill del índice visual (embeddings).
 Retorna inmediatamente.
 
-**Query params:**
-| Param | Tipo | Default | Descripción |
-|-------|------|---------|-------------|
-| `images` | boolean | `false` | Incluye entrenamiento del modelo de imagen |
-| `epochs` | int | 8 | Epochs del modelo de imagen |
-
-**Responses:**
-- `200` `{"status": "started"}` — secuencia iniciada
-- `400` `{"error": "Entrenamiento ya en curso"}` — pre-check: ya hay un entrenamiento corriendo
-- `409` `{"error": "Entrenamiento ya en curso"}` — carrera entre dos POST simultáneos: este request perdió el CAS y NO inició nada
+- `400` — pre-check: ya hay un entrenamiento corriendo.
+- `409` — carrera entre dos POST simultáneos: este request perdió el CAS y NO
+  inició nada. Son el mismo hecho ("ya hay un entrenamiento corriendo")
+  detectado en dos momentos distintos: el `400` es el chequeo previo, el `409`
+  es la carrera que ese chequeo no puede cerrar por sí solo.
 
 Progreso via polling de `GET /ml/estado` (`training.phase` pasa por
 `training` → `embedding` → `idle`/`error`).
-
----
-
-## GET /ml/resultado
-
-Snapshot corto del estado de entrenamiento: `{running, phase, pct, msg, done}`.
 
 ---
 
@@ -895,17 +583,6 @@ Re-aplica las reglas actuales de `NormalizerService` sobre el catálogo ya
 persistido en la DB (sin re-scrapear). Síncrono — corre antes de cada
 entrenamiento de imagen (ver "Pipeline ML" en `CLAUDE.md`).
 
-**Response:**
-```json
-{
-  "totalRevisados": 3034,
-  "categoriaCambiada": 12,
-  "marcaCambiada": 4,
-  "escriturasIntentadas": 14,
-  "escriturasAplicadas": 13,
-  "escriturasFallidas": 1
-}
-```
 `totalRevisados`/`categoriaCambiada`/`marcaCambiada` describen el diff
 **intencional** detectado por `NormalizerService` (significado sin cambios).
 `escrituras*` (agent-chat-finetune) son aditivos y describen el resultado
@@ -929,28 +606,20 @@ DELETE comparten transacción, sin condición de carrera entre el conteo y el
 borrado). **No existe** un `?force=` — el usuario tiene que desmarcar los
 favoritos primero.
 
+**El guard cuenta los favoritos de TODOS los usuarios, no los del que llama —
+a propósito.** Scopearlo haría que un admin sin favoritos propios pasara el
+chequeo justo cuando es más engañoso: vaciaría el catálogo entero llevándose
+por delante los favoritos ajenos, sin ver ninguna advertencia. Es la única
+excepción deliberada a la regla de que todo dato personal se lee y escribe
+scopeado por dueño.
+
 **Response (409, favoritos bloqueantes):**
 ```
 No se puede vaciar el catálogo: 3 producto(s) favorito(s) todavía existen.
 ```
 
-**Response (200, sin favoritos bloqueantes):**
-```
-Catálogo eliminado.
-```
-
 Gateado por scraping igual que el resto de `/db/*`: **409** mientras
 `GET /status` está `RUNNING`.
-
----
-
-## GET /csv
-
-Descarga CSV completo (sin filtrar) con BOM para Excel.
-
-**Headers:** `Content-Disposition: attachment; filename=ofertas.csv`
-
-**Columnas:** Sitio, Nombre, Precio, Precio Original, Categoria, Genero, Talles, URL, Imagen
 
 ---
 
@@ -972,18 +641,6 @@ lectura, no toca VRAM).
 
 ### POST /agent/chat
 
-**Body:**
-```json
-{
-  "messages": [
-    { "role": "user", "text": "mostrame la zapatilla" },
-    { "role": "assistant", "text": "Es una Zapatilla Running.",
-      "trace": [{ "calls": [{ "name": "view_product", "arguments": {"url": "https://…"} }] }] },
-    { "role": "user", "text": "¿y de qué marca es?" }
-  ],
-  "model": "qwen3:14b"
-}
-```
 `model` es opcional — presente y disponible → se usa para ese request; ausente
 → default de `LLM_MODEL`; presente pero desconocido → `400` (nunca fallback
 silencioso).
@@ -1016,20 +673,15 @@ sin rastro de que alguna vez se usó una herramienta — el modelo imita ese
 transcript, deja de llamar herramientas y el guard de grounding lo rechaza. Ese
 era el bug de "funciona una vez y después dice que no puede".
 
-**Responses:**
-- `200` `{"assistantText": "...", "outcome": "complete|capability|ungrounded|exhausted", "proposals": [{"url","nombreProducto","categoriaActual","categoriaPropuesta","subCategoriaPropuesta","marcaPropuesta","generoPropuesto"}], "trace": [{"calls":[{"name","arguments"}]}]}`
-  — `trace` solo viene poblado en `complete` (las demás outcomes no dejan
-  mensaje durable en la conversación, así que no exportan traza)
-- `400` — `messages` vacío/ausente, o `model` desconocido
-- `409` — scraping en curso
-- `502` — proveedor LLM caído (`codigo: proveedor_no_disponible`)
-
 **Grounding (sigue siendo por turno).** El replay reconstruye el contexto pero
 **no** otorga grounding: para que la prosa del modelo se entregue, el modelo
 tiene que ejecutar una herramienta con resultado válido *en ese turno*. Si
 responde sin herramientas, recibe **un** empujón correctivo pidiéndole que la
 use y, si insiste, el turno se rechaza (`outcome: ungrounded`) y su texto se
 descarta.
+
+`trace` en la respuesta solo viene poblado en `outcome: complete` — las demás
+outcomes no dejan mensaje durable en la conversación, así que no exportan traza.
 
 ### POST /agent/apply
 
@@ -1040,6 +692,7 @@ cual (agent-chat-finetune; antes leía un shape de Map distinto y todo click
 de confirmación devolvía `400`). Re-valida server-side en 3 pasos
 independientes — el cliente nunca se asume validado, ni siquiera con un body
 tipado:
+
 1. `url`/`categoriaPropuesta` presentes.
 2. `categoriaPropuesta` ∈ taxonomía canónica (`CategoryGroups.canonicalCategories()`).
 3. **Staleness guard**: `categoriaActual` del body vs. la categoría real leída
@@ -1054,41 +707,21 @@ INSERT de auditoría (tabla `agent_reclassify_audit`) en una sola transacción
 reclasificación sin fila de auditoría, ni una fila de auditoría de algo que
 no pasó).
 
-**Body:**
-```json
-{
-  "url": "...",
-  "nombreProducto": "...",
-  "categoriaActual": "Zapatilla Running",
-  "categoriaPropuesta": "Buzo",
-  "subCategoriaPropuesta": "...",
-  "marcaPropuesta": "...",
-  "generoPropuesto": "..."
-}
-```
 (`subCategoriaPropuesta`/`marcaPropuesta`/`generoPropuesto` opcionales — si se
 omiten o vienen en blanco se preservan los valores actuales del producto.
 Claves desconocidas se ignoran — `@JsonIgnoreProperties(ignoreUnknown = true)`
 — así una propuesta reintentada puede seguir cargando las claves de UI
 `_applied`/`_mensaje` sin romper el binding.)
 
-**Responses:**
-- `200` `{"ok": true, "applied": 1, "mensaje": "..."}`
-- `400` `{"ok": false, "mensaje": "..."}` — falta `url`/`categoriaPropuesta`
-  (nombra solo lo que falta), categoría inválida, o la url no existe en el
-  catálogo
-- `422` `{"ok": false, "codigo": "conflicto_stale", "mensaje": "...", "actual": {"categoria", "marca", "genero", "subCategoria"}}`
-  — staleness guard: el producto cambió desde que se generó la propuesta;
-  `actual` trae los valores reales para que el cliente los muestre sin un
-  segundo round-trip
-- `500` `{"ok": false, "mensaje": "..."}` — el write falló (0 filas afectadas
-  o excepción); nunca se reporta como aplicado
-- `409` — scraping en curso
+**`422` `conflicto_stale`** — staleness guard: el producto cambió desde que se
+generó la propuesta; la respuesta trae los valores reales (`actual`) para que
+el cliente los muestre sin un segundo round-trip.
+
+**`500`** — el write falló (0 filas afectadas o excepción); nunca se reporta
+como aplicado.
 
 ### GET /agent/models
 
 Descubre dinámicamente los modelos disponibles del proveedor activo (ej. los
 modelos pulleados en la instancia local de Ollama) — no es una lista
-hardcodeada. NO gateado por scraping.
-
-**Response:** `{"available": ["qwen3:14b", "llama3.1:8b"], "default": "qwen3:14b"}`
+hardcodeada.

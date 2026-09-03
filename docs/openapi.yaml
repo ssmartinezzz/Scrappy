@@ -4,7 +4,8 @@ info:
   version: "1.0.0"
   description: >-
     The mechanical HTTP surface of the backend: path, method, auth requirement
-    and status codes, generated from the live controllers and cross-checked
+    and status codes. This file is hand-maintained — there is no command that
+    regenerates it — and is cross-checked
     against `ApiRoutePolicy` by `OpenApiRouteCoverageTest`.
 
 
