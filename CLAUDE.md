@@ -185,66 +185,15 @@ default → TiendanubeScraper (JS heurístico)
 
 ## API REST
 
-Detalle completo en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
-Contrato para el cliente de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md).
+📄 **El contrato mecánico (path, método, `x-access`, status codes) vive en
+[`docs/openapi.yaml`](./docs/openapi.yaml)**, guardado en las dos direcciones
+por `OpenApiRouteCoverageTest` — nunca prueba la forma de la respuesta, sólo
+path+método+nivel de acceso.
 
-> 🔒 **El API está cerrado.** Desde `user-accounts-and-roles` toda ruta `/api/*`
-> exige un access token salvo seis, y **una ruta sin fila en la tabla de política
-> se rechaza, no se permite** — `ApiRoutePolicy.TABLE` no tiene catch-all y
-> termina en `denyAll()`. Agregar un endpoint sin su fila lo deja en 403, y
-> `RouteCoverageTest` lo rompe en el build antes de que llegue a producción.
->
-> **El dashboard React (`frontend/`) autentica**, desde `frontend-auth-ui`:
-> `frontend/src/lib/authSession.js` es el único módulo que sostiene el access
-> token, el nonce CSRF y la identidad, y `authedFetch` es el único punto por el
-> que pasan **todas** las llamadas de `api.js`. La sesión se recupera sola al
-> recargar la página (bootstrap sin nonce, ver
-> [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)), y la
-> UI es role-aware contra esta misma tabla — un VIEWER nunca ve un affordance
-> ADMIN en el DOM (hidden, no disabled).
->
-> Permitidas sin credencial, y son todas: `OPTIONS /**` (preflight),
-> `POST /api/auth/login`, `POST`/`DELETE /api/auth/refresh`,
-> `POST /api/auth/password-reset/request` y `/confirm`, `GET /`.
->
-> **401 y 403 no son lo mismo**: 401 es "no sé quién sos, autenticá"; 403 es "sé
-> quién sos y no podés". Un cliente que los confunde entra en loop de refresh o
-> muestra un error de permisos cuando sólo se le venció el token.
->
-> 👤 **Los datos personales están scopeados por dueño.** `favoritos`,
-> `saved_outfits`, `outfit_feedback_item` y `categoria_dismiss` se leen y
-> escriben con `usuario_id` como **primer parámetro obligatorio**, y **no existe
-> ninguna variante sin scope** — un método que no existe no se puede llamar por
-> error, y eso lo verifica el compilador y no un reviewer. Un ADMIN corre el
-> MISMO SQL que un VIEWER con otro parámetro: el rol manda sobre el sistema, no
-> sobre los datos personales ajenos.
->
-> **La excepción deliberada**: el guard de `DELETE /api/db/productos` cuenta los
-> favoritos de **todos**, no los del que llama. Scopearlo haría que un admin sin
-> favoritos propios pasara el chequeo justo cuando es más engañoso. Hay tests que
-> lo fijan para que nadie lo "haga consistente" con el resto.
->
-> Una fila con `usuario_id IS NULL` queda **invisible para todos** (`NULL` no
-> matchea con nadie), no visible para todos. `UnownedRowsWarner` avisa al
-> arranque con los conteos por tabla y el SQL para adoptarlas.
-
-| Grupo | Endpoints |
-|-------|-----------|
-| Auth | POST `/api/auth/login` (**429** tras 5 fallos por cuenta en 15 min) · POST/DELETE `/api/auth/refresh` · GET `/api/auth/me` · POST `/api/auth/password-reset/request` · `/confirm` |
-| Usuarios | GET/POST `/api/usuarios` · PUT `/api/usuarios/{username}/rol` · DELETE `/api/usuarios/{username}` · PUT `/api/usuarios/{username}/activar` — **ADMIN, sin UI** |
-| Scraping | GET `/api/status` · POST `/api/scrape` · POST `/api/scrape/cancel` · GET `/api/scrape/interrupted` · POST `/api/scrape/resume` |
-| Catálogo | GET `/api/data` · `/api/facets` · `/api/csv` · `/api/producto/{key}` (producto + historial) · DELETE `/api/data?url=` (soft-delete) |
-| ML | GET `/api/tendencias` · `/api/historial` · `/api/ml/estado` · `/api/ml/resultado` · POST `/api/ml/aplicar` · `/api/ml/renormalizar` · `/api/ml/entrenar` |
-| Comparador | GET `/api/grupos` · `/api/buscar-externo` (MercadoLibre) |
-| Financiación | CRUD `/api/financiacion/presets` · GET `/api/recomendacion` · `/api/inflacion` (INDEC) |
-| Outfits | GET `/api/outfits` · `/api/outfits/builder` · `/api/suplementos/builder` · `/api/suplementos/tipos` · POST `/api/outfits/feedback` · CRUD `/api/outfits/saved` |
-| Para ti | GET `/api/recomendados` · POST `/api/recomendados/feedback` · POST/DELETE `/api/recomendados/dismiss-categoria` |
-| Favoritos | GET/POST/DELETE `/api/favoritos` |
-| Picks/Marcas | GET `/api/mejores?rubro=` · `/api/marcas-browser` |
-| Sitios/Config | GET/POST/DELETE `/api/sitios` · PUT `/api/config` |
-| Cron | GET/POST `/api/cron` · GET/PUT/DELETE `/api/cron/{id}` · `/api/cron/{id}/executions` · POST `/api/cron/{id}/run-now` |
-| DB | GET `/api/db/export` · POST `/api/db/import` (**410 Gone**, usar `pg_dump`/`pg_restore`) · DELETE `/api/db/productos` (**409** si hay favoritos protegidos, sin `?force=`) · `/api/db/ml` |
-| LLM Agent | POST `/api/agent/chat` · `/api/agent/apply` (ambos gateados por scraping) · GET `/api/agent/models` (no gateado) |
+El "por qué" (semántica 401 vs 403, scoping por dueño, el guard asimétrico de
+`DELETE /api/db/productos`, timing-attacks, CSRF/cold-boot) vive en
+[`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md). Contrato para el cliente
+de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md).
 
 ---
 

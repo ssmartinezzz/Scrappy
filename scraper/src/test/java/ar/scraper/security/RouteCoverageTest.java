@@ -1,6 +1,7 @@
 package ar.scraper.security;
 
 import ar.scraper.security.ApiRoutePolicy.Access;
+import ar.scraper.security.LiveRoutes.Ruta;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -44,8 +45,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Story("No live mapping falls through to denyAll()")
 @DisplayName("ApiRoutePolicy — coverage")
 class RouteCoverageTest {
-
-    private record Ruta(HttpMethod metodo, String path) {}
 
     @Test
     @DisplayName("every mapping the application registers resolves to an explicit rule")
@@ -159,42 +158,11 @@ class RouteCoverageTest {
 
     /** Reads the real {@code @*Mapping} annotations off every controller. */
     private static List<Ruta> rutasDeLaAplicacion() {
-        List<Ruta> rutas = new ArrayList<>();
-        var scanner = new ClassPathScanningCandidateComponentProvider(false);
-        scanner.addIncludeFilter((reader, factory) -> true);
-
-        for (BeanDefinition definicion : scanner.findCandidateComponents("ar.scraper")) {
-            Class<?> clase;
-            try {
-                clase = Class.forName(definicion.getBeanClassName());
-            } catch (ClassNotFoundException e) {
-                continue;
-            }
-            RequestMapping raiz = AnnotatedElementUtils.findMergedAnnotation(clase, RequestMapping.class);
-            if (raiz == null) {
-                continue;
-            }
-            String prefijo = raiz.value().length > 0 ? raiz.value()[0] : "";
-
-            for (Method metodo : clase.getDeclaredMethods()) {
-                RequestMapping mapeo = AnnotatedElementUtils.findMergedAnnotation(metodo, RequestMapping.class);
-                if (mapeo == null) {
-                    continue;
-                }
-                String[] paths = mapeo.value().length > 0 ? mapeo.value() : new String[]{""};
-                for (String path : paths) {
-                    for (var verbo : mapeo.method()) {
-                        rutas.add(new Ruta(HttpMethod.valueOf(verbo.name()), prefijo + path));
-                    }
-                }
-            }
-        }
-        return rutas;
+        return LiveRoutes.todas();
     }
 
     /** {@code /api/producto/{key}} → {@code /api/producto/x}, so a matcher can be asked. */
     private static String concretar(String path) {
-        String concreto = path.replaceAll("\\{[^}]+}", "x");
-        return concreto.isEmpty() ? "/" : concreto;
+        return LiveRoutes.concretar(path);
     }
 }
