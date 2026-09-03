@@ -140,6 +140,8 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET),  List.of("/api/scrape/interrupted"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape/resume"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.PUT), List.of("/api/config"), Access.ADMIN),
+            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/openapi.yaml"), Access.ADMIN,
+                    "swagger-ui-admin-gated — the contract itself, not just what it documents"),
             new RoutePolicy(Set.of(HttpMethod.POST, HttpMethod.DELETE),
                     List.of("/api/sitios", "/api/sitios/**"), Access.ADMIN,
                     "GET /api/sitios is not matched here — method specificity, no carve-out needed"),

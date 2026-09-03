@@ -217,6 +217,33 @@ class OpenApiRouteCoverageTest {
 
     // ── x-access vocabulary parity ───────────────────────────────────────────
 
+    // ── swagger-ui-admin-gated: the copy-resources execution didn't no-op ───
+
+    @Test
+    @DisplayName("the classpath-bundled contract is byte-identical to docs/openapi.yaml")
+    void classpathContractIsByteIdenticalToTheCheckedInFile() throws IOException {
+        // copy-resources only warns (and still succeeds) over a missing source
+        // dir, so this catches both "not copied" and "copied a stale one".
+        byte[] checkedIn = Files.readAllBytes(ubicarContrato());
+
+        InputStream classpathStream = OpenApiRouteCoverageTest.class.getClassLoader()
+                .getResourceAsStream("contract/openapi.yaml");
+        assertThat(classpathStream)
+                .as("contract/openapi.yaml must exist on the test classpath — "
+                        + "either copy-resources did not run, or it copied from the wrong place")
+                .isNotNull();
+
+        byte[] onClasspath;
+        try (InputStream in = classpathStream) {
+            onClasspath = in.readAllBytes();
+        }
+
+        assertThat(onClasspath)
+                .as("the classpath copy must be byte-identical to docs/openapi.yaml — "
+                        + "a stale copy would silently serve outdated documentation")
+                .isEqualTo(checkedIn);
+    }
+
     @Test
     @DisplayName("every x-access value in the contract is a real ApiRoutePolicy.Access constant")
     void everyXAccessValueIsARealAccessConstant() {
