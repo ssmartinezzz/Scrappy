@@ -34,6 +34,21 @@ versionada para tocarlas.
 
 ---
 
+## API REST → [`openapi.yaml`](./openapi.yaml) + [`API_REFERENCE.md`](./API_REFERENCE.md)
+
+**Nada sobre el contrato de la API se documenta acá.** El contrato mecánico
+(path, método, `x-access`, status codes) vive en
+[`openapi.yaml`](./openapi.yaml). **Se escribe a mano** —no hay comando que lo
+regenere— y lo sostiene `OpenApiRouteCoverageTest` en las dos direcciones:
+documentado-pero-denegado y vivo-pero-no-documentado. Nunca la forma de la
+respuesta. El "por qué" (semántica 401/403, scoping por dueño, timing-attacks, CSRF/cold-
+boot, el guard asimétrico de `DELETE /api/db/productos`) vive en
+[`API_REFERENCE.md`](./API_REFERENCE.md). Esta sección es sólo el índice, por
+la misma razón que la de arriba: que buscar "por qué" acá no termine en una
+copia desactualizada del contrato o de su justificación.
+
+---
+
 ## Decisiones principales y su justificación
 
 ---
