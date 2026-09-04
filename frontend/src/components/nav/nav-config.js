@@ -48,7 +48,7 @@ export const NAV_CONFIG = [
   // enteros en ApiRoutePolicy.TABLE.
   { kind: 'link', label: 'Cronjobs', to: '/cronjobs', icon: Clock, requires: 'ADMIN' },
   { kind: 'link', label: 'Cuentas', to: '/admin/manage/users', icon: Users, requires: 'ADMIN' },
-  { kind: 'link', label: 'Consola API', to: '/api-docs', icon: Code, requires: 'ADMIN' },
+  { kind: 'link', label: 'Consola API', to: '/apidocs', icon: Code, requires: 'ADMIN' },
 ];
 
 // frontend-auth-ui Phase 7 (design D6, tasks-part2 7.1/7.2). Single source of

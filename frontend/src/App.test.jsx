@@ -118,16 +118,16 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 
-  it('a VIEWER deep-linking to /api-docs renders AccessDenied, and the contract is never fetched', async () => {
+  it('a VIEWER deep-linking to /apidocs renders AccessDenied, and the contract is never fetched', async () => {
     global.fetch = authedRouter({ roles: ['VIEWER'] });
 
-    renderApp('/api-docs');
+    renderApp('/apidocs');
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.getByText(/acceso denegado/i)).toBeInTheDocument();
   });
 
-  it('an ADMIN deep-linking to /api-docs sees the console, not AccessDenied', async () => {
+  it('an ADMIN deep-linking to /apidocs sees the console, not AccessDenied', async () => {
     global.fetch = vi.fn().mockImplementation((url) => {
       const u = String(url);
       if (u.includes('/api/openapi.yaml')) {
@@ -136,7 +136,7 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
       return authedRouter({ roles: ['ADMIN'] })(url);
     });
 
-    renderApp('/api-docs');
+    renderApp('/apidocs');
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });

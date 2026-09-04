@@ -731,7 +731,7 @@ hardcodeada.
 Added by `swagger-ui-admin-gated`. `Access.ADMIN` in `ApiRoutePolicy.TABLE`.
 Streams `docs/openapi.yaml` from a classpath resource
 (`OpenApiDocumentController`), never a filesystem path relative to `docs/`,
-which doesn't exist in Docker. Backs the ADMIN-only console at `/api-docs`
+which doesn't exist in Docker. Backs the ADMIN-only console at `/apidocs`
 (`interactive-api-console`), which fetches it via `authedFetch` and renders
 it with `swagger-ui-react`. Documents itself in `docs/openapi.yaml`
 (`x-access: ADMIN`), closing the self-referential gap
