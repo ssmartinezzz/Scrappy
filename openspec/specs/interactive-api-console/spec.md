@@ -2,7 +2,7 @@
 
 ## Purpose
 
-An ADMIN-only console at `/api-docs` renders the checked-in OpenAPI contract
+An ADMIN-only console at `/apidocs` renders the checked-in OpenAPI contract
 (`docs/openapi.yaml`) via `swagger-ui-react`, authenticated by the existing
 session, and lets an ADMIN execute real bearer-authenticated calls against the
 running backend for every documented operation except an explicit,
@@ -53,11 +53,11 @@ Removing either frontend layer MUST NOT expose the document to a non-ADMIN.
 
 - GIVEN a VIEWER session
 - WHEN the sidebar renders
-- THEN no `/api-docs` nav node exists in the DOM
+- THEN no `/apidocs` nav node exists in the DOM
 
 #### Scenario: A deep link is explicit, not a silent redirect
 
-- GIVEN a VIEWER navigates directly to `/api-docs`
+- GIVEN a VIEWER navigates directly to `/apidocs`
 - WHEN `RequireRole` evaluates the route
 - THEN it renders `AccessDenied`, and the document is never fetched because
   the backend refuses it regardless

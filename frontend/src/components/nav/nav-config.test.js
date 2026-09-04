@@ -88,7 +88,7 @@ describe('visibleNav — role-based filtering (design D6)', () => {
   // Un `requires` que se cae del literal deja el link visible para todos, y la
   // aserción por label de arriba seguiría pasando porque un ADMIN igual lo ve.
   it('every admin destination in the real NAV_CONFIG is gated behind ADMIN', () => {
-    const rutasAdmin = ['/cronjobs', '/admin/manage/users', '/api-docs'];
+    const rutasAdmin = ['/cronjobs', '/admin/manage/users', '/apidocs'];
     const visiblesParaViewer = visibleNav(NAV_CONFIG, ['VIEWER'])
       .flatMap(n => (n.kind === 'link' ? [n.to] : n.items.map(i => i.to)));
 

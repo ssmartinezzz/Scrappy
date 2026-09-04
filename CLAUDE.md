@@ -508,8 +508,11 @@ Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
-`/api-docs` — **Consola API** (`swagger-ui-admin-gated`), ADMIN-only console
-over `docs/openapi.yaml`. Only the backend `ApiRoutePolicy` ADMIN row enforces;
+`/apidocs` — **Consola API** (`swagger-ui-admin-gated`), ADMIN-only console
+over `docs/openapi.yaml`. Es una **página standalone**: se rutea en `App.jsx`
+como hermana de `/splash`, fuera del árbol de `AppLayout`, así que swagger-ui se
+queda con el viewport entero y no hereda sidebar ni topbar. Su único adorno es
+un link "← Volver". Only the backend `ApiRoutePolicy` ADMIN row enforces;
 nav, route guard and the deny-list are cosmetic (`frontend/src/lib/apiDocs/`).
 `MlStatusPanel`, `GpuTrainingOverlay` y `AgentChatPanel` son componentes montados
 a nivel `AppLayout`, no rutas.
