@@ -12,7 +12,10 @@ behavior changes.
 
 Deferred to a follow-up change:
 
-- springdoc, Swagger UI, or any served interactive documentation endpoint.
+- Reflection-generated schemas (springdoc, `@Schema`/`@ApiResponse`, an
+  `OpenAPI` bean). A served interactive endpoint now exists
+  (`interactive-api-console`), but it renders this hand-written YAML — it does
+  not generate it, and adds no schema-reflection machinery.
 - `@Schema`/`@ApiResponse` annotations or an `OpenAPI` bean.
 - Any typed-DTO refactor of `ApiController` handlers.
 - Response body schema accuracy — the guard proves path+method parity only.
@@ -28,7 +31,10 @@ the status codes the handler actually returns. The six deliberately
 unauthenticated routes in `ApiRoutePolicy.TABLE` Band A (`OPTIONS /**`,
 `POST /api/auth/login`, `POST`/`DELETE /api/auth/refresh`,
 `POST /api/auth/password-reset/request`, `.../confirm`, `GET /`) MUST each be
-marked `PERMIT`.
+marked `PERMIT`. `GET /api/openapi.yaml` — the document-serving route added by
+`swagger-ui-admin-gated` — MUST be marked `ADMIN` and MUST document itself,
+closing the self-referential gap the route would otherwise open in Guard
+Direction 2.
 
 #### Scenario: A route's auth requirement matches its policy row
 
@@ -41,6 +47,13 @@ marked `PERMIT`.
 - GIVEN `POST /api/auth/login`
 - WHEN it appears in `docs/openapi.yaml`
 - THEN it is marked `PERMIT` and carries no bearer-auth requirement
+
+#### Scenario: The document-serving route documents itself
+
+- GIVEN `GET /api/openapi.yaml`, resolved `ADMIN` by `ApiRoutePolicy`
+- WHEN `OpenApiRouteCoverageTest` direction 2 scans live `ar.scraper.web` mappings
+- THEN it finds a `docs/openapi.yaml` entry for `GET /api/openapi.yaml` marked
+  `ADMIN`, and the test does not fail
 
 ### Requirement: Guard Direction 1 — documented-but-denied
 
