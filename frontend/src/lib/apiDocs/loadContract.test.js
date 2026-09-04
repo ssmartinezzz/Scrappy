@@ -1,4 +1,4 @@
-// swagger-ui-admin-gated — loadContract.js (design.md ADR-1/ADR-3).
+// loadContract.js (design.md ADR-1/ADR-3).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../authedFetch', () => ({ authedFetch: vi.fn() }));
@@ -67,7 +67,7 @@ describe('loadContract — happy path', () => {
 describe('loadContract — error mapping', () => {
   it.each([
     [401, /session expired/i],
-    [403, /ADMIN/i],
+    [403, /refused/i],
     [404, /not found/i],
     [500, /could not serve/i],
   ])('maps status %i to a distinct, legible message', async (status, expected) => {

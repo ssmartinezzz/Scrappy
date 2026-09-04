@@ -1375,14 +1375,21 @@ paths:
       tags: [Docs]
       summary: >-
         This document itself, streamed from a classpath resource — identical
-        across portable, POSIX and Docker installs (`swagger-ui-admin-gated`).
-        Closes the self-referential gap `OpenApiRouteCoverageTest` direction 2
-        would otherwise open the instant this route exists.
-      x-access: ADMIN
+        across portable, POSIX and Docker installs. Closes the self-referential
+        gap `OpenApiRouteCoverageTest` direction 2 would otherwise open the
+        instant this route exists.
+      description: >-
+        Public, and **filtered at serve time**: `OpenApiDocumentController`
+        strips every operation whose `x-access` is `ADMIN` before serialising,
+        and drops any path left with no operation. The served body is therefore
+        the `PERMIT` + `AUTHENTICATED` subset — exactly what a VIEWER may reach
+        — while this checked-in file remains the complete contract. If you are
+        reading this through the console at `/apidocs`, the administrative
+        operations are not hidden from the page: they never crossed the wire.
+      x-access: PERMIT
+      security: []
       responses:
         "200":
-          description: "The full YAML body, `Content-Type: application/yaml`."
-        "401":
-          description: No bearer token.
-        "403":
-          description: A valid, unexpired VIEWER token.
+          description: >-
+            The filtered YAML body, `Content-Type: application/yaml`. No
+            credential required.
