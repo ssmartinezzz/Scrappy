@@ -37,6 +37,7 @@ const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
 const CronjobsPage      = lazy(() => import('./CronjobsPage'));
 const UsuariosAdminPanel = lazy(() => import('./UsuariosAdminPanel'));
 const PriceHistoryPage  = lazy(() => import('./PriceHistoryPage'));
+const ApiDocsPanel      = lazy(() => import('./ApiDocsPanel'));
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 48;
@@ -392,6 +393,10 @@ function UsuariosAdminRoute() {
   return <UsuariosAdminPanel/>;
 }
 
+function ApiDocsRoute() {
+  return <ApiDocsPanel/>;
+}
+
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
   CategoryPicksPageRoute,
@@ -406,6 +411,7 @@ export {
   SuplementosRoute as SuplementosPanelRoute,
   CronjobsRoute as CronjobsPanelRoute,
   UsuariosAdminRoute as UsuariosAdminPanelRoute,
+  ApiDocsRoute as ApiDocsPanelRoute,
 };
 
 // ─── AppLayout ───────────────────────────────────────────────────────────────

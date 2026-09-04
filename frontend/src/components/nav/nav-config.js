@@ -4,7 +4,7 @@
 import {
   ShoppingBag, Trophy, Sparkles,
   Compass, LineChart, Bookmark,
-  Tag, Pill, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock, Users,
+  Tag, Pill, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock, Users, Code,
 } from 'lucide-react';
 
 // kind: 'link'  → direct NavLink, no submenu
@@ -48,6 +48,7 @@ export const NAV_CONFIG = [
   // enteros en ApiRoutePolicy.TABLE.
   { kind: 'link', label: 'Cronjobs', to: '/cronjobs', icon: Clock, requires: 'ADMIN' },
   { kind: 'link', label: 'Cuentas', to: '/admin/manage/users', icon: Users, requires: 'ADMIN' },
+  { kind: 'link', label: 'Consola API', to: '/api-docs', icon: Code, requires: 'ADMIN' },
 ];
 
 // frontend-auth-ui Phase 7 (design D6, tasks-part2 7.1/7.2). Single source of
