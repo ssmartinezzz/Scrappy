@@ -39,6 +39,7 @@ tags:
   - name: Cron
   - name: DB
   - name: LLM Agent
+  - name: Docs
 components:
   securitySchemes:
     bearerAuth:
@@ -1366,3 +1367,22 @@ paths:
           description: "`conflicto_stale` — the product changed since the proposal was generated."
         "500":
           description: The write failed (0 rows affected, or an exception). Never reported as applied.
+
+  # ── Docs ────────────────────────────────────────────────────────────────
+
+  /api/openapi.yaml:
+    get:
+      tags: [Docs]
+      summary: >-
+        This document itself, streamed from a classpath resource — identical
+        across portable, POSIX and Docker installs (`swagger-ui-admin-gated`).
+        Closes the self-referential gap `OpenApiRouteCoverageTest` direction 2
+        would otherwise open the instant this route exists.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "The full YAML body, `Content-Type: application/yaml`."
+        "401":
+          description: No bearer token.
+        "403":
+          description: A valid, unexpired VIEWER token.

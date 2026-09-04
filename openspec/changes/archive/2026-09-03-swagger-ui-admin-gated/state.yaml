@@ -1,0 +1,42 @@
+change: swagger-ui-admin-gated
+artifact_store: hybrid
+engram_project_key: scrappy
+status: applied
+phases_completed:
+  - explore
+  - propose
+  - spec
+  - design
+  - tasks
+  - apply
+phases_pending:
+  - verify
+  - archive
+delivery_strategy: single-pr
+review_budget_lines: 800
+execution_mode: interactive
+created_at: "2026-09-03"
+depends_on: openapi-swagger-docs
+blocked_for_apply: >
+  UNBLOCKED 2026-09-03. PR #185 merged to master as cb86a4f (merge commit per
+  PR-1, branch deleted). docs/openapi.yaml, LiveRoutes and
+  OpenApiRouteCoverageTest are now on master, so this change branches clean from
+  master as the user chose.
+user_decisions:
+  - "Topology: frontend-served via swagger-ui-react, with NO springdoc dependency. A ~15-line ar.scraper.web controller streams the classpath-bundled YAML."
+  - "Destructive operations: per-operation deny-list. Try-it-out stays enabled everywhere except an explicit list of irreversible operations."
+  - "Base branch: wait for PR #185 to merge to master; do not stack a chained PR."
+  - "Document route access level: ADMIN (settled in change 1)."
+  - "Deny-list is BINARY (no confirmation dialog) and drops from 14 to 10 operations: POST /api/scrape, /scrape/resume, /cron/{id}/run-now and /ml/entrenar are RELEASED. They start cancellable work rather than destroying data, and scrape/cancel was never denied."
+  - "Deny-list keys on METHOD + path: docs/openapi.yaml declares zero operationId across ~75 operations (verified)."
+  - "RESOLVED, not a risk: RouteCoverageTest has no total row-count assertion. Line 72 is a lower bound, line 89 is the PERMIT band only. An ADMIN row breaks neither."
+  - "Q3/Q4 unanswered; assumptions stand: single-origin servers block, audience is the operator. A second ADMIN is the trigger to widen the deny-list."
+  - "Spec and design are CONSISTENT — no reconciliation needed. The spec's open item (a backend-only proof that the frontend layers are cosmetic) is closed by design's OpenApiDocumentControllerTest: 200 ADMIN / 403 VIEWER / 401 anonymous under @WebMvcTest importing SecurityConfig, JwtAuthFilter and TokenService."
+  - "Estimate ~420 authored lines, inside the 800 budget. No size:exception."
+  - "Q1 (does requestInterceptor cover the spec fetch) remains formally unverified — Context7 was not invokable for a fourth consecutive phase agent. Design took the authedFetch path, correct under either answer."
+  - "Forecast: Decision needed before apply = No. ~420 lines vs 800 budget, no size:exception."
+  - "Baselines before apply: backend 2013/0/0/7 BUILD SUCCESS; frontend 35 files / 244 tests all green."
+  - "APPLY DONE: 25/25 tasks, commits 80ace82 (A) + 8400649 (B) on feat/admin-api-console. Not pushed, no PR. Suites verified independently: backend 2017/0/0/7, frontend 39 files / 268 tests."
+  - "Manual verification found a real bug 268 green tests could not see: an arrow-function wrapComponents wrap broke expand/collapse for every operation (swagger-ui reads mapStateToProps off Component.prototype). Fixed with a named function carrying only that property."
+  - "Authored lines 824 vs an 800 budget; maintainer accepted the 24-line overage rather than split an indivisible commit A."
+  - "Ledger reset again, different cause: the changed_lines counter includes package-lock.json's 2331 GENERATED lines (3179 total). Pad --max-changed-lines by the lockfile size when a change touches it."
