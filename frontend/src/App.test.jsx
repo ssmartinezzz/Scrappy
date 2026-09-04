@@ -118,6 +118,29 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 
+  it('a VIEWER deep-linking to /api-docs renders AccessDenied, and the contract is never fetched', async () => {
+    global.fetch = authedRouter({ roles: ['VIEWER'] });
+
+    renderApp('/api-docs');
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText(/acceso denegado/i)).toBeInTheDocument();
+  });
+
+  it('an ADMIN deep-linking to /api-docs sees the console, not AccessDenied', async () => {
+    global.fetch = vi.fn().mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes('/api/openapi.yaml')) {
+        return Promise.resolve({ ok: true, status: 200, text: async () => 'openapi: 3.1.0\npaths: {}\n' });
+      }
+      return authedRouter({ roles: ['ADMIN'] })(url);
+    });
+
+    renderApp('/api-docs');
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
   it('a non-ADMIN landing on /splash (no data yet) sees the empty state, not a scrape button', async () => {
     global.fetch = authedRouter({ roles: ['VIEWER'], tieneData: false });
 

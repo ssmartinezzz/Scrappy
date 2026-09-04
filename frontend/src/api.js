@@ -10,7 +10,9 @@ import { authedFetch } from './lib/authedFetch';
 // which the launcher rewrites per run — so one dist/ serves localhost, a LAN
 // origin behind TLS, or a deployment, without rebuilding. A blank value means
 // "not configured" (an untouched placeholder included), never a literal host.
-const BASE =
+// Exported so loadContract.js reuses this exact expression instead of a
+// third copy (a miscopy of this precedence order is a recorded prod bug).
+export const BASE =
   (typeof window !== 'undefined' && window.__API_BASE__) ||
   import.meta.env.VITE_API_BASE_URL ||
   '';

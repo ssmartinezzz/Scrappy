@@ -508,6 +508,9 @@ Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
+`/api-docs` — **Consola API** (`swagger-ui-admin-gated`), ADMIN-only console
+over `docs/openapi.yaml`. Only the backend `ApiRoutePolicy` ADMIN row enforces;
+nav, route guard and the deny-list are cosmetic (`frontend/src/lib/apiDocs/`).
 `MlStatusPanel`, `GpuTrainingOverlay` y `AgentChatPanel` son componentes montados
 a nivel `AppLayout`, no rutas.
 
