@@ -1,5 +1,11 @@
 // Pure-function test, no swagger-ui mount: `execute` is the actual
 // enforcement chokepoint.
+//
+// apidocs-public-filtered-document: the denied example moved from
+// `DELETE /api/db/productos` to `POST /api/auth/login`. The former is an
+// `x-access: ADMIN` operation, and the backend now strips those from the
+// served document, so it left the deny-list — a fixture naming an operation
+// the console can never render proves nothing about the plugin.
 import { describe, it, expect, vi } from 'vitest';
 import { denyTryItOutPlugin, reasonForProps } from './denyTryItOutPlugin';
 
@@ -13,7 +19,7 @@ describe('denyTryItOutPlugin — execute enforcement', () => {
     const oriAction = vi.fn();
     const wrapped = executeWrap()(oriAction);
 
-    const result = wrapped({ path: '/api/db/productos', method: 'DELETE' });
+    const result = wrapped({ path: '/api/auth/login', method: 'POST' });
 
     expect(oriAction).not.toHaveBeenCalled();
     expect(result).toBeUndefined();
@@ -34,7 +40,7 @@ describe('denyTryItOutPlugin — execute enforcement', () => {
     const oriAction = vi.fn();
     const wrapped = executeWrap()(oriAction);
 
-    wrapped({ path: '/api/db/productos', method: 'delete' });
+    wrapped({ path: '/api/auth/login', method: 'post' });
 
     expect(oriAction).not.toHaveBeenCalled();
   });
@@ -42,8 +48,8 @@ describe('denyTryItOutPlugin — execute enforcement', () => {
 
 describe('denyTryItOutPlugin — reasonForProps (the OperationContainer seam)', () => {
   it('returns the stated reason for a denied operation', () => {
-    expect(reasonForProps({ method: 'DELETE', path: '/api/db/productos' }))
-      .toMatch(/Empties the catalog/);
+    expect(reasonForProps({ method: 'POST', path: '/api/auth/login' }))
+      .toMatch(/Issues a new token pair/);
   });
 
   it('returns null for an allowed operation', () => {

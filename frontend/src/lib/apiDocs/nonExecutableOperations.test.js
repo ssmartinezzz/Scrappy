@@ -1,6 +1,13 @@
-// swagger-ui-admin-gated — anti-rot test with a negative control: an EMPTY
-// deny-list would pass a subset check vacuously, so four separate `it()`
-// blocks guard against that instead of one combined assertion.
+// Anti-rot test with a negative control: an EMPTY deny-list would pass a
+// subset check vacuously, so four separate `it()` blocks guard against that
+// instead of one combined assertion.
+//
+// apidocs-public-filtered-document: the exact count went 10 -> 3. The seven
+// that left were `x-access: ADMIN` operations, which the backend now strips
+// from the document it serves, so they never render a panel to deny; the
+// three that stay are the auth operations, which are not ADMIN and therefore
+// still reach the page. This guard keeps reading the full checked-in
+// contract — a path rename is what it is here to catch.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -37,8 +44,8 @@ function resolvesToARealOperation(key, contractKeys) {
 }
 
 describe('nonExecutableOperations — anti-rot guard (design.md decision 4)', () => {
-  it('1. the deny-list is not vacuous: exactly 10 keys, every reason non-empty, every verb real', () => {
-    expect(DENY_LIST).toHaveLength(10);
+  it('1. the deny-list is not vacuous: exactly 3 keys, every reason non-empty, every verb real', () => {
+    expect(DENY_LIST).toHaveLength(3);
 
     for (const entry of DENY_LIST) {
       expect(typeof entry.reason).toBe('string');

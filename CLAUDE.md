@@ -508,9 +508,30 @@ Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
-`/api-docs` — **Consola API** (`swagger-ui-admin-gated`), ADMIN-only console
-over `docs/openapi.yaml`. Only the backend `ApiRoutePolicy` ADMIN row enforces;
-nav, route guard and the deny-list are cosmetic (`frontend/src/lib/apiDocs/`).
+`/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
+botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
+la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de
+`/splash`, fuera del árbol de `AppLayout`, así que swagger-ui se queda con el
+viewport entero y no hereda sidebar ni topbar. Su único adorno es un link
+"← Volver" (un visitante anónimo que lo clickea cae en `/login`, que es lo
+correcto: la app sí está gateada).
+
+⚠️ **Lo que protege la superficie administrativa es el BODY, no la ruta.**
+`GET /api/openapi.yaml` es `PERMIT` en `ApiRoutePolicy`, y
+`OpenApiDocumentController` **filtra al servir**: borra toda operación con
+`x-access: ADMIN` y descarta entera la path que se queda sin ninguna. De 77
+operaciones documentadas viajan 43 — las `PERMIT` + `AUTHENTICATED`, exactamente
+lo que alcanza un VIEWER. Las 34 `ADMIN` (`DELETE /api/db/productos`,
+`/api/agent/**`, `/api/usuarios/**`, `POST /api/scrape`…) **nunca cruzan el
+cable**. Filtrar en el frontend sería teatro: el documento completo igual
+viajaría y se leería en la pestaña Network.
+
+El recurso del classpath **no se toca** — `OpenApiRouteCoverageTest` lo afirma
+byte-idéntico a `docs/openapi.yaml`, y esa garantía es sobre el artefacto, no
+sobre la respuesta. El deny-list de try-it-out
+(`frontend/src/lib/apiDocs/nonExecutableOperations.js`) bajó de 10 a **3**
+entradas por lo mismo: las siete que se fueron eran `ADMIN` y ya no llegan a
+la página; quedan las tres de auth, que mutan la sesión de quien llama.
 `MlStatusPanel`, `GpuTrainingOverlay` y `AgentChatPanel` son componentes montados
 a nivel `AppLayout`, no rutas.
 

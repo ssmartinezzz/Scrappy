@@ -136,3 +136,25 @@ describe('authedFetch — untouched response contract', () => {
     await expect(res.json()).resolves.toEqual(body);
   });
 });
+
+// apidocs-public-filtered-document: GET /api/openapi.yaml became PERMIT, so
+// the console's loadContract() now runs through authedFetch with no session
+// at all. Nothing in authedFetch was changed for it — this pins the behaviour
+// that made a special case unnecessary.
+describe('authedFetch — anonymous, no session', () => {
+  it('sends no Authorization header and never touches /api/auth/refresh on a 200', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => 'openapi: 3.1.0' });
+
+    const r = await authedFetch('/api/openapi.yaml');
+
+    expect(r.ok).toBe(true);
+
+    const [, init] = global.fetch.mock.calls[0];
+    const auth = (init?.headers instanceof Headers)
+      ? init.headers.get('Authorization')
+      : init?.headers?.Authorization;
+    expect(auth ?? null).toBeNull();
+
+    expect(global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/auth/refresh'))).toHaveLength(0);
+  });
+});

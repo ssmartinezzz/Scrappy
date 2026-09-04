@@ -77,18 +77,22 @@ describe('visibleNav — role-based filtering (design D6)', () => {
     expect(adminLabels).toContain('Cuentas');
   });
 
-  it('the real NAV_CONFIG hides Consola API for a VIEWER and shows it for an ADMIN', () => {
-    const viewerLabels = visibleNav(NAV_CONFIG, ['VIEWER']).map(n => n.label);
-    const adminLabels = visibleNav(NAV_CONFIG, ['ADMIN']).map(n => n.label);
+  // apidocs-public-filtered-document: the console has NO nav entry, for any
+  // role. It is reachable by typing /apidocs and nothing else, and the
+  // document it renders is filtered server-side, so there is nothing left for
+  // a nav-visibility rule to protect.
+  it('the real NAV_CONFIG offers no entry point to /apidocs, for any role', () => {
+    const destinos = roles => visibleNav(NAV_CONFIG, roles)
+      .flatMap(n => (n.kind === 'link' ? [n.to] : n.items.map(i => i.to)));
 
-    expect(viewerLabels).not.toContain('Consola API');
-    expect(adminLabels).toContain('Consola API');
+    expect(destinos(['VIEWER'])).not.toContain('/apidocs');
+    expect(destinos(['ADMIN'])).not.toContain('/apidocs');
   });
 
   // Un `requires` que se cae del literal deja el link visible para todos, y la
   // aserción por label de arriba seguiría pasando porque un ADMIN igual lo ve.
   it('every admin destination in the real NAV_CONFIG is gated behind ADMIN', () => {
-    const rutasAdmin = ['/cronjobs', '/admin/manage/users', '/api-docs'];
+    const rutasAdmin = ['/cronjobs', '/admin/manage/users'];
     const visiblesParaViewer = visibleNav(NAV_CONFIG, ['VIEWER'])
       .flatMap(n => (n.kind === 'link' ? [n.to] : n.items.map(i => i.to)));
 
