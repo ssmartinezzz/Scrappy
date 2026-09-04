@@ -72,8 +72,13 @@ class RouteCoverageTest {
                 .hasSizeGreaterThan(40);
     }
 
+    // Grew from six to seven deliberately, in `apidocs-public-filtered-document`:
+    // GET /api/openapi.yaml moved ADMIN -> PERMIT. It is a read of a static
+    // document that OpenApiDocumentController filters down to the PERMIT +
+    // AUTHENTICATED operations before serialising, so an anonymous caller
+    // reaches nothing a VIEWER could not already reach.
     @Test
-    @DisplayName("the permit list is exactly the six unauthenticated entry points")
+    @DisplayName("the permit list is exactly the seven unauthenticated entry points")
     void thePermitListIsExactlyWhatWeExpect() {
         Set<String> permitidas = new LinkedHashSet<>();
         for (var fila : ApiRoutePolicy.TABLE) {
@@ -86,7 +91,8 @@ class RouteCoverageTest {
         assertThat(permitidas)
                 .as("the permit list is the attack surface that needs no credential at all — "
                         + "it should be short enough to read, and any growth should be deliberate")
-                .hasSize(6);
+                .hasSize(7)
+                .contains("[GET] /api/openapi.yaml");
     }
 
     @Test

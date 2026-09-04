@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import SplashPanel from './components/SplashPanel';
 import AppLayout, {
@@ -18,7 +18,6 @@ import AppLayout, {
   SuplementosPanelRoute,
   CronjobsPanelRoute,
   UsuariosAdminPanelRoute,
-  ApiDocsPanelRoute,
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
@@ -31,6 +30,13 @@ import RequireRole from './auth/RequireRole';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+
+// The API console is a STANDALONE page, not a panel inside the app shell:
+// swagger-ui gets the whole viewport, so it is routed below as a sibling of
+// /splash and /login rather than as a child of AppLayout. AppLayout knows
+// nothing about it. Still lazy — swagger-ui-react is a heavy dependency no
+// other screen pulls in.
+const ApiDocsPanel = lazy(() => import('./components/ApiDocsPanel'));
 
 // ─── RootGate ───────────────────────────────────────────────────────────────
 // Initial-load gate for "/" only: checking | toSplash | toCatalogo.
@@ -129,6 +135,14 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword/>}/>
           <Route path="/" element={<RootGate/>}/>
           <Route path="/splash" element={<SplashRoute/>}/>
+          {/* Standalone public console — outside AppLayout on purpose (see the
+              lazy import above), and with no role guard: the backend serves a
+              document filtered down to the PERMIT + AUTHENTICATED operations,
+              so there is no ADMIN surface here to gate. /apidocs is in
+              AuthGate's PUBLIC_ROUTES so an anonymous visitor reaches it. */}
+          <Route path="/apidocs" element={
+            <Suspense fallback={<RouteFallback/>}><ApiDocsPanel/></Suspense>
+          }/>
           <Route path="/" element={<AppLayout/>}>
             <Route path="catalogo"   element={<CatalogoPanelRoute/>}/>
             <Route path="picks"      element={<PicksPanelRoute/>}/>
@@ -154,7 +168,6 @@ export default function App() {
                 ApiRoutePolicy.TABLE, así que el gate de ruta espeja la
                 política del backend en vez de esconder un botón. */}
             <Route path="admin/manage/users" element={<RequireRole role="ADMIN"><UsuariosAdminPanelRoute/></RequireRole>}/>
-            <Route path="api-docs" element={<RequireRole role="ADMIN"><ApiDocsPanelRoute/></RequireRole>}/>
             <Route path="*" element={<NotFound/>}/>
           </Route>
         </Routes>
