@@ -18,6 +18,7 @@ import AppLayout, {
   SuplementosPanelRoute,
   CronjobsPanelRoute,
   UsuariosAdminPanelRoute,
+  ApiDocsPanelRoute,
 } from './components/AppLayout';
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
@@ -153,6 +154,7 @@ export default function App() {
                 ApiRoutePolicy.TABLE, así que el gate de ruta espeja la
                 política del backend en vez de esconder un botón. */}
             <Route path="admin/manage/users" element={<RequireRole role="ADMIN"><UsuariosAdminPanelRoute/></RequireRole>}/>
+            <Route path="api-docs" element={<RequireRole role="ADMIN"><ApiDocsPanelRoute/></RequireRole>}/>
             <Route path="*" element={<NotFound/>}/>
           </Route>
         </Routes>
