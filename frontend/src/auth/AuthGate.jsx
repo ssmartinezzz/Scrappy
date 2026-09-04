@@ -9,7 +9,12 @@ import RouteFallback from '../components/RouteFallback';
 
 // frontend-auth-ui Phase 6: /forgot-password and /reset-password are public
 // too — a reset link is exactly what an anonymous, locked-out visitor uses.
-const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password'];
+// apidocs-public-filtered-document: /apidocs joins them. The console renders a
+// document the backend filters down to the PERMIT + AUTHENTICATED operations,
+// so there is nothing there an anonymous visitor may not see; without this
+// entry the redirect below would bounce them to /login and the public route
+// would be public in name only.
+const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password', '/apidocs'];
 
 export default function AuthGate({ children }) {
   const { status } = useAuth();

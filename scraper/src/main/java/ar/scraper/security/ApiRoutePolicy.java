@@ -107,6 +107,15 @@ public final class ApiRoutePolicy {
                     List.of("/api/auth/password-reset/confirm"), Access.PERMIT),
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/"), Access.PERMIT,
                     "RootController — liveness"),
+            // Public because the response is FILTERED, not because the whole
+            // contract went public: OpenApiDocumentController strips every
+            // x-access: ADMIN operation before serialising, so the body never
+            // enumerates the administrative mutation surface (DELETE
+            // /api/db/productos, /api/agent/**, /api/usuarios/**) that made this
+            // row ADMIN in the first place. What an anonymous caller gets is
+            // exactly what a VIEWER may reach.
+            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/openapi.yaml"), Access.PERMIT,
+                    "the contract itself, filtered down to PERMIT + AUTHENTICATED at serve time"),
 
             // ── Band B · carve-outs that MUST precede a Band C wildcard ──────
             //
@@ -140,8 +149,6 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET),  List.of("/api/scrape/interrupted"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape/resume"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.PUT), List.of("/api/config"), Access.ADMIN),
-            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/openapi.yaml"), Access.ADMIN,
-                    "swagger-ui-admin-gated — the contract itself, not just what it documents"),
             new RoutePolicy(Set.of(HttpMethod.POST, HttpMethod.DELETE),
                     List.of("/api/sitios", "/api/sitios/**"), Access.ADMIN,
                     "GET /api/sitios is not matched here — method specificity, no carve-out needed"),

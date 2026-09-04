@@ -135,14 +135,13 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword/>}/>
           <Route path="/" element={<RootGate/>}/>
           <Route path="/splash" element={<SplashRoute/>}/>
-          {/* Standalone ADMIN console — outside AppLayout on purpose (see the
-              lazy import above). AuthGate still wraps this whole tree and
-              RequireRole only needs useAuth(), so the ADMIN gate is unchanged
-              by the move; a VIEWER deep link still renders AccessDenied. */}
+          {/* Standalone public console — outside AppLayout on purpose (see the
+              lazy import above), and with no role guard: the backend serves a
+              document filtered down to the PERMIT + AUTHENTICATED operations,
+              so there is no ADMIN surface here to gate. /apidocs is in
+              AuthGate's PUBLIC_ROUTES so an anonymous visitor reaches it. */}
           <Route path="/apidocs" element={
-            <RequireRole role="ADMIN">
-              <Suspense fallback={<RouteFallback/>}><ApiDocsPanel/></Suspense>
-            </RequireRole>
+            <Suspense fallback={<RouteFallback/>}><ApiDocsPanel/></Suspense>
           }/>
           <Route path="/" element={<AppLayout/>}>
             <Route path="catalogo"   element={<CatalogoPanelRoute/>}/>

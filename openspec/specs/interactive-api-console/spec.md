@@ -2,11 +2,15 @@
 
 ## Purpose
 
-An ADMIN-only console at `/apidocs` renders the checked-in OpenAPI contract
-(`docs/openapi.yaml`) via `swagger-ui-react`, authenticated by the existing
-session, and lets an ADMIN execute real bearer-authenticated calls against the
-running backend for every documented operation except an explicit,
-test-guarded deny-list of ten irreversible ones.
+A public console at `/apidocs` renders the OpenAPI contract via
+`swagger-ui-react` and lets its reader execute real calls against the running
+backend. The document it renders is **filtered server-side**: every operation
+carrying `x-access: ADMIN` is stripped before serialising, so what reaches the
+page is the `PERMIT` + `AUTHENTICATED` subset — exactly what a VIEWER may
+reach. An authenticated reader's calls carry their bearer token; an anonymous
+one can still read the document and execute the `PERMIT` operations. Every
+served operation is executable except an explicit, test-guarded deny-list of
+three that mutate the caller's own session.
 
 ## Non-Goals
 
@@ -14,63 +18,82 @@ test-guarded deny-list of ten irreversible ones.
 - The typed-DTO refactor of `ApiController` handlers.
 - A `servers` block declaring more than the single configured origin.
 - Any confirmation-dialog mechanism — the deny-list is binary, not a speed bump.
-- Editing `docs/openapi.yaml` beyond the new endpoint's own entry.
+- Editing `docs/openapi.yaml` beyond the endpoint's own entry — the checked-in
+  file stays the complete contract; only the served body is filtered.
+- Any nav entry, link or button anywhere in the app pointing at `/apidocs`.
+- A per-role served document: there is one filtered body, identical for
+  anonymous, VIEWER and ADMIN alike.
 
 ## Requirements
 
-### Requirement: Document Access Is ADMIN, Enforced by the Backend
+### Requirement: The Document Is Public, and Filtered by the Backend
 
-`GET /api/openapi.yaml` MUST resolve to `Access.ADMIN` in `ApiRoutePolicy.TABLE`.
-A request carrying a valid, unexpired token for a non-ADMIN role MUST be
-rejected by the policy table itself, never by a frontend layer.
+`GET /api/openapi.yaml` MUST resolve to `Access.PERMIT` in
+`ApiRoutePolicy.TABLE`. The response body MUST NOT contain any operation whose
+`x-access` is `ADMIN`, and a path left with no operation after filtering MUST
+be dropped from the response entirely rather than served as an empty object.
+`info`, `servers`, `security`, `tags` and `components` MUST be served intact.
+Filtering MUST happen in `OpenApiDocumentController`, never in the frontend:
+a document filtered client-side has already crossed the wire.
 
-#### Scenario: An ADMIN fetches the document
+#### Scenario: Anyone fetches the document
 
-- GIVEN a valid ADMIN bearer token
+- GIVEN no bearer token, a VIEWER token, or an ADMIN token
 - WHEN `GET /api/openapi.yaml` is requested
-- THEN the response is `200` with the YAML body
+- THEN the response is `200` with the same filtered YAML body in all three cases
 
-#### Scenario: A VIEWER is rejected at the policy layer
+#### Scenario: An ADMIN operation is absent, not merely hidden
 
-- GIVEN a valid, unexpired VIEWER bearer token
-- WHEN `GET /api/openapi.yaml` is requested
-- THEN `ApiRoutePolicy` returns `403`, independent of any SPA route guard
+- GIVEN `DELETE /api/db/productos` carries `x-access: ADMIN` in `docs/openapi.yaml`
+- WHEN the served document is parsed
+- THEN no operation with that method and path exists in it, and the
+  `/api/db/productos` path key is absent altogether
 
-#### Scenario: An unauthenticated request is rejected
+#### Scenario: The filter does not pass by returning nothing
 
-- GIVEN no bearer token
-- WHEN `GET /api/openapi.yaml` is requested
-- THEN the response is `401`
+- GIVEN the served document
+- WHEN its operations are enumerated
+- THEN `GET /api/data` (`AUTHENTICATED`) and `POST /api/auth/login` (`PERMIT`)
+  are both present
 
-### Requirement: Frontend Role Layers Are Cosmetic, Never the Gate
+#### Scenario: The bundled resource is untouched
 
-The nav visibility filter and the `RequireRole` route guard MUST NOT be relied
-on for enforcement — they exist for UX only. `ApiRoutePolicy`'s `ADMIN` row on
-`GET /api/openapi.yaml` MUST remain the sole mechanism denying a non-ADMIN.
-Removing either frontend layer MUST NOT expose the document to a non-ADMIN.
+- GIVEN filtering happens at serve time
+- WHEN `OpenApiRouteCoverageTest` compares the classpath copy to `docs/openapi.yaml`
+- THEN they are byte-identical
 
-#### Scenario: Nav hides the entry point
+### Requirement: The Console Has No Entry Point in the App
 
-- GIVEN a VIEWER session
-- WHEN the sidebar renders
-- THEN no `/apidocs` nav node exists in the DOM
+No nav node, link or button anywhere in the app MUST point at `/apidocs`, for
+any role. The route MUST NOT be wrapped in a role guard, and `/apidocs` MUST be
+in `AuthGate`'s `PUBLIC_ROUTES` so an anonymous visitor is not redirected to
+`/login`. Reaching the console MUST require typing the URL.
 
-#### Scenario: A deep link is explicit, not a silent redirect
+#### Scenario: Nav offers nothing, for any role
 
-- GIVEN a VIEWER navigates directly to `/apidocs`
-- WHEN `RequireRole` evaluates the route
-- THEN it renders `AccessDenied`, and the document is never fetched because
-  the backend refuses it regardless
+- GIVEN a VIEWER session, an ADMIN session, or no session
+- WHEN the nav renders
+- THEN no node with destination `/apidocs` exists in it
 
-### Requirement: The Deny-List Blocks Exactly Ten Operations
+#### Scenario: An anonymous deep link reaches the console
 
-The console MUST disable try-it-out, with a stated reason, for exactly the ten
-operations that destroy data, change who can log in, or mutate the caller's
-own session. Every other documented operation MUST remain executable.
+- GIVEN no session
+- WHEN `/apidocs` is opened directly
+- THEN the console renders, and `AuthGate` does not redirect to `/login`
+
+### Requirement: The Deny-List Blocks Exactly Three Operations
+
+The console MUST disable try-it-out, with a stated reason, for exactly the
+three operations that mutate the caller's own session: `POST /api/auth/login`,
+`POST /api/auth/refresh` and `DELETE /api/auth/refresh`. Every other served
+operation MUST remain executable. The seven destructive operations this list
+previously named are all `x-access: ADMIN` and no longer reach the page at
+all, so they MUST NOT be on it — a key naming an unservable operation would
+document a protection the deny-list is not providing.
 
 #### Scenario: A denied operation shows no Execute button
 
-- GIVEN `DELETE /api/db/productos` is on the deny-list
+- GIVEN `POST /api/auth/login` is on the deny-list
 - WHEN its operation panel renders
 - THEN no Execute button appears, and a reason string is shown instead
 
@@ -115,19 +138,27 @@ portable, POSIX, and Docker topologies alike.
 
 - GIVEN the backend built and run inside the `Dockerfile` container, where no
   `docs/` directory exists at any filesystem depth
-- WHEN `GET /api/openapi.yaml` is requested by an ADMIN
-- THEN the response is `200` with the full YAML body
+- WHEN `GET /api/openapi.yaml` is requested
+- THEN the response is `200` with the filtered YAML body
 
 ### Requirement: Existing Contract Guards Stay Green
 
-Per `CODE-2`, `OpenApiRouteCoverageTest` and `RouteCoverageTest` MUST both keep
-every pre-existing `@Test` body and assertion unchanged after this change
-ships, with the new route as their only new input. No other documented
+`OpenApiRouteCoverageTest` MUST keep every pre-existing `@Test` body and
+assertion unchanged. `RouteCoverageTest`'s permit-band size assertion MUST be
+raised from six to seven deliberately, naming this change and the route as its
+reason — its javadoc requires any growth of the credential-free surface to be
+an explicit decision, not a number nudged to get green. No other documented
 operation's path, method, or access level MUST change. Per `TEST-1`, the whole
 suite MUST be green on each commit.
 
-#### Scenario: The new route satisfies both coverage directions
+#### Scenario: The route satisfies both coverage directions
 
-- GIVEN `GET /api/openapi.yaml` is live and documented as `ADMIN`
+- GIVEN `GET /api/openapi.yaml` is live and documented as `PERMIT`
 - WHEN `OpenApiRouteCoverageTest` runs both directions
 - THEN neither reports it as documented-but-denied or live-but-undocumented
+
+#### Scenario: The permit band grows by exactly one, on purpose
+
+- GIVEN the permit band had six entries
+- WHEN `GET /api/openapi.yaml` moves from ADMIN to PERMIT
+- THEN `RouteCoverageTest` asserts seven, and names the new entry
