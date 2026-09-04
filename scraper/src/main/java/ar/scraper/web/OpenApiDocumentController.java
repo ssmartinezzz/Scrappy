@@ -17,7 +17,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -120,7 +123,16 @@ public class OpenApiDocumentController {
         Map<String, Object> documento = (Map<String, Object>) cargado;
 
         if (documento.get("paths") instanceof Map<?, ?> paths) {
-            documento.put("paths", filtrarPaths((Map<String, Object>) paths));
+            Map<String, Object> conservados = filtrarPaths((Map<String, Object>) paths);
+            documento.put("paths", conservados);
+            // A tag left with no operations still names a surface the reader
+            // cannot reach — `Usuarios`, `Cron`, `DB` and `LLM Agent` are
+            // entirely ADMIN. swagger-ui renders nothing for them, but the
+            // name alone is a hint, so they are dropped rather than served
+            // empty.
+            if (documento.get("tags") instanceof List<?> tags) {
+                documento.put("tags", filtrarTags((List<Object>) tags, tagsEnUso(conservados)));
+            }
         }
         return escritor().dump(documento);
     }
@@ -146,6 +158,39 @@ public class OpenApiDocumentController {
             }
             if (quedaAlgunaOperacion) {
                 conservados.put(entrada.getKey(), filtrado);
+            }
+        }
+        return conservados;
+    }
+
+    /** Every tag named by an operation that survived filtering. */
+    @SuppressWarnings("unchecked")
+    private static Set<String> tagsEnUso(Map<String, Object> paths) {
+        Set<String> enUso = new LinkedHashSet<>();
+        for (Object item : paths.values()) {
+            if (!(item instanceof Map<?, ?> pathItem)) {
+                continue;
+            }
+            for (Map.Entry<String, Object> claveValor : ((Map<String, Object>) pathItem).entrySet()) {
+                boolean esOperacion = VERBOS.contains(
+                        String.valueOf(claveValor.getKey()).toLowerCase(Locale.ROOT));
+                if (esOperacion && claveValor.getValue() instanceof Map<?, ?> op
+                        && op.get("tags") instanceof List<?> tags) {
+                    tags.forEach(t -> enUso.add(String.valueOf(t)));
+                }
+            }
+        }
+        return enUso;
+    }
+
+    /** Keeps only the declared tags that {@link #tagsEnUso} still references. */
+    private static List<Object> filtrarTags(List<Object> declarados, Set<String> enUso) {
+        List<Object> conservados = new ArrayList<>();
+        for (Object tag : declarados) {
+            boolean referenciado = tag instanceof Map<?, ?> t
+                    && enUso.contains(String.valueOf(t.get("name")));
+            if (referenciado) {
+                conservados.add(tag);
             }
         }
         return conservados;

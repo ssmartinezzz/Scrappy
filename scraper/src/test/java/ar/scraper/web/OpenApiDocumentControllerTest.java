@@ -21,6 +21,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -236,6 +237,40 @@ class OpenApiDocumentControllerTest {
                     .as("no served path may be an empty object: " + entrada.getKey())
                     .isNotEmpty();
         }
+    }
+
+    @Test
+    @DisplayName("a tag whose every operation was filtered out is not declared either")
+    void tagsLeftWithoutOperationsAreDropped() throws Exception {
+        Map<String, Object> documento = parsear(cuerpoAnonimo());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> tags = (List<Map<String, Object>>) documento.get("tags");
+        List<String> nombres = tags.stream().map(t -> String.valueOf(t.get("name"))).toList();
+
+        assertThat(nombres)
+                .as("Usuarios, Cron, DB and LLM Agent are entirely ADMIN — swagger-ui renders "
+                        + "nothing for them, but the name alone still points at the surface")
+                .doesNotContain("Usuarios", "Cron", "DB", "LLM Agent");
+
+        // Positive control: dropping every tag would satisfy the assertion above.
+        assertThat(nombres)
+                .as("the tags that still carry operations must survive")
+                .contains("Auth", "Catálogo");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> paths = (Map<String, Object>) documento.get("paths");
+        Set<String> referenciados = new LinkedHashSet<>();
+        for (Object item : paths.values()) {
+            ((Map<?, ?>) item).forEach((verbo, op) -> {
+                if (op instanceof Map<?, ?> operacion && operacion.get("tags") instanceof List<?> t) {
+                    t.forEach(x -> referenciados.add(String.valueOf(x)));
+                }
+            });
+        }
+        assertThat(nombres)
+                .as("every declared tag must be referenced by a surviving operation")
+                .allSatisfy(n -> assertThat(referenciados).contains(n));
     }
 
     // ── Positive control: an empty filter would pass every check above ──────
