@@ -1,16 +1,59 @@
 """Origin modes: the launcher picks where the frontend talks, per run."""
+from dataclasses import dataclass
 import re
 
 import pytest
 
 from cli.core.config import Config, Ports, resolve_toolchain_paths
 from cli.core.runtime_config import (
+    LAN,
+    LOCAL,
     MODES,
+    Startup,
     apply_mode,
     UnknownMode,
+    preflight,
     resolve_origins,
     write_runtime_config,
 )
+
+
+@dataclass
+class _BundleStub:
+    trusted: bool
+
+
+class _FakeProxy:
+    """Stands in for `cli.core.lan_proxy` itself — no real mkcert/Docker
+    ever runs. Records the call order so a test can assert cert-then-proxy
+    without transcribing `apply_mode`'s internals."""
+
+    def __init__(self, *, trusted: bool, ip: str = "192.0.2.10") -> None:
+        self.trusted = trusted
+        self.ip = ip
+        self.calls: list[str] = []
+
+    def detect_lan_ip(self) -> str:
+        self.calls.append("detect_lan_ip")
+        return self.ip
+
+    def ensure_cert(self, cfg, ip):
+        self.calls.append("ensure_cert")
+        return _BundleStub(trusted=self.trusted)
+
+    def start_proxy(self, cfg, ip):
+        self.calls.append("start_proxy")
+
+    def preflight(self) -> None:
+        self.calls.append("preflight")
+
+
+class _PoisonedProxy:
+    """Any attribute access is a bug: `local` must never reach the proxy
+    seam at all, not even to check it is unnecessary."""
+
+    def __getattr__(self, name):
+        raise AssertionError(f"local mode touched the proxy seam via {name!r}")
 
 
 @pytest.fixture
@@ -105,9 +148,11 @@ def test_apply_mode_wires_open_url_cors_and_the_bundle(cfg, monkeypatch):
     (cfg.repo_root / "frontend" / "dist").mkdir(parents=True)
     env = {"APP_CORS_ALLOWED_ORIGINS": "http://localhost:5173"}
 
-    origins = apply_mode(cfg, "lan", env)
+    # A fake proxy: this test's job is CORS/open-url/bundle wiring, not
+    # cert/container side effects — those get their own coverage below.
+    startup = apply_mode(cfg, "lan", env, proxy=_FakeProxy(trusted=True))
 
-    assert origins.frontend == "https://192.0.2.10:8443"
+    assert startup.origins.frontend == "https://192.0.2.10:8443"
     # The browser must land where this run actually serves, not where the
     # .env was frozen at install time.
     assert env["APP_OPEN_URL"] == "https://192.0.2.10:8443"
@@ -127,6 +172,50 @@ def test_apply_mode_does_not_duplicate_an_origin_already_allowed(cfg):
     apply_mode(cfg, "local", env)
 
     assert env["APP_CORS_ALLOWED_ORIGINS"] == f"http://localhost:{cfg.ports.frontend}"
+
+
+def test_apply_mode_local_never_touches_the_proxy_seam(cfg):
+    (cfg.repo_root / "frontend" / "dist").mkdir(parents=True)
+    env = {"APP_CORS_ALLOWED_ORIGINS": ""}
+
+    startup = apply_mode(cfg, LOCAL, env, proxy=_PoisonedProxy())
+
+    assert startup == Startup(mode=LOCAL, origins=startup.origins, ca=None)
+
+
+def test_apply_mode_lan_returns_trusted_ca_when_bundle_is_trusted(cfg, monkeypatch):
+    monkeypatch.setenv("SCRAPPY_FRONTEND_ORIGIN", "https://192.0.2.10:8443")
+    monkeypatch.setenv("SCRAPPY_BACKEND_ORIGIN", "https://192.0.2.10:8444")
+    (cfg.repo_root / "frontend" / "dist").mkdir(parents=True)
+    proxy = _FakeProxy(trusted=True)
+
+    startup = apply_mode(cfg, LAN, {}, proxy=proxy)
+
+    assert startup.ca is not None
+    # Cert has to exist before the terminator is (re)started with it.
+    assert proxy.calls == ["detect_lan_ip", "ensure_cert", "start_proxy"]
+
+
+def test_apply_mode_lan_returns_none_ca_when_bundle_is_self_signed(cfg, monkeypatch):
+    monkeypatch.setenv("SCRAPPY_FRONTEND_ORIGIN", "https://192.0.2.10:8443")
+    monkeypatch.setenv("SCRAPPY_BACKEND_ORIGIN", "https://192.0.2.10:8444")
+    (cfg.repo_root / "frontend" / "dist").mkdir(parents=True)
+
+    startup = apply_mode(cfg, LAN, {}, proxy=_FakeProxy(trusted=False))
+
+    assert startup.ca is None
+
+
+def test_runtime_config_preflight_lan_delegates_to_the_proxy(cfg):
+    proxy = _FakeProxy(trusted=True)
+
+    preflight(LAN, proxy=proxy)
+
+    assert proxy.calls == ["preflight"]
+
+
+def test_runtime_config_preflight_local_is_a_no_op(cfg):
+    preflight(LOCAL, proxy=_PoisonedProxy())  # no raise, no attribute touched
 
 
 def test_open_follows_the_mode_of_the_last_start(cfg, monkeypatch, tmp_path):
