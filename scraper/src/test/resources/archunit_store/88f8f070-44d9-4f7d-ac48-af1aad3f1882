@@ -27,15 +27,15 @@ Cycle detected: Slice agent -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   3. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -107,21 +107,15 @@ Cycle detected: Slice aggregator -> \
   1. Dependencies of Slice aggregator\
     - Constructor <ar.scraper.aggregator.ResultAggregator.<init>(ar.scraper.aggregator.NormalizerService, ar.scraper.ml.PythonRunner, ar.scraper.ml.MlEnricher, ar.scraper.ml.SenalEnricher, ar.scraper.ml.FinanciacionEnricher, ar.scraper.db.DatabaseService)> has parameter of type <ar.scraper.db.DatabaseService> in (ResultAggregator.java:0)\
     - Field <ar.scraper.aggregator.ResultAggregator.db> has type <ar.scraper.db.DatabaseService> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.aplicarBloqueos(java.util.List, java.util.Map)> has generic parameter type <java.util.Map<java.lang.String, ar.scraper.db.ClasificacionBloqueada>> with type argument depending on <ar.scraper.db.ClasificacionBloqueada> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.db.DatabaseService.upsertProductos(java.util.List, java.time.Instant)> in (ResultAggregator.java:154)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.db.DatabaseService.guardarMlOutput(com.fasterxml.jackson.databind.JsonNode)> in (ResultAggregator.java:155)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.db.DatabaseService.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> in (ResultAggregator.java:157)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.db.DatabaseService.cargarClasificacionBloqueada()> in (ResultAggregator.java:227)\
-    - Method <ar.scraper.aggregator.ResultAggregator.aplicarBloqueos(java.util.List, java.util.Map)> calls method <ar.scraper.db.ClasificacionBloqueada.categoria()> in (ResultAggregator.java:265)\
-    - Method <ar.scraper.aggregator.ResultAggregator.aplicarBloqueos(java.util.List, java.util.Map)> calls method <ar.scraper.db.ClasificacionBloqueada.genero()> in (ResultAggregator.java:265)\
-    - Method <ar.scraper.aggregator.ResultAggregator.aplicarBloqueos(java.util.List, java.util.Map)> calls method <ar.scraper.db.ClasificacionBloqueada.marca()> in (ResultAggregator.java:265)\
-    - Method <ar.scraper.aggregator.ResultAggregator.aplicarBloqueos(java.util.List, java.util.Map)> calls method <ar.scraper.db.ClasificacionBloqueada.rubro()> in (ResultAggregator.java:265)\
-    - Method <ar.scraper.aggregator.ResultAggregator.aplicarBloqueos(java.util.List, java.util.Map)> calls method <ar.scraper.db.ClasificacionBloqueada.subCategoria()> in (ResultAggregator.java:267)\
-    - Method <ar.scraper.aggregator.ResultAggregator.persistirCategoriasRefinadas(java.util.List, java.util.List)> calls method <ar.scraper.db.DatabaseService.actualizarCategoria(java.lang.String, java.lang.String)> in (ResultAggregator.java:292)\
-    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.cargarProductos()> in (ResultAggregator.java:341)\
-    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.cargarClasificacionBloqueada()> in (ResultAggregator.java:343)\
-    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.actualizarNormalizacion(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.List, java.lang.String)> in (ResultAggregator.java:401)\
-    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.estaBloqueado(java.lang.String)> in (ResultAggregator.java:404)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.db.DatabaseService.upsertProductos(java.util.List, java.time.Instant)> in (ResultAggregator.java:130)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.db.DatabaseService.guardarMlOutput(com.fasterxml.jackson.databind.JsonNode)> in (ResultAggregator.java:131)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.db.DatabaseService.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> in (ResultAggregator.java:133)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.db.DatabaseService.cargarClasificacionBloqueada()> in (ResultAggregator.java:203)\
+    - Method <ar.scraper.aggregator.ResultAggregator.persistirCategoriasRefinadas(java.util.List, java.util.List)> calls method <ar.scraper.db.DatabaseService.actualizarCategoria(java.lang.String, java.lang.String)> in (ResultAggregator.java:268)\
+    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.cargarProductos()> in (ResultAggregator.java:317)\
+    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.cargarClasificacionBloqueada()> in (ResultAggregator.java:319)\
+    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.actualizarNormalizacion(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.List, java.lang.String)> in (ResultAggregator.java:377)\
+    - Method <ar.scraper.aggregator.ResultAggregator.renormalizarCatalogo()> calls method <ar.scraper.db.DatabaseService.estaBloqueado(java.lang.String)> in (ResultAggregator.java:380)\
   2. Dependencies of Slice db\
     - Constructor <ar.scraper.db.CatalogQueryRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (CatalogQueryRepository.java:0)\
     - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
@@ -132,18 +126,18 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.db.ProductRepository.rubroResolver> has type <ar.scraper.aggregator.normalize.RubroResolver> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.ProductRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.SitiosRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (SitiosRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.DatabaseService.siteRegistry()> has return type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRowMapper.java:0)\
-    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:46)\
+    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:47)\
     - Method <ar.scraper.db.MarcaSeeder.run(org.springframework.boot.ApplicationArguments)> gets field <ar.scraper.aggregator.normalize.BrandExtractor.MARCAS> in (MarcaSeeder.java:49)\
-    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:59)\
+    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:61)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (ProductRowMapper.java:69)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.esPremium(java.lang.String)> in (ProductRowMapper.java:69)\
-    (9 further dependencies have been omitted...)
+    - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource)> calls constructor <ar.scraper.aggregator.normalize.SiteRegistry.<init>(javax.sql.DataSource)> in (DatabaseService.java:85)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (SitiosRepository.java:91)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.reload()> in (SitiosRepository.java:98)\
+    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> calls method <ar.scraper.aggregator.FacetCalculator.sortTalles(java.util.Map)> in (CatalogQueryRepository.java:106)\
+    (3 further dependencies have been omitted...)
 Cycle detected: Slice aggregator -> \
                 Slice ml -> \
                 Slice db -> \
@@ -160,15 +154,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.db.DatabaseService> in (FinanciacionEnricher.java:0)\
@@ -199,18 +193,18 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.db.ProductRepository.rubroResolver> has type <ar.scraper.aggregator.normalize.RubroResolver> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.ProductRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.SitiosRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (SitiosRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.DatabaseService.siteRegistry()> has return type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRowMapper.java:0)\
-    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:46)\
+    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:47)\
     - Method <ar.scraper.db.MarcaSeeder.run(org.springframework.boot.ApplicationArguments)> gets field <ar.scraper.aggregator.normalize.BrandExtractor.MARCAS> in (MarcaSeeder.java:49)\
-    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:59)\
+    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:61)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (ProductRowMapper.java:69)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.esPremium(java.lang.String)> in (ProductRowMapper.java:69)\
-    (9 further dependencies have been omitted...)
+    - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource)> calls constructor <ar.scraper.aggregator.normalize.SiteRegistry.<init>(javax.sql.DataSource)> in (DatabaseService.java:85)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (SitiosRepository.java:91)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.reload()> in (SitiosRepository.java:98)\
+    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> calls method <ar.scraper.aggregator.FacetCalculator.sortTalles(java.util.Map)> in (CatalogQueryRepository.java:106)\
+    (3 further dependencies have been omitted...)
 Cycle detected: Slice aggregator -> \
                 Slice ml -> \
                 Slice web -> \
@@ -227,15 +221,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -265,7 +259,7 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.web.ScraperService.aggregator> has type <ar.scraper.aggregator.ResultAggregator> in (ScraperService.java:0)\
     - Field <ar.scraper.web.ScraperService.lastResult> has type <ar.scraper.aggregator.ResultAggregator$AggregatedResult> in (ScraperService.java:0)\
     - Field <ar.scraper.web.ScraperService.servedResult> has type <ar.scraper.aggregator.ResultAggregator$AggregatedResult> in (ScraperService.java:0)\
-    (138 further dependencies have been omitted...)
+    (118 further dependencies have been omitted...)
 Cycle detected: Slice aggregator -> \
                 Slice ml -> \
                 Slice web -> \
@@ -284,15 +278,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -342,18 +336,18 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.db.ProductRepository.rubroResolver> has type <ar.scraper.aggregator.normalize.RubroResolver> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.ProductRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.SitiosRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (SitiosRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.DatabaseService.siteRegistry()> has return type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRowMapper.java:0)\
-    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:46)\
+    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:47)\
     - Method <ar.scraper.db.MarcaSeeder.run(org.springframework.boot.ApplicationArguments)> gets field <ar.scraper.aggregator.normalize.BrandExtractor.MARCAS> in (MarcaSeeder.java:49)\
-    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:59)\
+    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:61)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (ProductRowMapper.java:69)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.esPremium(java.lang.String)> in (ProductRowMapper.java:69)\
-    (9 further dependencies have been omitted...)
+    - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource)> calls constructor <ar.scraper.aggregator.normalize.SiteRegistry.<init>(javax.sql.DataSource)> in (DatabaseService.java:85)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (SitiosRepository.java:91)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.reload()> in (SitiosRepository.java:98)\
+    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> calls method <ar.scraper.aggregator.FacetCalculator.sortTalles(java.util.Map)> in (CatalogQueryRepository.java:106)\
+    (3 further dependencies have been omitted...)
 Cycle detected: Slice aggregator -> \
                 Slice ml -> \
                 Slice web -> \
@@ -371,15 +365,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -409,7 +403,7 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.web.AgentEndpoints.db> has type <ar.scraper.db.DatabaseService> in (AgentEndpoints.java:0)\
     - Field <ar.scraper.web.ApiController.db> has type <ar.scraper.db.DatabaseService> in (ApiController.java:0)\
     - Field <ar.scraper.web.AuthEndpoints.usuarios> has type <ar.scraper.db.UsuarioRepository> in (AuthEndpoints.java:0)\
-    (164 further dependencies have been omitted...)\
+    (137 further dependencies have been omitted...)\
   4. Dependencies of Slice db\
     - Constructor <ar.scraper.db.CatalogQueryRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (CatalogQueryRepository.java:0)\
     - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
@@ -420,18 +414,18 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.db.ProductRepository.rubroResolver> has type <ar.scraper.aggregator.normalize.RubroResolver> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.ProductRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.SitiosRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (SitiosRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.DatabaseService.siteRegistry()> has return type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRowMapper.java:0)\
-    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:46)\
+    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:47)\
     - Method <ar.scraper.db.MarcaSeeder.run(org.springframework.boot.ApplicationArguments)> gets field <ar.scraper.aggregator.normalize.BrandExtractor.MARCAS> in (MarcaSeeder.java:49)\
-    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:59)\
+    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:61)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (ProductRowMapper.java:69)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.esPremium(java.lang.String)> in (ProductRowMapper.java:69)\
-    (9 further dependencies have been omitted...)
+    - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource)> calls constructor <ar.scraper.aggregator.normalize.SiteRegistry.<init>(javax.sql.DataSource)> in (DatabaseService.java:85)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (SitiosRepository.java:91)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.reload()> in (SitiosRepository.java:98)\
+    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> calls method <ar.scraper.aggregator.FacetCalculator.sortTalles(java.util.Map)> in (CatalogQueryRepository.java:106)\
+    (3 further dependencies have been omitted...)
 Cycle detected: Slice aggregator -> \
                 Slice ml -> \
                 Slice web -> \
@@ -451,15 +445,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -524,18 +518,18 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.db.ProductRepository.rubroResolver> has type <ar.scraper.aggregator.normalize.RubroResolver> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.ProductRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.SitiosRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (SitiosRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.DatabaseService.siteRegistry()> has return type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRowMapper.java:0)\
-    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:46)\
+    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:47)\
     - Method <ar.scraper.db.MarcaSeeder.run(org.springframework.boot.ApplicationArguments)> gets field <ar.scraper.aggregator.normalize.BrandExtractor.MARCAS> in (MarcaSeeder.java:49)\
-    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:59)\
+    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:61)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (ProductRowMapper.java:69)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.esPremium(java.lang.String)> in (ProductRowMapper.java:69)\
-    (9 further dependencies have been omitted...)
+    - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource)> calls constructor <ar.scraper.aggregator.normalize.SiteRegistry.<init>(javax.sql.DataSource)> in (DatabaseService.java:85)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (SitiosRepository.java:91)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.reload()> in (SitiosRepository.java:98)\
+    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> calls method <ar.scraper.aggregator.FacetCalculator.sortTalles(java.util.Map)> in (CatalogQueryRepository.java:106)\
+    (3 further dependencies have been omitted...)
 Cycle detected: Slice aggregator -> \
                 Slice ml -> \
                 Slice web -> \
@@ -553,15 +547,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -595,15 +589,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -660,15 +654,15 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.financiacionEnricher()> has return type <ar.scraper.ml.FinanciacionEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getMlEnricher()> has return type <ar.scraper.ml.MlEnricher> in (ResultAggregator.java:0)\
     - Method <ar.scraper.aggregator.ResultAggregator.getPythonRunner()> has return type <ar.scraper.ml.PythonRunner> in (ResultAggregator.java:0)\
-    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:172)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:231)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:233)\
-    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:237)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:304)\
-    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:306)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:455)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:456)\
-    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:527)\
+    - Method <ar.scraper.aggregator.ResultAggregator.agregar(java.util.List, boolean, java.time.Instant)> calls method <ar.scraper.ml.PythonRunner.entrenarEnBackground(boolean)> in (ResultAggregator.java:148)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (ResultAggregator.java:207)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (ResultAggregator.java:209)\
+    - Method <ar.scraper.aggregator.ResultAggregator.ejecutarPipelineMl(java.util.List)> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (ResultAggregator.java:213)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:280)\
+    - Method <ar.scraper.aggregator.ResultAggregator.enriquecerSenalYFinanciacion(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:282)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:431)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDB(java.util.List)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:432)\
+    - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
     - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
@@ -731,18 +725,18 @@ Cycle detected: Slice aggregator -> \
     - Field <ar.scraper.db.ProductRepository.rubroResolver> has type <ar.scraper.aggregator.normalize.RubroResolver> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.ProductRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRepository.java:0)\
     - Field <ar.scraper.db.SitiosRepository.siteRegistry> has type <ar.scraper.aggregator.normalize.SiteRegistry> in (SitiosRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (CatalogQueryRepository.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo()> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
-    - Method <ar.scraper.db.DatabaseService.facetasCatalogo(java.util.Optional)> has return type <ar.scraper.aggregator.ResultAggregator$Facets> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.DatabaseService.siteRegistry()> has return type <ar.scraper.aggregator.normalize.SiteRegistry> in (DatabaseService.java:0)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> has parameter of type <ar.scraper.aggregator.normalize.SiteRegistry> in (ProductRowMapper.java:0)\
-    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:46)\
+    - Method <ar.scraper.db.CategoriaStatsRepository.guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode)> calls method <ar.scraper.aggregator.normalize.CategoryGroups.canonicalCategories()> in (CategoriaStatsRepository.java:47)\
     - Method <ar.scraper.db.MarcaSeeder.run(org.springframework.boot.ApplicationArguments)> gets field <ar.scraper.aggregator.normalize.BrandExtractor.MARCAS> in (MarcaSeeder.java:49)\
-    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:59)\
+    - Constructor <ar.scraper.db.ProductRepository.<init>(javax.sql.DataSource, ar.scraper.aggregator.normalize.SiteRegistry)> calls constructor <ar.scraper.aggregator.normalize.RubroResolver.<init>(ar.scraper.aggregator.normalize.SiteRegistry)> in (ProductRepository.java:61)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (ProductRowMapper.java:69)\
     - Method <ar.scraper.db.ProductRowMapper.map(java.sql.ResultSet, java.util.List, java.util.List, ar.scraper.aggregator.normalize.SiteRegistry)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.esPremium(java.lang.String)> in (ProductRowMapper.java:69)\
-    (9 further dependencies have been omitted...)
+    - Constructor <ar.scraper.db.DatabaseService.<init>(javax.sql.DataSource)> calls constructor <ar.scraper.aggregator.normalize.SiteRegistry.<init>(javax.sql.DataSource)> in (DatabaseService.java:85)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteClassification.sitioKey(java.lang.String)> in (SitiosRepository.java:91)\
+    - Method <ar.scraper.db.SitiosRepository.guardarSitio(java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.aggregator.normalize.SiteRegistry.reload()> in (SitiosRepository.java:98)\
+    - Method <ar.scraper.db.CatalogQueryRepository.facetas(java.util.Optional)> calls method <ar.scraper.aggregator.FacetCalculator.sortTalles(java.util.Map)> in (CatalogQueryRepository.java:106)\
+    (3 further dependencies have been omitted...)
 Cycle detected: Slice cron -> \
                 Slice ml -> \
                 Slice web -> \
@@ -821,10 +815,10 @@ Cycle detected: Slice ml -> \
     - Field <ar.scraper.web.CatalogoEndpoints.financiacionEnricher> has type <ar.scraper.ml.FinanciacionEnricher> in (CatalogoEndpoints.java:0)\
     - Field <ar.scraper.web.CatalogoEndpoints.senalEnricher> has type <ar.scraper.ml.SenalEnricher> in (CatalogoEndpoints.java:0)\
     - Field <ar.scraper.web.MlEndpoints.pythonRunner> has type <ar.scraper.ml.PythonRunner> in (MlEndpoints.java:0)\
-    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:50)\
-    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:51)\
-    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:87)\
-    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:88)\
+    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:53)\
+    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:54)\
+    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:90)\
+    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:91)\
     - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (MlEndpoints.java:114)\
     - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (MlEndpoints.java:115)\
     - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (MlEndpoints.java:117)\

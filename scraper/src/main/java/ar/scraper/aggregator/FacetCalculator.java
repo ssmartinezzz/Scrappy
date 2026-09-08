@@ -1,5 +1,6 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.catalog.Facets;
 import ar.scraper.model.Product;
 
 import java.util.ArrayList;
@@ -24,7 +25,7 @@ public final class FacetCalculator {
 
     private FacetCalculator() {}
 
-    public static ResultAggregator.Facets calcular(List<Product> productos) {
+    public static Facets calcular(List<Product> productos) {
         Map<String, Long> talles = new LinkedHashMap<>();
         for (Product p : productos) {
             if (p.talles() != null)
@@ -93,7 +94,7 @@ public final class FacetCalculator {
         Map<String, Long> escotes          = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().escote() : "");
         Map<String, Long> colorDominantes  = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().colorDominante() : "");
 
-        return new ResultAggregator.Facets(talles, generos, categorias, marcas, badges, subCategorias,
+        return new Facets(talles, generos, categorias, marcas, badges, subCategorias,
                 fits, estampados, escotes, colorDominantes);
     }
 

@@ -1,6 +1,12 @@
 package ar.scraper.db;
 
 import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.catalog.CategoriaStats;
+import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogResumen;
+import ar.scraper.catalog.ClasificacionBloqueada;
+import ar.scraper.catalog.Facets;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scrape.CorridaInterrumpida;
@@ -305,12 +311,12 @@ public class DatabaseService {
     }
 
     /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
-    public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo() {
+    public Facets facetasCatalogo() {
         return catalogQueryRepository.facetas();
     }
 
     /** @param cota the open run's started_at; empty counts the whole catalogue. */
-    public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo(
+    public Facets facetasCatalogo(
             java.util.Optional<java.time.Instant> cota) {
         return catalogQueryRepository.facetas(cota);
     }

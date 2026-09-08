@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
