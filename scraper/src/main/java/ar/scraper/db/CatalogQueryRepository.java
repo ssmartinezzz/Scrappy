@@ -1,6 +1,10 @@
 package ar.scraper.db;
 
 import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogResumen;
+import ar.scraper.catalog.Facets;
 import ar.scraper.model.Product;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,12 +95,12 @@ class CatalogQueryRepository {
      * ordenado por precio, que no es un orden sino un accidente. Ahora salen
      * por conteo descendente.</p>
      */
-    ar.scraper.aggregator.ResultAggregator.Facets facetas() {
+    Facets facetas() {
         return facetas(Optional.empty());
     }
 
     /** @param desde the run's {@code started_at}; empty counts the whole catalogue. */
-    ar.scraper.aggregator.ResultAggregator.Facets facetas(Optional<Instant> desde) {
+    Facets facetas(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
         try (Connection c = dataSource.getConnection()) {
             Map<String, Long> talles = ar.scraper.aggregator.FacetCalculator.sortTalles(
@@ -113,12 +117,12 @@ class CatalogQueryRepository {
             Map<String, Long> escotes = contar(c, "btrim(escote)", cota);
             Map<String, Long> colores = contar(c, "btrim(color_dominante)", cota);
 
-            return new ar.scraper.aggregator.ResultAggregator.Facets(
+            return new Facets(
                     talles, generos, categorias, marcas, badges, subCategorias,
                     fits, estampados, escotes, colores);
         } catch (Exception e) {
             LOG.error("[DB] Error calculando facetas: {}", e.getMessage(), e);
-            return new ar.scraper.aggregator.ResultAggregator.Facets(
+            return new Facets(
                     Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
                     Map.of(), Map.of(), Map.of(), Map.of());
         }

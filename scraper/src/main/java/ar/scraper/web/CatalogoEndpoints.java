@@ -1,7 +1,10 @@
 package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.ResultAggregator.Facets;
+import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogResumen;
+import ar.scraper.catalog.Facets;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -67,7 +70,7 @@ class CatalogoEndpoints {
         // El catálogo vive en la base, no en el snapshot de la última corrida:
         // el dashboard ya no muestra 204 sobre 13543 productos sólo porque en
         // ESTA sesión todavía nadie scrapeó (sql-catalog-filtering).
-        ar.scraper.db.CatalogFilter filtro = new ar.scraper.db.CatalogFilter(
+        CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
                 fit, estampado, escote, colorDominante);
@@ -77,10 +80,10 @@ class CatalogoEndpoints {
         // lo mismo, y que las facetas ofrezcan filtros que la página no cumple.
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
-        ar.scraper.db.CatalogResumen resumen = db.resumenCatalogo(cota);
+        CatalogResumen resumen = db.resumenCatalogo(cota);
         if (resumen.total() == 0) return ResponseEntity.noContent().build();
 
-        ar.scraper.db.CatalogPage paginaSql = db.buscarCatalogo(filtro, orden, page, size, cota);
+        CatalogPage paginaSql = db.buscarCatalogo(filtro, orden, page, size, cota);
 
         // senal y finan no se persisten — se recalculan, pero SOLO para los
         // productos de esta página, no para el catálogo entero como antes.
@@ -246,7 +249,7 @@ class CatalogoEndpoints {
     ResponseEntity<ObjectNode> facets() {
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
-        ar.scraper.db.CatalogResumen resumen = db.resumenCatalogo(cota);
+        CatalogResumen resumen = db.resumenCatalogo(cota);
         if (resumen.total() == 0) return ResponseEntity.noContent().build();
 
         Facets facets = db.facetasCatalogo(cota);

@@ -11,7 +11,7 @@ import ar.scraper.agent.ToolStep;
 import ar.scraper.agent.TurnOutcome;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.ResultAggregator.Facets;
+import ar.scraper.catalog.Facets;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.config.ScraperConfig;

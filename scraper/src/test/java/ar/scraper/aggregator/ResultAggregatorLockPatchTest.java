@@ -1,6 +1,6 @@
 package ar.scraper.aggregator;
 
-import ar.scraper.db.ClasificacionBloqueada;
+import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;

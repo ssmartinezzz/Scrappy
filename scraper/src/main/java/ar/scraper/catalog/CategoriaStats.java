@@ -1,4 +1,4 @@
-package ar.scraper.db;
+package ar.scraper.catalog;
 
 /**
  * Per-category price stats — {@code categoria_stats}, flattened to 12 typed
