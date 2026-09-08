@@ -170,7 +170,7 @@ def start_proxy(
     tls_frontend: int = TLS_FRONTEND_PORT,
     tls_backend: int = TLS_BACKEND_PORT,
     ca_port: int = CA_PORT,
-    runner: Runner = _run_docker,
+    runner: Optional[Runner] = None,
 ) -> None:
     """Replace any previous container and start the terminator.
 
@@ -178,7 +178,14 @@ def start_proxy(
     `X-Forwarded-*` from loopback, and on a bridge network the peer is a
     `172.x` address, so every forwarded header would be discarded and the
     failure would look exactly like plain HTTP.
+
+    `runner` defaults to `None`, resolved to `_run_docker` inside the body
+    instead of at the signature — a default bound at def time captures the
+    function object that name pointed to at import time, so a test guard
+    that monkeypatches the module attribute would never reach a caller that
+    omits `runner=` entirely.
     """
+    runner = runner or _run_docker
     state = state_dir(cfg)
     (state / "nginx.conf").write_text(
         nginx_conf(cfg, tls_frontend=tls_frontend, tls_backend=tls_backend,
@@ -213,7 +220,7 @@ def start_proxy(
         raise ProxyUnavailable(f"el terminador TLS no arrancó: {exc}") from exc
 
 
-def stop_proxy(cfg: Config, *, runner: Runner = _run_docker) -> None:
+def stop_proxy(cfg: Config, *, runner: Optional[Runner] = None) -> None:
     """Best-effort: `stop` runs this unconditionally, and not having a proxy up
     is the normal case, not an error worth reporting.
 
@@ -221,7 +228,11 @@ def stop_proxy(cfg: Config, *, runner: Runner = _run_docker) -> None:
     Docker on every `stop` would mean the test suite — which exercises `stop` —
     removes a container on the developer's machine, and it would also let one
     checkout kill a proxy another one is using.
+
+    Same dynamic-default reasoning as `start_proxy`: resolved in the body,
+    not bound in the signature.
     """
+    runner = runner or _run_docker
     if not (state_dir(cfg) / "nginx.conf").is_file():
         return
     try:
