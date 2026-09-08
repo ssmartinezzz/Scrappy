@@ -720,9 +720,13 @@ proxy, igual que en un deploy, para no agregar otra divergencia dev/prod.
 `frontend/dist/config.js` con ese origen; `api.js` lee `window.__API_BASE__` y
 cae a `VITE_API_BASE_URL` sólo si está vacío. **El mismo `dist/` sirve los dos
 modos** — cambiar de modo no rebuildea. El modo **no se persiste**: `apply_mode`
-muta el `.env` ya parseado, nunca el archivo. `lan` exige `SCRAPPY_*_ORIGIN` y
-**falla ruidosamente** si faltan, porque caer a `localhost` sirve un bundle que
-desde otro dispositivo se llama a sí mismo.
+muta el `.env` ya parseado, nunca el archivo. `lan` deriva el origen de la IP
+de la LAN detectada cuando `SCRAPPY_*_ORIGIN` no está seteada — nunca cae a
+`localhost`, que desde otro dispositivo se estaría llamando a sí mismo.
+⚠️ Para pisar esa derivación, las dos variables se leen **del entorno del
+proceso y de ningún otro lado**: `resolve_origins` mira `os.environ`, y el CLI
+nunca carga el `.env` en su propio proceso — sólo lo escribe. Ponerlas adentro
+del `.env` no tiene **ningún** efecto sobre `start lan`.
 
 **Los orígenes del `.env` ya no están clavados en `localhost`.**
 `SCRAPPY_FRONTEND_ORIGIN` y `SCRAPPY_BACKEND_ORIGIN` (leídas por

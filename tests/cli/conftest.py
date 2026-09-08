@@ -17,6 +17,24 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
+@pytest.fixture(autouse=True)
+def _no_real_docker(monkeypatch):
+    """Every LAN-proxy test passes a fake `runner=`. If a call site ever
+    forgets it, this makes the real `_run_docker` raise instead of shelling
+    out for real — a container is cheap to start and expensive to leave
+    running on a developer's machine, replacing whatever `start lan` had up.
+
+    Guards `_run_docker` itself, not just `subprocess.run`, so the raise
+    happens before any argv even reaches a shell."""
+
+    def _blocked(argv, **kwargs):
+        raise RuntimeError(
+            "real Docker reached from a test — pass a fake runner"
+        )
+
+    monkeypatch.setattr("cli.core.lan_proxy._run_docker", _blocked)
+
+
 @pytest.fixture
 def repo_root() -> Path:
     """The real fashion-scraper-new repo root backing this checkout."""

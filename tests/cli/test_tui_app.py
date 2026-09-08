@@ -816,3 +816,85 @@ async def test_start_without_a_mode_stays_local(tmp_path, monkeypatch):
         await _submit(app, pilot, "start")
 
     assert vistos == ["local"]
+
+
+# -- LAN trust report + Docker pre-flight -------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_lan_prints_the_trust_report_computed_not_transcribed(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+    from cli.core import lan_report
+    from cli.core.lan_proxy import CaUrls
+    from cli.core.runtime_config import Origins, Startup
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "preflight", lambda mode: None)
+    fixed = Startup(
+        mode="lan",
+        origins=Origins(frontend="https://192.0.2.10:8443", backend="https://192.0.2.10:8444"),
+        ca=CaUrls(
+            ios="http://192.0.2.10:8081/scrappy-dev-ca.cer",
+            android="http://192.0.2.10:8081/rootCA.pem",
+        ),
+    )
+    monkeypatch.setattr(app_mod, "apply_mode", lambda cfg, mode, env, **kw: fixed)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    app, _, processes = _make_app(tmp_path)
+    processes.alive = lambda: ["backend", "frontend"]
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start lan")
+        text = _console_text(app)
+
+    # Continuation lines get left-padded to align under the clock stamp
+    # (Console.emit), so each line is checked as a substring rather than
+    # the whole block verbatim — still computed from `render`, not
+    # transcribed by hand.
+    for line in lan_report.render(fixed).splitlines():
+        assert line in text
+
+
+@pytest.mark.asyncio
+async def test_start_preflights_docker_before_any_build_work(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+    from cli.core.runtime_config import Origins, Startup
+    from cli.tui import app as app_mod
+
+    order: list[str] = []
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: False)
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: order.append("build"))
+    monkeypatch.setattr(app_mod, "preflight", lambda mode: order.append("preflight"))
+    monkeypatch.setattr(
+        app_mod,
+        "apply_mode",
+        lambda cfg, mode, env, **kw: Startup(
+            mode=mode, origins=Origins(frontend="http://x", backend="http://y"), ca=None
+        ),
+    )
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start lan")
+
+    assert order[:2] == ["preflight", "build"]
+
+
+@pytest.mark.asyncio
+async def test_start_local_prints_no_trust_report(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    app, _, processes = _make_app(tmp_path)
+    processes.alive = lambda: ["backend", "frontend"]
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        text = _console_text(app)
+
+    assert "docs/LAN_HTTPS_SETUP.md" not in text
+    assert "Ajustes" not in text

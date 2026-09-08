@@ -18,9 +18,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from cli.core.config import Config
+
+if TYPE_CHECKING:
+    from cli.core.lan_proxy import CaUrls
 
 LOCAL = "local"
 LAN = "lan"
@@ -28,7 +31,8 @@ LAN = "lan"
 #: Mode -> what it means, for `--help` and for the error message below.
 MODES: dict[str, str] = {
     LOCAL: "loopback — el default; el navegador y los servicios en esta máquina",
-    LAN: "otro dispositivo de la red; lee SCRAPPY_FRONTEND_ORIGIN y SCRAPPY_BACKEND_ORIGIN",
+    LAN: "otro dispositivo de la red; deriva el origen de la IP detectada, o "
+    "SCRAPPY_FRONTEND_ORIGIN/SCRAPPY_BACKEND_ORIGIN para pisarlo (túnel, deploy)",
 }
 
 
@@ -42,6 +46,21 @@ class Origins:
 
     frontend: str
     backend: str
+
+
+@dataclass(frozen=True)
+class Startup:
+    """What a `start` run needs to report, alongside the origins it already
+    carried: whether the certificate is CA-trusted or self-signed.
+
+    `ca` is `None` for BOTH `local` (no certificate exists at all) and a
+    self-signed `lan` run (a certificate exists, but no CA to install) —
+    CODE-5 forbids reading that absence as a negative verdict, so `mode`
+    disambiguates rather than `ca` carrying two different meanings."""
+
+    mode: str
+    origins: Origins
+    ca: Optional["CaUrls"]
 
 
 def resolve_origins(mode: str, cfg: Config) -> Origins:
@@ -76,30 +95,51 @@ def resolve_origins(mode: str, cfg: Config) -> Origins:
     return Origins(frontend=frontend, backend=backend)
 
 
-def apply_mode(cfg: Config, mode: str, env: dict) -> Origins:
+def apply_mode(cfg: Config, mode: str, env: dict, *, proxy=None) -> Startup:
     """Point a run at `mode`: the bundle's backend origin, the URL the browser
-    is opened at, and the CORS allow-list.
+    is opened at, the CORS allow-list, and — for `lan` — the trust state a
+    caller needs to report without re-deriving it.
 
     Mutates `env` (the parsed `.env`) instead of the file, so the mode is a
     property of THIS run and nothing on disk records it. The `.env` keeps
     whatever it had.
+
+    `proxy` is `None` in production and resolves to `cli.core.lan_proxy`
+    inside the `lan` branch only — `local` never imports it, so a caller
+    that passes a poisoned stub for `local` proves the module is untouched.
     """
     origins = resolve_origins(mode, cfg)
+    ca = None
     if mode == LAN:
         # The terminator has to be up before the browser is pointed at it;
         # a failure here must stop the start, not leave the app served on an
         # origin nothing is listening on.
-        from cli.core import lan_proxy
+        from cli.core import lan_proxy as _lan_proxy
 
-        ip = lan_proxy.detect_lan_ip()
-        lan_proxy.ensure_cert(cfg, ip)
-        lan_proxy.start_proxy(cfg, ip)
+        active_proxy = proxy or _lan_proxy
+        ip = active_proxy.detect_lan_ip()
+        bundle = active_proxy.ensure_cert(cfg, ip)
+        active_proxy.start_proxy(cfg, ip)
+        # `ca_urls` is pure and always the real one: only the side-effecting
+        # calls above are injectable, not URL construction from `ip`.
+        ca = _lan_proxy.ca_urls(ip) if bundle.trusted else None
     write_runtime_config(cfg, origins.backend)
     env["APP_OPEN_URL"] = origins.frontend
     env["APP_CORS_ALLOWED_ORIGINS"] = _allow(
         env.get("APP_CORS_ALLOWED_ORIGINS", ""), origins.frontend
     )
-    return origins
+    return Startup(mode=mode, origins=origins, ca=ca)
+
+
+def preflight(mode: str, *, proxy=None) -> None:
+    """Verify `mode` can actually run before any build work. A no-op for
+    `local`, which needs nothing this checks and must never import
+    `lan_proxy` to find that out."""
+    if mode != LAN:
+        return
+    from cli.core import lan_proxy as _lan_proxy
+
+    (proxy or _lan_proxy).preflight()
 
 
 def _allow(actuales: str, origen: str) -> str:

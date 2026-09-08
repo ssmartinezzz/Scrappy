@@ -120,7 +120,7 @@ Abrí el archivo con el **navegador del sistema** — en iOS tiene que ser Safar
 Chrome no dispara el instalador de perfiles:
 
 ```
-iOS      http://192.0.2.10:8081/dev-ca.cer
+iOS      http://192.0.2.10:8081/scrappy-dev-ca.cer
 Android  http://192.0.2.10:8081/rootCA.pem
 ```
 

@@ -37,7 +37,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Input, Static
 
-from cli.core import health, logs
+from cli.core import health, lan_report, logs
 from cli.core.commands import find, help_lines
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
@@ -46,7 +46,7 @@ from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.lan_proxy import stop_proxy
 from cli.core.rest import RestClient, build_rest_client
-from cli.core.runtime_config import LOCAL, apply_mode
+from cli.core.runtime_config import LOCAL, apply_mode, preflight
 from cli.tui.widgets import (
     CommandSuggester,
     Console,
@@ -375,6 +375,7 @@ class ScrappyConsole(App):
         from cli.core import builder
         from cli.core.env_file import parse_env
 
+        preflight(mode)
         if not builder.is_built(self.cfg):
             self.call_from_thread(
                 self._emit, "info", "jar/dist ausente — compilando primero…"
@@ -384,9 +385,12 @@ class ScrappyConsole(App):
 
         env = parse_env(self.cfg.repo_root / ".env")
         # After the build: apply_mode writes into frontend/dist.
-        origins = apply_mode(self.cfg, mode, env)
-        self.active_origins = origins
-        self.call_from_thread(self._emit, "info", f"modo {mode} — API en {origins.backend}")
+        startup = apply_mode(self.cfg, mode, env)
+        self.active_origins = startup.origins
+        self.call_from_thread(self._emit, "info", f"modo {mode} — API en {startup.origins.backend}")
+        report = lan_report.render(startup)
+        if report:
+            self.call_from_thread(self._emit, "info", report)
         self.processes.launch_backend(
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )
