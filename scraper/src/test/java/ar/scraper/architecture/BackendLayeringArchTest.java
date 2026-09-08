@@ -27,6 +27,11 @@ class BackendLayeringArchTest {
         .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.cron..");
 
     @ArchTest
+    static final ArchRule dbNoDependeDeAggregator = noClasses()
+        .that().resideInAPackage("ar.scraper.db..")
+        .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.aggregator..");
+
+    @ArchTest
     static final ArchRule areasSonSumideros = noClasses()
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..")
