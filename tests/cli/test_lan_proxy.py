@@ -1,6 +1,7 @@
 """The CLI owns the LAN proxy: cert, nginx and lifecycle, no side script."""
 import pytest
 
+import cli.core.lan_proxy as lan_proxy_module
 from cli.core.config import Config, Ports, resolve_toolchain_paths
 from cli.core.lan_proxy import (
     ProxyUnavailable,
@@ -138,3 +139,27 @@ def test_stop_removes_the_container_once_this_repo_started_one(cfg):
     stop_proxy(cfg, runner=docker)
 
     assert [c[1] for c in docker.calls] == ["rm"]
+
+
+def test_a_test_path_that_reaches_real_docker_fails_loudly():
+    """Every test in this suite passes a fake `runner=`. If a future call
+    site forgets it, this is the last line of defense: the autouse fixture
+    in `conftest.py` makes the real `_run_docker` raise instead of shelling
+    out — this test calls it directly, with no override, to prove the guard
+    itself works."""
+    with pytest.raises(RuntimeError) as exc:
+        lan_proxy_module._run_docker(["docker", "version"])
+
+    assert "test" in str(exc.value).lower()
+
+
+def test_start_proxy_without_an_explicit_runner_still_hits_the_guard(cfg):
+    """The dangerous call site: a caller that forgets `runner=` entirely and
+    falls through to the real default. A default bound at function-def time
+    would capture the pre-patch `_run_docker` and slip past the fixture
+    above — this proves the guard covers that path too, not just a direct
+    call to `_run_docker`."""
+    (cfg.repo_root / "_tools" / "lan-proxy").mkdir(parents=True)
+
+    with pytest.raises(RuntimeError):
+        start_proxy(cfg, ip="192.0.2.10")
