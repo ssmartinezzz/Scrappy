@@ -1,6 +1,6 @@
 package ar.scraper.db.migration;
 
-import ar.scraper.aggregator.normalize.SiteClassification;
+import ar.scraper.classification.SiteClassification;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;

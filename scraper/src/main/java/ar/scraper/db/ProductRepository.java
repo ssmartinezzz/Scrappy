@@ -1,8 +1,8 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.RubroResolver;
-import ar.scraper.aggregator.normalize.SiteClassification;
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.RubroResolver;
+import ar.scraper.classification.SiteClassification;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.FavoritosProtegidosException;
 import ar.scraper.model.Product;

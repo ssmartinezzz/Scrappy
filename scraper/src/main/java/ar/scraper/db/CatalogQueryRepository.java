@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogResumen;
@@ -87,7 +87,7 @@ class CatalogQueryRepository {
      * letra en categoría) para que las claves salgan idénticas. El orden
      * también se replica: categorías y marcas por conteo descendente, marcas
      * limitadas a 30, subcategorías por clave, y los talles por
-     * {@link ar.scraper.aggregator.FacetCalculator#sortTalles} — que se reusa,
+     * {@link ar.scraper.catalog.TalleOrder#sortTalles} — que se reusa,
      * no se reimplementa.</p>
      *
      * <p>Un cambio visible y deliberado: género, badges y los cuatro atributos
@@ -103,7 +103,7 @@ class CatalogQueryRepository {
     Facets facetas(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
         try (Connection c = dataSource.getConnection()) {
-            Map<String, Long> talles = ar.scraper.aggregator.FacetCalculator.sortTalles(
+            Map<String, Long> talles = ar.scraper.catalog.TalleOrder.sortTalles(
                     contarHija(c, "producto_talle", "talle", cota));
             Map<String, Long> badges = contarHija(c, "producto_badge", "badge", cota);
 

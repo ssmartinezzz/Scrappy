@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.CategoryGroups;
+import ar.scraper.classification.CategoryGroups;
 import ar.scraper.catalog.CategoriaStats;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;

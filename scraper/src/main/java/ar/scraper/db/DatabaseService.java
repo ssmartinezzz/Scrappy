@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;

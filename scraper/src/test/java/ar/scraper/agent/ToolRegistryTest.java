@@ -1,6 +1,6 @@
 package ar.scraper.agent;
 
-import ar.scraper.aggregator.normalize.CategoryGroups;
+import ar.scraper.classification.CategoryGroups;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
