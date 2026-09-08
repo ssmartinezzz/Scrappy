@@ -28,11 +28,44 @@ TLS_FRONTEND_PORT = 8443
 TLS_BACKEND_PORT = 8444
 CA_PORT = 8081
 
+#: Filenames nginx serves the CA under (`nginx_conf`) and `ensure_cert`
+#: writes to — one name each, read by both, so they cannot drift apart.
+CA_DER_NAME = "scrappy-dev-ca.cer"
+CA_PEM_NAME = "rootCA.pem"
+
+DOCKER_MISSING_MESSAGE = (
+    "el modo 'lan' necesita Docker para el terminador TLS y no lo encontré. "
+    "Instalalo, o usá 'start' (local) que no lo necesita."
+)
+
 Runner = Callable[..., object]
 
 
 class ProxyUnavailable(RuntimeError):
     """The proxy cannot run — no Docker, or the container refused to start."""
+
+
+@dataclass(frozen=True)
+class CaUrls:
+    """Where the device downloads the CA from, over the plain-HTTP `ca_port`
+    server — the device does not trust anything from this proxy yet."""
+
+    ios: str
+    android: str
+
+
+def ca_urls(ip: str, *, ca_port: int = CA_PORT) -> CaUrls:
+    """Built from `ip`/`ca_port`, never re-derived ports, so a
+    `SCRAPPY_*_ORIGIN` tunnel still renders a URL that resolves for real."""
+    base = f"http://{ip}:{ca_port}"
+    return CaUrls(ios=f"{base}/{CA_DER_NAME}", android=f"{base}/{CA_PEM_NAME}")
+
+
+def preflight() -> None:
+    """Verify Docker is available before any build work or cert generation.
+    `local` never calls this — see `runtime_config.preflight`."""
+    if shutil.which("docker") is None:
+        raise ProxyUnavailable(DOCKER_MISSING_MESSAGE)
 
 
 @dataclass(frozen=True)
@@ -95,11 +128,11 @@ def ensure_cert(cfg: Config, ip: str) -> CertBundle:
             subprocess.run(["mkcert", "-CAROOT"], check=True,
                            capture_output=True, text=True).stdout.strip()
         )
-        ca_pem = state / "rootCA.pem"
-        shutil.copy(caroot / "rootCA.pem", ca_pem)
+        ca_pem = state / CA_PEM_NAME
+        shutil.copy(caroot / CA_PEM_NAME, ca_pem)
         # iOS will not open a PEM: Safari only offers to install a profile for
         # DER content served under a .cer URL. Android takes either.
-        ca_der = state / "scrappy-dev-ca.cer"
+        ca_der = state / CA_DER_NAME
         subprocess.run(
             ["openssl", "x509", "-in", str(ca_pem), "-outform", "der",
              "-out", str(ca_der)],
@@ -139,8 +172,8 @@ http {{
 
   server {{
     listen {ca_port};
-    location = /rootCA.pem {{ alias /certs/rootCA.pem; default_type application/x-x509-ca-cert; }}
-    location = /scrappy-dev-ca.cer {{ alias /certs/scrappy-dev-ca.cer; default_type application/x-x509-ca-cert; }}
+    location = /{CA_PEM_NAME} {{ alias /certs/{CA_PEM_NAME}; default_type application/x-x509-ca-cert; }}
+    location = /{CA_DER_NAME} {{ alias /certs/{CA_DER_NAME}; default_type application/x-x509-ca-cert; }}
     location / {{ return 404; }}
   }}
 
@@ -196,10 +229,7 @@ def start_proxy(
     try:
         runner(["docker", "rm", "-f", CONTAINER])
     except FileNotFoundError as exc:
-        raise ProxyUnavailable(
-            "el modo 'lan' necesita Docker para el terminador TLS y no lo encontré. "
-            "Instalalo, o usá 'start' (local) que no lo necesita."
-        ) from exc
+        raise ProxyUnavailable(DOCKER_MISSING_MESSAGE) from exc
     except Exception:
         pass  # no había contenedor previo
 
@@ -212,10 +242,7 @@ def start_proxy(
             IMAGE,
         ])
     except FileNotFoundError as exc:
-        raise ProxyUnavailable(
-            "el modo 'lan' necesita Docker para el terminador TLS y no lo encontré. "
-            "Instalalo, o usá 'start' (local) que no lo necesita."
-        ) from exc
+        raise ProxyUnavailable(DOCKER_MISSING_MESSAGE) from exc
     except Exception as exc:
         raise ProxyUnavailable(f"el terminador TLS no arrancó: {exc}") from exc
 
