@@ -29,12 +29,33 @@ def test_trusted_lan_orders_frontend_then_ios_then_android_urls_then_trust_step_
 
     assert report is not None
     assert report.index(FRONTEND) < report.index(ca.ios) < report.index(ca.android)
-    assert "Ajustes" in report and "Confianza de certificados" in report
+    assert "Ajustes" in report and "Ajustes de confianza de certificados" in report
     assert report.index(ca.android) < report.index("Ajustes")
     assert "stop" in report
     assert report.index("Ajustes") < report.index("stop")
     last_line = report.splitlines()[-1]
     assert last_line.endswith("docs/LAN_HTTPS_SETUP.md")
+
+
+def test_trusted_lan_names_where_the_profile_is_installed_not_only_where_it_is_trusted():
+    """iOS needs TWO settings screens, and the toggle in the second one does
+    not exist until the first is done — `docs/LAN_HTTPS_SETUP.md` §4 spells
+    that out. A report that names only the trust screen sends the operator to
+    an empty menu, which is the exact dead end this report exists to prevent.
+    """
+    ca = CaUrls(
+        ios="http://192.0.2.10:8081/scrappy-dev-ca.cer",
+        android="http://192.0.2.10:8081/rootCA.pem",
+    )
+
+    report = render(_startup(mode=LAN, ca=ca))
+
+    assert "Perfil descargado" in report
+    assert "VPN y gestión de dispositivos" in report
+    # Install before trust: the order is not cosmetic, step 2 is inert without it.
+    assert report.index("Perfil descargado") < report.index(
+        "Ajustes de confianza de certificados"
+    )
 
 
 def test_self_signed_lan_warns_once_then_names_both_ports_then_stop_then_doc_pointer_and_omits_any_ca_url():
