@@ -648,10 +648,10 @@ public class ScraperService {
      * que quizá se reinició justo para dejar de hacerlo.</p>
      */
     private final java.util.concurrent.atomic.AtomicReference<
-            ar.scraper.db.CorridaInterrumpida> interrumpida =
+            ar.scraper.scrape.CorridaInterrumpida> interrumpida =
             new java.util.concurrent.atomic.AtomicReference<>();
 
-    public ar.scraper.db.CorridaInterrumpida getInterrumpida() {
+    public ar.scraper.scrape.CorridaInterrumpida getInterrumpida() {
         return interrumpida.get();
     }
 

@@ -1,4 +1,4 @@
-package ar.scraper.cron;
+package ar.scraper.scheduling;
 
 /**
  * Single run record for a {@link CronJob} — mirrors {@code cron_executions}

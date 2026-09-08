@@ -1,7 +1,7 @@
 package ar.scraper.web;
 
-import ar.scraper.cron.CronExecution;
-import ar.scraper.cron.CronJob;
+import ar.scraper.scheduling.CronExecution;
+import ar.scraper.scheduling.CronJob;
 import ar.scraper.cron.CronJobService;
 import ar.scraper.db.DatabaseService;
 import com.fasterxml.jackson.databind.node.ArrayNode;

@@ -1,7 +1,7 @@
 package ar.scraper.db;
 
-import ar.scraper.cron.CronExecution;
-import ar.scraper.cron.CronJob;
+import ar.scraper.scheduling.CronExecution;
+import ar.scraper.scheduling.CronJob;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;

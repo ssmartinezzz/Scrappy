@@ -1,4 +1,4 @@
-package ar.scraper.db;
+package ar.scraper.scrape;
 
 import java.time.Instant;
 import java.util.List;

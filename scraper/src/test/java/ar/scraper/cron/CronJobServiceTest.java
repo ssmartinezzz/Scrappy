@@ -1,6 +1,7 @@
 package ar.scraper.cron;
 
 import ar.scraper.db.DatabaseService;
+import ar.scraper.scheduling.CronJob;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;

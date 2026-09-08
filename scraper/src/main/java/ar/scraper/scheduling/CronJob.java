@@ -1,4 +1,4 @@
-package ar.scraper.cron;
+package ar.scraper.scheduling;
 
 import java.util.List;
 

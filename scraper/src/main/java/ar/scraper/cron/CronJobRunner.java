@@ -3,6 +3,7 @@ package ar.scraper.cron;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
+import ar.scraper.scheduling.CronJob;
 import ar.scraper.web.ScraperService;
 import ar.scraper.web.ScraperService.ScraperStatus;
 import ch.qos.logback.classic.Logger;

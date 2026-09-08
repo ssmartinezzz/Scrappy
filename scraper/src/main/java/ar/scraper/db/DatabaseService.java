@@ -1,8 +1,9 @@
 package ar.scraper.db;
 
 import ar.scraper.aggregator.normalize.SiteRegistry;
-import ar.scraper.cron.CronExecution;
-import ar.scraper.cron.CronJob;
+import ar.scraper.scheduling.CronExecution;
+import ar.scraper.scheduling.CronJob;
+import ar.scraper.scrape.CorridaInterrumpida;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PostConstruct;
