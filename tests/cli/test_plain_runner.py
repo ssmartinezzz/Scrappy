@@ -370,3 +370,61 @@ def test_start_reports_success_when_both_services_survive(tmp_path, monkeypatch)
     processes.alive = lambda: ["backend", "frontend"]
     r.dispatch("start")
     assert "started" in out.getvalue().lower()
+
+
+# -- LAN trust report + Docker pre-flight -----------------------------------
+
+
+def test_start_lan_prints_the_trust_report_computed_not_transcribed(tmp_path, monkeypatch):
+    from cli.core import lan_report
+    from cli.core.lan_proxy import CaUrls
+    from cli.core.runtime_config import Origins, Startup
+
+    _mark_built(tmp_path)
+    monkeypatch.setattr(runner_module, "preflight", lambda mode: None)
+    fixed = Startup(
+        mode="lan",
+        origins=Origins(frontend="https://192.0.2.10:8443", backend="https://192.0.2.10:8444"),
+        ca=CaUrls(
+            ios="http://192.0.2.10:8081/scrappy-dev-ca.cer",
+            android="http://192.0.2.10:8081/rootCA.pem",
+        ),
+    )
+    monkeypatch.setattr(runner_module, "apply_mode", lambda cfg, mode, env, **kw: fixed)
+    r, _, _, out = _make_runner(tmp_path, "")
+
+    r.dispatch("start lan")
+
+    assert lan_report.render(fixed) in out.getvalue()
+
+
+def test_start_preflights_docker_before_any_build_work(tmp_path, monkeypatch):
+    from cli.core.runtime_config import Origins, Startup
+
+    order: list[str] = []
+    monkeypatch.setattr(runner_module, "is_built", lambda cfg: False)
+    monkeypatch.setattr(runner_module, "preflight", lambda mode: order.append("preflight"))
+    monkeypatch.setattr(runner_module, "build_project", lambda cfg, *a, **k: order.append("build"))
+    monkeypatch.setattr(
+        runner_module,
+        "apply_mode",
+        lambda cfg, mode, env, **kw: Startup(
+            mode=mode, origins=Origins(frontend="http://x", backend="http://y"), ca=None
+        ),
+    )
+    r, _, _, _ = _make_runner(tmp_path, "")
+
+    r.dispatch("start lan")
+
+    assert order[:2] == ["preflight", "build"]
+
+
+def test_start_local_prints_no_trust_report(tmp_path):
+    _mark_built(tmp_path)
+    r, _, _, out = _make_runner(tmp_path, "")
+
+    r.dispatch("start")
+
+    printed = out.getvalue()
+    assert "docs/LAN_HTTPS_SETUP.md" not in printed
+    assert "Ajustes" not in printed
