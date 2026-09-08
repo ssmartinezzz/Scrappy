@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.BrandExtractor;
+import ar.scraper.classification.BrandExtractor;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
 import ar.scraper.db.support.PostgresTestBase;

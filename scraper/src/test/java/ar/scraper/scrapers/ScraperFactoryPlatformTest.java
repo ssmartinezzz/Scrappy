@@ -1,6 +1,6 @@
 package ar.scraper.scrapers;
 
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.config.ScraperConfig.SiteConfig;
 import io.qameta.allure.Epic;

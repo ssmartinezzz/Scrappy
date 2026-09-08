@@ -1,6 +1,6 @@
 package ar.scraper.db.migration;
 
-import ar.scraper.aggregator.normalize.CategoryGroups;
+import ar.scraper.classification.CategoryGroups;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
