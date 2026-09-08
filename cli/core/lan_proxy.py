@@ -28,11 +28,44 @@ TLS_FRONTEND_PORT = 8443
 TLS_BACKEND_PORT = 8444
 CA_PORT = 8081
 
+#: Filenames nginx serves the CA under (`nginx_conf`) and `ensure_cert`
+#: writes to — one name each, read by both, so they cannot drift apart.
+CA_DER_NAME = "scrappy-dev-ca.cer"
+CA_PEM_NAME = "rootCA.pem"
+
+DOCKER_MISSING_MESSAGE = (
+    "el modo 'lan' necesita Docker para el terminador TLS y no lo encontré. "
+    "Instalalo, o usá 'start' (local) que no lo necesita."
+)
+
 Runner = Callable[..., object]
 
 
 class ProxyUnavailable(RuntimeError):
     """The proxy cannot run — no Docker, or the container refused to start."""
+
+
+@dataclass(frozen=True)
+class CaUrls:
+    """Where the device downloads the CA from, over the plain-HTTP `ca_port`
+    server — the device does not trust anything from this proxy yet."""
+
+    ios: str
+    android: str
+
+
+def ca_urls(ip: str, *, ca_port: int = CA_PORT) -> CaUrls:
+    """Built from `ip`/`ca_port`, never re-derived ports, so a
+    `SCRAPPY_*_ORIGIN` tunnel still renders a URL that resolves for real."""
+    base = f"http://{ip}:{ca_port}"
+    return CaUrls(ios=f"{base}/{CA_DER_NAME}", android=f"{base}/{CA_PEM_NAME}")
+
+
+def preflight() -> None:
+    """Verify Docker is available before any build work or cert generation.
+    `local` never calls this — see `runtime_config.preflight`."""
+    if shutil.which("docker") is None:
+        raise ProxyUnavailable(DOCKER_MISSING_MESSAGE)
 
 
 @dataclass(frozen=True)
@@ -95,11 +128,11 @@ def ensure_cert(cfg: Config, ip: str) -> CertBundle:
             subprocess.run(["mkcert", "-CAROOT"], check=True,
                            capture_output=True, text=True).stdout.strip()
         )
-        ca_pem = state / "rootCA.pem"
-        shutil.copy(caroot / "rootCA.pem", ca_pem)
+        ca_pem = state / CA_PEM_NAME
+        shutil.copy(caroot / CA_PEM_NAME, ca_pem)
         # iOS will not open a PEM: Safari only offers to install a profile for
         # DER content served under a .cer URL. Android takes either.
-        ca_der = state / "scrappy-dev-ca.cer"
+        ca_der = state / CA_DER_NAME
         subprocess.run(
             ["openssl", "x509", "-in", str(ca_pem), "-outform", "der",
              "-out", str(ca_der)],
@@ -139,8 +172,8 @@ http {{
 
   server {{
     listen {ca_port};
-    location = /rootCA.pem {{ alias /certs/rootCA.pem; default_type application/x-x509-ca-cert; }}
-    location = /scrappy-dev-ca.cer {{ alias /certs/scrappy-dev-ca.cer; default_type application/x-x509-ca-cert; }}
+    location = /{CA_PEM_NAME} {{ alias /certs/{CA_PEM_NAME}; default_type application/x-x509-ca-cert; }}
+    location = /{CA_DER_NAME} {{ alias /certs/{CA_DER_NAME}; default_type application/x-x509-ca-cert; }}
     location / {{ return 404; }}
   }}
 
@@ -170,7 +203,7 @@ def start_proxy(
     tls_frontend: int = TLS_FRONTEND_PORT,
     tls_backend: int = TLS_BACKEND_PORT,
     ca_port: int = CA_PORT,
-    runner: Runner = _run_docker,
+    runner: Optional[Runner] = None,
 ) -> None:
     """Replace any previous container and start the terminator.
 
@@ -178,7 +211,14 @@ def start_proxy(
     `X-Forwarded-*` from loopback, and on a bridge network the peer is a
     `172.x` address, so every forwarded header would be discarded and the
     failure would look exactly like plain HTTP.
+
+    `runner` defaults to `None`, resolved to `_run_docker` inside the body
+    instead of at the signature — a default bound at def time captures the
+    function object that name pointed to at import time, so a test guard
+    that monkeypatches the module attribute would never reach a caller that
+    omits `runner=` entirely.
     """
+    runner = runner or _run_docker
     state = state_dir(cfg)
     (state / "nginx.conf").write_text(
         nginx_conf(cfg, tls_frontend=tls_frontend, tls_backend=tls_backend,
@@ -189,10 +229,7 @@ def start_proxy(
     try:
         runner(["docker", "rm", "-f", CONTAINER])
     except FileNotFoundError as exc:
-        raise ProxyUnavailable(
-            "el modo 'lan' necesita Docker para el terminador TLS y no lo encontré. "
-            "Instalalo, o usá 'start' (local) que no lo necesita."
-        ) from exc
+        raise ProxyUnavailable(DOCKER_MISSING_MESSAGE) from exc
     except Exception:
         pass  # no había contenedor previo
 
@@ -205,15 +242,12 @@ def start_proxy(
             IMAGE,
         ])
     except FileNotFoundError as exc:
-        raise ProxyUnavailable(
-            "el modo 'lan' necesita Docker para el terminador TLS y no lo encontré. "
-            "Instalalo, o usá 'start' (local) que no lo necesita."
-        ) from exc
+        raise ProxyUnavailable(DOCKER_MISSING_MESSAGE) from exc
     except Exception as exc:
         raise ProxyUnavailable(f"el terminador TLS no arrancó: {exc}") from exc
 
 
-def stop_proxy(cfg: Config, *, runner: Runner = _run_docker) -> None:
+def stop_proxy(cfg: Config, *, runner: Optional[Runner] = None) -> None:
     """Best-effort: `stop` runs this unconditionally, and not having a proxy up
     is the normal case, not an error worth reporting.
 
@@ -221,7 +255,11 @@ def stop_proxy(cfg: Config, *, runner: Runner = _run_docker) -> None:
     Docker on every `stop` would mean the test suite — which exercises `stop` —
     removes a container on the developer's machine, and it would also let one
     checkout kill a proxy another one is using.
+
+    Same dynamic-default reasoning as `start_proxy`: resolved in the body,
+    not bound in the signature.
     """
+    runner = runner or _run_docker
     if not (state_dir(cfg) / "nginx.conf").is_file():
         return
     try:

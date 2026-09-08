@@ -45,7 +45,7 @@ COMMANDS: tuple[Command, ...] = (
     Command(
         "start",
         "levanta backend + frontend; buildea si falta. "
-        "Modo: local (default) o lan (SCRAPPY_*_ORIGIN)",
+        "Modo: local (default) o lan (IP detectada, o SCRAPPY_*_ORIGIN para pisarla)",
         args="[local|lan]",
         aliases=("up",),
     ),
