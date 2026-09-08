@@ -18,9 +18,16 @@ if TYPE_CHECKING:
 
 DOC_POINTER = "Más detalle: docs/LAN_HTTPS_SETUP.md"
 STOP_LINE = "`stop` baja el terminador TLS."
+# Two screens, not one, and the order is load-bearing: the toggle in step 2
+# does not exist until step 1 has run, so an operator sent straight to it finds
+# an empty menu and concludes the download failed (`docs/LAN_HTTPS_SETUP.md` §4).
+IOS_INSTALL_STEP = (
+    "  iOS paso 1 — instalalo: Ajustes → «Perfil descargado» (arriba de todo) "
+    "→ Instalar. Si no aparece: Ajustes → General → VPN y gestión de dispositivos."
+)
 IOS_TRUST_STEP = (
-    "En iOS, después de instalarlo: Ajustes → General → Información → "
-    "Confianza de certificados → activalo."
+    "  iOS paso 2 — confiá en él: Ajustes → General → Información → "
+    "Ajustes de confianza de certificados → activá el switch."
 )
 
 
@@ -40,6 +47,7 @@ def _trusted(startup: "Startup") -> str:
         f"Abrí esto en el dispositivo: {startup.origins.frontend}",
         f"iOS — instalá el certificado: {ca.ios}",
         f"Android — instalá el certificado: {ca.android}",
+        IOS_INSTALL_STEP,
         IOS_TRUST_STEP,
         STOP_LINE,
         DOC_POINTER,
