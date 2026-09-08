@@ -31,7 +31,8 @@ LAN = "lan"
 #: Mode -> what it means, for `--help` and for the error message below.
 MODES: dict[str, str] = {
     LOCAL: "loopback — el default; el navegador y los servicios en esta máquina",
-    LAN: "otro dispositivo de la red; lee SCRAPPY_FRONTEND_ORIGIN y SCRAPPY_BACKEND_ORIGIN",
+    LAN: "otro dispositivo de la red; deriva el origen de la IP detectada, o "
+    "SCRAPPY_FRONTEND_ORIGIN/SCRAPPY_BACKEND_ORIGIN para pisarlo (túnel, deploy)",
 }
 
 
