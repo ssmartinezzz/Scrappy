@@ -92,17 +92,27 @@ Scrappy/
 ├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
 └── scraper/
     ├── pom.xml
+    ├── src/test/
+    │   ├── java/ar/scraper/architecture/BackendLayeringArchTest.java
+    │   │                               ← reglas ArchUnit: ciclos congelados + las que pueden fallar
+    │   └── resources/archunit_store/   ← golden de los 7 ciclos congelados (config: archunit.properties)
     └── src/main/
         ├── java/ar/scraper/
         │   ├── App.java                    ← Entry point Spring Boot
         │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard
-        │   ├── model/Product.java          ← Record de 19 campos
+        │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
+        │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder
+        │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
+        │   │                                  RubroResolver, CategoryGroups
+        │   ├── scrape/CorridaInterrumpida  ← área
+        │   ├── scheduling/                 ← área: CronJob, CronExecution, CronPort (lo implementa
+        │   │                                  un @Repository package-private en db/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID
         │   │   ├── normalize/              ←   PackQuantityDetector, CategoryClassifier,
-        │   │   │                               BrandExtractor, GenderResolver, SizeNormalizer,
-        │   │   │                               SubcategoryResolver, RubroResolver, GymratTagger
+        │   │   │                               GenderResolver, SizeNormalizer,
+        │   │   │                               SubcategoryResolver, GymratTagger
         │   │   ├── grouping/               ←   GroupingService, ProductIdentity, JaccardSimilarity
         │   │   └── text/AccentStripper     ←   hot path: 10 clases lo usan
         │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
@@ -115,7 +125,7 @@ Scrappy/
         │   │                                  SecurityConfig + JwtAuthFilter (el gate)
         │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
         │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
-        │   ├── db/DatabaseService.java     ← PostgreSQL (HikariCP), 15 tablas
+        │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
         │   └── web/                        ← ApiController + *Endpoints + servicios
         │       ├── OutfitService           ←   armador aleatorio (Gym)
         │       ├── OutfitBudgetBuilder     ←   MCKP + greedy
@@ -131,6 +141,10 @@ Scrappy/
 
 `scraper/ml_*.py` junto al jar son **artefactos de extracción runtime**
 (gitignoreados). La única fuente de verdad es `scraper/src/main/resources/ml/`.
+
+📄 Las capas del backend las hace cumplir ArchUnit (`BackendLayeringArchTest`);
+la forma objetivo (áreas `ar.scraper.<área>`, sin `db/` central) y su porqué
+están en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ---
 
