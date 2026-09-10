@@ -214,15 +214,52 @@ qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
 | Paquete | Responsabilidad | Clases |
 |---------|------------------|--------|
 | `aggregator` (raíz) | Orquestación de la agregación completa + utility de facets | `ResultAggregator` (orquestador: validar → dedup → pipeline ML → persistir → facets), `FacetCalculator` (cálculo puro y estático de facets) |
-| `aggregator.normalize` | Normalización de un `Product`, orquestada por `NormalizerService` | `PackQuantityDetector`, `CategoryClassifier`, `BrandExtractor`, `GenderResolver`, `SizeNormalizer`, `SubcategoryResolver`, `RubroResolver`, `GymratTagger` + holders estáticos de datos/predicados: `GarmentTaxonomy`, `CategoryGroups`, `SiteClassification`, `NonTextileGuard` |
+| `aggregator.normalize` | Normalización de un `Product`, orquestada por `NormalizerService` | `PackQuantityDetector`, `CategoryClassifier`, `GenderResolver`, `SizeNormalizer`, `SubcategoryResolver`, `GymratTagger` + holders estáticos de datos/predicados: `GarmentTaxonomy`, `CategoryAliases`, `NonTextileGuard`. `BrandExtractor`, `RubroResolver`, `SiteRegistry`, `SiteClassification` y `CategoryGroups` vivieron acá hasta `decouple-backend-layers`; hoy están en `ar.scraper.classification` (ver la sección de capas más abajo) y `NormalizerService` los sigue inyectando igual |
 | `aggregator.grouping` | Agrupación de productos equivalentes entre sitios, orquestada por `GroupingService` | `ProductIdentity`, `JaccardSimilarity`, `ProductGroup` |
 | `aggregator.text` | Utilidades de texto compartidas entre `normalize` y `grouping` | `AccentStripper` |
 
 **Patrones aplicados**:
 - **Orquestadores puros**: `NormalizerService.normalizarProducto` y `ResultAggregator.agregar` son el único lugar donde se reconstruye el record `Product` o se arma el `AggregatedResult` — secuencian sus collaborators (inyectados por constructor) y no contienen lógica de negocio propia. Ningún collaborator conoce a los demás.
-- **Holders estáticos de datos/predicados**: `GarmentTaxonomy`, `CategoryGroups`, `SiteClassification` y `NonTextileGuard` no tienen estado ni dependencias — se consumen vía static import dentro de los collaborators que los necesitan, en vez de inyectarse como beans adicionales en `NormalizerService`.
+- **Holders estáticos de datos/predicados**: `GarmentTaxonomy`, `NonTextileGuard` (en `normalize`) y `CategoryGroups`, `SiteClassification` (en `classification`) no tienen estado ni dependencias — se consumen vía static import dentro de los collaborators que los necesitan, en vez de inyectarse como beans adicionales en `NormalizerService`.
 - **`FacetCalculator` como utility estática, no bean**: a diferencia de los collaborators de `normalize`/`grouping` (todos `@Component`), `FacetCalculator` es `final` con constructor privado y un único método estático — refleja que el cálculo de facets no tiene estado ni dependencias. `ResultAggregator.calcularFacets` se mantiene como delegate público porque ~10 tests fuera del paquete (`ar.scraper.web`) construyen fixtures de `AggregatedResult` contra esa firma exacta.
 - **Test factory para tests de orquestación**: `NormalizerService` requiere 8 collaborators por constructor, así que los tests que ejercitan la normalización end-to-end usan `NormalizerServiceTestFactory.create()` (solo en `src/test/java`) en lugar de instanciar los 8 collaborators a mano en cada test.
+
+---
+
+### ¿Por qué el backend se parte en áreas de negocio, y por qué primero se mueven tipos y recién después se escriben interfaces?
+
+**Decisión**: el estado final del backend es **Spring Modulith**, con un paquete `ar.scraper.<área>` por área de negocio (la detección por defecto de Modulith) y `ar.scraper.model` como kernel compartido. **En ese estado final no hay paquete `db` central**: cada área es dueña de su persistencia, los 13 repositorios se reparten entre áreas y `db/` deja de existir. La dependencia de Modulith **no se agrega** hasta que existan áreas reales; mientras tanto la forma la sostienen reglas ArchUnit escritas a mano. `pages/` y `scrapers/` quedan en Page Object Model, sin tocar.
+
+| Fase | Qué | Estado |
+|---|---|---|
+| F0 | Baseline ArchUnit: congelar los ciclos de hoy como golden y escribir las reglas que tienen que poder fallar | ✅ |
+| F1 | Reubicar tipos de dominio en su paquete final, cero cambio de lógica | ✅ 15 tipos en `catalog`, `classification`, `scrape`, `scheduling` |
+| F2 | Un puerto de capacidad por agregado de persistencia | 1 de 13: `CronPort`. El próximo más barato es `FavoritosPort` |
+| F3 | Recortar áreas de `web/`; `cron/` se absorbe en `scheduling/`, que es el nombre final | — |
+| F4 | Endpoints sólo transporte | — |
+| Cierre | La verificación de Modulith reemplaza las reglas a mano | — |
+
+**Razón: colocación antes que abstracción.** Los ciclos del grafo de paquetes no los causaba la falta de interfaces sino tipos de dominio estacionados en paquetes de infraestructura: `CronJob` vivía en `cron/`, `CorridaInterrumpida` en `db/`, `SiteRegistry` y `BrandExtractor` en `aggregator/normalize/`. Mover el tipo a su paquete final mata el ciclo sin tocar una línea de lógica. Escribir puertos primero habría **modelado la deuda**: una interfaz sobre un tipo mal ubicado fija el lugar equivocado, con más ceremonia.
+
+F1 dejó a `db` afuera de todos los ciclos del grafo. F2 **no cierra ningún ciclo**: los dos ciclos congelados que pasan por `cron` se re-escriben, no desaparecen — eso llega en F3, cuando `cron/` se absorbe.
+
+**Qué garantiza ArchUnit y qué no** (`BackendLayeringArchTest`, `archunit-junit5` 1.5.0):
+
+- `cicloBaseline` está **congelada** (`FreezingArchRule`): el store en `src/test/resources/archunit_store/` guarda los 7 ciclos de hoy como golden versionado. Congelar sirve para que ninguno *nuevo* entre, no para probar que uno salió: `allowStoreUpdate=true` **descarta en silencio** las violaciones resueltas, así que un verde de la regla congelada no dice nada sobre un ciclo que se cerró.
+- Las victorias las prueban reglas **sin congelar**, que pueden fallar: `dbNoDependeDeCron`, `dbNoDependeDeAggregator`, `cronNoDependeDeDb`, `areasSonSumideros`. Cada una nació como RED intencional en su propio commit, antes del refactor que la pone en verde.
+- `areasSonSumideros` prohíbe que `catalog`, `classification`, `scrape` y `scheduling` dependan de cualquier paquete de infraestructura del backend (`db`, `cron`, `aggregator`, `web`, `ml`, `agent`, `security`, `config`, `scrapers`, `pages`, `health`, `identity`). **No prohíbe `java.sql..` a propósito**: un área dueña de su persistencia sostiene JDBC legítimamente, y `FavoritosProtegidosException extends SQLException` vive en `catalog`.
+- El análisis excluye el árbol de tests (`DoNotIncludeTests`): ~60 clases de test de `db` importan `aggregator`, y sin esa exclusión `db↔aggregator` habría sobrevivido a F1 como ciclo sólo de tests.
+
+**El puerto de capacidad, tal como quedó en F2.** `ar.scraper.scheduling.CronPort` es la interfaz de 12 métodos del agregado `cron_jobs`/`cron_executions`. La implementa `ar.scraper.db.CronRepository`, un `@Repository` **package-private**: es `javac`, no ArchUnit, quien impide nombrar el tipo concreto fuera de `db`. `CronJobRunner`, `CronJobService` y `CronApiController` dependen del puerto, y `cron` ya no referencia `ar.scraper.db`.
+
+`DatabaseService` conserva todos sus métodos públicos: recibe `CronPort` por su constructor `@Autowired` y delega en él los 12 de cron; la sobrecarga `(DataSource)` mantiene su firma. La extracción tuvo que ser **aditiva** porque 61 archivos de test construyen un `DatabaseService` real contra Postgres — romper la fachada era reescribir esa suite en el mismo PR que cambia la forma. Lo que el patrón **no** reclama: no cierra ciclos, no achica `DatabaseService` y no le quita a `db` su rol de fachada. Sólo mueve la dependencia de `cron` de la clase concreta a una capacidad. El precedente ya existía: `UsuarioRepository`, `PasswordResetRepository` y `RefreshTokenRepository` son `@Repository`s inyectados directo en `security/**`, salteando la fachada.
+
+**Trampas operativas** (cada una costó una sesión):
+
+- Refrescar el store tras un cambio que **re-escribe** una violación congelada que sigue abierta exige `-Darchunit.freeze.refreeze=true`; `allowStoreUpdate=true` solo descarta las resueltas. ArchUnit poda el store en **cada** corrida, incluidas las que fallan: restauralo desde `HEAD` antes de refrescar y revisá el diff regenerado antes de commitearlo (F2: exactamente 4 líneas, el conteo de ciclos sigue en 7).
+- El texto de una violación congelada embebe la firma completa del constructor: cambiar el tipo de un parámetro de una clase adentro de un ciclo congelado re-escribe esa violación aunque no se haya movido ninguna arista.
+- Un grep de `import` no ve las llamadas con nombre calificado; buscá el nombre del paquete.
+- Ensanchar un constructor de Spring rompe todo test que arme a mano un `AnnotationConfigApplicationContext` con esa clase (`SiteRegistrySingletonWiringTest`); buscá `Foo\.class` en `src/test` antes de tocar la firma.
 
 ---
 
