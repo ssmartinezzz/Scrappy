@@ -42,4 +42,9 @@ class BackendLayeringArchTest {
                             "ar.scraper.security..", "ar.scraper.config..",
                             "ar.scraper.scrapers..", "ar.scraper.pages..",
                             "ar.scraper.health..", "ar.scraper.identity..");
+
+    @ArchTest
+    static final ArchRule cronNoDependeDeDb = noClasses()
+        .that().resideInAPackage("ar.scraper.cron..")
+        .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.db..");
 }
