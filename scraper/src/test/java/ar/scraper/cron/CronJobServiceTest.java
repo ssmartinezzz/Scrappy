@@ -1,7 +1,7 @@
 package ar.scraper.cron;
 
-import ar.scraper.db.DatabaseService;
 import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -43,7 +43,7 @@ class CronJobServiceTest {
     private final Clock clock = Clock.fixed(
             ZonedDateTime.of(2026, 7, 5, 10, 0, 0, 0, ZONE).toInstant(), ZONE);
 
-    private DatabaseService db;
+    private CronPort db;
     private CronJobRunner runner;
     private CronJobService service;
 
@@ -54,7 +54,7 @@ class CronJobServiceTest {
 
     @Step("Wire CronJobService with mocked collaborators")
     private void wireService() {
-        db = mock(DatabaseService.class);
+        db = mock(CronPort.class);
         runner = mock(CronJobRunner.class);
         service = new CronJobService(db, runner, clock);
     }

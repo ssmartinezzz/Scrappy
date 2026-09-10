@@ -2,10 +2,12 @@ package ar.scraper.db;
 
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -20,16 +22,16 @@ import java.util.Optional;
 
 /**
  * Persistence for the {@code cron_jobs} / {@code cron_executions} aggregate.
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). DatabaseService
- * keeps every public method and delegates here, so its ~55 test call sites and
- * the cron services see an unchanged surface.</p>
+ * Implements {@link CronPort} (extract-database-ports F2) so {@code ar.scraper.cron}
+ * depends on that port, not on {@code ar.scraper.db} directly. DatabaseService keeps
+ * delegating here for its own ~55 test call sites.
  *
  * <p>Ya no hay writeLock global: cada método toma su propia conexión pooled;
  * la correctitud concurrente la da Postgres MVCC (design D1), no un lock
  * de aplicación.</p>
  */
-class CronRepository {
+@Repository
+class CronRepository implements CronPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(CronRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -42,7 +44,8 @@ class CronRepository {
 
     // ─── Cron Jobs ───────────────────────────────────────────────────────────
 
-    long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
+    @Override
+    public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
@@ -76,7 +79,8 @@ class CronRepository {
     }
 
     /** Retorna {@code false} sin persistir si {@code id} no existe. */
-    boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
+    @Override
+    public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
@@ -104,7 +108,8 @@ class CronRepository {
     }
 
     /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
-    boolean deleteCronJob(long id) {
+    @Override
+    public boolean deleteCronJob(long id) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement delExec = c.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
@@ -127,7 +132,8 @@ class CronRepository {
         }
     }
 
-    List<CronJob> listCronJobs() {
+    @Override
+    public List<CronJob> listCronJobs() {
         List<CronJob> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection()) {
             // Los sitios de TODOS los jobs en una sola query plana y ordenada,
@@ -156,7 +162,8 @@ class CronRepository {
         return result;
     }
 
-    Optional<CronJob> getCronJob(long id) {
+    @Override
+    public Optional<CronJob> getCronJob(long id) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "SELECT id,name,precio_min,precio_max,force_retrain,use_gpu,cron_expr," +
@@ -221,7 +228,8 @@ class CronRepository {
     }
 
     /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
-    boolean touchLastRunAt(long jobId, String lastRunAt) {
+    @Override
+    public boolean touchLastRunAt(long jobId, String lastRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE cron_jobs SET last_run_at=?::timestamptz WHERE id=?")) {
@@ -235,7 +243,8 @@ class CronRepository {
     }
 
     /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
-    boolean updateNextRunAt(long jobId, String nextRunAt) {
+    @Override
+    public boolean updateNextRunAt(long jobId, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE cron_jobs SET next_run_at=?::timestamptz WHERE id=?")) {
@@ -250,7 +259,8 @@ class CronRepository {
 
     // ─── Cron Executions ────────────────────────────────────────────────────
 
-    long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {
+    @Override
+    public long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO cron_executions (job_id, started_at, status, skipped_reason)
@@ -270,7 +280,8 @@ class CronRepository {
         }
     }
 
-    boolean updateCronExecution(long execId, String finishedAt, String status,
+    @Override
+    public boolean updateCronExecution(long execId, String finishedAt, String status,
             String skippedReason, String logOutput, Integer durationMs) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
@@ -291,7 +302,8 @@ class CronRepository {
         }
     }
 
-    List<CronExecution> listExecutions(long jobId, int limit) {
+    @Override
+    public List<CronExecution> listExecutions(long jobId, int limit) {
         List<CronExecution> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -308,7 +320,8 @@ class CronRepository {
         return result;
     }
 
-    Optional<CronExecution> getExecution(long execId) {
+    @Override
+    public Optional<CronExecution> getExecution(long execId) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "SELECT id,job_id,started_at,finished_at,status,skipped_reason,log_output,duration_ms " +
@@ -334,7 +347,8 @@ class CronRepository {
     }
 
     /** Retiene solo las últimas {@code keep} ejecuciones por job (decision 7: 50). */
-    void pruneCronExecutions(long jobId, int keep) {
+    @Override
+    public void pruneCronExecutions(long jobId, int keep) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                     DELETE FROM cron_executions WHERE job_id=? AND id NOT IN (
