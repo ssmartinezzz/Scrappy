@@ -107,6 +107,8 @@ Scrappy/
         │   ├── scrape/CorridaInterrumpida  ← área
         │   ├── scheduling/                 ← área: CronJob, CronExecution, CronPort (lo implementa
         │   │                                  un @Repository package-private en db/)
+        │   ├── favoritos/FavoritosPort     ← área: puerto del agregado favoritos (lo implementa
+        │   │                                  un @Repository package-private en db/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID
