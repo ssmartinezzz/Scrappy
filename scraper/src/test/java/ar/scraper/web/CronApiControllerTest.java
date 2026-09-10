@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.cron.CronJobService;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.scheduling.CronPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.*;
 class CronApiControllerTest {
 
     private CronJobService cronJobService;
-    private DatabaseService db;
+    private CronPort db;
     private CronApiController controller;
 
     @BeforeEach
@@ -49,7 +49,7 @@ class CronApiControllerTest {
     @Step("Wire CronApiController with mocked collaborators")
     private void wireController() {
         cronJobService = mock(CronJobService.class);
-        db = mock(DatabaseService.class);
+        db = mock(CronPort.class);
         controller = new CronApiController(cronJobService, db);
         // Valid unless a test overrides it — keeps the "happy path" tests terse.
         when(cronJobService.isValidCronExpr(anyString())).thenReturn(true);

@@ -222,7 +222,7 @@ Cycle detected: Slice cron -> \
                 Slice web -> \
                 Slice cron\
   1. Dependencies of Slice cron\
-    - Constructor <ar.scraper.cron.CronJobRunner.<init>(ar.scraper.web.ScraperService, ar.scraper.config.ScraperConfig, ar.scraper.ml.PythonRunner, ar.scraper.db.DatabaseService, java.time.Clock)> has parameter of type <ar.scraper.ml.PythonRunner> in (CronJobRunner.java:0)\
+    - Constructor <ar.scraper.cron.CronJobRunner.<init>(ar.scraper.web.ScraperService, ar.scraper.config.ScraperConfig, ar.scraper.ml.PythonRunner, ar.scraper.scheduling.CronPort, java.time.Clock)> has parameter of type <ar.scraper.ml.PythonRunner> in (CronJobRunner.java:0)\
     - Field <ar.scraper.cron.CronJobRunner.pythonRunner> has type <ar.scraper.ml.PythonRunner> in (CronJobRunner.java:0)\
     - Method <ar.scraper.cron.CronJobRunner.runJob(ar.scraper.scheduling.CronJob)> calls method <ar.scraper.ml.PythonRunner.setUseGpu(boolean)> in (CronJobRunner.java:95)\
     - Method <ar.scraper.cron.CronJobRunner.runJob(ar.scraper.scheduling.CronJob)> calls method <ar.scraper.ml.PythonRunner.setUseGpu(boolean)> in (CronJobRunner.java:116)\
@@ -234,7 +234,7 @@ Cycle detected: Slice cron -> \
     - Method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.getInflacionMensual()> in (FinanciacionEnricher.java:52)\
     - Method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.factorInflacion(int)> in (SenalEnricher.java:61)\
   3. Dependencies of Slice web\
-    - Constructor <ar.scraper.web.CronApiController.<init>(ar.scraper.cron.CronJobService, ar.scraper.db.DatabaseService)> has parameter of type <ar.scraper.cron.CronJobService> in (CronApiController.java:0)\
+    - Constructor <ar.scraper.web.CronApiController.<init>(ar.scraper.cron.CronJobService, ar.scraper.scheduling.CronPort)> has parameter of type <ar.scraper.cron.CronJobService> in (CronApiController.java:0)\
     - Field <ar.scraper.web.CronApiController.cronJobService> has type <ar.scraper.cron.CronJobService> in (CronApiController.java:0)\
     - Method <ar.scraper.web.CronApiController.crear(java.util.Map)> calls method <ar.scraper.cron.CronJobService.isValidCronExpr(java.lang.String)> in (CronApiController.java:89)\
     - Method <ar.scraper.web.CronApiController.crear(java.util.Map)> calls method <ar.scraper.cron.CronJobService.createJob(java.lang.String, double, double, java.util.List, boolean, boolean, java.lang.String, boolean)> in (CronApiController.java:95)\
@@ -251,7 +251,7 @@ Cycle detected: Slice cron -> \
                 Slice web -> \
                 Slice cron\
   1. Dependencies of Slice cron\
-    - Constructor <ar.scraper.cron.CronJobRunner.<init>(ar.scraper.web.ScraperService, ar.scraper.config.ScraperConfig, ar.scraper.ml.PythonRunner, ar.scraper.db.DatabaseService, java.time.Clock)> has parameter of type <ar.scraper.web.ScraperService> in (CronJobRunner.java:0)\
+    - Constructor <ar.scraper.cron.CronJobRunner.<init>(ar.scraper.web.ScraperService, ar.scraper.config.ScraperConfig, ar.scraper.ml.PythonRunner, ar.scraper.scheduling.CronPort, java.time.Clock)> has parameter of type <ar.scraper.web.ScraperService> in (CronJobRunner.java:0)\
     - Field <ar.scraper.cron.CronJobRunner.scraperService> has type <ar.scraper.web.ScraperService> in (CronJobRunner.java:0)\
     - Method <ar.scraper.cron.CronJobRunner.isScraperBusy()> calls method <ar.scraper.web.ScraperService.getStatus()> in (CronJobRunner.java:64)\
     - Method <ar.scraper.cron.CronJobRunner.isScraperBusy()> gets field <ar.scraper.web.ScraperService$ScraperStatus.RUNNING> in (CronJobRunner.java:64)\
@@ -263,7 +263,7 @@ Cycle detected: Slice cron -> \
     - Method <ar.scraper.cron.CronJobRunner.awaitTerminal()> calls method <ar.scraper.web.ScraperService.getStatus()> in (CronJobRunner.java:142)\
     - Method <ar.scraper.cron.CronJobRunner.awaitTerminal()> gets field <ar.scraper.web.ScraperService$ScraperStatus.ERROR> in (CronJobRunner.java:142)\
   2. Dependencies of Slice web\
-    - Constructor <ar.scraper.web.CronApiController.<init>(ar.scraper.cron.CronJobService, ar.scraper.db.DatabaseService)> has parameter of type <ar.scraper.cron.CronJobService> in (CronApiController.java:0)\
+    - Constructor <ar.scraper.web.CronApiController.<init>(ar.scraper.cron.CronJobService, ar.scraper.scheduling.CronPort)> has parameter of type <ar.scraper.cron.CronJobService> in (CronApiController.java:0)\
     - Field <ar.scraper.web.CronApiController.cronJobService> has type <ar.scraper.cron.CronJobService> in (CronApiController.java:0)\
     - Method <ar.scraper.web.CronApiController.crear(java.util.Map)> calls method <ar.scraper.cron.CronJobService.isValidCronExpr(java.lang.String)> in (CronApiController.java:89)\
     - Method <ar.scraper.web.CronApiController.crear(java.util.Map)> calls method <ar.scraper.cron.CronJobService.createJob(java.lang.String, double, double, java.util.List, boolean, boolean, java.lang.String, boolean)> in (CronApiController.java:95)\
