@@ -1,7 +1,7 @@
 package ar.scraper.ml;
 
+import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.db.DatabaseService.HistorialEntry;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalCompra;
 import ar.scraper.web.InflacionService;

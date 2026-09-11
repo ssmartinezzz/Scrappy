@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.financiacion.Preset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,8 +18,8 @@ import java.util.Optional;
  * Persistence for the {@code financiacion_presets} aggregate.
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). The
- * {@code Preset} record stays nested on DatabaseService — callers and tests
- * name it {@code DatabaseService.Preset} — so this class returns that type.</p>
+ * {@code Preset} record lives in {@code ar.scraper.financiacion}
+ * (extract-preset-historial-ports) — this class returns that type.</p>
  */
 class PresetRepository {
 
@@ -71,14 +72,14 @@ class PresetRepository {
         }
     }
 
-    List<DatabaseService.Preset> listarPresets() {
-        List<DatabaseService.Preset> result = new ArrayList<>();
+    List<Preset> listarPresets() {
+        List<Preset> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
                 "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
             while (rs.next()) {
-                result.add(new DatabaseService.Preset(
+                result.add(new Preset(
                         rs.getInt("id"), rs.getString("label"),
                         rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
                         rs.getBoolean("activo")));
@@ -89,13 +90,13 @@ class PresetRepository {
         return result;
     }
 
-    Optional<DatabaseService.Preset> cargarPresetActivo() {
+    Optional<Preset> cargarPresetActivo() {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
                 "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo LIMIT 1")) {
             if (rs.next()) {
-                return Optional.of(new DatabaseService.Preset(
+                return Optional.of(new Preset(
                         rs.getInt("id"), rs.getString("label"),
                         rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true));
             }

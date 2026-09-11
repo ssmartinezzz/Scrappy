@@ -5,7 +5,7 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.db.DatabaseService.Preset;
+import ar.scraper.financiacion.Preset;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;

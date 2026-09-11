@@ -91,7 +91,7 @@ class CatalogoEndpoints {
                 senalEnricher.enriquecer(paginaSql.productos()));
 
         String presetActivoLabel = db.cargarPresetActivo()
-                .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
+                .map(ar.scraper.financiacion.Preset::label).orElse("");
 
         int total = paginaSql.total();
         int totalPaginas = (int) Math.ceil((double) total / size);

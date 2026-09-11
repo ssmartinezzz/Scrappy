@@ -7,7 +7,9 @@ import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.favoritos.FavoritosPort;
+import ar.scraper.financiacion.Preset;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
@@ -148,10 +150,8 @@ public class DatabaseService {
 
     // ─── Presets de financiación. Bodies in PresetRepository (backlog A3);
     // this class keeps the public surface and delegates. The Preset record
-    // stays HERE: callers and tests name it DatabaseService.Preset.
+    // lives in ar.scraper.financiacion (extract-preset-historial-ports).
     // ─────────────────────────────────────────────────────────────────────
-
-    public record Preset(int id, String label, double recargoPct, int cuotas, boolean activo) {}
 
     public List<Preset> listarPresets() {
         return presetRepository.listarPresets();
@@ -556,8 +556,6 @@ public class DatabaseService {
     public boolean esProductoActivo(String url) {
         return productRepository.esProductoActivo(url);
     }
-
-    public record HistorialEntry(String fecha, double precio) {}
 
     public List<HistorialEntry> getHistorialPrecios(String url) {
         return historialRepository.getHistorialPrecios(url);
