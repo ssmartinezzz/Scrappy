@@ -1,7 +1,7 @@
 package ar.scraper.ml;
 
 import ar.scraper.db.DatabaseService;
-import ar.scraper.db.DatabaseService.Preset;
+import ar.scraper.financiacion.Preset;
 import ar.scraper.model.Product;
 import ar.scraper.web.InflacionService;
 import io.qameta.allure.Epic;

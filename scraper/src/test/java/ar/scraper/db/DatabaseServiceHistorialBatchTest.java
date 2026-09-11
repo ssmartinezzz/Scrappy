@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.db.DatabaseService.HistorialEntry;
+import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
