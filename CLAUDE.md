@@ -102,8 +102,9 @@ Scrappy/
         │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard
         │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
         │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
-        │   │                                  HistorialEntry, HistorialPort (lo implementa un
-        │   │                                  @Repository package-private en db/)
+        │   │                                  HistorialEntry, HistorialPort, UpsertStats,
+        │   │                                  CatalogQueryPort, ProductPort (los tres puertos los
+        │   │                                  implementan @Repository package-private en db/)
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups
         │   ├── scrape/CorridaInterrumpida  ← área
