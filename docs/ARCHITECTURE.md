@@ -235,19 +235,20 @@ qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
 | F0 | Baseline ArchUnit: congelar los ciclos de hoy como golden y escribir las reglas que tienen que poder fallar | ✅ |
 | F1 | Reubicar tipos de dominio en su paquete final, cero cambio de lógica | ✅ 15 tipos en `catalog`, `classification`, `scrape`, `scheduling` |
 | F2 | Un puerto de capacidad por agregado de persistencia | ✅ 13 de 13: `CronPort`, `FavoritosPort`, `PresetPort`, `HistorialPort`, `CatalogQueryPort`, `ProductPort`, `CategoriaStatsPort`, `MlOutputPort`, `ScrapeRunPort`, `SitiosPort`, `FeedbackPort`, `SavedOutfitsPort`, `PreciosExternosPort` |
-| F3 | Recortar áreas de `web/`; `cron/` se absorbe en `scheduling/`, que es el nombre final | — |
+| F3a | Cerrar los 7 ciclos del grafo; `cron/` se absorbe en `scheduling/`, que es el nombre final | ✅ `CatalogSnapshotPort`, `ScrapeControlPort`, `grafoSinCiclos` descongelada |
+| F3b | Recortar el dominio que todavía vive en `web/` (`OutfitService`, `SupplementCombo`, `OutfitBudgetBuilder`, `RecommendationService`, `VisualCoherence`…) | — |
 | F4 | Endpoints sólo transporte | — |
 | Cierre | La verificación de Modulith reemplaza las reglas a mano | — |
 
 **Razón: colocación antes que abstracción.** Los ciclos del grafo de paquetes no los causaba la falta de interfaces sino tipos de dominio estacionados en paquetes de infraestructura: `CronJob` vivía en `cron/`, `CorridaInterrumpida` en `db/`, `SiteRegistry` y `BrandExtractor` en `aggregator/normalize/`. Mover el tipo a su paquete final mata el ciclo sin tocar una línea de lógica. Escribir puertos primero habría **modelado la deuda**: una interfaz sobre un tipo mal ubicado fija el lugar equivocado, con más ceremonia.
 
-F1 dejó a `db` afuera de todos los ciclos del grafo. F2 **no cierra ningún ciclo**: los dos ciclos congelados que pasan por `cron` se re-escriben, no desaparecen — eso llega en F3, cuando `cron/` se absorbe.
+F1 dejó a `db` afuera de todos los ciclos del grafo. F2 **no cierra ningún ciclo**: los dos ciclos congelados que pasan por `cron` se re-escriben, no desaparecen. F3a los cierra a los siete.
 
 **Qué garantiza ArchUnit y qué no** (`BackendLayeringArchTest`, `archunit-junit5` 1.5.0):
 
-- `cicloBaseline` está **congelada** (`FreezingArchRule`): el store en `src/test/resources/archunit_store/` guarda los 7 ciclos de hoy como golden versionado. Congelar sirve para que ninguno *nuevo* entre, no para probar que uno salió: `allowStoreUpdate=true` **descarta en silencio** las violaciones resueltas, así que un verde de la regla congelada no dice nada sobre un ciclo que se cerró.
-- Las victorias las prueban reglas **sin congelar**, que pueden fallar: `dbNoDependeDeCron`, `dbNoDependeDeAggregator`, `cronNoDependeDeDb`, `areasSonSumideros`, `webUsaFavoritosPorElPuerto`, `webUsaPresetsPorElPuerto`, `webUsaHistorialPorElPuerto`, `webUsaCatalogQueryPorElPuerto`, `webUsaProductoPorElPuerto`. Cada una nació como RED intencional en su propio commit, antes del refactor que la pone en verde.
-- `areasSonSumideros` prohíbe que `catalog`, `classification`, `scrape`, `scheduling`, `favoritos` y `financiacion` dependan de cualquier paquete de infraestructura del backend (`db`, `cron`, `aggregator`, `web`, `ml`, `agent`, `security`, `config`, `scrapers`, `pages`, `health`, `identity`). **No prohíbe `java.sql..` a propósito**: un área dueña de su persistencia sostiene JDBC legítimamente, y `FavoritosProtegidosException extends SQLException` vive en `catalog`.
+- `grafoSinCiclos` **ya no está congelada**. Lo estuvo desde F0, con `src/test/resources/archunit_store/` guardando los 7 ciclos de entonces como golden versionado. Congelar servía para que ninguno *nuevo* entrara, no para probar que uno salió: `allowStoreUpdate=true` **descarta en silencio** las violaciones resueltas, así que un verde de la regla congelada nunca dijo nada sobre un ciclo cerrado. F3a los cerró a los siete, así que la regla pasó a ser una regla común que puede fallar, y el store y `archunit.properties` se borraron. Un ciclo nuevo hoy rompe el build.
+- Las victorias las prueban reglas **sin congelar**, que pueden fallar: `dbNoDependeDeAggregator`, `areasSonSumideros`, `mlNoDependeDeWeb`, `agentNoDependeDeWeb`, `cronFueAbsorbidoEnScheduling`, `webUsaFavoritosPorElPuerto`, `webUsaPresetsPorElPuerto`, `webUsaHistorialPorElPuerto`, `webUsaCatalogQueryPorElPuerto`, `webUsaProductoPorElPuerto` y las siete del resto de F2. Cada una nació como RED intencional en su propio commit, antes del refactor que la pone en verde.
+- `areasSonSumideros` prohíbe que `catalog`, `classification`, `scrape`, `scheduling`, `favoritos`, `financiacion`, `feedback` y `outfits` dependan de cualquier paquete de infraestructura del backend (`db`, `aggregator`, `web`, `ml`, `agent`, `security`, `config`, `scrapers`, `pages`, `health`, `identity`). Desde F3a es también quien sostiene la absorción de `cron/`: el runner, ya en `scheduling`, no puede volver a nombrar `web`, `ml` ni `config`. **No prohíbe `java.sql..` a propósito**: un área dueña de su persistencia sostiene JDBC legítimamente, y `FavoritosProtegidosException extends SQLException` vive en `catalog`.
 - El análisis excluye el árbol de tests (`DoNotIncludeTests`): ~60 clases de test de `db` importan `aggregator`, y sin esa exclusión `db↔aggregator` habría sobrevivido a F1 como ciclo sólo de tests.
 
 **El puerto de capacidad, tal como quedó en F2.** `ar.scraper.scheduling.CronPort` es la interfaz de 12 métodos del agregado `cron_jobs`/`cron_executions`. La implementa `ar.scraper.db.CronRepository`, un `@Repository` **package-private**: es `javac`, no ArchUnit, quien impide nombrar el tipo concreto fuera de `db`. `CronJobRunner`, `CronJobService` y `CronApiController` dependen del puerto, y `cron` ya no referencia `ar.scraper.db`.
@@ -333,6 +334,74 @@ Las cuatro reglas nuevas son las primeras que **no** se acotan a `ar.scraper.web
 - Un grep de `import` no ve las llamadas con nombre calificado; buscá el nombre del paquete.
 - Ensanchar un constructor de Spring rompe todo test que arme a mano un `AnnotationConfigApplicationContext` con esa clase (`SiteRegistrySingletonWiringTest`); buscá `Foo\.class` en `src/test` antes de tocar la firma.
 - Un repositorio nuevo que implementa un puerto **necesita `@Repository`**, no solo `implements XPort`: sin la anotación el `@Autowired` de `DatabaseService` compila pero no arranca — `ApplicationContext` no tiene bean para inyectar en el constructor de producción. La suite Postgres-backed no lo detecta (construye `DatabaseService` a mano con `new`), así que sólo un arranque real de la app lo expone.
+
+
+**F3a: los 7 ciclos se cierran, y eran dos clases mal ubicadas
+(close-backend-package-cycles).** Antes de mover nada se midió el grafo, y el
+tamaño del problema no era el que la fase sugería. Las aristas que entran a
+`ar.scraper.web` desde adentro del backend son **tres, y nombran dos clases**:
+
+```
+ml    → ar.scraper.web.InflacionService   (SenalEnricher, FinanciacionEnricher)
+agent → ar.scraper.web.ScraperService     (SearchProducts/ViewProduct/ProposeReclassify)
+cron  → ar.scraper.web.ScraperService     (CronJobRunner)
+```
+
+`aggregator`, `scrapers`, `pages`, `health` y `security` no nombran una sola
+clase de `web`. Como los 7 ciclos congelados pasan **todos** por `web`, matar
+esas tres aristas los cierra a los siete — y `ml ↛ web` sola se lleva cinco.
+
+Eso parte la fase en dos trabajos que no son el mismo: **cerrar ciclos** (F3a) y
+**recortar el dominio que vive en `web/`** (F3b). El grueso de `web/`
+—`OutfitService`, `SupplementCombo`, `OutfitBudgetBuilder`,
+`RecommendationService`, `VisualCoherence`— es dominio estacionado en un paquete
+de transporte, sí, pero **no participa de ningún ciclo**. Meterlo en el mismo
+cambio habría puesto miles de líneas movidas encima del refactor que cierra los
+ciclos, sin que una sola de ellas contribuyera al cierre.
+
+`InflacionService` se muda a `ar.scraper.financiacion` **sin puerto de por
+medio**: no importaba una sola clase de `ar.scraper` — es HTTP, Jackson y
+`@Scheduled` — así que entra al área sin violar `areasSonSumideros`. Es F1 puro,
+tres años tarde: colocación antes que abstracción. Escribirle un puerto habría
+sido ceremonia sobre una clase que ya podía vivir donde corresponde.
+
+Las otras dos aristas sí necesitaron puertos, y cada uno vive donde vive el tipo
+que devuelve, igual que los 13 de F2:
+
+- **`ar.scraper.aggregator.CatalogSnapshotPort`** (1 firma) es la lectura del
+  snapshot vivo del catálogo. Vive en `aggregator` y **no** en un área porque
+  devuelve `AggregatedResult`, que se declara ahí: un puerto en `catalog` que
+  devolviera ese tipo violaría `areasSonSumideros`. Lo implementa
+  `ScraperService` sin cambiar una firma —`getLastResult()` ya se llamaba así— y
+  los tres tools del agente lo reciben en vez de la clase concreta.
+
+- **`ar.scraper.scrape.ScrapeControlPort`** (6 firmas) es todo lo que el
+  scheduler necesita para lanzar y parametrizar una corrida. Obligó a promover
+  `ScraperService.ScraperStatus` a `ar.scraper.scrape.ScraperStatus`, por el
+  mismo motivo que `UpsertStats`/`Preset`/`HistorialEntry` en F2. Los cuatro
+  nombres de constante no cambian, así que el JSON de `/api/status` es idéntico.
+
+**Por qué `ScrapeControlPort` necesitó un adapter y `CatalogSnapshotPort` no.**
+`CronJobRunner` tocaba tres clases prohibidas para un área, y las tres capacidades
+viven en objetos distintos: estado y disparo en `ScraperService`, banda de precio
+en `ScraperConfig`, flag de GPU en `PythonRunner`. `ScraperService` **no tiene**
+`PythonRunner` entre sus colaboradores. Hacer que implementara el puerto entero
+habría significado inyectarle una dependencia que hoy no tiene, para beneficio
+exclusivo del scheduler — ensanchar una clase de 55k por una razón ajena a lo que
+hace. `ScrapeControlAdapter` (package-private en `web`, como los `@Repository`
+de `db` que implementan los puertos de F2) une las tres y deja a `CronJobRunner`
+con tres colaboradores en vez de cinco.
+
+Las seis firmas del puerto no son un grab-bag: son exactamente la receta de
+`POST /api/scrape` que el cron job replica — capturar la configuración vigente,
+aplicar la del job, disparar, esperar, restaurar en `finally`.
+
+**Dos reglas se retiran con el paquete `cron`.** `cronNoDependeDeDb` queda
+subsumida por `areasSonSumideros`, que ya lista `scheduling` como área y `db`
+entre los paquetes prohibidos. `dbNoDependeDeCron` **no se puede reapuntar** a
+`scheduling`: `db.CronRepository` implementa `scheduling.CronPort`, así que esa
+arista es legítima y deseada. Reapuntarla habría prohibido justo el patrón que
+F2 construyó.
 
 ---
 
