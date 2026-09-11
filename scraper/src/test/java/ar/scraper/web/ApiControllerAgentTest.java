@@ -12,6 +12,7 @@ import ar.scraper.agent.TurnOutcome;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
@@ -62,6 +63,7 @@ class ApiControllerAgentTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private ProductPort productos;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -89,6 +91,8 @@ class ApiControllerAgentTest {
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         when(db.siteRegistry()).thenReturn(SiteRegistry.forTesting(Map.of()));
+        productos             = mock(ProductPort.class);
+        when(db.productos()).thenReturn(productos);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -437,15 +441,15 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).aplicarReclasificacionAuditada(
+        verify(productos).aplicarReclasificacionAuditada(
                 "https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"), "", current, "local");
     }
 
@@ -506,8 +510,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ReclassifyProposal body = new ReclassifyProposal(
@@ -515,7 +519,7 @@ class ApiControllerAgentTest {
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).aplicarReclasificacionAuditada(
+        verify(productos).aplicarReclasificacionAuditada(
                 "https://a.com/1", "Buzo", "Adidas", "mujer", List.of("42"), "", current, "local");
     }
 
@@ -525,8 +529,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ReclassifyProposal body = new ReclassifyProposal(
@@ -534,7 +538,7 @@ class ApiControllerAgentTest {
         var resp = controller.agentApply(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).aplicarReclasificacionAuditada(
+        verify(productos).aplicarReclasificacionAuditada(
                 "https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42"), "", current, "local");
     }
 
@@ -544,8 +548,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(false);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
@@ -561,8 +565,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
@@ -591,15 +595,15 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
         controllerConActor.agentApply(body);
 
         verify(actorResolver).current();
-        verify(db).aplicarReclasificacionAuditada(
+        verify(productos).aplicarReclasificacionAuditada(
                 "https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"), "", current,
                 "santi-desde-sesion");
     }
@@ -610,8 +614,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(false);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
@@ -643,7 +647,7 @@ class ApiControllerAgentTest {
         // Alguien más ya reclasificó este producto en la DB desde que se generó
         // la propuesta — el snapshot en memoria (getLastResult) sigue viejo.
         Product enDb = producto("https://a.com/1", "Buzo", "Adidas", "hombre", List.of("42", "43"));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(enDb));
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(enDb));
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
         var resp = controller.agentApply(body);
@@ -653,7 +657,7 @@ class ApiControllerAgentTest {
         Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
         assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
         assertThat(respBody.get("actual")).isNotNull();
-        verify(db, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(productos, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -662,7 +666,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.empty());
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.empty());
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
         var resp = controller.agentApply(body);
@@ -671,7 +675,7 @@ class ApiControllerAgentTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
         assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
-        verify(db, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(productos, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -696,8 +700,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
@@ -714,8 +718,8 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
-        when(db.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
-        when(db.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(true);
 
         ObjectNode json = objectMapper.valueToTree(proposal("https://a.com/1", "Zapatilla Running", "Buzo"));

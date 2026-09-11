@@ -2,6 +2,7 @@ package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -27,7 +28,12 @@ public class ResultAggregator {
     private final MlEnricher           mlEnricher;
     private final SenalEnricher        senalEnricher;
     private final FinanciacionEnricher financiacionEnricher;
+    // Declared dual dependency (extract-catalog-query-port, D6): guardarMlOutput/
+    // guardarCategoriaStats below belong to repositories out of this slice's scope.
+    // upsertProductos/cargarClasificacionBloqueada/actualizarCategoria/cargarProductos/
+    // actualizarNormalizacion/estaBloqueado go through ProductPort instead.
     private final DatabaseService      db;
+    private final ProductPort          productos;
 
     // Estado del último run — leído por ScraperService sin inyección circular
     private volatile JsonNode lastMlOutput     = null;
@@ -38,13 +44,15 @@ public class ResultAggregator {
                             MlEnricher           mlEnricher,
                             SenalEnricher        senalEnricher,
                             FinanciacionEnricher financiacionEnricher,
-                            DatabaseService      db) {
+                            DatabaseService      db,
+                            ProductPort          productos) {
         this.normalizer          = normalizer;
         this.pythonRunner        = pythonRunner;
         this.mlEnricher          = mlEnricher;
         this.senalEnricher       = senalEnricher;
         this.financiacionEnricher = financiacionEnricher;
         this.db                  = db;
+        this.productos           = productos;
     }
 
     // ─── Accessors ───────────────────────────────────────────────────────────
@@ -127,7 +135,7 @@ public class ResultAggregator {
 
         persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
 
-        db.upsertProductos(pipeline.enriquecidos(), runStartedAt);
+        productos.upsertProductos(pipeline.enriquecidos(), runStartedAt);
         db.guardarMlOutput(pipeline.mlOut());
         if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
             db.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));
@@ -200,7 +208,7 @@ public class ResultAggregator {
      * reverted classification until the next restart.</p>
      */
     private MlPipelineResult ejecutarPipelineMl(List<Product> sorted) {
-        Map<String, ClasificacionBloqueada> bloqueos = db.cargarClasificacionBloqueada();
+        Map<String, ClasificacionBloqueada> bloqueos = productos.cargarClasificacionBloqueada();
 
         List<Product> normalizados = aplicarBloqueos(normalizer.normalizar(sorted), bloqueos);
 
@@ -265,7 +273,7 @@ public class ResultAggregator {
             String antes = catOriginal.get(pid);
             String ahora = p.categoria() != null ? p.categoria() : "";
             if (antes != null && !ahora.equals(antes)) {
-                try { db.actualizarCategoria(pid, ahora); catRefinadas++; }
+                try { productos.actualizarCategoria(pid, ahora); catRefinadas++; }
                 catch (Exception ignored) {}
             }
         }
@@ -314,9 +322,9 @@ public class ResultAggregator {
      * etiquetas stale.
      */
     public Map<String, Integer> renormalizarCatalogo() {
-        List<Product> actuales      = db.cargarProductos();
+        List<Product> actuales      = productos.cargarProductos();
         List<Product> renormalizados = normalizer.normalizar(actuales);
-        Map<String, ClasificacionBloqueada> bloqueos = db.cargarClasificacionBloqueada();
+        Map<String, ClasificacionBloqueada> bloqueos = productos.cargarClasificacionBloqueada();
 
         int totalRevisados   = 0;
         int categoriaCambiada = 0;
@@ -374,10 +382,10 @@ public class ResultAggregator {
                 }
                 escriturasIntentadas++;
                 try {
-                    int rows = db.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
+                    int rows = productos.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
                     if (rows > 0) {
                         escriturasAplicadas++;
-                    } else if (db.estaBloqueado(ahora.url())) {
+                    } else if (productos.estaBloqueado(ahora.url())) {
                         // review fix F3: the entry snapshot (bloqueos, above) is stale by
                         // design — a product can get locked via POST /api/agent/apply after
                         // that snapshot but before this row is reached (one sequential

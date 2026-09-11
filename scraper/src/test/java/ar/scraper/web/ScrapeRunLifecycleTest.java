@@ -56,7 +56,8 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
         service = new ScraperService(
                 Mockito.mock(ScraperConfig.class),
                 Mockito.mock(ResultAggregator.class),
-                db);
+                db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
     }
 
     @Test
@@ -118,7 +119,8 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
     void bootToleratesADatabaseFailure() {
         DatabaseService roto = Mockito.mock(DatabaseService.class);
         ScraperService conDbRota = new ScraperService(
-                Mockito.mock(ScraperConfig.class), Mockito.mock(ResultAggregator.class), roto);
+                Mockito.mock(ScraperConfig.class), Mockito.mock(ResultAggregator.class), roto,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
 
         // Run bookkeeping is bookkeeping: it must not be able to stop the
         // application from starting. @PostConstruct throwing would do exactly that.

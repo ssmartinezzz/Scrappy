@@ -3,8 +3,10 @@ package ar.scraper.web;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -31,11 +33,16 @@ import java.util.stream.Collectors;
  * the routes and every existing caller are untouched. That matters more here
  * than anywhere else in the split — many tests call {@code controller.data(...)}
  * directly, in both the 17-arg and 21-arg overloads.</p>
+ *
+ * <p>Catalog search goes through {@link CatalogQueryPort} and product reads/writes
+ * through {@link ProductPort} (extract-catalog-query-port). {@code DatabaseService}
+ * is no longer held here at all.</p>
  */
 class CatalogoEndpoints {
 
     private final ScraperService service;
-    private final ar.scraper.db.DatabaseService db;
+    private final CatalogQueryPort catalogQuery;
+    private final ProductPort productos;
     private final ar.scraper.financiacion.PresetPort presets;
     private final ar.scraper.catalog.HistorialPort historial;
     private final ScraperConfig config;
@@ -43,13 +50,15 @@ class CatalogoEndpoints {
     private final ar.scraper.ml.FinanciacionEnricher financiacionEnricher;
 
     CatalogoEndpoints(ScraperService service,
-                      ar.scraper.db.DatabaseService db,
                       ar.scraper.financiacion.PresetPort presets,
                       ar.scraper.catalog.HistorialPort historial,
+                      CatalogQueryPort catalogQuery,
+                      ProductPort productos,
                       ScraperConfig config,
                       InflacionService inflacionService) {
         this.service = service;
-        this.db = db;
+        this.catalogQuery = catalogQuery;
+        this.productos = productos;
         this.presets = presets;
         this.historial = historial;
         this.config = config;
@@ -86,10 +95,10 @@ class CatalogoEndpoints {
         // lo mismo, y que las facetas ofrezcan filtros que la página no cumple.
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
-        CatalogResumen resumen = db.resumenCatalogo(cota);
+        CatalogResumen resumen = catalogQuery.resumen(cota);
         if (resumen.total() == 0) return ResponseEntity.noContent().build();
 
-        CatalogPage paginaSql = db.buscarCatalogo(filtro, orden, page, size, cota);
+        CatalogPage paginaSql = catalogQuery.buscar(filtro, orden, page, size, cota);
 
         // senal y finan no se persisten — se recalculan, pero SOLO para los
         // productos de esta página, no para el catálogo entero como antes.
@@ -119,7 +128,7 @@ class CatalogoEndpoints {
         meta.put("totalPaginas", totalPaginas);
 
         // Facets sobre el dataset COMPLETO (sin filtrar) para que no desaparezcan pills
-        Facets facets = db.facetasCatalogo(cota);
+        Facets facets = catalogQuery.facetas(cota);
         ObjectNode facetsNode = meta.putObject("facets");
         volcar(facetsNode.putObject("talles"),          facets.talles());
         volcar(facetsNode.putObject("generos"),         facets.generos());
@@ -237,7 +246,7 @@ class CatalogoEndpoints {
     ResponseEntity<Object> productoDetalle(String key) {
         if (key == null || key.isBlank()) return ResponseEntity.notFound().build();
 
-        var encontrado = db.obtenerProductoPorKey(key);
+        var encontrado = productos.obtenerProductoPorKey(key);
         if (encontrado.isEmpty()) return ResponseEntity.notFound().build();
 
         String url = encontrado.get().url();
@@ -255,10 +264,10 @@ class CatalogoEndpoints {
     ResponseEntity<ObjectNode> facets() {
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
-        CatalogResumen resumen = db.resumenCatalogo(cota);
+        CatalogResumen resumen = catalogQuery.resumen(cota);
         if (resumen.total() == 0) return ResponseEntity.noContent().build();
 
-        Facets facets = db.facetasCatalogo(cota);
+        Facets facets = catalogQuery.facetas(cota);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         volcar(root.putObject("talles"),          facets.talles());
         volcar(root.putObject("generos"),         facets.generos());
@@ -320,7 +329,7 @@ class CatalogoEndpoints {
 
     ResponseEntity<ObjectNode> eliminarProducto(String url) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.marcarDescontinuado(url);
+        productos.marcarDescontinuado(url);
         service.eliminarProductoDeMemoria(url);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
