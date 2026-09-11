@@ -8,7 +8,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.web.ApiController;
-import ar.scraper.web.InflacionService;
+import ar.scraper.financiacion.InflacionService;
 import ar.scraper.web.OutfitService;
 import ar.scraper.web.RecommendationService;
 import ar.scraper.web.ScraperService;

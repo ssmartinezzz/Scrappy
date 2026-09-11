@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
 import org.springframework.http.ResponseEntity;
 
 /**
@@ -32,7 +34,7 @@ class DbAdminEndpoints {
     }
 
     ResponseEntity<String> limpiarProductos() {
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             return ResponseEntity.status(409).body("Hay un scraping en curso. Esperá a que termine.");
         }
         try {
@@ -55,7 +57,7 @@ class DbAdminEndpoints {
     }
 
     ResponseEntity<String> limpiarMl() {
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             return ResponseEntity.status(409).body("Hay un scraping en curso. Esperá a que termine.");
         }
         try {

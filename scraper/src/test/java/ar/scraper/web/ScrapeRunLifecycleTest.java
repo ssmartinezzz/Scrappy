@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
@@ -84,7 +86,7 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
                 .isNull();
         assertThat(service.getStatus())
                 .as("no products restored and nothing launched, so the service stays idle")
-                .isEqualTo(ScraperService.ScraperStatus.IDLE);
+                .isEqualTo(ScraperStatus.IDLE);
     }
 
     @Test

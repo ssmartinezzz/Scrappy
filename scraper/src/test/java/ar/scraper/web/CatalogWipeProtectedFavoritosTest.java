@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
@@ -56,7 +58,7 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
         db = new DatabaseService(dataSource());
         service = mock(ScraperService.class);
         aggregator = mock(ResultAggregator.class);
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         endpoints = new DbAdminEndpoints(service, db.mlOutput(), db.productos(), aggregator);
     }
 

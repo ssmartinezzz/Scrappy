@@ -4,7 +4,7 @@ import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalCompra;
-import ar.scraper.web.InflacionService;
+import ar.scraper.financiacion.InflacionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

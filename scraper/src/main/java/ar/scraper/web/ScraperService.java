@@ -6,6 +6,7 @@ import ar.scraper.catalog.MlOutputPort;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SitiosPort;
 import ar.scraper.scrape.ScrapeRunPort;
+import ar.scraper.scrape.ScraperStatus;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.health.SiteYieldGuard;
@@ -189,7 +190,6 @@ public class ScraperService {
         }
     }
 
-    public enum ScraperStatus { IDLE, RUNNING, DONE, ERROR }
     public record SitioExtra(String nombre, String url, String plataforma) {}
 
     // ── Estado de progreso por sitio ────────────────────────────────────────

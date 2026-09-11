@@ -5,7 +5,7 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
 import ar.scraper.web.ScraperService;
-import ar.scraper.web.ScraperService.ScraperStatus;
+import ar.scraper.scrape.ScraperStatus;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;

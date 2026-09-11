@@ -10,7 +10,7 @@ import ar.scraper.model.Product;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalFinanciacion;
 import ar.scraper.web.ApiController;
-import ar.scraper.web.InflacionService;
+import ar.scraper.financiacion.InflacionService;
 import ar.scraper.web.OutfitService;
 import ar.scraper.web.RecommendationService;
 import ar.scraper.web.ScraperService;

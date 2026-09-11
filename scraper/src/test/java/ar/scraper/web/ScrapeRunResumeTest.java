@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
@@ -85,7 +87,7 @@ class ScrapeRunResumeTest extends PostgresTestBase {
         assertThat(det.pendientes()).containsExactly("midway");
         assertThat(service.getStatus())
                 .as("detection offers; it does not act")
-                .isEqualTo(ScraperService.ScraperStatus.IDLE);
+                .isEqualTo(ScraperStatus.IDLE);
     }
 
     @Test
@@ -112,7 +114,7 @@ class ScrapeRunResumeTest extends PostgresTestBase {
                 .isTrue();
 
         assertThat(service.reanudar()).isTrue();
-        esperarA(ScraperService.ScraperStatus.DONE);
+        esperarA(ScraperStatus.DONE);
 
         assertThat(estadoDelRun(runId))
                 .as("the ORIGINAL row is closed, not a second one")
@@ -138,7 +140,7 @@ class ScrapeRunResumeTest extends PostgresTestBase {
         service.cargarDesdeBD();
 
         assertThat(service.reanudar()).isTrue();
-        esperarA(ScraperService.ScraperStatus.DONE);
+        esperarA(ScraperStatus.DONE);
 
         assertThat(service.reanudar())
                 .as("the offer is consumed; a second click must not reopen a closed run")
@@ -188,7 +190,7 @@ class ScrapeRunResumeTest extends PostgresTestBase {
         });
 
         assertThat(service.reanudar()).isTrue();
-        esperarA(ScraperService.ScraperStatus.DONE);
+        esperarA(ScraperStatus.DONE);
 
         assertThat(cotaDurante.get())
                 .as("la cota es el started_at ORIGINAL, no uno nuevo: si no, nombraría "
@@ -211,7 +213,7 @@ class ScrapeRunResumeTest extends PostgresTestBase {
      * landed. Polling rather than a fixed sleep: a sleep long enough to be safe
      * is a slow test, and one short enough to be fast is a flaky one.
      */
-    private void esperarA(ScraperService.ScraperStatus esperado) throws Exception {
+    private void esperarA(ScraperStatus esperado) throws Exception {
         long limite = System.currentTimeMillis() + 20_000;
         while (System.currentTimeMillis() < limite) {
             if (service.getStatus() == esperado) return;
