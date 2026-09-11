@@ -5,6 +5,7 @@ import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.FavoritosProtegidosException;
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,9 +38,6 @@ import java.util.*;
  * the WRITES to {@code precio_historico} — they happen inside the upsert
  * function and the pruning, never through a method of their own, which is why
  * {@link HistorialRepository} holds only reads.</p>
- *
- * <p>{@code UpsertStats} stays nested on DatabaseService — callers and tests
- * name it {@code DatabaseService.UpsertStats}.</p>
  */
 class ProductRepository {
 
@@ -72,7 +70,7 @@ class ProductRepository {
      * con un writer concurrente. Retorna estadísticas: {nuevos, actualizados,
      * sinCambios, desactivados}.
      */
-    DatabaseService.UpsertStats upsertProductos(List<Product> productos) {
+    UpsertStats upsertProductos(List<Product> productos) {
         return upsertProductos(productos, null);
     }
 
@@ -112,7 +110,7 @@ class ProductRepository {
      *                     caller has no run; then the scope falls back to the
      *                     batch, behaving exactly as it did before this change.
      */
-    DatabaseService.UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt) {
+    UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
@@ -151,15 +149,15 @@ class ProductRepository {
 
                 LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
                         nuevos, actualizados, sinCambios, desactivados);
-                return new DatabaseService.UpsertStats(nuevos, actualizados, sinCambios, desactivados);
+                return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
             } catch (Exception e) {
                 LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
                 try { c.rollback(); } catch (Exception ignored) {}
-                return new DatabaseService.UpsertStats(0, 0, 0, 0);
+                return new UpsertStats(0, 0, 0, 0);
             }
         } catch (SQLException e) {
             LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
-            return new DatabaseService.UpsertStats(0, 0, 0, 0);
+            return new UpsertStats(0, 0, 0, 0);
         }
     }
 
