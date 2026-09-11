@@ -58,7 +58,11 @@ class ScraperServiceFinanciacionTest {
                 List.of(stale), java.util.Map.of("Sitio", 1), java.util.Map.of(),
                 ResultAggregator.calcularFacets(List.of(stale)), 1000, 1000);
 
-        ScraperService service = new ScraperService(config, aggregator, db,
+        ScraperService service = new ScraperService(config, aggregator,
+                Mockito.mock(ar.scraper.scrape.ScrapeRunPort.class),
+                Mockito.mock(ar.scraper.classification.SitiosPort.class),
+                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class));
         service.setLastResultParaTest(original);
 
@@ -81,7 +85,11 @@ class ScraperServiceFinanciacionTest {
         ResultAggregator aggregator = Mockito.mock(ResultAggregator.class);
         DatabaseService db = Mockito.mock(DatabaseService.class);
 
-        ScraperService service = new ScraperService(config, aggregator, db,
+        ScraperService service = new ScraperService(config, aggregator,
+                Mockito.mock(ar.scraper.scrape.ScrapeRunPort.class),
+                Mockito.mock(ar.scraper.classification.SitiosPort.class),
+                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class));
 
         service.recomputarFinanciacion(aggregator);
@@ -105,7 +113,11 @@ class ScraperServiceFinanciacionTest {
         AggregatedResult original = new AggregatedResult(
                 List.of(stale), conteo, errores, facets, 5000, 5000);
 
-        ScraperService service = new ScraperService(config, aggregator, db,
+        ScraperService service = new ScraperService(config, aggregator,
+                Mockito.mock(ar.scraper.scrape.ScrapeRunPort.class),
+                Mockito.mock(ar.scraper.classification.SitiosPort.class),
+                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class));
         service.setLastResultParaTest(original);
 

@@ -1,9 +1,12 @@
 package ar.scraper.db;
 
+import ar.scraper.classification.SitiosPort;
 import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -38,7 +41,8 @@ import java.util.Set;
  * {@link SiteRegistry#reload()} so the cached copy never lags the table it
  * mirrors.</p>
  */
-class SitiosRepository {
+@Repository
+class SitiosRepository implements SitiosPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(SitiosRepository.class);
 
@@ -61,7 +65,8 @@ class SitiosRepository {
         this.siteRegistry = siteRegistry;
     }
 
-    void guardarSitio(String nombre, String url, String plataforma) {
+    @Override
+    public void guardarSitio(String nombre, String url, String plataforma) {
         Objects.requireNonNull(nombre, "nombre must not be null");
         // sitios_dinamicos.plataforma was dropped by V20 — sitio.plataforma
         // (below) is the only copy now (design E1). sitios_dinamicos keeps
@@ -98,7 +103,8 @@ class SitiosRepository {
         siteRegistry.reload();
     }
 
-    void eliminarSitio(String nombre) {
+    @Override
+    public void eliminarSitio(String nombre) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
@@ -120,7 +126,8 @@ class SitiosRepository {
         siteRegistry.reload();
     }
 
-    List<Map<String, String>> cargarSitiosDinamicos() {
+    @Override
+    public List<Map<String, String>> cargarSitiosDinamicos() {
         List<Map<String, String>> result = new ArrayList<>();
         // plataforma reads through sitio now (V20) — LEFT JOIN + COALESCE so a
         // dinamico row somehow missing its sitio counterpart still abstains to

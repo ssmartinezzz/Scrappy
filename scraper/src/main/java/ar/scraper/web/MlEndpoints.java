@@ -26,20 +26,23 @@ class MlEndpoints {
     // Declared dual dependency (extract-catalog-query-port, D6): cargarCategoriaStats/
     // guardarMlOutput below belong to repositories out of this slice's scope.
     // actualizarCategoria/contarEmbeddings go through ProductPort instead.
-    private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.catalog.CategoriaStatsPort categoriaStats;
+    private final ar.scraper.catalog.MlOutputPort mlOutput;
     private final ar.scraper.catalog.HistorialPort historial;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final ar.scraper.ml.PythonRunner pythonRunner;
 
     MlEndpoints(ScraperService service,
-                ar.scraper.db.DatabaseService db,
+                ar.scraper.catalog.CategoriaStatsPort categoriaStats,
+                ar.scraper.catalog.MlOutputPort mlOutput,
                 ar.scraper.catalog.HistorialPort historial,
                 ar.scraper.catalog.ProductPort productos,
                 ar.scraper.aggregator.ResultAggregator aggregator,
                 ar.scraper.ml.PythonRunner pythonRunner) {
         this.service = service;
-        this.db = db;
+        this.categoriaStats = categoriaStats;
+        this.mlOutput = mlOutput;
         this.historial = historial;
         this.productos = productos;
         this.aggregator = aggregator;
@@ -74,7 +77,7 @@ class MlEndpoints {
         // Enriquecer con categoriaStats desde DB — V16 (design DD6): 12 columnas
         // tipadas, ya no un payload JSON a reparsear. cv se redondea a 1 decimal,
         // los otros 11 campos son enteros por construcción (columnas INTEGER/BIGINT).
-        var catStats = db.cargarCategoriaStats();
+        var catStats = categoriaStats.cargarCategoriaStats();
         if (!catStats.isEmpty()) {
             var catNode = result.putObject("distribucionCategorias");
             catStats.forEach((cat, s) -> {
@@ -123,7 +126,7 @@ class MlEndpoints {
                 String prodJson = aggregator.getMlEnricher().serializarProductos(r.productos());
                 var mlOut = aggregator.getPythonRunner().ejecutar(prodJson);
                 if (mlOut != null) {
-                    var enriquecidos = aggregator.getMlEnricher().enriquecer(r.productos(), mlOut, db);
+                    var enriquecidos = aggregator.getMlEnricher().enriquecer(r.productos(), mlOut);
                     // Persistir categorías refinadas
                     java.util.Map<String,String> catOrig = new java.util.HashMap<>();
                     r.productos().forEach(p -> { if(p.url()!=null) catOrig.put(p.url(), p.categoria()!=null?p.categoria():""); });
@@ -133,7 +136,7 @@ class MlEndpoints {
                             try { productos.actualizarCategoria(p.url(), p.categoria()); } catch(Exception ignored){}
                     });
                     aggregator.setLastMlOutput(mlOut);
-                    db.guardarMlOutput(mlOut);
+                    mlOutput.guardarMlOutput(mlOut);
                     LOG.info("[ML/aplicar] Pipeline re-aplicado: {} productos refinados", enriquecidos.size());
                 }
             } catch (Exception e) {
