@@ -49,6 +49,31 @@ class BackendLayeringArchTest {
                             "ar.scraper.scrapers..", "ar.scraper.pages..",
                             "ar.scraper.health..", "ar.scraper.identity..");
 
+    // ── close-backend-package-cycles (F3a) ──────────────────────────────────
+    // Las unicas aristas que entran a `web` desde adentro del backend son tres:
+    // `ml` -> InflacionService, `agent` -> ScraperService y `cron` -> ScraperService.
+    // `aggregator`, `scrapers`, `pages`, `health` y `security` no nombran una sola
+    // clase de `web`. Por eso los 7 ciclos congelados mueren con estas tres reglas
+    // en verde, y `cicloBaseline` deja de necesitar el store.
+
+    @ArchTest
+    static final ArchRule mlNoDependeDeWeb = noClasses()
+        .that().resideInAPackage("ar.scraper.ml..")
+        .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.web..");
+
+    @ArchTest
+    static final ArchRule agentNoDependeDeWeb = noClasses()
+        .that().resideInAPackage("ar.scraper.agent..")
+        .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.web..");
+
+    // `cron/` se absorbe en `scheduling/`, que es el nombre final del area. Una
+    // vez vacio el paquete, quien impide que el runner vuelva a nombrar `web`,
+    // `ml` o `config` desde su casa nueva es `areasSonSumideros`, no una regla
+    // propia: por eso esta solo afirma que el paquete dejo de existir.
+    @ArchTest
+    static final ArchRule cronFueAbsorbidoEnScheduling = noClasses()
+        .should().resideInAPackage("ar.scraper.cron..");
+
     @ArchTest
     static final ArchRule cronNoDependeDeDb = noClasses()
         .that().resideInAPackage("ar.scraper.cron..")
