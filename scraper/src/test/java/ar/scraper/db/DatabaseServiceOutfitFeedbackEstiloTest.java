@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.feedback.OutfitItemRow;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.db.support.UsuarioDePrueba;
 import io.qameta.allure.Allure;
@@ -46,7 +47,7 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
         db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/casual", true, "casual");
         db.guardarOutfitFeedbackItem(yo(), "", "catalog", "https://t/feed", false, "catalog");
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
+        List<OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
 
         assertThat(rows).hasSize(3);
         assertThat(rows).anySatisfy(r -> {
@@ -67,7 +68,7 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
     void legacyOverloadDefaultsToGym() {
         db.guardarOutfitFeedbackItem(yo(), "hombre", "torso", "https://t/legacy", true);
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
+        List<OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).estilo()).isEqualTo("gym");
@@ -82,7 +83,7 @@ class DatabaseServiceOutfitFeedbackEstiloTest extends PostgresTestBase {
         Allure.parameter("estilo", "gym");
         db.limpiarOutfitFeedback(yo(), "gym");
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
+        List<OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
         assertThat(rows).hasSize(2);
         assertThat(rows).noneSatisfy(r -> assertThat(r.estilo()).isEqualTo("gym"));
         assertThat(rows).anySatisfy(r -> assertThat(r.estilo()).isEqualTo("casual"));

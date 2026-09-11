@@ -17,6 +17,7 @@ import ar.scraper.catalog.HistorialPort;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.favoritos.FavoritosPort;
+import ar.scraper.feedback.OutfitItemRow;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.scheduling.CronExecution;
@@ -543,12 +544,8 @@ public class DatabaseService {
     }
 
     // ─── Outfit feedback + categoria dismiss. Bodies in FeedbackRepository
-    // (backlog A3). The OutfitItemRow record stays HERE: callers and tests
-    // name it DatabaseService.OutfitItemRow.
+    // (backlog A3). OutfitItemRow vive en ar.scraper.feedback.
     // ─────────────────────────────────────────────────────────────────────
-
-    /** Fila cruda de feedback per-item — el join con el catálogo vivo lo hace el caller. */
-    public record OutfitItemRow(String slot, String url, boolean liked, String estilo) {}
 
     /**
      * Backward-compat overload: persiste con estilo="gym" (comportamiento previo a

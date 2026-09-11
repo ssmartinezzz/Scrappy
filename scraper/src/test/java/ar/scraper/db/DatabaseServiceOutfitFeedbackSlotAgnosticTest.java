@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.feedback.OutfitItemRow;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.db.support.UsuarioDePrueba;
 import io.qameta.allure.Allure;
@@ -50,7 +51,7 @@ class DatabaseServiceOutfitFeedbackSlotAgnosticTest extends PostgresTestBase {
         Allure.parameter("slot", "catalog");
         db.guardarOutfitFeedbackItem(yo(), "", "catalog", "https://site/catalog-item", false);
 
-        List<DatabaseService.OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
+        List<OutfitItemRow> rows = db.obtenerOutfitFeedback(yo());
 
         assertThat(rows).hasSize(2);
         assertThat(rows).anySatisfy(r -> {
