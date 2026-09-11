@@ -1,6 +1,9 @@
 package ar.scraper.db;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ar.scraper.outfits.SavedOutfitsPort;
+import org.springframework.stereotype.Repository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +22,8 @@ import java.util.Map;
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
  */
-class SavedOutfitsRepository {
+@Repository
+class SavedOutfitsRepository implements SavedOutfitsPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(SavedOutfitsRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -40,7 +44,8 @@ class SavedOutfitsRepository {
      * <p>Cabecera e ítems se escriben en UNA transacción: un outfit a medias
      * —guardado pero sin prendas— es peor que no haberlo guardado.</p>
      */
-    int guardarOutfit(UUID usuarioId, String nombre, String slotsJson, String suplementosJson, double total) {
+    @Override
+    public int guardarOutfit(UUID usuarioId, String nombre, String slotsJson, String suplementosJson, double total) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -111,7 +116,8 @@ class SavedOutfitsRepository {
     }
 
     /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
-    List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
+    @Override
+    public List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
         List<Map<String, Object>> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -191,7 +197,8 @@ class SavedOutfitsRepository {
      *         caller "that exists but is not yours" confirms the existence of
      *         another user's row, which is the disclosure the scoping prevents.
      */
-    boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
+    @Override
+    public boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM saved_outfits WHERE usuario_id=? AND id=?")) {
@@ -205,7 +212,8 @@ class SavedOutfitsRepository {
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
-    boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
+    @Override
+    public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
         if (nombre == null || nombre.isBlank()) return false;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(

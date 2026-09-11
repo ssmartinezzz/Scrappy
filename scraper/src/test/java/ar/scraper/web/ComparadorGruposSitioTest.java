@@ -5,7 +5,7 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.grouping.JaccardSimilarity;
 import ar.scraper.aggregator.grouping.ProductIdentity;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.PreciosExternosPort;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
@@ -57,7 +57,7 @@ class ComparadorGruposSitioTest {
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
-        endpoints = new ComparadorEndpoints(service, mock(DatabaseService.class),
+        endpoints = new ComparadorEndpoints(service, mock(PreciosExternosPort.class),
                 new GroupingService(new ProductIdentity(), new JaccardSimilarity()));
     }
 

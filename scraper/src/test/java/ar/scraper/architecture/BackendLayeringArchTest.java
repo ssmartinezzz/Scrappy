@@ -40,7 +40,7 @@ class BackendLayeringArchTest {
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
                                    "ar.scraper.favoritos..", "ar.scraper.financiacion..",
-                                   "ar.scraper.feedback..")
+                                   "ar.scraper.feedback..", "ar.scraper.outfits..")
         .should().dependOnClassesThat()
         .resideInAnyPackage("ar.scraper.db..", "ar.scraper.cron..",
                             "ar.scraper.aggregator..", "ar.scraper.web..",

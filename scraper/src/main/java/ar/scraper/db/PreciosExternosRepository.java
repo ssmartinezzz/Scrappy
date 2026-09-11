@@ -1,5 +1,8 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.PreciosExternosPort;
+import org.springframework.stereotype.Repository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +22,8 @@ import java.time.LocalDate;
  * A.2) — the column is {@code DATE} as of V5, and {@code ps.setString} binds a
  * varchar-typed parameter that has no operator against {@code date}.</p>
  */
-class PreciosExternosRepository {
+@Repository
+class PreciosExternosRepository implements PreciosExternosPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(PreciosExternosRepository.class);
 
@@ -29,7 +33,8 @@ class PreciosExternosRepository {
         this.dataSource = dataSource;
     }
 
-    void guardarPreciosExternos(String productoUrl, String sitio,
+    @Override
+    public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
         if (resultados == null || resultados.isEmpty()) return;
         LocalDate hoy = LocalDate.now();
@@ -68,7 +73,8 @@ class PreciosExternosRepository {
         }
     }
 
-    java.util.List<java.util.Map<String,Object>> cargarPreciosExternos(String productoUrl) {
+    @Override
+    public java.util.List<java.util.Map<String,Object>> cargarPreciosExternos(String productoUrl) {
         var result = new java.util.ArrayList<java.util.Map<String,Object>>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
