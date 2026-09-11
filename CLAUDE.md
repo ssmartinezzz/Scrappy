@@ -93,9 +93,9 @@ Scrappy/
 └── scraper/
     ├── pom.xml
     ├── src/test/
-    │   ├── java/ar/scraper/architecture/BackendLayeringArchTest.java
-    │   │                               ← reglas ArchUnit: ciclos congelados + las que pueden fallar
-    │   └── resources/archunit_store/   ← golden de los 7 ciclos congelados (config: archunit.properties)
+    │   └── java/ar/scraper/architecture/BackendLayeringArchTest.java
+    │                                   ← reglas ArchUnit. `grafoSinCiclos` ya NO está congelada:
+    │                                     los 7 ciclos se cerraron en F3a y el golden se borró
     └── src/main/
         ├── java/ar/scraper/
         │   ├── App.java                    ← Entry point Spring Boot
@@ -109,13 +109,16 @@ Scrappy/
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
         │   │                                  implementa un @Repository package-private en db/)
-        │   ├── scrape/                     ← área: CorridaInterrumpida, ScrapeRunPort (lo implementa
-        │   │                                  un @Repository package-private en db/)
+        │   ├── scrape/                     ← área: CorridaInterrumpida, ScraperStatus, ScrapeRunPort
+        │   │                                  (lo implementa un @Repository package-private en db/) +
+        │   │                                  ScrapeControlPort (lo implementa ScrapeControlAdapter,
+        │   │                                  package-private en web/)
         │   ├── scheduling/                 ← área: CronJob, CronExecution, CronPort (lo implementa
-        │   │                                  un @Repository package-private en db/)
+        │   │                                  un @Repository package-private en db/) + CronJobRunner
+        │   │                                  y CronJobService, absorbidos de cron/ en F3a
         │   ├── favoritos/FavoritosPort     ← área: puerto del agregado favoritos (lo implementa
         │   │                                  un @Repository package-private en db/)
-        │   ├── financiacion/               ← área: Preset, PresetPort (lo implementa un
+        │   ├── financiacion/               ← área: Preset, InflacionService, PresetPort (lo implementa un
         │   │                                  @Repository package-private en db/)
         │   ├── feedback/                    ← área: OutfitItemRow, FeedbackPort — outfit_feedback_item
         │   │                                  + categoria_dismiss, una sola señal de gusto (lo
@@ -124,7 +127,8 @@ Scrappy/
         │   │                                  un @Repository package-private en db/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
-        │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID
+        │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
+        │   │                                  CatalogSnapshotPort (lo implementa ScraperService)
         │   │   ├── normalize/              ←   PackQuantityDetector, CategoryClassifier,
         │   │   │                               GenderResolver, SizeNormalizer,
         │   │   │                               SubcategoryResolver, GymratTagger
