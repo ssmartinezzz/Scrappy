@@ -2,6 +2,9 @@ package ar.scraper.db;
 
 import ar.scraper.feedback.OutfitItemRow;
 
+import ar.scraper.feedback.FeedbackPort;
+import org.springframework.stereotype.Repository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +28,8 @@ import java.util.UUID;
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). El récord
  * {@link OutfitItemRow} vive en {@code ar.scraper.feedback}.</p>
  */
-class FeedbackRepository {
+@Repository
+class FeedbackRepository implements FeedbackPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(FeedbackRepository.class);
 
@@ -42,7 +46,8 @@ class FeedbackRepository {
      * builder gym y casual leen buckets distintos, el feed usa "catalog" (ver
      * FeedbackModels.build).
      */
-    void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url,
+    @Override
+    public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url,
                                    boolean liked, String estilo) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
@@ -70,7 +75,8 @@ class FeedbackRepository {
      * el join url→Product contra el catálogo vivo, ya que esta clase no conoce el
      * AggregatedResult en memoria.
      */
-    List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
+    @Override
+    public List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
         List<OutfitItemRow> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -96,7 +102,8 @@ class FeedbackRepository {
      * Borra TODO el historial de feedback (todos los estilos + tabla legacy).
      * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
      */
-    void limpiarOutfitFeedback(UUID usuarioId) {
+    @Override
+    public void limpiarOutfitFeedback(UUID usuarioId) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement(
@@ -121,7 +128,8 @@ class FeedbackRepository {
      * cada superficie del builder es independiente. estilo null/blank → no-op
      * (evita borrar todo por accidente; para eso está el overload sin argumentos).
      */
-    void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
+    @Override
+    public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
         if (estilo == null || estilo.isBlank()) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -139,7 +147,8 @@ class FeedbackRepository {
      * design.md, personalized-recommendations-feed). Idempotente: si la
      * categoria ya está dismissed, no inserta una fila duplicada.
      */
-    void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
+    @Override
+    public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
         if (categoria == null || categoria.isBlank()) return;
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
@@ -175,7 +184,8 @@ class FeedbackRepository {
     }
 
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
-    void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
+    @Override
+    public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
         if (categoria == null || categoria.isBlank()) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -189,7 +199,8 @@ class FeedbackRepository {
     }
 
     /** Las categorías que ESTE usuario descartó. Feed-wide para él, invisible para el resto. */
-    Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
+    @Override
+    public Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
         Set<String> result = new HashSet<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(

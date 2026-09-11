@@ -35,6 +35,8 @@ class ApiControllerSavedOutfitsTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private ar.scraper.feedback.FeedbackPort feedback;
+    private ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -58,6 +60,10 @@ class ApiControllerSavedOutfitsTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
+        when(db.feedback()).thenReturn(feedback);
+        outfitsGuardados      = mock(ar.scraper.outfits.SavedOutfitsPort.class);
+        when(db.outfitsGuardados()).thenReturn(outfitsGuardados);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -71,7 +77,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void saveOutfitValidPayloadPersistsAndReturnsIdAndOk() {
-        when(db.guardarOutfit(any(), eq("Test Outfit"), anyString(), any(), eq(50000.0))).thenReturn(1);
+        when(outfitsGuardados.guardarOutfit(any(), eq("Test Outfit"), anyString(), any(), eq(50000.0))).thenReturn(1);
 
         ResponseEntity<?> resp = controller.saveOutfit(
                 Map.of("nombre", "Test Outfit", "slots", List.of(), "totalEstimado", 50000.0));
@@ -85,7 +91,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void saveOutfitDbFailureReturns500WithOkFalse() {
-        when(db.guardarOutfit(any(), any(), anyString(), any(), anyDouble())).thenReturn(-1);
+        when(outfitsGuardados.guardarOutfit(any(), any(), anyString(), any(), anyDouble())).thenReturn(-1);
 
         ResponseEntity<?> resp = controller.saveOutfit(
                 Map.of("nombre", "x", "slots", List.of(), "totalEstimado", 1000.0));
@@ -98,7 +104,7 @@ class ApiControllerSavedOutfitsTest {
     @Test
     void saveOutfitBlankNombreDefaultsToOutfit() {
         // blank nombre is trimmed; controller does not 400 on empty name
-        when(db.guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0))).thenReturn(1);
+        when(outfitsGuardados.guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0))).thenReturn(1);
 
         ResponseEntity<?> resp = controller.saveOutfit(
                 Map.of("nombre", "  ", "slots", List.of(), "totalEstimado", 0));
@@ -106,7 +112,7 @@ class ApiControllerSavedOutfitsTest {
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isTrue();
-        verify(db).guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0));
+        verify(outfitsGuardados).guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0));
     }
 
     // ── GET /api/outfits/saved ─────────────────────────────────────────────
@@ -115,7 +121,7 @@ class ApiControllerSavedOutfitsTest {
     void getSavedOutfitsReturnsListFromDb() {
         Map<String, Object> outfit1 = Map.of("id", 1, "nombre", "Outfit 1", "totalEstimado", 100.0);
         Map<String, Object> outfit2 = Map.of("id", 2, "nombre", "Outfit 2", "totalEstimado", 200.0);
-        when(db.obtenerOutfitsGuardados(any())).thenReturn(List.of(outfit1, outfit2));
+        when(outfitsGuardados.obtenerOutfitsGuardados(any())).thenReturn(List.of(outfit1, outfit2));
 
         ResponseEntity<?> resp = controller.getSavedOutfits();
 
@@ -128,7 +134,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void deleteSavedOutfitFoundReturnsOkTrue() {
-        when(db.eliminarOutfitGuardado(any(), eq(3))).thenReturn(true);
+        when(outfitsGuardados.eliminarOutfitGuardado(any(), eq(3))).thenReturn(true);
 
         ResponseEntity<?> resp = controller.deleteSavedOutfit(3);
 
@@ -140,7 +146,7 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void deleteSavedOutfitNotFoundReturns404WithOkFalse() {
-        when(db.eliminarOutfitGuardado(any(), eq(999))).thenReturn(false);
+        when(outfitsGuardados.eliminarOutfitGuardado(any(), eq(999))).thenReturn(false);
 
         Allure.parameter("id", 999);
         ResponseEntity<?> resp = controller.deleteSavedOutfit(999);
@@ -154,14 +160,14 @@ class ApiControllerSavedOutfitsTest {
 
     @Test
     void renameSavedOutfitValidPayloadUpdatesAndReturnsOk() {
-        when(db.renombrarOutfit(any(), eq(5), eq("Mi Outfit"))).thenReturn(true);
+        when(outfitsGuardados.renombrarOutfit(any(), eq(5), eq("Mi Outfit"))).thenReturn(true);
 
         ResponseEntity<?> resp = controller.renameSavedOutfit(5, Map.of("nombre", "Mi Outfit"));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isTrue();
-        verify(db).renombrarOutfit(any(), eq(5), eq("Mi Outfit"));
+        verify(outfitsGuardados).renombrarOutfit(any(), eq(5), eq("Mi Outfit"));
     }
 
     @Test
@@ -171,12 +177,12 @@ class ApiControllerSavedOutfitsTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).renombrarOutfit(any(), anyInt(), anyString());
+        verify(outfitsGuardados, never()).renombrarOutfit(any(), anyInt(), anyString());
     }
 
     @Test
     void renameSavedOutfitNotFoundReturns404() {
-        when(db.renombrarOutfit(any(), eq(99), eq("x"))).thenReturn(false);
+        when(outfitsGuardados.renombrarOutfit(any(), eq(99), eq("x"))).thenReturn(false);
 
         Allure.parameter("id", 99);
         ResponseEntity<?> resp = controller.renameSavedOutfit(99, Map.of("nombre", "x"));

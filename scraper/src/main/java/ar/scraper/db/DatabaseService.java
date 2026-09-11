@@ -17,7 +17,10 @@ import ar.scraper.catalog.HistorialPort;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.favoritos.FavoritosPort;
+import ar.scraper.catalog.PreciosExternosPort;
+import ar.scraper.feedback.FeedbackPort;
 import ar.scraper.feedback.OutfitItemRow;
+import ar.scraper.outfits.SavedOutfitsPort;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.scheduling.CronExecution;
@@ -68,13 +71,13 @@ public class DatabaseService {
     private final CronPort cronPort;
     private final PresetPort presetPort;
     private final FavoritosPort favoritosPort;
-    private final FeedbackRepository feedbackRepository;
-    private final SavedOutfitsRepository savedOutfitsRepository;
+    private final FeedbackPort feedbackPort;
+    private final SavedOutfitsPort savedOutfitsPort;
     private final MlOutputPort mlOutputPort;
     private final HistorialPort historialPort;
     private final SitiosPort sitiosPort;
     private final CategoriaStatsPort categoriaStatsPort;
-    private final PreciosExternosRepository preciosExternosRepository;
+    private final PreciosExternosPort preciosExternosPort;
     private final ProductPort productPort;
     private final CatalogQueryPort catalogQueryPort;
     private final ScrapeRunPort scrapeRunPort;
@@ -107,7 +110,9 @@ public class DatabaseService {
                 new ProductRepository(dataSource, siteRegistry),
                 new CategoriaStatsRepository(dataSource), new MlOutputRepository(dataSource),
                 new ScrapeRunRepository(dataSource),
-                new SitiosRepository(dataSource, siteRegistry));
+                new SitiosRepository(dataSource, siteRegistry),
+                new FeedbackRepository(dataSource), new SavedOutfitsRepository(dataSource),
+                new PreciosExternosRepository(dataSource));
     }
 
     @Autowired
@@ -115,7 +120,9 @@ public class DatabaseService {
             FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort,
             CatalogQueryPort catalogQueryPort, ProductPort productPort,
             CategoriaStatsPort categoriaStatsPort, MlOutputPort mlOutputPort,
-            ScrapeRunPort scrapeRunPort, SitiosPort sitiosPort) {
+            ScrapeRunPort scrapeRunPort, SitiosPort sitiosPort,
+            FeedbackPort feedbackPort, SavedOutfitsPort savedOutfitsPort,
+            PreciosExternosPort preciosExternosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
         this.cronPort = cronPort;
@@ -124,12 +131,12 @@ public class DatabaseService {
         this.historialPort = historialPort;
         this.catalogQueryPort = catalogQueryPort;
         this.productPort = productPort;
-        this.feedbackRepository = new FeedbackRepository(dataSource);
-        this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
+        this.feedbackPort = feedbackPort;
+        this.savedOutfitsPort = savedOutfitsPort;
         this.mlOutputPort = mlOutputPort;
         this.sitiosPort = sitiosPort;
         this.categoriaStatsPort = categoriaStatsPort;
-        this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
+        this.preciosExternosPort = preciosExternosPort;
         this.scrapeRunPort = scrapeRunPort;
     }
 
@@ -188,6 +195,21 @@ public class DatabaseService {
      *  need the port, e.g. {@code ApiController} wiring {@code FavoritosEndpoints}. */
     public ProductPort productos() {
         return productPort;
+    }
+
+    /** @see #favoritos() — mismo motivo: los consumidores todavía no son beans. */
+    public FeedbackPort feedback() {
+        return feedbackPort;
+    }
+
+    /** @see #favoritos() */
+    public SavedOutfitsPort outfitsGuardados() {
+        return savedOutfitsPort;
+    }
+
+    /** @see #favoritos() */
+    public PreciosExternosPort preciosExternos() {
+        return preciosExternosPort;
     }
 
     @PostConstruct
@@ -478,11 +500,11 @@ public class DatabaseService {
 
     public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
-        preciosExternosRepository.guardarPreciosExternos(productoUrl, sitio, resultados);
+        preciosExternosPort.guardarPreciosExternos(productoUrl, sitio, resultados);
     }
 
     public java.util.List<java.util.Map<String,Object>> cargarPreciosExternos(String productoUrl) {
-        return preciosExternosRepository.cargarPreciosExternos(productoUrl);
+        return preciosExternosPort.cargarPreciosExternos(productoUrl);
     }
 
     /**
@@ -558,11 +580,11 @@ public class DatabaseService {
 
     public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url,
                                           boolean liked, String estilo) {
-        feedbackRepository.guardarOutfitFeedbackItem(usuarioId, genero, slot, url, liked, estilo);
+        feedbackPort.guardarOutfitFeedbackItem(usuarioId, genero, slot, url, liked, estilo);
     }
 
     public List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
-        return feedbackRepository.obtenerOutfitFeedback(usuarioId);
+        return feedbackPort.obtenerOutfitFeedback(usuarioId);
     }
 
     /**
@@ -570,7 +592,7 @@ public class DatabaseService {
      * categoria ya está dismissed, no inserta una fila duplicada.
      */
     public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
-        feedbackRepository.guardarCategoriaDismiss(usuarioId, categoria);
+        feedbackPort.guardarCategoriaDismiss(usuarioId, categoria);
     }
 
     /**
@@ -578,7 +600,7 @@ public class DatabaseService {
      * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
      */
     public void limpiarOutfitFeedback(UUID usuarioId) {
-        feedbackRepository.limpiarOutfitFeedback(usuarioId);
+        feedbackPort.limpiarOutfitFeedback(usuarioId);
     }
 
     /**
@@ -586,17 +608,17 @@ public class DatabaseService {
      * null/blank → no-op.
      */
     public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
-        feedbackRepository.limpiarOutfitFeedback(usuarioId, estilo);
+        feedbackPort.limpiarOutfitFeedback(usuarioId, estilo);
     }
 
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
     public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
-        feedbackRepository.borrarCategoriaDismiss(usuarioId, categoria);
+        feedbackPort.borrarCategoriaDismiss(usuarioId, categoria);
     }
 
     /** Lee todas las categorias dismissed feed-wide. */
     public Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
-        return feedbackRepository.obtenerCategoriaDismiss(usuarioId);
+        return feedbackPort.obtenerCategoriaDismiss(usuarioId);
     }
 
     public void marcarDescontinuado(String url) {
@@ -663,22 +685,22 @@ public class DatabaseService {
      */
     public int guardarOutfit(UUID usuarioId, String nombre, String slotsJson,
                              String suplementosJson, double total) {
-        return savedOutfitsRepository.guardarOutfit(usuarioId, nombre, slotsJson, suplementosJson, total);
+        return savedOutfitsPort.guardarOutfit(usuarioId, nombre, slotsJson, suplementosJson, total);
     }
 
     /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
     public List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
-        return savedOutfitsRepository.obtenerOutfitsGuardados(usuarioId);
+        return savedOutfitsPort.obtenerOutfitsGuardados(usuarioId);
     }
 
     /** Elimina un outfit guardado por id. Retorna true si existía. */
     public boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
-        return savedOutfitsRepository.eliminarOutfitGuardado(usuarioId, id);
+        return savedOutfitsPort.eliminarOutfitGuardado(usuarioId, id);
     }
 
     /** Renombra un outfit guardado. Retorna true si existía. */
     public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
-        return savedOutfitsRepository.renombrarOutfit(usuarioId, id, nombre);
+        return savedOutfitsPort.renombrarOutfit(usuarioId, id, nombre);
     }
 
     // ─── Cron Jobs + Executions. Bodies behind CronPort (extract-database-ports

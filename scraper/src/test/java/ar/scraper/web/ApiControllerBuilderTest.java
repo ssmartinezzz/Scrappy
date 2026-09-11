@@ -66,6 +66,8 @@ class ApiControllerBuilderTest {
     private ScraperConfig             config;
     private ResultAggregator          aggregator;
     private DatabaseService           db;
+    private ar.scraper.feedback.FeedbackPort feedback;
+    private ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private GroupingService           grouping;
     private PythonRunner              pythonRunner;
     private OutfitService             outfitService;
@@ -82,8 +84,8 @@ class ApiControllerBuilderTest {
         wireController();
 
         // Stubs used by the feedback-model builder inside outfitsBuilder()
-        when(db.obtenerOutfitFeedback(any())).thenReturn(List.of());
-        when(db.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
+        when(feedback.obtenerOutfitFeedback(any())).thenReturn(List.of());
+        when(feedback.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
     }
 
     @Step("Wire ApiController with mocked collaborators")
@@ -93,6 +95,10 @@ class ApiControllerBuilderTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
+        when(db.feedback()).thenReturn(feedback);
+        outfitsGuardados      = mock(ar.scraper.outfits.SavedOutfitsPort.class);
+        when(db.outfitsGuardados()).thenReturn(outfitsGuardados);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);

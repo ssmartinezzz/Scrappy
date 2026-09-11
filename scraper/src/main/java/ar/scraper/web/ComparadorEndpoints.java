@@ -43,14 +43,14 @@ class ComparadorEndpoints {
         java.util.regex.Pattern.compile("\\s+");
 
     private final ScraperService service;
-    private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.catalog.PreciosExternosPort preciosExternos;
     private final ar.scraper.aggregator.grouping.GroupingService grouping;
 
     ComparadorEndpoints(ScraperService service,
-                        ar.scraper.db.DatabaseService db,
+                        ar.scraper.catalog.PreciosExternosPort preciosExternos,
                         ar.scraper.aggregator.grouping.GroupingService grouping) {
         this.service = service;
-        this.db = db;
+        this.preciosExternos = preciosExternos;
         this.grouping = grouping;
     }
 
@@ -180,7 +180,7 @@ class ComparadorEndpoints {
             }
             response.put("resultados", results);
             if (url != null && !url.isBlank() && !results.isEmpty())
-                db.guardarPreciosExternos(url, sitio, results);
+                preciosExternos.guardarPreciosExternos(url, sitio, results);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             LOG.warn("[API] buscarExterno error: {}", e.getMessage());
