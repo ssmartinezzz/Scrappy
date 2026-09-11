@@ -39,7 +39,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code DatabaseService}'s {@link ar.scraper.scheduling.CronPort} dependency
  * (extract-database-ports F2), {@link FavoritosRepository} to satisfy its
  * {@link ar.scraper.favoritos.FavoritosPort} dependency (extract-favoritos-port),
- * plus a {@link DataSource} stub that fails every
+ * {@link PresetRepository} and {@link HistorialRepository} to satisfy its
+ * {@link ar.scraper.financiacion.PresetPort}/{@link ar.scraper.catalog.HistorialPort}
+ * dependencies (extract-preset-historial-ports), plus a {@link DataSource} stub that fails every
  * connection attempt on purpose: {@link SiteRegistry#reload} and
  * {@link DatabaseService}'s {@code @PostConstruct} both swallow that
  * failure (same "infra absence never fails the suite" posture as
@@ -107,7 +109,8 @@ class SiteRegistrySingletonWiringTest {
     void databaseServiceSiteRegistryIsTheSameSpringSingleton() {
         try (var context = new AnnotationConfigApplicationContext(
                 UnreachableDataSourceConfig.class, SiteRegistry.class, CronRepository.class,
-                FavoritosRepository.class, DatabaseService.class)) {
+                FavoritosRepository.class, PresetRepository.class, HistorialRepository.class,
+                DatabaseService.class)) {
 
             SiteRegistry theSingleton = context.getBean(SiteRegistry.class);
             DatabaseService db = context.getBean(DatabaseService.class);

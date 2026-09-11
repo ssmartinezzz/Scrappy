@@ -1,8 +1,10 @@
 package ar.scraper.db;
 
 import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -24,8 +26,13 @@ import java.util.Map;
  * <p>Writes to this table are NOT here: they happen inside the product upsert
  * ({@code sp_upsert_run}) and its history pruning, which belong to the product
  * aggregate.</p>
+ *
+ * <p>Implements {@link HistorialPort} (extract-preset-historial-ports) so
+ * {@code ar.scraper.web} and {@code ar.scraper.ml} depend on that port, not on
+ * {@code DatabaseService} directly.</p>
  */
-class HistorialRepository {
+@Repository
+class HistorialRepository implements HistorialPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(HistorialRepository.class);
 
@@ -35,7 +42,8 @@ class HistorialRepository {
         this.dataSource = dataSource;
     }
 
-    List<Map<String, Object>> cargarHistorial(String url) {
+    @Override
+    public List<Map<String, Object>> cargarHistorial(String url) {
         List<Map<String, Object>> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -55,7 +63,8 @@ class HistorialRepository {
         return result;
     }
 
-    List<HistorialEntry> getHistorialPrecios(String url) {
+    @Override
+    public List<HistorialEntry> getHistorialPrecios(String url) {
         var result = new java.util.ArrayList<HistorialEntry>();
         if (url == null) return result;
         try (Connection c = dataSource.getConnection();
@@ -94,7 +103,8 @@ class HistorialRepository {
      * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
      *         historial no aparecen como key
      */
-    Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
+    @Override
+    public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
         Map<String, List<HistorialEntry>> result = new HashMap<>();
         if (urls == null || urls.isEmpty()) return result;
 

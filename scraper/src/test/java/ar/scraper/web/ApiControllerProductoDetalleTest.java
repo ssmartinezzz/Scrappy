@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
+import ar.scraper.catalog.HistorialPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
@@ -51,12 +52,15 @@ class ApiControllerProductoDetalleTest {
 
     private ScraperService service;
     private DatabaseService db;
+    private HistorialPort historial;
     private ApiController controller;
 
     @BeforeEach
     void setUp() {
-        service = mock(ScraperService.class);
-        db      = mock(DatabaseService.class);
+        service   = mock(ScraperService.class);
+        db        = mock(DatabaseService.class);
+        historial = mock(HistorialPort.class);
+        when(db.historial()).thenReturn(historial);
         controller = new ApiController(service, mock(InflacionService.class), mock(ScraperConfig.class),
                 mock(ResultAggregator.class), db, mock(GroupingService.class), mock(PythonRunner.class),
                 mock(OutfitService.class), mock(RecommendationService.class));
@@ -83,7 +87,7 @@ class ApiControllerProductoDetalleTest {
         var resp = controller.productoDetalle(KEY);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        verify(db, never()).cargarHistorial(anyString());
+        verify(historial, never()).cargarHistorial(anyString());
     }
 
     // ── Producto sin historial: 200, no 204 ──────────────────────────────
@@ -92,7 +96,7 @@ class ApiControllerProductoDetalleTest {
     @Story("un producto sin historial igual renderiza")
     void productWithoutHistoryStillReturnsTheProduct() {
         when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
-        when(db.cargarHistorial(URL)).thenReturn(List.of());
+        when(historial.cargarHistorial(URL)).thenReturn(List.of());
 
         var resp = controller.productoDetalle(KEY);
 
@@ -107,7 +111,7 @@ class ApiControllerProductoDetalleTest {
     @Story("un solo punto tampoco alcanza para stats, pero no rompe")
     void aSinglePointYieldsNoStatsButStillRenders() {
         when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
-        when(db.cargarHistorial(URL)).thenReturn(List.of(punto("2026-05-20", 15990)));
+        when(historial.cargarHistorial(URL)).thenReturn(List.of(punto("2026-05-20", 15990)));
 
         JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
 
@@ -121,7 +125,7 @@ class ApiControllerProductoDetalleTest {
     @Story("producto + puntos + stats en una sola respuesta")
     void productAndHistoryComeBackTogether() {
         when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
-        when(db.cargarHistorial(URL)).thenReturn(List.of(
+        when(historial.cargarHistorial(URL)).thenReturn(List.of(
                 punto("2026-05-20", 20000),
                 punto("2026-05-28", 15000),
                 punto("2026-06-04", 16000)));
@@ -143,7 +147,7 @@ class ApiControllerProductoDetalleTest {
     @Story("la respuesta trae el handle, para que el frontend pueda re-linkear")
     void theResponseCarriesTheShortHandle() {
         when(db.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
-        when(db.cargarHistorial(URL)).thenReturn(List.of());
+        when(historial.cargarHistorial(URL)).thenReturn(List.of());
 
         JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
 
@@ -156,7 +160,7 @@ class ApiControllerProductoDetalleTest {
     @Test
     @Story("/api/historial sigue devolviendo 204 sin historial")
     void theOlderHistorialEndpointKeepsIts204() {
-        when(db.cargarHistorial(URL)).thenReturn(List.of());
+        when(historial.cargarHistorial(URL)).thenReturn(List.of());
 
         assertThat(controller.historial(URL).getStatusCode().value()).isEqualTo(204);
     }
@@ -164,7 +168,7 @@ class ApiControllerProductoDetalleTest {
     @Test
     @Story("/api/historial sigue devolviendo los mismos puntos y stats")
     void theOlderHistorialEndpointKeepsItsShape() {
-        when(db.cargarHistorial(URL)).thenReturn(List.of(
+        when(historial.cargarHistorial(URL)).thenReturn(List.of(
                 punto("2026-05-20", 20000),
                 punto("2026-06-04", 16000)));
 

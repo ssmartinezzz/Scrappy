@@ -6,6 +6,7 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.financiacion.Preset;
+import ar.scraper.financiacion.PresetPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
@@ -52,6 +53,7 @@ class ApiControllerFinanciacionTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private PresetPort presets;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -70,6 +72,8 @@ class ApiControllerFinanciacionTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        presets               = mock(PresetPort.class);
+        when(db.presets()).thenReturn(presets);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -90,8 +94,8 @@ class ApiControllerFinanciacionTest {
     void getPresetsReturnsListAndActivePreset() {
         Preset activo = new Preset(1, "12 cuotas / 40%", 40.0, 12, true);
         Preset otro   = new Preset(2, "6 cuotas / 10%", 10.0, 6, false);
-        when(db.listarPresets()).thenReturn(List.of(activo, otro));
-        when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
+        when(presets.listarPresets()).thenReturn(List.of(activo, otro));
+        when(presets.cargarPresetActivo()).thenReturn(Optional.of(activo));
 
         ResponseEntity<?> resp = controller.listarPresets();
 
@@ -108,8 +112,8 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void getPresetsActivoIsNullNodeWhenNoneActive() {
-        when(db.listarPresets()).thenReturn(List.of());
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
+        when(presets.listarPresets()).thenReturn(List.of());
+        when(presets.cargarPresetActivo()).thenReturn(Optional.empty());
 
         ResponseEntity<?> resp = controller.listarPresets();
 
@@ -122,7 +126,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void postPresetValidPayloadPersistsAndReturnsOk() {
-        when(db.crearPreset("Mi preset", 25.0, 6)).thenReturn(42);
+        when(presets.crearPreset("Mi preset", 25.0, 6)).thenReturn(42);
 
         ResponseEntity<?> resp = controller.crearPreset(
                 Map.of("label", "Mi preset", "recargoPct", 25.0, "cuotas", 6));
@@ -130,7 +134,7 @@ class ApiControllerFinanciacionTest {
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isTrue();
-        verify(db).crearPreset("Mi preset", 25.0, 6);
+        verify(presets).crearPreset("Mi preset", 25.0, 6);
     }
 
     @Test
@@ -142,7 +146,7 @@ class ApiControllerFinanciacionTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).crearPreset(any(), anyDouble(), anyInt());
+        verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
     }
 
     @Test
@@ -154,7 +158,7 @@ class ApiControllerFinanciacionTest {
                 Map.of("label", "x", "recargoPct", -1.0, "cuotas", 6));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        verify(db, never()).crearPreset(any(), anyDouble(), anyInt());
+        verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
     }
 
     @Test
@@ -164,14 +168,14 @@ class ApiControllerFinanciacionTest {
                 Map.of("label", "x", "recargoPct", 10.0, "cuotas", 0));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        verify(db, never()).crearPreset(any(), anyDouble(), anyInt());
+        verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
     }
 
     @Test
     void postPresetDbRejectionMapsToFailureResponse() {
         // DatabaseService.crearPreset returns -1 on internal validation failure
         // even when controller-level validation passed.
-        when(db.crearPreset("x", 10.0, 5)).thenReturn(-1);
+        when(presets.crearPreset("x", 10.0, 5)).thenReturn(-1);
 
         ResponseEntity<?> resp = controller.crearPreset(
                 Map.of("label", "x", "recargoPct", 10.0, "cuotas", 5));
@@ -185,7 +189,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void activarPresetSuccessTriggersSynchronousRecompute() {
-        when(db.activarPreset(7)).thenReturn(true);
+        when(presets.activarPreset(7)).thenReturn(true);
 
         ResponseEntity<?> resp = controller.activarPreset(7);
 
@@ -197,7 +201,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void activarPresetNotFoundReturns404WithoutRecompute() {
-        when(db.activarPreset(999)).thenReturn(false);
+        when(presets.activarPreset(999)).thenReturn(false);
 
         ResponseEntity<?> resp = controller.activarPreset(999);
 
@@ -212,8 +216,8 @@ class ApiControllerFinanciacionTest {
     @Test
     void editarPresetOfActivePresetTriggersRecompute() {
         Preset activo = new Preset(3, "Activo", 40.0, 12, true);
-        when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
-        when(db.editarPreset(3, "Nuevo label", 20.0, 6)).thenReturn(true);
+        when(presets.cargarPresetActivo()).thenReturn(Optional.of(activo));
+        when(presets.editarPreset(3, "Nuevo label", 20.0, 6)).thenReturn(true);
 
         ResponseEntity<?> resp = controller.editarPreset(3,
                 Map.of("label", "Nuevo label", "recargoPct", 20.0, "cuotas", 6));
@@ -225,8 +229,8 @@ class ApiControllerFinanciacionTest {
     @Test
     void editarPresetOfInactivePresetDoesNotTriggerRecompute() {
         Preset activo = new Preset(3, "Activo", 40.0, 12, true);
-        when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
-        when(db.editarPreset(5, "x", 20.0, 6)).thenReturn(true);
+        when(presets.cargarPresetActivo()).thenReturn(Optional.of(activo));
+        when(presets.editarPreset(5, "x", 20.0, 6)).thenReturn(true);
 
         ResponseEntity<?> resp = controller.editarPreset(5,
                 Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6));
@@ -237,8 +241,8 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void editarPresetNotFoundOrInvalidReturns400WithoutRecompute() {
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
-        when(db.editarPreset(99, "x", 20.0, 6)).thenReturn(false);
+        when(presets.cargarPresetActivo()).thenReturn(Optional.empty());
+        when(presets.editarPreset(99, "x", 20.0, 6)).thenReturn(false);
 
         ResponseEntity<?> resp = controller.editarPreset(99,
                 Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6));
@@ -252,33 +256,33 @@ class ApiControllerFinanciacionTest {
     @Test
     void deletePresetThatWasActiveTriggersRecompute() {
         Preset activo = new Preset(4, "Activo", 40.0, 12, true);
-        when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
-        when(db.eliminarPreset(4)).thenReturn(true);
+        when(presets.cargarPresetActivo()).thenReturn(Optional.of(activo));
+        when(presets.eliminarPreset(4)).thenReturn(true);
 
         ResponseEntity<?> resp = controller.eliminarPreset(4);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(db).eliminarPreset(4);
+        verify(presets).eliminarPreset(4);
         verify(service).recomputarFinanciacion(aggregator);
     }
 
     @Test
     void deletePresetThatWasNotActiveDoesNotTriggerRecompute() {
         Preset activo = new Preset(4, "Activo", 40.0, 12, true);
-        when(db.cargarPresetActivo()).thenReturn(Optional.of(activo));
-        when(db.eliminarPreset(5)).thenReturn(true);
+        when(presets.cargarPresetActivo()).thenReturn(Optional.of(activo));
+        when(presets.eliminarPreset(5)).thenReturn(true);
 
         ResponseEntity<?> resp = controller.eliminarPreset(5);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        verify(db).eliminarPreset(5);
+        verify(presets).eliminarPreset(5);
         verify(service, never()).recomputarFinanciacion(any());
     }
 
     @Test
     void deletePresetWithNonExistentIdReturns404WithoutRecompute() {
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
-        when(db.eliminarPreset(999)).thenReturn(false);
+        when(presets.cargarPresetActivo()).thenReturn(Optional.empty());
+        when(presets.eliminarPreset(999)).thenReturn(false);
 
         ResponseEntity<?> resp = controller.eliminarPreset(999);
 
@@ -302,7 +306,7 @@ class ApiControllerFinanciacionTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).crearPreset(any(), anyDouble(), anyInt());
+        verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
     }
 
     @Test
@@ -315,7 +319,7 @@ class ApiControllerFinanciacionTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).editarPreset(anyInt(), any(), anyDouble(), anyInt());
+        verify(presets, never()).editarPreset(anyInt(), any(), anyDouble(), anyInt());
         verify(service, never()).recomputarFinanciacion(any());
     }
 
@@ -328,7 +332,7 @@ class ApiControllerFinanciacionTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).activarPreset(anyInt());
+        verify(presets, never()).activarPreset(anyInt());
         verify(service, never()).recomputarFinanciacion(any());
     }
 
@@ -341,7 +345,7 @@ class ApiControllerFinanciacionTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
-        verify(db, never()).eliminarPreset(anyInt());
+        verify(presets, never()).eliminarPreset(anyInt());
         verify(service, never()).recomputarFinanciacion(any());
     }
 }

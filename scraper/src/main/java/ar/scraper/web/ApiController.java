@@ -146,15 +146,15 @@ public class ApiController {
         this.agentEndpoints     = new AgentEndpoints(service, db, catalogAgentService,
                                                      agentConfig, actorResolver);
         this.financiacionEndpoints = new FinanciacionEndpoints(service, inflacionService,
-                                                               db, aggregator);
+                                                               db.presets(), db.historial(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService, actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db, actorResolver);
-        this.mlEndpoints        = new MlEndpoints(service, db, aggregator, pythonRunner);
+        this.mlEndpoints        = new MlEndpoints(service, db, db.historial(), aggregator, pythonRunner);
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);
         this.dbAdminEndpoints   = new DbAdminEndpoints(service, db, aggregator);
-        this.catalogoEndpoints  = new CatalogoEndpoints(service, db, config, inflacionService);
+        this.catalogoEndpoints  = new CatalogoEndpoints(service, db, db.presets(), db.historial(), config, inflacionService);
         this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
     }
 
