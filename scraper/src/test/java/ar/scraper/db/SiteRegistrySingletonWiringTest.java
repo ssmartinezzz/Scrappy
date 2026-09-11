@@ -110,6 +110,7 @@ class SiteRegistrySingletonWiringTest {
         try (var context = new AnnotationConfigApplicationContext(
                 UnreachableDataSourceConfig.class, SiteRegistry.class, CronRepository.class,
                 FavoritosRepository.class, PresetRepository.class, HistorialRepository.class,
+                CatalogQueryRepository.class, ProductRepository.class,
                 DatabaseService.class)) {
 
             SiteRegistry theSingleton = context.getBean(SiteRegistry.class);

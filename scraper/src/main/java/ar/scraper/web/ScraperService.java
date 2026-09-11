@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
@@ -97,7 +98,12 @@ public class ScraperService {
 
     private final List<SitioExtra> sitiosExtras = new ArrayList<>();
 
+    // Declared dual dependency (extract-catalog-query-port, D6): the ScrapeRun/Sitios
+    // calls below (crearScrapeRun, marcarSitio*, etc.) belong to repositories out of
+    // this slice's scope. cargarProductos/upsertParcial/upsertProductos go through
+    // ProductPort instead.
     private final DatabaseService db;
+    private final ProductPort productos;
 
     /**
      * The run currently open, or null when nothing is running.
@@ -113,10 +119,12 @@ public class ScraperService {
 
     public RunState getRunState() { return runState.get(); }
 
-    public ScraperService(ScraperConfig config, ResultAggregator aggregator, DatabaseService db) {
+    public ScraperService(ScraperConfig config, ResultAggregator aggregator, DatabaseService db,
+                          ProductPort productos) {
         this.config     = config;
         this.aggregator = aggregator;
         this.db         = db;
+        this.productos  = productos;
     }
 
     @PostConstruct
@@ -156,7 +164,7 @@ public class ScraperService {
 
         // Cargar último resultado de scraping
         try {
-            List<ar.scraper.model.Product> prods = db.cargarProductos();
+            List<ar.scraper.model.Product> prods = productos.cargarProductos();
             if (!prods.isEmpty()) {
                 synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
                 // Restaurar ML output
@@ -512,8 +520,8 @@ public class ScraperService {
                 if (!r.productos().isEmpty()) {
                     try {
                         var normalizados = aggregator.normalizarSolo(r.productos());
-                        db.upsertParcial(normalizados);
-                        var todosActuales = db.cargarProductos();
+                        productos.upsertParcial(normalizados);
+                        var todosActuales = productos.cargarProductos();
                         if (!todosActuales.isEmpty()) {
                             // Solo este sitio pudo cambiar algo, así que solo sus URLs
                             // necesitan re-enriquecerse. Con fromDB completo, cada sitio
@@ -729,9 +737,9 @@ public class ScraperService {
         try {
             adoptarCorrida(corrida);
             statusMsg.set("Barrido final de la corrida retomada...");
-            db.upsertProductos(List.of(), corrida.startedAt());
+            productos.upsertProductos(List.of(), corrida.startedAt());
 
-            List<ar.scraper.model.Product> prods = db.cargarProductos();
+            List<ar.scraper.model.Product> prods = productos.cargarProductos();
             synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
 
             cerrarRun("COMPLETED", prods.size());

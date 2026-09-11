@@ -58,7 +58,8 @@ class ScraperServiceFinanciacionTest {
                 List.of(stale), java.util.Map.of("Sitio", 1), java.util.Map.of(),
                 ResultAggregator.calcularFacets(List.of(stale)), 1000, 1000);
 
-        ScraperService service = new ScraperService(config, aggregator, db);
+        ScraperService service = new ScraperService(config, aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
         service.setLastResultParaTest(original);
 
         SenalFinanciacion fresh = new SenalFinanciacion("conviene_cuotas", 8.0, 92000, 7666, 12, 40);
@@ -80,7 +81,8 @@ class ScraperServiceFinanciacionTest {
         ResultAggregator aggregator = Mockito.mock(ResultAggregator.class);
         DatabaseService db = Mockito.mock(DatabaseService.class);
 
-        ScraperService service = new ScraperService(config, aggregator, db);
+        ScraperService service = new ScraperService(config, aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
 
         service.recomputarFinanciacion(aggregator);
 
@@ -103,7 +105,8 @@ class ScraperServiceFinanciacionTest {
         AggregatedResult original = new AggregatedResult(
                 List.of(stale), conteo, errores, facets, 5000, 5000);
 
-        ScraperService service = new ScraperService(config, aggregator, db);
+        ScraperService service = new ScraperService(config, aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
         service.setLastResultParaTest(original);
 
         Product enriched = producto("https://site.com/b", 5000,

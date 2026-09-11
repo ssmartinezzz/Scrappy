@@ -4,6 +4,7 @@ import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
@@ -37,6 +38,7 @@ class ApiControllerStatusScrapeTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private ProductPort productos;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -55,6 +57,8 @@ class ApiControllerStatusScrapeTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        productos             = mock(ProductPort.class);
+        when(db.productos()).thenReturn(productos);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -186,7 +190,7 @@ class ApiControllerStatusScrapeTest {
         var resp = controller.limpiarProductos();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).limpiarProductos();
+        verify(productos).limpiarProductos();
         verify(service).clearLastResult();
         verify(aggregator).clearMlOutput();
     }
@@ -194,7 +198,7 @@ class ApiControllerStatusScrapeTest {
     @Test
     void limpiarProductosReturns500OnDbException() throws Exception {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
-        doThrow(new SQLException("DB error")).when(db).limpiarProductos();
+        doThrow(new SQLException("DB error")).when(productos).limpiarProductos();
 
         var resp = controller.limpiarProductos();
 

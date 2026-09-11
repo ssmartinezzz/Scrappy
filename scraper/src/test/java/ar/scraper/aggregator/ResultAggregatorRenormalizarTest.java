@@ -1,6 +1,7 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -40,6 +41,7 @@ class ResultAggregatorRenormalizarTest {
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
     private DatabaseService      db;
+    private ProductPort          productos;
     private ResultAggregator     aggregator;
 
     @BeforeEach
@@ -55,9 +57,11 @@ class ResultAggregatorRenormalizarTest {
         senalEnricher         = mock(SenalEnricher.class);
         financiacionEnricher  = mock(FinanciacionEnricher.class);
         db                    = mock(DatabaseService.class);
+        productos             = mock(ProductPort.class);
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db);
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                productos);
     }
 
     private Product producto(String url, String categoria) {
@@ -79,14 +83,14 @@ class ResultAggregatorRenormalizarTest {
         Product p2Ahora = producto("http://test.com/2", "Calzado Deportivo");
         Product p3Ahora = producto("http://test.com/3", "Calzado Deportivo");
 
-        when(db.cargarProductos()).thenReturn(List.of(p1Antes, p2Antes, p3Antes));
+        when(productos.cargarProductos()).thenReturn(List.of(p1Antes, p2Antes, p3Antes));
         when(normalizer.normalizar(anyList())).thenReturn(List.of(p1Ahora, p2Ahora, p3Ahora));
 
-        when(db.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
+        when(productos.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
                 anyString(), anyList(), anyString())).thenReturn(1);
-        when(db.actualizarNormalizacion(eq("http://test.com/2"), anyString(), anyString(),
+        when(productos.actualizarNormalizacion(eq("http://test.com/2"), anyString(), anyString(),
                 anyString(), anyList(), anyString())).thenReturn(0);
-        when(db.actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
+        when(productos.actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
                 anyString(), anyList(), anyString())).thenThrow(new RuntimeException("boom"));
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
@@ -99,11 +103,11 @@ class ResultAggregatorRenormalizarTest {
         assertThat(resultado.get("escriturasAplicadas")).isEqualTo(1);
         assertThat(resultado.get("escriturasFallidas")).isEqualTo(2);
 
-        verify(db).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
+        verify(productos).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
                 anyString(), anyList(), anyString());
-        verify(db).actualizarNormalizacion(eq("http://test.com/2"), anyString(), anyString(),
+        verify(productos).actualizarNormalizacion(eq("http://test.com/2"), anyString(), anyString(),
                 anyString(), anyList(), anyString());
-        verify(db).actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
+        verify(productos).actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
                 anyString(), anyList(), anyString());
     }
 
@@ -115,12 +119,12 @@ class ResultAggregatorRenormalizarTest {
         Product p1Ahora = producto("http://test.com/1", "Calzado Deportivo");
         Product p4Ahora = producto("http://test.com/4", "Calzado Deportivo"); // title-derived diff, but locked
 
-        when(db.cargarProductos()).thenReturn(List.of(p1Antes, p4Antes));
+        when(productos.cargarProductos()).thenReturn(List.of(p1Antes, p4Antes));
         when(normalizer.normalizar(anyList())).thenReturn(List.of(p1Ahora, p4Ahora));
-        when(db.cargarClasificacionBloqueada()).thenReturn(
+        when(productos.cargarClasificacionBloqueada()).thenReturn(
                 Map.of("http://test.com/4", new ClasificacionBloqueada("Zapatilla", "", "", "", "indumentaria")));
 
-        when(db.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
+        when(productos.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
                 anyString(), anyList(), anyString())).thenReturn(1);
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
@@ -133,9 +137,9 @@ class ResultAggregatorRenormalizarTest {
         assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // p4 NO cuenta como fallida
         assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
 
-        verify(db).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
+        verify(productos).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
                 anyString(), anyList(), anyString());
-        verify(db, never()).actualizarNormalizacion(eq("http://test.com/4"), anyString(), anyString(),
+        verify(productos, never()).actualizarNormalizacion(eq("http://test.com/4"), anyString(), anyString(),
                 anyString(), anyList(), anyString());
     }
 
@@ -149,13 +153,13 @@ class ResultAggregatorRenormalizarTest {
         Product p5Antes = producto("http://test.com/5", "Zapatilla");
         Product p5Ahora = producto("http://test.com/5", "Calzado Deportivo");
 
-        when(db.cargarProductos()).thenReturn(List.of(p5Antes));
+        when(productos.cargarProductos()).thenReturn(List.of(p5Antes));
         when(normalizer.normalizar(anyList())).thenReturn(List.of(p5Ahora));
-        when(db.cargarClasificacionBloqueada()).thenReturn(Map.of()); // empty at snapshot time
+        when(productos.cargarClasificacionBloqueada()).thenReturn(Map.of()); // empty at snapshot time
 
-        when(db.actualizarNormalizacion(eq("http://test.com/5"), anyString(), anyString(),
+        when(productos.actualizarNormalizacion(eq("http://test.com/5"), anyString(), anyString(),
                 anyString(), anyList(), anyString())).thenReturn(0); // guard fired: now locked
-        when(db.estaBloqueado("http://test.com/5")).thenReturn(true); // live read confirms the lock
+        when(productos.estaBloqueado("http://test.com/5")).thenReturn(true); // live read confirms the lock
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
 
@@ -164,7 +168,7 @@ class ResultAggregatorRenormalizarTest {
         assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // never — the WARN comment's own invariant
         assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
 
-        verify(db).estaBloqueado("http://test.com/5");
+        verify(productos).estaBloqueado("http://test.com/5");
     }
 
     @Test
@@ -173,7 +177,7 @@ class ResultAggregatorRenormalizarTest {
         Product antes = producto("http://test.com/unchanged", "Zapatilla");
         Product ahora = producto("http://test.com/unchanged", "Zapatilla");
 
-        when(db.cargarProductos()).thenReturn(List.of(antes));
+        when(productos.cargarProductos()).thenReturn(List.of(antes));
         when(normalizer.normalizar(anyList())).thenReturn(List.of(ahora));
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
@@ -183,6 +187,6 @@ class ResultAggregatorRenormalizarTest {
         assertThat(resultado.get("escriturasIntentadas")).isEqualTo(0);
         assertThat(resultado.get("escriturasAplicadas")).isEqualTo(0);
         assertThat(resultado.get("escriturasFallidas")).isEqualTo(0);
-        verify(db, never()).actualizarNormalizacion(anyString(), anyString(), anyString(), anyString(), anyList(), anyString());
+        verify(productos, never()).actualizarNormalizacion(anyString(), anyString(), anyString(), anyString(), anyList(), anyString());
     }
 }
