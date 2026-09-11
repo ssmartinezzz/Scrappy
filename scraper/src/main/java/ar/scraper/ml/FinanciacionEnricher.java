@@ -1,7 +1,7 @@
 package ar.scraper.ml;
 
-import ar.scraper.db.DatabaseService;
 import ar.scraper.financiacion.Preset;
+import ar.scraper.financiacion.PresetPort;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import ar.scraper.web.InflacionService;
@@ -31,18 +31,18 @@ public class FinanciacionEnricher {
 
     private static final Logger LOG = LoggerFactory.getLogger(FinanciacionEnricher.class);
 
-    private final DatabaseService db;
+    private final PresetPort presets;
     private final InflacionService inflacionService;
 
-    public FinanciacionEnricher(DatabaseService db, InflacionService inflacionService) {
-        this.db = db;
+    public FinanciacionEnricher(PresetPort presets, InflacionService inflacionService) {
+        this.presets = presets;
         this.inflacionService = inflacionService;
     }
 
     public List<Product> enriquecer(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return productos;
 
-        Optional<Preset> activo = db.cargarPresetActivo();
+        Optional<Preset> activo = presets.cargarPresetActivo();
         if (activo.isEmpty()) {
             LOG.info("[FINAN] Sin preset activo — señal de financiación queda en sin_preset_activo para {} productos", productos.size());
             return withEmptyFinanciacion(productos);

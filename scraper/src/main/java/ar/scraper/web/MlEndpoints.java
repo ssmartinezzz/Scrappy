@@ -24,15 +24,18 @@ class MlEndpoints {
 
     private final ScraperService service;
     private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.catalog.HistorialPort historial;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final ar.scraper.ml.PythonRunner pythonRunner;
 
     MlEndpoints(ScraperService service,
                 ar.scraper.db.DatabaseService db,
+                ar.scraper.catalog.HistorialPort historial,
                 ar.scraper.aggregator.ResultAggregator aggregator,
                 ar.scraper.ml.PythonRunner pythonRunner) {
         this.service = service;
         this.db = db;
+        this.historial = historial;
         this.aggregator = aggregator;
         this.pythonRunner = pythonRunner;
     }
@@ -98,7 +101,7 @@ class MlEndpoints {
      * {@link HistorialJson}, compartido con esa otra ruta.
      */
     ResponseEntity<Object> historial(String url) {
-        var hist = db.cargarHistorial(url);
+        var hist = historial.cargarHistorial(url);
         if (hist.isEmpty()) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(HistorialJson.construir(hist));
     }

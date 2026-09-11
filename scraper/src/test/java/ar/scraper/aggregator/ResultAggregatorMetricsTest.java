@@ -1,6 +1,8 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.catalog.HistorialPort;
 import ar.scraper.db.DatabaseService;
+import ar.scraper.financiacion.PresetPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
@@ -237,11 +239,12 @@ class ResultAggregatorMetricsTest {
         // Real (not mocked) SenalEnricher + FinanciacionEnricher — the concrete
         // regression surface for the PR1-flagged risk: their withSenal()/
         // withFinan() rebuild Product and previously reset visual to EMPTY.
-        when(db.getHistorialPrecios(anyList())).thenReturn(Map.of());
+        HistorialPort historial = mock(HistorialPort.class);
+        when(historial.getHistorialPrecios(anyList())).thenReturn(Map.of());
         InflacionService inflacion = mock(InflacionService.class);
         when(inflacion.factorInflacion(anyInt())).thenReturn(1.0);
-        SenalEnricher realSenalEnricher = new SenalEnricher(db, inflacion);
-        FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(db, inflacion);
+        SenalEnricher realSenalEnricher = new SenalEnricher(historial, inflacion);
+        FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(mock(PresetPort.class), inflacion);
 
         ResultAggregator aggregatorConEnrichersReales = new ResultAggregator(
                 normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher, db);
