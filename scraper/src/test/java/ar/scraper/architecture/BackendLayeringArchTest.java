@@ -39,7 +39,8 @@ class BackendLayeringArchTest {
     static final ArchRule areasSonSumideros = noClasses()
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
-                                   "ar.scraper.favoritos..", "ar.scraper.financiacion..")
+                                   "ar.scraper.favoritos..", "ar.scraper.financiacion..",
+                                   "ar.scraper.feedback..")
         .should().dependOnClassesThat()
         .resideInAnyPackage("ar.scraper.db..", "ar.scraper.cron..",
                             "ar.scraper.aggregator..", "ar.scraper.web..",

@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.feedback.OutfitItemRow;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,9 +22,8 @@ import java.util.UUID;
  * dislikes, scoped by estilo) and {@code categoria_dismiss} (feed-wide "not
  * interested").
  *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). The
- * {@code OutfitItemRow} record stays nested on DatabaseService — callers and
- * tests name it {@code DatabaseService.OutfitItemRow}.</p>
+ * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). El récord
+ * {@link OutfitItemRow} vive en {@code ar.scraper.feedback}.</p>
  */
 class FeedbackRepository {
 
@@ -69,8 +70,8 @@ class FeedbackRepository {
      * el join url→Product contra el catálogo vivo, ya que esta clase no conoce el
      * AggregatedResult en memoria.
      */
-    List<DatabaseService.OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
-        List<DatabaseService.OutfitItemRow> result = new ArrayList<>();
+    List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
+        List<OutfitItemRow> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "SELECT slot, url, liked, estilo FROM outfit_feedback_item WHERE usuario_id=?")) {
@@ -78,7 +79,7 @@ class FeedbackRepository {
             try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 String estilo = rs.getString("estilo");
-                result.add(new DatabaseService.OutfitItemRow(
+                result.add(new OutfitItemRow(
                         rs.getString("slot"),
                         rs.getString("url"),
                         rs.getBoolean("liked"),
