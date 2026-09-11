@@ -1,8 +1,11 @@
 package ar.scraper.db;
 
+import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.scrape.CorridaInterrumpida;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -50,7 +53,8 @@ import java.util.UUID;
  * — a site added through {@code /api/sitios} and never scraped would make the
  * run fail to start at all.</p>
  */
-class ScrapeRunRepository {
+@Repository
+class ScrapeRunRepository implements ScrapeRunPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(ScrapeRunRepository.class);
 
@@ -74,7 +78,8 @@ class ScrapeRunRepository {
      * a run whose site rows failed to land would report an empty site set to a
      * later resume, which reads as "nothing left to do".
      */
-    long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId,
+    @Override
+    public long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId,
                Collection<String> sitios) throws SQLException {
         Instant arranque = truncarAlSegundo(startedAt);
 
@@ -144,7 +149,8 @@ class ScrapeRunRepository {
         }
     }
 
-    void marcarSitioEnCurso(long runId, String sitio, Instant cuando) throws SQLException {
+    @Override
+    public void marcarSitioEnCurso(long runId, String sitio, Instant cuando) throws SQLException {
         String sql = """
             UPDATE scrape_run_site SET status = 'RUNNING', started_at = ?
             WHERE scrape_run_id = ? AND sitio_key = %s
@@ -158,7 +164,8 @@ class ScrapeRunRepository {
         }
     }
 
-    void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
+    @Override
+    public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
                               String error, Instant cuando) throws SQLException {
         String sql = """
             UPDATE scrape_run_site
@@ -182,7 +189,8 @@ class ScrapeRunRepository {
      * statement because {@code ck_scrape_run_running_iff_unfinished} rejects any
      * row where they disagree — they cannot be written apart even by accident.
      */
-    void finalizar(long runId, String status, int productosCount, Instant finishedAt)
+    @Override
+    public void finalizar(long runId, String status, int productosCount, Instant finishedAt)
             throws SQLException {
         String sql = """
             UPDATE scrape_run SET status = ?, productos_count = ?, finished_at = ?
@@ -207,7 +215,8 @@ class ScrapeRunRepository {
      * runs still claiming to be live, and "the interrupted run" would stop
      * naming one thing.</p>
      */
-    List<Long> marcarInterrumpidosAlArrancar(Instant cuando) throws SQLException {
+    @Override
+    public List<Long> marcarInterrumpidosAlArrancar(Instant cuando) throws SQLException {
         String sql = """
             UPDATE scrape_run SET status = 'INTERRUPTED', finished_at = ?
              WHERE status = 'RUNNING' AND finished_at IS NULL
@@ -235,7 +244,8 @@ class ScrapeRunRepository {
      * crashes, and resuming the older one would re-scrape against a bound a
      * newer run already moved past.</p>
      */
-    Optional<CorridaInterrumpida> ultimaInterrumpida() throws SQLException {
+    @Override
+    public Optional<CorridaInterrumpida> ultimaInterrumpida() throws SQLException {
         String sql = """
             SELECT id, scrape_uuid, started_at FROM scrape_run
              WHERE status = 'INTERRUPTED'
@@ -288,7 +298,8 @@ class ScrapeRunRepository {
      * with the process, so they are owed exactly as much as one that never
      * started.</p>
      */
-    void reabrir(long runId) throws SQLException {
+    @Override
+    public void reabrir(long runId) throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -325,7 +336,8 @@ class ScrapeRunRepository {
      * differently looks absent from the registry, gets marked SKIPPED, and is
      * silently dropped from a resume that owed it.</p>
      */
-    List<String> marcarAusentesDelRegistro(long runId, java.util.Collection<String> nombresActuales)
+    @Override
+    public List<String> marcarAusentesDelRegistro(long runId, java.util.Collection<String> nombresActuales)
             throws SQLException {
         String sql = """
             UPDATE scrape_run_site SET status = 'SKIPPED'
@@ -361,7 +373,8 @@ class ScrapeRunRepository {
      * The other terminal states are excluded for the same reason — a cancelled
      * or interrupted run leaves no clean pre-run catalogue to hold a reader at.</p>
      */
-    boolean existeCorridaCompletada() throws SQLException {
+    @Override
+    public boolean existeCorridaCompletada() throws SQLException {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT EXISTS (SELECT 1 FROM scrape_run WHERE status = 'COMPLETED')");
@@ -370,7 +383,8 @@ class ScrapeRunRepository {
         }
     }
 
-    Optional<Instant> startedAtDe(long runId) throws SQLException {
+    @Override
+    public Optional<Instant> startedAtDe(long runId) throws SQLException {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT started_at FROM scrape_run WHERE id = ?")) {

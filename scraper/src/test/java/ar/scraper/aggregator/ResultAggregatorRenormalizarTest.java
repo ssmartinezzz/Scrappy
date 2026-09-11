@@ -2,7 +2,8 @@ package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.catalog.MlOutputPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
@@ -40,7 +41,8 @@ class ResultAggregatorRenormalizarTest {
     private MlEnricher           mlEnricher;
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
-    private DatabaseService      db;
+    private MlOutputPort             mlOutput;
+    private CategoriaStatsPort       categoriaStats;
     private ProductPort          productos;
     private ResultAggregator     aggregator;
 
@@ -49,18 +51,20 @@ class ResultAggregatorRenormalizarTest {
         wireAggregator();
     }
 
-    @Step("Wire ResultAggregator with a mocked DatabaseService")
+    @Step("Wire ResultAggregator with mocked ML persistence ports")
     private void wireAggregator() {
         normalizer           = mock(NormalizerService.class);
         pythonRunner         = mock(PythonRunner.class);
         mlEnricher            = mock(MlEnricher.class);
         senalEnricher         = mock(SenalEnricher.class);
         financiacionEnricher  = mock(FinanciacionEnricher.class);
-        db                    = mock(DatabaseService.class);
+        mlOutput                           = mock(MlOutputPort.class);
+        categoriaStats                     = mock(CategoriaStatsPort.class);
         productos             = mock(ProductPort.class);
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher,
+                mlOutput, categoriaStats,
                 productos);
     }
 

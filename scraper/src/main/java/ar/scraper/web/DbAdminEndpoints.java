@@ -17,16 +17,16 @@ class DbAdminEndpoints {
     private final ScraperService service;
     // Declared dual dependency (extract-catalog-query-port, D6): limpiarMlOutput
     // below belongs to MlOutputRepository, out of this slice's scope.
-    private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.catalog.MlOutputPort mlOutput;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
     DbAdminEndpoints(ScraperService service,
-                     ar.scraper.db.DatabaseService db,
+                     ar.scraper.catalog.MlOutputPort mlOutput,
                      ar.scraper.catalog.ProductPort productos,
                      ar.scraper.aggregator.ResultAggregator aggregator) {
         this.service = service;
-        this.db = db;
+        this.mlOutput = mlOutput;
         this.productos = productos;
         this.aggregator = aggregator;
     }
@@ -59,7 +59,7 @@ class DbAdminEndpoints {
             return ResponseEntity.status(409).body("Hay un scraping en curso. Esperá a que termine.");
         }
         try {
-            db.limpiarMlOutput();
+            mlOutput.limpiarMlOutput();
             aggregator.clearMlOutput();
             return ResponseEntity.ok("Datos ML eliminados.");
         } catch (Exception e) {

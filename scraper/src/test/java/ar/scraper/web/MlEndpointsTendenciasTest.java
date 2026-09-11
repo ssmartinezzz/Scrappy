@@ -43,6 +43,7 @@ import static org.mockito.Mockito.when;
 class MlEndpointsTendenciasTest {
 
     private DatabaseService db;
+    private ar.scraper.catalog.CategoriaStatsPort categoriaStats;
     private ApiController controller;
 
     @BeforeEach
@@ -52,6 +53,8 @@ class MlEndpointsTendenciasTest {
         ScraperConfig config                 = mock(ScraperConfig.class);
         ResultAggregator aggregator          = mock(ResultAggregator.class);
         db                                    = mock(DatabaseService.class);
+        categoriaStats                        = mock(ar.scraper.catalog.CategoriaStatsPort.class);
+        when(db.categoriaStats()).thenReturn(categoriaStats);
         GroupingService grouping             = mock(GroupingService.class);
         PythonRunner pythonRunner            = mock(PythonRunner.class);
         OutfitService outfitService          = mock(OutfitService.class);
@@ -73,7 +76,7 @@ class MlEndpointsTendenciasTest {
     void redondeoDeDistribucionCategoriasSePreserva() {
         CategoriaStats remera = new CategoriaStats(42, 15000, 14500, 12000, 3200, 21.3,
                 11000, 18000, 7000, 2500, 500, 28500);
-        when(db.cargarCategoriaStats()).thenReturn(Map.of("Remera", remera));
+        when(categoriaStats.cargarCategoriaStats()).thenReturn(Map.of("Remera", remera));
 
         JsonNode body = controller.tendencias().getBody();
         JsonNode cat = body.get("distribucionCategorias").get("Remera");
@@ -96,7 +99,7 @@ class MlEndpointsTendenciasTest {
     @Test
     @DisplayName("sin categoria_stats persistidas, distribucionCategorias no aparece")
     void sinStatsNoHayDistribucionCategorias() {
-        when(db.cargarCategoriaStats()).thenReturn(Map.of());
+        when(categoriaStats.cargarCategoriaStats()).thenReturn(Map.of());
 
         JsonNode body = controller.tendencias().getBody();
 

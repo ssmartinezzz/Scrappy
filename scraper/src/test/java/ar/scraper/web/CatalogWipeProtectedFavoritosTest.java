@@ -57,7 +57,7 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
         service = mock(ScraperService.class);
         aggregator = mock(ResultAggregator.class);
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
-        endpoints = new DbAdminEndpoints(service, db, db.productos(), aggregator);
+        endpoints = new DbAdminEndpoints(service, db.mlOutput(), db.productos(), aggregator);
     }
 
     private Product producto(String url) {

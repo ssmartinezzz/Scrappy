@@ -16,8 +16,7 @@ public class MlEnricher {
     private static final Logger LOG = LoggerFactory.getLogger(MlEnricher.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public List<Product> enriquecer(List<Product> productos, JsonNode mlOutput,
-                                    ar.scraper.db.DatabaseService db) {
+    public List<Product> enriquecer(List<Product> productos, JsonNode mlOutput) {
         if (mlOutput == null || mlOutput.isNull() || mlOutput.isEmpty()) return productos;
         JsonNode scores = mlOutput.path("scores");
         if (scores.isMissingNode()) return productos;
@@ -124,11 +123,6 @@ public class MlEnricher {
         LOG.info("[ML] {} productos enriquecidos | {} categorías refinadas por modelo | {} géneros rellenados por imagen",
                  enriquecidos, catRefinadas, generosRellenados);
         return result;
-    }
-
-    /** Backwards-compatible overload sin DB */
-    public List<Product> enriquecer(List<Product> productos, JsonNode mlOutput) {
-        return enriquecer(productos, mlOutput, null);
     }
 
     /**
