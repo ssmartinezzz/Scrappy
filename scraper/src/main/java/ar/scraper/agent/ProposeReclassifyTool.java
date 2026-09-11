@@ -2,7 +2,7 @@ package ar.scraper.agent;
 
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.model.Product;
-import ar.scraper.web.ScraperService;
+import ar.scraper.aggregator.CatalogSnapshotPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -45,10 +45,10 @@ public class ProposeReclassifyTool implements CatalogTool {
     public static final Set<String> VALID_GENEROS =
             Set.of("hombre", "mujer", "unisex", "infantil", "");
 
-    private final ScraperService scraperService;
+    private final CatalogSnapshotPort catalogo;
 
-    public ProposeReclassifyTool(ScraperService scraperService) {
-        this.scraperService = scraperService;
+    public ProposeReclassifyTool(CatalogSnapshotPort catalogo) {
+        this.catalogo = catalogo;
     }
 
     @Override
@@ -90,7 +90,7 @@ public class ProposeReclassifyTool implements CatalogTool {
             return ToolResult.error("", "El parámetro 'categoria' es requerido.");
         }
 
-        Product current = ViewProductTool.find(scraperService.getLastResult(), url);
+        Product current = ViewProductTool.find(catalogo.getLastResult(), url);
         if (current == null) {
             return ToolResult.error("", "No existe ningún producto con esa url en el catálogo actual.");
         }

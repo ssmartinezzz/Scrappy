@@ -2,7 +2,7 @@ package ar.scraper.agent;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.model.Product;
-import ar.scraper.web.ScraperService;
+import ar.scraper.aggregator.CatalogSnapshotPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -20,10 +20,10 @@ public class ViewProductTool implements CatalogTool {
     public static final String NAME = "view_product";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final ScraperService scraperService;
+    private final CatalogSnapshotPort catalogo;
 
-    public ViewProductTool(ScraperService scraperService) {
-        this.scraperService = scraperService;
+    public ViewProductTool(CatalogSnapshotPort catalogo) {
+        this.catalogo = catalogo;
     }
 
     @Override
@@ -44,7 +44,7 @@ public class ViewProductTool implements CatalogTool {
         if (url.isBlank()) {
             return ToolResult.error("", "El parámetro 'url' es requerido.");
         }
-        Product p = find(scraperService.getLastResult(), url);
+        Product p = find(catalogo.getLastResult(), url);
         if (p == null) {
             return ToolResult.error("", "No existe ningún producto con esa url en el catálogo actual.");
         }

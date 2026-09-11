@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.aggregator.CatalogSnapshotPort;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.catalog.MlOutputPort;
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.*;
 import java.util.stream.Collectors;
 
 @Service
-public class ScraperService {
+public class ScraperService implements CatalogSnapshotPort {
 
     private static final Logger LOG     = LoggerFactory.getLogger(ScraperService.class);
     private static final Logger RUN_LOG = LoggerFactory.getLogger("ar.scraper.run");
@@ -212,6 +213,7 @@ public class ScraperService {
      * a medio reconstruir. Lo que el usuario hace él mismo sí llega — los cuatro
      * caminos de escritura parchean las dos fotos.</p>
      */
+    @Override
     public AggregatedResult getLastResult() {
         AggregatedResult servido = servedResult;
         return servido != null ? servido : lastResult;

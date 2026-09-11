@@ -6,7 +6,6 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
-import com.tngtech.archunit.library.freeze.FreezingArchRule;
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 
 import java.util.Set;
@@ -18,17 +17,22 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 @AnalyzeClasses(packages = "ar.scraper", importOptions = ImportOption.DoNotIncludeTests.class)
 class BackendLayeringArchTest {
 
-    // Frozen: records today's cycles as the reviewable baseline. Unfrozen rules
-    // below are the actual win — a frozen-only green would silently absorb a
-    // reintroduced cycle instead of failing the build.
+    // Estuvo congelada desde F0 con los 7 ciclos de entonces como golden.
+    // `close-backend-package-cycles` (F3a) los cerro a los siete, asi que la
+    // regla pasa a ser una regla comun que puede fallar: el grafo de paquetes
+    // de `ar.scraper` no tiene ciclos, y meter uno nuevo rompe el build en vez
+    // de sumarse a un store. El directorio `src/test/resources/archunit_store`
+    // se borra con este cambio.
     @ArchTest
-    static final ArchRule cicloBaseline = FreezingArchRule.freeze(
-        SlicesRuleDefinition.slices().matching("ar.scraper.(*)..").should().beFreeOfCycles());
+    static final ArchRule grafoSinCiclos =
+        SlicesRuleDefinition.slices().matching("ar.scraper.(*)..").should().beFreeOfCycles();
 
-    @ArchTest
-    static final ArchRule dbNoDependeDeCron = noClasses()
-        .that().resideInAPackage("ar.scraper.db..")
-        .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.cron..");
+    // `dbNoDependeDeCron` y `cronNoDependeDeDb` se retiran junto con el paquete
+    // (close-backend-package-cycles). La primera no se puede reapuntar a
+    // `scheduling`: `db.CronRepository` implementa `scheduling.CronPort`, asi
+    // que esa arista es legitima y deseada. La segunda queda subsumida por
+    // `areasSonSumideros`, que ya lista `ar.scraper.scheduling..` como area y
+    // `ar.scraper.db..` entre los paquetes que un area no puede nombrar.
 
     @ArchTest
     static final ArchRule dbNoDependeDeAggregator = noClasses()
@@ -42,7 +46,7 @@ class BackendLayeringArchTest {
                                    "ar.scraper.favoritos..", "ar.scraper.financiacion..",
                                    "ar.scraper.feedback..", "ar.scraper.outfits..")
         .should().dependOnClassesThat()
-        .resideInAnyPackage("ar.scraper.db..", "ar.scraper.cron..",
+        .resideInAnyPackage("ar.scraper.db..",
                             "ar.scraper.aggregator..", "ar.scraper.web..",
                             "ar.scraper.ml..", "ar.scraper.agent..",
                             "ar.scraper.security..", "ar.scraper.config..",
@@ -73,11 +77,6 @@ class BackendLayeringArchTest {
     @ArchTest
     static final ArchRule cronFueAbsorbidoEnScheduling = noClasses()
         .should().resideInAPackage("ar.scraper.cron..");
-
-    @ArchTest
-    static final ArchRule cronNoDependeDeDb = noClasses()
-        .that().resideInAPackage("ar.scraper.cron..")
-        .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.db..");
 
     // The favoritos aggregate's 4 methods on DatabaseService (extract-favoritos-port).
     private static final Set<String> METODOS_FAVORITOS =
