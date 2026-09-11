@@ -39,7 +39,7 @@ class BackendLayeringArchTest {
     static final ArchRule areasSonSumideros = noClasses()
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
-                                   "ar.scraper.favoritos..")
+                                   "ar.scraper.favoritos..", "ar.scraper.financiacion..")
         .should().dependOnClassesThat()
         .resideInAnyPackage("ar.scraper.db..", "ar.scraper.cron..",
                             "ar.scraper.aggregator..", "ar.scraper.web..",
@@ -66,6 +66,39 @@ class BackendLayeringArchTest {
             public boolean test(JavaMethodCall call) {
                 return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
                     && METODOS_FAVORITOS.contains(call.getTarget().getName());
+            }
+        });
+
+    // The presets aggregate's 6 methods on DatabaseService (extract-preset-historial-ports).
+    private static final Set<String> METODOS_PRESETS =
+        Set.of("listarPresets", "cargarPresetActivo", "crearPreset",
+               "editarPreset", "activarPreset", "eliminarPreset");
+
+    @ArchTest
+    static final ArchRule webUsaPresetsPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a preset method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_PRESETS.contains(call.getTarget().getName());
+            }
+        });
+
+    // The historial aggregate's 2 read methods on DatabaseService (extract-preset-historial-ports).
+    private static final Set<String> METODOS_HISTORIAL =
+        Set.of("getHistorialPrecios", "cargarHistorial");
+
+    @ArchTest
+    static final ArchRule webUsaHistorialPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a historial method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_HISTORIAL.contains(call.getTarget().getName());
             }
         });
 }
