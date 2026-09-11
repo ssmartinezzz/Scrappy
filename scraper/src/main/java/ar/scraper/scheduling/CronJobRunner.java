@@ -1,10 +1,6 @@
-package ar.scraper.cron;
+package ar.scraper.scheduling;
 
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.ml.PythonRunner;
-import ar.scraper.scheduling.CronJob;
-import ar.scraper.scheduling.CronPort;
-import ar.scraper.web.ScraperService;
+import ar.scraper.scrape.ScrapeControlPort;
 import ar.scraper.scrape.ScraperStatus;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -24,7 +20,7 @@ import java.util.Set;
  * guard RUNNING (skip si ya hay un scraping en curso), captura/aplicación/
  * restauración del rango de precio y del flag GPU (decisiones 5 y ADR-2 de
  * {@code sdd/scraper-cronjobs/design}), disparo de
- * {@link ScraperService#iniciarScraping} SIN CAMBIOS, espera bloqueante
+ * {@link ScrapeControlPort#iniciar} SIN CAMBIOS, espera bloqueante
  * acotada hasta que el scraping termine, captura del logger
  * {@code ar.scraper.run} para esa ventana, y registro/retención de la
  * ejecución en {@code cron_executions}.
@@ -38,17 +34,12 @@ public class CronJobRunner {
     private static final long MAX_WAIT_MS = 2L * 60 * 60 * 1000; // 2h, cota generosa
     private static final DateTimeFormatter ISO_SECONDS = CronJobService.ISO_SECONDS;
 
-    private final ScraperService scraperService;
-    private final ScraperConfig config;
-    private final PythonRunner pythonRunner;
+    private final ScrapeControlPort scrape;
     private final CronPort db;
     private final Clock clock;
 
-    public CronJobRunner(ScraperService scraperService, ScraperConfig config,
-            PythonRunner pythonRunner, CronPort db, Clock clock) {
-        this.scraperService = scraperService;
-        this.config = config;
-        this.pythonRunner = pythonRunner;
+    public CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock) {
+        this.scrape = scrape;
         this.db = db;
         this.clock = clock;
     }
@@ -57,11 +48,11 @@ public class CronJobRunner {
      * Expone el guard RUNNING para que {@code CronJobService.triggerNow}
      * (run-now manual vía REST) pueda devolver un 409 limpio ANTES de
      * despachar, en vez de dejar que {@link #runJob} registre una ejecución
-     * "skipped" silenciosa. Mantiene la dependencia de {@link ScraperService}
+     * "skipped" silenciosa. Mantiene la dependencia de {@link ScrapeControlPort}
      * donde ya vive (este runner), en vez de duplicarla en el service.
      */
     public boolean isScraperBusy() {
-        return scraperService.getStatus() == ScraperStatus.RUNNING;
+        return scrape.estado() == ScraperStatus.RUNNING;
     }
 
     public void runJob(CronJob job) {
@@ -70,7 +61,7 @@ public class CronJobRunner {
         // Guard RUNNING: si ya hay un scraping en curso (manual o de otro cron
         // job), no lo pisamos — registramos "skipped" y salimos sin tocar
         // precio/GPU (nada que restaurar, no llegamos a aplicarlos).
-        if (scraperService.getStatus() == ScraperStatus.RUNNING) {
+        if (scrape.estado() == ScraperStatus.RUNNING) {
             db.insertCronExecution(job.id(), now, "skipped", "scraper busy");
             db.touchLastRunAt(job.id(), now);
             db.pruneCronExecutions(job.id(), KEEP_EXECUTIONS);
@@ -83,21 +74,20 @@ public class CronJobRunner {
 
         RunLogCapture capture = attachRunLogAppender();
 
-        double prevMin = config.getPrecioMinimo();
-        double prevMax = config.getPrecioMaximo();
+        double prevMin = scrape.precioMinimo();
+        double prevMax = scrape.precioMaximo();
         long startMillis = clock.millis();
 
         String status;
         String skippedReason = null;
         try {
-            config.setPrecioMinimo(job.precioMin());
-            config.setPrecioMaximo(job.precioMax());
-            pythonRunner.setUseGpu(job.useGpu());
+            scrape.aplicarBandaDePrecio(job.precioMin(), job.precioMax());
+            scrape.usarGpu(job.useGpu());
 
             Set<String> seleccion = (job.sitios() == null || job.sitios().isEmpty())
                     ? null : new HashSet<>(job.sitios());
 
-            boolean started = scraperService.iniciarScraping(seleccion, job.forceRetrain());
+            boolean started = scrape.iniciar(seleccion, job.forceRetrain());
             if (!started) {
                 // TOCTOU: otro scraping arrancó entre el guard check y este punto.
                 status = "skipped";
@@ -111,9 +101,8 @@ public class CronJobRunner {
             LOG.warn("[CRON] Job {} ({}) terminó con excepción: {}", job.id(), job.name(), e.getMessage());
         } finally {
             // Restaurar SIEMPRE, incluso si iniciarScraping/awaitTerminal explotó.
-            config.setPrecioMinimo(prevMin);
-            config.setPrecioMaximo(prevMax);
-            pythonRunner.setUseGpu(true);
+            scrape.aplicarBandaDePrecio(prevMin, prevMax);
+            scrape.usarGpu(true);
             detachRunLogAppender(capture);
         }
 
@@ -127,7 +116,7 @@ public class CronJobRunner {
     /** Espera bloqueante (acotada) a que el scraping deje de estar RUNNING. */
     private String awaitTerminal() {
         long deadline = clock.millis() + MAX_WAIT_MS;
-        while (scraperService.getStatus() == ScraperStatus.RUNNING) {
+        while (scrape.estado() == ScraperStatus.RUNNING) {
             if (clock.millis() >= deadline) {
                 LOG.warn("[CRON] Timeout esperando fin de scraping tras {} ms", MAX_WAIT_MS);
                 return "error";
@@ -139,7 +128,7 @@ public class CronJobRunner {
                 return "error";
             }
         }
-        return scraperService.getStatus() == ScraperStatus.ERROR ? "error" : "success";
+        return scrape.estado() == ScraperStatus.ERROR ? "error" : "success";
     }
 
     /** Par logger/appender de una ventana de captura (ver ADR-4 del design). */

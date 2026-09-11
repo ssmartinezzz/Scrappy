@@ -1,4 +1,4 @@
-package ar.scraper.cron;
+package ar.scraper.scheduling;
 
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
