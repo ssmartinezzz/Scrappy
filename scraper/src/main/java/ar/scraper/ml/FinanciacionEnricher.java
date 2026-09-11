@@ -4,7 +4,7 @@ import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
-import ar.scraper.web.InflacionService;
+import ar.scraper.financiacion.InflacionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

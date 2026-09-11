@@ -3,7 +3,7 @@ package ar.scraper.ml;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.model.Product;
-import ar.scraper.web.InflacionService;
+import ar.scraper.financiacion.InflacionService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;

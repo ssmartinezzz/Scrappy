@@ -5,7 +5,7 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
 import ar.scraper.web.ScraperService;
-import ar.scraper.web.ScraperService.ScraperStatus;
+import ar.scraper.scrape.ScraperStatus;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;

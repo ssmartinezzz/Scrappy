@@ -1,5 +1,9 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
+import ar.scraper.financiacion.InflacionService;
+
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -68,7 +72,7 @@ class FinanciacionEndpoints {
 
     ResponseEntity<ObjectNode> crearPreset(Map<String, Object> body) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             resp.put("ok", false);
             resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
             return ResponseEntity.status(409).body(resp);
@@ -96,7 +100,7 @@ class FinanciacionEndpoints {
 
     ResponseEntity<ObjectNode> activarPreset(int id) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             resp.put("ok", false);
             resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
             return ResponseEntity.status(409).body(resp);
@@ -114,7 +118,7 @@ class FinanciacionEndpoints {
 
     ResponseEntity<ObjectNode> editarPreset(int id, Map<String, Object> body) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             resp.put("ok", false);
             resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
             return ResponseEntity.status(409).body(resp);
@@ -149,7 +153,7 @@ class FinanciacionEndpoints {
 
     ResponseEntity<ObjectNode> eliminarPreset(int id) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             resp.put("ok", false);
             resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
             return ResponseEntity.status(409).body(resp);
