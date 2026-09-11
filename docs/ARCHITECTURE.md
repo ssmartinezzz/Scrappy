@@ -234,7 +234,7 @@ qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
 |---|---|---|
 | F0 | Baseline ArchUnit: congelar los ciclos de hoy como golden y escribir las reglas que tienen que poder fallar | ✅ |
 | F1 | Reubicar tipos de dominio en su paquete final, cero cambio de lógica | ✅ 15 tipos en `catalog`, `classification`, `scrape`, `scheduling` |
-| F2 | Un puerto de capacidad por agregado de persistencia | 10 de 13: `CronPort`, `FavoritosPort`, `PresetPort`, `HistorialPort`, `CatalogQueryPort`, `ProductPort`, `CategoriaStatsPort`, `MlOutputPort`, `ScrapeRunPort`, `SitiosPort` |
+| F2 | Un puerto de capacidad por agregado de persistencia | ✅ 13 de 13: `CronPort`, `FavoritosPort`, `PresetPort`, `HistorialPort`, `CatalogQueryPort`, `ProductPort`, `CategoriaStatsPort`, `MlOutputPort`, `ScrapeRunPort`, `SitiosPort`, `FeedbackPort`, `SavedOutfitsPort`, `PreciosExternosPort` |
 | F3 | Recortar áreas de `web/`; `cron/` se absorbe en `scheduling/`, que es el nombre final | — |
 | F4 | Endpoints sólo transporte | — |
 | Cierre | La verificación de Modulith reemplaza las reglas a mano | — |
@@ -273,6 +273,52 @@ Igual que F3, **esta extracción SÍ refrescó el store**: los seis constructore
 `MlOutputPort` es el único que no tuvo un tipo que lo ubicara —su payload es un `JsonNode` pelado— y **no** se le hizo un área `ml` propia: `ar.scraper.ml` ya existe y es infraestructura (el runner del subproceso Python, los enrichers), tanto que `areasSonSumideros` la lista entre los paquetes de los que un área NO puede depender. Un área homónima al lado de un paquete de infraestructura con el mismo nombre habría sido una trampa para el próximo lector. Va a `catalog`, que es de lo que el payload habla.
 
 `SitiosPort` arrastra un contrato que no se ve en la firma: **toda escritura termina en un `SiteRegistry.reload()`**, porque el registry cachea la tabla `sitio` y sin ese reload queda stale detrás de una escritura. Por eso el puerto recibe el `SiteRegistry`, y por eso una implementación que se saltee el reload está mal aunque compile. Lo que **no** subió al puerto es `PLATAFORMAS_VALIDAS`: `PlatformVocabularySyncTest` la alcanza por acceso de paquete para probar que coincide con el CHECK de SQL, y subirla la convertiría en API pública en vez de un invariante chequeado.
+
+**`FeedbackPort`/`SavedOutfitsPort`/`PreciosExternosPort`, del undécimo al
+decimotercero (extract-feedback-outfits-ports). F2 cierra acá: 13 de 13.** Los
+tres agregados no tienen nada en común entre sí — lo que los agrupa es que sus
+consumidores eran los tres últimos endpoints que todavía recibían la fachada
+entera, y los tres la dejan por completo: `OutfitsEndpoints` (los dos puertos de
+outfits), `RecomendadosEndpoints` y `ComparadorEndpoints`.
+
+`ar.scraper.feedback.FeedbackPort` (7 firmas) cubre `outfit_feedback_item` y
+`categoria_dismiss` juntas. Son dos tablas y **una sola señal** —lo que el
+usuario aceptó y lo que descartó—, y las dos superficies que la leen (el armador
+de outfits y el feed "Para ti") la consultan de a pares en cada request:
+partirla en dos puertos habría duplicado el consumidor sin separar ningún ciclo
+de vida. `ar.scraper.outfits.SavedOutfitsPort` (4 firmas) es `saved_outfits` y
+sus items. `ar.scraper.catalog.PreciosExternosPort` (2 firmas) es
+`precios_externos`, y **no** tuvo un área propia: su payload es
+`List<Map<String,Object>>`, sin ningún tipo que lo ubique, así que va a `catalog`
+porque de eso habla — el mismo criterio con el que `MlOutputPort` quedó ahí.
+`cargarPreciosExternos` entra a la regla ArchUnit aunque hoy no tenga un solo
+consumidor fuera de `db`: la regla describe el agregado, no el conteo de llamadas
+del commit que la escribe.
+
+`OutfitItemRow` se promovió primero, en su propio commit, de récord anidado en
+`DatabaseService` a `ar.scraper.feedback.OutfitItemRow` — mismo movimiento y
+mismo motivo que `Preset`/`HistorialEntry`: `areasSonSumideros` prohíbe que un
+puerto del área devuelva un tipo de `db`. Las áreas nuevas (`feedback`,
+`outfits`) entran a esa regla en el commit que las crea; un área sin esa línea no
+la vigila nadie.
+
+Las reglas `webUsaFeedbackPorElPuerto`/`webUsaOutfitsGuardadosPorElPuerto`/
+`webUsaPreciosExternosPorElPuerto` nacieron RED con 11, 4 y 1 violaciones. El
+store se refrescó con **una sola línea**: el constructor de `ComparadorEndpoints`
+adentro del ciclo `aggregator -> ml -> web`. Los de `OutfitsEndpoints` y
+`RecomendadosEndpoints` no aparecían en ningún ciclo congelado, así que
+ensancharlos no re-escribió nada. Siguen siendo 7 ciclos y ninguna slice nueva.
+
+**Lo que costó una vuelta: cuatro fixtures de `web` vivían de las respuestas por
+defecto del mock de la fachada.** Pasaban `mock(DatabaseService.class)` al
+endpoint, y Mockito devuelve colección vacía para un método que devuelve
+`List`/`Set` — así que `db.obtenerOutfitFeedback(...)` "andaba" sin stub. En
+cuanto el endpoint recibe un puerto, ese mismo mock devuelve **null** para
+`db.feedback()` y el fixture muere con un NPE que no nombra ningún cambio de
+comportamiento. La ruta ya estaba escrita por `ApiControllerFavoritosTest`:
+mockear el puerto y stubear el accessor. Y `SiteRegistrySingletonWiringTest` arma
+su contexto Spring **a mano**, clase por clase: un `@Repository` nuevo no aparece
+ahí solo.
 
 `AgentEndpoints` sale de la fachada por una vía distinta a las demás: sólo usaba `db.siteRegistry()`, o sea que siempre quiso el `@Component`, no la fachada. `ApiController` se lo pasa directo. La regla de sitios **no** prohíbe `siteRegistry()` a propósito: es un accessor, de la misma forma que `db.productos()`/`db.presets()`/`db.favoritos()`, y retirar esos accessors es trabajo de F4 —cuando los endpoints pasen a beans— no de esta slice. Prohibirlo acá habría ensanchado el constructor de `ApiController`, embebido 19 veces en el store congelado y armado a mano por 29 tests, sin retirar un solo repositorio.
 
