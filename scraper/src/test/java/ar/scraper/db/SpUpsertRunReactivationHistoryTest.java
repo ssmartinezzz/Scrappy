@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -81,7 +82,7 @@ class SpUpsertRunReactivationHistoryTest extends PostgresTestBase {
     }
 
     /** Saca a VUELVE del run (queda soft-deleted) y lo vuelve a traer al precio dado. */
-    private DatabaseService.UpsertStats desaparecerYVolver(double precioAlVolver) throws Exception {
+    private UpsertStats desaparecerYVolver(double precioAlVolver) throws Exception {
         db.upsertProductos(List.of(producto(OTRO, 500.0)));
         assertThat(db.esProductoActivo(VUELVE)).isFalse();
 
@@ -95,7 +96,7 @@ class SpUpsertRunReactivationHistoryTest extends PostgresTestBase {
         db.upsertProductos(List.of(producto(VUELVE, 750.0), producto(OTRO, 500.0)));
         assertThat(db.cargarHistorial(VUELVE)).hasSize(1);
 
-        DatabaseService.UpsertStats stats = desaparecerYVolver(750.0);
+        UpsertStats stats = desaparecerYVolver(750.0);
 
         // Swallow-guard, no la aserción del caso: ProductRepository devuelve
         // UpsertStats(0,0,0,0) ante un error SQL, así que un total de 2 filas
@@ -111,7 +112,7 @@ class SpUpsertRunReactivationHistoryTest extends PostgresTestBase {
     void aReactivatedProductIsNotCountedAsNew() throws Exception {
         db.upsertProductos(List.of(producto(VUELVE, 750.0), producto(OTRO, 500.0)));
 
-        DatabaseService.UpsertStats stats = desaparecerYVolver(750.0);
+        UpsertStats stats = desaparecerYVolver(750.0);
 
         assertThat(stats.nuevos()).isZero();
         assertThat(stats.sinCambios()).isEqualTo(2);
@@ -122,7 +123,7 @@ class SpUpsertRunReactivationHistoryTest extends PostgresTestBase {
     void aProductThatComesBackAtADifferentPriceStillRecordsTheChange() throws Exception {
         db.upsertProductos(List.of(producto(VUELVE, 750.0), producto(OTRO, 500.0)));
 
-        DatabaseService.UpsertStats stats = desaparecerYVolver(900.0);
+        UpsertStats stats = desaparecerYVolver(900.0);
 
         assertThat(stats.actualizados()).isEqualTo(1);
         assertThat(db.cargarHistorial(VUELVE)).hasSize(2);
@@ -133,7 +134,7 @@ class SpUpsertRunReactivationHistoryTest extends PostgresTestBase {
     @Test
     @DisplayName("una URL genuinamente nueva sigue contando como nueva y abriendo historial")
     void aGenuinelyNewUrlStillCountsAsNew() {
-        DatabaseService.UpsertStats stats =
+        UpsertStats stats =
                 db.upsertProductos(List.of(producto(VUELVE, 750.0)));
 
         assertThat(stats.nuevos()).isEqualTo(1);

@@ -9,6 +9,7 @@ import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
@@ -688,7 +689,4 @@ public class DatabaseService {
         cronPort.pruneCronExecutions(jobId, keep);
     }
 
-    // ─── Stats ───────────────────────────────────────────────────────────────
-
-    public record UpsertStats(int nuevos, int actualizados, int sinCambios, int desactivados) {}
 }
