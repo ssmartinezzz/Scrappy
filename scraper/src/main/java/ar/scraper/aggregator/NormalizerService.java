@@ -1,13 +1,13 @@
 package ar.scraper.aggregator;
 
-import ar.scraper.aggregator.normalize.BrandExtractor;
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
-import ar.scraper.aggregator.normalize.RubroResolver;
-import ar.scraper.aggregator.normalize.SiteRegistry;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
+import ar.scraper.classification.BrandExtractor;
+import ar.scraper.classification.RubroResolver;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.aggregator.normalize.SubcategoryResolver;
 import ar.scraper.model.Product;
 import org.springframework.stereotype.Component;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static ar.scraper.aggregator.normalize.SiteClassification.sitioKey;
+import static ar.scraper.classification.SiteClassification.sitioKey;
 
 /**
  * Normalización profunda post-scraping — orquestador puro.

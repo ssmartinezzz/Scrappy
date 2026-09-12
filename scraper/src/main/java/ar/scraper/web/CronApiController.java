@@ -1,9 +1,9 @@
 package ar.scraper.web;
 
-import ar.scraper.cron.CronExecution;
-import ar.scraper.cron.CronJob;
+import ar.scraper.scheduling.CronExecution;
+import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
 import ar.scraper.cron.CronJobService;
-import ar.scraper.db.DatabaseService;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -36,9 +36,9 @@ import java.util.Optional;
 public class CronApiController {
 
     private final CronJobService cronJobService;
-    private final DatabaseService db;
+    private final CronPort db;
 
-    public CronApiController(CronJobService cronJobService, DatabaseService db) {
+    public CronApiController(CronJobService cronJobService, CronPort db) {
         this.cronJobService = cronJobService;
         this.db = db;
     }

@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogPage;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;

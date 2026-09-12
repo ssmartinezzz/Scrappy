@@ -1,4 +1,4 @@
-package ar.scraper.db;
+package ar.scraper.catalog;
 
 import java.util.Map;
 

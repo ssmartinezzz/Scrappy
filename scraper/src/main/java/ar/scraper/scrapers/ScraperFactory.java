@@ -1,7 +1,7 @@
 package ar.scraper.scrapers;
 
-import ar.scraper.aggregator.normalize.SiteClassification;
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.SiteClassification;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.config.ScraperConfig.SiteConfig;
 

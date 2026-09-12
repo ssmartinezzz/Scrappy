@@ -1,4 +1,4 @@
-package ar.scraper.db;
+package ar.scraper.catalog;
 
 /**
  * Read-side value object for the manual classification lock (design D3/D4,

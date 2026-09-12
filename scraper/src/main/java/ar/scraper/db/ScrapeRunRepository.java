@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.scrape.CorridaInterrumpida;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,7 +1,8 @@
 package ar.scraper.db;
 
 import ar.scraper.aggregator.FacetCalculator;
-import ar.scraper.aggregator.ResultAggregator;
+import ar.scraper.catalog.CatalogResumen;
+import ar.scraper.catalog.Facets;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -37,8 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CatalogFacetsSqlEquivalenceTest extends PostgresTestBase {
 
     private CatalogQueryRepository repo;
-    private ResultAggregator.Facets enMemoria;
-    private ResultAggregator.Facets enSql;
+    private Facets enMemoria;
+    private Facets enSql;
 
     @BeforeEach
     void setUp() {

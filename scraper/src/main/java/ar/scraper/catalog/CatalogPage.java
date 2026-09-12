@@ -1,4 +1,4 @@
-package ar.scraper.db;
+package ar.scraper.catalog;
 
 import ar.scraper.model.Product;
 

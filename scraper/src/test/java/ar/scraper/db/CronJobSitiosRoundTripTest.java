@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.cron.CronJob;
+import ar.scraper.scheduling.CronJob;
 import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;

@@ -1,7 +1,7 @@
 package ar.scraper.db.migration;
 
-import ar.scraper.cron.CronExecution;
-import ar.scraper.cron.CronJob;
+import ar.scraper.scheduling.CronExecution;
+import ar.scraper.scheduling.CronJob;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.db.support.UsuarioDePrueba;

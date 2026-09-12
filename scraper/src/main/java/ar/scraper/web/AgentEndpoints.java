@@ -1,8 +1,8 @@
 package ar.scraper.web;
 
-import ar.scraper.aggregator.normalize.CategoryGroups;
-import ar.scraper.aggregator.normalize.RubroResolver;
-import ar.scraper.aggregator.normalize.SiteClassification;
+import ar.scraper.classification.CategoryGroups;
+import ar.scraper.classification.RubroResolver;
+import ar.scraper.classification.SiteClassification;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;

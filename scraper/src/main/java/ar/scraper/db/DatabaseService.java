@@ -1,8 +1,16 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.SiteRegistry;
-import ar.scraper.cron.CronExecution;
-import ar.scraper.cron.CronJob;
+import ar.scraper.classification.SiteRegistry;
+import ar.scraper.catalog.CategoriaStats;
+import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogResumen;
+import ar.scraper.catalog.ClasificacionBloqueada;
+import ar.scraper.catalog.Facets;
+import ar.scraper.scheduling.CronExecution;
+import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
+import ar.scraper.scrape.CorridaInterrumpida;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PostConstruct;
@@ -44,12 +52,7 @@ public class DatabaseService {
 
     private final DataSource dataSource;
 
-    /**
-     * Per-aggregate repository holding the {@code cron_jobs}/{@code cron_executions}
-     * bodies (backlog A3). Built here rather than injected so this constructor's
-     * shape (DataSource only) stays unchanged for the existing test call sites.
-     */
-    private final CronRepository cronRepository;
+    private final CronPort cronPort;
     private final PresetRepository presetRepository;
     private final FavoritosRepository favoritosRepository;
     private final FeedbackRepository feedbackRepository;
@@ -75,15 +78,15 @@ public class DatabaseService {
      * instance is behaviorally identical to them.
      */
     public DatabaseService(DataSource dataSource) {
-        this(dataSource, new SiteRegistry(dataSource));
+        this(dataSource, new SiteRegistry(dataSource), new CronRepository(dataSource));
     }
 
     @Autowired
-    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry) {
+    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
+        this.cronPort = cronPort;
         this.catalogQueryRepository = new CatalogQueryRepository(dataSource, siteRegistry);
-        this.cronRepository = new CronRepository(dataSource);
         this.presetRepository = new PresetRepository(dataSource);
         this.favoritosRepository = new FavoritosRepository(dataSource);
         this.feedbackRepository = new FeedbackRepository(dataSource);
@@ -304,12 +307,12 @@ public class DatabaseService {
     }
 
     /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
-    public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo() {
+    public Facets facetasCatalogo() {
         return catalogQueryRepository.facetas();
     }
 
     /** @param cota the open run's started_at; empty counts the whole catalogue. */
-    public ar.scraper.aggregator.ResultAggregator.Facets facetasCatalogo(
+    public Facets facetasCatalogo(
             java.util.Optional<java.time.Instant> cota) {
         return catalogQueryRepository.facetas(cota);
     }
@@ -601,67 +604,67 @@ public class DatabaseService {
         return savedOutfitsRepository.renombrarOutfit(usuarioId, id, nombre);
     }
 
-    // ─── Cron Jobs + Executions. Bodies in CronRepository (backlog A3);
-    // this class keeps the public surface and delegates.
+    // ─── Cron Jobs + Executions. Bodies behind CronPort (extract-database-ports
+    // F2); this class keeps the public surface and delegates.
     // ─────────────────────────────────────────────────────────────────────
 
     public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
-        return cronRepository.insertCronJob(name, precioMin, precioMax, sitios,
+        return cronPort.insertCronJob(name, precioMin, precioMax, sitios,
                 forceRetrain, useGpu, cronExpr, enabled, nextRunAt);
     }
 
     /** Retorna {@code false} sin persistir si {@code id} no existe. */
     public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
-        return cronRepository.updateCronJob(id, name, precioMin, precioMax, sitios,
+        return cronPort.updateCronJob(id, name, precioMin, precioMax, sitios,
                 forceRetrain, useGpu, cronExpr, enabled, nextRunAt);
     }
 
     /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
     public boolean deleteCronJob(long id) {
-        return cronRepository.deleteCronJob(id);
+        return cronPort.deleteCronJob(id);
     }
 
     public List<CronJob> listCronJobs() {
-        return cronRepository.listCronJobs();
+        return cronPort.listCronJobs();
     }
 
     public Optional<CronJob> getCronJob(long id) {
-        return cronRepository.getCronJob(id);
+        return cronPort.getCronJob(id);
     }
 
     /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
     public boolean touchLastRunAt(long jobId, String lastRunAt) {
-        return cronRepository.touchLastRunAt(jobId, lastRunAt);
+        return cronPort.touchLastRunAt(jobId, lastRunAt);
     }
 
     /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
     public boolean updateNextRunAt(long jobId, String nextRunAt) {
-        return cronRepository.updateNextRunAt(jobId, nextRunAt);
+        return cronPort.updateNextRunAt(jobId, nextRunAt);
     }
 
     public long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {
-        return cronRepository.insertCronExecution(jobId, startedAt, status, skippedReason);
+        return cronPort.insertCronExecution(jobId, startedAt, status, skippedReason);
     }
 
     public boolean updateCronExecution(long execId, String finishedAt, String status,
             String skippedReason, String logOutput, Integer durationMs) {
-        return cronRepository.updateCronExecution(execId, finishedAt, status,
+        return cronPort.updateCronExecution(execId, finishedAt, status,
                 skippedReason, logOutput, durationMs);
     }
 
     public List<CronExecution> listExecutions(long jobId, int limit) {
-        return cronRepository.listExecutions(jobId, limit);
+        return cronPort.listExecutions(jobId, limit);
     }
 
     public Optional<CronExecution> getExecution(long execId) {
-        return cronRepository.getExecution(execId);
+        return cronPort.getExecution(execId);
     }
 
     /** Retiene solo las últimas {@code keep} ejecuciones por job (decision 7: 50). */
     public void pruneCronExecutions(long jobId, int keep) {
-        cronRepository.pruneCronExecutions(jobId, keep);
+        cronPort.pruneCronExecutions(jobId, keep);
     }
 
     // ─── Stats ───────────────────────────────────────────────────────────────

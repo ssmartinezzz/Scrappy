@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.SiteRegistry;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -35,7 +35,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Deliberately NOT {@code @SpringBootTest} (see {@code SpringWiringTest}'s
  * doc comment for why this codebase avoids booting the full application in
  * a test — browser, network, Flyway side effects). This registers only the
- * two beans under test plus a {@link DataSource} stub that fails every
+ * two beans under test, {@link CronRepository} to satisfy
+ * {@code DatabaseService}'s {@link ar.scraper.scheduling.CronPort} dependency
+ * (extract-database-ports F2), plus a {@link DataSource} stub that fails every
  * connection attempt on purpose: {@link SiteRegistry#reload} and
  * {@link DatabaseService}'s {@code @PostConstruct} both swallow that
  * failure (same "infra absence never fails the suite" posture as
@@ -102,7 +104,7 @@ class SiteRegistrySingletonWiringTest {
     @DisplayName("context.getBean(SiteRegistry.class) es exactamente db.siteRegistry()")
     void databaseServiceSiteRegistryIsTheSameSpringSingleton() {
         try (var context = new AnnotationConfigApplicationContext(
-                UnreachableDataSourceConfig.class, SiteRegistry.class, DatabaseService.class)) {
+                UnreachableDataSourceConfig.class, SiteRegistry.class, CronRepository.class, DatabaseService.class)) {
 
             SiteRegistry theSingleton = context.getBean(SiteRegistry.class);
             DatabaseService db = context.getBean(DatabaseService.class);

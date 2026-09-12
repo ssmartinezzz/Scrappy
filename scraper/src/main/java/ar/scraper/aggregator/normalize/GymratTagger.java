@@ -1,6 +1,8 @@
 package ar.scraper.aggregator.normalize;
 
 import ar.scraper.aggregator.text.AccentStripper;
+import ar.scraper.classification.CategoryGroups;
+import ar.scraper.classification.SiteClassification;
 import org.springframework.stereotype.Component;
 
 /**

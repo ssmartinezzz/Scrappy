@@ -35,6 +35,9 @@
              (added to Boot's managed BOM in later 3.2.x/3.3 lines) — pin explicitly, matching
              the flyway-core version Boot 3.2.5 DOES manage (10.10.0). -->
         <flyway.version>10.10.0</flyway.version>
+        <!-- Boot 3.2.5's BOM does not manage ArchUnit either, so it is pinned
+             here like BouncyCastle and Nimbus above. -->
+        <archunit.version>1.5.0</archunit.version>
     </properties>
 
     <dependencyManagement>
@@ -186,6 +189,14 @@
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjweaver</artifactId>
             <version>${aspectj.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ArchUnit: enforces backend layering as executable tests (decouple-backend-layers). -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

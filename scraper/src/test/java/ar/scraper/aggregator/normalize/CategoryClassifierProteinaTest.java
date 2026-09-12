@@ -1,5 +1,6 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.classification.CategoryGroups;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;

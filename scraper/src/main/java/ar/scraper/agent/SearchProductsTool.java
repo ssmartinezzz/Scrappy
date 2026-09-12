@@ -1,7 +1,7 @@
 package ar.scraper.agent;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.normalize.CategoryGroups;
+import ar.scraper.classification.CategoryGroups;
 import ar.scraper.aggregator.text.AccentStripper;
 import ar.scraper.model.Product;
 import ar.scraper.web.ScraperService;
