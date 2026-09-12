@@ -1,6 +1,7 @@
 package ar.scraper.architecture;
 
 import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -39,19 +40,41 @@ class BackendLayeringArchTest {
         .that().resideInAPackage("ar.scraper.db..")
         .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.aggregator..");
 
+    // F3b carve-out: outfits (SupplementCombo) still needs two aggregator leaves,
+    // GarmentTaxonomy and AccentStripper (KW_BCAA_SUP / KW_PRE_WORKOUT_SUP /
+    // KW_COLAGENO). They can't move today: CODE-6 (one taxonomy, one owner) and
+    // AccentStripper is a hot path with 10 consumers. RETIRE PATH: when the
+    // supplement keywords find a shared home outside aggregator, delete
+    // AGREGATOR_LEAVES_F3B and forbid `ar.scraper.aggregator..` again wholesale.
+    private static final Set<String> AGREGATOR_LEAVES_F3B = Set.of(
+        "ar.scraper.aggregator.normalize.GarmentTaxonomy",
+        "ar.scraper.aggregator.text.AccentStripper");
+
     @ArchTest
     static final ArchRule areasSonSumideros = noClasses()
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
                                    "ar.scraper.favoritos..", "ar.scraper.financiacion..",
                                    "ar.scraper.feedback..", "ar.scraper.outfits..")
-        .should().dependOnClassesThat()
-        .resideInAnyPackage("ar.scraper.db..",
-                            "ar.scraper.aggregator..", "ar.scraper.web..",
-                            "ar.scraper.ml..", "ar.scraper.agent..",
-                            "ar.scraper.security..", "ar.scraper.config..",
-                            "ar.scraper.scrapers..", "ar.scraper.pages..",
-                            "ar.scraper.health..", "ar.scraper.identity..");
+        .should().dependOnClassesThat(
+            JavaClass.Predicates.resideInAnyPackage("ar.scraper.db..",
+                                                    "ar.scraper.aggregator..",
+                                                    "ar.scraper.web..",
+                                                    "ar.scraper.ml..",
+                                                    "ar.scraper.agent..",
+                                                    "ar.scraper.security..",
+                                                    "ar.scraper.config..",
+                                                    "ar.scraper.scrapers..",
+                                                    "ar.scraper.pages..",
+                                                    "ar.scraper.health..",
+                                                    "ar.scraper.identity..")
+            .and(DescribedPredicate.not(new DescribedPredicate<JavaClass>(
+                    "an aggregator leaf under the F3b carve-out") {
+                @Override
+                public boolean test(JavaClass target) {
+                    return AGREGATOR_LEAVES_F3B.contains(target.getName());
+                }
+            })));
 
     // ── close-backend-package-cycles (F3a) ──────────────────────────────────
     // Las unicas aristas que entran a `web` desde adentro del backend son tres:

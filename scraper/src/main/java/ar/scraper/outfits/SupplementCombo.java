@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.outfits;
 
 import ar.scraper.aggregator.normalize.GarmentTaxonomy;
 import ar.scraper.aggregator.text.AccentStripper;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * <p>{@code SupplementPick} stays nested on OutfitService — callers and tests
  * name it {@code OutfitService.SupplementPick}.</p>
  */
-class SupplementCombo {
+public class SupplementCombo {
 
     /**
      * Only used for {@code baseMlScore}, the tiebreak for candidates whose package
@@ -236,7 +236,7 @@ class SupplementCombo {
      * Los subtipos que arma el combo que acompaña al outfit de Gym — todos menos los
      * de comida. Ver {@link SubtipoSuplemento#comida}.
      */
-    static final Set<String> TIPOS_COMBO_OUTFIT = SUPLEMENTO_SUBTIPOS.stream()
+    public static final Set<String> TIPOS_COMBO_OUTFIT = SUPLEMENTO_SUBTIPOS.stream()
             .filter(s -> !s.comida())
             .map(SubtipoSuplemento::tipo)
             .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -596,7 +596,7 @@ class SupplementCombo {
      * Los subtipos del combo, en orden de armado, para que el selector del frontend deje
      * de mantener su propia copia. Expuesto vía {@code GET /api/suplementos/tipos}.
      */
-    static List<OutfitService.SupplementTipo> tiposDisponibles() {
+    public static List<OutfitService.SupplementTipo> tiposDisponibles() {
         return SUPLEMENTO_SUBTIPOS.stream()
                 .map(s -> new OutfitService.SupplementTipo(s.tipo(), s.grupo()))
                 .collect(Collectors.toList());

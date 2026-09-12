@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.outfits;
 
 import ar.scraper.model.Product;
 
