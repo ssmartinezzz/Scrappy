@@ -61,6 +61,9 @@ class ApiControllerStatusScrapeTest {
         recommendationService = mock(RecommendationService.class);
         controller = new ApiController(service, inflacionService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
+        // The controller reads db.favoritos() while wiring its endpoints; forget that
+        // so verifyNoInteractions(db) below keeps asserting what each route does.
+        clearInvocations(db);
     }
 
     // ── GET /api/status ──────────────────────────────────────────────────

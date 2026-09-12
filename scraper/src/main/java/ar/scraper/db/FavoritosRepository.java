@@ -1,7 +1,9 @@
 package ar.scraper.db;
 
+import ar.scraper.favoritos.FavoritosPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -36,8 +38,12 @@ import java.util.UUID;
  * fails loudly here rather than silently matching the wrong index — and a silent
  * failure would read as "no favourites saved", because the methods below log and
  * swallow.</p>
+ *
+ * <p>Implements {@link FavoritosPort} (extract-favoritos-port) so {@code ar.scraper.web}
+ * depends on that port, not on {@code DatabaseService} directly.</p>
  */
-class FavoritosRepository {
+@Repository
+class FavoritosRepository implements FavoritosPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(FavoritosRepository.class);
 
@@ -47,7 +53,8 @@ class FavoritosRepository {
         this.dataSource = dataSource;
     }
 
-    void guardarFavorito(UUID usuarioId, String url, String sitio, String nombre) {
+    @Override
+    public void guardarFavorito(UUID usuarioId, String url, String sitio, String nombre) {
         Objects.requireNonNull(usuarioId, "usuarioId must not be null");
         Objects.requireNonNull(url, "url must not be null");
         try (Connection c = dataSource.getConnection();
@@ -68,7 +75,8 @@ class FavoritosRepository {
         }
     }
 
-    void eliminarFavorito(UUID usuarioId, String url) {
+    @Override
+    public void eliminarFavorito(UUID usuarioId, String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM favoritos WHERE usuario_id=? AND url=?")) {
@@ -80,7 +88,8 @@ class FavoritosRepository {
         }
     }
 
-    List<Map<String, String>> listarFavoritos(UUID usuarioId) {
+    @Override
+    public List<Map<String, String>> listarFavoritos(UUID usuarioId) {
         List<Map<String, String>> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -112,7 +121,8 @@ class FavoritosRepository {
      * when they want "all of them", which is exactly the door this class keeps
      * shut.</p>
      */
-    void tocarFavorito(UUID usuarioId, String url) {
+    @Override
+    public void tocarFavorito(UUID usuarioId, String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE favoritos SET last_checked_at=? WHERE usuario_id=? AND url=?")) {
