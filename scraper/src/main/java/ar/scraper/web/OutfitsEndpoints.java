@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import ar.scraper.outfits.FeedbackModels;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.SupplementCombo;
+import ar.scraper.identity.Sujeto;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;

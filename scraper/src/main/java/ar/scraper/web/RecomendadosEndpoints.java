@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.model.Product;
 import ar.scraper.catalog.ProductJson;
+import ar.scraper.identity.Sujeto;
 import ar.scraper.outfits.FeedbackModels;
 import ar.scraper.outfits.RecommendationService;
 import com.fasterxml.jackson.databind.node.ArrayNode;

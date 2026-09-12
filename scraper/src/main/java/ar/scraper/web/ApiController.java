@@ -9,6 +9,7 @@ import ar.scraper.catalog.ProductJson;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.identity.ActorResolver;
+import ar.scraper.identity.Sujeto;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ReclassifyProposal;
