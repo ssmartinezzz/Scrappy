@@ -4,6 +4,7 @@ import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
+import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.testsupport.AllureSteps;
@@ -36,6 +37,7 @@ class ApiControllerFavoritosTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private FavoritosPort favoritosPort;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -59,6 +61,8 @@ class ApiControllerFavoritosTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        favoritosPort         = mock(FavoritosPort.class);
+        when(db.favoritos()).thenReturn(favoritosPort);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -85,7 +89,7 @@ class ApiControllerFavoritosTest {
 
     @Step("Stub DB with no favoritos")
     private void givenNoFavoritos() {
-        when(db.listarFavoritos(any())).thenReturn(List.of());
+        when(favoritosPort.listarFavoritos(any())).thenReturn(List.of());
     }
 
     @Test
@@ -108,7 +112,7 @@ class ApiControllerFavoritosTest {
         var row = Map.of(
                 "url", url, "sitio", "Sporting", "nombre", "Zapatillas Nike",
                 "added_at", "2025-01-01", "last_checked_at", "2025-01-15");
-        when(db.listarFavoritos(any())).thenReturn(List.of(row));
+        when(favoritosPort.listarFavoritos(any())).thenReturn(List.of(row));
         when(db.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
         when(db.esProductoActivo(url)).thenReturn(true);
     }
@@ -129,7 +133,7 @@ class ApiControllerFavoritosTest {
     private void givenInactiveFavoritoRow(String url) {
         var row = Map.of("url", url, "sitio", "S", "nombre", "N",
                 "added_at", "2025-01-01", "last_checked_at", "2025-01-01");
-        when(db.listarFavoritos(any())).thenReturn(List.of(row));
+        when(favoritosPort.listarFavoritos(any())).thenReturn(List.of(row));
         when(db.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
         when(db.esProductoActivo(url)).thenReturn(false);
     }
@@ -147,7 +151,7 @@ class ApiControllerFavoritosTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
-        verify(db, never()).guardarFavorito(any(), any(), any(), any());
+        verify(favoritosPort, never()).guardarFavorito(any(), any(), any(), any());
     }
 
     @Test
@@ -171,7 +175,7 @@ class ApiControllerFavoritosTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).guardarFavorito(any(), eq("https://a.com/1"), eq("Sporting"), eq("Nike Air Max"));
+        verify(favoritosPort).guardarFavorito(any(), eq("https://a.com/1"), eq("Sporting"), eq("Nike Air Max"));
     }
 
     @Step("Add favorito: url={url}, sitio={sitio}, nombre={nombre}")
@@ -191,7 +195,7 @@ class ApiControllerFavoritosTest {
         JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).eliminarFavorito(any(), eq("https://a.com/1"));
+        verify(favoritosPort).eliminarFavorito(any(), eq("https://a.com/1"));
     }
 
     @Step("Delete favorito {url}")

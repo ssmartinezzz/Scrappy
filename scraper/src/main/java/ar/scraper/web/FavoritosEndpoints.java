@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 
+import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.identity.ActorResolver;
 
 import java.util.Map;
@@ -19,20 +20,28 @@ import java.util.Map;
  * <p>{@code DELETE /api/data} is deliberately NOT here. It is written inside the
  * favoritos region of the controller, but it soft-deletes a catalog product and
  * belongs with the catalog endpoints.</p>
+ *
+ * <p>Favoritos persistence goes through {@link FavoritosPort} (extract-favoritos-port).
+ * {@code DatabaseService} is kept only for {@code obtenerProducto}/{@code esProductoActivo}
+ * (catalog reads) until the catalog aggregate has its own port — a declared temporary
+ * dual dependency, not an oversight.</p>
  */
 class FavoritosEndpoints {
 
+    private final FavoritosPort favoritos;
     private final ar.scraper.db.DatabaseService db;
     private final ActorResolver actorResolver;
 
-    FavoritosEndpoints(ar.scraper.db.DatabaseService db, ActorResolver actorResolver) {
+    FavoritosEndpoints(FavoritosPort favoritos, ar.scraper.db.DatabaseService db,
+                       ActorResolver actorResolver) {
+        this.favoritos = favoritos;
         this.db = db;
         this.actorResolver = actorResolver;
     }
 
     ResponseEntity<ArrayNode> getFavoritos() {
         ArrayNode arr = JsonNodeFactory.instance.arrayNode();
-        for (var f : db.listarFavoritos(Sujeto.de(actorResolver))) {
+        for (var f : favoritos.listarFavoritos(Sujeto.de(actorResolver))) {
             String url = f.get("url");
             ObjectNode n = arr.addObject();
             // Si tenemos el producto en la DB, volcamos sus campos con la misma
@@ -60,14 +69,14 @@ class FavoritosEndpoints {
             resp.put("mensaje", "url y sitio obligatorios");
             return ResponseEntity.badRequest().body(resp);
         }
-        db.guardarFavorito(Sujeto.de(actorResolver), url, sitio, nombre);
+        favoritos.guardarFavorito(Sujeto.de(actorResolver), url, sitio, nombre);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }
 
     ResponseEntity<ObjectNode> deleteFavorito(String url) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        db.eliminarFavorito(Sujeto.de(actorResolver), url);
+        favoritos.eliminarFavorito(Sujeto.de(actorResolver), url);
         resp.put("ok", true);
         return ResponseEntity.ok(resp);
     }

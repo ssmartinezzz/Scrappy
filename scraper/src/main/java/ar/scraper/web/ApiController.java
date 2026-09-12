@@ -149,7 +149,7 @@ public class ApiController {
                                                                db, aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService, actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService, actorResolver);
-        this.favoritosEndpoints = new FavoritosEndpoints(db, actorResolver);
+        this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db, actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db, aggregator, pythonRunner);
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);

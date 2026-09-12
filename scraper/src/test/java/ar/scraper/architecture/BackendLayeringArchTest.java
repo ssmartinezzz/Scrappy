@@ -1,11 +1,15 @@
 package ar.scraper.architecture;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.library.freeze.FreezingArchRule;
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
+
+import java.util.Set;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -34,7 +38,8 @@ class BackendLayeringArchTest {
     @ArchTest
     static final ArchRule areasSonSumideros = noClasses()
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
-                                   "ar.scraper.scrape..", "ar.scraper.scheduling..")
+                                   "ar.scraper.scrape..", "ar.scraper.scheduling..",
+                                   "ar.scraper.favoritos..")
         .should().dependOnClassesThat()
         .resideInAnyPackage("ar.scraper.db..", "ar.scraper.cron..",
                             "ar.scraper.aggregator..", "ar.scraper.web..",
@@ -47,4 +52,20 @@ class BackendLayeringArchTest {
     static final ArchRule cronNoDependeDeDb = noClasses()
         .that().resideInAPackage("ar.scraper.cron..")
         .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.db..");
+
+    // The favoritos aggregate's 4 methods on DatabaseService (extract-favoritos-port).
+    private static final Set<String> METODOS_FAVORITOS =
+        Set.of("guardarFavorito", "eliminarFavorito", "listarFavoritos", "tocarFavorito");
+
+    @ArchTest
+    static final ArchRule webUsaFavoritosPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a favoritos method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_FAVORITOS.contains(call.getTarget().getName());
+            }
+        });
 }

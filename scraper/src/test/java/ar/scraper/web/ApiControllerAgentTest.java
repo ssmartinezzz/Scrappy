@@ -97,6 +97,9 @@ class ApiControllerAgentTest {
         agentConfig           = mock(AgentConfig.class);
         controller = new ApiController(service, inflacionService, config, aggregator, db, grouping,
                 pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig);
+        // The controller reads db.favoritos() while wiring its endpoints; forget that
+        // so verifyNoInteractions(db) below keeps asserting what each route does.
+        clearInvocations(db);
 
         objectMapper = new ObjectMapper();
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -583,6 +586,7 @@ class ApiControllerAgentTest {
         ApiController controllerConActor = new ApiController(service, inflacionService, config, aggregator, db,
                 grouping, pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig,
                 actorResolver);
+        clearInvocations(db);
 
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));

@@ -7,6 +7,7 @@ import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
+import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
@@ -54,7 +55,7 @@ public class DatabaseService {
 
     private final CronPort cronPort;
     private final PresetRepository presetRepository;
-    private final FavoritosRepository favoritosRepository;
+    private final FavoritosPort favoritosPort;
     private final FeedbackRepository feedbackRepository;
     private final SavedOutfitsRepository savedOutfitsRepository;
     private final MlOutputRepository mlOutputRepository;
@@ -78,17 +79,19 @@ public class DatabaseService {
      * instance is behaviorally identical to them.
      */
     public DatabaseService(DataSource dataSource) {
-        this(dataSource, new SiteRegistry(dataSource), new CronRepository(dataSource));
+        this(dataSource, new SiteRegistry(dataSource), new CronRepository(dataSource),
+                new FavoritosRepository(dataSource));
     }
 
     @Autowired
-    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort) {
+    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort,
+            FavoritosPort favoritosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
         this.cronPort = cronPort;
+        this.favoritosPort = favoritosPort;
         this.catalogQueryRepository = new CatalogQueryRepository(dataSource, siteRegistry);
         this.presetRepository = new PresetRepository(dataSource);
-        this.favoritosRepository = new FavoritosRepository(dataSource);
         this.feedbackRepository = new FeedbackRepository(dataSource);
         this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
         this.mlOutputRepository = new MlOutputRepository(dataSource);
@@ -102,6 +105,12 @@ public class DatabaseService {
 
     public SiteRegistry siteRegistry() {
         return siteRegistry;
+    }
+
+    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
+     *  need the port, e.g. {@code ApiController} wiring {@code FavoritosEndpoints}. */
+    public FavoritosPort favoritos() {
+        return favoritosPort;
     }
 
 
@@ -445,19 +454,19 @@ public class DatabaseService {
     // ─────────────────────────────────────────────────────────────────────
 
     public void guardarFavorito(UUID usuarioId, String url, String sitio, String nombre) {
-        favoritosRepository.guardarFavorito(usuarioId, url, sitio, nombre);
+        favoritosPort.guardarFavorito(usuarioId, url, sitio, nombre);
     }
 
     public void eliminarFavorito(UUID usuarioId, String url) {
-        favoritosRepository.eliminarFavorito(usuarioId, url);
+        favoritosPort.eliminarFavorito(usuarioId, url);
     }
 
     public List<Map<String, String>> listarFavoritos(UUID usuarioId) {
-        return favoritosRepository.listarFavoritos(usuarioId);
+        return favoritosPort.listarFavoritos(usuarioId);
     }
 
     public void tocarFavorito(UUID usuarioId, String url) {
-        favoritosRepository.tocarFavorito(usuarioId, url);
+        favoritosPort.tocarFavorito(usuarioId, url);
     }
 
     // ─── Outfit feedback + categoria dismiss. Bodies in FeedbackRepository
