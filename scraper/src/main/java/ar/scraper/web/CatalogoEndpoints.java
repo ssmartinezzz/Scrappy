@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.financiacion.InflacionService;
+
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;

@@ -1,7 +1,5 @@
-package ar.scraper.cron;
+package ar.scraper.scheduling;
 
-import ar.scraper.scheduling.CronJob;
-import ar.scraper.scheduling.CronPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;

@@ -2,7 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
-import ar.scraper.cron.CronJobService;
+import ar.scraper.scheduling.CronJobService;
 import ar.scraper.scheduling.CronPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;

@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteClassification;
@@ -105,7 +107,7 @@ class AgentEndpoints {
     }
 
     ResponseEntity<Object> agentChat(Map<String, Object> body) {
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             return ResponseEntity.status(409)
                     .body(Map.of("mensaje", "Hay un scraping en curso. Esperá a que termine."));
         }
@@ -168,7 +170,7 @@ class AgentEndpoints {
     }
 
     ResponseEntity<Object> agentApply(ReclassifyProposal body) {
-        if (service.getStatus() == ScraperService.ScraperStatus.RUNNING) {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
             return ResponseEntity.status(409)
                     .body(Map.of("ok", false, "mensaje", "Hay un scraping en curso. Esperá a que termine."));
         }

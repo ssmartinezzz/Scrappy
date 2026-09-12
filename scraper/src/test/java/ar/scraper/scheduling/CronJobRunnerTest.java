@@ -1,11 +1,7 @@
-package ar.scraper.cron;
+package ar.scraper.scheduling;
 
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.ml.PythonRunner;
-import ar.scraper.scheduling.CronJob;
-import ar.scraper.scheduling.CronPort;
-import ar.scraper.web.ScraperService;
-import ar.scraper.web.ScraperService.ScraperStatus;
+import ar.scraper.scrape.ScrapeControlPort;
+import ar.scraper.scrape.ScraperStatus;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
@@ -40,9 +36,7 @@ class CronJobRunnerTest {
     private final Clock clock = Clock.fixed(
             Instant.parse("2026-07-05T03:00:00Z"), ZoneId.of("UTC"));
 
-    private ScraperService scraperService;
-    private ScraperConfig config;
-    private PythonRunner pythonRunner;
+    private ScrapeControlPort scrape;
     private CronPort db;
     private CronJobRunner runner;
 
@@ -53,11 +47,9 @@ class CronJobRunnerTest {
 
     @Step("Wire CronJobRunner with mocked collaborators")
     private void wireRunner() {
-        scraperService = mock(ScraperService.class);
-        config = mock(ScraperConfig.class);
-        pythonRunner = mock(PythonRunner.class);
+        scrape = mock(ScrapeControlPort.class);
         db = mock(CronPort.class);
-        runner = new CronJobRunner(scraperService, config, pythonRunner, db, clock);
+        runner = new CronJobRunner(scrape, db, clock);
     }
 
     private CronJob job() {
@@ -68,34 +60,32 @@ class CronJobRunnerTest {
 
     @Test
     void runJobSkipsAndRecordsExecutionWhenScraperAlreadyRunning() {
-        when(scraperService.getStatus()).thenReturn(ScraperStatus.RUNNING);
+        when(scrape.estado()).thenReturn(ScraperStatus.RUNNING);
 
         runner.runJob(job());
 
-        verify(scraperService, never()).iniciarScraping(any(), anyBoolean());
+        verify(scrape, never()).iniciar(any(), anyBoolean());
         verify(db).insertCronExecution(eq(1L), anyString(), eq("skipped"), anyString());
         verify(db, never()).updateCronExecution(anyLong(), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
     void runJobRestoresPriceAndGpuFlagInFinallyEvenWhenIniciarScrapingThrows() {
-        when(scraperService.getStatus()).thenReturn(ScraperStatus.IDLE);
-        when(config.getPrecioMinimo()).thenReturn(100.0);
-        when(config.getPrecioMaximo()).thenReturn(200.0);
+        when(scrape.estado()).thenReturn(ScraperStatus.IDLE);
+        when(scrape.precioMinimo()).thenReturn(100.0);
+        when(scrape.precioMaximo()).thenReturn(200.0);
         when(db.insertCronExecution(anyLong(), anyString(), eq("running"), any())).thenReturn(99L);
         doThrow(new RuntimeException("boom"))
-                .when(scraperService).iniciarScraping(any(), anyBoolean());
+                .when(scrape).iniciar(any(), anyBoolean());
 
         runner.runJob(job());
 
         // job's own range applied before the throw, then restored to prev values in finally
-        verify(config).setPrecioMinimo(1000.0);
-        verify(config).setPrecioMaximo(50000.0);
-        verify(config).setPrecioMinimo(100.0);
-        verify(config).setPrecioMaximo(200.0);
+        verify(scrape).aplicarBandaDePrecio(1000.0, 50000.0);
+        verify(scrape).aplicarBandaDePrecio(100.0, 200.0);
 
-        verify(pythonRunner).setUseGpu(false); // job.useGpu()==false, applied before the throw
-        verify(pythonRunner).setUseGpu(true);  // reset to default in finally
+        verify(scrape).usarGpu(false); // job.useGpu()==false, applied before the throw
+        verify(scrape).usarGpu(true);  // reset to default in finally
 
         verify(db).updateCronExecution(eq(99L), anyString(), eq("error"), any(), any(), anyInt());
         verify(db).touchLastRunAt(eq(1L), anyString());
@@ -104,15 +94,15 @@ class CronJobRunnerTest {
 
     @Test
     void runJobRecordsSuccessAndPassesSelectionAndForceRetrain() {
-        when(scraperService.getStatus())
+        when(scrape.estado())
                 .thenReturn(ScraperStatus.IDLE)   // guard check
                 .thenReturn(ScraperStatus.DONE);  // awaitTerminal + final check
         when(db.insertCronExecution(anyLong(), anyString(), eq("running"), any())).thenReturn(5L);
-        when(scraperService.iniciarScraping(any(), anyBoolean())).thenReturn(true);
+        when(scrape.iniciar(any(), anyBoolean())).thenReturn(true);
 
         runner.runJob(job());
 
-        verify(scraperService).iniciarScraping(eq(Set.of("Freres", "VCP")), eq(true));
+        verify(scrape).iniciar(eq(Set.of("Freres", "VCP")), eq(true));
         verify(db).updateCronExecution(eq(5L), anyString(), eq("success"), any(), any(), anyInt());
         verify(db).pruneCronExecutions(eq(1L), eq(50));
     }
@@ -121,14 +111,14 @@ class CronJobRunnerTest {
 
     @Test
     void isScraperBusyReturnsTrueWhenRunning() {
-        when(scraperService.getStatus()).thenReturn(ScraperStatus.RUNNING);
+        when(scrape.estado()).thenReturn(ScraperStatus.RUNNING);
 
         assertThat(runner.isScraperBusy()).isTrue();
     }
 
     @Test
     void isScraperBusyReturnsFalseWhenNotRunning() {
-        when(scraperService.getStatus()).thenReturn(ScraperStatus.IDLE);
+        when(scrape.estado()).thenReturn(ScraperStatus.IDLE);
 
         assertThat(runner.isScraperBusy()).isFalse();
     }
