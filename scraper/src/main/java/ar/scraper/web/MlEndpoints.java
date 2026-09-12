@@ -23,19 +23,25 @@ class MlEndpoints {
         org.slf4j.LoggerFactory.getLogger(MlEndpoints.class);
 
     private final ScraperService service;
+    // Declared dual dependency (extract-catalog-query-port, D6): cargarCategoriaStats/
+    // guardarMlOutput below belong to repositories out of this slice's scope.
+    // actualizarCategoria/contarEmbeddings go through ProductPort instead.
     private final ar.scraper.db.DatabaseService db;
     private final ar.scraper.catalog.HistorialPort historial;
+    private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final ar.scraper.ml.PythonRunner pythonRunner;
 
     MlEndpoints(ScraperService service,
                 ar.scraper.db.DatabaseService db,
                 ar.scraper.catalog.HistorialPort historial,
+                ar.scraper.catalog.ProductPort productos,
                 ar.scraper.aggregator.ResultAggregator aggregator,
                 ar.scraper.ml.PythonRunner pythonRunner) {
         this.service = service;
         this.db = db;
         this.historial = historial;
+        this.productos = productos;
         this.aggregator = aggregator;
         this.pythonRunner = pythonRunner;
     }
@@ -124,7 +130,7 @@ class MlEndpoints {
                     enriquecidos.forEach(p -> {
                         String orig = catOrig.get(p.url());
                         if (orig != null && !p.categoria().equals(orig))
-                            try { db.actualizarCategoria(p.url(), p.categoria()); } catch(Exception ignored){}
+                            try { productos.actualizarCategoria(p.url(), p.categoria()); } catch(Exception ignored){}
                     });
                     aggregator.setLastMlOutput(mlOut);
                     db.guardarMlOutput(mlOut);
@@ -174,7 +180,7 @@ class MlEndpoints {
         // T6.3/T6.4 (fashion-image-classification PR6): visual-index coverage —
         // additive fields, backward-compatible with MlStatusPanel's existing
         // hasTextModel/hasImageModel/training.* consumption.
-        long embeddingsCount = db.contarEmbeddings();
+        long embeddingsCount = productos.contarEmbeddings();
         var lastResult = service.getLastResult();
         int totalProductos = lastResult != null ? lastResult.productos().size() : 0;
         double coveragePct = totalProductos > 0

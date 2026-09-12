@@ -15,14 +15,19 @@ class DbAdminEndpoints {
         org.slf4j.LoggerFactory.getLogger(DbAdminEndpoints.class);
 
     private final ScraperService service;
+    // Declared dual dependency (extract-catalog-query-port, D6): limpiarMlOutput
+    // below belongs to MlOutputRepository, out of this slice's scope.
     private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
     DbAdminEndpoints(ScraperService service,
                      ar.scraper.db.DatabaseService db,
+                     ar.scraper.catalog.ProductPort productos,
                      ar.scraper.aggregator.ResultAggregator aggregator) {
         this.service = service;
         this.db = db;
+        this.productos = productos;
         this.aggregator = aggregator;
     }
 
@@ -31,7 +36,7 @@ class DbAdminEndpoints {
             return ResponseEntity.status(409).body("Hay un scraping en curso. Esperá a que termine.");
         }
         try {
-            db.limpiarProductos();
+            productos.limpiarProductos();
             service.clearLastResult();
             aggregator.clearMlOutput();
             return ResponseEntity.ok("Catálogo eliminado.");

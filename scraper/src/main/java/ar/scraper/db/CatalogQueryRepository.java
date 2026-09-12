@@ -3,11 +3,13 @@ package ar.scraper.db;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.Facets;
 import ar.scraper.model.Product;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -46,7 +48,8 @@ import java.util.Optional;
  * could swap places between page 1 and page 2 of the same query and a product
  * would be shown twice or never.</p>
  */
-class CatalogQueryRepository {
+@Repository
+class CatalogQueryRepository implements CatalogQueryPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(CatalogQueryRepository.class);
 
@@ -58,12 +61,14 @@ class CatalogQueryRepository {
         this.siteRegistry = siteRegistry;
     }
 
-    CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size) {
+    @Override
+    public CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size) {
         return buscar(filtro, orden, page, size, Optional.empty());
     }
 
     /** @param desde the run's {@code started_at}; empty serves the whole catalogue. */
-    CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
+    @Override
+    public CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
         Where where = construirWhere(filtro, cotaDe(desde));
         try (Connection c = dataSource.getConnection()) {
             int total = contar(c, where);
@@ -95,12 +100,14 @@ class CatalogQueryRepository {
      * ordenado por precio, que no es un orden sino un accidente. Ahora salen
      * por conteo descendente.</p>
      */
-    Facets facetas() {
+    @Override
+    public Facets facetas() {
         return facetas(Optional.empty());
     }
 
     /** @param desde the run's {@code started_at}; empty counts the whole catalogue. */
-    Facets facetas(Optional<Instant> desde) {
+    @Override
+    public Facets facetas(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
         try (Connection c = dataSource.getConnection()) {
             Map<String, Long> talles = ar.scraper.catalog.TalleOrder.sortTalles(
@@ -128,7 +135,8 @@ class CatalogQueryRepository {
         }
     }
 
-    CatalogResumen resumen() {
+    @Override
+    public CatalogResumen resumen() {
         return resumen(Optional.empty());
     }
 
@@ -138,7 +146,8 @@ class CatalogQueryRepository {
      *              — or the reverse — is what makes the 204 check and the page
      *              contents disagree, so both go through the same {@link Cota}.
      */
-    CatalogResumen resumen(Optional<Instant> desde) {
+    @Override
+    public CatalogResumen resumen(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
         double min = 0, max = 0;
         long conteoGymrat = 0, conteoPacks = 0;

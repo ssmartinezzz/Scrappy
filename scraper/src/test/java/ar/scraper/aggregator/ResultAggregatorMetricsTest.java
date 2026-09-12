@@ -1,6 +1,7 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.catalog.HistorialPort;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.ml.FinanciacionEnricher;
@@ -42,6 +43,7 @@ class ResultAggregatorMetricsTest {
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
     private DatabaseService      db;
+    private ProductPort          productos;
     private ResultAggregator     aggregator;
 
     @BeforeEach
@@ -57,6 +59,7 @@ class ResultAggregatorMetricsTest {
         senalEnricher        = mock(SenalEnricher.class);
         financiacionEnricher = mock(FinanciacionEnricher.class);
         db                   = mock(DatabaseService.class);
+        productos            = mock(ProductPort.class);
 
         // Pass-through mocks — return the input list unchanged
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
@@ -68,7 +71,8 @@ class ResultAggregatorMetricsTest {
         // Void methods (upsertProductos, guardarMlOutput, etc.) default to no-op on mock
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db);
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                productos);
     }
 
     /** Convenience: create a minimal Product using the 9-arg legacy constructor. */
@@ -197,7 +201,7 @@ class ResultAggregatorMetricsTest {
 
         aggregator.agregar(List.of(scrapeResult));
 
-        verify(db).actualizarCategoria("http://test.com/cat", "Calzado Deportivo");
+        verify(productos).actualizarCategoria("http://test.com/cat", "Calzado Deportivo");
         assertThat(aggregator.getLastCatRefinadas()).isEqualTo(1);
     }
 
@@ -216,7 +220,7 @@ class ResultAggregatorMetricsTest {
 
         aggregator.agregar(List.of(scrapeResult));
 
-        verify(db, never()).actualizarCategoria(anyString(), anyString());
+        verify(productos, never()).actualizarCategoria(anyString(), anyString());
         assertThat(aggregator.getLastCatRefinadas()).isEqualTo(0);
     }
 
@@ -247,7 +251,8 @@ class ResultAggregatorMetricsTest {
         FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(mock(PresetPort.class), inflacion);
 
         ResultAggregator aggregatorConEnrichersReales = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher, db);
+                normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher, db,
+                productos);
 
         ResultAggregator.AggregatedResult result =
                 aggregatorConEnrichersReales.agregar(List.of(scrapeResult));

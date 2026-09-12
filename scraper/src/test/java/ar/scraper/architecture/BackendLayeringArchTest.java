@@ -101,4 +101,41 @@ class BackendLayeringArchTest {
                     && METODOS_HISTORIAL.contains(call.getTarget().getName());
             }
         });
+
+    // The catalog-search aggregate's 3 methods (6 overloads) on DatabaseService
+    // (extract-catalog-query-port).
+    private static final Set<String> METODOS_CATALOG_QUERY =
+        Set.of("buscarCatalogo", "facetasCatalogo", "resumenCatalogo");
+
+    @ArchTest
+    static final ArchRule webUsaCatalogQueryPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a catalog-query method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_CATALOG_QUERY.contains(call.getTarget().getName());
+            }
+        });
+
+    // The product aggregate's 14 methods on DatabaseService (extract-catalog-query-port).
+    private static final Set<String> METODOS_PRODUCTOS =
+        Set.of("obtenerProducto", "obtenerProductoPorKey", "cargarProductos",
+               "cargarClasificacionBloqueada", "estaBloqueado", "esProductoActivo",
+               "contarEmbeddings", "upsertProductos", "upsertParcial", "actualizarCategoria",
+               "actualizarNormalizacion", "marcarDescontinuado", "limpiarProductos",
+               "aplicarReclasificacionAuditada");
+
+    @ArchTest
+    static final ArchRule webUsaProductoPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a product method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_PRODUCTOS.contains(call.getTarget().getName());
+            }
+        });
 }

@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -71,7 +72,7 @@ class ProductKeyParityTest extends PostgresTestBase {
         List<Product> productos = new ArrayList<>();
         for (int i = 0; i < URLS.size(); i++) productos.add(producto(URLS.get(i), i));
 
-        DatabaseService.UpsertStats stats = db.upsertProductos(productos);
+        UpsertStats stats = db.upsertProductos(productos);
         // El upsert se traga los errores SQL y sale como UpsertStats(0,0,0,0):
         // sin esta guarda, todo lo de abajo compararía contra una tabla vacía.
         assertThat(stats.nuevos()).isEqualTo(URLS.size());

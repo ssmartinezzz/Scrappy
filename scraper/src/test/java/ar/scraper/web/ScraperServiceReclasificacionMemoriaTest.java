@@ -48,7 +48,8 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperConfig config = Mockito.mock(ScraperConfig.class);
         ResultAggregator aggregator = Mockito.mock(ResultAggregator.class);
         DatabaseService db = Mockito.mock(DatabaseService.class);
-        ScraperService service = new ScraperService(config, aggregator, db);
+        ScraperService service = new ScraperService(config, aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
         List<Product> lista = List.of(productos);
         service.setLastResultParaTest(new AggregatedResult(
                 lista, java.util.Map.of("Sitio", lista.size()), java.util.Map.of(),
@@ -111,7 +112,8 @@ class ScraperServiceReclasificacionMemoriaTest {
         ScraperConfig config = Mockito.mock(ScraperConfig.class);
         ResultAggregator aggregator = Mockito.mock(ResultAggregator.class);
         DatabaseService db = Mockito.mock(DatabaseService.class);
-        ScraperService sinCatalogo = new ScraperService(config, aggregator, db);
+        ScraperService sinCatalogo = new ScraperService(config, aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
 
         sinCatalogo.actualizarProductoEnMemoria(URL, "Remera", "M", "hombre", "Entrenamiento", "indumentaria");
         assertThat(sinCatalogo.getLastResult()).isNull();

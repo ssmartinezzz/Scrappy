@@ -1,6 +1,7 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -53,6 +54,7 @@ class ResultAggregatorLockPatchTest {
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
     private DatabaseService      db;
+    private ProductPort          productos;
     private ResultAggregator     aggregator;
 
     @BeforeEach
@@ -68,6 +70,7 @@ class ResultAggregatorLockPatchTest {
         senalEnricher        = mock(SenalEnricher.class);
         financiacionEnricher = mock(FinanciacionEnricher.class);
         db                   = mock(DatabaseService.class);
+        productos            = mock(ProductPort.class);
 
         when(mlEnricher.serializarProductos(anyList())).thenReturn("[]");
         when(pythonRunner.ejecutar(anyString())).thenReturn(null);
@@ -75,7 +78,8 @@ class ResultAggregatorLockPatchTest {
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db);
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                productos);
     }
 
     private static Product producto(String url, String categoria, String subCategoria,
@@ -142,7 +146,7 @@ class ResultAggregatorLockPatchTest {
         ScrapeResult scrapeResult = new ScrapeResult("freres", List.of(raw), null, 10);
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
-        when(db.cargarClasificacionBloqueada()).thenReturn(
+        when(productos.cargarClasificacionBloqueada()).thenReturn(
                 Map.of(url, new ClasificacionBloqueada("Buzo", "urbano", "Adidas", "mujer", "indumentaria")));
 
         // Stage-1b is a pass-through here — proves the LOCK (not stage-1b) is
@@ -180,7 +184,7 @@ class ResultAggregatorLockPatchTest {
         ScrapeResult scrapeResult = new ScrapeResult("freres", List.of(raw), null, 10);
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
-        when(db.cargarClasificacionBloqueada()).thenReturn(
+        when(productos.cargarClasificacionBloqueada()).thenReturn(
                 Map.of(url, new ClasificacionBloqueada("Buzo", "urbano", "Adidas", "mujer", "indumentaria")));
 
         // Stage-1b demonstrably overrides categoria on its own (visual
@@ -200,7 +204,7 @@ class ResultAggregatorLockPatchTest {
     }
 
     @Test
-    @DisplayName("with no locked products, the pipeline is unaffected (backward compatible when db.cargarClasificacionBloqueada is unstubbed)")
+    @DisplayName("with no locked products, the pipeline is unaffected (backward compatible when productos.cargarClasificacionBloqueada is unstubbed)")
     void withNoLockedProductsPipelineIsUnaffected() {
         String url = "http://test.com/no-lock";
         Product raw = producto(url, "Zapatilla", "running", "Nike", "hombre", "indumentaria");
@@ -208,7 +212,7 @@ class ResultAggregatorLockPatchTest {
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
         when(mlEnricher.enriquecer(anyList(), any(), any())).thenAnswer(inv -> inv.getArgument(0));
-        // db.cargarClasificacionBloqueada() left UNSTUBBED — Mockito default is null.
+        // productos.cargarClasificacionBloqueada() left UNSTUBBED — Mockito default is null.
 
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
 

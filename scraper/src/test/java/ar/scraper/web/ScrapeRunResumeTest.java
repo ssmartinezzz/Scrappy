@@ -64,7 +64,8 @@ class ScrapeRunResumeTest extends PostgresTestBase {
         Mockito.when(aggregator.fromDB(Mockito.anyList()))
                 .thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(),
                         ResultAggregator.calcularFacets(List.of()), 0, 0));
-        service = new ScraperService(Mockito.mock(ScraperConfig.class), aggregator, db);
+        service = new ScraperService(Mockito.mock(ScraperConfig.class), aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
     }
 
     @Test

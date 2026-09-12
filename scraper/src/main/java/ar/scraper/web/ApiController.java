@@ -143,18 +143,18 @@ public class ApiController {
         this.catalogAgentService = catalogAgentService;
         this.agentConfig        = agentConfig;
         this.actorResolver      = actorResolver;
-        this.agentEndpoints     = new AgentEndpoints(service, db, catalogAgentService,
+        this.agentEndpoints     = new AgentEndpoints(service, db, db.productos(), catalogAgentService,
                                                      agentConfig, actorResolver);
         this.financiacionEndpoints = new FinanciacionEndpoints(service, inflacionService,
                                                                db.presets(), db.historial(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db, outfitService, actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db, recommendationService, actorResolver);
-        this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db, actorResolver);
-        this.mlEndpoints        = new MlEndpoints(service, db, db.historial(), aggregator, pythonRunner);
+        this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
+        this.mlEndpoints        = new MlEndpoints(service, db, db.historial(), db.productos(), aggregator, pythonRunner);
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db, grouping);
-        this.dbAdminEndpoints   = new DbAdminEndpoints(service, db, aggregator);
-        this.catalogoEndpoints  = new CatalogoEndpoints(service, db, db.presets(), db.historial(), config, inflacionService);
+        this.dbAdminEndpoints   = new DbAdminEndpoints(service, db, db.productos(), aggregator);
+        this.catalogoEndpoints  = new CatalogoEndpoints(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, inflacionService);
         this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
     }
 

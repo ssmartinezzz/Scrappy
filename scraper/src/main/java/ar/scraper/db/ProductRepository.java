@@ -5,6 +5,8 @@ import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.FavoritosProtegidosException;
+import ar.scraper.catalog.ProductPort;
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +14,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Array;
@@ -37,11 +40,9 @@ import java.util.*;
  * the WRITES to {@code precio_historico} — they happen inside the upsert
  * function and the pruning, never through a method of their own, which is why
  * {@link HistorialRepository} holds only reads.</p>
- *
- * <p>{@code UpsertStats} stays nested on DatabaseService — callers and tests
- * name it {@code DatabaseService.UpsertStats}.</p>
  */
-class ProductRepository {
+@Repository
+class ProductRepository implements ProductPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(ProductRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -72,7 +73,8 @@ class ProductRepository {
      * con un writer concurrente. Retorna estadísticas: {nuevos, actualizados,
      * sinCambios, desactivados}.
      */
-    DatabaseService.UpsertStats upsertProductos(List<Product> productos) {
+    @Override
+    public UpsertStats upsertProductos(List<Product> productos) {
         return upsertProductos(productos, null);
     }
 
@@ -112,7 +114,8 @@ class ProductRepository {
      *                     caller has no run; then the scope falls back to the
      *                     batch, behaving exactly as it did before this change.
      */
-    DatabaseService.UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt) {
+    @Override
+    public UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
@@ -151,15 +154,15 @@ class ProductRepository {
 
                 LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
                         nuevos, actualizados, sinCambios, desactivados);
-                return new DatabaseService.UpsertStats(nuevos, actualizados, sinCambios, desactivados);
+                return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
             } catch (Exception e) {
                 LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
                 try { c.rollback(); } catch (Exception ignored) {}
-                return new DatabaseService.UpsertStats(0, 0, 0, 0);
+                return new UpsertStats(0, 0, 0, 0);
             }
         } catch (SQLException e) {
             LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
-            return new DatabaseService.UpsertStats(0, 0, 0, 0);
+            return new UpsertStats(0, 0, 0, 0);
         }
     }
 
@@ -297,7 +300,8 @@ class ProductRepository {
      * Columnas visuales excluidas a propósito (mismo motivo que antes: en
      * esta etapa del pipeline VisualAttrs todavía no está poblado).
      */
-    void upsertParcial(List<Product> productos) {
+    @Override
+    public void upsertParcial(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return;
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
@@ -330,7 +334,8 @@ class ProductRepository {
      * 27086 round trips sobre 13543 filas; un {@code LEFT JOIN … array_agg}
      * obligaría a {@code obtenerProducto()} y a este método a divergir.
      */
-    List<Product> cargarProductos() {
+    @Override
+    public List<Product> cargarProductos() {
         List<Product> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection()) {
             Map<String, List<String>> tallesPorUrl = cargarMultivalor(c, "producto_talle", "talle");
@@ -362,7 +367,8 @@ class ProductRepository {
      * dos caminos de lectura que pueden divergir. El índice único sobre
      * {@code producto_key} hace que la traducción sea una búsqueda, no un scan.</p>
      */
-    java.util.Optional<Product> obtenerProductoPorKey(String key) {
+    @Override
+    public java.util.Optional<Product> obtenerProductoPorKey(String key) {
         if (key == null || key.isBlank()) return java.util.Optional.empty();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -378,7 +384,8 @@ class ProductRepository {
         }
     }
 
-    java.util.Optional<Product> obtenerProducto(String url) {
+    @Override
+    public java.util.Optional<Product> obtenerProducto(String url) {
         try (Connection c = dataSource.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement(ProductRowMapper.COLUMNAS + " WHERE url=?")) {
                 ps.setString(1, url);
@@ -431,7 +438,8 @@ class ProductRepository {
      * are authoritative for persistence; this closes the in-memory
      * {@code lastResult} snapshot gap, design problem 3).
      */
-    Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
+    @Override
+    public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
         Map<String, ClasificacionBloqueada> result = new LinkedHashMap<>();
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
@@ -465,7 +473,8 @@ class ProductRepository {
      * guard — una segunda confirmación humana debe poder re-lockear un
      * producto ya bloqueado.</p>
      */
-    void actualizarCategoria(String url, String nuevaCategoria) {
+    @Override
+    public void actualizarCategoria(String url, String nuevaCategoria) {
         if (url == null || nuevaCategoria == null) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -589,7 +598,8 @@ class ProductRepository {
      * escribe, incluso en un producto bloqueado (review fix F2) — no es una
      * columna bloqueada.</p>
      */
-    int actualizarNormalizacion(String url, String categoria, String marca,
+    @Override
+    public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
         if (url == null) return 0;
         try (Connection c = dataSource.getConnection()) {
@@ -628,7 +638,8 @@ class ProductRepository {
      * ({@link #actualizarCategoria}, {@link #actualizarNormalizacion}) llevan
      * ese guard.</p>
      */
-    boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
+    @Override
+    public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
                                                    String genero, List<String> talles, String subCategoria,
                                                    Product previo, String actor) {
         if (url == null) return false;
@@ -687,7 +698,8 @@ class ProductRepository {
 
 
 
-    long contarEmbeddings() {
+    @Override
+    public long contarEmbeddings() {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM image_embeddings")) {
@@ -698,7 +710,8 @@ class ProductRepository {
         }
     }
 
-    void marcarDescontinuado(String url) {
+    @Override
+    public void marcarDescontinuado(String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE productos SET activo=false WHERE url=?")) {
@@ -709,7 +722,8 @@ class ProductRepository {
         }
     }
 
-    boolean estaBloqueado(String url) {
+    @Override
+    public boolean estaBloqueado(String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "SELECT 1 FROM productos WHERE url=? AND bloqueado_por IS NOT NULL")) {
@@ -723,7 +737,8 @@ class ProductRepository {
         }
     }
 
-    boolean esProductoActivo(String url) {
+    @Override
+    public boolean esProductoActivo(String url) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "SELECT activo FROM productos WHERE url=?")) {
@@ -745,7 +760,8 @@ class ProductRepository {
      * {@code DELETE FROM precio_historico} is gone: V4's {@code ON DELETE
      * CASCADE} on {@code precio_historico.url} covers it.
      */
-    void limpiarProductos() throws SQLException {
+    @Override
+    public void limpiarProductos() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {
