@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.catalog;
 
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -12,11 +12,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * share it — {@code /api/recomendados} and {@code /api/favoritos} both write the
  * full row, and {@code safe} is used by nearly every endpoint that builds JSON.</p>
  */
-final class ProductJson {
+public final class ProductJson {
 
     private ProductJson() {}
 
-    static String safe(String s) { return s != null ? s : ""; }
+    public static String safe(String s) { return s != null ? s : ""; }
 
     /**
      * Precio por unidad — precio de góndola dividido por {@code cantidadUnidades}
@@ -28,12 +28,12 @@ final class ProductJson {
      * <p>{@code ApiController.precioUnitario} stays as a static delegate to this
      * method: it is part of the surface a test calls directly.</p>
      */
-    static double precioUnitario(Product p) {
+    public static double precioUnitario(Product p) {
         return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
     }
 
     /** Mismo formato que la lista de /api/data, para reuso en DetailPanel. */
-    static void escribir(ObjectNode n, Product p) {
+    public static void escribir(ObjectNode n, Product p) {
         // Handle corto para las rutas del frontend (/historial/{key}). Se manda
         // en cada fila para que un link no tenga que ir a la base a buscarlo.
         // Gemelo de la columna generada productos.producto_key (V25) — la

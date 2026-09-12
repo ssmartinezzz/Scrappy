@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.catalog.HistorialJson;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 

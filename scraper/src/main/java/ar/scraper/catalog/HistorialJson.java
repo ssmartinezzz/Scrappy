@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.catalog;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -22,12 +22,12 @@ import java.util.Map;
  * avg == the only price} would dress one sighting up as a trend. The caller
  * renders "sin historial aún" off their absence.</p>
  */
-final class HistorialJson {
+public final class HistorialJson {
 
     private HistorialJson() {}
 
     /** {@code hist} comes from {@code DatabaseService.cargarHistorial}, oldest first. */
-    static ObjectNode construir(List<Map<String, Object>> hist) {
+    public static ObjectNode construir(List<Map<String, Object>> hist) {
         ObjectNode node = JsonNodeFactory.instance.objectNode();
         var arr = node.putArray("puntos");
         hist.forEach(h -> {

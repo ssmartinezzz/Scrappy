@@ -1,10 +1,14 @@
 package ar.scraper.web;
 
+import ar.scraper.outfits.OutfitService;
+import ar.scraper.outfits.RecommendationService;
+
 import ar.scraper.financiacion.InflacionService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.catalog.HistorialPort;
+import ar.scraper.catalog.ProductKey;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
@@ -51,7 +55,7 @@ class ApiControllerProductoDetalleTest {
 
     private static final String URL = "https://site.com/remera-negra";
     /** El handle corto de URL — mismo valor que calcula la columna generada de V25. */
-    private static final String KEY = ProductKeyTestBridge.of(URL);
+    private static final String KEY = ProductKey.of(URL);
 
     private ScraperService service;
     private DatabaseService db;

@@ -106,6 +106,8 @@ Scrappy/
         │   │                                  CatalogQueryPort, ProductPort, CategoriaStatsPort,
         │   │                                  MlOutputPort, PreciosExternosPort (los seis puertos
         │   │                                  los implementan @Repository package-private en db/)
+        │   │                                  + ProductJson, ProductKey, HistorialJson (json de borde,
+        │   │                                  movidos de web/ en F3b)
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
         │   │                                  implementa un @Repository package-private en db/)
@@ -123,8 +125,12 @@ Scrappy/
         │   ├── feedback/                    ← área: OutfitItemRow, FeedbackPort — outfit_feedback_item
         │   │                                  + categoria_dismiss, una sola señal de gusto (lo
         │   │                                  implementa un @Repository package-private en db/)
-        │   ├── outfits/SavedOutfitsPort     ← área: puerto del agregado saved_outfits (lo implementa
-        │   │                                  un @Repository package-private en db/)
+        │   ├── outfits/                    ← área: OutfitService, OutfitBudgetBuilder, OutfitRules,
+        │   │                                  VisualCoherence, RecommendationService, FeedbackModels,
+        │   │                                  SupplementCombo, SupplementSizeParser (movidos de web/
+        │   │                                  en F3b) + SavedOutfitsPort (lo implementa un
+        │   │                                  @Repository package-private en db/)
+        │   ├── identity/                   ← área: ActorResolver + Sujeto (movido de web/ en F3b)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
@@ -145,13 +151,7 @@ Scrappy/
         │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
         │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
         │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
-        │   └── web/                        ← ApiController + *Endpoints + servicios
-        │       ├── OutfitService           ←   armador aleatorio (Gym)
-        │       ├── OutfitBudgetBuilder     ←   MCKP + greedy
-        │       ├── OutfitRules             ←   género, estilo, SlotPick (compartido)
-        │       ├── VisualCoherence         ←   estampado / fit / color
-        │       ├── SupplementCombo         ←   combo de suplementos
-        │       └── RecommendationService   ←   baseMlScore, ranking "Para ti"
+        │   └── web/                        ← ApiController + *Endpoints (20 clases, transporte)
         └── resources/
             ├── application.properties, logback-spring.xml, config.properties
             ├── db/migration/               ← Flyway

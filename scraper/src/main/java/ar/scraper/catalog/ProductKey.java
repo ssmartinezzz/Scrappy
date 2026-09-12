@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.catalog;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,8 +25,13 @@ import java.security.NoSuchAlgorithmException;
  * sobre SHA-256 porque {@code md5(text)} es IMMUTABLE en Postgres y por lo
  * tanto usable en una columna generada; {@code sha256()} habría necesitado un
  * cast de {@code text} a {@code bytea} que no lo es.</p>
+ *
+ * <p><b>Es pública por una duplicación, no por diseño.</b> Su único consumidor
+ * fuera de este paquete es {@code CatalogoEndpoints}, y esa línea es una copia
+ * de {@link ProductJson#escribir}, que sí vive acá. Unificadas las dos copias
+ * del shape de fila, esto vuelve a package-private.</p>
  */
-final class ProductKey {
+public final class ProductKey {
 
     /** 16 hex = 64 bits. El porqué de ese largo está en el header de `V25`. */
     private static final int LARGO = 16;
@@ -34,7 +39,7 @@ final class ProductKey {
     private ProductKey() {}
 
     /** {@code null} o vacío devuelven {@code ""} — abstención, nunca un centinela (`CODE-5`). */
-    static String of(String url) {
+    public static String of(String url) {
         if (url == null || url.isEmpty()) return "";
         try {
             MessageDigest md5 = MessageDigest.getInstance("MD5");
