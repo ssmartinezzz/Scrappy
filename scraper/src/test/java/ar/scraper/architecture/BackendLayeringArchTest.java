@@ -301,4 +301,24 @@ class BackendLayeringArchTest {
                     && METODOS_PRECIOS_EXTERNOS.contains(call.getTarget().getName());
             }
         });
+
+    // ── carve-outfit-domain-out-of-web (F3b) ────────────────────────────────
+    // `web` es transporte. `OutfitService`, `OutfitBudgetBuilder`, `OutfitRules`,
+    // `VisualCoherence`, `RecommendationService`, `FeedbackModels`,
+    // `SupplementCombo` y `SupplementSizeParser` son dominio: ninguno participa
+    // de un ciclo (F3a ya los cerro), asi que lo unico que los retenia en `web`
+    // era la colocacion. No hay arista que matar, asi que la regla es de
+    // residencia y no de dependencia — es la forma que puede fallar mientras el
+    // dominio siga estacionado en el paquete de transporte.
+    @ArchTest
+    static final ArchRule elDominioDeOutfitsNoViveEnWeb = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().haveSimpleName("OutfitService")
+        .orShould().haveSimpleName("OutfitBudgetBuilder")
+        .orShould().haveSimpleName("OutfitRules")
+        .orShould().haveSimpleName("VisualCoherence")
+        .orShould().haveSimpleName("RecommendationService")
+        .orShould().haveSimpleName("FeedbackModels")
+        .orShould().haveSimpleName("SupplementCombo")
+        .orShould().haveSimpleName("SupplementSizeParser");
 }
