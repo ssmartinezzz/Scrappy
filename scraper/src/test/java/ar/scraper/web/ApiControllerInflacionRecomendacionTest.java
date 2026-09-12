@@ -3,8 +3,9 @@ package ar.scraper.web;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
+import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialPort;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.db.DatabaseService.HistorialEntry;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -33,6 +34,7 @@ class ApiControllerInflacionRecomendacionTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private HistorialPort historial;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -51,6 +53,8 @@ class ApiControllerInflacionRecomendacionTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        historial             = mock(HistorialPort.class);
+        when(db.historial()).thenReturn(historial);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -101,7 +105,7 @@ class ApiControllerInflacionRecomendacionTest {
 
     @Test
     void recomendacionReturnsSinDatosWhenNoHistory() {
-        when(db.getHistorialPrecios("https://a.com/1")).thenReturn(List.of());
+        when(historial.getHistorialPrecios("https://a.com/1")).thenReturn(List.of());
 
         var resp = controller.recomendacion("https://a.com/1");
         JsonNode body = AllureSteps.toJson(resp.getBody());
@@ -113,12 +117,12 @@ class ApiControllerInflacionRecomendacionTest {
     @Test
     void recomendacionReturnsComprarAhoraCuandoPrecioEnMinimo() {
         // Price at historical minimum (pctDelMin <= 10%)
-        var historial = new ArrayList<>(List.of(
+        var puntos = new ArrayList<>(List.of(
                 new HistorialEntry("2024-11-01", 20000.0),
                 new HistorialEntry("2024-12-01", 25000.0),
                 new HistorialEntry("2025-01-01", 20100.0)));  // essentially at minimum
 
-        when(db.getHistorialPrecios("https://a.com/1")).thenReturn(historial);
+        when(historial.getHistorialPrecios("https://a.com/1")).thenReturn(puntos);
         when(inflacionService.ajustarPorInflacion(anyDouble(), anyInt())).thenReturn(20000.0);
         when(inflacionService.getInflacionMensual()).thenReturn(4.0);
         when(inflacionService.getInflacionInteranual()).thenReturn(50.0);
@@ -132,12 +136,12 @@ class ApiControllerInflacionRecomendacionTest {
 
     @Test
     void recomendacionReturnsPrecioNormalForMidRangePrice() {
-        var historial = new ArrayList<>(List.of(
+        var puntos = new ArrayList<>(List.of(
                 new HistorialEntry("2024-11-01", 10000.0),
                 new HistorialEntry("2024-12-01", 15000.0),
                 new HistorialEntry("2025-01-01", 12500.0)));  // 50% of range — normal
 
-        when(db.getHistorialPrecios("https://a.com/1")).thenReturn(historial);
+        when(historial.getHistorialPrecios("https://a.com/1")).thenReturn(puntos);
         when(inflacionService.ajustarPorInflacion(anyDouble(), anyInt())).thenReturn(10000.0);
         when(inflacionService.getInflacionMensual()).thenReturn(4.0);
         when(inflacionService.getInflacionInteranual()).thenReturn(50.0);
@@ -152,8 +156,8 @@ class ApiControllerInflacionRecomendacionTest {
 
     @Test
     void recomendacionIncludesInflacionFieldsInResponse() {
-        var historial = new ArrayList<>(List.of(new HistorialEntry("2025-01-01", 10000.0)));
-        when(db.getHistorialPrecios("https://a.com/1")).thenReturn(historial);
+        var puntos = new ArrayList<>(List.of(new HistorialEntry("2025-01-01", 10000.0)));
+        when(historial.getHistorialPrecios("https://a.com/1")).thenReturn(puntos);
         when(inflacionService.getInflacionMensual()).thenReturn(4.2);
         when(inflacionService.getInflacionInteranual()).thenReturn(100.0);
 

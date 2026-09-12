@@ -5,6 +5,7 @@ import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.financiacion.PresetPort;
 import ar.scraper.ml.FinanciacionCalculator;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
@@ -16,12 +17,14 @@ import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.AdditionalAnswers;
 import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -61,6 +64,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
     private InflacionService inflacionService;
     private ScraperConfig config;
     private DatabaseService db;
+    private PresetPort presets;
     private ApiController controller;
     private final List<Product> sembrados = new ArrayList<>();
 
@@ -73,6 +77,11 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
         // y además se puede verificar cuántas veces se llamó a un método, que es
         // lo que sostiene el guard de N+1 de abajo.
         db = spy(new DatabaseService(dataSource()));
+        // spy sobre el PresetPort real (delegatesTo) para verificar cuántas veces
+        // FinanciacionEndpoints/CatalogoEndpoints lo llaman, ahora que ya no pasan
+        // por db.cargarPresetActivo() directo (extract-preset-historial-ports).
+        presets = mock(PresetPort.class, AdditionalAnswers.delegatesTo(db.presets()));
+        doReturn(presets).when(db).presets();
         controller = new ApiController(service, inflacionService, config,
                 mock(ar.scraper.aggregator.ResultAggregator.class), db,
                 mock(GroupingService.class), mock(PythonRunner.class),
@@ -111,7 +120,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
 
         // Dos lecturas como techo: la del enricher y la del label de la respuesta.
         // Lo que este test impide es que crezcan con la cantidad de productos.
-        verify(db, times(2)).cargarPresetActivo();
+        verify(presets, times(2)).cargarPresetActivo();
     }
 
     @Test

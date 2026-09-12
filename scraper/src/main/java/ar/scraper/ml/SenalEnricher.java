@@ -1,7 +1,7 @@
 package ar.scraper.ml;
 
-import ar.scraper.db.DatabaseService;
-import ar.scraper.db.DatabaseService.HistorialEntry;
+import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialPort;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalCompra;
 import ar.scraper.web.InflacionService;
@@ -30,11 +30,11 @@ public class SenalEnricher {
 
     private static final Logger LOG = LoggerFactory.getLogger(SenalEnricher.class);
 
-    private final DatabaseService db;
+    private final HistorialPort historial;
     private final InflacionService inflacionService;
 
-    public SenalEnricher(DatabaseService db, InflacionService inflacionService) {
-        this.db = db;
+    public SenalEnricher(HistorialPort historial, InflacionService inflacionService) {
+        this.historial = historial;
         this.inflacionService = inflacionService;
     }
 
@@ -46,7 +46,7 @@ public class SenalEnricher {
                 .filter(u -> u != null && !u.isBlank())
                 .toList();
 
-        Map<String, List<HistorialEntry>> historialPorUrl = db.getHistorialPrecios(urls);
+        Map<String, List<HistorialEntry>> historialPorUrl = historial.getHistorialPrecios(urls);
 
         List<Product> result = new ArrayList<>(productos.size());
         int enriquecidos = 0;

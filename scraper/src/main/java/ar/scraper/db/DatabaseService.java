@@ -7,7 +7,11 @@ import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialPort;
 import ar.scraper.favoritos.FavoritosPort;
+import ar.scraper.financiacion.Preset;
+import ar.scraper.financiacion.PresetPort;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
@@ -54,12 +58,12 @@ public class DatabaseService {
     private final DataSource dataSource;
 
     private final CronPort cronPort;
-    private final PresetRepository presetRepository;
+    private final PresetPort presetPort;
     private final FavoritosPort favoritosPort;
     private final FeedbackRepository feedbackRepository;
     private final SavedOutfitsRepository savedOutfitsRepository;
     private final MlOutputRepository mlOutputRepository;
-    private final HistorialRepository historialRepository;
+    private final HistorialPort historialPort;
     private final SitiosRepository sitiosRepository;
     private final CategoriaStatsRepository categoriaStatsRepository;
     private final PreciosExternosRepository preciosExternosRepository;
@@ -80,22 +84,23 @@ public class DatabaseService {
      */
     public DatabaseService(DataSource dataSource) {
         this(dataSource, new SiteRegistry(dataSource), new CronRepository(dataSource),
-                new FavoritosRepository(dataSource));
+                new FavoritosRepository(dataSource), new PresetRepository(dataSource),
+                new HistorialRepository(dataSource));
     }
 
     @Autowired
     public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort,
-            FavoritosPort favoritosPort) {
+            FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
         this.cronPort = cronPort;
         this.favoritosPort = favoritosPort;
+        this.presetPort = presetPort;
+        this.historialPort = historialPort;
         this.catalogQueryRepository = new CatalogQueryRepository(dataSource, siteRegistry);
-        this.presetRepository = new PresetRepository(dataSource);
         this.feedbackRepository = new FeedbackRepository(dataSource);
         this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
         this.mlOutputRepository = new MlOutputRepository(dataSource);
-        this.historialRepository = new HistorialRepository(dataSource);
         this.sitiosRepository = new SitiosRepository(dataSource, siteRegistry);
         this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
         this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
@@ -113,11 +118,22 @@ public class DatabaseService {
         return favoritosPort;
     }
 
+    /** Accessor for {@code web}/{@code ml} consumers built by hand (not Spring beans)
+     *  that still need the port, e.g. {@code ApiController} wiring {@code FinanciacionEndpoints}. */
+    public PresetPort presets() {
+        return presetPort;
+    }
+
+    /** Accessor for {@code web}/{@code ml} consumers built by hand (not Spring beans)
+     *  that still need the port, e.g. {@code ApiController} wiring {@code FinanciacionEndpoints}. */
+    public HistorialPort historial() {
+        return historialPort;
+    }
 
     @PostConstruct
     void init() {
         try {
-            presetRepository.seedPresetIlustrativoSiVacio();
+            presetPort.seedPresetIlustrativoSiVacio();
             LOG.info("[DB] Conectado (pool HikariCP sobre {})", safeDescribeDataSource());
         } catch (Exception e) {
             LOG.error("[DB] Error en el seed inicial: {}", e.getMessage(), e);
@@ -148,17 +164,15 @@ public class DatabaseService {
 
     // ─── Presets de financiación. Bodies in PresetRepository (backlog A3);
     // this class keeps the public surface and delegates. The Preset record
-    // stays HERE: callers and tests name it DatabaseService.Preset.
+    // lives in ar.scraper.financiacion (extract-preset-historial-ports).
     // ─────────────────────────────────────────────────────────────────────
 
-    public record Preset(int id, String label, double recargoPct, int cuotas, boolean activo) {}
-
     public List<Preset> listarPresets() {
-        return presetRepository.listarPresets();
+        return presetPort.listarPresets();
     }
 
     public Optional<Preset> cargarPresetActivo() {
-        return presetRepository.cargarPresetActivo();
+        return presetPort.cargarPresetActivo();
     }
 
     /**
@@ -167,7 +181,7 @@ public class DatabaseService {
      * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
      */
     public int crearPreset(String label, double recargoPct, int cuotas) {
-        return presetRepository.crearPreset(label, recargoPct, cuotas);
+        return presetPort.crearPreset(label, recargoPct, cuotas);
     }
 
     /**
@@ -176,7 +190,7 @@ public class DatabaseService {
      * inválidos, o si ocurre un error.
      */
     public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
-        return presetRepository.editarPreset(id, label, recargoPct, cuotas);
+        return presetPort.editarPreset(id, label, recargoPct, cuotas);
     }
 
     /**
@@ -184,7 +198,7 @@ public class DatabaseService {
      * Retorna {@code false} (y revierte la desactivación) si {@code id} no existe.
      */
     public boolean activarPreset(int id) {
-        return presetRepository.activarPreset(id);
+        return presetPort.activarPreset(id);
     }
 
     /**
@@ -194,7 +208,7 @@ public class DatabaseService {
      * @return {@code true} si el {@code id} existía y fue borrado.
      */
     public boolean eliminarPreset(int id) {
-        return presetRepository.eliminarPreset(id);
+        return presetPort.eliminarPreset(id);
     }
 
     // ─── Productos: write-path del scrape, lecturas del catálogo y caminos
@@ -370,7 +384,7 @@ public class DatabaseService {
     // ─────────────────────────────────────────────────────────────────────
 
     public List<Map<String, Object>> cargarHistorial(String url) {
-        return historialRepository.cargarHistorial(url);
+        return historialPort.cargarHistorial(url);
     }
 
     // ─── Sitios dinámicos. Bodies in SitiosRepository (backlog A3).
@@ -557,10 +571,8 @@ public class DatabaseService {
         return productRepository.esProductoActivo(url);
     }
 
-    public record HistorialEntry(String fecha, double precio) {}
-
     public List<HistorialEntry> getHistorialPrecios(String url) {
-        return historialRepository.getHistorialPrecios(url);
+        return historialPort.getHistorialPrecios(url);
     }
 
     /**
@@ -573,7 +585,7 @@ public class DatabaseService {
      *         historial no aparecen como key
      */
     public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
-        return historialRepository.getHistorialPrecios(urls);
+        return historialPort.getHistorialPrecios(urls);
     }
 
     // ─── Clear methods ───────────────────────────────────────────────────────

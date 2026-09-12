@@ -5,8 +5,9 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
 import ar.scraper.config.ScraperConfig;
+import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialPort;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.db.DatabaseService.HistorialEntry;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +40,7 @@ class ApiControllerTendenciasHistorialTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private HistorialPort historial;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -57,6 +59,8 @@ class ApiControllerTendenciasHistorialTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        historial             = mock(HistorialPort.class);
+        when(db.historial()).thenReturn(historial);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -123,7 +127,7 @@ class ApiControllerTendenciasHistorialTest {
 
     @Test
     void historialReturns204WhenNoHistoryFound() {
-        when(db.cargarHistorial("https://sitio.com/p/1")).thenReturn(List.of());
+        when(historial.cargarHistorial("https://sitio.com/p/1")).thenReturn(List.of());
 
         var resp = controller.historial("https://sitio.com/p/1");
 
@@ -136,7 +140,7 @@ class ApiControllerTendenciasHistorialTest {
         entries.add(punto("2025-01-01", 10000.0));
         entries.add(punto("2025-02-01", 12000.0));
         entries.add(punto("2025-03-01", 9000.0));
-        when(db.cargarHistorial("https://a.com/1")).thenReturn(entries);
+        when(historial.cargarHistorial("https://a.com/1")).thenReturn(entries);
 
         var resp = controller.historial("https://a.com/1");
         JsonNode body = new ObjectMapper().readTree(
@@ -152,7 +156,7 @@ class ApiControllerTendenciasHistorialTest {
     void historialReturnsSinglePuntoWithoutStatsWhenOnlyOnePoint() throws Exception {
         var entries = new ArrayList<Map<String, Object>>();
         entries.add(punto("2025-01-01", 10000.0));
-        when(db.cargarHistorial("https://a.com/1")).thenReturn(entries);
+        when(historial.cargarHistorial("https://a.com/1")).thenReturn(entries);
 
         var resp = controller.historial("https://a.com/1");
         JsonNode body = new ObjectMapper().readTree(

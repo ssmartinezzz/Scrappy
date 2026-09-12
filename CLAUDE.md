@@ -101,7 +101,9 @@ Scrappy/
         │   ├── App.java                    ← Entry point Spring Boot
         │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard
         │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
-        │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder
+        │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
+        │   │                                  HistorialEntry, HistorialPort (lo implementa un
+        │   │                                  @Repository package-private en db/)
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups
         │   ├── scrape/CorridaInterrumpida  ← área
@@ -109,6 +111,8 @@ Scrappy/
         │   │                                  un @Repository package-private en db/)
         │   ├── favoritos/FavoritosPort     ← área: puerto del agregado favoritos (lo implementa
         │   │                                  un @Repository package-private en db/)
+        │   ├── financiacion/               ← área: Preset, PresetPort (lo implementa un
+        │   │                                  @Repository package-private en db/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID

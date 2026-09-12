@@ -1,7 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
-import ar.scraper.db.DatabaseService.Preset;
+import ar.scraper.financiacion.Preset;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;

@@ -1,7 +1,10 @@
 package ar.scraper.db;
 
+import ar.scraper.financiacion.Preset;
+import ar.scraper.financiacion.PresetPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -17,10 +20,16 @@ import java.util.Optional;
  * Persistence for the {@code financiacion_presets} aggregate.
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). The
- * {@code Preset} record stays nested on DatabaseService — callers and tests
- * name it {@code DatabaseService.Preset} — so this class returns that type.</p>
+ * {@code Preset} record lives in {@code ar.scraper.financiacion}
+ * (extract-preset-historial-ports) — this class returns that type.</p>
+ *
+ * <p>Implements {@link PresetPort} (extract-preset-historial-ports) so
+ * {@code ar.scraper.web} and {@code ar.scraper.ml} depend on that port, not on
+ * {@code DatabaseService} directly. {@code crearPresetInterno} stays private —
+ * it is a helper shared by two port methods, not part of the port surface.</p>
  */
-class PresetRepository {
+@Repository
+class PresetRepository implements PresetPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(PresetRepository.class);
 
@@ -41,7 +50,8 @@ class PresetRepository {
      * financiación tenga un valor de referencia desde el día uno sin requerir
      * que el usuario configure nada manualmente.
      */
-    void seedPresetIlustrativoSiVacio() throws SQLException {
+    @Override
+    public void seedPresetIlustrativoSiVacio() throws SQLException {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
@@ -71,14 +81,15 @@ class PresetRepository {
         }
     }
 
-    List<DatabaseService.Preset> listarPresets() {
-        List<DatabaseService.Preset> result = new ArrayList<>();
+    @Override
+    public List<Preset> listarPresets() {
+        List<Preset> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
                 "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
             while (rs.next()) {
-                result.add(new DatabaseService.Preset(
+                result.add(new Preset(
                         rs.getInt("id"), rs.getString("label"),
                         rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
                         rs.getBoolean("activo")));
@@ -89,13 +100,14 @@ class PresetRepository {
         return result;
     }
 
-    Optional<DatabaseService.Preset> cargarPresetActivo() {
+    @Override
+    public Optional<Preset> cargarPresetActivo() {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
                 "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo LIMIT 1")) {
             if (rs.next()) {
-                return Optional.of(new DatabaseService.Preset(
+                return Optional.of(new Preset(
                         rs.getInt("id"), rs.getString("label"),
                         rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true));
             }
@@ -110,7 +122,8 @@ class PresetRepository {
      * error o si {@code cuotas}/{@code recargoPct} son inválidos (mismo criterio
      * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
      */
-    int crearPreset(String label, double recargoPct, int cuotas) {
+    @Override
+    public int crearPreset(String label, double recargoPct, int cuotas) {
         if (cuotas <= 0 || recargoPct <= -100) {
             LOG.warn("[DB] crearPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return -1;
@@ -129,7 +142,8 @@ class PresetRepository {
      * inválidos (mismo criterio que {@code FinanciacionCalculator.compute}: cuotas&gt;0
      * y recargoPct&gt;-100), o si ocurre un error.
      */
-    boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
+    @Override
+    public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
         if (cuotas <= 0 || recargoPct <= -100) {
             LOG.warn("[DB] editarPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return false;
@@ -159,7 +173,8 @@ class PresetRepository {
      * Retorna {@code false} (y revierte la desactivación) si {@code id} no existe —
      * evita quedar sin ningún preset activo por un id inválido/obsoleto.
      */
-    boolean activarPreset(int id) {
+    @Override
+    public boolean activarPreset(int id) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement psOff = c.prepareStatement(
@@ -202,7 +217,8 @@ class PresetRepository {
      * @return {@code true} si el {@code id} pedido efectivamente existía y fue
      *         borrado; {@code false} si no existía (no-op) o si ocurrió un error.
      */
-    boolean eliminarPreset(int id) {
+    @Override
+    public boolean eliminarPreset(int id) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {

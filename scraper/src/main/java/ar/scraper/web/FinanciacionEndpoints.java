@@ -25,23 +25,26 @@ class FinanciacionEndpoints {
 
     private final ScraperService service;
     private final InflacionService inflacionService;
-    private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.financiacion.PresetPort presets;
+    private final ar.scraper.catalog.HistorialPort historial;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
     FinanciacionEndpoints(ScraperService service,
                           InflacionService inflacionService,
-                          ar.scraper.db.DatabaseService db,
+                          ar.scraper.financiacion.PresetPort presets,
+                          ar.scraper.catalog.HistorialPort historial,
                           ar.scraper.aggregator.ResultAggregator aggregator) {
         this.service = service;
         this.inflacionService = inflacionService;
-        this.db = db;
+        this.presets = presets;
+        this.historial = historial;
         this.aggregator = aggregator;
     }
 
     ResponseEntity<ObjectNode> listarPresets() {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ArrayNode arr = root.putArray("presets");
-        for (var preset : db.listarPresets()) {
+        for (var preset : presets.listarPresets()) {
             ObjectNode n = arr.addObject();
             n.put("id",         preset.id());
             n.put("label",      preset.label());
@@ -49,7 +52,7 @@ class FinanciacionEndpoints {
             n.put("cuotas",     preset.cuotas());
             n.put("activo",     preset.activo());
         }
-        var activo = db.cargarPresetActivo();
+        var activo = presets.cargarPresetActivo();
         if (activo.isPresent()) {
             ObjectNode a = root.putObject("activo");
             a.put("id",         activo.get().id());
@@ -80,7 +83,7 @@ class FinanciacionEndpoints {
             return ResponseEntity.badRequest().body(resp);
         }
 
-        int id = db.crearPreset(label, recargoPct, cuotas);
+        int id = presets.crearPreset(label, recargoPct, cuotas);
         if (id < 0) {
             resp.put("ok", false);
             resp.put("mensaje", "No se pudo crear el preset");
@@ -98,7 +101,7 @@ class FinanciacionEndpoints {
             resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
             return ResponseEntity.status(409).body(resp);
         }
-        boolean ok = db.activarPreset(id);
+        boolean ok = presets.activarPreset(id);
         if (!ok) {
             resp.put("ok", false);
             resp.put("mensaje", "Preset no encontrado");
@@ -128,10 +131,10 @@ class FinanciacionEndpoints {
 
         // Detectar si el preset editado es el activo ANTES de editar — editar
         // no cambia el estado activo, solo label/recargoPct/cuotas.
-        boolean eraActivo = db.cargarPresetActivo()
+        boolean eraActivo = presets.cargarPresetActivo()
                 .map(p -> p.id() == id).orElse(false);
 
-        boolean ok = db.editarPreset(id, label, recargoPct, cuotas);
+        boolean ok = presets.editarPreset(id, label, recargoPct, cuotas);
         if (!ok) {
             resp.put("ok", false);
             resp.put("mensaje", "Preset no encontrado o datos inválidos");
@@ -151,10 +154,10 @@ class FinanciacionEndpoints {
             resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
             return ResponseEntity.status(409).body(resp);
         }
-        boolean eraActivo = db.cargarPresetActivo()
+        boolean eraActivo = presets.cargarPresetActivo()
                 .map(p -> p.id() == id).orElse(false);
 
-        boolean borrado = db.eliminarPreset(id);
+        boolean borrado = presets.eliminarPreset(id);
         if (!borrado) {
             resp.put("ok", false);
             resp.put("mensaje", "Preset no encontrado");
@@ -184,28 +187,28 @@ class FinanciacionEndpoints {
     ResponseEntity<Object> recomendacion(String url) {
         var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
         var root   = MAPPER.createObjectNode();
-        var historial = db.getHistorialPrecios(url);
-        if (historial == null || historial.isEmpty()) {
+        var hist = historial.getHistorialPrecios(url);
+        if (hist == null || hist.isEmpty()) {
             root.put("senal",   "sin_datos");
             root.put("mensaje", "Sin historial suficiente para analizar");
             return ResponseEntity.ok(root);
         }
-        historial.sort(java.util.Comparator.comparing(h -> h.fecha()));
-        double precioActual = historial.get(historial.size()-1).precio();
-        double precioMin    = historial.stream().mapToDouble(h -> h.precio()).min().orElse(precioActual);
-        double precioMax    = historial.stream().mapToDouble(h -> h.precio()).max().orElse(precioActual);
+        hist.sort(java.util.Comparator.comparing(h -> h.fecha()));
+        double precioActual = hist.get(hist.size()-1).precio();
+        double precioMin    = hist.stream().mapToDouble(h -> h.precio()).min().orElse(precioActual);
+        double precioMax    = hist.stream().mapToDouble(h -> h.precio()).max().orElse(precioActual);
         double rango        = precioMax - precioMin;
-        int    puntoAntiguo = Math.max(0, historial.size() - 13);
-        double precioAntiguo  = historial.get(puntoAntiguo).precio();
+        int    puntoAntiguo = Math.max(0, hist.size() - 13);
+        double precioAntiguo  = hist.get(puntoAntiguo).precio();
         double precioAjustado = inflacionService.ajustarPorInflacion(
-            precioAntiguo, Math.max(1, historial.size() / 4));
+            precioAntiguo, Math.max(1, hist.size() / 4));
         double cambioReal = precioAjustado > 0
             ? (precioActual - precioAjustado) / precioAjustado * 100.0 : 0.0;
         double pctDelMin  = rango > 0 ? (precioActual - precioMin) / rango * 100.0 : 50.0;
         String tendencia  = "estable";
-        if (historial.size() >= 4) {
-            double p1 = historial.get(historial.size()-4).precio();
-            double p2 = historial.get(historial.size()-1).precio();
+        if (hist.size() >= 4) {
+            double p1 = hist.get(hist.size()-4).precio();
+            double p2 = hist.get(hist.size()-1).precio();
             double cambioNominal = p1 > 0 ? (p2 - p1) / p1 * 100.0 : 0;
             if (cambioNominal >  5.0) tendencia = "subiendo";
             else if (cambioNominal < -5.0) tendencia = "bajando";
@@ -242,7 +245,7 @@ class FinanciacionEndpoints {
         root.put("tendencia",   tendencia);
         root.put("inflacionMensual",    inflacionService.getInflacionMensual());
         root.put("inflacionInteranual", inflacionService.getInflacionInteranual());
-        root.put("puntosHistorial",     historial.size());
+        root.put("puntosHistorial",     hist.size());
         return ResponseEntity.ok(root);
     }
 
