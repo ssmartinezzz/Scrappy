@@ -1,5 +1,9 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
+import ar.scraper.financiacion.InflacionService;
+
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
@@ -298,7 +302,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void postPresetWhileScrapingRunningReturns409WithoutPersisting() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         ResponseEntity<?> resp = controller.crearPreset(
                 Map.of("label", "x", "recargoPct", 10.0, "cuotas", 6));
@@ -311,7 +315,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void putPresetWhileScrapingRunningReturns409WithoutPersisting() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         ResponseEntity<?> resp = controller.editarPreset(3,
                 Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6));
@@ -325,7 +329,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void activarPresetWhileScrapingRunningReturns409WithoutActivating() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         ResponseEntity<?> resp = controller.activarPreset(7);
 
@@ -338,7 +342,7 @@ class ApiControllerFinanciacionTest {
 
     @Test
     void deletePresetWhileScrapingRunningReturns409WithoutDeleting() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         ResponseEntity<?> resp = controller.eliminarPreset(4);
 

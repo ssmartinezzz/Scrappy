@@ -1,5 +1,9 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
+import ar.scraper.financiacion.InflacionService;
+
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;
@@ -116,7 +120,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.1 happy path → AgentChatResponse")
     void chatHappyPath() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         var expected = AgentChatResponse.withoutTrace("Listo, encontré 2 productos.", TurnOutcome.COMPLETE);
         when(catalogAgentService.run(anyList(), isNull())).thenReturn(expected);
 
@@ -130,7 +134,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.2 empty/missing message → 4xx, provider never invoked")
     void chatEmptyMessageIsBadRequestProviderNeverInvoked() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
         var bodyMissing = Map.<String, Object>of();
         var respMissing = controller.agentChat(bodyMissing);
@@ -146,7 +150,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.3 chat → 409 when scraping RUNNING, provider never invoked")
     void chatReturns409WhenRunning() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         var body = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "hola")));
         var resp = controller.agentChat(body);
@@ -161,7 +165,7 @@ class ApiControllerAgentTest {
     @DisplayName("a past assistant turn's trace is parsed into its ConversationTurn, step-grouped, with "
             + "tool name + arguments preserved")
     void chatParsesAssistantTraceIntoConversationTurn() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -192,7 +196,7 @@ class ApiControllerAgentTest {
     @DisplayName("a client cannot author a system/tool turn (both degrade to USER) and cannot attach a "
             + "trace to a user turn")
     void clientCannotAuthorSystemOrToolTurnsNorTraceAUserTurn() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -213,7 +217,7 @@ class ApiControllerAgentTest {
     @DisplayName("malformed trace entries are dropped field by field instead of rejecting the request: "
             + "a non-map step, a blank tool name and a non-map call all vanish, the valid one survives")
     void malformedTraceEntriesAreDroppedNotRejected() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -242,7 +246,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("an oversized trace is capped at the transport limit rather than rejected")
     void oversizedTraceIsCappedAtTheTransportLimit() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -271,7 +275,7 @@ class ApiControllerAgentTest {
     @DisplayName("the parser stops after AGENT_MAX_TRACE_SCAN raw entries even when none of them was "
             + "usable — the accept-count cap alone would let a body of pure junk be walked end to end")
     void parsingStopsAtTheScanLimitEvenWhenNothingIsAccepted() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -294,7 +298,7 @@ class ApiControllerAgentTest {
     @DisplayName("a replayed call's arguments are rebuilt as flat scalars server-side — nested values are "
             + "dropped, long strings truncated, key count capped — so the browser's caps aren't the only ones")
     void replayedCallArgumentsAreSanitizedServerSide() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -335,7 +339,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("chat → service throws ProviderUnavailableException → 502 with codigo:proveedor_no_disponible, never a 200 chat bubble")
     void chatMapsProviderUnavailableExceptionTo502() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenThrow(new ProviderUnavailableException(
                         ProviderUnavailableException.Reason.UNREACHABLE, "No se pudo contactar al proveedor LLM."));
@@ -354,7 +358,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.11 chat with a valid model in the available set → overrides the default for that request")
     void chatWithValidModelOverridesDefault() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.listModels()).thenReturn(List.of("qwen3:14b", "llama3.1:8b"));
         when(catalogAgentService.run(anyList(), eq("llama3.1:8b")))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
@@ -371,7 +375,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.12 chat without a model field → uses the env default (null forwarded)")
     void chatWithoutModelUsesEnvDefault() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.run(anyList(), isNull()))
                 .thenReturn(AgentChatResponse.withoutTrace("ok", TurnOutcome.COMPLETE));
 
@@ -384,7 +388,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.13 chat with an unknown model → 400 naming the invalid model, no silent fallback")
     void chatWithUnknownModelIsBadRequestNoFallback() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(catalogAgentService.listModels()).thenReturn(List.of("qwen3:14b"));
 
         var body = Map.<String, Object>of(
@@ -417,7 +421,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.9 GET /agent/models is NOT gated — responds normally while scraping RUNNING")
     void agentModelsNotGatedDuringRunning() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
         when(catalogAgentService.listModels()).thenReturn(List.of("qwen3:14b"));
         when(agentConfig.model()).thenReturn("qwen3:14b");
 
@@ -438,7 +442,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.4 apply commits via aplicarReclasificacionAuditada, preserving untouched fields (e.g. talles)")
     void applyCommitsViaActualizarNormalizacion() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -456,7 +460,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.5 apply re-validates server-side: bad url → 400, no write")
     void applyRejectsBadUrlNoWrite() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
 
         ReclassifyProposal body = proposal("https://nope.com/x", "Zapatilla Running", "Buzo");
@@ -469,7 +473,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.5 apply re-validates server-side: bad category → 400, no write")
     void applyRejectsBadCategoryNoWrite() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of());
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
 
@@ -491,7 +495,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("A.3 apply re-validates server-side: out-of-domain genero → 400, no write")
     void applyRejectsOutOfDomainGeneroNoWrite() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of());
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
 
@@ -507,7 +511,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("A.3 apply accepts an in-domain genero and writes it")
     void applyAcceptsInDomainGenero() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -526,7 +530,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("A.3 a blank genero is 'no override', not a value to validate — the previous one survives")
     void applyTreatsBlankGeneroAsNoOverrideNotAsInvalid() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -545,7 +549,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T3.1 apply → the write failing (aplicarReclasificacionAuditada=false) is NEVER reported as applied")
     void applyReturns500WhenWriteFails() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -562,7 +566,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.2b apply → patches the in-memory catalog so the UI reflects the change")
     void applyPatchesTheInMemoryCatalogOnSuccess() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -592,7 +596,7 @@ class ApiControllerAgentTest {
                 actorResolver);
         clearInvocations(db);
 
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -611,7 +615,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.2c apply → never patches memory when the write did not happen")
     void applyDoesNotPatchMemoryWhenWriteFails() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -627,7 +631,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("5.3 apply → 409 when scraping RUNNING, no write")
     void applyReturns409WhenRunning() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
         var resp = controller.agentApply(body);
@@ -641,7 +645,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T5.1 apply → stale categoriaActual vs DB → 422 conflicto_stale, actual populated, no write")
     void applyDetectsStaleCategoriaActualAgainstDb() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
         // Alguien más ya reclasificó este producto en la DB desde que se generó
@@ -663,7 +667,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T5.2 apply → obtenerProducto empty (not found or read error) → 422, fails closed, no write")
     void applyFailsClosedWhenDbReadIsEmpty() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.empty());
@@ -681,7 +685,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T5.3 apply → non-canonical categoriaPropuesta rejected independently of staleness (regression guard)")
     void applyRejectsNonCanonicalCategoryRegardlessOfStaleness() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product enMemoria = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
 
@@ -697,7 +701,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T4.1 apply accepts the real ReclassifyProposal JSON shape end-to-end (typed @RequestBody, not a Map)")
     void applyAcceptsRealReclassifyProposalJsonBody() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -715,7 +719,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T4.2 apply tolerates UI-only keys (_applied/_mensaje) on a retried proposal — ignoreUnknown")
     void applyToleratesUiOnlyKeysOnRetriedProposal() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(current));
@@ -735,7 +739,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("T4.3 apply with a blank url → 400 naming ONLY 'url' (not categoriaPropuesta)")
     void applyWithBlankUrlNamesOnlyUrl() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
         ReclassifyProposal body = proposal("", "Zapatilla Running", "Buzo");
 

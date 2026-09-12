@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.financiacion;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

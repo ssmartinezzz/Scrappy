@@ -4,7 +4,7 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.aggregator.text.AccentStripper;
 import ar.scraper.model.Product;
-import ar.scraper.web.ScraperService;
+import ar.scraper.aggregator.CatalogSnapshotPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -17,7 +17,7 @@ import java.util.function.Predicate;
 
 /**
  * {@code search_products(query?, categoria?, genero?, excluir?, precioMin?, precioMax?, limit=10)}
- * — queries the REAL current catalog snapshot ({@link ScraperService#getLastResult()}),
+ * — queries the REAL current catalog snapshot ({@link CatalogSnapshotPort#getLastResult()}),
  * never fabricated data (llm-catalog-nlp, task 3.1/3.2).
  *
  * <h2>Why the structured filters exist</h2>
@@ -46,10 +46,10 @@ public class SearchProductsTool implements CatalogTool {
     private static final int DEFAULT_LIMIT = 10;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final ScraperService scraperService;
+    private final CatalogSnapshotPort catalogo;
 
-    public SearchProductsTool(ScraperService scraperService) {
-        this.scraperService = scraperService;
+    public SearchProductsTool(CatalogSnapshotPort catalogo) {
+        this.catalogo = catalogo;
     }
 
     @Override
@@ -124,7 +124,7 @@ public class SearchProductsTool implements CatalogTool {
         int limit = args.path("limit").asInt(DEFAULT_LIMIT);
         if (limit <= 0) limit = DEFAULT_LIMIT;
 
-        AggregatedResult result = scraperService.getLastResult();
+        AggregatedResult result = catalogo.getLastResult();
         if (result == null || result.productos() == null) {
             return ToolResult.error("",
                     "No hay datos de catálogo disponibles todavía — ejecutá un scraping primero.");

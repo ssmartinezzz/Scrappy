@@ -1,5 +1,9 @@
 package ar.scraper.web;
 
+import ar.scraper.scrape.ScraperStatus;
+
+import ar.scraper.financiacion.InflacionService;
+
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
@@ -77,7 +81,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void statusReturnsIdleWithNoDataWhenLastResultIsNull() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         when(service.getStatusMsg()).thenReturn("Listo");
         when(service.getLastResult()).thenReturn(null);
         when(service.getProgressData()).thenReturn(null);
@@ -94,7 +98,7 @@ class ApiControllerStatusScrapeTest {
     void statusReturnsTieneDataTrueWithCountWhenResultExists() {
         var products = List.of(producto("https://a.com/1", 1000));
         var result   = mockResult(products);
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.DONE);
+        when(service.getStatus()).thenReturn(ScraperStatus.DONE);
         when(service.getStatusMsg()).thenReturn("Finalizado");
         when(service.getLastResult()).thenReturn(result);
         when(service.getProgressData()).thenReturn(null);
@@ -110,7 +114,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void statusIncludesProgresoBlockWhenProgressDataPresent() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
         when(service.getStatusMsg()).thenReturn("Scrapeando...");
         when(service.getLastResult()).thenReturn(null);
         var pd = new ScraperService.ProgressData(3, 1, 50,
@@ -178,7 +182,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void limpiarProductosReturns409WhenScrapingRunning() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         var resp = controller.limpiarProductos();
 
@@ -188,7 +192,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void limpiarProductosReturns200AndClearsStateWhenIdle() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
         var resp = controller.limpiarProductos();
 
@@ -200,7 +204,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void limpiarProductosReturns500OnDbException() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         doThrow(new SQLException("DB error")).when(productos).limpiarProductos();
 
         var resp = controller.limpiarProductos();
@@ -212,7 +216,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void limpiarMlReturns409WhenScrapingRunning() {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.RUNNING);
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         var resp = controller.limpiarMl();
 
@@ -222,7 +226,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void limpiarMlReturns200AndClearsDataWhenIdle() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
         var resp = controller.limpiarMl();
 
@@ -233,7 +237,7 @@ class ApiControllerStatusScrapeTest {
 
     @Test
     void limpiarMlReturns500OnDbException() throws Exception {
-        when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         doThrow(new SQLException("DB error")).when(mlOutput).limpiarMlOutput();
 
         var resp = controller.limpiarMl();
