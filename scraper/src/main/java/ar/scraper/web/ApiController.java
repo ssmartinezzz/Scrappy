@@ -5,6 +5,7 @@ import ar.scraper.financiacion.InflacionService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.ProductJson;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.identity.ActorResolver;
