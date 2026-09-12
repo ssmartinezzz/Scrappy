@@ -1,7 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.PreciosExternosPort;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -45,7 +45,7 @@ class ComparadorBuscarExternoTest {
     @BeforeEach
     void setUp() {
         endpoints = new ComparadorEndpoints(
-                mock(ScraperService.class), mock(DatabaseService.class), mock(GroupingService.class));
+                mock(ScraperService.class), mock(PreciosExternosPort.class), mock(GroupingService.class));
     }
 
     /** Runs the endpoint on the no-network path and returns its body. */

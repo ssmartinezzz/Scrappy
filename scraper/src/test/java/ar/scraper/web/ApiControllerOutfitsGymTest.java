@@ -39,6 +39,8 @@ class ApiControllerOutfitsGymTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private ar.scraper.feedback.FeedbackPort feedback;
+    private ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -62,6 +64,10 @@ class ApiControllerOutfitsGymTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
+        when(db.feedback()).thenReturn(feedback);
+        outfitsGuardados      = mock(ar.scraper.outfits.SavedOutfitsPort.class);
+        when(db.outfitsGuardados()).thenReturn(outfitsGuardados);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -86,8 +92,8 @@ class ApiControllerOutfitsGymTest {
     @Test
     void outfitsReturns200WithSlotArrayWhenResultExists() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
-        when(db.obtenerOutfitFeedback(any())).thenReturn(List.of());
-        when(db.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
+        when(feedback.obtenerOutfitFeedback(any())).thenReturn(List.of());
+        when(feedback.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
 
         var emptyOutfit = new OutfitService.Outfit(List.of(), "hombre", false, 0.0, false);
         when(outfitService.armar(any(), any(), eq("gym"), any(), anyDouble(), any()))
@@ -106,8 +112,8 @@ class ApiControllerOutfitsGymTest {
     @Test
     void outfitsIncludesSlotsWhenOutfitHasProducts() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
-        when(db.obtenerOutfitFeedback(any())).thenReturn(List.of());
-        when(db.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
+        when(feedback.obtenerOutfitFeedback(any())).thenReturn(List.of());
+        when(feedback.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
 
         var pick = new OutfitService.SlotPick(
                 "Remera", "Sporting", "Nike Tee", 8000.0,
@@ -128,8 +134,8 @@ class ApiControllerOutfitsGymTest {
     @Test
     void outfitsPassesExcluirUrlsToService() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
-        when(db.obtenerOutfitFeedback(any())).thenReturn(List.of());
-        when(db.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
+        when(feedback.obtenerOutfitFeedback(any())).thenReturn(List.of());
+        when(feedback.obtenerCategoriaDismiss(any())).thenReturn(Set.of());
 
         var emptyOutfit = new OutfitService.Outfit(List.of(), "hombre", false, 0.0, false);
         when(outfitService.armar(any(), any(), eq("gym"), any(), anyDouble(), any()))

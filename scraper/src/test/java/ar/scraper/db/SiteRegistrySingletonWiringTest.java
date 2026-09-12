@@ -113,6 +113,8 @@ class SiteRegistrySingletonWiringTest {
                 CatalogQueryRepository.class, ProductRepository.class,
                 CategoriaStatsRepository.class, MlOutputRepository.class,
                 ScrapeRunRepository.class, SitiosRepository.class,
+                FeedbackRepository.class, SavedOutfitsRepository.class,
+                PreciosExternosRepository.class,
                 DatabaseService.class)) {
 
             SiteRegistry theSingleton = context.getBean(SiteRegistry.class);
