@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.identity;
 
 import ar.scraper.identity.ActorResolver;
 
@@ -19,19 +19,19 @@ import java.util.UUID;
  * pair of braces: if a future route is added to the wrong band, it fails closed
  * and loudly rather than serving somebody else's rows.</p>
  */
-final class Sujeto {
+public final class Sujeto {
 
     private Sujeto() {
     }
 
     /** Thrown when an owner-scoped surface is reached with no authenticated subject. */
-    static final class SinSujeto extends RuntimeException {
+    public static final class SinSujeto extends RuntimeException {
         SinSujeto() {
             super("La operación es personal y no hay un sujeto autenticado.");
         }
     }
 
-    static UUID de(ActorResolver actorResolver) {
+    public static UUID de(ActorResolver actorResolver) {
         return actorResolver.currentUsuarioId().orElseThrow(SinSujeto::new);
     }
 }
