@@ -2,6 +2,8 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.model.Product;
+import ar.scraper.outfits.FeedbackModels;
+import ar.scraper.outfits.RecommendationService;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;

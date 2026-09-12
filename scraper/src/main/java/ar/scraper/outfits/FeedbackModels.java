@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.outfits;
 
 import ar.scraper.model.Product;
 
@@ -18,7 +18,7 @@ import java.util.Set;
  * Stateless: a pure function of its arguments, which is why the methods are
  * static.</p>
  */
-final class FeedbackModels {
+public final class FeedbackModels {
 
     private FeedbackModels() {}
 
@@ -45,7 +45,7 @@ final class FeedbackModels {
      *   SEGUNDO e independiente, poblado directamente desde categoria_dismiss —
      *   no requiere join con el catálogo vivo (no tiene marca asociada).
      */
-    static OutfitService.FeedbackModel build(
+    public static OutfitService.FeedbackModel build(
             List<ar.scraper.feedback.OutfitItemRow> rows, List<Product> productos,
             Set<String> dismissCategorias) {
         return build(rows, productos, dismissCategorias, null);
@@ -59,7 +59,7 @@ final class FeedbackModels {
      * sí pero ambos siguen consumiendo la señal del feed ("catalog"), preservando el
      * sharing bidireccional del PR #21 sin filtrar gym↔casual.
      */
-    static OutfitService.FeedbackModel build(
+    public static OutfitService.FeedbackModel build(
             List<ar.scraper.feedback.OutfitItemRow> rows, List<Product> productos,
             Set<String> dismissCategorias, Set<String> allowedEstilos) {
         Map<String, Product> porUrl = new HashMap<>();
