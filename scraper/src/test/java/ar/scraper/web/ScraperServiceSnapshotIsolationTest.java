@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -37,7 +37,7 @@ class ScraperServiceSnapshotIsolationTest {
     private static final String VIEJO = "https://site.com/viejo";
     private static final String FRESCO = "https://site.com/fresco";
 
-    private DatabaseService db;
+    private ScrapeRunPort scrapeRun;
     private ResultAggregator aggregator;
 
     private Product producto(String url, String categoria) {
@@ -55,14 +55,18 @@ class ScraperServiceSnapshotIsolationTest {
 
     /** @param yaHuboCorrida whether a COMPLETED run exists — D6's suppression switch. */
     private ScraperService servicio(boolean yaHuboCorrida) throws Exception {
-        db = Mockito.mock(DatabaseService.class);
+        scrapeRun = Mockito.mock(ScrapeRunPort.class);
         aggregator = Mockito.mock(ResultAggregator.class);
-        Mockito.when(db.crearScrapeRun(Mockito.any(), Mockito.any(), Mockito.any(),
+        Mockito.when(scrapeRun.crear(Mockito.any(), Mockito.any(), Mockito.any(),
                 Mockito.any(), Mockito.any())).thenReturn(7L);
-        Mockito.when(db.startedAtDeRun(7L))
+        Mockito.when(scrapeRun.startedAtDe(7L))
                 .thenReturn(Optional.of(Instant.parse("2026-08-26T10:00:00Z")));
-        Mockito.when(db.existeCorridaCompletada()).thenReturn(yaHuboCorrida);
-        return new ScraperService(Mockito.mock(ScraperConfig.class), aggregator, db,
+        Mockito.when(scrapeRun.existeCorridaCompletada()).thenReturn(yaHuboCorrida);
+        return new ScraperService(Mockito.mock(ScraperConfig.class), aggregator,
+                scrapeRun,
+                Mockito.mock(ar.scraper.classification.SitiosPort.class),
+                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class));
     }
 

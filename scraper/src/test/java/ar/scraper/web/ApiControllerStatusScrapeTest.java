@@ -38,6 +38,7 @@ class ApiControllerStatusScrapeTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private ar.scraper.catalog.MlOutputPort mlOutput;
     private ProductPort productos;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
@@ -57,6 +58,8 @@ class ApiControllerStatusScrapeTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        mlOutput              = mock(ar.scraper.catalog.MlOutputPort.class);
+        when(db.mlOutput()).thenReturn(mlOutput);
         productos             = mock(ProductPort.class);
         when(db.productos()).thenReturn(productos);
         grouping              = mock(GroupingService.class);
@@ -224,14 +227,14 @@ class ApiControllerStatusScrapeTest {
         var resp = controller.limpiarMl();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(db).limpiarMlOutput();
+        verify(mlOutput).limpiarMlOutput();
         verify(aggregator).clearMlOutput();
     }
 
     @Test
     void limpiarMlReturns500OnDbException() throws Exception {
         when(service.getStatus()).thenReturn(ScraperService.ScraperStatus.IDLE);
-        doThrow(new SQLException("DB error")).when(db).limpiarMlOutput();
+        doThrow(new SQLException("DB error")).when(mlOutput).limpiarMlOutput();
 
         var resp = controller.limpiarMl();
 

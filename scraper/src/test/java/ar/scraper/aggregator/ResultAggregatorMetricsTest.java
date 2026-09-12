@@ -2,7 +2,8 @@ package ar.scraper.aggregator;
 
 import ar.scraper.catalog.HistorialPort;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.catalog.MlOutputPort;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -42,7 +43,8 @@ class ResultAggregatorMetricsTest {
     private MlEnricher           mlEnricher;
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
-    private DatabaseService      db;
+    private MlOutputPort             mlOutput;
+    private CategoriaStatsPort       categoriaStats;
     private ProductPort          productos;
     private ResultAggregator     aggregator;
 
@@ -58,20 +60,22 @@ class ResultAggregatorMetricsTest {
         mlEnricher           = mock(MlEnricher.class);
         senalEnricher        = mock(SenalEnricher.class);
         financiacionEnricher = mock(FinanciacionEnricher.class);
-        db                   = mock(DatabaseService.class);
+        mlOutput                          = mock(MlOutputPort.class);
+        categoriaStats                    = mock(CategoriaStatsPort.class);
         productos            = mock(ProductPort.class);
 
         // Pass-through mocks — return the input list unchanged
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
         when(mlEnricher.serializarProductos(anyList())).thenReturn("[]");
         when(pythonRunner.ejecutar(anyString())).thenReturn(null);
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mlEnricher.enriquecer(anyList(), any())).thenAnswer(inv -> inv.getArgument(0));
         when(senalEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
         // Void methods (upsertProductos, guardarMlOutput, etc.) default to no-op on mock
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher,
+                mlOutput, categoriaStats,
                 productos);
     }
 
@@ -197,7 +201,7 @@ class ResultAggregatorMetricsTest {
 
         Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
                 "http://test.com/cat", "", "Calzado Deportivo", "", List.of());
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(enriquecido));
+        when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(enriquecido));
 
         aggregator.agregar(List.of(scrapeResult));
 
@@ -216,7 +220,7 @@ class ResultAggregatorMetricsTest {
 
         Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
                 "http://test.com/cat2", "", "Zapatilla", "", List.of());
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(enriquecido));
+        when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(enriquecido));
 
         aggregator.agregar(List.of(scrapeResult));
 
@@ -238,7 +242,7 @@ class ResultAggregatorMetricsTest {
                 "TestSite", "Buzo con visual", 20000, null, "http://test.com/visual-e2e",
                 "", "Buzo", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(mlEnriquecido));
+        when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(mlEnriquecido));
 
         // Real (not mocked) SenalEnricher + FinanciacionEnricher — the concrete
         // regression surface for the PR1-flagged risk: their withSenal()/
@@ -251,7 +255,8 @@ class ResultAggregatorMetricsTest {
         FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(mock(PresetPort.class), inflacion);
 
         ResultAggregator aggregatorConEnrichersReales = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher, db,
+                normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher,
+                mlOutput, categoriaStats,
                 productos);
 
         ResultAggregator.AggregatedResult result =

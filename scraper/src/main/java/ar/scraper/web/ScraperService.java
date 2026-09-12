@@ -2,7 +2,10 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.classification.SiteRegistry;
+import ar.scraper.classification.SitiosPort;
+import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.health.SiteYieldGuard;
@@ -98,11 +101,14 @@ public class ScraperService {
 
     private final List<SitioExtra> sitiosExtras = new ArrayList<>();
 
-    // Declared dual dependency (extract-catalog-query-port, D6): the ScrapeRun/Sitios
-    // calls below (crearScrapeRun, marcarSitio*, etc.) belong to repositories out of
-    // this slice's scope. cargarProductos/upsertParcial/upsertProductos go through
-    // ProductPort instead.
-    private final DatabaseService db;
+    // D6's declared dual dependency is gone (extract-ml-persistence-ports): the
+    // ScrapeRun/Sitios/MlOutput calls that kept this class on the facade now each
+    // have a port. SiteRegistry is injected as the @Component it always was,
+    // rather than read back through DatabaseService.siteRegistry().
+    private final ScrapeRunPort scrapeRun;
+    private final SitiosPort sitios;
+    private final MlOutputPort mlOutput;
+    private final SiteRegistry siteRegistry;
     private final ProductPort productos;
 
     /**
@@ -119,19 +125,23 @@ public class ScraperService {
 
     public RunState getRunState() { return runState.get(); }
 
-    public ScraperService(ScraperConfig config, ResultAggregator aggregator, DatabaseService db,
-                          ProductPort productos) {
-        this.config     = config;
-        this.aggregator = aggregator;
-        this.db         = db;
-        this.productos  = productos;
+    public ScraperService(ScraperConfig config, ResultAggregator aggregator,
+                          ScrapeRunPort scrapeRun, SitiosPort sitios, MlOutputPort mlOutput,
+                          SiteRegistry siteRegistry, ProductPort productos) {
+        this.config       = config;
+        this.aggregator   = aggregator;
+        this.scrapeRun    = scrapeRun;
+        this.sitios       = sitios;
+        this.mlOutput     = mlOutput;
+        this.siteRegistry = siteRegistry;
+        this.productos    = productos;
     }
 
     @PostConstruct
     public void cargarDesdeBD() {
         // Cargar sitios dinámicos persistidos
         try {
-            for (var row : db.cargarSitiosDinamicos()) {
+            for (var row : sitios.cargarSitiosDinamicos()) {
                 sitiosExtras.add(new SitioExtra(
                         row.get("nombre"), row.get("url"), row.get("plataforma")));
             }
@@ -146,12 +156,12 @@ public class ScraperService {
         // restart finds two runs still claiming to be live and "the interrupted
         // run" stops naming one thing.
         try {
-            var interrumpidos = db.marcarRunsInterrumpidos(java.time.Instant.now());
+            var interrumpidos = scrapeRun.marcarInterrumpidosAlArrancar(java.time.Instant.now());
             if (!interrumpidos.isEmpty()) {
                 LOG.warn("[DB] {} corrida(s) quedaron interrumpidas por un cierre anterior: {}",
                         interrumpidos.size(), interrumpidos);
             }
-            interrumpida.set(db.ultimaCorridaInterrumpida().orElse(null));
+            interrumpida.set(scrapeRun.ultimaInterrumpida().orElse(null));
             var det = interrumpida.get();
             if (det != null) {
                 LOG.warn("[DB] corrida {} quedó interrumpida: {} sitio(s) atendidos, "
@@ -168,7 +178,7 @@ public class ScraperService {
             if (!prods.isEmpty()) {
                 synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
                 // Restaurar ML output
-                com.fasterxml.jackson.databind.JsonNode mlOut = db.cargarMlOutput();
+                com.fasterxml.jackson.databind.JsonNode mlOut = mlOutput.cargarMlOutput();
                 if (mlOut != null) aggregator.setLastMlOutput(mlOut);
                 status.set(ScraperStatus.DONE);
                 statusMsg.set("Datos restaurados: " + prods.size() + " productos");
@@ -441,7 +451,7 @@ public class ScraperService {
                         Playwright pw = Playwright.create();
                         playwrightsVivos.add(pw);
                         try {
-                            BaseScraper scraper = ScraperFactory.crear(config, site, db.siteRegistry());
+                            BaseScraper scraper = ScraperFactory.crear(config, site, siteRegistry);
                             return scraper.ejecutar(pw);
                         } finally {
                             playwrightsVivos.remove(pw);
@@ -679,10 +689,10 @@ public class ScraperService {
             // una corrida que lo debía es peor que no retomarlo.
             List<String> nombresActuales = buildSiteList(null).stream()
                     .map(ScraperConfig.SiteConfig::nombre).toList();
-            db.marcarSitiosAusentesDelRegistro(det.runId(), nombresActuales);
+            scrapeRun.marcarAusentesDelRegistro(det.runId(), nombresActuales);
 
-            var actualizada = db.ultimaCorridaInterrumpida().orElse(det);
-            db.reabrirScrapeRun(det.runId());
+            var actualizada = scrapeRun.ultimaInterrumpida().orElse(det);
+            scrapeRun.reabrir(det.runId());
             interrumpida.set(null);
 
             RunState adoptada = new RunState(det.runId(), det.uuid(), det.startedAt());
@@ -809,12 +819,12 @@ public class ScraperService {
             java.util.UUID uuid = java.util.UUID.randomUUID();
             java.time.Instant arranque = java.time.Instant.now();
             List<String> nombres = sitios.stream().map(ScraperConfig.SiteConfig::nombre).toList();
-            long runId = db.crearScrapeRun(uuid, arranque, null, null, nombres);
+            long runId = scrapeRun.crear(uuid, arranque, null, null, nombres);
             // El started_at que vale es el que quedó EN LA BASE, no el que mandamos:
             // el repositorio lo trunca al segundo para que la cota de aislamiento
             // case con la resolución de `touched_at`. Leerlo de vuelta evita que
             // este objeto y la fila digan cosas distintas.
-            java.time.Instant persistido = db.startedAtDeRun(runId).orElse(arranque);
+            java.time.Instant persistido = scrapeRun.startedAtDe(runId).orElse(arranque);
             adoptarCorrida(new RunState(runId, uuid, persistido));
             LOG.info("[RUN] corrida {} abierta con {} sitios", runId, nombres.size());
         } catch (Exception e) {
@@ -855,7 +865,7 @@ public class ScraperService {
     private void aislarLectores(java.time.Instant arranque) {
         boolean hayCorridaCompletada;
         try {
-            hayCorridaCompletada = db.existeCorridaCompletada();
+            hayCorridaCompletada = scrapeRun.existeCorridaCompletada();
         } catch (Exception e) {
             // Sin respuesta no se aísla: servir de más es recuperable, servir una
             // pantalla vacía por un error de contabilidad no.
@@ -882,7 +892,7 @@ public class ScraperService {
         RunState estado = runState.get();
         if (estado == null) return;
         try {
-            db.marcarSitioEnCurso(estado.runId(), sitio, java.time.Instant.now());
+            scrapeRun.marcarSitioEnCurso(estado.runId(), sitio, java.time.Instant.now());
         } catch (Exception e) {
             LOG.warn("[RUN] no se pudo marcar '{}' en curso: {}", sitio, e.getMessage());
         }
@@ -892,7 +902,7 @@ public class ScraperService {
         RunState estado = runState.get();
         if (estado == null) return;
         try {
-            db.marcarSitioTerminado(estado.runId(), sitio, status, productos, error,
+            scrapeRun.marcarSitioTerminado(estado.runId(), sitio, status, productos, error,
                     java.time.Instant.now());
         } catch (Exception e) {
             LOG.warn("[RUN] no se pudo cerrar '{}': {}", sitio, e.getMessage());
@@ -906,7 +916,7 @@ public class ScraperService {
         liberarLectores();
         if (estado == null) return;
         try {
-            db.finalizarScrapeRun(estado.runId(), status, productos, java.time.Instant.now());
+            scrapeRun.finalizar(estado.runId(), status, productos, java.time.Instant.now());
             LOG.info("[RUN] corrida {} cerrada como {} con {} productos",
                     estado.runId(), status, productos);
         } catch (Exception e) {

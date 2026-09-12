@@ -3,7 +3,8 @@ package ar.scraper.aggregator;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.catalog.MlOutputPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
@@ -32,7 +33,8 @@ public class ResultAggregator {
     // guardarCategoriaStats below belong to repositories out of this slice's scope.
     // upsertProductos/cargarClasificacionBloqueada/actualizarCategoria/cargarProductos/
     // actualizarNormalizacion/estaBloqueado go through ProductPort instead.
-    private final DatabaseService      db;
+    private final MlOutputPort         mlOutput;
+    private final CategoriaStatsPort   categoriaStats;
     private final ProductPort          productos;
 
     // Estado del último run — leído por ScraperService sin inyección circular
@@ -44,14 +46,16 @@ public class ResultAggregator {
                             MlEnricher           mlEnricher,
                             SenalEnricher        senalEnricher,
                             FinanciacionEnricher financiacionEnricher,
-                            DatabaseService      db,
+                            MlOutputPort         mlOutput,
+                            CategoriaStatsPort   categoriaStats,
                             ProductPort          productos) {
         this.normalizer          = normalizer;
         this.pythonRunner        = pythonRunner;
         this.mlEnricher          = mlEnricher;
         this.senalEnricher       = senalEnricher;
         this.financiacionEnricher = financiacionEnricher;
-        this.db                  = db;
+        this.mlOutput            = mlOutput;
+        this.categoriaStats      = categoriaStats;
         this.productos           = productos;
     }
 
@@ -136,9 +140,9 @@ public class ResultAggregator {
         persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
 
         productos.upsertProductos(pipeline.enriquecidos(), runStartedAt);
-        db.guardarMlOutput(pipeline.mlOut());
+        mlOutput.guardarMlOutput(pipeline.mlOut());
         if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
-            db.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));
+            categoriaStats.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));
 
         List<Product> conFinanciacion = enriquecerSenalYFinanciacion(pipeline.enriquecidos());
 
@@ -218,7 +222,7 @@ public class ResultAggregator {
         LOG.info("[AGG] Pipeline ML completado.");
         lastMlOutput    = mlOut;
 
-        List<Product> enriquecidos = aplicarBloqueos(mlEnricher.enriquecer(normalizados, mlOut, db), bloqueos);
+        List<Product> enriquecidos = aplicarBloqueos(mlEnricher.enriquecer(normalizados, mlOut), bloqueos);
 
         return new MlPipelineResult(normalizados, enriquecidos, mlOut);
     }

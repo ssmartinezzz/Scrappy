@@ -4,6 +4,10 @@ import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.classification.SitiosPort;
+import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.ClasificacionBloqueada;
@@ -65,14 +69,14 @@ public class DatabaseService {
     private final FavoritosPort favoritosPort;
     private final FeedbackRepository feedbackRepository;
     private final SavedOutfitsRepository savedOutfitsRepository;
-    private final MlOutputRepository mlOutputRepository;
+    private final MlOutputPort mlOutputPort;
     private final HistorialPort historialPort;
-    private final SitiosRepository sitiosRepository;
-    private final CategoriaStatsRepository categoriaStatsRepository;
+    private final SitiosPort sitiosPort;
+    private final CategoriaStatsPort categoriaStatsPort;
     private final PreciosExternosRepository preciosExternosRepository;
     private final ProductPort productPort;
     private final CatalogQueryPort catalogQueryPort;
-    private final ScrapeRunRepository scrapeRunRepository;
+    private final ScrapeRunPort scrapeRunPort;
     private final SiteRegistry siteRegistry;
 
     /**
@@ -99,13 +103,18 @@ public class DatabaseService {
                 new FavoritosRepository(dataSource), new PresetRepository(dataSource),
                 new HistorialRepository(dataSource),
                 new CatalogQueryRepository(dataSource, siteRegistry),
-                new ProductRepository(dataSource, siteRegistry));
+                new ProductRepository(dataSource, siteRegistry),
+                new CategoriaStatsRepository(dataSource), new MlOutputRepository(dataSource),
+                new ScrapeRunRepository(dataSource),
+                new SitiosRepository(dataSource, siteRegistry));
     }
 
     @Autowired
     public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort,
             FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort,
-            CatalogQueryPort catalogQueryPort, ProductPort productPort) {
+            CatalogQueryPort catalogQueryPort, ProductPort productPort,
+            CategoriaStatsPort categoriaStatsPort, MlOutputPort mlOutputPort,
+            ScrapeRunPort scrapeRunPort, SitiosPort sitiosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
         this.cronPort = cronPort;
@@ -116,11 +125,11 @@ public class DatabaseService {
         this.productPort = productPort;
         this.feedbackRepository = new FeedbackRepository(dataSource);
         this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
-        this.mlOutputRepository = new MlOutputRepository(dataSource);
-        this.sitiosRepository = new SitiosRepository(dataSource, siteRegistry);
-        this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
+        this.mlOutputPort = mlOutputPort;
+        this.sitiosPort = sitiosPort;
+        this.categoriaStatsPort = categoriaStatsPort;
         this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
-        this.scrapeRunRepository = new ScrapeRunRepository(dataSource);
+        this.scrapeRunPort = scrapeRunPort;
     }
 
     public SiteRegistry siteRegistry() {
@@ -143,6 +152,29 @@ public class DatabaseService {
      *  that still need the port, e.g. {@code ApiController} wiring {@code FinanciacionEndpoints}. */
     public HistorialPort historial() {
         return historialPort;
+    }
+
+    /** Accessor for consumers built by hand (not Spring beans) that still need
+     *  the port, e.g. the Postgres-backed tests that drive a whole run lifecycle. */
+    public ScrapeRunPort scrapeRun() {
+        return scrapeRunPort;
+    }
+
+    /** Accessor for consumers built by hand (not Spring beans) that still need the port. */
+    public SitiosPort sitios() {
+        return sitiosPort;
+    }
+
+    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
+     *  need the port, e.g. {@code ApiController} wiring {@code MlEndpoints}. */
+    public CategoriaStatsPort categoriaStats() {
+        return categoriaStatsPort;
+    }
+
+    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
+     *  need the port, e.g. {@code ApiController} wiring {@code DbAdminEndpoints}. */
+    public MlOutputPort mlOutput() {
+        return mlOutputPort;
     }
 
     /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
@@ -306,54 +338,54 @@ public class DatabaseService {
     public long crearScrapeRun(java.util.UUID scrapeUuid, java.time.Instant startedAt,
                                java.util.UUID triggeredBy, Long cronJobId,
                                java.util.Collection<String> sitios) throws SQLException {
-        return scrapeRunRepository.crear(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios);
+        return scrapeRunPort.crear(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios);
     }
 
     public void marcarSitioEnCurso(long runId, String sitio, java.time.Instant cuando)
             throws SQLException {
-        scrapeRunRepository.marcarSitioEnCurso(runId, sitio, cuando);
+        scrapeRunPort.marcarSitioEnCurso(runId, sitio, cuando);
     }
 
     public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
                                      String error, java.time.Instant cuando) throws SQLException {
-        scrapeRunRepository.marcarSitioTerminado(runId, sitio, status, productosCount, error, cuando);
+        scrapeRunPort.marcarSitioTerminado(runId, sitio, status, productosCount, error, cuando);
     }
 
     public void finalizarScrapeRun(long runId, String status, int productosCount,
                                    java.time.Instant finishedAt) throws SQLException {
-        scrapeRunRepository.finalizar(runId, status, productosCount, finishedAt);
+        scrapeRunPort.finalizar(runId, status, productosCount, finishedAt);
     }
 
     /** Marks whatever the previous process left open. Only marks — never starts a scrape. */
     public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) throws SQLException {
-        return scrapeRunRepository.marcarInterrumpidosAlArrancar(cuando);
+        return scrapeRunPort.marcarInterrumpidosAlArrancar(cuando);
     }
 
     /** La corrida que dejó abierta un proceso muerto, con sus sitios ya separados. */
     public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida()
             throws SQLException {
-        return scrapeRunRepository.ultimaInterrumpida();
+        return scrapeRunPort.ultimaInterrumpida();
     }
 
     /** Reabre una corrida interrumpida EN SU LUGAR, conservando su started_at. */
     public void reabrirScrapeRun(long runId) throws SQLException {
-        scrapeRunRepository.reabrir(runId);
+        scrapeRunPort.reabrir(runId);
     }
 
     /** Marca SKIPPED los sitios pendientes que ya no están en el registro y los devuelve. */
     public java.util.List<String> marcarSitiosAusentesDelRegistro(
             long runId, java.util.Collection<String> nombresActuales) throws SQLException {
-        return scrapeRunRepository.marcarAusentesDelRegistro(runId, nombresActuales);
+        return scrapeRunPort.marcarAusentesDelRegistro(runId, nombresActuales);
     }
 
     /** The reader-isolation bound for a run. Truncated to the second — see the repository. */
     public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) throws SQLException {
-        return scrapeRunRepository.startedAtDe(runId);
+        return scrapeRunPort.startedAtDe(runId);
     }
 
     /** Whether the reader bound may apply at all — see the repository for why COMPLETED. */
     public boolean existeCorridaCompletada() throws SQLException {
-        return scrapeRunRepository.existeCorridaCompletada();
+        return scrapeRunPort.existeCorridaCompletada();
     }
 
     /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
@@ -399,11 +431,11 @@ public class DatabaseService {
     // ─────────────────────────────────────────────────────────────────────
 
     public void guardarMlOutput(JsonNode mlOutput) {
-        mlOutputRepository.guardarMlOutput(mlOutput);
+        mlOutputPort.guardarMlOutput(mlOutput);
     }
 
     public JsonNode cargarMlOutput() {
-        return mlOutputRepository.cargarMlOutput();
+        return mlOutputPort.cargarMlOutput();
     }
 
     // ─── Historial de precios (lecturas). Bodies in HistorialRepository
@@ -418,26 +450,26 @@ public class DatabaseService {
     // ─────────────────────────────────────────────────────────────────────
 
     public void guardarSitio(String nombre, String url, String plataforma) {
-        sitiosRepository.guardarSitio(nombre, url, plataforma);
+        sitiosPort.guardarSitio(nombre, url, plataforma);
     }
 
     public void eliminarSitio(String nombre) {
-        sitiosRepository.eliminarSitio(nombre);
+        sitiosPort.eliminarSitio(nombre);
     }
 
     public List<Map<String, String>> cargarSitiosDinamicos() {
-        return sitiosRepository.cargarSitiosDinamicos();
+        return sitiosPort.cargarSitiosDinamicos();
     }
 
     // ─── Categoria Stats. Bodies in CategoriaStatsRepository (backlog A3).
     // ─────────────────────────────────────────────────────────────────────
 
     public void guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode statsNode) {
-        categoriaStatsRepository.guardarCategoriaStats(statsNode);
+        categoriaStatsPort.guardarCategoriaStats(statsNode);
     }
 
     public java.util.Map<String, CategoriaStats> cargarCategoriaStats() {
-        return categoriaStatsRepository.cargarCategoriaStats();
+        return categoriaStatsPort.cargarCategoriaStats();
     }
 
     // ─── Precios externos. Bodies in PreciosExternosRepository (backlog A3).
@@ -622,7 +654,7 @@ public class DatabaseService {
     }
 
     public void limpiarMlOutput() throws SQLException {
-        mlOutputRepository.limpiarMlOutput();
+        mlOutputPort.limpiarMlOutput();
     }
 
     // ─── Saved Outfits. Bodies in SavedOutfitsRepository (backlog A3).
