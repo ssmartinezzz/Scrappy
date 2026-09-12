@@ -111,6 +111,8 @@ class SiteRegistrySingletonWiringTest {
                 UnreachableDataSourceConfig.class, SiteRegistry.class, CronRepository.class,
                 FavoritosRepository.class, PresetRepository.class, HistorialRepository.class,
                 CatalogQueryRepository.class, ProductRepository.class,
+                CategoriaStatsRepository.class, MlOutputRepository.class,
+                ScrapeRunRepository.class, SitiosRepository.class,
                 DatabaseService.class)) {
 
             SiteRegistry theSingleton = context.getBean(SiteRegistry.class);

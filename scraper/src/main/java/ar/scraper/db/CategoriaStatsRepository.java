@@ -1,10 +1,13 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.CategoriaStatsPort;
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.catalog.CategoriaStats;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -32,7 +35,8 @@ import java.util.Set;
  * (the upsert, one table over) turned into a named, per-key {@code WARN}
  * instead of a silent total loss.</p>
  */
-class CategoriaStatsRepository {
+@Repository
+class CategoriaStatsRepository implements CategoriaStatsPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(CategoriaStatsRepository.class);
 
@@ -42,7 +46,8 @@ class CategoriaStatsRepository {
         this.dataSource = dataSource;
     }
 
-    void guardarCategoriaStats(JsonNode statsNode) {
+    @Override
+    public void guardarCategoriaStats(JsonNode statsNode) {
         if (statsNode == null) return;
         Set<String> canonicas = CategoryGroups.canonicalCategories();
         java.time.OffsetDateTime now = Timestamps.now();
@@ -95,7 +100,8 @@ class CategoriaStatsRepository {
         }
     }
 
-    Map<String, CategoriaStats> cargarCategoriaStats() {
+    @Override
+    public Map<String, CategoriaStats> cargarCategoriaStats() {
         Map<String, CategoriaStats> result = new LinkedHashMap<>();
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();

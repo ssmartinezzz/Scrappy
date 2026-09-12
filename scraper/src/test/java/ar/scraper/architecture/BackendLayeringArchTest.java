@@ -138,4 +138,84 @@ class BackendLayeringArchTest {
                     && METODOS_PRODUCTOS.contains(call.getTarget().getName());
             }
         });
+
+    // ── extract-ml-persistence-ports ────────────────────────────────────────
+    // Unlike the six rules above, these four are NOT scoped to ar.scraper.web
+    // alone: this cluster's consumers also live in ar.scraper.aggregator
+    // (ResultAggregator). A web-only rule would have gone green while half the
+    // extraction was still calling the facade.
+    private static final String[] CONSUMIDORES_DEL_CLUSTER =
+        { "ar.scraper.web..", "ar.scraper.aggregator.." };
+
+    // The categoria_stats aggregate's 2 methods on DatabaseService.
+    private static final Set<String> METODOS_CATEGORIA_STATS =
+        Set.of("guardarCategoriaStats", "cargarCategoriaStats");
+
+    @ArchTest
+    static final ArchRule consumidoresUsanCategoriaStatsPorElPuerto = noClasses()
+        .that().resideInAnyPackage(CONSUMIDORES_DEL_CLUSTER)
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a categoria-stats method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_CATEGORIA_STATS.contains(call.getTarget().getName());
+            }
+        });
+
+    // The ml_output aggregate's 3 methods on DatabaseService.
+    private static final Set<String> METODOS_ML_OUTPUT =
+        Set.of("guardarMlOutput", "cargarMlOutput", "limpiarMlOutput");
+
+    @ArchTest
+    static final ArchRule consumidoresUsanMlOutputPorElPuerto = noClasses()
+        .that().resideInAnyPackage(CONSUMIDORES_DEL_CLUSTER)
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target an ml-output method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_ML_OUTPUT.contains(call.getTarget().getName());
+            }
+        });
+
+    // The scrape_run aggregate's 10 methods on DatabaseService.
+    private static final Set<String> METODOS_SCRAPE_RUN =
+        Set.of("crearScrapeRun", "marcarSitioEnCurso", "marcarSitioTerminado",
+               "finalizarScrapeRun", "marcarRunsInterrumpidos", "ultimaCorridaInterrumpida",
+               "reabrirScrapeRun", "marcarSitiosAusentesDelRegistro", "startedAtDeRun",
+               "existeCorridaCompletada");
+
+    @ArchTest
+    static final ArchRule consumidoresUsanScrapeRunPorElPuerto = noClasses()
+        .that().resideInAnyPackage(CONSUMIDORES_DEL_CLUSTER)
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a scrape-run method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_SCRAPE_RUN.contains(call.getTarget().getName());
+            }
+        });
+
+    // The sitio aggregate's 3 methods. NOT siteRegistry(): that accessor returns
+    // a Spring @Component, and reading a port or bean off the facade is the
+    // route ApiController already uses for every hand-built endpoint
+    // (db.productos(), db.presets(), db.favoritos()). Retiring those accessors
+    // is F4 work, when the endpoints become beans; banning it here would widen
+    // ApiController's constructor without retiring a single repository.
+    private static final Set<String> METODOS_SITIOS =
+        Set.of("guardarSitio", "eliminarSitio", "cargarSitiosDinamicos");
+
+    @ArchTest
+    static final ArchRule consumidoresUsanSitiosPorElPuerto = noClasses()
+        .that().resideInAnyPackage(CONSUMIDORES_DEL_CLUSTER)
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a sitio method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_SITIOS.contains(call.getTarget().getName());
+            }
+        });
 }

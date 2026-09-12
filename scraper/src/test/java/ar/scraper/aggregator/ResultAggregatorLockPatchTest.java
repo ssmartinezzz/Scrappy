@@ -2,7 +2,8 @@ package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.catalog.MlOutputPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
@@ -53,7 +54,8 @@ class ResultAggregatorLockPatchTest {
     private MlEnricher           mlEnricher;
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
-    private DatabaseService      db;
+    private MlOutputPort             mlOutput;
+    private CategoriaStatsPort       categoriaStats;
     private ProductPort          productos;
     private ResultAggregator     aggregator;
 
@@ -69,7 +71,8 @@ class ResultAggregatorLockPatchTest {
         mlEnricher           = mock(MlEnricher.class);
         senalEnricher        = mock(SenalEnricher.class);
         financiacionEnricher = mock(FinanciacionEnricher.class);
-        db                   = mock(DatabaseService.class);
+        mlOutput                          = mock(MlOutputPort.class);
+        categoriaStats                    = mock(CategoriaStatsPort.class);
         productos            = mock(ProductPort.class);
 
         when(mlEnricher.serializarProductos(anyList())).thenReturn("[]");
@@ -78,7 +81,8 @@ class ResultAggregatorLockPatchTest {
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher,
+                mlOutput, categoriaStats,
                 productos);
     }
 
@@ -151,7 +155,7 @@ class ResultAggregatorLockPatchTest {
 
         // Stage-1b is a pass-through here — proves the LOCK (not stage-1b) is
         // what determines the final categoria.
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mlEnricher.enriquecer(anyList(), any())).thenAnswer(inv -> inv.getArgument(0));
 
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
 
@@ -190,7 +194,7 @@ class ResultAggregatorLockPatchTest {
         // Stage-1b demonstrably overrides categoria on its own (visual
         // classifier gate) — simulate it reverting to the machine's guess.
         Product overriddenByStage1b = producto(url, "Pantalón", "trekking", "Puma", "unisex", "tecnologia");
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenReturn(List.of(overriddenByStage1b));
+        when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(overriddenByStage1b));
 
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
 
@@ -211,7 +215,7 @@ class ResultAggregatorLockPatchTest {
         ScrapeResult scrapeResult = new ScrapeResult("freres", List.of(raw), null, 10);
 
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
-        when(mlEnricher.enriquecer(anyList(), any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mlEnricher.enriquecer(anyList(), any())).thenAnswer(inv -> inv.getArgument(0));
         // productos.cargarClasificacionBloqueada() left UNSTUBBED — Mockito default is null.
 
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));

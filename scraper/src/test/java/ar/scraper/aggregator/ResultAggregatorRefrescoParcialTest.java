@@ -1,7 +1,8 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.db.DatabaseService;
+import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.catalog.MlOutputPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;
@@ -62,7 +63,8 @@ class ResultAggregatorRefrescoParcialTest {
     private MlEnricher           mlEnricher;
     private SenalEnricher        senalEnricher;
     private FinanciacionEnricher financiacionEnricher;
-    private DatabaseService      db;
+    private MlOutputPort             mlOutput;
+    private CategoriaStatsPort       categoriaStats;
     private ResultAggregator     aggregator;
 
     @BeforeEach
@@ -72,7 +74,8 @@ class ResultAggregatorRefrescoParcialTest {
         mlEnricher           = mock(MlEnricher.class);
         senalEnricher        = mock(SenalEnricher.class);
         financiacionEnricher = mock(FinanciacionEnricher.class);
-        db                   = mock(DatabaseService.class);
+        mlOutput                          = mock(MlOutputPort.class);
+        categoriaStats                    = mock(CategoriaStatsPort.class);
 
         // Default doubles: deterministic pure functions of the product, exactly
         // like the real enrichers (same product + same history -> same signal).
@@ -82,7 +85,8 @@ class ResultAggregatorRefrescoParcialTest {
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> sellarFinan(inv.getArgument(0), 1));
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher,
+                mlOutput, categoriaStats,
                 mock(ar.scraper.catalog.ProductPort.class));
     }
 

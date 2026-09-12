@@ -56,7 +56,7 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
         service = new ScraperService(
                 Mockito.mock(ScraperConfig.class),
                 Mockito.mock(ResultAggregator.class),
-                db,
+                db.scrapeRun(), db.sitios(), db.mlOutput(), db.siteRegistry(),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class));
     }
 
@@ -117,9 +117,12 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
     @Test
     @DisplayName("boot survives a database that cannot answer — it never aborts startup")
     void bootToleratesADatabaseFailure() {
-        DatabaseService roto = Mockito.mock(DatabaseService.class);
         ScraperService conDbRota = new ScraperService(
-                Mockito.mock(ScraperConfig.class), Mockito.mock(ResultAggregator.class), roto,
+                Mockito.mock(ScraperConfig.class), Mockito.mock(ResultAggregator.class),
+                Mockito.mock(ar.scraper.scrape.ScrapeRunPort.class),
+                Mockito.mock(ar.scraper.classification.SitiosPort.class),
+                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class));
 
         // Run bookkeeping is bookkeeping: it must not be able to stop the

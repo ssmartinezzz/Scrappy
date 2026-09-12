@@ -1,9 +1,12 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.MlOutputPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -17,7 +20,8 @@ import java.sql.Statement;
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
  */
-class MlOutputRepository {
+@Repository
+class MlOutputRepository implements MlOutputPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(MlOutputRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -28,7 +32,8 @@ class MlOutputRepository {
         this.dataSource = dataSource;
     }
 
-    void guardarMlOutput(JsonNode mlOutput) {
+    @Override
+    public void guardarMlOutput(JsonNode mlOutput) {
         if (mlOutput == null) return;
         if (!esMlOutputValido(mlOutput)) {
             LOG.debug("[DB] ML output inválido (sin scores/tendencias) — no se persiste");
@@ -75,7 +80,8 @@ class MlOutputRepository {
         return tend.isObject();
     }
 
-    JsonNode cargarMlOutput() {
+    @Override
+    public JsonNode cargarMlOutput() {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(
@@ -89,7 +95,8 @@ class MlOutputRepository {
         return null;
     }
 
-    void limpiarMlOutput() throws SQLException {
+    @Override
+    public void limpiarMlOutput() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {

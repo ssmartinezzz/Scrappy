@@ -59,23 +59,24 @@ class AgentEndpoints {
     private static final ObjectMapper AGENT_MAPPER = new ObjectMapper();
 
     private final ScraperService service;
-    // Declared dual dependency (extract-catalog-query-port, D6): siteRegistry()
-    // is a DatabaseService-only accessor with no port of its own yet. Product
-    // reads/writes below go through ProductPort instead.
-    private final ar.scraper.db.DatabaseService db;
+    // The sitio registry itself, not the facade it used to be read from
+    // (extract-ml-persistence-ports): this class only ever wanted the
+    // @Component, so ApiController now hands it over directly and the dual
+    // dependency D6 declared is gone. Product reads/writes go through ProductPort.
+    private final ar.scraper.classification.SiteRegistry siteRegistry;
     private final ar.scraper.catalog.ProductPort productos;
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
 
     AgentEndpoints(ScraperService service,
-                   ar.scraper.db.DatabaseService db,
+                   ar.scraper.classification.SiteRegistry siteRegistry,
                    ar.scraper.catalog.ProductPort productos,
                    CatalogAgentService catalogAgentService,
                    AgentConfig agentConfig,
                    ActorResolver actorResolver) {
         this.service = service;
-        this.db = db;
+        this.siteRegistry = siteRegistry;
         this.productos = productos;
         this.catalogAgentService = catalogAgentService;
         this.agentConfig = agentConfig;
@@ -100,7 +101,7 @@ class AgentEndpoints {
     // whole scrape). The allocation itself is a single field assignment
     // wrapping the already-loaded SiteRegistry singleton — no I/O, no query.
     private RubroResolver rubroResolver() {
-        return new RubroResolver(db.siteRegistry());
+        return new RubroResolver(siteRegistry);
     }
 
     ResponseEntity<Object> agentChat(Map<String, Object> body) {
