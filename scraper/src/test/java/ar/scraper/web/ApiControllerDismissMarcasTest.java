@@ -37,6 +37,7 @@ class ApiControllerDismissMarcasTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    private ar.scraper.feedback.FeedbackPort feedback;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -60,6 +61,8 @@ class ApiControllerDismissMarcasTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
+        when(db.feedback()).thenReturn(feedback);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -78,7 +81,7 @@ class ApiControllerDismissMarcasTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(body.get("ok").asBoolean()).isFalse();
-        verify(db, never()).guardarCategoriaDismiss(any(), any());
+        verify(feedback, never()).guardarCategoriaDismiss(any(), any());
     }
 
     @Test
@@ -88,7 +91,7 @@ class ApiControllerDismissMarcasTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).guardarCategoriaDismiss(any(), eq("Zapatilla"));
+        verify(feedback).guardarCategoriaDismiss(any(), eq("Zapatilla"));
     }
 
     // ── DELETE /api/recomendados/dismiss-categoria ───────────────────────
@@ -100,7 +103,7 @@ class ApiControllerDismissMarcasTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).borrarCategoriaDismiss(any(), eq("Remera"));
+        verify(feedback).borrarCategoriaDismiss(any(), eq("Remera"));
     }
 
     // ── GET /api/marcas-browser ──────────────────────────────────────────

@@ -104,8 +104,8 @@ Scrappy/
         │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
         │   │                                  HistorialEntry, HistorialPort, UpsertStats,
         │   │                                  CatalogQueryPort, ProductPort, CategoriaStatsPort,
-        │   │                                  MlOutputPort (los cinco puertos los implementan
-        │   │                                  @Repository package-private en db/)
+        │   │                                  MlOutputPort, PreciosExternosPort (los seis puertos
+        │   │                                  los implementan @Repository package-private en db/)
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
         │   │                                  implementa un @Repository package-private en db/)
@@ -117,6 +117,11 @@ Scrappy/
         │   │                                  un @Repository package-private en db/)
         │   ├── financiacion/               ← área: Preset, PresetPort (lo implementa un
         │   │                                  @Repository package-private en db/)
+        │   ├── feedback/                    ← área: OutfitItemRow, FeedbackPort — outfit_feedback_item
+        │   │                                  + categoria_dismiss, una sola señal de gusto (lo
+        │   │                                  implementa un @Repository package-private en db/)
+        │   ├── outfits/SavedOutfitsPort     ← área: puerto del agregado saved_outfits (lo implementa
+        │   │                                  un @Repository package-private en db/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID

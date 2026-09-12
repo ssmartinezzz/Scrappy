@@ -39,7 +39,8 @@ class BackendLayeringArchTest {
     static final ArchRule areasSonSumideros = noClasses()
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
-                                   "ar.scraper.favoritos..", "ar.scraper.financiacion..")
+                                   "ar.scraper.favoritos..", "ar.scraper.financiacion..",
+                                   "ar.scraper.feedback..", "ar.scraper.outfits..")
         .should().dependOnClassesThat()
         .resideInAnyPackage("ar.scraper.db..", "ar.scraper.cron..",
                             "ar.scraper.aggregator..", "ar.scraper.web..",
@@ -216,6 +217,64 @@ class BackendLayeringArchTest {
             public boolean test(JavaMethodCall call) {
                 return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
                     && METODOS_SITIOS.contains(call.getTarget().getName());
+            }
+        });
+
+    // ─── El ultimo cluster de F2: feedback, outfits guardados y precios
+    // externos. Tres agregados sin nada en comun salvo sus consumidores —
+    // los tres endpoints que todavia reciben la fachada entera.
+
+    // El agregado outfit_feedback_item + categoria_dismiss. Las dos superficies
+    // que lo leen son distintas (outfits y el feed "Para ti") pero la senal es
+    // una sola: que le gusto y que descarto el usuario.
+    private static final Set<String> METODOS_FEEDBACK =
+        Set.of("guardarOutfitFeedbackItem", "obtenerOutfitFeedback", "limpiarOutfitFeedback",
+               "guardarCategoriaDismiss", "borrarCategoriaDismiss", "obtenerCategoriaDismiss");
+
+    @ArchTest
+    static final ArchRule webUsaFeedbackPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a feedback method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_FEEDBACK.contains(call.getTarget().getName());
+            }
+        });
+
+    // El agregado saved_outfits + sus items.
+    private static final Set<String> METODOS_OUTFITS_GUARDADOS =
+        Set.of("guardarOutfit", "obtenerOutfitsGuardados", "eliminarOutfitGuardado",
+               "renombrarOutfit");
+
+    @ArchTest
+    static final ArchRule webUsaOutfitsGuardadosPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a saved-outfit method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_OUTFITS_GUARDADOS.contains(call.getTarget().getName());
+            }
+        });
+
+    // El agregado precios_externos. `cargarPreciosExternos` entra a la regla
+    // aunque hoy no tenga un solo consumidor fuera de `db`: la regla describe
+    // el agregado, no el conteo de llamadas de este commit.
+    private static final Set<String> METODOS_PRECIOS_EXTERNOS =
+        Set.of("guardarPreciosExternos", "cargarPreciosExternos");
+
+    @ArchTest
+    static final ArchRule webUsaPreciosExternosPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a precios-externos method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_PRECIOS_EXTERNOS.contains(call.getTarget().getName());
             }
         });
 }

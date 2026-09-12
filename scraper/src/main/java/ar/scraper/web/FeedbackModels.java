@@ -46,7 +46,7 @@ final class FeedbackModels {
      *   no requiere join con el catálogo vivo (no tiene marca asociada).
      */
     static OutfitService.FeedbackModel build(
-            List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos,
+            List<ar.scraper.feedback.OutfitItemRow> rows, List<Product> productos,
             Set<String> dismissCategorias) {
         return build(rows, productos, dismissCategorias, null);
     }
@@ -60,7 +60,7 @@ final class FeedbackModels {
      * sharing bidireccional del PR #21 sin filtrar gym↔casual.
      */
     static OutfitService.FeedbackModel build(
-            List<ar.scraper.db.DatabaseService.OutfitItemRow> rows, List<Product> productos,
+            List<ar.scraper.feedback.OutfitItemRow> rows, List<Product> productos,
             Set<String> dismissCategorias, Set<String> allowedEstilos) {
         Map<String, Product> porUrl = new HashMap<>();
         for (Product p : productos) {

@@ -29,15 +29,18 @@ class OutfitsEndpoints {
         org.slf4j.LoggerFactory.getLogger(OutfitsEndpoints.class);
 
     private final ScraperService service;
-    private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.feedback.FeedbackPort feedback;
+    private final ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private final OutfitService outfitService;
 
     OutfitsEndpoints(ScraperService service,
-                     ar.scraper.db.DatabaseService db,
+                     ar.scraper.feedback.FeedbackPort feedback,
+                     ar.scraper.outfits.SavedOutfitsPort outfitsGuardados,
                      OutfitService outfitService,
                      ar.scraper.identity.ActorResolver actorResolver) {
         this.service = service;
-        this.db = db;
+        this.feedback = feedback;
+        this.outfitsGuardados = outfitsGuardados;
         this.outfitService = outfitService;
         this.actorResolver = actorResolver;
     }
@@ -62,8 +65,8 @@ class OutfitsEndpoints {
                         .collect(Collectors.toSet());
 
         java.util.UUID sujeto = Sujeto.de(actorResolver);
-        var feedbackRows = db.obtenerOutfitFeedback(sujeto);
-        var dismissCats  = db.obtenerCategoriaDismiss(sujeto);
+        var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
+        var dismissCats  = feedback.obtenerCategoriaDismiss(sujeto);
         // Gym surface: gym feedback + shared feed signal ("catalog"), never casual.
         var feedback = FeedbackModels.build(feedbackRows, r.productos(), dismissCats, Set.of("gym", "catalog"));
 
@@ -195,8 +198,8 @@ class OutfitsEndpoints {
         if (r == null) return ResponseEntity.noContent().build();
 
         java.util.UUID sujeto = Sujeto.de(actorResolver);
-        var feedbackRows = db.obtenerOutfitFeedback(sujeto);
-        var dismissCats  = db.obtenerCategoriaDismiss(sujeto);
+        var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
+        var dismissCats  = feedback.obtenerCategoriaDismiss(sujeto);
         // Style-scoped signal: this surface's own estilo + the shared feed ("catalog").
         // gym and casual read disjoint buckets (separated), both see catalog.
         var feedback     = FeedbackModels.build(feedbackRows, r.productos(), dismissCats,
@@ -378,7 +381,7 @@ class OutfitsEndpoints {
                     Object liked = m.get("liked");
                     if (slot == null || url == null || liked == null) continue; // skip silencioso, mirrors existing null-guard style
                     boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
-                    db.guardarOutfitFeedbackItem(Sujeto.de(actorResolver), genero,
+                    feedback.guardarOutfitFeedbackItem(Sujeto.de(actorResolver), genero,
                             String.valueOf(slot), String.valueOf(url), likedBool, estilo);
                 }
             }
@@ -401,7 +404,7 @@ class OutfitsEndpoints {
             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String slotsJson = mapper.writeValueAsString(slotsObj != null ? slotsObj : List.of());
             String suplJson  = suplObj != null ? mapper.writeValueAsString(suplObj) : null;
-            int id = db.guardarOutfit(Sujeto.de(actorResolver), nombre, slotsJson, suplJson, totalEstimado);
+            int id = outfitsGuardados.guardarOutfit(Sujeto.de(actorResolver), nombre, slotsJson, suplJson, totalEstimado);
             if (id < 0) {
                 resp.put("ok", false);
                 resp.put("mensaje", "No se pudo guardar el outfit");
@@ -421,14 +424,14 @@ class OutfitsEndpoints {
     }
 
     ResponseEntity<Object> getSavedOutfits() {
-        return ResponseEntity.ok(db.obtenerOutfitsGuardados(Sujeto.de(actorResolver)));
+        return ResponseEntity.ok(outfitsGuardados.obtenerOutfitsGuardados(Sujeto.de(actorResolver)));
     }
 
     ResponseEntity<ObjectNode> deleteSavedOutfit(int id) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         // 404 covers "does not exist" AND "belongs to somebody else": telling the
         // two apart would confirm another user's row exists.
-        boolean ok = db.eliminarOutfitGuardado(Sujeto.de(actorResolver), id);
+        boolean ok = outfitsGuardados.eliminarOutfitGuardado(Sujeto.de(actorResolver), id);
         resp.put("ok", ok);
         resp.put("mensaje", ok ? "Outfit eliminado" : "Outfit no encontrado");
         return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
@@ -442,7 +445,7 @@ class OutfitsEndpoints {
             resp.put("mensaje", "nombre es obligatorio");
             return ResponseEntity.badRequest().body(resp);
         }
-        boolean ok = db.renombrarOutfit(Sujeto.de(actorResolver), id, nombre);
+        boolean ok = outfitsGuardados.renombrarOutfit(Sujeto.de(actorResolver), id, nombre);
         resp.put("ok", ok);
         resp.put("mensaje", ok ? "Outfit renombrado" : "Outfit no encontrado");
         return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
@@ -451,7 +454,7 @@ class OutfitsEndpoints {
     ResponseEntity<ObjectNode> resetOutfitFeedback(String estilo) {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         // Reset scoped por estilo: gym no borra casual ni la señal del feed ("catalog").
-        db.limpiarOutfitFeedback(Sujeto.de(actorResolver),
+        feedback.limpiarOutfitFeedback(Sujeto.de(actorResolver),
                 (estilo == null || estilo.isBlank()) ? "gym" : estilo);
         resp.put("ok", true);
         resp.put("mensaje", "Historial de feedback reseteado");
