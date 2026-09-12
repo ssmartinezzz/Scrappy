@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.catalog.ProductJson;
 import org.springframework.http.ResponseEntity;
 
 /**

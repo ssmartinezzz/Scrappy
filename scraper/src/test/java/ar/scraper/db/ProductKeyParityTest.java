@@ -86,7 +86,7 @@ class ProductKeyParityTest extends PostgresTestBase {
                     String url = rs.getString("url");
                     assertThat(rs.getString("producto_key"))
                             .as("handle de %s", url)
-                            .isEqualTo(ar.scraper.web.ProductKeyTestBridge.of(url));
+                            .isEqualTo(ar.scraper.catalog.ProductKey.of(url));
                     vistas++;
                 }
                 assertThat(vistas).isEqualTo(URLS.size());

@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.outfits;
 
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;

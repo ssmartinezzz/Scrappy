@@ -1447,7 +1447,9 @@ aplicar la migración sobre los datos existentes. Sin él, dos productos
 compartirían handle y la vista mostraría el producto equivocado en silencio.
 Entre un fallo ruidoso improbable y un dato incorrecto callado, el ruidoso.
 
-**La misma expresión corre en Java** (`ar.scraper.web.ProductKey.of`), porque
+**La misma expresión corre en Java** (`ar.scraper.catalog.ProductKey.of`,
+movida de `web/` en F3b — el header de `V25` sigue nombrando el paquete viejo
+porque una migración aplicada es byte-frozen), porque
 el frontend necesita el handle sin ir a la base. Que no puedan divergir lo
 prueba `ProductKeyParityTest` contra un Postgres real, sobre un corpus de URLs
 con no-ASCII, espacios, `%` ya encodeados, comillas y emoji — mismo criterio

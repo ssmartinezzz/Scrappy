@@ -1,5 +1,8 @@
 package ar.scraper.web;
 
+import ar.scraper.outfits.OutfitService;
+import ar.scraper.outfits.RecommendationService;
+
 import ar.scraper.financiacion.InflacionService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
