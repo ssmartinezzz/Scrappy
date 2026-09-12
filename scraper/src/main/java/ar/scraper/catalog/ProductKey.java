@@ -25,6 +25,11 @@ import java.security.NoSuchAlgorithmException;
  * sobre SHA-256 porque {@code md5(text)} es IMMUTABLE en Postgres y por lo
  * tanto usable en una columna generada; {@code sha256()} habría necesitado un
  * cast de {@code text} a {@code bytea} que no lo es.</p>
+ *
+ * <p><b>Es pública por una duplicación, no por diseño.</b> Su único consumidor
+ * fuera de este paquete es {@code CatalogoEndpoints}, y esa línea es una copia
+ * de {@link ProductJson#escribir}, que sí vive acá. Unificadas las dos copias
+ * del shape de fila, esto vuelve a package-private.</p>
  */
 public final class ProductKey {
 
