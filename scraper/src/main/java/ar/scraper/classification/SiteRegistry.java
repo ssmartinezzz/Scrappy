@@ -1,4 +1,4 @@
-package ar.scraper.aggregator.normalize;
+package ar.scraper.classification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

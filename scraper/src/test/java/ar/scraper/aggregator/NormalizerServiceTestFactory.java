@@ -1,12 +1,12 @@
 package ar.scraper.aggregator;
 
-import ar.scraper.aggregator.normalize.BrandExtractor;
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
-import ar.scraper.aggregator.normalize.RubroResolver;
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.BrandExtractor;
+import ar.scraper.classification.RubroResolver;
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
 import ar.scraper.aggregator.normalize.SubcategoryResolver;
 

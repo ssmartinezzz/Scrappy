@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.db.support.PostgresTestBase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;

@@ -1,8 +1,9 @@
 package ar.scraper.cron;
 
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
+import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
 import ar.scraper.web.ScraperService;
 import ar.scraper.web.ScraperService.ScraperStatus;
 import ch.qos.logback.classic.Logger;
@@ -40,11 +41,11 @@ public class CronJobRunner {
     private final ScraperService scraperService;
     private final ScraperConfig config;
     private final PythonRunner pythonRunner;
-    private final DatabaseService db;
+    private final CronPort db;
     private final Clock clock;
 
     public CronJobRunner(ScraperService scraperService, ScraperConfig config,
-            PythonRunner pythonRunner, DatabaseService db, Clock clock) {
+            PythonRunner pythonRunner, CronPort db, Clock clock) {
         this.scraperService = scraperService;
         this.config = config;
         this.pythonRunner = pythonRunner;

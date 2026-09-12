@@ -1,7 +1,7 @@
 package ar.scraper.agent;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.ResultAggregator.Facets;
+import ar.scraper.catalog.Facets;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.model.Product;
 import ar.scraper.web.ScraperService;

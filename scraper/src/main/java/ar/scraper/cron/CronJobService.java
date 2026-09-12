@@ -1,6 +1,7 @@
 package ar.scraper.cron;
 
-import ar.scraper.db.DatabaseService;
+import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -48,14 +49,14 @@ public class CronJobService {
      */
     static final DateTimeFormatter ISO_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
-    private final DatabaseService db;
+    private final CronPort db;
     private final CronJobRunner runner;
     private final Clock clock;
 
     /** Evita disparar el mismo job dos veces si un tick tarda más que el intervalo. */
     private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
 
-    public CronJobService(DatabaseService db, CronJobRunner runner, Clock clock) {
+    public CronJobService(CronPort db, CronJobRunner runner, Clock clock) {
         this.db = db;
         this.runner = runner;
         this.clock = clock;

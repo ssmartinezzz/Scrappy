@@ -1,8 +1,9 @@
 package ar.scraper.cron;
 
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
+import ar.scraper.scheduling.CronJob;
+import ar.scraper.scheduling.CronPort;
 import ar.scraper.web.ScraperService;
 import ar.scraper.web.ScraperService.ScraperStatus;
 import io.qameta.allure.Epic;
@@ -42,7 +43,7 @@ class CronJobRunnerTest {
     private ScraperService scraperService;
     private ScraperConfig config;
     private PythonRunner pythonRunner;
-    private DatabaseService db;
+    private CronPort db;
     private CronJobRunner runner;
 
     @BeforeEach
@@ -55,7 +56,7 @@ class CronJobRunnerTest {
         scraperService = mock(ScraperService.class);
         config = mock(ScraperConfig.class);
         pythonRunner = mock(PythonRunner.class);
-        db = mock(DatabaseService.class);
+        db = mock(CronPort.class);
         runner = new CronJobRunner(scraperService, config, pythonRunner, db, clock);
     }
 

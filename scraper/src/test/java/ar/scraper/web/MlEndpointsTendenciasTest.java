@@ -2,10 +2,10 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.ResultAggregator.Facets;
+import ar.scraper.catalog.Facets;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.CategoriaStats;
+import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;

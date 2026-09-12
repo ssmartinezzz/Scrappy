@@ -1,5 +1,6 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.catalog.Facets;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -33,7 +34,7 @@ class FacetCalculatorTest {
         Product p1 = product("A", 100, "Remera", "", List.of("L", "10", "S", "XL"), "", Product.MlScore.EMPTY, "");
         Product p2 = product("B", 200, "Remera", "", List.of("42", "M"), "", Product.MlScore.EMPTY, "");
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(p1, p2));
+        Facets facets = FacetCalculator.calcular(List.of(p1, p2));
 
         assertThat(facets.talles().keySet())
                 .containsExactly("S", "M", "L", "XL", "10", "42");
@@ -45,7 +46,7 @@ class FacetCalculatorTest {
         Product hombre2 = product("B", 200, "Remera", "hombre", List.of(), "", Product.MlScore.EMPTY, "");
         Product sinGenero = product("C", 300, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "");
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(hombre1, hombre2, sinGenero));
+        Facets facets = FacetCalculator.calcular(List.of(hombre1, hombre2, sinGenero));
 
         assertThat(facets.generos()).containsExactly(Map.entry("hombre", 2L));
     }
@@ -56,7 +57,7 @@ class FacetCalculatorTest {
         Product a2 = product("B", 200, "REMERAS", "", List.of(), "", Product.MlScore.EMPTY, "");
         Product b1 = product("C", 300, "zapatillas", "", List.of(), "", Product.MlScore.EMPTY, "");
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(a1, a2, b1));
+        Facets facets = FacetCalculator.calcular(List.of(a1, a2, b1));
 
         // FacetCalculator es puro y en memoria: no lo alcanza la FK de V13, así
         // que acá el plural en distinta capitalización sigue siendo una entrada
@@ -72,7 +73,7 @@ class FacetCalculatorTest {
         Product nike2 = product("B", 200, "Remera", "", List.of(), "Nike", Product.MlScore.EMPTY, "");
         Product adidas = product("C", 300, "Remera", "", List.of(), "Adidas", Product.MlScore.EMPTY, "");
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(nike1, nike2, adidas));
+        Facets facets = FacetCalculator.calcular(List.of(nike1, nike2, adidas));
 
         assertThat(facets.marcas().keySet()).containsExactly("Nike", "Adidas");
     }
@@ -83,7 +84,7 @@ class FacetCalculatorTest {
                 new Product.MlScore(80, "oferta_real", true, "estable", 20), "");
         Product sinBadge = product("B", 200, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "");
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(oferta, sinBadge));
+        Facets facets = FacetCalculator.calcular(List.of(oferta, sinBadge));
 
         assertThat(facets.badges()).containsExactly(Map.entry("oferta_real", 1L));
     }
@@ -93,7 +94,7 @@ class FacetCalculatorTest {
         Product running = product("A", 100, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "running");
         Product crossfit = product("B", 200, "Remera", "", List.of(), "", Product.MlScore.EMPTY, "crossfit");
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(running, crossfit));
+        Facets facets = FacetCalculator.calcular(List.of(running, crossfit));
 
         assertThat(facets.subCategorias().keySet()).containsExactly("crossfit", "running");
     }
@@ -115,7 +116,7 @@ class FacetCalculatorTest {
         Product oversize2 = productoConVisual("B", new Product.VisualAttrs("oversize", "", "", ""));
         Product sinFit    = productoConVisual("C", Product.VisualAttrs.EMPTY);
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(oversize1, oversize2, sinFit));
+        Facets facets = FacetCalculator.calcular(List.of(oversize1, oversize2, sinFit));
 
         assertThat(facets.fits()).containsExactly(Map.entry("oversize", 2L));
     }
@@ -126,7 +127,7 @@ class FacetCalculatorTest {
         Product liso      = productoConVisual("B", new Product.VisualAttrs("", "liso", "", ""));
         Product sinDato    = productoConVisual("C", Product.VisualAttrs.EMPTY);
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(estampado, liso, sinDato));
+        Facets facets = FacetCalculator.calcular(List.of(estampado, liso, sinDato));
 
         assertThat(facets.estampados()).containsOnly(Map.entry("estampado", 1L), Map.entry("liso", 1L));
     }
@@ -136,7 +137,7 @@ class FacetCalculatorTest {
         Product cuelloRedondo = productoConVisual("A", new Product.VisualAttrs("", "", "cuello redondo", ""));
         Product sinDato       = productoConVisual("B", Product.VisualAttrs.EMPTY);
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(cuelloRedondo, sinDato));
+        Facets facets = FacetCalculator.calcular(List.of(cuelloRedondo, sinDato));
 
         assertThat(facets.escotes()).containsExactly(Map.entry("cuello redondo", 1L));
     }
@@ -148,7 +149,7 @@ class FacetCalculatorTest {
         Product rojo   = productoConVisual("C", new Product.VisualAttrs("", "", "", "rojo"));
         Product sinDato = productoConVisual("D", Product.VisualAttrs.EMPTY);
 
-        ResultAggregator.Facets facets = FacetCalculator.calcular(List.of(azul1, azul2, rojo, sinDato));
+        Facets facets = FacetCalculator.calcular(List.of(azul1, azul2, rojo, sinDato));
 
         assertThat(facets.colorDominantes())
                 .containsOnly(Map.entry("azul", 2L), Map.entry("rojo", 1L));

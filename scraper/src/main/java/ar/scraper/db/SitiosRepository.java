@@ -1,7 +1,7 @@
 package ar.scraper.db;
 
-import ar.scraper.aggregator.normalize.SiteClassification;
-import ar.scraper.aggregator.normalize.SiteRegistry;
+import ar.scraper.classification.SiteClassification;
+import ar.scraper.classification.SiteRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

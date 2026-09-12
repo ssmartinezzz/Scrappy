@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.FavoritosProtegidosException;
 import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
