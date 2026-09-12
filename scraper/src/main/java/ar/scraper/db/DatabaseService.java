@@ -4,11 +4,14 @@ import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
+import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
+import ar.scraper.catalog.ProductPort;
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
@@ -67,8 +70,8 @@ public class DatabaseService {
     private final SitiosRepository sitiosRepository;
     private final CategoriaStatsRepository categoriaStatsRepository;
     private final PreciosExternosRepository preciosExternosRepository;
-    private final ProductRepository productRepository;
-    private final CatalogQueryRepository catalogQueryRepository;
+    private final ProductPort productPort;
+    private final CatalogQueryPort catalogQueryPort;
     private final ScrapeRunRepository scrapeRunRepository;
     private final SiteRegistry siteRegistry;
 
@@ -83,28 +86,40 @@ public class DatabaseService {
      * instance is behaviorally identical to them.
      */
     public DatabaseService(DataSource dataSource) {
-        this(dataSource, new SiteRegistry(dataSource), new CronRepository(dataSource),
+        this(dataSource, new SiteRegistry(dataSource));
+    }
+
+    /**
+     * Delegating ctor: builds {@code CatalogQueryRepository}/{@code ProductRepository}
+     * here, sharing the ONE {@link SiteRegistry} the 1-arg overload just created,
+     * instead of each repository resolving its own (extract-catalog-query-port).
+     */
+    private DatabaseService(DataSource dataSource, SiteRegistry siteRegistry) {
+        this(dataSource, siteRegistry, new CronRepository(dataSource),
                 new FavoritosRepository(dataSource), new PresetRepository(dataSource),
-                new HistorialRepository(dataSource));
+                new HistorialRepository(dataSource),
+                new CatalogQueryRepository(dataSource, siteRegistry),
+                new ProductRepository(dataSource, siteRegistry));
     }
 
     @Autowired
     public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort,
-            FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort) {
+            FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort,
+            CatalogQueryPort catalogQueryPort, ProductPort productPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
         this.cronPort = cronPort;
         this.favoritosPort = favoritosPort;
         this.presetPort = presetPort;
         this.historialPort = historialPort;
-        this.catalogQueryRepository = new CatalogQueryRepository(dataSource, siteRegistry);
+        this.catalogQueryPort = catalogQueryPort;
+        this.productPort = productPort;
         this.feedbackRepository = new FeedbackRepository(dataSource);
         this.savedOutfitsRepository = new SavedOutfitsRepository(dataSource);
         this.mlOutputRepository = new MlOutputRepository(dataSource);
         this.sitiosRepository = new SitiosRepository(dataSource, siteRegistry);
         this.categoriaStatsRepository = new CategoriaStatsRepository(dataSource);
         this.preciosExternosRepository = new PreciosExternosRepository(dataSource);
-        this.productRepository = new ProductRepository(dataSource, siteRegistry);
         this.scrapeRunRepository = new ScrapeRunRepository(dataSource);
     }
 
@@ -128,6 +143,18 @@ public class DatabaseService {
      *  that still need the port, e.g. {@code ApiController} wiring {@code FinanciacionEndpoints}. */
     public HistorialPort historial() {
         return historialPort;
+    }
+
+    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
+     *  need the port, e.g. {@code ApiController} wiring {@code CatalogoEndpoints}. */
+    public CatalogQueryPort catalogQuery() {
+        return catalogQueryPort;
+    }
+
+    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
+     *  need the port, e.g. {@code ApiController} wiring {@code FavoritosEndpoints}. */
+    public ProductPort productos() {
+        return productPort;
     }
 
     @PostConstruct
@@ -159,7 +186,7 @@ public class DatabaseService {
      * {@code embeddingsCount} en {@code GET /api/ml/estado}.
      */
     public long contarEmbeddings() {
-        return productRepository.contarEmbeddings();
+        return productPort.contarEmbeddings();
     }
 
     // ─── Presets de financiación. Bodies in PresetRepository (backlog A3);
@@ -223,7 +250,7 @@ public class DatabaseService {
      * {nuevos, actualizados, sinCambios, desactivados}.
      */
     public UpsertStats upsertProductos(List<Product> productos) {
-        return productRepository.upsertProductos(productos);
+        return productPort.upsertProductos(productos);
     }
 
     /**
@@ -236,7 +263,7 @@ public class DatabaseService {
      *                     vuelve al alcance derivado del batch.
      */
     public UpsertStats upsertProductos(List<Product> productos, java.time.Instant runStartedAt) {
-        return productRepository.upsertProductos(productos, runStartedAt);
+        return productPort.upsertProductos(productos, runStartedAt);
     }
 
     /**
@@ -245,11 +272,11 @@ public class DatabaseService {
      * propósito (VisualAttrs todavía no está poblado en esta etapa).
      */
     public void upsertParcial(List<Product> productos) {
-        productRepository.upsertParcial(productos);
+        productPort.upsertParcial(productos);
     }
 
     public List<Product> cargarProductos() {
-        return productRepository.cargarProductos();
+        return productPort.cargarProductos();
     }
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
@@ -260,13 +287,13 @@ public class DatabaseService {
      * que V7 las creó.
      */
     public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size) {
-        return catalogQueryRepository.buscar(filtro, orden, page, size);
+        return catalogQueryPort.buscar(filtro, orden, page, size);
     }
 
     /** @param cota the open run's started_at; empty serves the whole catalogue. */
     public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size,
                                       java.util.Optional<java.time.Instant> cota) {
-        return catalogQueryRepository.buscar(filtro, orden, page, size, cota);
+        return catalogQueryPort.buscar(filtro, orden, page, size, cota);
     }
 
     // ── scrape_run / scrape_run_site (V29) ───────────────────────────────────
@@ -331,32 +358,32 @@ public class DatabaseService {
 
     /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
     public Facets facetasCatalogo() {
-        return catalogQueryRepository.facetas();
+        return catalogQueryPort.facetas();
     }
 
     /** @param cota the open run's started_at; empty counts the whole catalogue. */
     public Facets facetasCatalogo(
             java.util.Optional<java.time.Instant> cota) {
-        return catalogQueryRepository.facetas(cota);
+        return catalogQueryPort.facetas(cota);
     }
 
     /** Rango de precios, conteo por sitio/rubro, gymrat y packs del catálogo persistido. */
     public CatalogResumen resumenCatalogo() {
-        return catalogQueryRepository.resumen();
+        return catalogQueryPort.resumen();
     }
 
     /** @param cota the open run's started_at; empty summarises the whole catalogue. */
     public CatalogResumen resumenCatalogo(java.util.Optional<java.time.Instant> cota) {
-        return catalogQueryRepository.resumen(cota);
+        return catalogQueryPort.resumen(cota);
     }
 
     public java.util.Optional<Product> obtenerProducto(String url) {
-        return productRepository.obtenerProducto(url);
+        return productPort.obtenerProducto(url);
     }
 
     /** Producto por su handle corto (`producto_key`, V25). Ver ProductRepository. */
     public java.util.Optional<Product> obtenerProductoPorKey(String key) {
-        return productRepository.obtenerProductoPorKey(key);
+        return productPort.obtenerProductoPorKey(key);
     }
 
     /**
@@ -365,7 +392,7 @@ public class DatabaseService {
      * reads this ONCE per {@code agregar} call.
      */
     public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
-        return productRepository.cargarClasificacionBloqueada();
+        return productPort.cargarClasificacionBloqueada();
     }
 
     // ─── ML Output. Bodies in MlOutputRepository (backlog A3).
@@ -431,7 +458,7 @@ public class DatabaseService {
      * así un producto bloqueado no pierde su categoría humana-confirmada.
      */
     public void actualizarCategoria(String url, String nuevaCategoria) {
-        productRepository.actualizarCategoria(url, nuevaCategoria);
+        productPort.actualizarCategoria(url, nuevaCategoria);
     }
 
     /**
@@ -442,7 +469,7 @@ public class DatabaseService {
      */
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
-        return productRepository.actualizarNormalizacion(url, categoria, marca, genero, talles, subCategoria);
+        return productPort.actualizarNormalizacion(url, categoria, marca, genero, talles, subCategoria);
     }
 
     /**
@@ -455,7 +482,7 @@ public class DatabaseService {
     public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
                                                    String genero, List<String> talles, String subCategoria,
                                                    Product previo, String actor) {
-        return productRepository.aplicarReclasificacionAuditada(
+        return productPort.aplicarReclasificacionAuditada(
                 url, categoria, marca, genero, talles, subCategoria, previo, actor);
     }
 
@@ -544,7 +571,7 @@ public class DatabaseService {
     }
 
     public void marcarDescontinuado(String url) {
-        productRepository.marcarDescontinuado(url);
+        productPort.marcarDescontinuado(url);
     }
 
     /**
@@ -564,11 +591,11 @@ public class DatabaseService {
      * {@link #cargarClasificacionBloqueada()} snapshot.
      */
     public boolean estaBloqueado(String url) {
-        return productRepository.estaBloqueado(url);
+        return productPort.estaBloqueado(url);
     }
 
     public boolean esProductoActivo(String url) {
-        return productRepository.esProductoActivo(url);
+        return productPort.esProductoActivo(url);
     }
 
     public List<HistorialEntry> getHistorialPrecios(String url) {
@@ -591,7 +618,7 @@ public class DatabaseService {
     // ─── Clear methods ───────────────────────────────────────────────────────
 
     public void limpiarProductos() throws SQLException {
-        productRepository.limpiarProductos();
+        productPort.limpiarProductos();
     }
 
     public void limpiarMlOutput() throws SQLException {
@@ -688,7 +715,4 @@ public class DatabaseService {
         cronPort.pruneCronExecutions(jobId, keep);
     }
 
-    // ─── Stats ───────────────────────────────────────────────────────────────
-
-    public record UpsertStats(int nuevos, int actualizados, int sinCambios, int desactivados) {}
 }

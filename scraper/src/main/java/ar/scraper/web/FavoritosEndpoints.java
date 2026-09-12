@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.identity.ActorResolver;
 
@@ -22,20 +23,20 @@ import java.util.Map;
  * belongs with the catalog endpoints.</p>
  *
  * <p>Favoritos persistence goes through {@link FavoritosPort} (extract-favoritos-port).
- * {@code DatabaseService} is kept only for {@code obtenerProducto}/{@code esProductoActivo}
- * (catalog reads) until the catalog aggregate has its own port — a declared temporary
- * dual dependency, not an oversight.</p>
+ * Catalog reads ({@code obtenerProducto}/{@code esProductoActivo}) go through
+ * {@link ProductPort} (extract-catalog-query-port). {@code DatabaseService} is
+ * no longer held here at all.</p>
  */
 class FavoritosEndpoints {
 
     private final FavoritosPort favoritos;
-    private final ar.scraper.db.DatabaseService db;
+    private final ProductPort productos;
     private final ActorResolver actorResolver;
 
-    FavoritosEndpoints(FavoritosPort favoritos, ar.scraper.db.DatabaseService db,
+    FavoritosEndpoints(FavoritosPort favoritos, ProductPort productos,
                        ActorResolver actorResolver) {
         this.favoritos = favoritos;
-        this.db = db;
+        this.productos = productos;
         this.actorResolver = actorResolver;
     }
 
@@ -47,14 +48,14 @@ class FavoritosEndpoints {
             // Si tenemos el producto en la DB, volcamos sus campos con la misma
             // forma que /api/data (precio, img, ml, etc.) para que DetailPanel
             // pueda mostrarlo sin pedir nada extra.
-            db.obtenerProducto(url).ifPresent(p -> ProductJson.escribir(n, p));
+            productos.obtenerProducto(url).ifPresent(p -> ProductJson.escribir(n, p));
             n.put("url",    url);
             n.put("sitio",  ProductJson.safe(f.get("sitio")));
             n.put("nombre", n.has("nombre") && !n.get("nombre").asText().isBlank()
                     ? n.get("nombre").asText() : ProductJson.safe(f.get("nombre")));
             n.put("addedAt",       ProductJson.safe(f.get("added_at")));
             n.put("lastCheckedAt", ProductJson.safe(f.get("last_checked_at")));
-            n.put("descontinuado", !db.esProductoActivo(url));
+            n.put("descontinuado", !productos.esProductoActivo(url));
         }
         return ResponseEntity.ok(arr);
     }

@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.favoritos.FavoritosPort;
@@ -38,6 +39,7 @@ class ApiControllerFavoritosTest {
     private ResultAggregator aggregator;
     private DatabaseService db;
     private FavoritosPort favoritosPort;
+    private ProductPort productos;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -62,7 +64,9 @@ class ApiControllerFavoritosTest {
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         favoritosPort         = mock(FavoritosPort.class);
+        productos             = mock(ProductPort.class);
         when(db.favoritos()).thenReturn(favoritosPort);
+        when(db.productos()).thenReturn(productos);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -113,8 +117,8 @@ class ApiControllerFavoritosTest {
                 "url", url, "sitio", "Sporting", "nombre", "Zapatillas Nike",
                 "added_at", "2025-01-01", "last_checked_at", "2025-01-15");
         when(favoritosPort.listarFavoritos(any())).thenReturn(List.of(row));
-        when(db.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
-        when(db.esProductoActivo(url)).thenReturn(true);
+        when(productos.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
+        when(productos.esProductoActivo(url)).thenReturn(true);
     }
 
     @Test
@@ -134,8 +138,8 @@ class ApiControllerFavoritosTest {
         var row = Map.of("url", url, "sitio", "S", "nombre", "N",
                 "added_at", "2025-01-01", "last_checked_at", "2025-01-01");
         when(favoritosPort.listarFavoritos(any())).thenReturn(List.of(row));
-        when(db.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
-        when(db.esProductoActivo(url)).thenReturn(false);
+        when(productos.obtenerProducto(url)).thenReturn(Optional.<Product>empty());
+        when(productos.esProductoActivo(url)).thenReturn(false);
     }
 
     // ── POST /api/favoritos ──────────────────────────────────────────────
@@ -214,7 +218,7 @@ class ApiControllerFavoritosTest {
         JsonNode body = AllureSteps.toJson(resp.getBody());
 
         assertThat(body.get("ok").asBoolean()).isTrue();
-        verify(db).marcarDescontinuado(url);
+        verify(productos).marcarDescontinuado(url);
         verify(service).eliminarProductoDeMemoria(url);
     }
 }

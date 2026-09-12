@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -77,7 +78,7 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
         fijarTouchedAt("https://uno.com/b", runStart.minusSeconds(10));
 
         // This run re-scrapes site "Uno" and only finds A. B is genuinely gone.
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(productoDe("Uno", "https://uno.com/a", "A", 1000.0)), runStart);
 
         // Identical to today: B is on a site this run covered and was not seen.
@@ -100,7 +101,7 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
         fijarTouchedAt("https://uno.com/nuevo", runStart.plusSeconds(1));
 
         // Resume covers only site "Dos". The batch knows nothing about "Uno".
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(productoDe("Dos", "https://dos.com/x", "X", 900.0)), runStart);
 
         // The union spans both halves, so "Uno" is in scope and its stale row goes.
@@ -133,7 +134,7 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
         fijarTouchedAt("https://uno.com/otro", runStart.minusSeconds(10));
 
         // The run re-scrapes "Uno" and finds only "otro".
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(productoDe("Uno", "https://uno.com/otro", "Otro", 200.0)), runStart);
 
         // "borde" was touched during this run's first second, so it is present,

@@ -4,6 +4,7 @@ import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
@@ -36,6 +37,10 @@ class ApiControllerMlOpsTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
+    // Named productPort (not `productos`) — the class already has a local
+    // `List<Product> productos` variable in a test method; reusing the name
+    // for the field would shadow it there.
+    private ProductPort productPort;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
     private OutfitService outfitService;
@@ -54,6 +59,8 @@ class ApiControllerMlOpsTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
+        productPort           = mock(ProductPort.class);
+        when(db.productos()).thenReturn(productPort);
         grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
@@ -100,7 +107,7 @@ class ApiControllerMlOpsTest {
     void mlEstadoReturnsEmbeddingsCountAndCoverage() {
         when(pythonRunner.getTrainingStatus())
                 .thenReturn(new TrainingStatus(false, "idle", 0, "", null));
-        when(db.contarEmbeddings()).thenReturn(75L);
+        when(productPort.contarEmbeddings()).thenReturn(75L);
         var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         List<Product> productos = new java.util.ArrayList<>();
         for (int i = 0; i < 100; i++) {
@@ -127,7 +134,7 @@ class ApiControllerMlOpsTest {
     void mlEstadoReturnsZeroCoverageWhenNoDataLoaded() {
         when(pythonRunner.getTrainingStatus())
                 .thenReturn(TrainingStatus.idle());
-        when(db.contarEmbeddings()).thenReturn(0L);
+        when(productPort.contarEmbeddings()).thenReturn(0L);
         when(service.getLastResult()).thenReturn(null);
 
         var resp = controller.mlEstado();
@@ -142,7 +149,7 @@ class ApiControllerMlOpsTest {
     void mlEstadoReportsEmbeddingMacroPhaseFromSequencingEntrypoint() {
         when(pythonRunner.getTrainingStatus())
                 .thenReturn(new TrainingStatus(true, "embedding", 70, "35/50", "2026-01-01T10:00"));
-        when(db.contarEmbeddings()).thenReturn(35L);
+        when(productPort.contarEmbeddings()).thenReturn(35L);
         when(service.getLastResult()).thenReturn(null);
 
         var resp = controller.mlEstado();

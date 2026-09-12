@@ -59,18 +59,24 @@ class AgentEndpoints {
     private static final ObjectMapper AGENT_MAPPER = new ObjectMapper();
 
     private final ScraperService service;
+    // Declared dual dependency (extract-catalog-query-port, D6): siteRegistry()
+    // is a DatabaseService-only accessor with no port of its own yet. Product
+    // reads/writes below go through ProductPort instead.
     private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.catalog.ProductPort productos;
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
 
     AgentEndpoints(ScraperService service,
                    ar.scraper.db.DatabaseService db,
+                   ar.scraper.catalog.ProductPort productos,
                    CatalogAgentService catalogAgentService,
                    AgentConfig agentConfig,
                    ActorResolver actorResolver) {
         this.service = service;
         this.db = db;
+        this.productos = productos;
         this.catalogAgentService = catalogAgentService;
         this.agentConfig = agentConfig;
         this.actorResolver = actorResolver;
@@ -217,7 +223,7 @@ class AgentEndpoints {
         // Fails closed: obtenerProducto returns Optional.empty() for both
         // "not found" and an actual read error (see its Javadoc) — either way
         // this is treated as a conflict, never as "safe to write".
-        Optional<Product> dbProducto = db.obtenerProducto(body.url());
+        Optional<Product> dbProducto = productos.obtenerProducto(body.url());
         String categoriaEnDb = dbProducto.map(Product::categoria).map(String::trim).orElse(null);
         String categoriaActualPropuesta = body.categoriaActual() != null ? body.categoriaActual().trim() : "";
         if (categoriaEnDb == null || !categoriaEnDb.equals(categoriaActualPropuesta)) {
@@ -240,7 +246,7 @@ class AgentEndpoints {
         // obs #773) — never read inline. No role/permission check is performed
         // on it; it is recorded, not verified.
         String actor = actorResolver.current();
-        boolean applied = db.aplicarReclasificacionAuditada(
+        boolean applied = productos.aplicarReclasificacionAuditada(
                 body.url(),
                 body.categoriaPropuesta(),
                 (marca != null && !marca.isBlank()) ? marca : previo.marca(),

@@ -82,7 +82,8 @@ class ResultAggregatorRefrescoParcialTest {
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> sellarFinan(inv.getArgument(0), 1));
 
         aggregator = new ResultAggregator(
-                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db);
+                normalizer, pythonRunner, mlEnricher, senalEnricher, financiacionEnricher, db,
+                mock(ar.scraper.catalog.ProductPort.class));
     }
 
     // ─── Fixtures ────────────────────────────────────────────────────────────

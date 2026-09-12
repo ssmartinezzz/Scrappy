@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.model.Product;
@@ -82,7 +83,7 @@ class DatabaseServiceTest extends PostgresTestBase {
     @Test
     @DisplayName("URL nueva -> INSERT + fila en precio_historico")
     void newProductInsertsAndRecordsHistory() {
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(producto("https://site.com/nuevo", "Nuevo", 500.0)));
 
         assertThat(stats.nuevos()).isEqualTo(1);
@@ -97,7 +98,7 @@ class DatabaseServiceTest extends PostgresTestBase {
     @DisplayName("precio igual -> touched_at only, sin fila nueva en precio_historico")
     void unchangedPriceOnlyTouchesTimestamp() {
         db.upsertProductos(List.of(producto("https://site.com/igual", "Igual", 750.0)));
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(producto("https://site.com/igual", "Igual", 750.0)));
 
         assertThat(stats.nuevos()).isEqualTo(0);
@@ -111,7 +112,7 @@ class DatabaseServiceTest extends PostgresTestBase {
     @DisplayName("precio cambio -> UPDATE + nueva fila en precio_historico")
     void changedPriceUpdatesAndRecordsHistory() {
         db.upsertProductos(List.of(producto("https://site.com/cambia", "Cambia", 1000.0)));
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(producto("https://site.com/cambia", "Cambia", 1200.0)));
 
         assertThat(stats.actualizados()).isEqualTo(1);
@@ -129,7 +130,7 @@ class DatabaseServiceTest extends PostgresTestBase {
                 producto("https://site.com/queda", "Queda", 100.0),
                 producto("https://site.com/desaparece", "Desaparece", 200.0)));
 
-        DatabaseService.UpsertStats stats = db.upsertProductos(
+        UpsertStats stats = db.upsertProductos(
                 List.of(producto("https://site.com/queda", "Queda", 100.0)));
 
         assertThat(stats.desactivados()).isEqualTo(1);
@@ -155,7 +156,7 @@ class DatabaseServiceTest extends PostgresTestBase {
                 productoDe("Sporting", "https://sporting.com/remera", "Remera", 10000.0),
                 productoDe("Venex", "https://venex.com/notebook", "Notebook", 900000.0)));
 
-        DatabaseService.UpsertStats stats = db.upsertProductos(List.of(
+        UpsertStats stats = db.upsertProductos(List.of(
                 productoDe("Venex", "https://venex.com/notebook", "Notebook", 900000.0)));
 
         assertThat(stats.desactivados())
@@ -176,7 +177,7 @@ class DatabaseServiceTest extends PostgresTestBase {
         db.upsertProductos(List.of(
                 productoDe("Sporting", "https://sporting.com/remera", "Remera", 10000.0)));
 
-        DatabaseService.UpsertStats stats = db.upsertProductos(List.of());
+        UpsertStats stats = db.upsertProductos(List.of());
 
         assertThat(stats.desactivados()).isEqualTo(0);
         assertThat(db.esProductoActivo("https://sporting.com/remera")).isTrue();
@@ -190,7 +191,7 @@ class DatabaseServiceTest extends PostgresTestBase {
                 productoDe("Sporting", "https://sporting.com/se-va", "Se va", 200.0),
                 productoDe("Venex", "https://venex.com/otro", "Otro", 300.0)));
 
-        DatabaseService.UpsertStats stats = db.upsertProductos(List.of(
+        UpsertStats stats = db.upsertProductos(List.of(
                 productoDe("Sporting", "https://sporting.com/queda", "Queda", 100.0)));
 
         assertThat(stats.desactivados())

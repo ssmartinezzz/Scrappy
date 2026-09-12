@@ -62,7 +62,8 @@ class ScraperServiceSnapshotIsolationTest {
         Mockito.when(db.startedAtDeRun(7L))
                 .thenReturn(Optional.of(Instant.parse("2026-08-26T10:00:00Z")));
         Mockito.when(db.existeCorridaCompletada()).thenReturn(yaHuboCorrida);
-        return new ScraperService(Mockito.mock(ScraperConfig.class), aggregator, db);
+        return new ScraperService(Mockito.mock(ScraperConfig.class), aggregator, db,
+                Mockito.mock(ar.scraper.catalog.ProductPort.class));
     }
 
     private void abrir(ScraperService service) {
