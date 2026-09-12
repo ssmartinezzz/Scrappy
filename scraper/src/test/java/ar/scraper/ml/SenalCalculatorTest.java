@@ -1,6 +1,6 @@
 package ar.scraper.ml;
 
-import ar.scraper.db.DatabaseService.HistorialEntry;
+import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.model.Product.SenalCompra;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;

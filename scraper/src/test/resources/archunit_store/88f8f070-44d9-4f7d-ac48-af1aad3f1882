@@ -34,8 +34,8 @@ Cycle detected: Slice agent -> \
     - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   3. Dependencies of Slice ml\
-    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
-    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
+    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.financiacion.PresetPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
+    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.catalog.HistorialPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Field <ar.scraper.ml.FinanciacionEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
     - Field <ar.scraper.ml.SenalEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.getInflacionMensual()> in (FinanciacionEnricher.java:52)\
@@ -124,8 +124,8 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
-    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
-    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
+    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.financiacion.PresetPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
+    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.catalog.HistorialPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Field <ar.scraper.ml.FinanciacionEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
     - Field <ar.scraper.ml.SenalEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.getInflacionMensual()> in (FinanciacionEnricher.java:52)\
@@ -139,8 +139,8 @@ Cycle detected: Slice aggregator -> \
     - Constructor <ar.scraper.web.ApiController.<init>(ar.scraper.web.ScraperService, ar.scraper.web.InflacionService, ar.scraper.config.ScraperConfig, ar.scraper.aggregator.ResultAggregator, ar.scraper.db.DatabaseService, ar.scraper.aggregator.grouping.GroupingService, ar.scraper.ml.PythonRunner, ar.scraper.web.OutfitService, ar.scraper.web.RecommendationService, ar.scraper.agent.CatalogAgentService, ar.scraper.agent.AgentConfig, ar.scraper.identity.ActorResolver)> has parameter of type <ar.scraper.aggregator.grouping.GroupingService> in (ApiController.java:0)\
     - Constructor <ar.scraper.web.ComparadorEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.aggregator.grouping.GroupingService)> has parameter of type <ar.scraper.aggregator.grouping.GroupingService> in (ComparadorEndpoints.java:0)\
     - Constructor <ar.scraper.web.DbAdminEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.aggregator.ResultAggregator)> has parameter of type <ar.scraper.aggregator.ResultAggregator> in (DbAdminEndpoints.java:0)\
-    - Constructor <ar.scraper.web.FinanciacionEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.web.InflacionService, ar.scraper.db.DatabaseService, ar.scraper.aggregator.ResultAggregator)> has parameter of type <ar.scraper.aggregator.ResultAggregator> in (FinanciacionEndpoints.java:0)\
-    - Constructor <ar.scraper.web.MlEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.aggregator.ResultAggregator, ar.scraper.ml.PythonRunner)> has parameter of type <ar.scraper.aggregator.ResultAggregator> in (MlEndpoints.java:0)\
+    - Constructor <ar.scraper.web.FinanciacionEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.web.InflacionService, ar.scraper.financiacion.PresetPort, ar.scraper.catalog.HistorialPort, ar.scraper.aggregator.ResultAggregator)> has parameter of type <ar.scraper.aggregator.ResultAggregator> in (FinanciacionEndpoints.java:0)\
+    - Constructor <ar.scraper.web.MlEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.catalog.HistorialPort, ar.scraper.aggregator.ResultAggregator, ar.scraper.ml.PythonRunner)> has parameter of type <ar.scraper.aggregator.ResultAggregator> in (MlEndpoints.java:0)\
     - Constructor <ar.scraper.web.ScraperService.<init>(ar.scraper.config.ScraperConfig, ar.scraper.aggregator.ResultAggregator, ar.scraper.db.DatabaseService)> has parameter of type <ar.scraper.aggregator.ResultAggregator> in (ScraperService.java:0)\
     - Field <ar.scraper.web.ApiController.aggregator> has type <ar.scraper.aggregator.ResultAggregator> in (ApiController.java:0)\
     - Field <ar.scraper.web.ApiController.grouping> has type <ar.scraper.aggregator.grouping.GroupingService> in (ApiController.java:0)\
@@ -181,8 +181,8 @@ Cycle detected: Slice aggregator -> \
     - Method <ar.scraper.aggregator.ResultAggregator.fromDBParcial(java.util.List, ar.scraper.aggregator.ResultAggregator$AggregatedResult, java.util.Set)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (ResultAggregator.java:503)\
     (1 further dependencies have been omitted...)\
   2. Dependencies of Slice ml\
-    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
-    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
+    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.financiacion.PresetPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
+    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.catalog.HistorialPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Field <ar.scraper.ml.FinanciacionEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
     - Field <ar.scraper.ml.SenalEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.getInflacionMensual()> in (FinanciacionEnricher.java:52)\
@@ -227,8 +227,8 @@ Cycle detected: Slice cron -> \
     - Method <ar.scraper.cron.CronJobRunner.runJob(ar.scraper.scheduling.CronJob)> calls method <ar.scraper.ml.PythonRunner.setUseGpu(boolean)> in (CronJobRunner.java:95)\
     - Method <ar.scraper.cron.CronJobRunner.runJob(ar.scraper.scheduling.CronJob)> calls method <ar.scraper.ml.PythonRunner.setUseGpu(boolean)> in (CronJobRunner.java:116)\
   2. Dependencies of Slice ml\
-    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
-    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
+    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.financiacion.PresetPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
+    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.catalog.HistorialPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Field <ar.scraper.ml.FinanciacionEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
     - Field <ar.scraper.ml.SenalEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.getInflacionMensual()> in (FinanciacionEnricher.java:52)\
@@ -280,8 +280,8 @@ Cycle detected: Slice ml -> \
                 Slice web -> \
                 Slice ml\
   1. Dependencies of Slice ml\
-    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
-    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
+    - Constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.financiacion.PresetPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
+    - Constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.catalog.HistorialPort, ar.scraper.web.InflacionService)> has parameter of type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Field <ar.scraper.ml.FinanciacionEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (FinanciacionEnricher.java:0)\
     - Field <ar.scraper.ml.SenalEnricher.inflacionService> has type <ar.scraper.web.InflacionService> in (SenalEnricher.java:0)\
     - Method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> calls method <ar.scraper.web.InflacionService.getInflacionMensual()> in (FinanciacionEnricher.java:52)\
@@ -290,21 +290,21 @@ Cycle detected: Slice ml -> \
     - Constructor <ar.scraper.web.ApiController.<init>(ar.scraper.web.ScraperService, ar.scraper.web.InflacionService, ar.scraper.config.ScraperConfig, ar.scraper.aggregator.ResultAggregator, ar.scraper.db.DatabaseService, ar.scraper.aggregator.grouping.GroupingService, ar.scraper.ml.PythonRunner, ar.scraper.web.OutfitService, ar.scraper.web.RecommendationService)> has parameter of type <ar.scraper.ml.PythonRunner> in (ApiController.java:0)\
     - Constructor <ar.scraper.web.ApiController.<init>(ar.scraper.web.ScraperService, ar.scraper.web.InflacionService, ar.scraper.config.ScraperConfig, ar.scraper.aggregator.ResultAggregator, ar.scraper.db.DatabaseService, ar.scraper.aggregator.grouping.GroupingService, ar.scraper.ml.PythonRunner, ar.scraper.web.OutfitService, ar.scraper.web.RecommendationService, ar.scraper.agent.CatalogAgentService, ar.scraper.agent.AgentConfig)> has parameter of type <ar.scraper.ml.PythonRunner> in (ApiController.java:0)\
     - Constructor <ar.scraper.web.ApiController.<init>(ar.scraper.web.ScraperService, ar.scraper.web.InflacionService, ar.scraper.config.ScraperConfig, ar.scraper.aggregator.ResultAggregator, ar.scraper.db.DatabaseService, ar.scraper.aggregator.grouping.GroupingService, ar.scraper.ml.PythonRunner, ar.scraper.web.OutfitService, ar.scraper.web.RecommendationService, ar.scraper.agent.CatalogAgentService, ar.scraper.agent.AgentConfig, ar.scraper.identity.ActorResolver)> has parameter of type <ar.scraper.ml.PythonRunner> in (ApiController.java:0)\
-    - Constructor <ar.scraper.web.MlEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.aggregator.ResultAggregator, ar.scraper.ml.PythonRunner)> has parameter of type <ar.scraper.ml.PythonRunner> in (MlEndpoints.java:0)\
+    - Constructor <ar.scraper.web.MlEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.catalog.HistorialPort, ar.scraper.aggregator.ResultAggregator, ar.scraper.ml.PythonRunner)> has parameter of type <ar.scraper.ml.PythonRunner> in (MlEndpoints.java:0)\
     - Field <ar.scraper.web.ApiController.pythonRunner> has type <ar.scraper.ml.PythonRunner> in (ApiController.java:0)\
     - Field <ar.scraper.web.CatalogoEndpoints.financiacionEnricher> has type <ar.scraper.ml.FinanciacionEnricher> in (CatalogoEndpoints.java:0)\
     - Field <ar.scraper.web.CatalogoEndpoints.senalEnricher> has type <ar.scraper.ml.SenalEnricher> in (CatalogoEndpoints.java:0)\
     - Field <ar.scraper.web.MlEndpoints.pythonRunner> has type <ar.scraper.ml.PythonRunner> in (MlEndpoints.java:0)\
-    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:53)\
-    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.db.DatabaseService, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:54)\
-    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:90)\
-    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:91)\
-    - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (MlEndpoints.java:114)\
-    - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (MlEndpoints.java:115)\
-    - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (MlEndpoints.java:117)\
-    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner.getTrainingStatus()> in (MlEndpoints.java:163)\
-    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.running()> in (MlEndpoints.java:165)\
-    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.phase()> in (MlEndpoints.java:166)\
-    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.pct()> in (MlEndpoints.java:167)\
-    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.msg()> in (MlEndpoints.java:168)\
+    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.financiacion.PresetPort, ar.scraper.catalog.HistorialPort, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.SenalEnricher.<init>(ar.scraper.catalog.HistorialPort, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:59)\
+    - Constructor <ar.scraper.web.CatalogoEndpoints.<init>(ar.scraper.web.ScraperService, ar.scraper.db.DatabaseService, ar.scraper.financiacion.PresetPort, ar.scraper.catalog.HistorialPort, ar.scraper.config.ScraperConfig, ar.scraper.web.InflacionService)> calls constructor <ar.scraper.ml.FinanciacionEnricher.<init>(ar.scraper.financiacion.PresetPort, ar.scraper.web.InflacionService)> in (CatalogoEndpoints.java:60)\
+    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.FinanciacionEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:96)\
+    - Method <ar.scraper.web.CatalogoEndpoints.data(int, int, java.util.List, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.Boolean, java.lang.String, java.lang.Boolean, java.lang.Double, java.lang.Double, java.util.List, java.lang.String, java.lang.String, java.lang.String, java.lang.String)> calls method <ar.scraper.ml.SenalEnricher.enriquecer(java.util.List)> in (CatalogoEndpoints.java:97)\
+    - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.MlEnricher.serializarProductos(java.util.List)> in (MlEndpoints.java:117)\
+    - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.PythonRunner.ejecutar(java.lang.String)> in (MlEndpoints.java:118)\
+    - Method <ar.scraper.web.MlEndpoints.mlAplicar()> calls method <ar.scraper.ml.MlEnricher.enriquecer(java.util.List, com.fasterxml.jackson.databind.JsonNode, ar.scraper.db.DatabaseService)> in (MlEndpoints.java:120)\
+    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner.getTrainingStatus()> in (MlEndpoints.java:166)\
+    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.running()> in (MlEndpoints.java:168)\
+    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.phase()> in (MlEndpoints.java:169)\
+    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.pct()> in (MlEndpoints.java:170)\
+    - Method <ar.scraper.web.MlEndpoints.mlEstado()> calls method <ar.scraper.ml.PythonRunner$TrainingStatus.msg()> in (MlEndpoints.java:171)\
     (11 further dependencies have been omitted...)

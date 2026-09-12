@@ -36,22 +36,28 @@ class CatalogoEndpoints {
 
     private final ScraperService service;
     private final ar.scraper.db.DatabaseService db;
+    private final ar.scraper.financiacion.PresetPort presets;
+    private final ar.scraper.catalog.HistorialPort historial;
     private final ScraperConfig config;
     private final ar.scraper.ml.SenalEnricher senalEnricher;
     private final ar.scraper.ml.FinanciacionEnricher financiacionEnricher;
 
     CatalogoEndpoints(ScraperService service,
                       ar.scraper.db.DatabaseService db,
+                      ar.scraper.financiacion.PresetPort presets,
+                      ar.scraper.catalog.HistorialPort historial,
                       ScraperConfig config,
                       InflacionService inflacionService) {
         this.service = service;
         this.db = db;
+        this.presets = presets;
+        this.historial = historial;
         this.config = config;
         // senal y finan NO se persisten: se calculan. Antes se calculaban para el
         // catálogo entero durante la agregación; ahora, para los productos de la
         // página — menos trabajo, no más.
-        this.senalEnricher = new ar.scraper.ml.SenalEnricher(db, inflacionService);
-        this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(db, inflacionService);
+        this.senalEnricher = new ar.scraper.ml.SenalEnricher(historial, inflacionService);
+        this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, inflacionService);
     }
 
     private String safe(String s) { return ProductJson.safe(s); }
@@ -90,8 +96,8 @@ class CatalogoEndpoints {
         List<Product> pagina = financiacionEnricher.enriquecer(
                 senalEnricher.enriquecer(paginaSql.productos()));
 
-        String presetActivoLabel = db.cargarPresetActivo()
-                .map(ar.scraper.db.DatabaseService.Preset::label).orElse("");
+        String presetActivoLabel = presets.cargarPresetActivo()
+                .map(ar.scraper.financiacion.Preset::label).orElse("");
 
         int total = paginaSql.total();
         int totalPaginas = (int) Math.ceil((double) total / size);
@@ -239,7 +245,7 @@ class CatalogoEndpoints {
         ObjectNode prod = root.putObject("producto");
         prod.put("url", url);
         ProductJson.escribir(prod, encontrado.get());
-        root.set("historial", HistorialJson.construir(db.cargarHistorial(url)));
+        root.set("historial", HistorialJson.construir(historial.cargarHistorial(url)));
         return ResponseEntity.ok(root);
     }
 

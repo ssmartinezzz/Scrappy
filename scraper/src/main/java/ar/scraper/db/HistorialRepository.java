@@ -1,7 +1,10 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -17,14 +20,19 @@ import java.util.Map;
  * Reads of the {@code precio_historico} aggregate.
  *
  * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). The
- * {@code HistorialEntry} record stays nested on DatabaseService — callers and
- * tests name it {@code DatabaseService.HistorialEntry}.</p>
+ * {@code HistorialEntry} record lives in {@code ar.scraper.catalog}
+ * (extract-preset-historial-ports).</p>
  *
  * <p>Writes to this table are NOT here: they happen inside the product upsert
  * ({@code sp_upsert_run}) and its history pruning, which belong to the product
  * aggregate.</p>
+ *
+ * <p>Implements {@link HistorialPort} (extract-preset-historial-ports) so
+ * {@code ar.scraper.web} and {@code ar.scraper.ml} depend on that port, not on
+ * {@code DatabaseService} directly.</p>
  */
-class HistorialRepository {
+@Repository
+class HistorialRepository implements HistorialPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(HistorialRepository.class);
 
@@ -34,7 +42,8 @@ class HistorialRepository {
         this.dataSource = dataSource;
     }
 
-    List<Map<String, Object>> cargarHistorial(String url) {
+    @Override
+    public List<Map<String, Object>> cargarHistorial(String url) {
         List<Map<String, Object>> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -54,8 +63,9 @@ class HistorialRepository {
         return result;
     }
 
-    List<DatabaseService.HistorialEntry> getHistorialPrecios(String url) {
-        var result = new java.util.ArrayList<DatabaseService.HistorialEntry>();
+    @Override
+    public List<HistorialEntry> getHistorialPrecios(String url) {
+        var result = new java.util.ArrayList<HistorialEntry>();
         if (url == null) return result;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -63,7 +73,7 @@ class HistorialRepository {
             ps.setString(1, url);
             var rs = ps.executeQuery();
             while (rs.next())
-                result.add(new DatabaseService.HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
         } catch (Exception e) {
             LOG.warn("[DB] historial {}: {}", url, e.getMessage());
         }
@@ -93,8 +103,9 @@ class HistorialRepository {
      * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
      *         historial no aparecen como key
      */
-    Map<String, List<DatabaseService.HistorialEntry>> getHistorialPrecios(List<String> urls) {
-        Map<String, List<DatabaseService.HistorialEntry>> result = new HashMap<>();
+    @Override
+    public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
+        Map<String, List<HistorialEntry>> result = new HashMap<>();
         if (urls == null || urls.isEmpty()) return result;
 
         List<String> validUrls = urls.stream()
@@ -113,7 +124,7 @@ class HistorialRepository {
                 while (rs.next()) {
                     String url = rs.getString("url");
                     result.computeIfAbsent(url, k -> new ArrayList<>())
-                          .add(new DatabaseService.HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                          .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
                 }
             }
         } catch (Exception e) {
