@@ -280,3 +280,17 @@ describe('App — the interrupted-run banner is ADMIN-only (slice 6, task 6.1/6.
   });
 });
 
+
+describe('App — catalog default order', () => {
+  it('the first /api/data request of /catalogo asks for the most expensive products first', async () => {
+    global.fetch = authedRouter({ roles: ['VIEWER'], tieneData: true });
+
+    renderApp('/catalogo');
+
+    await waitFor(() => {
+      const dataCall = global.fetch.mock.calls.map(([url]) => String(url)).find(u => u.includes('/api/data'));
+      expect(dataCall).toBeDefined();
+      expect(new URL(dataCall, 'http://x').searchParams.get('orden')).toBe('precio_desc');
+    });
+  });
+});

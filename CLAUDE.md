@@ -426,11 +426,15 @@ sólo tenga vegetal devuelve un pick en vez de dejar el slot vacío, igual que
 `mejorGrupoDeMarca` cae a todos los candidatos cuando ninguna marca preferida
 tiene stock. Para Creatina, Magnesio y el resto es un no-op.
 
-La **marca preferida es un CONJUNTO, no un orden**: ENA · Gold Nutrition ·
-Star Nutrition · BSN · Xtrenght, más la **línea** Syntha-6. Todas compiten entre
-sí y **el precio por unidad de medida decide** cuál gana. Sigue siendo un filtro
-DURO contra las no listadas —una marca de confianza le gana a una desconocida
-por barata que esté— pero entre las de confianza no hay jerarquía.
+La **marca preferida tiene dos escalones**. Arriba, **BSN** (marca, o la
+**línea** Syntha-6): si hay stock gana siempre, sin mirar el $/g — pedido
+explícito del usuario (2026-09-17), porque con el conjunto plano no salía
+nunca: es la más cara por gramo de las cinco en las dos categorías de proteína
+($209/g contra $77/g de la Star isolada). Abajo, un CONJUNTO sin orden: ENA ·
+Gold Nutrition · Star Nutrition · Xtrenght compiten entre sí y **el precio por
+unidad de medida decide**. Sigue siendo un filtro DURO contra las no listadas
+—una marca de confianza le gana a una desconocida por barata que esté— y
+adentro de cada escalón no hay más jerarquía que el $/g.
 
 Era un orden hasta `feat/supplement-pick-by-price-per-gram`, y ahí estaba el
 problema: `mejorGrupoDeMarca` se quedaba con la primera marca **con stock**, así

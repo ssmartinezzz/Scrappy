@@ -13,12 +13,6 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The preferred brands are a SET, not an order: every one of them competes, and
- * price per gram decides between them. The previous contract picked the first
- * brand with stock and only compared value inside it, which meant the brands
- * further down the list could never win however good their price.
- */
 @Epic("Outfit Orchestration")
 @Feature("Supplements / Style")
 @Story("Supplement value ranking")
@@ -83,12 +77,30 @@ class SupplementComboMarcaPreferidaTest {
     }
 
     @Test
-    @DisplayName("Syntha-6 competes on price like everyone else, it is not a trump card")
-    void syntha6CompitePorPrecioComoElResto() {
+    @DisplayName("BSN outranks the rest of the set: in stock, it wins regardless of $/g")
+    void bsnGanaSiempreQueHayaStock() {
         var syntha = suplemento("BSN Syntha-6 907g", 30000, "BSN");
         var star   = suplemento("Whey Star 907g", 12000, "Star Nutrition");
 
-        assertThat(pick(List.of(syntha, star)).marca()).isEqualTo("Star Nutrition");
+        assertThat(pick(List.of(syntha, star)).marca()).isEqualTo("BSN");
+    }
+
+    @Test
+    @DisplayName("Between two BSN products, price per gram still decides")
+    void entreDosBsnDecideElPrecioPorGramo() {
+        var chico  = suplemento("BSN Syntha-6 658g", 25000, "BSN");
+        var grande = suplemento("BSN Syntha-6 Isolate 907g", 30000, "BSN");
+
+        assertThat(pick(List.of(chico, grande)).nombre()).isEqualTo("BSN Syntha-6 Isolate 907g");
+    }
+
+    @Test
+    @DisplayName("Without BSN in the pool, the other preferred brands compete on $/g as before")
+    void sinBsnLasDemasCompitenPorPrecio() {
+        var ena  = suplemento("Whey ENA 1kg", 20000, "ENA");
+        var star = suplemento("Whey Star 1kg", 12000, "Star Nutrition");
+
+        assertThat(pick(List.of(ena, star)).marca()).isEqualTo("Star Nutrition");
     }
 
     @Test
