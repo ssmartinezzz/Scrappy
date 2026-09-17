@@ -542,6 +542,9 @@ public class SupplementCombo {
     private static final Set<String> SUPLEMENTO_MARCAS_PREFERIDAS =
             Set.of("ENA", "Gold Nutrition", "Star Nutrition", "BSN", "Xtrenght");
 
+    /** Gana siempre que tenga stock, por encima del conjunto y del $/g. Syntha-6 cuenta como BSN. */
+    private static final Set<String> SUPLEMENTO_MARCAS_PRIORITARIAS = Set.of("BSN");
+
     /**
      * Líneas de producto preferidas, con el mismo peso que una marca de
      * {@link #SUPLEMENTO_MARCAS_PREFERIDAS} y compitiendo con ellas por $/g.
@@ -842,7 +845,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Candidatos de CUALQUIER marca o línea preferida; si no hay ninguno, todos.
+     * Candidatos de la marca prioritaria; si no hay, de cualquier marca o línea
+     * preferida; si tampoco, todos.
      *
      * <p>Devuelve el grupo entero y no la marca de mayor prioridad porque la
      * preferencia dejó de ser un orden: todas compiten y {@link #mejorValor} decide
@@ -851,10 +855,22 @@ public class SupplementCombo {
      * esté—, pero entre las de confianza manda el valor.</p>
      */
     private List<Product> mejorGrupoDeMarca(List<Product> candidatos) {
+        List<Product> prioritarios = candidatos.stream()
+                .filter(this::esPrioritario)
+                .collect(Collectors.toList());
+        if (!prioritarios.isEmpty()) return prioritarios;
         List<Product> preferidos = candidatos.stream()
                 .filter(this::esPreferido)
                 .collect(Collectors.toList());
         return preferidos.isEmpty() ? candidatos : preferidos;
+    }
+
+    private boolean esPrioritario(Product p) {
+        if (p.marca() != null && SUPLEMENTO_MARCAS_PRIORITARIAS.stream()
+                .anyMatch(m -> m.equalsIgnoreCase(p.marca()))) {
+            return true;
+        }
+        return tieneLineaPreferida(p);
     }
 
     private boolean esPreferido(Product p) {
@@ -862,6 +878,10 @@ public class SupplementCombo {
                 .anyMatch(m -> m.equalsIgnoreCase(p.marca()))) {
             return true;
         }
+        return tieneLineaPreferida(p);
+    }
+
+    private boolean tieneLineaPreferida(Product p) {
         String nombre = normalizar(p.nombre() == null ? "" : p.nombre());
         for (String linea : SUPLEMENTO_LINEAS_PREFERIDAS) {
             if (nombre.contains(linea)) return true;

@@ -64,7 +64,7 @@ const init = {
   colorDominante: '',
   precioMin:    undefined, // Sidebar price-range filter (server-side, /api/data param)
   precioMax:    undefined,
-  orden:        'precio_asc',
+  orden:        'precio_desc',
   // Pagination / infinite scroll
   pag:          1,
   hasMore:      true,
