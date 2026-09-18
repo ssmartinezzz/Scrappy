@@ -82,6 +82,7 @@ Scrappy/
 ├── docs/                        ← DATABASE, ARCHITECTURE, API_REFERENCE, ADD_SCRAPER,
 │                                  ML_PIPELINE, LLM_EMBED, LLM_AGENT_SETUP
 ├── openspec/                    ← Artefactos SDD (changes/ activos, changes/archive/ cerrados, specs/)
+├── odd/tasks/                   ← Documentos de feature ODD (objetivo, tareas, evidencia medida)
 ├── scripts/
 │   ├── dev-db.sh                ← Postgres de dev on-demand (up/down/status)
 │   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
@@ -137,6 +138,7 @@ Scrappy/
         │   │                                  en F3b) + SavedOutfitsPort (lo implementa un
         │   │                                  @Repository package-private en db/)
         │   ├── identity/                   ← área: ActorResolver + Sujeto (movido de web/ en F3b)
+        │   ├── pcs/                        ← área: TechSpecs + TechSpecsParser (fase 1 del armador de PCs)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
@@ -468,6 +470,31 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 > `SupplementCombo`: varios inicializadores debajo normalizan keywords al
 > construirse, y un `Pattern` declarado después llega null a su propio uso.
 > `ExceptionInInitializerError` es el único síntoma.
+
+---
+
+## Armador de PCs (`ar.scraper.pcs`) — fase 1
+
+Sólo existe el parser: `TechSpecsParser.parse(nombre, categoria)` →
+`TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria)`, pura,
+fill-only y con abstención (`""`/`0`, `EMPTY`) igual que `VisualAttrs`. Todavía
+no está en `Product`, ni en la base, ni hay builder, endpoint ni tool del
+agente. El plan y la cobertura medida viven en
+[`odd/tasks/pc-builder-specs.md`](./odd/tasks/pc-builder-specs.md).
+
+Lo que la medición dijo (dev DB, 2157 filas, 2026-09-18) y condiciona la fase 2:
+
+| Campo | Cobertura | Consecuencia |
+|---|---|---|
+| Motherboard socket / RAM ddr+GB / Fuente watts | 98–100% | Los vetos CPU↔Mother, RAM↔Mother y watts pueden ser duros |
+| CPU socket | 81% | Los misses son casi todos **memorias clasificadas como `CPU`** ("AMD EXPO / Intel XMP"), no CPUs sin socket |
+| Motherboard ddr | 78% | El nombre dice socket y no DDR; derivarlo del chipset es seguro en AM4/AM5/LGA1851 y **no** en LGA1700, que es mixto |
+| Gabinete formFactor | **7%** | El nombre no lo dice. El veto Gabinete ⊇ Mother no puede correr sobre nombres: abstención = sin veto, igual que `VisualCoherence` |
+
+El parser **tokeniza** (split en todo no-alfanumérico) en vez de padear
+substrings: `1851` no puede matchear adentro de `B860M`. Los sufijos de chipset
+son letras, no sólo `M`: `X670E`, `B650EM`, `A620AM` existen y un match de 4-o-5
+caracteres perdía todas las Extreme.
 
 ---
 
