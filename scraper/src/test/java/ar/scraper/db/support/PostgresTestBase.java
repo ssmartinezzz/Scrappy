@@ -310,7 +310,11 @@ public abstract class PostgresTestBase {
                     -- it is seed data the migration itself inserts, not test
                     -- residue, and truncating it would leave the schema with no
                     -- role vocabulary for any later test to grant.
-                    usuario, usuario_rol, refresh_token, password_reset_token
+                    usuario, usuario_rol, refresh_token, password_reset_token,
+                    -- indices-service (V33). `indice` is deliberately absent for the
+                    -- same reason as `rol`: it is seed data the migration itself
+                    -- inserts (IPC/USD_OFICIAL), not test residue.
+                    indice_valor
                 RESTART IDENTITY CASCADE
                 """);
         }

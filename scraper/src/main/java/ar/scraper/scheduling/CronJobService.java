@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@link #dispatchAsync(CronJob)}, así que {@code tick()} retorna de
  * inmediato y el único hilo scheduler de Spring queda libre para las demás
  * tareas {@code @Scheduled} (p.ej. el fetch diario de las 8am de
- * {@code InflacionService}) sin que un scraping largo las retrase.
+ * {@code IndiceRefreshJob}) sin que un scraping largo las retrase.
  * {@code next_run_at} se recalcula/persiste dentro de ese mismo hilo virtual,
  * al terminar cada job (éxito, error o excepción).</p>
  */

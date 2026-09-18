@@ -175,7 +175,7 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/mejores", "/api/marcas-browser"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET),
-                    List.of("/api/inflacion", "/api/recomendacion"), Access.AUTHENTICATED),
+                    List.of("/api/indices", "/api/recomendacion"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/financiacion/presets"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/sitios"), Access.AUTHENTICATED),

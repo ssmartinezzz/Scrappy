@@ -773,14 +773,14 @@ paths:
         "200":
           description: Recommendation payload.
 
-  /api/inflacion:
+  /api/indices:
     get:
       tags: [Financiación]
-      summary: INDEC inflation series.
+      summary: IPC and USD oficial series, with the deflator's confidence.
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: Inflation series.
+          description: "{ ipc: ResumenIndice, usd: ResumenIndice, actualizado }."
 
   # ── Outfits ─────────────────────────────────────────────────────────────
 

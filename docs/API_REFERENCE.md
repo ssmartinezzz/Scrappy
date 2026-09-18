@@ -552,6 +552,58 @@ cuando su historial es interesante.
 
 ---
 
+## GET /recomendacion?url=URL
+
+Señal de compra puntual para un producto —"¿conviene comprarlo ahora?"—,
+recalculada on-demand para una sola URL (no lee el snapshot en memoria, a
+diferencia de `Product.senal` del catálogo). Sin historial suficiente
+responde `{ senal: "sin_datos", mensaje }` sin el resto de los campos.
+
+Campos nuevos desde `indices-service` (antes el ajuste usaba una inflación
+hardcodeada de 2024):
+
+| Campo | Tipo | |
+|---|---|---|
+| `indice` | `"IPC" \| "USD_OFICIAL"` | El índice que efectivamente deflactó, resuelto por `DeflactorPorRubro.resolver(producto.rubro)` — `tecnologia` usa el dólar oficial, el resto IPC |
+| `confianza` | `"observado" \| "extrapolado" \| "sin_datos"` | minúscula; `extrapolado` cuando el rango pedido excede el último punto de la serie |
+| `diasExtrapolados` | `number` | `0` si `confianza="observado"` |
+
+El precio antiguo del historial se restata al presente con
+`IndiceService.deflactor(indice, desde, hasta)`, donde `desde`/`hasta` son las
+FECHAS reales del historial de precios usado por el cálculo — no una cantidad
+de puntos. Ver [`CLAUDE.md` → Índices y señales](../CLAUDE.md#índices-y-señales).
+
+---
+
+## GET /indices
+
+Serie de IPC (INDEC) y dólar oficial (BNA), con la confianza del deflactor.
+**Reemplaza a `GET /inflacion`**, retirado junto con `InflacionService`.
+
+```
+{
+  ipc: ResumenIndice,
+  usd: ResumenIndice,
+  actualizado: string   // fecha ISO de la última corrida OK de refrescar(), o "sin datos"
+}
+```
+
+`ResumenIndice`:
+
+| Campo | Tipo | |
+|---|---|---|
+| `indice` | `"IPC" \| "USD_OFICIAL"` | |
+| `ultimoValor` | `number` | Para IPC es un NIVEL sintético (diciembre 2016 = 100, la base del IPC nacional; lo anterior se descarta), no el número de INDEC — la fuente HTTP publica la variación mensual porcentual, no un nivel, así que el adaptador la integra antes de guardarla. Sólo las RAZONES entre dos `valor` son comparables contra la realidad; el valor absoluto de IPC no |
+| `ultimaFecha` | `string \| null` | fecha ISO del último punto observado |
+| `variacionMensual` / `variacionInteranual` / `variacion3m` | `number \| null` | % contra 1/12/3 meses atrás por fecha calendario; `null` si la serie no llega tan atrás |
+| `confianza` | `"observado" \| "extrapolado" \| "sin_datos"` | minúscula |
+| `ultimos` | `{fecha, valor}[]` | hasta 13 puntos, orden ascendente por fecha (el más reciente al final) |
+
+Serie vacía (falla la fuente HTTP y no hay nada persistido todavía) no es un
+error: todos los campos numéricos salen `null`, `confianza: "sin_datos"`.
+
+---
+
 ## GET /ml/estado
 
 `embeddingsCount` / `totalProductos` / `coveragePct` reportan la cobertura del

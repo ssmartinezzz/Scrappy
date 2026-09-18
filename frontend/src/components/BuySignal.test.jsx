@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import BuySignal from '@/components/BuySignal';
-import { fetchHistorial, fetchInflacion, fetchRecomendacion } from '@/api';
+import { fetchHistorial, fetchIndices, fetchRecomendacion } from '@/api';
 
 // Mocking the api module (not global.fetch) is deliberate: it pins the
 // component to the seam that carries VITE_API_BASE_URL. A component that went
@@ -11,7 +11,7 @@ import { fetchHistorial, fetchInflacion, fetchRecomendacion } from '@/api';
 // being broken in any deployment where the origins differ.
 vi.mock('@/api', () => ({
   fetchHistorial: vi.fn(),
-  fetchInflacion: vi.fn(),
+  fetchIndices: vi.fn(),
   fetchRecomendacion: vi.fn(),
 }));
 
@@ -20,11 +20,14 @@ const senalOk = {
   scoreCompra: 82,
   mensaje: 'Precio por debajo de su media histórica',
   puntosHistorial: 5,
+  indice: 'IPC',
+  confianza: 'observado',
+  diasExtrapolados: 0,
 };
 
 beforeEach(() => {
   fetchHistorial.mockResolvedValue(null);
-  fetchInflacion.mockResolvedValue(null);
+  fetchIndices.mockResolvedValue(null);
   fetchRecomendacion.mockResolvedValue(senalOk);
 });
 
@@ -33,7 +36,7 @@ describe('BuySignal', () => {
     render(<BuySignal url="https://tienda.test/p/1" />);
 
     await waitFor(() => expect(fetchRecomendacion).toHaveBeenCalledWith('https://tienda.test/p/1'));
-    expect(fetchInflacion).toHaveBeenCalled();
+    expect(fetchIndices).toHaveBeenCalled();
   });
 
   it('shows the loading state before the signal resolves', async () => {
@@ -87,6 +90,60 @@ describe('BuySignal', () => {
     await user.click(toggle);
 
     expect(toggle.textContent).not.toBe(labelBefore);
+  });
+});
+
+describe('BuySignal — which index deflated the signal (indices-service D1)', () => {
+  it('shows the USD oficial label for a tecnologia product, not the inflation one', async () => {
+    const user = userEvent.setup();
+    fetchRecomendacion.mockResolvedValue({ ...senalOk, indice: 'USD_OFICIAL' });
+
+    render(<BuySignal url="https://tienda.test/p/1" />);
+    await user.click(await screen.findByRole('button'));
+
+    expect(screen.getByText(/ajustado por dólar oficial/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ajustado por inflación/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the inflation label for the default IPC deflator', async () => {
+    const user = userEvent.setup();
+    fetchRecomendacion.mockResolvedValue({ ...senalOk, indice: 'IPC' });
+
+    render(<BuySignal url="https://tienda.test/p/1" />);
+    await user.click(await screen.findByRole('button'));
+
+    expect(screen.getByText(/ajustado por inflación/i)).toBeInTheDocument();
+  });
+
+  it('notes the projected days when the deflator is extrapolated', async () => {
+    const user = userEvent.setup();
+    fetchRecomendacion.mockResolvedValue({ ...senalOk, confianza: 'extrapolado', diasExtrapolados: 12 });
+
+    render(<BuySignal url="https://tienda.test/p/1" />);
+    await user.click(await screen.findByRole('button'));
+
+    expect(screen.getByText(/estimado \(12 días proyectados\)/i)).toBeInTheDocument();
+  });
+
+  it('notes the absence of index data when confianza is sin_datos', async () => {
+    const user = userEvent.setup();
+    fetchRecomendacion.mockResolvedValue({ ...senalOk, confianza: 'sin_datos' });
+
+    render(<BuySignal url="https://tienda.test/p/1" />);
+    await user.click(await screen.findByRole('button'));
+
+    expect(screen.getByText(/sin datos de índice/i)).toBeInTheDocument();
+  });
+
+  it('shows no extra note when the deflator is observado', async () => {
+    const user = userEvent.setup();
+    fetchRecomendacion.mockResolvedValue({ ...senalOk, confianza: 'observado' });
+
+    render(<BuySignal url="https://tienda.test/p/1" />);
+    await user.click(await screen.findByRole('button'));
+
+    expect(screen.queryByText(/estimado \(/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin datos de índice/i)).not.toBeInTheDocument();
   });
 });
 

@@ -113,8 +113,12 @@ export async function fetchProductoDetalle(key) {
   return r.ok ? r.json() : null;
 }
 
-export async function fetchInflacion() {
-  const r = await authedFetch(`${BASE}/api/inflacion`);
+// { ipc: Resumen, usd: Resumen, actualizado } — replaces the removed
+// GET /api/inflacion (indices-service). Resumen shape: { indice, ultimoValor,
+// ultimaFecha, variacionMensual, variacionInteranual, variacion3m, confianza
+// (lowercase), ultimos }. See FinanciacionEndpoints.indices/resumenJson.
+export async function fetchIndices() {
+  const r = await authedFetch(`${BASE}/api/indices`);
   return r.ok ? r.json() : null;
 }
 

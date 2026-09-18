@@ -10,7 +10,7 @@ import ar.scraper.model.Product;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalFinanciacion;
 import ar.scraper.web.ApiController;
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.ScraperService;
@@ -89,7 +89,7 @@ class ApiControllerRecomendadosPackFieldsTest extends PostgresTestBase {
         db = new DatabaseService(dataSource());
 
         service = mock(ScraperService.class);
-        InflacionService inflacionService = mock(InflacionService.class);
+        IndiceService indiceService = mock(IndiceService.class);
         ScraperConfig config              = mock(ScraperConfig.class);
         ResultAggregator aggregator       = mock(ResultAggregator.class);
         GroupingService grouping          = mock(GroupingService.class);
@@ -99,7 +99,7 @@ class ApiControllerRecomendadosPackFieldsTest extends PostgresTestBase {
 
         SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
-        controller = new ApiController(service, inflacionService, config, aggregator,
+        controller = new ApiController(service, indiceService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 

@@ -11,7 +11,7 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.SenalEnricher;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
@@ -249,10 +249,9 @@ class ResultAggregatorMetricsTest {
         // withFinan() rebuild Product and previously reset visual to EMPTY.
         HistorialPort historial = mock(HistorialPort.class);
         when(historial.getHistorialPrecios(anyList())).thenReturn(Map.of());
-        InflacionService inflacion = mock(InflacionService.class);
-        when(inflacion.factorInflacion(anyInt())).thenReturn(1.0);
-        SenalEnricher realSenalEnricher = new SenalEnricher(historial, inflacion);
-        FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(mock(PresetPort.class), inflacion);
+        IndiceService indices = mock(IndiceService.class);
+        SenalEnricher realSenalEnricher = new SenalEnricher(historial, indices);
+        FinanciacionEnricher realFinanciacionEnricher = new FinanciacionEnricher(mock(PresetPort.class), indices);
 
         ResultAggregator aggregatorConEnrichersReales = new ResultAggregator(
                 normalizer, pythonRunner, mlEnricher, realSenalEnricher, realFinanciacionEnricher,

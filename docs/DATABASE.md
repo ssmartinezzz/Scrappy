@@ -70,6 +70,7 @@ categoria_dismiss    -- Categorías "no me interesa" del feed
 financiacion_presets -- Presets de cuotas/recargo
 cron_jobs / cron_executions -- Scraping programado + historial
 agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
+indice / indice_valor       -- Índices macro (IPC, USD oficial) + su serie histórica (V33)
 ```
 
 ### Migraciones
@@ -107,6 +108,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V23` | `productos.sitio_key` (generada) + FK a `sitio(sitio_key)` |
 | `V24` | `sitio.plataforma` 9→11 valores (`qloud`, `oscommerce`) + seed Rockethard/Venex |
 | `V25` | `productos.producto_key` (generada) + índice único — handle corto para rutas |
+| `V33` | `indice` (lookup sembrado) + `indice_valor`, para `ar.scraper.indices` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -2210,3 +2212,67 @@ revertir el split — sería perder la clasificación que ya tenían antes de é
 
 Igual que `V31`, **este rollback no obliga a tocar ningún test ajeno**: `V32` no
 angosta ni ensancha un dominio cerrado.
+
+## `V33` — `indice` + `indice_valor`, para el área `ar.scraper.indices`
+
+Dos tablas nuevas, sin tocar ninguna existente. `indice` es un lookup sembrado
+(mismo patrón que `sitio`/`categoria`/`marca`): dos filas, `IPC` y
+`USD_OFICIAL`, cada una con su `frecuencia` (`MENSUAL`/`DIARIO`) porque
+`Extrapolador` proyecta distinto según cuál sea — componer la última variación
+observada tiene sentido para un IPC mensual, no para un dólar que el BCRA fija
+día a día. `indice_valor` es la serie: un valor por `(indice, fecha)`.
+
+```sql
+CREATE TABLE indice (
+    codigo     TEXT PRIMARY KEY,
+    nombre     TEXT NOT NULL,
+    frecuencia TEXT NOT NULL CHECK (frecuencia IN ('MENSUAL', 'DIARIO'))
+);
+
+CREATE TABLE indice_valor (
+    indice TEXT NOT NULL REFERENCES indice(codigo),
+    fecha  DATE NOT NULL,
+    valor  NUMERIC(14,4) NOT NULL CHECK (valor > 0),
+    PRIMARY KEY (indice, fecha)
+);
+```
+
+**1FN/3FN**: `indice_valor` no tiene grupo repetitivo ni columna serializada, y
+su único atributo no-clave (`valor`) depende de la clave completa
+`(indice, fecha)`, no de una parte de ella ni de otro atributo no-clave.
+
+**Por qué `frecuencia` es un CHECK y no una tercera tabla de lookup**: es un
+vocabulario de dos valores fijos que no lleva atributos propios y no se
+administra desde la app — el caso exacto que **Regla de admisión** (arriba en
+este documento) reserva para CHECK, no para tabla.
+
+**`valor` es un NIVEL, no una tasa** — y esa distinción obligó a una conversión
+en el adaptador, no sólo en el esquema. La fuente HTTP de IPC
+(`api.argentinadatos.com/v1/finanzas/indices/inflacion`) publica la variación
+mensual porcentual (`-5.6`, `1.7`…, puede ser negativa), no un nivel de índice;
+`ArgentinaDatosIpcFuente` la integra a un índice sintético
+(`nivel[0]=100; nivel[i]=nivel[i-1]*(1+tasa/100)`) antes de devolver
+`PuntoIndice`, porque `valor` es el numerador/denominador del factor
+`valorEn(hasta)/valorEn(desde)` y el `CHECK (valor > 0)` rechazaría de todos
+modos un mes de deflación si se guardara la tasa cruda.
+
+**Por qué hace falta la migración y no alcanza con el código**: sin la fila
+seed de `indice`, `indice_valor.indice` no tiene qué referenciar — el primer
+`INSERT` de cualquier corrida real fallaría por FK, y como
+`IndiceRepository.guardar` loguea y descarta la excepción SQL en vez de
+propagarla (mismo patrón que `ProductRepository` — ver **Upsert** arriba), el
+síntoma sería una serie vacía en silencio, no un error.
+
+### Rollback
+
+```sql
+-- >>> rollback:V33
+DROP TABLE indice_valor;
+DROP TABLE indice;
+-- <<< rollback:V33
+```
+
+El orden es obligatorio: `indice_valor.indice` referencia `indice(codigo)`, así
+que borrar `indice` primero fallaría por FK. Ninguna otra tabla referencia a
+estas dos, así que no hace falta `CASCADE` ni contención adicional — el
+`DROP TABLE indice_valor` de arriba ya alcanza sin arrastrar nada ajeno.

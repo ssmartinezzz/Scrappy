@@ -68,5 +68,10 @@ public final class ProductJson {
             ml.put("zScore",     p.ml().zScore());
             ml.put("segment",    p.ml().segment() != null ? p.ml().segment() : "standard");
         }
+        Product.SenalCompra senal = p.senal() != null ? p.senal() : Product.SenalCompra.EMPTY;
+        ObjectNode senalNode = n.putObject("senal");
+        senalNode.put("senal",       senal.senal());
+        senalNode.put("scoreCompra", senal.scoreCompra());
+        senalNode.put("confianza",   senal.confianzaDeflactor().name().toLowerCase());
     }
 }

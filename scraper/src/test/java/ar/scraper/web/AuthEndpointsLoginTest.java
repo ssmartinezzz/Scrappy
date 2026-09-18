@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code addFilters=false} — habits that make a test structurally incapable of
  * proving anything about authorization. That intent is honoured: nothing here
  * is stubbed out of the security path. But booting the whole application also
- * runs {@code InflacionService}'s {@code @PostConstruct}, which fetches INDEC
+ * runs {@code IndiceRefreshJob}'s {@code @PostConstruct}, which fetches INDEC
  * data over the network at context refresh, and a login test that fails when a
  * third-party website is slow is a test people learn to ignore. The collaborators
  * are therefore assembled directly — real repository, real hasher, real token
