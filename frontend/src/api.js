@@ -455,6 +455,20 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
   return r.json();
 }
 
+// ─── PC Builder ───────────────────────────────────────────────────────────────
+
+export async function fetchPcsBuilder({ presupuesto = 0, conGpu = false, excluir = [] } = {}) {
+  const p = new URLSearchParams();
+  if (presupuesto > 0) p.set('presupuesto', presupuesto);
+  if (conGpu) p.set('conGpu', 'true');
+  if (excluir.length > 0) p.set('excluir', excluir.join(','));
+  const qs = p.toString();
+  const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
+  if (r.status === 204) return null;
+  if (!r.ok) return null;
+  return r.json();
+}
+
 // ─── Cron Jobs (panel de administración /cronjobs) ───────────────────────────
 // No hay endpoint de detalle de ejecución individual — /executions ya trae
 // logOutput embebido por fila (ver ar.scraper.web.CronApiController).
