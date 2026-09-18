@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code POST /api/auth/login}. A mapping typo would sail past every assertion
  * there and only surface when a client tried to log in.</p>
  *
- * <p>This test loads the web layer alone — no {@code InflacionService} fetching
+ * <p>This test loads the web layer alone — no {@code IndiceRefreshJob} fetching
  * INDEC at context refresh, no Flyway, no database — and asserts the route and
  * its method. The collaborators are mocked precisely because their behaviour is
  * not what is under test here.</p>

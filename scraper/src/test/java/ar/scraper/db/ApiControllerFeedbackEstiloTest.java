@@ -8,7 +8,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.web.ApiController;
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.ScraperService;
@@ -73,7 +73,7 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
         db = new DatabaseService(dataSource());
 
         service                                     = mock(ScraperService.class);
-        InflacionService inflacionService           = mock(InflacionService.class);
+        IndiceService indiceService           = mock(IndiceService.class);
         ScraperConfig config                        = mock(ScraperConfig.class);
         ResultAggregator aggregator                 = mock(ResultAggregator.class);
         GroupingService grouping                    = mock(GroupingService.class);
@@ -83,7 +83,7 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
 
         SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
-        controller = new ApiController(service, inflacionService, config, aggregator,
+        controller = new ApiController(service, indiceService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 

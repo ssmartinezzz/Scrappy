@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SEÑAL_CONFIG, scoreColor, SEMANTIC } from '../lib/colors';
-import { fetchHistorial, fetchInflacion, fetchRecomendacion } from '../api';
+import { fetchHistorial, fetchIndices, fetchRecomendacion } from '../api';
 
 function MiniSparkline({ url }) {
   const [hist, setHist] = useState([]);
@@ -41,10 +41,10 @@ function MiniSparkline({ url }) {
 }
 
 export default function BuySignal({ url }) {
-  const [data,     setData]     = useState(null);
-  const [inflacion,setInflacion]= useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(false);
+  const [data,    setData]    = useState(null);
+  const [indices, setIndices] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
@@ -52,9 +52,9 @@ export default function BuySignal({ url }) {
     setLoading(true); setError(false);
     Promise.all([
       fetchRecomendacion(url),
-      fetchInflacion(),
+      fetchIndices(),
     ])
-    .then(([rec, inf]) => { setData(rec); setInflacion(inf); })
+    .then(([rec, idx]) => { setData(rec); setIndices(idx); })
     .catch(() => setError(true))
     .finally(() => setLoading(false));
   }, [url]);
@@ -77,6 +77,15 @@ export default function BuySignal({ url }) {
 
   const cfg = SEÑAL_CONFIG[data.senal] || SEÑAL_CONFIG.precio_normal;
   const hasDetail = data.puntosHistorial >= 2;
+
+  // Which index deflated THIS product (indices-service D1: tecnologia → USD
+  // oficial, everything else → IPC) — never the assumption that IPC always
+  // applies, now that the deflator is chosen per rubro.
+  const deflactorLabel = data.indice === 'USD_OFICIAL' ? 'ajustado por dólar oficial' : 'ajustado por inflación';
+  const confianzaNota =
+    data.confianza === 'sin_datos'   ? 'sin datos de índice' :
+    data.confianza === 'extrapolado' ? `estimado (${data.diasExtrapolados} días proyectados)` :
+    null;
 
   return (
     <div style={{
@@ -120,7 +129,7 @@ export default function BuySignal({ url }) {
             <span style={{ color:'var(--t4)' }}>
               Cambio real: <strong style={{ color: data.cambioReal < 0 ? SEMANTIC.positive : SEMANTIC.negative }}>
                 {data.cambioReal > 0 ? '+' : ''}{data.cambioReal}%
-              </strong>
+              </strong> ({deflactorLabel})
             </span>
             <span style={{ color:'var(--t4)' }}>
               Mín: <strong style={{ color:'var(--t2)' }}>${(data.precioMin/1000).toFixed(0)}k</strong>
@@ -134,15 +143,18 @@ export default function BuySignal({ url }) {
             <span>Tendencia: <strong style={{ color: data.tendencia==='bajando'?SEMANTIC.positive:data.tendencia==='subiendo'?SEMANTIC.negative:'var(--t3)' }}>
               {data.tendencia==='bajando'?'↘ bajando':data.tendencia==='subiendo'?'↗ subiendo':'→ estable'}
             </strong></span>
-            {inflacion?.mensual && (
-              <span>IPC: <strong style={{ color:'var(--t2)' }}>{inflacion.mensual.toFixed(1)}%</strong>/mes
-              &nbsp;·&nbsp;{inflacion.interanual?.toFixed(0)}% anual</span>
+            {indices?.ipc?.variacionMensual != null && (
+              <span>IPC: <strong style={{ color:'var(--t2)' }}>{indices.ipc.variacionMensual.toFixed(1)}%</strong>/mes
+              &nbsp;·&nbsp;{indices.ipc.variacionInteranual?.toFixed(0)}% anual</span>
+            )}
+            {confianzaNota && (
+              <span style={{ color: SEMANTIC.warn }}>· {confianzaNota}</span>
             )}
           </div>
 
-          {inflacion?.actualizado && (
+          {indices?.actualizado && (
             <div style={{ fontSize:'.57rem', color:'var(--t4)', marginTop:4, opacity:.6 }}>
-              Datos INDEC · IPC General · {inflacion.actualizado}
+              Datos INDEC · IPC General · {indices.actualizado}
             </div>
           )}
         </div>

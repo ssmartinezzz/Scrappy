@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ScraperService service;
-    private InflacionService inflacionService;
+    private IndiceService indiceService;
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
@@ -65,7 +65,10 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service          = mock(ScraperService.class);
-        inflacionService = mock(InflacionService.class);
+        indiceService = mock(IndiceService.class);
+        when(indiceService.deflactorParaRubro(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         config            = mock(ScraperConfig.class);
         aggregator        = mock(ResultAggregator.class);
         db                = new DatabaseService(dataSource());
@@ -73,7 +76,7 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, inflacionService, config, aggregator,
+        controller = new ApiController(service, indiceService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
