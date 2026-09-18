@@ -416,12 +416,12 @@ if exist "%NODE_DIR%\node.exe" (
     echo        Node.js ya instalado.
     goto :node_ok
 )
-echo        Descargando Node.js 20 aprox 30MB...
+echo        Descargando Node.js 22 aprox 30MB...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "[Net.ServicePointManager]::SecurityProtocol='Tls12';" ^
   "$ProgressPreference='SilentlyContinue';" ^
   "(New-Object Net.WebClient).DownloadFile(" ^
-  "'https://nodejs.org/dist/v20.11.0/node-v20.11.0-win-x64.zip'," ^
+  "'https://nodejs.org/dist/v22.23.2/node-v22.23.2-win-x64.zip'," ^
   "'%TOOLS%\node.zip')"
 if not exist "%TOOLS%\node.zip" (
     echo  [ERROR] Descarga Node.js fallo.
