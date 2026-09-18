@@ -120,8 +120,14 @@ Scrappy/
         │   │                                  y CronJobService, absorbidos de cron/ en F3a
         │   ├── favoritos/FavoritosPort     ← área: puerto del agregado favoritos (lo implementa
         │   │                                  un @Repository package-private en db/)
-        │   ├── financiacion/               ← área: Preset, InflacionService, PresetPort (lo implementa un
+        │   ├── financiacion/               ← área: Preset, PresetPort (lo implementa un
         │   │                                  @Repository package-private en db/)
+        │   ├── indices/                    ← área: Indice, PuntoIndice, Confianza, Deflactor, Serie,
+        │   │                                  DeflactorPorRubro, Extrapolador, IndiceService (único
+        │   │                                  entry point para ml/ y web/) + IndiceRefreshJob (ApplicationRunner,
+        │   │                                  NUNCA @PostConstruct: corre después de Flyway),
+        │   │                                  ResumenIndice, IndicePort/FuenteIndicePort — reemplaza a
+        │   │                                  InflacionService (ver Gotchas → Índices y señales)
         │   ├── feedback/                    ← área: OutfitItemRow, FeedbackPort — outfit_feedback_item
         │   │                                  + categoria_dismiss, una sola señal de gusto (lo
         │   │                                  implementa un @Repository package-private en db/)
@@ -150,6 +156,10 @@ Scrappy/
         │   │                                  SecurityConfig + JwtAuthFilter (el gate)
         │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
         │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
+        │   ├── fuentes/                    ← adapters HTTP de indices/: ArgentinaDatosIpcFuente,
+        │   │                                  DatosGobIpcFuente (fallback), ArgentinaDatosDolarFuente
+        │   │                                  (@Component package-private implementando
+        │   │                                  FuenteIndicePort) + HttpJson + FuenteIndiceConfig
         │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
         │   └── web/                        ← ApiController + *Endpoints (20 clases, transporte)
         └── resources/
@@ -233,7 +243,7 @@ de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V32` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V33` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -586,6 +596,7 @@ a nivel `AppLayout`, no rutas.
 > | el toolchain, un jar, el venv, la base de dev, arrancar los servicios | [Entorno y procesos](#entorno-procesos-y-config) |
 > | un scraper, una page, una URL de catálogo o de imagen | [Leer un sitio](#leer-un-sitio) |
 > | keywords, categorías, el guard no-textil, normalización | [Taxonomía y clasificación](#taxonomía-y-clasificación) |
+> | IPC, dólar, el deflactor, la señal de compra | [Índices y señales](#índices-y-señales) |
 > | un picker, una tarjeta que scrollea, chips animados | [Frontend: layout](#frontend-layout) |
 > | `docker-compose.yml`, el Dockerfile, los orígenes | [Docker](#docker) |
 
@@ -891,6 +902,59 @@ protegía de nada: les bloqueaba la clasificación correcta. El guard existe par
 que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
 Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
 
+### Índices y señales
+
+**Los meses se inventaban de una CUENTA, no de una fecha.**
+`SenalEnricher` calculaba `mesesAtras = historial.size()/4` y `SenalCalculator`
+trataba `size()-13` como "hace 12 meses" — pero `precio_historico` registra
+CAMBIOS de precio, no muestras mensuales (ver `DATABASE.md`). Un producto con 4
+cambios en una semana y uno con 1 cambio en 8 meses compartían la misma cuenta.
+Desde `indices-service` el "hace cuánto" se resuelve por FECHA:
+`IndiceService.deflactorParaRubro(rubro, desde, hasta)` toma `desde`/`hasta`
+de las fechas reales del historial, nunca de una posición en la lista.
+
+**`rubro=tecnologia` deflacta por dólar oficial, el resto por IPC.**
+`DeflactorPorRubro.resolver(rubro)` es la única regla: `"tecnologia".equals(rubro)
+→ USD_OFICIAL`, cualquier otro valor → `IPC`. Deflactar una GPU por la canasta
+del IPC responde la pregunta equivocada — una GPU sube y baja con el dólar, no
+con la inflación general.
+
+**La fuente primaria de IPC (`argentinadatos.com/v1/finanzas/indices/inflacion`)
+publica la TASA mensual, no un nivel.** `valor` puede ser negativo y la serie
+arranca en 1943 muy por debajo de 100 — es variación porcentual, no el índice
+de INDEC. `ArgentinaDatosIpcFuente.parsear` la integra a un nivel sintético
+**anclado en diciembre 2016 = 100** (la base real del IPC nacional de INDEC) y
+**descarta todo lo anterior**: componer los 80 años completos, con la hiper del
+'89 adentro, da `1.1e10` ya en 1984 y desborda `NUMERIC(14,4)` — y como el
+upsert es un solo batch, **abortaba entero y no se persistía ni un punto de
+IPC**, en silencio (encontrado arrancando el backend de verdad, 2026-09-18; 2077
+tests en verde con fixtures de 5 puntos no lo vieron). `Deflactor` necesita un
+NIVEL para el cociente `valorEn(hasta)/valorEn(desde)`. Consecuencia para quien
+lea `GET /api/indices`: el `ultimoValor` de IPC no es el número de INDEC, es una
+base 100 propia — sólo las RAZONES entre dos puntos son comparables contra la
+realidad, el valor absoluto no.
+
+**El fallback de IPC (`datos.gob.ar`, series id `148.3_INIVELGENERAL_DICI_M_26`)
+está muerto hoy** (`{"errors": [...]}`) — ya lo estaba en `InflacionService`,
+antes de este cambio. `DatosGobIpcFuente` lo trata como una falla ordinaria de
+la cadena (`FuenteIndiceException`, no una NPE), pero en la práctica la cadena
+de IPC hoy tiene una sola fuente viva. Reemplazar el id es trabajo pendiente
+(ver Problemas conocidos), no algo que este cambio resolviera.
+
+**Un factor nunca viaja sin marcar.** `Confianza` (`observado` / `extrapolado`
+/ `sin_datos`) sale de `IndiceService.deflactor` y llega hasta la UI por dos
+caminos: `SenalCompra.confianzaDeflactor` (badge de producto) y
+`GET /api/recomendacion` (campos `confianza` + `diasExtrapolados`). Serie
+vacía → `Deflactor.NEUTRO` (`factor=1.0`, `SIN_DATOS`), nunca una tasa
+hardcodeada — los `3.5%`/`150% interanual` de 2024 que `InflacionService`
+servía indistinguibles de un dato real ya no existen en `main/`. En el
+frontend, `ui/ipc-badge.jsx` (montado en `Topbar`) pinta el punto de confianza:
+ámbar para `extrapolado`, gris sin valor para `sin_datos`.
+
+`GET /api/inflacion` no existe más; es `GET /api/indices`
+(`{ ipc: ResumenIndice, usd: ResumenIndice, actualizado }`) — contrato completo
+en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
+
 ### Frontend: layout
 
 **El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
@@ -973,6 +1037,9 @@ el catálogo real primero.
 |---------|--------|
 | Vans 0 productos (plataforma Grimoldi custom) | Comentado en `config.properties`, pendiente investigación de su API |
 | Logg (`logg.com.ar`, ABP/ASP.NET) sigue sin scraper | **Fuera de scope por decisión explícita, no por fallar.** Diagnóstico completo en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) y en el header de `V24` |
+| El fallback de IPC (`datos.gob.ar`) apunta a un series id muerto | `148.3_INIVELGENERAL_DICI_M_26` devuelve `{"errors":[...]}`; ya estaba muerto en `InflacionService`. Falta encontrar/confirmar un id vivo — la cadena de IPC hoy corre con una sola fuente real |
+| `GET /api/recomendacion` sigue duplicando `SenalCalculator` inline | Preexistente a `indices-service`: `FinanciacionEndpoints.recomendacion` recalcula la señal a mano en vez de llamar a `SenalCalculator.compute`, en paralelo al camino que usa `SenalEnricher` para el catálogo |
+| `indice_valor` para USD (`DIARIO`) crece sin límite | ~5.7k filas desde 2011 a hoy tras la primera corrida real de `IndiceRefreshJob`. Inocuo al ritmo actual — sin poda ni partición todavía, y no hace falta con ese volumen |
 
 ### Medido y descartado
 

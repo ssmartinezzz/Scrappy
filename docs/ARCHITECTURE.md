@@ -1009,3 +1009,73 @@ gained a matching `COPY docs/openapi.yaml` before `mvn package`, since
 `copy-resources` over a missing source dir only warns and still succeeds.
 `OpenApiRouteCoverageTest` gained one additive byte-identity test closing
 that silent-failure path.
+
+### ¿Por qué `ar.scraper.indices` nace con puertos, cuando `InflacionService` se movió sin ninguno en F3a?
+
+**Decisión** (`indices-service`): retirar `InflacionService` (vivía en
+`financiacion/`) y reemplazarla por un área nueva, `ar.scraper.indices`,
+dominio puro + dos puertos (`FuenteIndicePort` hacia las fuentes HTTP,
+`IndicePort` hacia la base) detrás de un único entry point, `IndiceService`.
+
+**Por qué no alcanzaba con repetir el movimiento de F3a.**
+`InflacionService` mezclaba cinco responsabilidades en una sola clase: HTTP
+contra dos fuentes, parseo, estado en memoria, el `@Scheduled` y la
+matemática del ajuste — y sus tres consumidores (`SenalEnricher`,
+`FinanciacionEnricher`, `FinanciacionEndpoints`) dependían de la clase
+concreta, no de una interfaz. De hecho fue la única de las áreas que la
+cadena de puertos (F2, 13 puertos) y el cierre de ciclos (F3a, arriba en este
+documento) dejaron sin uno: en F3a se la reubicó *sin* puerto a propósito,
+porque no importaba una sola clase de `ar.scraper` y podía colocarse donde
+correspondía sin ceremonia — colocación antes que abstracción, la misma regla
+que gobernó esa fase. `indices-service` es la primera vez que se le pide
+comportamiento nuevo (deflactar por rango de fechas, por rubro, con la
+confianza marcada), y ahí sí aplica el patrón de F2: separar el caso de uso de
+sus dos bordes para que ningún consumidor dependa de un detalle de HTTP ni de
+SQL.
+
+**Por qué el deflactor se elige por RUBRO y no es un único índice global
+(D1).** Un producto de `tecnologia` (una GPU, una notebook) no sube o baja con
+la canasta del IPC — sube o baja con el dólar, porque son productos
+importados o dolarizados en origen. Deflactarlo por IPC contesta una pregunta
+distinta de la que el usuario está haciendo. `DeflactorPorRubro.resolver` es
+la política mínima que separa las dos preguntas: `tecnologia → USD_OFICIAL`,
+todo el resto → `IPC`.
+
+**Por qué el dólar OFICIAL del BNA y no un blend con el "blue" o el MEP
+(D2).** Es la referencia que usan los importadores formales para poner
+precio — el canal que este proyecto scrapea — y es una serie única, sin
+opinión sobre qué brecha aplicar. Mezclar cotizaciones habría sido tomar
+posición sobre la brecha cambiaria para responder una pregunta que no
+necesita esa posición: si algo está más caro o más barato que antes.
+
+**Por qué extrapolar y marcar en vez de abstenerse cuando falta el último
+punto (D3).** INDEC publica el IPC con ~15 días de rezago: el mes corriente
+nunca tiene un punto observado en el momento en que alguien mira el catálogo.
+Abstenerse habría dejado toda señal de compra reciente vacía la mayor parte
+del mes, que es justo cuando más se scrapea. `Extrapolador` proyecta desde el
+último punto —variación mensual compuesta para IPC, carry-forward para USD,
+porque un peg que fija el BCRA no deriva entre dos valores como sí deriva un
+índice de precios— y el resultado viaja con `Confianza.EXTRAPOLADO` más los
+días proyectados, nunca como si fuera una observación real. Por la misma
+lógica, una serie vacía (sin red y sin nada persistido todavía) no inventa una
+tasa: cae en `Deflactor.NEUTRO` (`factor=1.0`, `Confianza.SIN_DATOS`), la
+posición neutral, no una constante hardcodeada.
+
+**Por qué el factor se resuelve por FECHAS y no por cantidad de puntos.** El
+bug que motivó el cambio: `SenalEnricher` calculaba
+`mesesAtras = historial.size()/4`, y `SenalCalculator` trataba `size()-13`
+como "hace 12 meses" — pero `precio_historico` registra CAMBIOS de precio, no
+muestras mensuales (ver [`DATABASE.md`](./DATABASE.md)). Un producto con 4
+cambios en una semana y uno con 1 cambio en 8 meses no pueden compartir esa
+cuenta. Ahora `desde`/`hasta` son las fechas reales del primer y del último
+punto que el cálculo mira, y `IndiceService.deflactor(indice, desde, hasta)`
+resuelve `valorEn(hasta)/valorEn(desde)` contra esas fechas, nunca contra una
+posición dentro de una lista.
+
+**Por qué `SenalCalculator.compute(historial, factor)` no cambió de firma
+(D4).** El contrato de las 6 señales de compra (`comprar_ahora`…`caro`) seguía
+siendo correcto; lo que estaba mal era el factor que se le pasaba. Cambiar la
+firma habría obligado a reescribir tests que ya verificaban el comportamiento
+correcto de la clasificación en sí — separar "el cálculo de señales es
+correcto" de "el factor que lo alimenta es correcto" deja cada cosa medible
+por separado, antes y después del cambio.
