@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fetchData,
-  fetchInflacion,
+  fetchIndices,
   fetchRecomendacion,
   fetchSuplementosTipos,
   fetchTendencias,
@@ -157,7 +157,7 @@ describe('fetchTendencias status mapping', () => {
   });
 });
 
-describe('fetchInflacion / fetchRecomendacion', () => {
+describe('fetchIndices / fetchRecomendacion', () => {
   it('encodes the product URL so query strings in it do not corrupt the request', async () => {
     await fetchRecomendacion('https://tienda.test/p?id=1&x=2');
 
@@ -167,8 +167,14 @@ describe('fetchInflacion / fetchRecomendacion', () => {
   it('returns null on a not-ok response rather than surfacing a rejected promise', async () => {
     global.fetch.mockResolvedValue({ ok: false, status: 500 });
 
-    await expect(fetchInflacion()).resolves.toBeNull();
+    await expect(fetchIndices()).resolves.toBeNull();
     await expect(fetchRecomendacion('https://tienda.test/p')).resolves.toBeNull();
+  });
+
+  it('hits /api/indices, not the removed /api/inflacion', async () => {
+    await fetchIndices();
+
+    expect(calledUrl().pathname).toBe('/api/indices');
   });
 });
 
