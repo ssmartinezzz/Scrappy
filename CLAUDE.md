@@ -48,7 +48,7 @@ subprocess) sobre PostgreSQL, 100% configurados por variables de entorno.
 |------|-----------|
 | Backend/Scraper | Java 21 + Spring Boot 3.2 + Playwright 1.44 — **API-only**, no sirve la SPA |
 | Servidor web | Tomcat embebido en `localhost:3000` (configurable) |
-| Frontend | React 18 + Vite 5 (`frontend/`), servicio propio, habla al backend por CORS vía `VITE_API_BASE_URL` |
+| Frontend | React 18 + Vite 8 (`frontend/`), servicio propio, habla al backend por CORS vía `VITE_API_BASE_URL` |
 | Base de datos | PostgreSQL (`DATABASE_URL`) — Flyway `V1` (15 tablas + `sp_upsert_run`/`sp_soft_delete_ausentes` en plpgsql), `V2` (auditoría del agente), `V3` (lock de clasificación manual); pool HikariCP |
 | ML Pipeline | Python 3.11 embeddable, subprocess desde Java — estadístico + TF-IDF + zero-shot visual; conecta a Postgres vía `psycopg2` |
 | Clasificación visual | Marqo-FashionSigLIP vía `open_clip` (requiere `transformers` para el tokenizer) |
