@@ -4,7 +4,7 @@
 import {
   ShoppingBag, Trophy, Sparkles,
   Compass, LineChart, Bookmark,
-  Tag, Pill, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock, Users,
+  Tag, Pill, Cpu, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock, Users,
 } from 'lucide-react';
 
 // kind: 'link'  → direct NavLink, no submenu
@@ -18,6 +18,7 @@ export const NAV_CONFIG = [
     items: [
       { label: 'Marcas', to: '/marcas', icon: Tag },
       { label: 'Suplementos', to: '/suplementos', icon: Pill },
+      { label: 'PCs', to: '/pcs', icon: Cpu },
     ],
   },
   {
