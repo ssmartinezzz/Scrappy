@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchInflacion } from '../api';
+import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchIndices } from '../api';
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
+import { IpcBadge } from './ui/ipc-badge';
 import UserMenu from './UserMenu';
 
 
@@ -38,11 +39,11 @@ export default function Topbar({
     return () => { alive = false; };
   }, []);
 
-  // IPC widget data
-  const [ipcData, setIpcData] = useState(null);
+  // IPC/USD widget data
+  const [indices, setIndices] = useState(null);
   useEffect(() => {
-    fetchInflacion()
-      .then(d => setIpcData(d))
+    fetchIndices()
+      .then(d => setIndices(d))
       .catch(() => {});
   }, []);
 
@@ -127,15 +128,12 @@ export default function Topbar({
         )}
         <style>{`@keyframes mlpulse{0%,100%{opacity:1}50%{opacity:.55}}`}</style>
 
-        {/* IPC Widget — hidden below md (topbar-meta) */}
-        {ipcData?.mensual != null && (
-          <div className="ipc-widget topbar-meta">
-            <span>📊 IPC: <strong>{ipcData.mensual.toFixed(1)}%</strong>/mes</span>
-            {ipcData.interanual != null && (
-              <span className="text-t4">| Anual: <strong className="text-t2">{Math.round(ipcData.interanual)}%</strong></span>
-            )}
-          </div>
-        )}
+        {/* IPC/USD ring badge — hidden below md (topbar-meta), same as the
+            text widget it replaces, so it never fights row 1's non-wrapping
+            layout for space (CLAUDE.md gotcha topbar-row-clips-the-user-menu). */}
+        <div className="topbar-meta">
+          <IpcBadge size="sm" ipc={indices?.ipc} usd={indices?.usd} />
+        </div>
 
         {/* ML Banner — hidden below md (topbar-meta) */}
         {mlBanner && (
