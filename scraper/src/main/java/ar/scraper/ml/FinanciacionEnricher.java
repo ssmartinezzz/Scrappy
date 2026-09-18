@@ -2,9 +2,10 @@ package ar.scraper.ml;
 
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
+import ar.scraper.indices.Indice;
+import ar.scraper.indices.IndiceService;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
-import ar.scraper.financiacion.InflacionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -16,7 +17,7 @@ import java.util.Optional;
 /**
  * Precompute step for the financing signal ("¿conviene en cuotas?"). Mirrors
  * {@link SenalEnricher}'s shape/pattern: reads the active financing preset
- * once, reads {@link InflacionService#getInflacionMensual()} once, then
+ * once, reads {@link IndiceService#variacionMensual(Indice)} once, then
  * delegates the per-product math to the pure {@link FinanciacionCalculator}.
  *
  * <p>Invoked both from {@code ResultAggregator.agregar} (post-scrape) and
@@ -32,11 +33,11 @@ public class FinanciacionEnricher {
     private static final Logger LOG = LoggerFactory.getLogger(FinanciacionEnricher.class);
 
     private final PresetPort presets;
-    private final InflacionService inflacionService;
+    private final IndiceService indiceService;
 
-    public FinanciacionEnricher(PresetPort presets, InflacionService inflacionService) {
+    public FinanciacionEnricher(PresetPort presets, IndiceService indiceService) {
         this.presets = presets;
-        this.inflacionService = inflacionService;
+        this.indiceService = indiceService;
     }
 
     public List<Product> enriquecer(List<Product> productos) {
@@ -49,7 +50,9 @@ public class FinanciacionEnricher {
         }
 
         Preset preset = activo.get();
-        double iMensual = inflacionService.getInflacionMensual() / 100.0;
+        // Empty IPC data is fine for cuotas math: it just means 0% monthly
+        // inflation is assumed (D-note in feature doc, "keep it simple").
+        double iMensual = indiceService.variacionMensual(Indice.IPC).orElse(0.0) / 100.0;
 
         List<Product> result = new ArrayList<>(productos.size());
         int enriquecidos = 0;

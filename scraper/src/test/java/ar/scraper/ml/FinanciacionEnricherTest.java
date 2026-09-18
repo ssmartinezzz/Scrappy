@@ -3,7 +3,8 @@ package ar.scraper.ml;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.model.Product;
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.Indice;
+import ar.scraper.indices.IndiceService;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
@@ -20,9 +21,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link FinanciacionEnricher} orchestration logic: reads the
- * active preset + inflation once, then delegates per-product math to the
- * pure {@link FinanciacionCalculator}. {@link PresetPort} and
- * {@link InflacionService} are mocked since the enricher's only job is
+ * active preset + IPC monthly variation once, then delegates per-product math
+ * to the pure {@link FinanciacionCalculator}. {@link PresetPort} and
+ * {@link IndiceService} are mocked since the enricher's only job is
  * wiring — calculator branch logic is already covered by
  * {@link FinanciacionCalculatorTest}.
  */
@@ -41,13 +42,13 @@ class FinanciacionEnricherTest {
     @Test
     void productsGetFinancingSignalWhenPresetIsActive() {
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
+        IndiceService indices = Mockito.mock(IndiceService.class);
 
         Preset preset = new Preset(1, "12 cuotas / 40% recargo", 40.0, 12, true);
         when(presets.cargarPresetActivo()).thenReturn(Optional.of(preset));
-        when(inflacion.getInflacionMensual()).thenReturn(3.5);
+        when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(3.5));
 
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(producto("p1", 100000)));
 
         assertThat(result).hasSize(1);
@@ -61,53 +62,54 @@ class FinanciacionEnricherTest {
     @Test
     void productsFallBackToSinPresetActivoWhenNoActivePreset() {
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
+        IndiceService indices = Mockito.mock(IndiceService.class);
 
         when(presets.cargarPresetActivo()).thenReturn(Optional.empty());
 
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(producto("p2", 50000)));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).finan().senal()).isEqualTo("sin_preset_activo");
-        Mockito.verify(inflacion, Mockito.never()).getInflacionMensual();
+        Mockito.verify(indices, Mockito.never()).variacionMensual(Indice.IPC);
     }
 
     @Test
     void readsActivePresetAndInflationExactlyOnceRegardlessOfProductCount() {
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
+        IndiceService indices = Mockito.mock(IndiceService.class);
 
         Preset preset = new Preset(2, "Otro preset", 25.0, 6, true);
         when(presets.cargarPresetActivo()).thenReturn(Optional.of(preset));
-        when(inflacion.getInflacionMensual()).thenReturn(2.0);
+        when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(2.0));
 
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         enricher.enriquecer(List.of(
                 producto("p3", 10000),
                 producto("p4", 20000),
                 producto("p5", 30000)));
 
         Mockito.verify(presets, Mockito.times(1)).cargarPresetActivo();
-        Mockito.verify(inflacion, Mockito.times(1)).getInflacionMensual();
+        Mockito.verify(indices, Mockito.times(1)).variacionMensual(Indice.IPC);
     }
 
     @Test
     void preservesExistingSenalCompraFieldUnchanged() {
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
+        IndiceService indices = Mockito.mock(IndiceService.class);
 
         Preset preset = new Preset(3, "Preset", 40.0, 12, true);
         when(presets.cargarPresetActivo()).thenReturn(Optional.of(preset));
-        when(inflacion.getInflacionMensual()).thenReturn(3.5);
+        when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(3.5));
 
-        Product.SenalCompra senalOriginal = new Product.SenalCompra("comprar_ahora", 95);
+        Product.SenalCompra senalOriginal =
+                new Product.SenalCompra("comprar_ahora", 95, ar.scraper.indices.Confianza.OBSERVADO);
         Product withSenal = new Product(
                 "Sitio", "p6", 100000, null, "https://site.com/p6", "",
                 "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, senalOriginal, Product.SenalFinanciacion.EMPTY);
 
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(withSenal));
 
         assertThat(result.get(0).senal()).isEqualTo(senalOriginal);
@@ -117,8 +119,8 @@ class FinanciacionEnricherTest {
     @Test
     void emptyOrNullListIsReturnedAsIs() {
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        IndiceService indices = Mockito.mock(IndiceService.class);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
 
         assertThat(enricher.enriquecer(List.of())).isEmpty();
         assertThat(enricher.enriquecer(null)).isNull();
@@ -130,18 +132,18 @@ class FinanciacionEnricherTest {
         // Regression for PR2: withFinan() previously rebuilt Product via the
         // 16-arg legacy constructor, silently resetting cantidadUnidades to 1.
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
+        IndiceService indices = Mockito.mock(IndiceService.class);
 
         Preset preset = new Preset(4, "Preset", 40.0, 12, true);
         when(presets.cargarPresetActivo()).thenReturn(Optional.of(preset));
-        when(inflacion.getInflacionMensual()).thenReturn(3.5);
+        when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(3.5));
 
         Product pack = new Product(
                 "Sitio", "Combo x2 Buzo + Pantalon", 100000.0, null, "https://site.com/combo",
                 "", "Conjunto", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 2);
 
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(pack));
 
         assertThat(result).hasSize(1);
@@ -155,11 +157,11 @@ class FinanciacionEnricherTest {
         // rebuilt Product via the 18-arg legacy constructor, silently resetting
         // visual to VisualAttrs.EMPTY.
         PresetPort presets = Mockito.mock(PresetPort.class);
-        InflacionService inflacion = Mockito.mock(InflacionService.class);
+        IndiceService indices = Mockito.mock(IndiceService.class);
 
         Preset preset = new Preset(5, "Preset", 40.0, 12, true);
         when(presets.cargarPresetActivo()).thenReturn(Optional.of(preset));
-        when(inflacion.getInflacionMensual()).thenReturn(3.5);
+        when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(3.5));
 
         Product.VisualAttrs visual = new Product.VisualAttrs("entallado", "liso", "en v", "negro");
         Product conVisual = new Product(
@@ -167,7 +169,7 @@ class FinanciacionEnricherTest {
                 "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
                 false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
 
-        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, inflacion);
+        FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(conVisual));
 
         assertThat(result).hasSize(1);

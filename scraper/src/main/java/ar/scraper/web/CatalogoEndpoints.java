@@ -1,6 +1,6 @@
 package ar.scraper.web;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.CatalogFilter;
@@ -60,7 +60,7 @@ class CatalogoEndpoints {
                       CatalogQueryPort catalogQuery,
                       ProductPort productos,
                       ScraperConfig config,
-                      InflacionService inflacionService) {
+                      IndiceService indiceService) {
         this.service = service;
         this.catalogQuery = catalogQuery;
         this.productos = productos;
@@ -70,8 +70,8 @@ class CatalogoEndpoints {
         // senal y finan NO se persisten: se calculan. Antes se calculaban para el
         // catálogo entero durante la agregación; ahora, para los productos de la
         // página — menos trabajo, no más.
-        this.senalEnricher = new ar.scraper.ml.SenalEnricher(historial, inflacionService);
-        this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, inflacionService);
+        this.senalEnricher = new ar.scraper.ml.SenalEnricher(historial, indiceService);
+        this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, indiceService);
     }
 
     private String safe(String s) { return ProductJson.safe(s); }
@@ -208,6 +208,7 @@ class CatalogoEndpoints {
             ObjectNode senalNode = n.putObject("senal");
             senalNode.put("senal",       senal.senal());
             senalNode.put("scoreCompra", senal.scoreCompra());
+            senalNode.put("confianza",   senal.confianzaDeflactor().name().toLowerCase());
 
             // Señal de financiación precomputada — independiente de senal/scoreCompra
             // (nunca se fusionan en el mismo valor/badge). presetLabel viene del

@@ -2,18 +2,24 @@ package ar.scraper.web;
 
 import ar.scraper.scrape.ScraperStatus;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.Deflactor;
+import ar.scraper.indices.DeflactorPorRubro;
+import ar.scraper.indices.Indice;
+import ar.scraper.indices.IndiceService;
+import ar.scraper.indices.PuntoIndice;
+import ar.scraper.indices.ResumenIndice;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
  * Financing presets ("¿conviene en cuotas?"), the per-product buy recommendation
- * and the INDEC inflation feed.
+ * and the macro indices feed (IPC + USD oficial).
  *
  * <p>Endpoints mirroring /api/sitios + /api/config shapes (ADR-5 of
  * financing-buy-signal design). Activate/edit/delete of the active preset
@@ -28,20 +34,23 @@ import java.util.Map;
 class FinanciacionEndpoints {
 
     private final ScraperService service;
-    private final InflacionService inflacionService;
+    private final IndiceService indiceService;
     private final ar.scraper.financiacion.PresetPort presets;
     private final ar.scraper.catalog.HistorialPort historial;
+    private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
     FinanciacionEndpoints(ScraperService service,
-                          InflacionService inflacionService,
+                          IndiceService indiceService,
                           ar.scraper.financiacion.PresetPort presets,
                           ar.scraper.catalog.HistorialPort historial,
+                          ar.scraper.catalog.ProductPort productos,
                           ar.scraper.aggregator.ResultAggregator aggregator) {
         this.service = service;
-        this.inflacionService = inflacionService;
+        this.indiceService = indiceService;
         this.presets = presets;
         this.historial = historial;
+        this.productos = productos;
         this.aggregator = aggregator;
     }
 
@@ -204,8 +213,12 @@ class FinanciacionEndpoints {
         double rango        = precioMax - precioMin;
         int    puntoAntiguo = Math.max(0, hist.size() - 13);
         double precioAntiguo  = hist.get(puntoAntiguo).precio();
-        double precioAjustado = inflacionService.ajustarPorInflacion(
-            precioAntiguo, Math.max(1, hist.size() / 4));
+        LocalDate desde = LocalDate.parse(hist.get(puntoAntiguo).fecha());
+        LocalDate hasta = LocalDate.parse(hist.get(hist.size() - 1).fecha());
+        Indice indice = DeflactorPorRubro.resolver(
+                productos.obtenerProducto(url).map(ar.scraper.model.Product::rubro).orElse(null));
+        Deflactor deflactor = indiceService.deflactor(indice, desde, hasta);
+        double precioAjustado = precioAntiguo * deflactor.factor();
         double cambioReal = precioAjustado > 0
             ? (precioActual - precioAjustado) / precioAjustado * 100.0 : 0.0;
         double pctDelMin  = rango > 0 ? (precioActual - precioMin) / rango * 100.0 : 50.0;
@@ -227,10 +240,10 @@ class FinanciacionEndpoints {
             mensaje = String.format("Bajo %.0f%% en terminos reales en los ultimos meses", Math.abs(cambioReal));
         } else if (cambioReal < -3.0) {
             senal = "buen_momento"; emoji = "👍"; scoreCompra = 70;
-            mensaje = String.format("Precio real cayo %.0f%%, mas barato ajustado por inflacion", Math.abs(cambioReal));
+            mensaje = String.format("Precio real cayo %.0f%%, mas barato ajustado por %s", Math.abs(cambioReal), indice.etiqueta());
         } else if (cambioReal > 10.0 && "subiendo".equals(tendencia)) {
             senal = "esperar"; emoji = "⚠"; scoreCompra = 20;
-            mensaje = String.format("Subio %.0f%% mas que la inflacion, puede bajar", cambioReal);
+            mensaje = String.format("Subio %.0f%% mas que el %s, puede bajar", cambioReal, indice.etiqueta());
         } else if (pctDelMin >= 80.0) {
             senal = "caro"; emoji = "❌"; scoreCompra = 15;
             mensaje = "Precio en maximo historico, esperar mejor momento";
@@ -247,28 +260,42 @@ class FinanciacionEndpoints {
         root.put("precioMin",   precioMin);
         root.put("precioMax",   precioMax);
         root.put("tendencia",   tendencia);
-        root.put("inflacionMensual",    inflacionService.getInflacionMensual());
-        root.put("inflacionInteranual", inflacionService.getInflacionInteranual());
+        root.put("indice",      indice.name());
+        root.put("confianza",   deflactor.confianza().name().toLowerCase());
+        root.put("diasExtrapolados", deflactor.diasExtrapolados());
+        ResumenIndice ipc = indiceService.resumen(Indice.IPC);
+        root.put("inflacionMensual",    ipc.variacionMensual() != null ? ipc.variacionMensual() : 0.0);
+        root.put("inflacionInteranual", ipc.variacionInteranual() != null ? ipc.variacionInteranual() : 0.0);
         root.put("puntosHistorial",     hist.size());
         return ResponseEntity.ok(root);
     }
 
-    // ─── Inflación INDEC ─────────────────────────────────────────────────────────
+    // ─── Índices macro (IPC + USD oficial) ────────────────────────────────────────
 
-    ResponseEntity<Object> inflacion() {
+    ResponseEntity<Object> indices() {
         var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
         var root = MAPPER.createObjectNode();
-        root.put("mensual",     inflacionService.getInflacionMensual());
-        root.put("interanual",  inflacionService.getInflacionInteranual());
-        root.put("acumulada3m", inflacionService.getInflacion3m());
-        root.put("actualizado", inflacionService.getUltimaActualizacion());
-        var hist = root.putArray("historial");
-        inflacionService.getHistorial().stream().limit(13).forEach(d -> {
-            var n = hist.addObject();
-            n.put("fecha",    d.fecha());
-            n.put("valor",    d.valor());
-            n.put("variacion", Math.round(d.variacionMensual() * 10.0) / 10.0);
-        });
+        root.set("ipc", resumenJson(MAPPER, indiceService.resumen(Indice.IPC)));
+        root.set("usd", resumenJson(MAPPER, indiceService.resumen(Indice.USD_OFICIAL)));
+        root.put("actualizado", indiceService.ultimaActualizacion());
         return ResponseEntity.ok(root);
+    }
+
+    private static ObjectNode resumenJson(com.fasterxml.jackson.databind.ObjectMapper mapper, ResumenIndice r) {
+        var n = mapper.createObjectNode();
+        n.put("indice",              r.indice().name());
+        n.put("ultimoValor",         r.ultimoValor());
+        n.put("ultimaFecha",         r.ultimaFecha() != null ? r.ultimaFecha().toString() : null);
+        n.put("variacionMensual",    r.variacionMensual());
+        n.put("variacionInteranual", r.variacionInteranual());
+        n.put("variacion3m",        r.variacion3m());
+        n.put("confianza",          r.confianza().name().toLowerCase());
+        var ultimos = n.putArray("ultimos");
+        for (PuntoIndice p : r.ultimos()) {
+            var pn = ultimos.addObject();
+            pn.put("fecha", p.fecha().toString());
+            pn.put("valor", p.valor());
+        }
+        return n;
     }
 }

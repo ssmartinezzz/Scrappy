@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
@@ -54,7 +54,7 @@ class MlEndpointsTendenciasTest {
     @BeforeEach
     void setUp() {
         ScraperService service               = mock(ScraperService.class);
-        InflacionService inflacionService    = mock(InflacionService.class);
+        IndiceService indiceService    = mock(IndiceService.class);
         ScraperConfig config                 = mock(ScraperConfig.class);
         ResultAggregator aggregator          = mock(ResultAggregator.class);
         db                                    = mock(DatabaseService.class);
@@ -65,7 +65,7 @@ class MlEndpointsTendenciasTest {
         OutfitService outfitService          = mock(OutfitService.class);
         RecommendationService recommendationService = mock(RecommendationService.class);
 
-        controller = new ApiController(service, inflacionService, config, aggregator,
+        controller = new ApiController(service, indiceService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
 
         when(service.getLastResult()).thenReturn(mockResult());

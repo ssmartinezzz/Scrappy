@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
@@ -71,7 +71,7 @@ class ApiControllerProductoDetalleTest {
         productos = mock(ProductPort.class);
         when(db.historial()).thenReturn(historial);
         when(db.productos()).thenReturn(productos);
-        controller = new ApiController(service, mock(InflacionService.class), mock(ScraperConfig.class),
+        controller = new ApiController(service, mock(IndiceService.class), mock(ScraperConfig.class),
                 mock(ResultAggregator.class), db, mock(GroupingService.class), mock(PythonRunner.class),
                 mock(OutfitService.class), mock(RecommendationService.class));
     }
