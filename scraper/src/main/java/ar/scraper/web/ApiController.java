@@ -1,6 +1,6 @@
 package ar.scraper.web;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
@@ -35,7 +35,7 @@ public class ApiController {
         org.slf4j.LoggerFactory.getLogger(ApiController.class);
 
     private final ScraperService   service;
-    private final InflacionService inflacionService;
+    private final IndiceService indiceService;
     private final ScraperConfig    config;
 
     private final ar.scraper.aggregator.ResultAggregator aggregator;
@@ -127,7 +127,7 @@ public class ApiController {
      */
     @Autowired
     public ApiController(ScraperService service,
-                         InflacionService inflacionService, ScraperConfig config,
+                         IndiceService indiceService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
                          ar.scraper.db.DatabaseService db,
                          ar.scraper.aggregator.grouping.GroupingService grouping,
@@ -138,7 +138,7 @@ public class ApiController {
                          AgentConfig agentConfig,
                          ActorResolver actorResolver) {
         this.service           = service;
-        this.inflacionService  = inflacionService;
+        this.indiceService  = indiceService;
         this.config            = config;
         this.aggregator        = aggregator;
         this.db                = db;
@@ -151,8 +151,8 @@ public class ApiController {
         this.actorResolver      = actorResolver;
         this.agentEndpoints     = new AgentEndpoints(service, db.siteRegistry(), db.productos(), catalogAgentService,
                                                      agentConfig, actorResolver);
-        this.financiacionEndpoints = new FinanciacionEndpoints(service, inflacionService,
-                                                               db.presets(), db.historial(), aggregator);
+        this.financiacionEndpoints = new FinanciacionEndpoints(service, indiceService,
+                                                               db.presets(), db.historial(), db.productos(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db.feedback(), db.outfitsGuardados(), outfitService, actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db.feedback(), recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
@@ -160,7 +160,7 @@ public class ApiController {
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db.preciosExternos(), grouping);
         this.dbAdminEndpoints   = new DbAdminEndpoints(service, db.mlOutput(), db.productos(), aggregator);
-        this.catalogoEndpoints  = new CatalogoEndpoints(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, inflacionService);
+        this.catalogoEndpoints  = new CatalogoEndpoints(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
         this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
     }
 
@@ -171,7 +171,7 @@ public class ApiController {
      * this is behaviorally identical to Spring injecting it.
      */
     public ApiController(ScraperService service,
-                         InflacionService inflacionService, ScraperConfig config,
+                         IndiceService indiceService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
                          ar.scraper.db.DatabaseService db,
                          ar.scraper.aggregator.grouping.GroupingService grouping,
@@ -180,20 +180,20 @@ public class ApiController {
                          RecommendationService recommendationService,
                          CatalogAgentService catalogAgentService,
                          AgentConfig agentConfig) {
-        this(service, inflacionService, config, aggregator, db, grouping, pythonRunner,
+        this(service, indiceService, config, aggregator, db, grouping, pythonRunner,
              outfitService, recommendationService, catalogAgentService, agentConfig, new ActorResolver());
     }
 
     /** Legacy 9-arg constructor (pre-agent) — see the note on the primary constructor above. */
     public ApiController(ScraperService service,
-                         InflacionService inflacionService, ScraperConfig config,
+                         IndiceService indiceService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
                          ar.scraper.db.DatabaseService db,
                          ar.scraper.aggregator.grouping.GroupingService grouping,
                          ar.scraper.ml.PythonRunner pythonRunner,
                          OutfitService outfitService,
                          RecommendationService recommendationService) {
-        this(service, inflacionService, config, aggregator, db, grouping, pythonRunner,
+        this(service, indiceService, config, aggregator, db, grouping, pythonRunner,
              outfitService, recommendationService, null, null);
     }
 
@@ -420,9 +420,9 @@ public class ApiController {
         return financiacionEndpoints.recomendacion(url);
     }
 
-    @GetMapping("/inflacion")
-    public ResponseEntity<Object> inflacion() {
-        return financiacionEndpoints.inflacion();
+    @GetMapping("/indices")
+    public ResponseEntity<Object> indices() {
+        return financiacionEndpoints.indices();
     }
 
     // ─── Outfits + supplement builder + saved outfits. Bodies in

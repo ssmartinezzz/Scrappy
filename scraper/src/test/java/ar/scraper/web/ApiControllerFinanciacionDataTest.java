@@ -3,7 +3,8 @@ package ar.scraper.web;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.Indice;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.grouping.GroupingService;
@@ -27,6 +28,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
@@ -66,7 +68,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
     private static final double INFLACION_MENSUAL = 4.0;
 
     private ScraperService service;
-    private InflacionService inflacionService;
+    private IndiceService indiceService;
     private ScraperConfig config;
     private DatabaseService db;
     private PresetPort presets;
@@ -76,7 +78,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
-        inflacionService = mock(InflacionService.class);
+        indiceService = mock(IndiceService.class);
         config = mock(ScraperConfig.class);
         // spy sobre el DatabaseService REAL: las consultas pegan contra Postgres
         // y además se puede verificar cuántas veces se llamó a un método, que es
@@ -87,13 +89,20 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
         // por db.cargarPresetActivo() directo (extract-preset-historial-ports).
         presets = mock(PresetPort.class, AdditionalAnswers.delegatesTo(db.presets()));
         doReturn(presets).when(db).presets();
-        controller = new ApiController(service, inflacionService, config,
+        controller = new ApiController(service, indiceService, config,
                 mock(ar.scraper.aggregator.ResultAggregator.class), db,
                 mock(GroupingService.class), mock(PythonRunner.class),
                 mock(OutfitService.class), mock(RecommendationService.class));
 
         when(config.getMoneda()).thenReturn("ARS");
-        when(inflacionService.getInflacionMensual()).thenReturn(INFLACION_MENSUAL);
+        when(indiceService.variacionMensual(Indice.IPC)).thenReturn(Optional.of(INFLACION_MENSUAL));
+        // Every seeded product gets a real precio_historico row (sp_upsert_run
+        // inserts one for a new URL), so SenalEnricher always resolves a deflactor
+        // for it — stub the default so tests that don't care about senal/confianza
+        // don't NPE on an unstubbed mock call.
+        when(indiceService.deflactorParaRubro(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
     }
 
     @Test

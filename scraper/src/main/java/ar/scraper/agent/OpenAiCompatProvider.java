@@ -23,7 +23,7 @@ import java.util.List;
  * design D2/D8) — works against both a local Ollama instance and any remote
  * OpenAI-compatible endpoint. Matches the project's existing HTTP
  * convention ({@code java.net.http.HttpClient} + Jackson, see
- * {@code InflacionService}/{@code PythonRunner}) — no new HTTP dependency.
+ * {@code ar.scraper.fuentes.HttpJson}/{@code PythonRunner}) — no new HTTP dependency.
  *
  * <p>Sends {@code "think": false} on every chat request (qwen3 "thinking"
  * models otherwise burn tokens on a hidden reasoning phase before replying)

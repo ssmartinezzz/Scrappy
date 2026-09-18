@@ -5,7 +5,7 @@ import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.scrape.ScraperStatus;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
@@ -66,7 +66,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ApiControllerAgentTest {
 
     private ScraperService service;
-    private InflacionService inflacionService;
+    private IndiceService indiceService;
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
@@ -93,7 +93,7 @@ class ApiControllerAgentTest {
     @BeforeEach
     void setUp() {
         service               = mock(ScraperService.class);
-        inflacionService      = mock(InflacionService.class);
+        indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
@@ -106,7 +106,7 @@ class ApiControllerAgentTest {
         recommendationService = mock(RecommendationService.class);
         catalogAgentService   = mock(CatalogAgentService.class);
         agentConfig           = mock(AgentConfig.class);
-        controller = new ApiController(service, inflacionService, config, aggregator, db, grouping,
+        controller = new ApiController(service, indiceService, config, aggregator, db, grouping,
                 pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig);
         // The controller reads db.favoritos() while wiring its endpoints; forget that
         // so verifyNoInteractions(db) below keeps asserting what each route does.
@@ -594,7 +594,7 @@ class ApiControllerAgentTest {
     void applyPassesTheActorResolverCurrentValueToTheWritePath() {
         ar.scraper.identity.ActorResolver actorResolver = mock(ar.scraper.identity.ActorResolver.class);
         when(actorResolver.current()).thenReturn("santi-desde-sesion");
-        ApiController controllerConActor = new ApiController(service, inflacionService, config, aggregator, db,
+        ApiController controllerConActor = new ApiController(service, indiceService, config, aggregator, db,
                 grouping, pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig,
                 actorResolver);
         clearInvocations(db);

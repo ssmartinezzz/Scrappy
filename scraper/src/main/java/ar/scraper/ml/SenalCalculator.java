@@ -77,20 +77,20 @@ public final class SenalCalculator {
         }
 
         if (pctDelMin <= PCT_DEL_MIN_COMPRAR_AHORA) {
-            return new SenalCompra("comprar_ahora", SCORE_COMPRAR_AHORA);
+            return new SenalCompra("comprar_ahora", SCORE_COMPRAR_AHORA, ar.scraper.indices.Confianza.SIN_DATOS);
         }
         if (cambioReal < CAMBIO_REAL_MUY_BUEN_MOMENTO && "bajando".equals(tendencia)) {
-            return new SenalCompra("muy_buen_momento", SCORE_MUY_BUEN_MOMENTO);
+            return new SenalCompra("muy_buen_momento", SCORE_MUY_BUEN_MOMENTO, ar.scraper.indices.Confianza.SIN_DATOS);
         }
         if (cambioReal < CAMBIO_REAL_BUEN_MOMENTO) {
-            return new SenalCompra("buen_momento", SCORE_BUEN_MOMENTO);
+            return new SenalCompra("buen_momento", SCORE_BUEN_MOMENTO, ar.scraper.indices.Confianza.SIN_DATOS);
         }
         if (cambioReal > CAMBIO_REAL_ESPERAR && "subiendo".equals(tendencia)) {
-            return new SenalCompra("esperar", SCORE_ESPERAR);
+            return new SenalCompra("esperar", SCORE_ESPERAR, ar.scraper.indices.Confianza.SIN_DATOS);
         }
         if (pctDelMin >= PCT_DEL_MIN_CARO) {
-            return new SenalCompra("caro", SCORE_CARO);
+            return new SenalCompra("caro", SCORE_CARO, ar.scraper.indices.Confianza.SIN_DATOS);
         }
-        return new SenalCompra("precio_normal", SCORE_PRECIO_NORMAL);
+        return new SenalCompra("precio_normal", SCORE_PRECIO_NORMAL, ar.scraper.indices.Confianza.SIN_DATOS);
     }
 }

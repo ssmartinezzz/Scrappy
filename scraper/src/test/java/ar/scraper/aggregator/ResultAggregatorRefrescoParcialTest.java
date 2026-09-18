@@ -104,7 +104,7 @@ class ResultAggregatorRefrescoParcialTest {
         List<Product> out = new ArrayList<>(productos.size());
         for (Product p : productos) {
             out.add(conSenales(p, new Product.SenalCompra("senal-p" + pasada + "-" + p.url(),
-                    (int) p.precio()), p.finan()));
+                    (int) p.precio(), ar.scraper.indices.Confianza.OBSERVADO), p.finan()));
         }
         return out;
     }

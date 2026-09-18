@@ -175,9 +175,16 @@ public record Product(
      */
     public record SenalCompra(
             String senal,
-            int    scoreCompra
+            int    scoreCompra,
+            ar.scraper.indices.Confianza confianzaDeflactor // confidence of the deflator the classification used
     ) {
-        public static final SenalCompra EMPTY = new SenalCompra("sin_datos", 50);
+        public static final SenalCompra EMPTY =
+                new SenalCompra("sin_datos", 50, ar.scraper.indices.Confianza.SIN_DATOS);
+
+        /** Copy with a different {@code confianzaDeflactor} — set by the caller that resolved the deflator. */
+        public SenalCompra conConfianza(ar.scraper.indices.Confianza confianza) {
+            return new SenalCompra(senal, scoreCompra, confianza);
+        }
     }
 
     /**

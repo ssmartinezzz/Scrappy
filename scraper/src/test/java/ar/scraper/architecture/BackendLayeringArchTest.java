@@ -55,7 +55,8 @@ class BackendLayeringArchTest {
         .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
                                    "ar.scraper.favoritos..", "ar.scraper.financiacion..",
-                                   "ar.scraper.feedback..", "ar.scraper.outfits..")
+                                   "ar.scraper.feedback..", "ar.scraper.outfits..",
+                                   "ar.scraper.indices..")
         .should().dependOnClassesThat(
             JavaClass.Predicates.resideInAnyPackage("ar.scraper.db..",
                                                     "ar.scraper.aggregator..",
@@ -78,7 +79,7 @@ class BackendLayeringArchTest {
 
     // ── close-backend-package-cycles (F3a) ──────────────────────────────────
     // Las unicas aristas que entran a `web` desde adentro del backend son tres:
-    // `ml` -> InflacionService, `agent` -> ScraperService y `cron` -> ScraperService.
+    // `ml` -> IndiceService, `agent` -> ScraperService y `cron` -> ScraperService.
     // `aggregator`, `scrapers`, `pages`, `health` y `security` no nombran una sola
     // clase de `web`. Por eso los 7 ciclos congelados mueren con estas tres reglas
     // en verde, y `cicloBaseline` deja de necesitar el store.

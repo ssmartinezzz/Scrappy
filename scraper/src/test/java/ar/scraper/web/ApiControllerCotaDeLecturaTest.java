@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.grouping.GroupingService;
@@ -63,7 +63,13 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
         ScraperConfig config = mock(ScraperConfig.class);
         when(config.getMoneda()).thenReturn("ARS");
         db = new DatabaseService(dataSource());
-        controller = new ApiController(service, mock(InflacionService.class), config,
+        IndiceService indiceService = mock(IndiceService.class);
+        // Every seeded product gets a real precio_historico row, so SenalEnricher
+        // always resolves a deflactor for it; this test doesn't care about senal.
+        when(indiceService.deflactorParaRubro(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
+        controller = new ApiController(service, indiceService, config,
                 mock(ResultAggregator.class), db, mock(GroupingService.class),
                 mock(PythonRunner.class), mock(OutfitService.class),
                 mock(RecommendationService.class));

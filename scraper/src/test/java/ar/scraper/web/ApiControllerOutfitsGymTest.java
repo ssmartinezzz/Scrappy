@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.financiacion.InflacionService;
+import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
 class ApiControllerOutfitsGymTest {
 
     private ScraperService service;
-    private InflacionService inflacionService;
+    private IndiceService indiceService;
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
@@ -65,7 +65,7 @@ class ApiControllerOutfitsGymTest {
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        inflacionService      = mock(InflacionService.class);
+        indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
@@ -78,7 +78,7 @@ class ApiControllerOutfitsGymTest {
         outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
         SujetoDePrueba.entrar("ADMIN");
-        controller = new ApiController(service, inflacionService, config, aggregator,
+        controller = new ApiController(service, indiceService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
     }
 
