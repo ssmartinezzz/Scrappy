@@ -1,6 +1,6 @@
 # pc-builder-ui — phase 3 of the PC builder: the frontend page
 
-**Created:** 2026-09-18 · **Branch:** `feat/pc-builder-ui` (stacked on `feat/pc-builder`, PR #202 → #201 → #200 → `master`)
+**Created:** 2026-09-18 · **Branch:** `feat/pc-builder-ui` — **PR #203** (stacked on `feat/pc-builder`, #202 → #201 → #200 → `master`)
 **Engram mirror:** `odd/pc-builder-ui/tasks` (project `scrappy`)
 **Phase 2:** [`pc-builder.md`](./pc-builder.md) — the builder and `GET /api/pcs/builder` this page consumes.
 
