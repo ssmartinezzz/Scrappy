@@ -68,6 +68,9 @@ public class ApiController {
      */
     private final OutfitsEndpoints outfitsEndpoints;
 
+    /** PC builder endpoint (pc-builder phase 2) — same delegation shape as {@link #agentEndpoints}. */
+    private final PcsEndpoints pcsEndpoints;
+
     /**
      * "Para ti" feed endpoints, extracted to their own class (backlog A3) —
      * same delegation shape as {@link #agentEndpoints}.
@@ -154,6 +157,7 @@ public class ApiController {
         this.financiacionEndpoints = new FinanciacionEndpoints(service, indiceService,
                                                                db.presets(), db.historial(), db.productos(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db.feedback(), db.outfitsGuardados(), outfitService, actorResolver);
+        this.pcsEndpoints       = new PcsEndpoints(service, new ar.scraper.pcs.PcBuilder(recommendationService));
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db.feedback(), recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db.categoriaStats(), db.mlOutput(), db.historial(), db.productos(), aggregator, pythonRunner);
@@ -461,6 +465,14 @@ public class ApiController {
             @RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "") String excluir) {
         return outfitsEndpoints.suplementosBuilder(tipos, presupuesto, excluir);
+    }
+
+    @GetMapping("/pcs/builder")
+    public ResponseEntity<ObjectNode> pcsBuilder(
+            @RequestParam(defaultValue = "0") double presupuesto,
+            @RequestParam(defaultValue = "false") boolean conGpu,
+            @RequestParam(defaultValue = "") String excluir) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir);
     }
 
     /**

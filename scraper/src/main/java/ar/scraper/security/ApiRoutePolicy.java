@@ -182,6 +182,7 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/outfits", "/api/outfits/builder", "/api/suplementos/**"),
                     Access.AUTHENTICATED),
+            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/pcs/builder"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.PATCH, HttpMethod.DELETE),
                     List.of("/api/outfits/save", "/api/outfits/saved", "/api/outfits/saved/**"),
                     Access.AUTHENTICATED, "own rows only — scoped in slice 8"),
