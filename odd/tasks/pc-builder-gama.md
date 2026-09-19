@@ -46,6 +46,11 @@ como `CPU` que ya documentó la fase 1, más Athlon / Celeron / Pentium / Xeon
 Conteos por categoría: Gabinete 625 · Motherboard 528 · Cooler 483 · GPU 462 ·
 RAM 387 · Fuente 347 · CPU 313 · Almacenamiento 290.
 
+**Hallazgo de T1 — las dos numeraciones de Radeon.** El writer se abstuvo en
+las RX 9000 en vez de mapearlas mal, y reportó la tabla como incompleta en
+lugar de rediseñarla por su cuenta. Tenía razón: el defecto estaba en el
+plan. Corregido arriba; la implementación se ajusta en T3.
+
 **`coolerIncluido` no existe: el catálogo no lo puede sostener.** El plan
 original le daba un campo a `TechSpecs`. Medido en T1: `BOX` aparece en **0**
 nombres, `OEM`/`tray` en 3, la forma negativa (`S/coller`, `sin cooler`) en 1,
@@ -105,10 +110,24 @@ pcs/
 
 | Gama | CPU | GPU |
 |---|---|---|
-| ALTA | i9 · Ryzen 9 · cualquier `X3D` · Ultra 9 · i7 · Ryzen 7 · Ultra 7 | RTX x090/x080/x070 · RX x900/x800 |
-| MEDIA | i5 · Ryzen 5 · Ultra 5 | RTX x060 · RX x700/x600 |
-| BAJA | i3 · Ryzen 3 · Ultra 3 · Athlon · Celeron · Pentium | RTX x050 · GTX · ARC · RX x500 y abajo |
+| ALTA | i9 · Ryzen 9 · cualquier `X3D` · Ultra 9 · i7 · Ryzen 7 · Ultra 7 | RTX x090/x080/x070 |
+| MEDIA | i5 · Ryzen 5 · Ultra 5 | RTX x060 |
+| BAJA | i3 · Ryzen 3 · Ultra 3 · Athlon · Celeron · Pentium | RTX x050 · GTX · ARC |
 | DESCONOCIDA | no se pudo leer | no se pudo leer |
+
+⚠️ **Radeon numera de DOS maneras y las dos están vivas en el catálogo**
+(medido 2026-09-19). Una sola regla numérica se come una de las dos:
+
+| Serie | Modelos en catálogo | Qué dígito manda | Mapeo |
+|---|---|---|---|
+| RX 9000 (RDNA 4) | 9050 (4) · 9060 (24) · **9070 (36)** | la **decena**, como Nvidia | 9070 → ALTA · 9060 → MEDIA · 9050 → BAJA |
+| RX 5000–7000 | 5500 · 5600 · 5700 · 6500 · 6600 · 6700 · 6900 · 7600 (28 filas) | la **centena** | x900/x800 → ALTA · x700/x600 → MEDIA · x500 y abajo → BAJA |
+
+Son **64 filas contra 28**: el esquema nuevo es el mayoritario. Aplicarle la
+regla de la centena a una RX 9070 la manda a MEDIA/BAJA o a DESCONOCIDA, y
+con la gama como filtro duro (D1) más la abstención que veta (D2) eso las
+saca de **todo** armado sin un solo error. La regla tiene que ramificar por
+la serie antes de mirar el tier.
 
 Requisitos derivados de la gama pedida:
 
@@ -248,7 +267,7 @@ cd frontend && npm test
       `certificacion`, `coolerIncluido`. Los 49 tests de fase 1 pasan sin
       tocarse. Tests nuevos: escala de gama CPU/GPU, certificación, Athlon/
       Celeron/Pentium/Xeon, `X3D`, abstención por campo.
-- [ ] **T2 — `PcBuilder` en objetos (refactor puro).** `SlotDeArmado`,
+- [x] **T2 — `PcBuilder` en objetos (refactor puro).** `SlotDeArmado`,
       `ContextoDeArmado`, `ReglaCompatibilidad` + las 4 reglas existentes,
       `CriterioDeSeleccion`. Sin cambio de comportamiento:
       `PcBuilderTest` pasa sin tocarse.
@@ -293,6 +312,40 @@ Verificación observada:
 - `TechSpecsParserTest` (49 tests de fase 1) y `PcBuilderTest`: **sin tocar**,
   confirmado por `git status` vacío para esos dos archivos. Contrato de
   refactor cumplido.
+
+**T2 hecho** (2026-09-19, sin commitear al escribir esto).
+
+Entregado: `pcs/ContextoDeArmado` (inmutable, `inicial(wattsMin)` +
+`conMother(TechSpecs)`, con la derivación de DDR por socket movida desde
+`PcBuilder`), `pcs/reglas/ReglaCompatibilidad` (interface con `permite` +
+`motivo()`, este último sin consumidor todavío — lo usa T3), las cuatro
+reglas (`ReglaSocket`, `ReglaDdr`, `ReglaFormFactor` con `ORDEN_FORM_FACTOR`,
+`ReglaWatts`), `pcs/SlotDeArmado` (record `nombre, categoria, reglas`,
+reemplaza el `record Slot` + el `switch` por nombre — mother/gpu/almacenamiento
+llevan `List.of()`, no un `default -> true`), `pcs/CriterioDeSeleccion`
+(interface) + `pcs/CriterioScoreMlPrecioUrl` (la implementación de hoy,
+extraída tal cual: `-baseMlScore` desc, precio asc, url asc). `PcBuilder`
+queda como orquestador: arma los slots una vez con sus reglas ya cableadas,
+filtra con `slot.reglas().stream().allMatch(...)`, delega el pick al
+criterio. Firma pública sin cambios.
+
+Verificación observada:
+- `mvn clean test` → **BUILD SUCCESS, Tests run: 2284, Failures: 0, Errors: 0,
+  Skipped: 7** (2253 + 31 tests nuevos: 8 de `ContextoDeArmado`, 5+5+6+4 de
+  las cuatro reglas, 3 de `CriterioScoreMlPrecioUrl`), `BackendLayeringArchTest`
+  20/20 — `grafoSinCiclos` sigue verde: `pcs` y `pcs.reglas` caen en la misma
+  slice (`ar.scraper.(*)..` matchea por el primer subpaquete).
+- RED previo observado por fallo de compilación: los tests nuevos no
+  compilaban contra clases inexistentes (`cannot find symbol: class
+  ContextoDeArmado/ReglaSocket/ReglaDdr/ReglaWatts`).
+- `PcBuilderTest` y `TechSpecsParserTest`: **sin tocar**, confirmado por
+  `git status --short` vacío para los dos. Contrato de refactor cumplido.
+
+Desvío observado, fuera de mi alcance de T2: `git status` mostraba
+`odd/tasks/pc-builder-gama.md` modificado ya al empezar esta tarea (hallazgo
+de T1 sobre la doble numeración de Radeon, sin commitear) pese a que se me
+indicó árbol limpio salvo esta tarea. No lo toqué más allá de tildar T2 y
+agregar esta entrada.
 - 60 tests nuevos.
 
 Corrección aplicada sobre lo que entregó el writer: `coolerIncluido` se sacó
