@@ -56,7 +56,7 @@ class BackendLayeringArchTest {
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
                                    "ar.scraper.favoritos..", "ar.scraper.financiacion..",
                                    "ar.scraper.feedback..", "ar.scraper.outfits..",
-                                   "ar.scraper.indices..")
+                                   "ar.scraper.indices..", "ar.scraper.pcs..")
         .should().dependOnClassesThat(
             JavaClass.Predicates.resideInAnyPackage("ar.scraper.db..",
                                                     "ar.scraper.aggregator..",
