@@ -83,4 +83,35 @@ class ContextoDeArmadoTest {
 
         assertThat(contexto.wattsMin()).isEqualTo(650);
     }
+
+    // ── T3a: gamaPedida + certificacionMinima ────────────────────────────
+
+    @Test
+    @DisplayName("inicial(wattsMin) alone means no gama was requested — null, never Gama.DESCONOCIDA")
+    void inicialSinGamaDejaGamaPedidaNulaYCertificacionNinguna() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
+
+        assertThat(contexto.gamaPedida()).isNull();
+        assertThat(contexto.certificacionMinima()).isEqualTo(Certificacion.NINGUNA);
+    }
+
+    @Test
+    @DisplayName("inicial(wattsMin, gamaPedida, certMin) carries both through")
+    void inicialConGamaPedidaLaExpone() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(750, Gama.ALTA, Certificacion.GOLD);
+
+        assertThat(contexto.gamaPedida()).isEqualTo(Gama.ALTA);
+        assertThat(contexto.certificacionMinima()).isEqualTo(Certificacion.GOLD);
+        assertThat(contexto.wattsMin()).isEqualTo(750);
+    }
+
+    @Test
+    @DisplayName("conMother preserves gamaPedida and certificacionMinima across the mother transition")
+    void conMotherPreservaGamaPedidaYCertificacionMinima() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(750, Gama.ALTA, Certificacion.GOLD)
+                .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
+
+        assertThat(contexto.gamaPedida()).isEqualTo(Gama.ALTA);
+        assertThat(contexto.certificacionMinima()).isEqualTo(Certificacion.GOLD);
+    }
 }

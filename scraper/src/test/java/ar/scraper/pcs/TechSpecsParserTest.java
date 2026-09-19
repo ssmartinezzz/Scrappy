@@ -390,14 +390,25 @@ class TechSpecsParserTest {
         assertThat(t.tipoMemoria()).isEmpty();
     }
 
-    // ── phase-1 abstains entirely: GPU / Cooler / Monitor / Almacenamiento ─
+    // ── abstain entirely: Cooler / Monitor / Almacenamiento ─────────────
+    // La GPU salio de esta lista en pc-builder-gama: desde entonces llena
+    // gama, y solo gama. Este test afirmaba TechSpecs.EMPTY y pasaba por
+    // casualidad — su fixture es una RX 9060, que caia en DESCONOCIDA por el
+    // defecto de numeracion Radeon que T3a corrigio.
 
     @Test
-    void gpuAbstainsEntirelyInPhase1() {
+    void gpuSoloLlenaGama() {
         var t = TechSpecsParser.parse(
                 "Placa de Video Gigabyte Radeon RX 9060 XT 8GB GDDR6 GAMING OC", "GPU");
 
-        assertThat(t).isEqualTo(TechSpecs.EMPTY);
+        assertThat(t.gama()).isEqualTo(Gama.MEDIA);
+        assertThat(t.socket()).isEmpty();
+        assertThat(t.ddr()).isEmpty();
+        assertThat(t.formFactor()).isEmpty();
+        assertThat(t.watts()).isZero();
+        assertThat(t.capacidadGb()).isZero();
+        assertThat(t.tipoMemoria()).isEmpty();
+        assertThat(t.certificacion()).isEqualTo(Certificacion.NINGUNA);
     }
 
     @Test
