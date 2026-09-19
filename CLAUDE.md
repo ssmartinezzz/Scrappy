@@ -502,7 +502,11 @@ checkbox `conGpu` + Generar/Regenerar con `excluir` por slot; `sinStock` y
 `sinCompatible` se pintan como placeholders distintos. Plan y evidencia en
 [`odd/tasks/pc-builder-ui.md`](./odd/tasks/pc-builder-ui.md).
 
-Pendiente (fases siguientes): `saved_pcs`, tool `propose_pc` del agente.
+**Fase 4** persiste el build (`saved_pcs` + `saved_pc_item`, molde
+`saved_outfits`) con Guardar en `/pcs` y listado en `/armadores` — ver el
+párrafo de esa ruta más abajo.
+
+Pendiente (fases siguientes): tool `propose_pc` del agente.
 
 Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicionó la fase 2:
 
@@ -603,7 +607,10 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
-Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
+Outfits `/outfits` · PCs `/pcs` · Armadores `/armadores` · Historial de
+precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
+`/armadores` lista lo guardado desde `/outfits` y `/pcs` — los outfits
+guardados salieron de `/favoritos`, que ahora sólo tiene productos.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
 la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de

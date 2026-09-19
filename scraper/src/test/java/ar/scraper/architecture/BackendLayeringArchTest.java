@@ -308,6 +308,22 @@ class BackendLayeringArchTest {
             }
         });
 
+    // El agregado saved_pcs + sus items (saved-pcs-armadores).
+    private static final Set<String> METODOS_PCS_GUARDADAS =
+        Set.of("guardarPc", "obtenerPcsGuardadas", "eliminarPcGuardada", "renombrarPc");
+
+    @ArchTest
+    static final ArchRule webUsaPcsGuardadasPorElPuerto = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().callMethodWhere(new DescribedPredicate<JavaMethodCall>(
+                "target a saved-pc method of ar.scraper.db.DatabaseService") {
+            @Override
+            public boolean test(JavaMethodCall call) {
+                return call.getTargetOwner().isEquivalentTo(ar.scraper.db.DatabaseService.class)
+                    && METODOS_PCS_GUARDADAS.contains(call.getTarget().getName());
+            }
+        });
+
     // El agregado precios_externos. `cargarPreciosExternos` entra a la regla
     // aunque hoy no tenga un solo consumidor fuera de `db`: la regla describe
     // el agregado, no el conteo de llamadas de este commit.

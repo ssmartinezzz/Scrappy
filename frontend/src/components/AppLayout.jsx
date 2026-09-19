@@ -4,6 +4,7 @@ import { readStatus } from '../lib/readStatus';
 import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
+         fetchSavedPcs, savePc, deleteSavedPc, renamePc,
          fetchTendencias } from '../api';
 import Topbar        from './Topbar';
 import PrimaryNav    from './nav/PrimaryNav';
@@ -35,6 +36,7 @@ const FinanPanel     = lazy(() => import('./FinanPanel'));
 const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
 const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
 const PcsPanel          = lazy(() => import('./PcsPanel'));
+const ArmadoresPanel    = lazy(() => import('./ArmadoresPanel'));
 const CronjobsPage      = lazy(() => import('./CronjobsPage'));
 const UsuariosAdminPanel = lazy(() => import('./UsuariosAdminPanel'));
 const PriceHistoryPage  = lazy(() => import('./PriceHistoryPage'));
@@ -81,6 +83,7 @@ const init = {
   compareOpen:  false,
   favoritos:    [],   // array of favorito objects {url, sitio, nombre, addedAt, lastCheckedAt, descontinuado}
   savedOutfits: [],   // array of saved outfit objects {id, nombre, slots, suplementos, totalEstimado, createdAt}
+  savedPcs:     [],   // array of saved PC objects {id, nombre, presupuesto, conGpu, picks, totalEstimado, createdAt}
   // Scraping
   scrapeStatus: 'IDLE',
   scrapeMsg:    '',
@@ -144,6 +147,17 @@ function reducer(state, action) {
         ...state,
         savedOutfits: state.savedOutfits.map(o =>
           o.id === action.id ? { ...o, nombre: action.nombre } : o),
+      };
+    case 'SET_SAVED_PCS':     return { ...state, savedPcs: action.payload || [] };
+    case 'ADD_SAVED_PC':
+      return { ...state, savedPcs: [action.payload, ...state.savedPcs] };
+    case 'REMOVE_SAVED_PC':
+      return { ...state, savedPcs: state.savedPcs.filter(p => p.id !== action.id) };
+    case 'RENAME_SAVED_PC':
+      return {
+        ...state,
+        savedPcs: state.savedPcs.map(p =>
+          p.id === action.id ? { ...p, nombre: action.nombre } : p),
       };
     case 'ADD_FAVORITO':
       return {
@@ -323,19 +337,10 @@ function FavoritosRoute() {
   return (
     <FavoritosPanel
       favoritos={S.favoritos}
-      savedOutfits={S.savedOutfits || []}
       onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}
       onDeleteFavorito={async (url) => {
         await removeFavorito(url);
         dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
-      }}
-      onDeleteSavedOutfit={async (id) => {
-        await deleteSavedOutfit(id);
-        dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });
-      }}
-      onRenameSavedOutfit={async (id, nombre) => {
-        await renameOutfit(id, nombre);
-        dispatch({ type: 'RENAME_SAVED_OUTFIT', id, nombre });
       }}
     />
   );
@@ -381,7 +386,51 @@ function SuplementosRoute() {
   return <SuplementosPanel/>;
 }
 function PcsRoute() {
-  return <PcsPanel/>;
+  const { dispatch } = useOutletContext();
+  return (
+    <PcsPanel
+      onSavePc={async (payload) => {
+        const result = await savePc(payload);
+        if (result?.ok) {
+          dispatch({ type: 'ADD_SAVED_PC', payload: {
+            id: result.id,
+            nombre: result.nombre,
+            presupuesto: payload.presupuesto,
+            conGpu: payload.conGpu,
+            picks: payload.picks || [],
+            totalEstimado: result.totalEstimado,
+            createdAt: new Date().toISOString(),
+          }});
+        }
+      }}
+    />
+  );
+}
+
+function ArmadoresRoute() {
+  const { S, dispatch } = useOutletContext();
+  return (
+    <ArmadoresPanel
+      savedOutfits={S.savedOutfits || []}
+      savedPcs={S.savedPcs || []}
+      onDeleteSavedOutfit={async (id) => {
+        await deleteSavedOutfit(id);
+        dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });
+      }}
+      onRenameSavedOutfit={async (id, nombre) => {
+        await renameOutfit(id, nombre);
+        dispatch({ type: 'RENAME_SAVED_OUTFIT', id, nombre });
+      }}
+      onDeleteSavedPc={async (id) => {
+        await deleteSavedPc(id);
+        dispatch({ type: 'REMOVE_SAVED_PC', id });
+      }}
+      onRenameSavedPc={async (id, nombre) => {
+        await renamePc(id, nombre);
+        dispatch({ type: 'RENAME_SAVED_PC', id, nombre });
+      }}
+    />
+  );
 }
 
 // No outlet context needed — CronjobsPage owns its own fetch/local state,
@@ -409,6 +458,7 @@ export {
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
   SuplementosRoute as SuplementosPanelRoute,
   PcsRoute as PcsPanelRoute,
+  ArmadoresRoute as ArmadoresPanelRoute,
   CronjobsRoute as CronjobsPanelRoute,
   UsuariosAdminRoute as UsuariosAdminPanelRoute,
 };
@@ -550,9 +600,16 @@ export default function AppLayout() {
     dispatch({ type: 'SET_SAVED_OUTFITS', payload: data || [] });
   }, []);
 
+  // Load saved PCs once on mount, same reasoning as loadSavedOutfits
+  const loadSavedPcs = useCallback(async () => {
+    const data = await fetchSavedPcs();
+    dispatch({ type: 'SET_SAVED_PCS', payload: data || [] });
+  }, []);
+
   // On mount: check if we already have data → load facets/favoritos/first page
   useEffect(() => {
     loadSavedOutfits();
+    loadSavedPcs();
     readStatus().then(st => {
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });

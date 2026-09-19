@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  deleteSavedPc,
   fetchData,
   fetchIndices,
   fetchPcsBuilder,
   fetchRecomendacion,
+  fetchSavedPcs,
   fetchSuplementosTipos,
   fetchTendencias,
+  renamePc,
+  savePc,
   startScrape,
 } from '@/api';
 
@@ -182,6 +186,58 @@ describe('fetchPcsBuilder', () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
 
     await expect(fetchPcsBuilder({})).resolves.toBeNull();
+  });
+});
+
+describe('Saved PCs', () => {
+  it('savePc POSTs to /api/pcs/save with the body and returns the parsed response', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true, id: 3, nombre: 'PC $100.000', totalEstimado: 100000 }));
+    const body = { nombre: 'PC $100.000', picks: [], presupuesto: 0, conGpu: false, totalEstimado: 100000 };
+
+    const result = await savePc(body);
+
+    expect(calledUrl().pathname).toBe('/api/pcs/save');
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual(body);
+    expect(result).toEqual({ ok: true, id: 3, nombre: 'PC $100.000', totalEstimado: 100000 });
+  });
+
+  it('savePc returns null when the response is not ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+
+    await expect(savePc({})).resolves.toBeNull();
+  });
+
+  it('fetchSavedPcs hits /api/pcs/saved and returns the parsed list', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([{ id: 1 }]));
+
+    await expect(fetchSavedPcs()).resolves.toEqual([{ id: 1 }]);
+    expect(calledUrl().pathname).toBe('/api/pcs/saved');
+  });
+
+  it('fetchSavedPcs returns [] when the response is not ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+
+    await expect(fetchSavedPcs()).resolves.toEqual([]);
+  });
+
+  it('deleteSavedPc DELETEs /api/pcs/saved/:id and reports ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+
+    await expect(deleteSavedPc(7)).resolves.toBe(true);
+    expect(calledUrl().pathname).toBe('/api/pcs/saved/7');
+    expect(global.fetch.mock.calls.at(-1)[1].method).toBe('DELETE');
+  });
+
+  it('renamePc PATCHes /api/pcs/saved/:id/nombre with the new name', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+
+    await expect(renamePc(7, 'Nuevo nombre')).resolves.toBe(true);
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(calledUrl().pathname).toBe('/api/pcs/saved/7/nombre');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ nombre: 'Nuevo nombre' });
   });
 });
 
