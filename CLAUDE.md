@@ -138,7 +138,8 @@ Scrappy/
         │   │                                  en F3b) + SavedOutfitsPort (lo implementa un
         │   │                                  @Repository package-private en db/)
         │   ├── identity/                   ← área: ActorResolver + Sujeto (movido de web/ en F3b)
-        │   ├── pcs/                        ← área: TechSpecs + TechSpecsParser (fase 1 del armador de PCs)
+        │   ├── pcs/                        ← área: TechSpecs + TechSpecsParser (fase 1) + PcBuilder,
+        │   │                                  PcPick, PcBuild (fase 2; lo sirve PcsEndpoints en web/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
@@ -473,16 +474,31 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 
 ---
 
-## Armador de PCs (`ar.scraper.pcs`) — fase 1
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 y 2
 
-Sólo existe el parser: `TechSpecsParser.parse(nombre, categoria)` →
+**Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria)`, pura,
-fill-only y con abstención (`""`/`0`, `EMPTY`) igual que `VisualAttrs`. Todavía
-no está en `Product`, ni en la base, ni hay builder, endpoint ni tool del
-agente. El plan y la cobertura medida viven en
-[`odd/tasks/pc-builder-specs.md`](./odd/tasks/pc-builder-specs.md).
+fill-only y con abstención (`""`/`0`, `EMPTY`) igual que `VisualAttrs`. Plan y
+cobertura medida en [`odd/tasks/pc-builder-specs.md`](./odd/tasks/pc-builder-specs.md).
 
-Lo que la medición dijo (dev DB, 2157 filas, 2026-09-18) y condiciona la fase 2:
+**Fase 2** es `PcBuilder.armar(productos, presupuesto, conGpu, excluir)`,
+servido por `GET /api/pcs/builder` (`AUTHENTICATED`). Molde de
+`SupplementCombo`: un pick por slot, best-effort, presupuesto opcional,
+`excluir` con fallback por slot. `TechSpecs` se calcula **al armar** desde el
+snapshot — no está en `Product` ni en la base. Diseño completo en
+[`odd/tasks/pc-builder.md`](./odd/tasks/pc-builder.md); lo que hay que saber:
+
+| | |
+|---|---|
+| **La mother es el ancla y se elige primero** | Los cuatro vetos la referencian. Orden: mother → cpu → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
+| **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
+| **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en el builder, no en el parser: el parser sólo afirma lo que el nombre dice |
+| **El piso de watts es una constante supuesta, no medida** | 450 W sin GPU, 650 W con GPU. El consumo de la GPU no se parsea; cuando se parsee, reemplazar el piso por una estimación por build |
+| `sinStock` ≠ `sinCompatible` | Sin candidatos en la categoría vs. candidatos que todos cayeron por veto. Ninguno aborta el armado |
+
+Pendiente (fases siguientes): frontend, `saved_pcs`, tool `propose_pc` del agente.
+
+Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicionó la fase 2:
 
 | Campo | Cobertura | Consecuencia |
 |---|---|---|

@@ -31,6 +31,7 @@ tags:
   - name: Comparador
   - name: Financiación
   - name: Outfits
+  - name: PCs
   - name: Para ti
   - name: Favoritos
   - name: Picks/Marcas
@@ -864,6 +865,25 @@ paths:
       responses:
         "200":
           description: Assembled combo.
+
+  /api/pcs/builder:
+    get:
+      tags: [PCs]
+      summary: PC compatible-parts builder — one pick per slot, hard vetoes on socket/ddr/form-factor/watts.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: presupuesto
+          in: query
+          schema: { type: number, default: 0 }
+        - name: conGpu
+          in: query
+          schema: { type: boolean, default: false }
+        - name: excluir
+          in: query
+          schema: { type: string, default: "" }
+      responses:
+        "200":
+          description: Assembled build, with sinStock/sinCompatible per unfillable slot.
 
   /api/outfits/feedback:
     post:
