@@ -2,8 +2,10 @@ package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
 import ar.scraper.outfits.RecommendationService;
+import ar.scraper.pcs.reglas.ReglaCertificacion;
 import ar.scraper.pcs.reglas.ReglaDdr;
 import ar.scraper.pcs.reglas.ReglaFormFactor;
+import ar.scraper.pcs.reglas.ReglaGama;
 import ar.scraper.pcs.reglas.ReglaSocket;
 import ar.scraper.pcs.reglas.ReglaWatts;
 
@@ -27,19 +29,20 @@ import java.util.stream.Collectors;
  */
 public class PcBuilder {
 
-    private static final int WATTS_MIN_SIN_GPU = 450;
-    private static final int WATTS_MIN_CON_GPU = 650;
-
     // Anchor first: every veto below references the motherboard.
+    // cpu/gpu carry ReglaGama; fuente carries ReglaCertificacion — both are
+    // no-ops when no gama was requested (ContextoDeArmado.gamaPedida()==null),
+    // so wiring them unconditionally keeps the no-gama path byte-for-byte
+    // identical to pre-pc-builder-gama behavior (T3a contract).
     private static final List<SlotDeArmado> SLOTS_FIJOS = List.of(
             new SlotDeArmado("mother", "Motherboard", List.of()),
-            new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket())),
+            new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket(), new ReglaGama())),
             new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr())),
             new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor())),
-            new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts())),
+            new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion())),
             new SlotDeArmado("almacenamiento", "Almacenamiento", List.of()));
 
-    private static final SlotDeArmado SLOT_GPU = new SlotDeArmado("gpu", "GPU", List.of());
+    private static final SlotDeArmado SLOT_GPU = new SlotDeArmado("gpu", "GPU", List.of(new ReglaGama()));
 
     private final CriterioDeSeleccion criterioDeSeleccion;
 
@@ -47,7 +50,21 @@ public class PcBuilder {
         this.criterioDeSeleccion = new CriterioScoreMlPrecioUrl(recommendationService);
     }
 
+    /** Pre-{@code pc-builder-gama} shape: no gama requested — see the 5-arg overload. */
     public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls) {
+        return armar(productos, presupuesto, conGpu, excluirUrls, null);
+    }
+
+    /**
+     * {@code gamaPedida == null} means "no gama was requested" — the caller
+     * opted out of the tier filter entirely, which is NOT the same as
+     * requesting an unparseable tier (that's {@link Gama#DESCONOCIDA}, a
+     * per-candidate parser outcome). With null, {@link ReglaGama} and {@link
+     * ReglaCertificacion} are no-ops and every slot behaves exactly as
+     * before pc-builder-gama.
+     */
+    public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls,
+            Gama gamaPedida) {
         if (productos == null) productos = List.of();
         final Set<String> excluir = excluirUrls != null ? excluirUrls : Set.of();
 
@@ -64,8 +81,9 @@ public class PcBuilder {
         List<String> sinStock = new ArrayList<>();
         List<String> sinCompatible = new ArrayList<>();
         double remainingBudget = presupuesto;
-        int wattsMin = conGpu ? WATTS_MIN_CON_GPU : WATTS_MIN_SIN_GPU;
-        ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin);
+        int wattsMin = EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu);
+        Certificacion certMin = EstimadorDeConsumo.certificacionMinima(gamaPedida);
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin);
 
         for (SlotDeArmado slot : slots) {
             List<Product> pool = porCategoria.getOrDefault(slot.categoria(), List.of());

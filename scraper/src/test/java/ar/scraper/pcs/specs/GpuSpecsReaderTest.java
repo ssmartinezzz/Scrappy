@@ -96,15 +96,24 @@ class GpuSpecsReaderTest {
         assertThat(gama("Placa de Video Generica Sin Modelo")).isEqualTo(Gama.DESCONOCIDA);
     }
 
+    // ── RX 9000 (RDNA4): numera por DECENA, como Nvidia — T3a fixed this,
+    // T1 had correctly abstained instead of guessing wrong via la regla de
+    // centena (medido: 4/24/36 filas reales de 9050/9060/9070) ──────────
+
     @Test
-    void rx9070NoMatcheaLaTablaDeGamaRadeonYQuedaDesconocida() {
-        // RX 9070/9070 XT/9070 GRE (RDNA4) numeran por decena como Nvidia
-        // (70 = gama alta en RTX), no por centena como el resto de Radeon
-        // (x900/x800/x700/x600/x500). La tabla de la fase 6 no cubre este
-        // esquema nuevo — abstenerse es mas seguro que adivinar BAJA
-        // tomando "70 <= 500" literal (ver reporte de la tarea).
-        assertThat(gama("Placa de Video Gigabyte Radeon RX 9070 XT 16GB")).isEqualTo(Gama.DESCONOCIDA);
-        assertThat(gama("Placa de Video Sapphire Radeon RX 9070 GRE 12GB")).isEqualTo(Gama.DESCONOCIDA);
+    void rx9070EsAltaPorDecenaComoNvidia() {
+        assertThat(gama("Placa de Video Gigabyte Radeon RX 9070 XT 16GB")).isEqualTo(Gama.ALTA);
+        assertThat(gama("Placa de Video Sapphire Radeon RX 9070 GRE 12GB")).isEqualTo(Gama.ALTA);
+    }
+
+    @Test
+    void rx9060EsMediaPorDecena() {
+        assertThat(gama("Placa de Video XFX Radeon RX 9060 XT 8GB")).isEqualTo(Gama.MEDIA);
+    }
+
+    @Test
+    void rx9050EsBajaPorDecena() {
+        assertThat(gama("Placa de Video PowerColor Radeon RX 9050 8GB")).isEqualTo(Gama.BAJA);
     }
 
     // ── abstencion por campo: GPU solo llena gama ───────────────────────
