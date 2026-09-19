@@ -469,6 +469,36 @@ export async function fetchPcsBuilder({ presupuesto = 0, conGpu = false, excluir
   return r.json();
 }
 
+// ─── Saved PCs ──────────────────────────────────────────────────────────────
+
+export async function savePc(body) {
+  const r = await authedFetch(`${BASE}/api/pcs/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.ok ? r.json() : null;
+}
+
+export async function fetchSavedPcs() {
+  const r = await authedFetch(`${BASE}/api/pcs/saved`);
+  return r.ok ? r.json() : [];
+}
+
+export async function deleteSavedPc(id) {
+  const r = await authedFetch(`${BASE}/api/pcs/saved/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+export async function renamePc(id, nombre) {
+  const r = await authedFetch(`${BASE}/api/pcs/saved/${id}/nombre`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre }),
+  });
+  return r.ok;
+}
+
 // ─── Cron Jobs (panel de administración /cronjobs) ───────────────────────────
 // No hay endpoint de detalle de ejecución individual — /executions ya trae
 // logOutput embebido por fila (ver ar.scraper.web.CronApiController).

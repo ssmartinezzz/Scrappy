@@ -59,6 +59,7 @@ function authedRouter({ roles, tieneData = false, interrumpida = SIN_INTERRUMPID
     if (u.includes('/api/scrape/interrupted')) return Promise.resolve(jsonResponse(interrumpida));
     if (u.includes('/api/sitios')) return Promise.resolve(jsonResponse({ base: [], extras: [] }));
     if (u.includes('/api/outfits/saved')) return Promise.resolve(jsonResponse([]));
+    if (u.includes('/api/pcs/saved')) return Promise.resolve(jsonResponse([]));
     if (u.includes('/api/ml/estado')) return Promise.resolve(jsonResponse({ training: { running: false } }));
     if (u.includes('/api/ml/resultado')) return Promise.resolve(jsonResponse({ running: false, done: false }));
     if (u.includes('/api/indices')) return Promise.resolve(jsonResponse({ ipc: {}, usd: {}, actualizado: null }));
