@@ -496,7 +496,13 @@ snapshot — no está en `Product` ni en la base. Diseño completo en
 | **El piso de watts es una constante supuesta, no medida** | 450 W sin GPU, 650 W con GPU. El consumo de la GPU no se parsea; cuando se parsee, reemplazar el piso por una estimación por build |
 | `sinStock` ≠ `sinCompatible` | Sin candidatos en la categoría vs. candidatos que todos cayeron por veto. Ninguno aborta el armado |
 
-Pendiente (fases siguientes): frontend, `saved_pcs`, tool `propose_pc` del agente.
+**Fase 3** es la página `/pcs` (`PcsPanel`, molde de `SuplementosPanel`): sin
+picker de tipos porque los slots son fijos del lado del servidor; presupuesto +
+checkbox `conGpu` + Generar/Regenerar con `excluir` por slot; `sinStock` y
+`sinCompatible` se pintan como placeholders distintos. Plan y evidencia en
+[`odd/tasks/pc-builder-ui.md`](./odd/tasks/pc-builder-ui.md).
+
+Pendiente (fases siguientes): `saved_pcs`, tool `propose_pc` del agente.
 
 Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicionó la fase 2:
 
@@ -597,7 +603,7 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
-Outfits `/outfits` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
+Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
 la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de
