@@ -1,6 +1,6 @@
 # pc-builder-agent-tool — phase 5 of the PC builder: the agent's `propose_pc` tool
 
-**Created:** 2026-09-18 · **Branch:** `feat/pc-builder-agent-tool` (stacked on `feat/saved-pcs-armadores`, #204 → #203 → #202 → #201 → #200 → `master`)
+**Created:** 2026-09-18 · **Branch:** `feat/pc-builder-agent-tool` — **PR #205** (stacked on `feat/saved-pcs-armadores`, #204 → #203 → #202 → #201 → #200 → `master`)
 **Engram mirror:** `odd/pc-builder-agent-tool/tasks` (project `scrappy`)
 **Phase 4:** [`saved-pcs-armadores.md`](./saved-pcs-armadores.md) — persistence + `/armadores`.
 
