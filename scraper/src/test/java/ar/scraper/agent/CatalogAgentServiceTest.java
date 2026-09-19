@@ -3,6 +3,7 @@ package ar.scraper.agent;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
 import ar.scraper.model.Product;
+import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,7 +54,8 @@ class CatalogAgentServiceTest {
         product = producto("Zapatilla Running");
         when(scraperService.getLastResult()).thenReturn(snapshotWith(product));
         registry = new ToolRegistry(new SearchProductsTool(scraperService),
-                new ViewProductTool(scraperService), new ProposeReclassifyTool(scraperService));
+                new ViewProductTool(scraperService), new ProposeReclassifyTool(scraperService),
+                new ProposePcTool(scraperService, new RecommendationService()));
     }
 
     private static Product producto(String categoria) {
@@ -95,6 +97,22 @@ class CatalogAgentServiceTest {
         assertThat(provider.calledToolNamesInOrder())
                 .containsExactly(SearchProductsTool.NAME, ViewProductTool.NAME, ProposeReclassifyTool.NAME);
         assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+    }
+
+    @Test
+    @DisplayName("a turn whose only tool call is propose_pc completes and its call is traced")
+    void proposePcOnlyToolCallCompletes() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(ProposePcTool.NAME, Map.of("presupuesto", 0));
+        provider.enqueueFinalAnswer("Te armé una PC con lo que hay en el catálogo.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("armame una PC")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.trace()).hasSize(1);
+        assertThat(resp.trace().get(0).calls()).singleElement()
+                .extracting(ToolStep.Call::name).isEqualTo(ProposePcTool.NAME);
     }
 
     @Test

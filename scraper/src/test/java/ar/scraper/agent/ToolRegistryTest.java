@@ -1,6 +1,7 @@
 package ar.scraper.agent;
 
 import ar.scraper.classification.CategoryGroups;
+import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,39 +19,44 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * RED→GREEN coverage for {@link ToolRegistry} (llm-catalog-nlp, task 4.1/4.2):
- * exactly 3 tools, and the {@code categoria} tool-schema enum matches
- * {@link CategoryGroups#canonicalCategories()} exactly (Safeguard A — the
- * model cannot invent a nonexistent category).
+ * RED→GREEN coverage for {@link ToolRegistry} (llm-catalog-nlp, task 4.1/4.2;
+ * propose_pc added in pc-builder-agent-tool): exactly 4 tools, and the
+ * {@code categoria} tool-schema enum matches {@link
+ * CategoryGroups#canonicalCategories()} exactly (Safeguard A — the model
+ * cannot invent a nonexistent category).
  */
 @Epic("LLM Catalog Agent")
 @Feature("ToolRegistry")
-@Story("Exactly 3 read-only tools; categoria enum == canonical taxonomy")
+@Story("Exactly 4 read-only tools; categoria enum == canonical taxonomy")
 @DisplayName("ToolRegistry")
 class ToolRegistryTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private ToolRegistry newRegistry(ScraperService service) {
+        return new ToolRegistry(new SearchProductsTool(service), new ViewProductTool(service),
+                new ProposeReclassifyTool(service), new ProposePcTool(service, new RecommendationService()));
+    }
+
     @Test
-    @DisplayName("exposes exactly 3 tools: search_products, view_product, propose_reclassify")
-    void exposesExactlyThreeTools() {
+    @DisplayName("exposes exactly 4 tools: search_products, view_product, propose_reclassify, propose_pc")
+    void exposesExactlyFourTools() {
         ScraperService service = mock(ScraperService.class);
-        ToolRegistry registry = new ToolRegistry(
-                new SearchProductsTool(service), new ViewProductTool(service), new ProposeReclassifyTool(service));
+        ToolRegistry registry = newRegistry(service);
 
         List<ToolSpec> specs = registry.specs();
 
-        assertThat(specs).hasSize(3);
+        assertThat(specs).hasSize(4);
         assertThat(specs.stream().map(ToolSpec::name).toList())
-                .containsExactlyInAnyOrder(SearchProductsTool.NAME, ViewProductTool.NAME, ProposeReclassifyTool.NAME);
+                .containsExactlyInAnyOrder(SearchProductsTool.NAME, ViewProductTool.NAME,
+                        ProposeReclassifyTool.NAME, ProposePcTool.NAME);
     }
 
     @Test
     @DisplayName("propose_reclassify's categoria schema enum == CategoryGroups.canonicalCategories()")
     void categoriaEnumMatchesCanonicalTaxonomy() {
         ScraperService service = mock(ScraperService.class);
-        ToolRegistry registry = new ToolRegistry(
-                new SearchProductsTool(service), new ViewProductTool(service), new ProposeReclassifyTool(service));
+        ToolRegistry registry = newRegistry(service);
 
         ToolSpec proposeSpec = registry.specs().stream()
                 .filter(s -> s.name().equals(ProposeReclassifyTool.NAME))
@@ -67,8 +73,7 @@ class ToolRegistryTest {
     @DisplayName("execute() routes to the matching tool by name and fills in the real toolCallId")
     void executeRoutesByNameAndFillsCallId() {
         ScraperService service = mock(ScraperService.class);
-        ToolRegistry registry = new ToolRegistry(
-                new SearchProductsTool(service), new ViewProductTool(service), new ProposeReclassifyTool(service));
+        ToolRegistry registry = newRegistry(service);
 
         JsonNode args = MAPPER.createObjectNode().put("query", "remera");
         ToolCall call = new ToolCall("call_1", SearchProductsTool.NAME, args);
@@ -83,8 +88,7 @@ class ToolRegistryTest {
     @DisplayName("execute() with an unknown tool name → is_error, no crash")
     void executeUnknownToolNameIsError() {
         ScraperService service = mock(ScraperService.class);
-        ToolRegistry registry = new ToolRegistry(
-                new SearchProductsTool(service), new ViewProductTool(service), new ProposeReclassifyTool(service));
+        ToolRegistry registry = newRegistry(service);
 
         ToolCall call = new ToolCall("call_9", "delete_everything", MAPPER.createObjectNode());
 
