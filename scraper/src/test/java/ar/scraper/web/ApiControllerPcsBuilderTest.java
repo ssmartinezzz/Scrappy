@@ -12,9 +12,11 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
+import ar.scraper.web.support.SujetoDePrueba;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,8 +36,14 @@ class ApiControllerPcsBuilderTest {
     private ScraperService service;
     private ApiController controller;
 
+    @AfterEach
+    void limpiarContexto() {
+        SujetoDePrueba.salir();
+    }
+
     @BeforeEach
     void setUp() {
+        SujetoDePrueba.entrar("ADMIN");
         service = mock(ScraperService.class);
         IndiceService indiceService = mock(IndiceService.class);
         ScraperConfig config = mock(ScraperConfig.class);

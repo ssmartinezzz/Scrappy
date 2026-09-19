@@ -21,6 +21,8 @@ import ar.scraper.catalog.PreciosExternosPort;
 import ar.scraper.feedback.FeedbackPort;
 import ar.scraper.feedback.OutfitItemRow;
 import ar.scraper.outfits.SavedOutfitsPort;
+import ar.scraper.pcs.PcPick;
+import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.scheduling.CronExecution;
@@ -73,6 +75,7 @@ public class DatabaseService {
     private final FavoritosPort favoritosPort;
     private final FeedbackPort feedbackPort;
     private final SavedOutfitsPort savedOutfitsPort;
+    private final SavedPcsPort savedPcsPort;
     private final MlOutputPort mlOutputPort;
     private final HistorialPort historialPort;
     private final SitiosPort sitiosPort;
@@ -112,6 +115,7 @@ public class DatabaseService {
                 new ScrapeRunRepository(dataSource),
                 new SitiosRepository(dataSource, siteRegistry),
                 new FeedbackRepository(dataSource), new SavedOutfitsRepository(dataSource),
+                new SavedPcsRepository(dataSource),
                 new PreciosExternosRepository(dataSource));
     }
 
@@ -122,6 +126,7 @@ public class DatabaseService {
             CategoriaStatsPort categoriaStatsPort, MlOutputPort mlOutputPort,
             ScrapeRunPort scrapeRunPort, SitiosPort sitiosPort,
             FeedbackPort feedbackPort, SavedOutfitsPort savedOutfitsPort,
+            SavedPcsPort savedPcsPort,
             PreciosExternosPort preciosExternosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
@@ -133,6 +138,7 @@ public class DatabaseService {
         this.productPort = productPort;
         this.feedbackPort = feedbackPort;
         this.savedOutfitsPort = savedOutfitsPort;
+        this.savedPcsPort = savedPcsPort;
         this.mlOutputPort = mlOutputPort;
         this.sitiosPort = sitiosPort;
         this.categoriaStatsPort = categoriaStatsPort;
@@ -205,6 +211,11 @@ public class DatabaseService {
     /** @see #favoritos() */
     public SavedOutfitsPort outfitsGuardados() {
         return savedOutfitsPort;
+    }
+
+    /** @see #favoritos() */
+    public SavedPcsPort pcsGuardadas() {
+        return savedPcsPort;
     }
 
     /** @see #favoritos() */
@@ -701,6 +712,30 @@ public class DatabaseService {
     /** Renombra un outfit guardado. Retorna true si existía. */
     public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
         return savedOutfitsPort.renombrarOutfit(usuarioId, id, nombre);
+    }
+
+    // ─── Saved PCs. Bodies in SavedPcsRepository (saved-pcs-armadores).
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Persiste un build de PC con sus picks. Retorna el id generado, o -1 en error. */
+    public int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
+                         boolean conGpu, double totalEstimado) {
+        return savedPcsPort.guardarPc(usuarioId, nombre, picks, presupuesto, conGpu, totalEstimado);
+    }
+
+    /** Retorna todos los PCs guardados, ordenados por created_at DESC. */
+    public List<Map<String, Object>> obtenerPcsGuardadas(UUID usuarioId) {
+        return savedPcsPort.obtenerPcsGuardadas(usuarioId);
+    }
+
+    /** Elimina un PC guardado por id. Retorna true si existía. */
+    public boolean eliminarPcGuardada(UUID usuarioId, int id) {
+        return savedPcsPort.eliminarPcGuardada(usuarioId, id);
+    }
+
+    /** Renombra un PC guardado. Retorna true si existía. */
+    public boolean renombrarPc(UUID usuarioId, int id, String nombre) {
+        return savedPcsPort.renombrarPc(usuarioId, id, nombre);
     }
 
     // ─── Cron Jobs + Executions. Bodies behind CronPort (extract-database-ports
