@@ -1,6 +1,6 @@
 # saved-pcs-armadores — phase 4 of the PC builder: persist builds + `/armadores`
 
-**Created:** 2026-09-18 · **Branch:** `feat/saved-pcs-armadores` (stacked on `feat/pc-builder-ui`, #203 → #202 → #201 → #200 → `master`)
+**Created:** 2026-09-18 · **Branch:** `feat/saved-pcs-armadores` — **PR #204** (stacked on `feat/pc-builder-ui`, #203 → #202 → #201 → #200 → `master`)
 **Engram mirror:** `odd/saved-pcs-armadores/tasks` (project `scrappy`)
 **Phase 3:** [`pc-builder-ui.md`](./pc-builder-ui.md) — the `/pcs` page that produces the build this phase saves.
 
