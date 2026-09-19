@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchData,
   fetchIndices,
+  fetchPcsBuilder,
   fetchRecomendacion,
   fetchSuplementosTipos,
   fetchTendencias,
@@ -133,6 +134,54 @@ describe('fetchSuplementosTipos', () => {
     global.fetch = vi.fn().mockResolvedValue(response);
 
     await expect(fetchSuplementosTipos()).resolves.toEqual([]);
+  });
+});
+
+describe('fetchPcsBuilder', () => {
+  it('hits /api/pcs/builder with no query params by default', async () => {
+    await fetchPcsBuilder({});
+
+    const url = calledUrl();
+    expect(url.pathname).toBe('/api/pcs/builder');
+    expect(url.searchParams.has('presupuesto')).toBe(false);
+    expect(url.searchParams.has('conGpu')).toBe(false);
+    expect(url.searchParams.has('excluir')).toBe(false);
+  });
+
+  it('sends presupuesto only when greater than 0', async () => {
+    await fetchPcsBuilder({ presupuesto: 0 });
+    expect(calledUrl().searchParams.has('presupuesto')).toBe(false);
+
+    await fetchPcsBuilder({ presupuesto: 500000 });
+    expect(calledUrl().searchParams.get('presupuesto')).toBe('500000');
+  });
+
+  it('sends conGpu only when true', async () => {
+    await fetchPcsBuilder({ conGpu: false });
+    expect(calledUrl().searchParams.has('conGpu')).toBe(false);
+
+    await fetchPcsBuilder({ conGpu: true });
+    expect(calledUrl().searchParams.get('conGpu')).toBe('true');
+  });
+
+  it('joins excluir with commas, and omits it when empty', async () => {
+    await fetchPcsBuilder({ excluir: [] });
+    expect(calledUrl().searchParams.has('excluir')).toBe(false);
+
+    await fetchPcsBuilder({ excluir: ['https://a', 'https://b'] });
+    expect(calledUrl().searchParams.get('excluir')).toBe('https://a,https://b');
+  });
+
+  it('returns null on a 204 (no scrape run yet)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
+
+    await expect(fetchPcsBuilder({})).resolves.toBeNull();
+  });
+
+  it('returns null when the response is not ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+
+    await expect(fetchPcsBuilder({})).resolves.toBeNull();
   });
 });
 
