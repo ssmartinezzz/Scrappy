@@ -32,12 +32,13 @@ function resumenSpecs(specs) {
   return partes.join(' · ');
 }
 
-export default function PcsPanel() {
+export default function PcsPanel({ onSavePc } = {}) {
   const [presupuesto, setPresupuesto] = useState('');
   const [conGpu, setConGpu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const [saving, setSaving] = useState(false);
   // URLs ya mostradas, agrupadas por SLOT. El pick del servidor es determinístico
   // a propósito, así que "Regenerar" tiene que decir qué vio para recibir el
   // siguiente — mismo contrato que SuplementosPanel, pero por slot en vez de tipo.
@@ -75,6 +76,22 @@ export default function PcsPanel() {
       setError('Error al conectar con el servidor.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function guardar() {
+    if (!data || !onSavePc || saving) return;
+    setSaving(true);
+    try {
+      await onSavePc({
+        nombre: `PC $${fmt(data.totalEstimado)}`,
+        picks: data.picks,
+        presupuesto: presupuesto ? Number(presupuesto) : 0,
+        conGpu,
+        totalEstimado: data.totalEstimado,
+      });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -243,7 +260,7 @@ export default function PcsPanel() {
               ))}
             </div>
 
-            <div className="text-center">
+            <div className="flex flex-wrap items-center justify-center gap-[12px]">
               <button
                 onClick={() => generar(true)}
                 disabled={loading}
@@ -256,6 +273,22 @@ export default function PcsPanel() {
               >
                 {loading ? 'Buscando...' : 'Regenerar'}
               </button>
+
+              {picks.length > 0 && onSavePc && (
+                <button
+                  onClick={guardar}
+                  disabled={saving}
+                  className={cn(
+                    'inline-flex min-h-[44px] items-center rounded-btn px-[26px]',
+                    'text-[.88rem] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                    saving
+                      ? 'cursor-not-allowed bg-s3 text-t3'
+                      : 'cursor-pointer bg-primary text-white hover:bg-primary2'
+                  )}
+                >
+                  {saving ? 'Guardando...' : '⭐ Guardar PC'}
+                </button>
+              )}
             </div>
           </>
         )}

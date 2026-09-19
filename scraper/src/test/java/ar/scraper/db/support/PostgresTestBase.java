@@ -314,7 +314,10 @@ public abstract class PostgresTestBase {
                     -- indices-service (V33). `indice` is deliberately absent for the
                     -- same reason as `rol`: it is seed data the migration itself
                     -- inserts (IPC/USD_OFICIAL), not test residue.
-                    indice_valor
+                    indice_valor,
+                    -- saved-pcs-armadores (V34). `saved_pc_item` is deliberately
+                    -- absent: it cascades from `saved_pcs`.
+                    saved_pcs
                 RESTART IDENTITY CASCADE
                 """);
         }

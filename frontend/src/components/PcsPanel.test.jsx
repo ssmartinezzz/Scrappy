@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PcsPanel from '@/components/PcsPanel';
-import { fetchPcsBuilder } from '@/api';
+import { fetchPcsBuilder, fmt } from '@/api';
 
 // Mocking the api module (not global.fetch) pins the component to the seam that
 // carries VITE_API_BASE_URL — same reasoning as SuplementosPanel.test.jsx.
@@ -186,5 +186,52 @@ describe('PcsPanel — placeholders y specs', () => {
     await armar(user);
 
     expect(screen.getByText('$550.000')).toBeInTheDocument();
+  });
+});
+
+describe('PcsPanel — Guardar', () => {
+  it('no muestra el botón sin onSavePc', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.queryByRole('button', { name: /Guardar/ })).not.toBeInTheDocument();
+  });
+
+  it('no muestra el botón sin picks', () => {
+    render(<PcsPanel onSavePc={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /Guardar/ })).not.toBeInTheDocument();
+  });
+
+  it('clickear Guardar llama a onSavePc una vez con picks, presupuesto, conGpu y total', async () => {
+    const user = userEvent.setup();
+    const onSavePc = vi.fn().mockResolvedValue({ ok: true, id: 1, nombre: 'PC', totalEstimado: 100000 });
+    render(<PcsPanel onSavePc={onSavePc} />);
+    await armar(user);
+
+    await user.click(screen.getByRole('button', { name: /Guardar/ }));
+
+    expect(onSavePc).toHaveBeenCalledTimes(1);
+    expect(onSavePc).toHaveBeenCalledWith({
+      nombre: `PC $${fmt(100000)}`,
+      picks: respuesta().picks,
+      presupuesto: 0,
+      conGpu: false,
+      totalEstimado: 100000,
+    });
+  });
+
+  it('el botón se deshabilita mientras guarda', async () => {
+    const user = userEvent.setup();
+    let resolveSave;
+    const onSavePc = vi.fn(() => new Promise(res => { resolveSave = res; }));
+    render(<PcsPanel onSavePc={onSavePc} />);
+    await armar(user);
+
+    await user.click(screen.getByRole('button', { name: /Guardar/ }));
+
+    expect(screen.getByRole('button', { name: /Guardando/ })).toBeDisabled();
+    resolveSave({ ok: true });
   });
 });

@@ -885,6 +885,60 @@ paths:
         "200":
           description: Assembled build, with sinStock/sinCompatible per unfillable slot.
 
+  /api/pcs/save:
+    post:
+      tags: [PCs]
+      summary: Save an assembled PC build. Own rows only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: PC saved.
+
+  /api/pcs/saved:
+    get:
+      tags: [PCs]
+      summary: List saved PC builds. Own rows only.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Saved PC array.
+
+  /api/pcs/saved/{id}:
+    delete:
+      tags: [PCs]
+      summary: Delete a saved PC build. Own rows only.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted.
+
+  /api/pcs/saved/{id}/nombre:
+    patch:
+      tags: [PCs]
+      summary: Rename a saved PC build. Own rows only.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Renamed.
+
   /api/outfits/feedback:
     post:
       tags: [Outfits]
