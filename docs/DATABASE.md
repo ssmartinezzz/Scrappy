@@ -44,7 +44,7 @@ Tres criterios que ya están decididos y no se re-discuten en cada tabla nueva:
 | Pregunta | Criterio |
 |---|---|
 | ¿Tabla de lookup o CHECK? | CHECK para un vocabulario cerrado y chico que no lleva atributos propios; tabla de lookup cuando el valor **tiene** atributos (`sitio`, `categoria`, `marca`) o cuando se administra desde la app |
-| ¿Lleva FK? | Sí, salvo que la fila sea un **registro histórico**: un registro de lo que pasó nunca depende de que el dato mutable siga existiendo (`saved_outfit_item`, `agent_reclassify_audit`, `precios_externos`) |
+| ¿Lleva FK? | Sí, salvo que la fila sea un **registro histórico**: un registro de lo que pasó nunca depende de que el dato mutable siga existiendo (`saved_outfit_item`, `saved_pc_item`, `agent_reclassify_audit`, `precios_externos`) |
 | ¿Cómo se dice "no hay valor"? | Con `NULL` o `""`, nunca con un centinela. `0` no es "no se pudo parsear" |
 
 La única excepción viva es `ml_output.payload`, y está argumentada abajo en
@@ -66,6 +66,7 @@ favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
 outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
 saved_outfits        -- Outfits persistidos
+saved_pcs / saved_pc_item -- Builds del armador de PCs persistidos (V34)
 categoria_dismiss    -- Categorías "no me interesa" del feed
 financiacion_presets -- Presets de cuotas/recargo
 cron_jobs / cron_executions -- Scraping programado + historial
@@ -109,6 +110,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V24` | `sitio.plataforma` 9→11 valores (`qloud`, `oscommerce`) + seed Rockethard/Venex |
 | `V25` | `productos.producto_key` (generada) + índice único — handle corto para rutas |
 | `V33` | `indice` (lookup sembrado) + `indice_valor`, para `ar.scraper.indices` |
+| `V34` | `saved_pcs` + `saved_pc_item`: builds guardados del armador de PCs |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -1548,10 +1550,11 @@ ALTER TABLE categoria_dismiss    DROP COLUMN IF EXISTS usuario_id;
 -- 3. Identidad.
 DROP TABLE IF EXISTS password_reset_token;
 DROP TABLE IF EXISTS refresh_token;
--- `V29` le agregó a `usuario` una FK entrante desde `scrape_run`. Se suelta
--- por nombre, no con CASCADE: un CASCADE acá arrastraría en silencio lo que
--- llegue a depender de la tabla más adelante.
+-- `V29` le agregó a `usuario` una FK entrante desde `scrape_run`, y `V34` otra
+-- desde `saved_pcs`. Las dos se sueltan por nombre, no con CASCADE: un CASCADE
+-- acá arrastraría en silencio lo que llegue a depender de la tabla más adelante.
 ALTER TABLE scrape_run DROP CONSTRAINT IF EXISTS fk_scrape_run_usuario;
+ALTER TABLE saved_pcs  DROP CONSTRAINT IF EXISTS saved_pcs_usuario_id_fkey;
 
 DROP TABLE IF EXISTS usuario_rol;
 DROP TABLE IF EXISTS usuario;
@@ -2276,3 +2279,30 @@ El orden es obligatorio: `indice_valor.indice` referencia `indice(codigo)`, así
 que borrar `indice` primero fallaría por FK. Ninguna otra tabla referencia a
 estas dos, así que no hace falta `CASCADE` ni contención adicional — el
 `DROP TABLE indice_valor` de arriba ya alcanza sin arrastrar nada ajeno.
+
+## `V34` — `saved_pcs` + `saved_pc_item`, para el armador de PCs
+
+Mismo molde que `saved_outfits` + `saved_outfit_item` (`V14`/`V26`): una
+cabecera con dueño (`usuario_id`, NULLABLE por el mismo motivo que `V26` —
+todavía puede no haber sujeto autenticado) y un hijo con un pick por posición.
+`saved_pc_item.url` no lleva FK a `productos(url)`: es el mismo carve-out de
+**registro histórico** que `saved_outfit_item` — la fila guarda lo que el pick
+ERA cuando se guardó, y un producto discontinuado no puede romper (ni
+bloquear) un build que el usuario ya guardó.
+
+**1FN/3FN**: `saved_pc_item` no tiene grupo repetitivo; cada columna depende
+de la clave completa `(pc_id, posicion)`, no de una parte de ella ni de otra
+columna no-clave.
+
+### Rollback
+
+```sql
+-- >>> rollback:V34
+DROP TABLE saved_pc_item;
+DROP TABLE saved_pcs;
+-- <<< rollback:V34
+```
+
+El orden es obligatorio: `saved_pc_item.pc_id` referencia `saved_pcs(id)`, así
+que borrar `saved_pcs` primero fallaría por FK. Ninguna otra tabla referencia
+a estas dos.

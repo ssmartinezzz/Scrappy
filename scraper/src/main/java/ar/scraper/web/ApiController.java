@@ -157,7 +157,8 @@ public class ApiController {
         this.financiacionEndpoints = new FinanciacionEndpoints(service, indiceService,
                                                                db.presets(), db.historial(), db.productos(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db.feedback(), db.outfitsGuardados(), outfitService, actorResolver);
-        this.pcsEndpoints       = new PcsEndpoints(service, new ar.scraper.pcs.PcBuilder(recommendationService));
+        this.pcsEndpoints       = new PcsEndpoints(service, new ar.scraper.pcs.PcBuilder(recommendationService),
+                                                     db.pcsGuardadas(), actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db.feedback(), recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db.categoriaStats(), db.mlOutput(), db.historial(), db.productos(), aggregator, pythonRunner);
@@ -473,6 +474,26 @@ public class ApiController {
             @RequestParam(defaultValue = "false") boolean conGpu,
             @RequestParam(defaultValue = "") String excluir) {
         return pcsEndpoints.builder(presupuesto, conGpu, excluir);
+    }
+
+    @PostMapping("/pcs/save")
+    public ResponseEntity<ObjectNode> savePc(@RequestBody Map<String, Object> body) {
+        return pcsEndpoints.savePc(body);
+    }
+
+    @GetMapping("/pcs/saved")
+    public ResponseEntity<Object> getSavedPcs() {
+        return pcsEndpoints.getSavedPcs();
+    }
+
+    @DeleteMapping("/pcs/saved/{id}")
+    public ResponseEntity<ObjectNode> deleteSavedPc(@PathVariable int id) {
+        return pcsEndpoints.deleteSavedPc(id);
+    }
+
+    @PatchMapping("/pcs/saved/{id}/nombre")
+    public ResponseEntity<ObjectNode> renameSavedPc(@PathVariable int id, @RequestBody Map<String, Object> body) {
+        return pcsEndpoints.renameSavedPc(id, body);
     }
 
     /**
