@@ -90,8 +90,8 @@ public class CatalogAgentService {
     private static final String GROUNDING_NUDGE = """
             No ejecutaste ninguna herramienta en este turno, así que tu respuesta no se le va a entregar \
             al usuario. Volvé a responder la última pregunta usando primero al menos una herramienta \
-            (search_products, view_product o propose_reclassify), incluso si creés que ya tenés el dato \
-            más arriba en la conversación.""";
+            (search_products, view_product, propose_reclassify o propose_pc), incluso si creés que ya tenés \
+            el dato más arriba en la conversación.""";
 
     private final ChatProvider provider;
     private final ToolRegistry registry;
@@ -393,7 +393,7 @@ public class CatalogAgentService {
                 — nunca inventes datos ni categorías. Las categorías válidas son EXACTAMENTE estas (no uses \
                 ninguna otra): %s.
 
-                Hacés dos cosas: BUSCAR productos en el catálogo y CORREGIR su clasificación.
+                Hacés tres cosas: BUSCAR productos en el catálogo, CORREGIR su clasificación, y ARMAR una PC.
 
                 Para buscar, usá search_products y pasale TODOS los criterios que pida el usuario, cada uno \
                 en su parámetro. Nunca traigas una lista amplia para después descartar a mano en tu respuesta: \
@@ -411,6 +411,12 @@ public class CatalogAgentService {
                 (propose_reclassify). Esa última herramienta NUNCA escribe en la base de datos — solo genera \
                 una propuesta (valor actual → valor propuesto) que el usuario debe confirmar explícitamente en \
                 la interfaz antes de que se aplique ningún cambio real.
+
+                Para armar una PC, cuando el usuario pida una PC/computadora con un presupuesto y/o placa de video, \
+                usá propose_pc pasando presupuesto en pesos, conGpu, y excluir con las urls de los picks que el \
+                usuario haya rechazado para que no se repitan. Narrá los picks devueltos con nombre, sitio y precio, \
+                y el total estimado; si algún slot quedó sinStock o sinCompatible, decilo también. propose_pc NUNCA \
+                guarda nada — si el usuario quiere conservar el armado, lo guarda desde la página /pcs.
 
                 Nunca respondas una pregunta sobre el catálogo sin haber usado antes al menos una herramienta \
                 con resultado válido — una respuesta sin ninguna herramienta ejecutada exitosamente va a ser \

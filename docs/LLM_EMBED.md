@@ -26,10 +26,10 @@ AgentChatPanel  ──POST──►  ApiController
                                 ▼
                           ToolRegistry
                                 │
-                    ┌───────────┼───────────┐
-                    ▼           ▼           ▼
-            search_products view_product propose_reclassify
-                    └───────────┴───────────┘
+              ┌───────────┬─────┴─────┬───────────┐
+              ▼           ▼           ▼           ▼
+      search_products view_product propose_reclassify propose_pc
+              └───────────┴───────────┴───────────┘
                                 │
                                 ▼
                       ScraperService.getLastResult()
@@ -121,6 +121,7 @@ Son **exactamente tres, todas de solo lectura**. Están declaradas en
 | `search_products` | Busca en el catálogo en memoria con filtros combinables: `query`, `categoria` (enum del canon), `genero`, `excluir`, `precioMin`/`precioMax` | No |
 | `view_product` | Devuelve la clasificación actual de un producto por URL | No |
 | `propose_reclassify` | Valida un cambio y devuelve un diff *actual → propuesto* | **No** |
+| `propose_pc` | Arma una PC con `PcBuilder` sobre el snapshot (`presupuesto`, `conGpu`, `excluir` urls); mismo JSON que `GET /api/pcs/builder` | No |
 
 Que `propose_reclassify` no escriba es el punto central del diseño, no un
 detalle de implementación. Ver la sección siguiente.

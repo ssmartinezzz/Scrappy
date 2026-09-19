@@ -8,9 +8,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Registers the exactly-3 read-only catalog tools (llm-catalog-nlp, task
- * 4.1/4.2 — design D3/D4): {@link SearchProductsTool}, {@link
- * ViewProductTool}, {@link ProposeReclassifyTool}. {@link #execute} is a
+ * Registers the exactly-4 read-only catalog tools (llm-catalog-nlp, task
+ * 4.1/4.2 — design D3/D4; propose_pc added in pc-builder-agent-tool):
+ * {@link SearchProductsTool}, {@link ViewProductTool}, {@link
+ * ProposeReclassifyTool}, {@link ProposePcTool}. {@link #execute} is a
  * second line of defense on top of each tool's own boundary validation
  * (Safeguard A) — an unknown tool name or an unexpected exception inside a
  * tool NEVER escapes as an uncaught exception/500, always as an {@code
@@ -21,10 +22,12 @@ public class ToolRegistry {
 
     private final Map<String, CatalogTool> tools = new LinkedHashMap<>();
 
-    public ToolRegistry(SearchProductsTool search, ViewProductTool view, ProposeReclassifyTool propose) {
+    public ToolRegistry(SearchProductsTool search, ViewProductTool view, ProposeReclassifyTool propose,
+                         ProposePcTool proposePc) {
         tools.put(search.spec().name(), search);
         tools.put(view.spec().name(), view);
         tools.put(propose.spec().name(), propose);
+        tools.put(proposePc.spec().name(), proposePc);
     }
 
     public List<ToolSpec> specs() {
