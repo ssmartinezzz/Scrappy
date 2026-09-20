@@ -425,10 +425,25 @@ class TechSpecsParserTest {
         assertThat(t).isEqualTo(TechSpecs.EMPTY);
     }
 
+    /**
+     * Ya no se abstiene entera: {@code AlmacenamientoSpecsReader} (T3b) le da
+     * tipo y capacidad, porque el ranking del slot almacenamiento los necesita.
+     * El resto de los campos sigue abstenido, que es la intención real de este
+     * test — igual que {@link #gpuSoloLlenaGama}.
+     */
     @Test
-    void almacenamientoAbstainsEntirelyInPhase1() {
+    void almacenamientoSoloLlenaTipoYCapacidad() {
         var t = TechSpecsParser.parse("Disco SSD Kingston NV2 480GB M.2 NVMe", "Almacenamiento");
 
-        assertThat(t).isEqualTo(TechSpecs.EMPTY);
+        assertThat(t.tipoAlmacenamiento()).isEqualTo(TipoAlmacenamiento.NVME);
+        assertThat(t.capacidadGb()).isEqualTo(480);
+        assertThat(t.socket()).isEmpty();
+        assertThat(t.ddr()).isEmpty();
+        assertThat(t.formFactor()).isEmpty();
+        assertThat(t.watts()).isZero();
+        assertThat(t.tipoMemoria()).isEmpty();
+        assertThat(t.velocidadMhz()).isZero();
+        assertThat(t.gama()).isEqualTo(Gama.DESCONOCIDA);
+        assertThat(t.certificacion()).isEqualTo(Certificacion.NINGUNA);
     }
 }

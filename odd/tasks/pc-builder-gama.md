@@ -78,6 +78,10 @@ nada más**.
 | D9 | La preferencia es **una fila por usuario** (UNIQUE `usuario_id`), no un historial | Es un ajuste de UI que se relee, no un evento. Un historial sería otra tabla y nadie lo pidió |
 | D10 | En `producto_tech_specs` la abstención es **NULL**, nunca una fila de lookup | `Gama.DESCONOCIDA` y `Certificacion.NINGUNA` son centinelas de abstención del dominio Java, y un centinela de abstención **no es un valor de FK** — es exactamente lo que rompió el write path del agente con `marca=''` (ver `V21` en `docs/DATABASE.md`). No se siembran filas "DESCONOCIDA" |
 | D11 | El write path de las specs es **propio**, no `sp_upsert_run` | Molde de `ml_output`: una tabla hija que se llena después de agregar, por su propio puerto. Tocar la plpgsql del upsert para esto arriesgaría el camino por el que entra todo el catálogo |
+| D12 | **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** | Pedido explícito del usuario (2026-09-19): "por tecnología, si DDR5, DDR4, después por velocidad, por almacenamiento". `baseMlScore` es un percentil de PRECIO y salió del armador entero: cualquier lugar donde participe vuelve a meter "lo más barato" por la ventana |
+| D13 | **La abstención va última en todo eje de ranking**, nunca primera | Un candidato cuya tecnología no se pudo leer no puede ganarle a uno que la declara. `Gama.DESCONOCIDA` y `TipoAlmacenamiento.DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` en MHz/GB y `""` en DDR son el mismo centinela para su eje. `Certificacion.NINGUNA` sí compara por ordinal porque su javadoc la define como el escalón de abajo de la escala real, no como abstención |
+| D14 | **La mother rankea por generación DDR** (derivada del socket si el nombre no la dice) | Es el slot que más pesa: se elige primera y sin reglas, así que "la más barata" clavaba DDR4/AM4 y después `ReglaDdr` vetaba toda la RAM DDR5 del catálogo. La derivación socket→DDR se comparte con `ContextoDeArmado`, no se duplica |
+| D15 | **Sin precomputar specs en el criterio** — medido, no hace falta | `CriterioPorEjesTecnicos` parsea dentro del comparador. Medido (JIT caliente): `elegir` sobre 625 gabinetes 1,25 ms, sobre 387 RAM 1,8 ms, `parse` 652 ns; los 7 slots ≈ 8 ms por request en el peor caso. Mismo orden que el 0,64 ms que se midió y descartó cachear en outfits (CLAUDE.md, "Medido y descartado") |
 
 ## Forma objetivo (POO / hexagonal, todo dentro del área `ar.scraper.pcs`)
 
@@ -85,19 +89,19 @@ nada más**.
 pcs/
 ├── Gama.java                  ← enum ordenado BAJA < MEDIA < ALTA + DESCONOCIDA
 ├── Certificacion.java         ← enum ordenado NINGUNA < WHITE < BRONZE < SILVER < GOLD < PLATINUM < TITANIUM
-├── TechSpecs.java             ← + gama, certificacion, coolerIncluido
+├── TechSpecs.java             ← + gama, certificacion, velocidadMhz, tipoAlmacenamiento (coolerIncluido se cayó en T1)
 ├── specs/
 │   ├── Tokens.java            ← value object: tokeniza una vez, reemplaza los helpers estáticos
 │   ├── LectorDeSpecs.java     ← interface { String categoria(); TechSpecs leer(Tokens); }
-│   ├── CpuSpecsReader, MotherboardSpecsReader, RamSpecsReader,
-│   │   FuenteSpecsReader, GabineteSpecsReader, GpuSpecsReader, CoolerSpecsReader
+│   ├── CpuSpecsReader, MotherboardSpecsReader, RamSpecsReader, FuenteSpecsReader,
+│   │   GabineteSpecsReader, GpuSpecsReader, CoolerSpecsReader, AlmacenamientoSpecsReader (T3b)
 │   └── TechSpecsParser        ← pasa de switch de 7 ramas a registry categoria → lector
 ├── reglas/
 │   ├── ReglaCompatibilidad.java  ← interface { boolean permite(TechSpecs candidato, ContextoDeArmado); String motivo(); }
 │   └── ReglaSocket, ReglaDdr, ReglaFormFactor, ReglaWatts, ReglaCertificacion, ReglaGama
-├── SlotDeArmado.java          ← nombre + categoría + sus reglas (reemplaza el switch por nombre de slot)
+├── SlotDeArmado.java          ← nombre + categoría + sus reglas + su criterio (reemplaza el switch por nombre de slot)
 ├── ContextoDeArmado.java      ← lo ya elegido: specs de la mother, ddr derivada, gama pedida, watts mínimos
-├── CriterioDeSeleccion.java   ← interface; impl PorGamaLuegoPrecio (reemplaza mejorPick)
+├── CriterioDeSeleccion.java   ← interface; impl CriterioPorEjesTecnicos sobre EjesTecnicos (reemplaza mejorPick, D12)
 ├── EstimadorDeConsumo.java    ← wattsMinimos(contexto) — reemplaza WATTS_MIN_*
 ├── PcBuilder.java             ← queda como orquestador: recorre slots, aplica reglas, delega el pick
 └── PcBuild.java               ← + mensajes por slot vacío
@@ -136,6 +140,31 @@ Requisitos derivados de la gama pedida:
 | alta | 750 sin GPU · 1000 con GPU | GOLD | sí, si el CPU no lo incluye |
 | media | 550 · 750 | BRONZE | no |
 | económica | 450 · 650 | NINGUNA | no |
+
+## Escalera de ranking por slot (D12–D14)
+
+Cada `SlotDeArmado` lleva su `CriterioDeSeleccion`; los ejes viven con nombre
+en `EjesTecnicos` y `CriterioPorEjesTecnicos` les agrega siempre precio asc →
+url asc al final.
+
+| Slot | Orden |
+|---|---|
+| mother | DDR desc (derivada del socket si el nombre no la dice) → precio asc |
+| cpu | gama desc → precio asc |
+| ram | DDR desc → MHz desc → GB desc → precio asc |
+| gabinete | precio asc — no tiene eje: más grande ≠ mejor |
+| fuente | certificación desc → precio asc |
+| gpu | gama desc → precio asc |
+| almacenamiento | NVMe > SSD > HDD > abstención → GB desc → precio asc |
+
+Cobertura medida en la dev DB para los ejes nuevos (3435 filas, 2026-09-19):
+RAM velocidad **377/387 = 97%** (260 dicen `MHz`, 116 traen el número pelado
+detrás del `DDRn` — se acepta sólo con whitelist de velocidades DDR reales y
+`DDRn` declarado) · Almacenamiento tecnología **260/290 = 90%** · capacidad
+**289/290 = 99,7%**. Los 30 de almacenamiento sin tecnología legible **no son
+discos**: pendrives y micro SD. Hasta T3b el slot podía elegir un pendrive
+como el disco de la PC; con la abstención en el último escalón se hunden
+solos, sin veto nuevo.
 
 ## Persistencia (`V35__preferencia_armador.sql`)
 
@@ -271,10 +300,16 @@ cd frontend && npm test
       `ContextoDeArmado`, `ReglaCompatibilidad` + las 4 reglas existentes,
       `CriterioDeSeleccion`. Sin cambio de comportamiento:
       `PcBuilderTest` pasa sin tocarse.
-- [ ] **T3 — La feature.** `gama` en `armar`; `ReglaGama` (D2) y
+- [x] **T3a — La gama.** `gama` en `armar`; `ReglaGama` (D2) y
       `ReglaCertificacion`; `EstimadorDeConsumo` reemplaza las constantes;
-      slot `cooler` dinámico (D4); `PorGamaLuegoPrecio` reemplaza el ranking
-      por `baseMlScore`; `mensajes` por slot vacío (D6).
+      fix de la doble numeración Radeon.
+- [x] **T3b-1 — El ranking.** `EjesTecnicos` + `CriterioPorEjesTecnicos`
+      reemplazan `CriterioScoreMlPrecioUrl` (D12–D14); un criterio por
+      `SlotDeArmado`; `RamSpecsReader` lee MHz; `AlmacenamientoSpecsReader`
+      nuevo; `RecommendationService` sale del constructor de `PcBuilder`.
+- [ ] **T3b-2 — Cooler y mensajes.** Slot `cooler` dinámico (D4, sólo gama
+      ALTA, después del pick de CPU); `mensajes` por slot vacío (D6) usando
+      `ReglaCompatibilidad.motivo()`, que existe desde T2 sin consumidor.
 - [ ] **T4 — Persistencia.** `V35`, `Gama` como lookup con FK,
       `PreferenciaArmadorPort` + su `@Repository` package-private en `db/`,
       `preferencia_armador` en `truncateAll`, rollback en `docs/DATABASE.md`.
@@ -435,3 +470,46 @@ porque se haya roto comportamiento.
 El writer de T3a **paró y reportó el choque en vez de editar el test**, que
 es la conducta que la tarea pedía. Si lo hubiera editado de paso, el hallazgo
 —que el verde de dos commits anteriores era casualidad— se perdía.
+
+### T3b-1 — el ranking (2026-09-20, sin commitear al escribir esto)
+
+Entregado: `TipoAlmacenamiento` (molde `Gama`, con `esConocido()`),
+`TechSpecs` + `velocidadMhz` + `tipoAlmacenamiento` (conserva constructores
+de 6 y 8 argumentos para que los llamadores viejos compilen sin tocarse),
+`RamSpecsReader` con velocidad (tres formas medidas; la pelada exige
+whitelist + `DDRn`), `specs/AlmacenamientoSpecsReader` registrado en
+`TechSpecsParser`, `EjesTecnicos` + `CriterioPorEjesTecnicos`, `SlotDeArmado`
+con `criterio`, `ContextoDeArmado.derivarMotherDdr` package-private para
+compartirla. Borrados `CriterioScoreMlPrecioUrl` y su test. `PcBuilder()`
+sin argumentos; actualizados `ApiController` y `ProposePcTool`.
+
+**Las aserciones tocadas en `PcBuilderTest`, exactamente las cinco
+acordadas** — tres pasaban verdes por un mecanismo que dejó de existir (el
+caso de `gpuSoloLlenaGama`, otra vez), dos conservan la aserción:
+
+| Test | Antes → después | Por qué |
+|---|---|---|
+| `rankingPrefiereMejorScoreMl` → `rankingPrefiereMasCapacidadEnRam` | mismo valor esperado (`ram-cara`) | ganaba por `scoreP=10`; ahora por 32GB > 16GB. Sin `scoreP` en el fixture para que no pueda pasar por el camino viejo |
+| `rankingEmpataPorScoreYDesempataPorPrecio` → `rankingEmpataEnTecnologiaYDesempataPorPrecio` | mismo valor (`barata`) | empate hasta precio |
+| `rankingEmpataPorScoreYPrecioYDesempataPorUrl` → `rankingEmpataTodoYDesempataPorUrl` | mismo valor (`ram-a`) | `url` sigue último |
+| `presupuestoDescartaElCandidatoMejorRankeadoSiNoAlcanza` | aserción intacta, comentario reescrito, `scoreP` fuera | el mejor rankeado sigue siendo el que no entra |
+| `presupuestoCaeAlMasBaratoCuandoNadaAlcanza` | ídem | ídem |
+
+El helper `producto(..., int scoreP)` y el campo `RecommendationService` del
+test se borraron: sin consumidor.
+
+**Segundo test heredado que caducó por diseño**:
+`TechSpecsParserTest.almacenamientoAbstainsEntirelyInPhase1` afirmaba
+`TechSpecs.EMPTY` para un `Disco SSD Kingston NV2 480GB M.2 NVMe`; al darle
+lector a la categoría pasa a `NVME` + 480 GB. Reescrito como
+`almacenamientoSoloLlenaTipoYCapacidad` (abstención campo por campo, molde
+`gpuSoloLlenaGama`). A diferencia del anterior, éste era previsible desde el
+spec y no estaba nombrado — el STOP del writer lo frenó igual.
+
+Verificación observada (`mvn clean test`, 2026-09-20): **BUILD SUCCESS,
+Tests run: 2363, Failures: 0, Errors: 0, Skipped: 7**, cero `ERROR]` en la
+salida, `BackendLayeringArchTest` 20/20. RED previo observado por el writer:
+fallos de compilación contra `TipoAlmacenamiento` / `AlmacenamientoSpecsReader`
+/ `EjesTecnicos` inexistentes, y `almacenamientoAbstainsEntirelyInPhase1` en
+rojo (`tipoAlmacenamiento=NVME, capacidadGb=480` contra `EMPTY`) antes de
+reescribirlo.

@@ -37,7 +37,7 @@ public class ProposePcTool implements CatalogTool {
 
     public ProposePcTool(CatalogSnapshotPort catalogo, RecommendationService recommendationService) {
         this.catalogo = catalogo;
-        this.pcBuilder = new PcBuilder(recommendationService);
+        this.pcBuilder = new PcBuilder();
     }
 
     @Override
