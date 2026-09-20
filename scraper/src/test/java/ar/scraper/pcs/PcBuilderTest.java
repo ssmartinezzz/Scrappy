@@ -1,7 +1,6 @@
 package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
-import ar.scraper.outfits.RecommendationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -17,17 +16,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PcBuilderTest {
 
-    private final RecommendationService recommendationService = new RecommendationService();
-    private final PcBuilder builder = new PcBuilder(recommendationService);
+    private final PcBuilder builder = new PcBuilder();
 
-    private Product producto(String nombre, double precio, String categoria, String url, int scoreP) {
-        Product.MlScore ml = new Product.MlScore(scoreP, "", false, "estable", 50);
-        return new Product("TestSitio", nombre, precio, null, url, "https://img/test.jpg",
-                categoria, "", List.of(), ml, "", "tecnologia", false);
-    }
-
+    // Sin scoreP: desde T3b el ranking no lee baseMlScore (un percentil de
+    // PRECIO) en ningun slot, asi que un MlScore con score elegido a mano no
+    // decide nada y dejarlo sugeriria que si.
     private Product producto(String nombre, double precio, String categoria, String url) {
-        return producto(nombre, precio, categoria, url, 50);
+        return new Product("TestSitio", nombre, precio, null, url, "https://img/test.jpg",
+                categoria, "", List.of(), Product.MlScore.EMPTY, "", "tecnologia", false);
     }
 
     // ── happy path ───────────────────────────────────────────────────────
@@ -306,11 +302,12 @@ class PcBuilderTest {
         List<Product> catalogo = List.of(
                 producto("Motherboard Asus Prime B550M-A DDR4 AM4", 1_000, "Motherboard", "https://t/mb"),
                 producto("Procesador Amd Ryzen 5 5600 Am4", 1_000, "CPU", "https://t/cpu"),
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata", 90),
-                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 15_000, "RAM", "https://t/ram-cara", 10));
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"),
+                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 15_000, "RAM", "https://t/ram-cara"));
 
-        // Remaining budget at RAM's turn: 14000 - 1000 - 1000 = 12000. The 15000 stick
-        // ranks better (lower scoreP -> higher baseMlScore) but does not fit.
+        // Remaining budget at RAM's turn: 14000 - 1000 - 1000 = 12000. The 15000
+        // stick ranks better (EjesTecnicos.RAM: 32GB > 16GB, same DDR and no MHz
+        // stated on either) but does not fit.
         PcBuild build = builder.armar(catalogo, 14_000, false, Set.of());
 
         PcPick ram = build.picks().stream().filter(p -> p.slot().equals("ram")).findFirst().orElseThrow();
@@ -323,11 +320,12 @@ class PcBuilderTest {
         List<Product> catalogo = List.of(
                 producto("Motherboard Asus Prime B550M-A DDR4 AM4", 1_000, "Motherboard", "https://t/mb"),
                 producto("Procesador Amd Ryzen 5 5600 Am4", 1_000, "CPU", "https://t/cpu"),
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata", 90),
-                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 15_000, "RAM", "https://t/ram-cara", 10));
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"),
+                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 15_000, "RAM", "https://t/ram-cara"));
 
-        // Remaining budget at RAM's turn: 7000 - 1000 - 1000 = 5000. Neither stick fits;
-        // the cheaper one wins even though the pricier one ranks better (lower scoreP).
+        // Remaining budget at RAM's turn: 7000 - 1000 - 1000 = 5000. Neither stick
+        // fits; the cheaper one wins even though the 32GB one ranks better, because
+        // once nothing is affordable rank stops mattering and price alone decides.
         PcBuild build = builder.armar(catalogo, 7_000, false, Set.of());
 
         PcPick ram = build.picks().stream().filter(p -> p.slot().equals("ram")).findFirst().orElseThrow();
@@ -387,11 +385,11 @@ class PcBuilderTest {
     // ── ranking order ─────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("ranking prefers the higher baseMlScore (lower scoreP) even at a higher price")
-    void rankingPrefiereMejorScoreMl() {
+    @DisplayName("ranking prefers more RAM capacity within the same DDR generation, even at a higher price")
+    void rankingPrefiereMasCapacidadEnRam() {
         List<Product> catalogo = List.of(
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata", 90),
-                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 20_000, "RAM", "https://t/ram-cara", 10));
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"),
+                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 20_000, "RAM", "https://t/ram-cara"));
 
         PcBuild build = builder.armar(catalogo, 0, false, Set.of());
 
@@ -400,11 +398,11 @@ class PcBuilderTest {
     }
 
     @Test
-    @DisplayName("ranking ties on baseMlScore break by price ascending")
-    void rankingEmpataPorScoreYDesempataPorPrecio() {
+    @DisplayName("ranking ties on DDR/MHz/GB (EjesTecnicos.RAM) break by price ascending")
+    void rankingEmpataEnTecnologiaYDesempataPorPrecio() {
         List<Product> catalogo = List.of(
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB Cara", 20_000, "RAM", "https://t/ram-cara", 50),
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata", 50));
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Cara", 20_000, "RAM", "https://t/ram-cara"),
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"));
 
         PcBuild build = builder.armar(catalogo, 0, false, Set.of());
 
@@ -413,11 +411,11 @@ class PcBuilderTest {
     }
 
     @Test
-    @DisplayName("ranking ties on score and price break by url ascending")
-    void rankingEmpataPorScoreYPrecioYDesempataPorUrl() {
+    @DisplayName("ranking ties on technology and price break by url ascending")
+    void rankingEmpataTodoYDesempataPorUrl() {
         List<Product> catalogo = List.of(
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB B", 10_000, "RAM", "https://t/ram-b", 50),
-                producto("Memoria RAM Corsair Vengeance DDR4 16GB A", 10_000, "RAM", "https://t/ram-a", 50));
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB B", 10_000, "RAM", "https://t/ram-b"),
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB A", 10_000, "RAM", "https://t/ram-a"));
 
         PcBuild build = builder.armar(catalogo, 0, false, Set.of());
 

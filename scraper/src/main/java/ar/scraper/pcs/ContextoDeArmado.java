@@ -63,8 +63,14 @@ public final class ContextoDeArmado {
         return certificacionMinima;
     }
 
-    /** {@code motherDdr} = the board's own DDR if it parsed, else derived from its socket. */
-    private static String derivarMotherDdr(TechSpecs mother) {
+    /**
+     * {@code motherDdr} = the board's own DDR if it parsed, else derived
+     * from its socket. Package-private (not {@code private}) so {@link
+     * EjesTecnicos#MOTHER} can rank motherboard candidates by this same
+     * derivation instead of duplicating it — two copies of a socket→DDR
+     * mapping diverge in silence (pc-builder-gama T3b).
+     */
+    static String derivarMotherDdr(TechSpecs mother) {
         if (!mother.ddr().isEmpty()) return mother.ddr();
         return switch (mother.socket()) {
             case "AM5", "LGA1851" -> "DDR5";

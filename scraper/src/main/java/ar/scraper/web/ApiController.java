@@ -157,7 +157,7 @@ public class ApiController {
         this.financiacionEndpoints = new FinanciacionEndpoints(service, indiceService,
                                                                db.presets(), db.historial(), db.productos(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db.feedback(), db.outfitsGuardados(), outfitService, actorResolver);
-        this.pcsEndpoints       = new PcsEndpoints(service, new ar.scraper.pcs.PcBuilder(recommendationService),
+        this.pcsEndpoints       = new PcsEndpoints(service, new ar.scraper.pcs.PcBuilder(),
                                                      db.pcsGuardadas(), actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db.feedback(), recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
