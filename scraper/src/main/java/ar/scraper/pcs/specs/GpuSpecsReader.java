@@ -3,7 +3,9 @@ package ar.scraper.pcs.specs;
 import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.TipoAlmacenamiento;
 
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,6 +18,8 @@ public final class GpuSpecsReader implements LectorDeSpecs {
 
     private static final Pattern RTX_MODEL = Pattern.compile(" rtx (\\d{3,4}) ");
     private static final Pattern RX_MODEL = Pattern.compile(" rx (\\d{3,4}) ");
+    private static final Pattern GTX_MODEL = Pattern.compile(" gtx (\\d{3,4}) ");
+    private static final Pattern VRAM_GB = Pattern.compile("^(\\d+)gb$");
 
     @Override
     public String categoria() {
@@ -24,7 +28,9 @@ public final class GpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", "", 0, 0, "", gama(tokens), Certificacion.NINGUNA);
+        return new TechSpecs("", "", "", 0, vram(tokens), "", gama(tokens), Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
+                marcaChip(tokens), generacion(tokens), 0, 0, false);
     }
 
     private static Gama gama(Tokens tokens) {
@@ -72,5 +78,38 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         }
 
         return Gama.DESCONOCIDA;
+    }
+
+    // ── marcaChip + generacion + VRAM (T3b, pc-builder-deep-taxonomy) ────
+
+    private static String marcaChip(Tokens tokens) {
+        if (tokens.has("nvidia") || tokens.has("geforce") || tokens.has("rtx") || tokens.has("gtx")) return "NVIDIA";
+        if (tokens.has("radeon") || tokens.has("rx")) return "AMD";
+        if (tokens.has("arc")) return "INTEL";
+        return "";
+    }
+
+    /** El digito de los miles del modelo — RTX/GTX/RX numeran distinto (ver gama()), pero la generacion es siempre esa posicion. */
+    private static int generacion(Tokens tokens) {
+        String padded = tokens.padded();
+
+        Matcher rtx = RTX_MODEL.matcher(padded);
+        if (rtx.find()) return Integer.parseInt(rtx.group(1)) / 1000;
+
+        Matcher gtx = GTX_MODEL.matcher(padded);
+        if (gtx.find()) return Integer.parseInt(gtx.group(1)) / 1000;
+
+        Matcher rx = RX_MODEL.matcher(padded);
+        if (rx.find()) return Integer.parseInt(rx.group(1)) / 1000;
+
+        return 0;
+    }
+
+    private static int vram(Tokens tokens) {
+        for (String t : tokens.array()) {
+            Matcher m = VRAM_GB.matcher(t);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+        }
+        return 0;
     }
 }

@@ -514,17 +514,24 @@ class TechSpecsParserTest {
     // casualidad — su fixture es una RX 9060, que caia en DESCONOCIDA por el
     // defecto de numeracion Radeon que T3a corrigio.
 
+    /**
+     * Ya no se abstiene en marcaChip/generacion/VRAM: {@code GpuSpecsReader}
+     * (pc-builder-deep-taxonomy T3b) se los lee al nombre. El resto de los
+     * campos sigue abstenido.
+     */
     @Test
-    void gpuSoloLlenaGama() {
+    void gpuLlenaGamaMarcaChipGeneracionYVram() {
         var t = TechSpecsParser.parse(
                 "Placa de Video Gigabyte Radeon RX 9060 XT 8GB GDDR6 GAMING OC", "GPU");
 
         assertThat(t.gama()).isEqualTo(Gama.MEDIA);
+        assertThat(t.marcaChip()).isEqualTo("AMD");
+        assertThat(t.generacion()).isEqualTo(9);
+        assertThat(t.capacidadGb()).isEqualTo(8);
         assertThat(t.socket()).isEmpty();
         assertThat(t.ddr()).isEmpty();
         assertThat(t.formFactor()).isEmpty();
         assertThat(t.watts()).isZero();
-        assertThat(t.capacidadGb()).isZero();
         assertThat(t.tipoMemoria()).isEmpty();
         assertThat(t.certificacion()).isEqualTo(Certificacion.NINGUNA);
     }
@@ -547,7 +554,7 @@ class TechSpecsParserTest {
      * Ya no se abstiene entera: {@code AlmacenamientoSpecsReader} (T3b) le da
      * tipo y capacidad, porque el ranking del slot almacenamiento los necesita.
      * El resto de los campos sigue abstenido, que es la intención real de este
-     * test — igual que {@link #gpuSoloLlenaGama}.
+     * test — igual que {@link #gpuLlenaGamaMarcaChipGeneracionYVram}.
      */
     @Test
     void almacenamientoSoloLlenaTipoYCapacidad() {
