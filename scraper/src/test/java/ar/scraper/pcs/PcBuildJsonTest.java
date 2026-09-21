@@ -63,4 +63,21 @@ class PcBuildJsonTest {
         assertThat(specs.get("velocidadMhz").asInt()).isEqualTo(6000);
         assertThat(specs.get("tipoAlmacenamiento").asText()).isEqualTo("NVME");
     }
+
+    @Test
+    @DisplayName("specs block includes marcaChip, generacion, tierChipset, modulos and wifi (pc-builder-deep-taxonomy T3c)")
+    void specsIncludesTheFiveNewFields() {
+        PcPick pick = new PcPick("mother", "Sitio", "Mother X", 200_000, "https://t/m", "https://img/m.jpg", "Marca",
+                new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                        0, TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "AMD", 5, 1, 2, true));
+        PcBuild build = new PcBuild(List.of(pick), List.of(), List.of(), 0, 200_000);
+
+        ObjectNode specs = (ObjectNode) PcBuildJson.toJson(build).get("picks").get(0).get("specs");
+
+        assertThat(specs.get("marcaChip").asText()).isEqualTo("AMD");
+        assertThat(specs.get("generacion").asInt()).isEqualTo(5);
+        assertThat(specs.get("tierChipset").asInt()).isEqualTo(1);
+        assertThat(specs.get("modulos").asInt()).isEqualTo(2);
+        assertThat(specs.get("wifi").asBoolean()).isTrue();
+    }
 }
