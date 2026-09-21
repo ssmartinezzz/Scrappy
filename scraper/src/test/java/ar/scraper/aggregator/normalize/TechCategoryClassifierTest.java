@@ -229,4 +229,19 @@ class TechCategoryClassifierTest {
         assertThat(cat("Patinaje Dc Shoes Worker Baggy Carpenter Ril Vaqueros Hombre Indigo"))
                 .isEqualTo("Baggy");
     }
+
+    @Test
+    @DisplayName("PC/CPU por sustantivo líder ganan sobre cualquier otro sustantivo del título (T4d-1)")
+    void pcYCpuLiderCorrenAntesQueTodoElBloqueTech() {
+        // Una PC armada entera que nombra su GPU en el título no es la placa
+        // de video suelta — KW_GPU ("rtx 5060") corría antes que KW_PC_LIDER
+        // y se la quedaba (pc-builder-deep-taxonomy, T4 build (2)).
+        assertThat(cat("PC Powered by MSI Ultimate AMD Ryzen 7 5700X B550 32GB RAM 1TB RTX 5060 750W Gold Cpu Cooler WIFI"))
+                .isEqualTo("PC");
+        // Los dos ya cubiertos por T1/T2 siguen intactos con el líder al tope.
+        assertThat(cat("Procesador Intel Core i5 12400F 4.4GHz Turbo Socket 1700 Alder Lake"))
+                .isEqualTo("CPU");
+        assertThat(cat("Placa de Video MSI NVIDIA GeForce RTX 5070 Ventus 2X 12GB OC GDDR7"))
+                .isEqualTo("GPU");
+    }
 }
