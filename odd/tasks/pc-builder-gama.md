@@ -311,7 +311,7 @@ cd frontend && npm test
       insertado después de `cpu`, sin reglas ni eje de ranking); `mensajes`
       por slot vacío (D6) usando `ReglaCompatibilidad.motivo()`, que existía
       desde T2 sin consumidor.
-- [ ] **T4 — Persistencia.** `V35`, `Gama` como lookup con FK,
+- [x] **T4 — Persistencia.** `V35`, `Gama` como lookup con FK,
       `PreferenciaArmadorPort` + su `@Repository` package-private en `db/`,
       `preferencia_armador` en `truncateAll`, rollback en `docs/DATABASE.md`.
       Tests: dominio del CHECK por SQLState `23514`, UNIQUE por `23505`,
@@ -552,4 +552,34 @@ RED previo observado por el writer: 6 × `cannot find symbol: method
 mensajes()` en `PcBuilderGamaTest` contra el `PcBuild` anterior.
 `PcBuilderTest` y `TechSpecsParserTest` sin tocar (`git status`).
 
-Siguiente: T4 (persistencia de la preferencia, `V35`).
+### T4 — persistencia de la preferencia (2026-09-20)
+
+Entregado: `V35__preferencia_armador.sql` (`gama` lookup sembrado con CHECK,
+`preferencia_armador` con los dos índices parciales, `saved_pcs.gama_id`
+nullable), `pcs/PreferenciaArmador` (record) + `pcs/PreferenciaArmadorPort`
+(`cargar(UUID)` / `guardar(UUID, PreferenciaArmador)` — toma `UUID` como los
+otros 13 puertos; `Sujeto` es el resolver estático que lo produce, no un tipo
+que viaje), `db/PreferenciaArmadorRepository` package-private con el upsert
+repitiendo el `WHERE usuario_id IS NOT NULL` del índice. El mapeo Java↔base
+vive en el repository: `Gama.BAJA ↔ 'ECONOMICA'`; `Gama.DESCONOCIDA` tira
+`IllegalArgumentException` antes de tocar la base (D10). `preferencia_armador`
+en `truncateAll`; `gama` no, como `rol`.
+
+Dos cosas que el ODD no tenía y hubo que hacer: (1) el rollback de `V26` en
+`docs/DATABASE.md` suelta por nombre cada FK entrante a `usuario` y
+`V26RollbackRoundTripTest` lo ejecuta contra el esquema completo — sin la
+línea `fk_preferencia_armador_usuario` ese test se ponía rojo (el mismo caso
+que `saved_pcs` en `V34`); (2) el `DELETE FROM flyway_schema_history` del
+rollback diseñado arriba no existe en ningún bloque del doc, así que el de
+`V35` tampoco lo lleva. Sin consumidor todavía: el cableado a `PcsEndpoints`
+y escribir `saved_pcs.gama_id` desde `guardarPc` son T6.
+
+Verificación observada (`mvn clean test`, 2026-09-20): **BUILD SUCCESS,
+Tests run: 2384, Failures: 0, Errors: 0, Skipped: 7** (2370 + 14: 5 de
+`PreferenciaArmadorSchemaTest` por SQLState `23514`/`23505`/`23503` + cascade,
+7 de `PreferenciaArmadorRepositoryTest`, 2 de `V35RollbackRoundTripTest`),
+Postgres real vía Testcontainers, cero `ERROR]`, `BackendLayeringArchTest`
+20/20, `V26RollbackRoundTripTest` 3/3. RED previo observado por el writer:
+`cannot find symbol: class PreferenciaArmadorRepository`.
+
+Siguiente: T5 (specs de producto persistidas, misma `V35`).

@@ -72,6 +72,8 @@ financiacion_presets -- Presets de cuotas/recargo
 cron_jobs / cron_executions -- Scraping programado + historial
 agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
 indice / indice_valor       -- Índices macro (IPC, USD oficial) + su serie histórica (V33)
+gama                        -- Lookup sembrado: ECONOMICA/MEDIA/ALTA (V35)
+preferencia_armador         -- Última gama/presupuesto/conGpu pedida por usuario (V35)
 ```
 
 ### Migraciones
@@ -111,6 +113,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V25` | `productos.producto_key` (generada) + índice único — handle corto para rutas |
 | `V33` | `indice` (lookup sembrado) + `indice_valor`, para `ar.scraper.indices` |
 | `V34` | `saved_pcs` + `saved_pc_item`: builds guardados del armador de PCs |
+| `V35` | `gama` (lookup sembrado) + `preferencia_armador`; `saved_pcs.gama_id` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -1550,11 +1553,13 @@ ALTER TABLE categoria_dismiss    DROP COLUMN IF EXISTS usuario_id;
 -- 3. Identidad.
 DROP TABLE IF EXISTS password_reset_token;
 DROP TABLE IF EXISTS refresh_token;
--- `V29` le agregó a `usuario` una FK entrante desde `scrape_run`, y `V34` otra
--- desde `saved_pcs`. Las dos se sueltan por nombre, no con CASCADE: un CASCADE
--- acá arrastraría en silencio lo que llegue a depender de la tabla más adelante.
+-- `V29` le agregó a `usuario` una FK entrante desde `scrape_run`, `V34` otra
+-- desde `saved_pcs`, y `V35` una tercera desde `preferencia_armador`. Las tres
+-- se sueltan por nombre, no con CASCADE: un CASCADE acá arrastraría en
+-- silencio lo que llegue a depender de la tabla más adelante.
 ALTER TABLE scrape_run DROP CONSTRAINT IF EXISTS fk_scrape_run_usuario;
 ALTER TABLE saved_pcs  DROP CONSTRAINT IF EXISTS saved_pcs_usuario_id_fkey;
+ALTER TABLE preferencia_armador DROP CONSTRAINT IF EXISTS fk_preferencia_armador_usuario;
 
 DROP TABLE IF EXISTS usuario_rol;
 DROP TABLE IF EXISTS usuario;
@@ -2306,3 +2311,94 @@ DROP TABLE saved_pcs;
 El orden es obligatorio: `saved_pc_item.pc_id` referencia `saved_pcs(id)`, así
 que borrar `saved_pcs` primero fallaría por FK. Ninguna otra tabla referencia
 a estas dos.
+
+## `V35` — `gama` + `preferencia_armador`, T4 de `pc-builder-gama`
+
+`gama` es un lookup sembrado, mismo molde que `rol` (`V26`): `smallint`
+identity + `nombre` UNIQUE + un CHECK de dominio (`ECONOMICA`/`MEDIA`/`ALTA`),
+en vez de un TEXT con su propio CHECK — la diferencia que **Regla de
+admisión** (arriba en este documento) fija entre las dos formas es si el
+vocabulario se administra desde la app o queda fijo en el schema; acá además
+importa que una FK real es lo único que impide que la gama de un PC guardado
+sea un string inventado, que es exactamente el pedido original (D8 en
+`odd/tasks/pc-builder-gama.md`).
+
+`preferencia_armador` es **una fila por usuario** (D9), no un historial: es un
+ajuste de UI que se relee, y un historial sería una tabla distinta que nadie
+pidió. Eso lo hace `uq_preferencia_armador_usuario`, un índice único
+**parcial** sobre `usuario_id` — no un `UNIQUE (usuario_id)` liso, porque en
+SQL dos NULL son distintos entre sí y un UNIQUE liso dejaría pasar filas
+anónimas sin límite mientras seguía topando a un usuario real en una sola.
+`uq_preferencia_armador_anonimo` cierra ese hueco con un índice sobre un
+predicado constante (`(true)`): a lo sumo una fila anónima, sin importar
+cuántas columnas más tenga la clave.
+
+```sql
+CREATE TABLE gama (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_gama_nombre_domain
+        CHECK (nombre IN ('ECONOMICA', 'MEDIA', 'ALTA'))
+);
+
+CREATE TABLE preferencia_armador (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    usuario_id  uuid,
+    gama_id     smallint NOT NULL REFERENCES gama(id),
+    presupuesto double precision,
+    con_gpu     boolean NOT NULL DEFAULT false,
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_preferencia_armador_usuario
+        FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX uq_preferencia_armador_usuario
+    ON preferencia_armador (usuario_id) WHERE usuario_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_preferencia_armador_anonimo
+    ON preferencia_armador ((true)) WHERE usuario_id IS NULL;
+
+ALTER TABLE saved_pcs ADD COLUMN gama_id smallint REFERENCES gama(id);
+```
+
+**Consecuencia para todo upsert contra `preferencia_armador`**: igual que
+`favoritos` en `V26`, `ON CONFLICT` no infiere un índice parcial solo — la
+cláusula tiene que repetir exactamente el `WHERE usuario_id IS NOT NULL` del
+índice, o Postgres rechaza la sentencia entera, primer insert incluido.
+`PreferenciaArmadorRepository.guardar` lo hace así.
+
+**`saved_pcs.gama_id` es NULLABLE a propósito**: un build guardado antes de
+esta migración no tiene gama que reportar, y no se le puede inventar una
+después del hecho — el mismo criterio que ya usa `saved_outfit_item`/
+`saved_pc_item` con sus columnas históricas.
+
+**Mapeo Java↔base**: `Gama.DESCONOCIDA` es el centinela de abstención del
+dominio (D10) — nunca se siembra una fila "DESCONOCIDA" en `gama`, y
+`PreferenciaArmadorRepository.guardar` la rechaza con
+`IllegalArgumentException` antes de tocar la base, exactamente el error que
+`marca=''` no tuvo en el write path del agente (ver `V21`). `Gama.BAJA` es la
+única de las tres que no coincide en texto con su fila: mapea a la fila
+`ECONOMICA`.
+
+**1FN/3FN**: `preferencia_armador` no tiene grupo repetitivo; sus tres
+atributos no-clave (`gama_id`, `presupuesto`, `con_gpu`) dependen de la clave
+completa (`id`, con `usuario_id` acotado por los dos índices parciales de
+arriba), no de una parte de ella ni de otro atributo no-clave.
+
+**T5 extiende esta misma `V35`** con las seis tablas de lookup de
+`producto_tech_specs` (`socket`, `ddr`, `form_factor`, `tipo_memoria`,
+`certificacion`) y esa tabla — fuera de alcance acá.
+
+### Rollback
+
+```sql
+-- >>> rollback:V35
+ALTER TABLE saved_pcs DROP COLUMN gama_id;
+DROP TABLE preferencia_armador;
+DROP TABLE gama;
+-- <<< rollback:V35
+```
+
+El orden es obligatorio: tanto `preferencia_armador.gama_id` como
+`saved_pcs.gama_id` referencian `gama(id)`, así que borrar `gama` antes de
+soltar las dos fallaría por FK. Ninguna otra tabla referencia a `gama` ni a
+`preferencia_armador`, así que no hace falta `CASCADE`.
