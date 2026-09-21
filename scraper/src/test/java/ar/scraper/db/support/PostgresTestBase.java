@@ -317,7 +317,11 @@ public abstract class PostgresTestBase {
                     indice_valor,
                     -- saved-pcs-armadores (V34). `saved_pc_item` is deliberately
                     -- absent: it cascades from `saved_pcs`.
-                    saved_pcs
+                    saved_pcs,
+                    -- pc-builder-gama (V35). `gama` is deliberately absent, same
+                    -- reason as `rol`/`indice`: it is seed data the migration
+                    -- itself inserts (ECONOMICA/MEDIA/ALTA), not test residue.
+                    preferencia_armador
                 RESTART IDENTITY CASCADE
                 """);
         }
