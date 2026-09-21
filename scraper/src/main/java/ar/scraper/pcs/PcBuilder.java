@@ -1,7 +1,6 @@
 package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
-import ar.scraper.outfits.RecommendationService;
 import ar.scraper.pcs.reglas.ReglaCertificacion;
 import ar.scraper.pcs.reglas.ReglaDdr;
 import ar.scraper.pcs.reglas.ReglaFormFactor;
@@ -34,20 +33,26 @@ public class PcBuilder {
     // no-ops when no gama was requested (ContextoDeArmado.gamaPedida()==null),
     // so wiring them unconditionally keeps the no-gama path byte-for-byte
     // identical to pre-pc-builder-gama behavior (T3a contract).
+    //
+    // Each slot carries its own CriterioDeSeleccion (EjesTecnicos, T3b) —
+    // price is only ever the tiebreak inside that criterio, never the
+    // objective here.
     private static final List<SlotDeArmado> SLOTS_FIJOS = List.of(
-            new SlotDeArmado("mother", "Motherboard", List.of()),
-            new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket(), new ReglaGama())),
-            new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr())),
-            new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor())),
-            new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion())),
-            new SlotDeArmado("almacenamiento", "Almacenamiento", List.of()));
+            new SlotDeArmado("mother", "Motherboard", List.of(), new CriterioPorEjesTecnicos(EjesTecnicos.MOTHER)),
+            new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket(), new ReglaGama()),
+                    new CriterioPorEjesTecnicos(EjesTecnicos.CPU)),
+            new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr()), new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
+            new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor()),
+                    new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
+            new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
+                    new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE)),
+            new SlotDeArmado("almacenamiento", "Almacenamiento", List.of(),
+                    new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO)));
 
-    private static final SlotDeArmado SLOT_GPU = new SlotDeArmado("gpu", "GPU", List.of(new ReglaGama()));
+    private static final SlotDeArmado SLOT_GPU =
+            new SlotDeArmado("gpu", "GPU", List.of(new ReglaGama()), new CriterioPorEjesTecnicos(EjesTecnicos.GPU));
 
-    private final CriterioDeSeleccion criterioDeSeleccion;
-
-    public PcBuilder(RecommendationService recommendationService) {
-        this.criterioDeSeleccion = new CriterioScoreMlPrecioUrl(recommendationService);
+    public PcBuilder() {
     }
 
     /** Pre-{@code pc-builder-gama} shape: no gama requested — see the 5-arg overload. */
@@ -114,7 +119,7 @@ public class PcBuilder {
                         .filter(p -> p.precio() <= rem)
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) {
-                    elegido = criterioDeSeleccion.elegir(affordable);
+                    elegido = slot.criterio().elegir(affordable);
                 } else {
                     // Nothing fits: spend as little as possible, not the best rank.
                     elegido = compatibles.stream()
@@ -123,7 +128,7 @@ public class PcBuilder {
                 }
                 remainingBudget = Math.max(0, remainingBudget - elegido.precio());
             } else {
-                elegido = criterioDeSeleccion.elegir(compatibles);
+                elegido = slot.criterio().elegir(compatibles);
             }
 
             TechSpecs specs = TechSpecsParser.parse(elegido.nombre(), elegido.categoria());

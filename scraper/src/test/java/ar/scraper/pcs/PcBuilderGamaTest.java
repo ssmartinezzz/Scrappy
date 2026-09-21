@@ -1,7 +1,6 @@
 package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
-import ar.scraper.outfits.RecommendationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -18,8 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PcBuilderGamaTest {
 
-    private final RecommendationService recommendationService = new RecommendationService();
-    private final PcBuilder builder = new PcBuilder(recommendationService);
+    private final PcBuilder builder = new PcBuilder();
 
     private Product producto(String nombre, double precio, String categoria, String url) {
         return new Product("TestSitio", nombre, precio, null, url, "https://img/test.jpg",

@@ -1,5 +1,6 @@
 package ar.scraper.pcs;
 
+import ar.scraper.pcs.specs.AlmacenamientoSpecsReader;
 import ar.scraper.pcs.specs.CoolerSpecsReader;
 import ar.scraper.pcs.specs.CpuSpecsReader;
 import ar.scraper.pcs.specs.FuenteSpecsReader;
@@ -15,10 +16,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Reads socket / DDR generation / form factor / watts / RAM capacity / power
- * tier / PSU certification off a PC part's name. Pure and abstention-first —
- * a field is only ever filled when its category's {@link LectorDeSpecs}
- * actually matched something.
+ * Reads socket / DDR generation / form factor / watts / RAM capacity+speed /
+ * power tier / PSU certification / storage technology+capacity off a PC
+ * part's name. Pure and abstention-first — a field is only ever filled when
+ * its category's {@link LectorDeSpecs} actually matched something.
  *
  * <p>Dispatches to one {@link LectorDeSpecs} per category via a registry —
  * see {@code ar.scraper.pcs.specs} for the readers and {@code Tokens} for the
@@ -37,14 +38,15 @@ public final class TechSpecsParser {
                     new FuenteSpecsReader(),
                     new GabineteSpecsReader(),
                     new GpuSpecsReader(),
-                    new CoolerSpecsReader())
+                    new CoolerSpecsReader(),
+                    new AlmacenamientoSpecsReader())
             .collect(Collectors.toMap(LectorDeSpecs::categoria, lector -> lector));
 
     public static TechSpecs parse(String nombre, String categoria) {
         if (nombre == null || nombre.isBlank() || categoria == null) return TechSpecs.EMPTY;
 
         LectorDeSpecs lector = LECTORES.get(categoria);
-        if (lector == null) return TechSpecs.EMPTY; // Monitor/Almacenamiento/etc. abstain entirely
+        if (lector == null) return TechSpecs.EMPTY; // Monitor/etc.: no registered reader, abstain entirely
 
         return lector.leer(Tokens.de(nombre));
     }
