@@ -110,13 +110,17 @@ está en castellano en `pcs/`.
   sustantivo líder `bracket|filtro|service|kit|fan|soporte|cooler` + `para
   gabinete` ⇒ no es `Gabinete`. Test con los tres nombres reales del pick de
   hoy. Medir después: cuántas de las 618 filas cambian y a qué categoría van.
-- [ ] **T2 — Vocabulario y compatibilidad (D6).** Sockets viejos en
+- [ ] **T2 — Vocabulario y compatibilidad (D6).** Primero el clasificador:
+  **146 de 470 filas de `Cooler` son CPUs** (`"Procesador AMD Ryzen 9 9950X3D
+  ... (no incluye cooler)"`, 85 de gama alta) porque `Cooler` corre antes que
+  `CPU` y `cooler` aparece como accesorio; líder `procesador`/`microprocesador`
+  /`micro amd|intel` ⇒ CPU antes de la línea de Cooler. Después: sockets viejos en
   `MotherboardSpecsReader`/`CpuSpecsReader` (+ chipsets `H310/B360/Z390/
   H410/B460/Z490/H510/B560` → socket). `ReglaSodimm` en el slot ram.
   `CoolerSpecsReader` lee la lista de sockets; `ReglaSocketCooler` veta cuando
   cooler y mother parsearon y no se cruzan. Mensajes D6 para cada regla nueva.
 - [ ] **T3 — Ejes profundos (D4).** `TechSpecs` gana `marcaChip`, `generacion`,
-  `tierChipset`, `modulos`, `wifi` (con constructores de compatibilidad, CODE-2).
+  `tierChipset`, `modulos`, `wifi` (T2 ya le agregó `socketsSoportados`) (con constructores de compatibilidad, CODE-2).
   Readers: CPU (marca, generación), GPU (marca, generación, VRAM en
   `capacidadGb`), mother (tier chipset, wifi, marca por socket), RAM (módulos).
   `EjesTecnicos` extendido según D4. Medir cobertura de cada eje nuevo.
