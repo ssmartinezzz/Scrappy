@@ -2,6 +2,8 @@ package ar.scraper.db;
 
 import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
+import ar.scraper.pcs.PreferenciasDeArmado;
+import ar.scraper.pcs.TipoAlmacenamiento;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
@@ -36,15 +38,31 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
     @Override
     public void guardar(UUID usuarioId, PreferenciaArmador preferencia) {
         String gamaNombre = GamaMapeo.nombreDeGama(preferencia.gama());
+        PreferenciasDeArmado prefs = preferencia.preferencias();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
-                     INSERT INTO preferencia_armador (usuario_id, gama_id, presupuesto, con_gpu, updated_at)
-                     VALUES (?, (SELECT id FROM gama WHERE nombre = ?), ?, ?, now())
+                     INSERT INTO preferencia_armador (
+                         usuario_id, gama_id, presupuesto, con_gpu, updated_at,
+                         ddr_id, marca_cpu_id, marca_gpu_id, tipo_almacenamiento_id, ram_dual, wifi
+                     ) VALUES (
+                         ?, (SELECT id FROM gama WHERE nombre = ?), ?, ?, now(),
+                         (SELECT id FROM ddr WHERE nombre = ?),
+                         (SELECT id FROM marca_chip WHERE nombre = ?),
+                         (SELECT id FROM marca_chip WHERE nombre = ?),
+                         (SELECT id FROM tipo_almacenamiento WHERE nombre = ?),
+                         ?, ?
+                     )
                      ON CONFLICT (usuario_id) WHERE usuario_id IS NOT NULL DO UPDATE SET
-                         gama_id     = EXCLUDED.gama_id,
-                         presupuesto = EXCLUDED.presupuesto,
-                         con_gpu     = EXCLUDED.con_gpu,
-                         updated_at  = now()
+                         gama_id                 = EXCLUDED.gama_id,
+                         presupuesto             = EXCLUDED.presupuesto,
+                         con_gpu                 = EXCLUDED.con_gpu,
+                         updated_at              = now(),
+                         ddr_id                  = EXCLUDED.ddr_id,
+                         marca_cpu_id            = EXCLUDED.marca_cpu_id,
+                         marca_gpu_id            = EXCLUDED.marca_gpu_id,
+                         tipo_almacenamiento_id  = EXCLUDED.tipo_almacenamiento_id,
+                         ram_dual                = EXCLUDED.ram_dual,
+                         wifi                    = EXCLUDED.wifi
                      """)) {
             ps.setObject(1, usuarioId);
             ps.setString(2, gamaNombre);
@@ -54,6 +72,12 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                 ps.setDouble(3, preferencia.presupuesto());
             }
             ps.setBoolean(4, preferencia.conGpu());
+            setNullableString(ps, 5, prefs.ddr());
+            setNullableString(ps, 6, prefs.marcaCpu());
+            setNullableString(ps, 7, prefs.marcaGpu());
+            setNullableString(ps, 8, prefs.tipoAlmacenamiento() != null ? prefs.tipoAlmacenamiento().name() : null);
+            ps.setBoolean(9, Boolean.TRUE.equals(prefs.ramDual()));
+            ps.setBoolean(10, Boolean.TRUE.equals(prefs.wifi()));
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando preferencia de armador: {}", e.getMessage());
@@ -64,9 +88,16 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
     public Optional<PreferenciaArmador> cargar(UUID usuarioId) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
-                     SELECT g.nombre AS gama_nombre, p.presupuesto, p.con_gpu
+                     SELECT g.nombre AS gama_nombre, p.presupuesto, p.con_gpu,
+                            dd.nombre AS ddr_nombre, mc.nombre AS marca_cpu_nombre,
+                            mg.nombre AS marca_gpu_nombre, ta.nombre AS tipo_almacenamiento_nombre,
+                            p.ram_dual, p.wifi
                      FROM preferencia_armador p
                      JOIN gama g ON g.id = p.gama_id
+                     LEFT JOIN ddr dd ON dd.id = p.ddr_id
+                     LEFT JOIN marca_chip mc ON mc.id = p.marca_cpu_id
+                     LEFT JOIN marca_chip mg ON mg.id = p.marca_gpu_id
+                     LEFT JOIN tipo_almacenamiento ta ON ta.id = p.tipo_almacenamiento_id
                      WHERE p.usuario_id = ?
                      """)) {
             ps.setObject(1, usuarioId);
@@ -76,14 +107,36 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                 }
                 double presupuesto = rs.getDouble("presupuesto");
                 Double presupuestoOrNull = rs.wasNull() ? null : presupuesto;
+                String tipoAlmacenamientoNombre = rs.getString("tipo_almacenamiento_nombre");
+                PreferenciasDeArmado prefs = new PreferenciasDeArmado(
+                        rs.getString("ddr_nombre"),
+                        rs.getString("marca_cpu_nombre"),
+                        rs.getString("marca_gpu_nombre"),
+                        tipoAlmacenamientoNombre != null ? TipoAlmacenamiento.valueOf(tipoAlmacenamientoNombre) : null,
+                        booleanOrNull(rs.getBoolean("ram_dual")),
+                        booleanOrNull(rs.getBoolean("wifi")));
                 return Optional.of(new PreferenciaArmador(
                         GamaMapeo.gamaDeNombre(rs.getString("gama_nombre")),
                         presupuestoOrNull,
-                        rs.getBoolean("con_gpu")));
+                        rs.getBoolean("con_gpu"),
+                        prefs));
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando preferencia de armador: {}", e.getMessage());
             return Optional.empty();
+        }
+    }
+
+    /** D2: {@code FALSE} and "not requested" are the same state — never re-invented as a third value. */
+    private static Boolean booleanOrNull(boolean value) {
+        return value ? Boolean.TRUE : null;
+    }
+
+    private static void setNullableString(PreparedStatement ps, int index, String value) throws Exception {
+        if (value == null || value.isBlank()) {
+            ps.setNull(index, java.sql.Types.VARCHAR);
+        } else {
+            ps.setString(index, value);
         }
     }
 }

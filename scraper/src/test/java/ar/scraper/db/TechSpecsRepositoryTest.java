@@ -6,12 +6,14 @@ import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TechSpecsPort;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.pcs.TipoCooler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 
@@ -50,6 +52,93 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
         assertThat(fila.get("watts")).isNull();
         assertThat(fila.get("capacidad_gb")).isNull();
         assertThat(fila.get("velocidad_mhz")).isNull();
+        assertThat(fila.get("marca_chip_id")).isNull();
+        assertThat(fila.get("chipset_tier_id")).isNull();
+        assertThat(fila.get("tipo_cooler_id")).isNull();
+        assertThat(fila.get("generacion")).isNull();
+        assertThat(fila.get("modulos")).isNull();
+        assertThat(fila.get("wifi")).isNull();
+    }
+
+    // ── pc-builder-deep-taxonomy T5b: marcaChip/chipsetTier/tipoCooler/generacion/modulos/wifi ──
+
+    @Test
+    void unaCpuEscribeMarcaChipYGeneracionPeroNoWifiPorNoSerMotherboard() throws Exception {
+        String url = insertarProducto("cpu-marca-gen");
+        TechSpecs specs = new TechSpecs("AM5", "", "", 0, 0, "", Gama.ALTA, Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 5, 0, 0, false);
+
+        repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "CPU", specs)));
+
+        Map<String, Object> fila = leerFila(url);
+        assertThat(fila.get("generacion")).isEqualTo(5);
+        assertThat(fila.get("wifi"))
+                .as("wifi=false from a non-Motherboard reader is a default, never an affirmation")
+                .isNull();
+        assertThat(nombreResuelto(url, "marca_chip", "marca_chip_id")).isEqualTo("AMD");
+    }
+
+    @Test
+    void unaMotherboardEscribeTierChipsetYWifiAfirmado() throws Exception {
+        String url = insertarProducto("mother-tier-wifi");
+        TechSpecs specs = new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 0, 1, 0, true);
+
+        repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "Motherboard", specs)));
+
+        assertThat(nombreResuelto(url, "chipset_tier", "chipset_tier_id")).isEqualTo("X_Z");
+        assertThat(leerFila(url).get("wifi")).isEqualTo(true);
+    }
+
+    @Test
+    void unaMotherboardSinWifiEscribeFalseNoNull() throws Exception {
+        String url = insertarProducto("mother-no-wifi");
+        TechSpecs specs = new TechSpecs("AM4", "DDR4", "ATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 0, 2, 0, false);
+
+        repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "Motherboard", specs)));
+
+        assertThat(leerFila(url).get("wifi"))
+                .as("false from the Motherboard reader IS an affirmation — D2's exception")
+                .isEqualTo(false);
+        assertThat(nombreResuelto(url, "chipset_tier", "chipset_tier_id")).isEqualTo("B");
+    }
+
+    @Test
+    void unaRamEscribeModulos() throws Exception {
+        String url = insertarProducto("ram-modulos");
+        TechSpecs specs = new TechSpecs("", "DDR5", "", 0, 32, "DIMM", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                6000, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 2, false);
+
+        repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "RAM", specs)));
+
+        assertThat(leerFila(url).get("modulos")).isEqualTo(2);
+    }
+
+    @Test
+    void unCoolerEscribeTipoCooler() throws Exception {
+        String url = insertarProducto("cooler-tipo");
+        TechSpecs specs = new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.LIQUIDO);
+
+        repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "Cooler", specs)));
+
+        assertThat(nombreResuelto(url, "tipo_cooler", "tipo_cooler_id")).isEqualTo("LIQUIDO");
+    }
+
+    private String nombreResuelto(String url, String tabla, String columnaId) throws Exception {
+        try (Connection c = dataSource().getConnection();
+             PreparedStatement ps = c.prepareStatement(("""
+                     SELECT l.nombre FROM producto_tech_specs p
+                     JOIN %s l ON l.id = p.%s
+                     WHERE p.url = ?
+                     """).formatted(tabla, columnaId))) {
+            ps.setString(1, url);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).as("row for " + url).isTrue();
+                return rs.getString(1);
+            }
+        }
     }
 
     @Test
@@ -102,12 +191,22 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
 
     private String insertarProducto(String slug) throws Exception {
         String url = "https://tech-specs-repo.test/" + slug;
-        try (Connection c = dataSource().getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "INSERT INTO productos (url, sitio, nombre, precio, rubro) "
-                             + "VALUES (?, 'Sitio', 'Producto', 1000, 'tecnologia')")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
+        try (Connection c = dataSource().getConnection()) {
+            try (Statement seed = c.createStatement()) {
+                // `sitio` is seed data, never truncated between tests, but a raw
+                // INSERT INTO productos still needs a matching row present —
+                // molde: UnownedRowTest/DeleteProductosGlobalGuardTest. Self-seeded
+                // so this test doesn't depend on another test class' run order.
+                seed.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
+                        + "VALUES ('Sitio', 'sitio', 'tiendanube', false, NULL, 'historico') "
+                        + "ON CONFLICT DO NOTHING");
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO productos (url, sitio, nombre, precio, rubro) "
+                            + "VALUES (?, 'Sitio', 'Producto', 1000, 'tecnologia')")) {
+                ps.setString(1, url);
+                ps.executeUpdate();
+            }
         }
         return url;
     }
