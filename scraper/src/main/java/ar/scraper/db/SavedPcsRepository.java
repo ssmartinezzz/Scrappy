@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.pcs.Gama;
+import ar.scraper.pcs.GamaWire;
 import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.pcs.TechSpecs;
@@ -12,6 +14,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,14 +42,14 @@ class SavedPcsRepository implements SavedPcsPort {
      */
     @Override
     public int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
-                         boolean conGpu, double totalEstimado) {
+                         boolean conGpu, double totalEstimado, Gama gama) {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
                 int id;
                 try (PreparedStatement ps = c.prepareStatement("""
-                        INSERT INTO saved_pcs (usuario_id, nombre, presupuesto, con_gpu, total_estimado, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO saved_pcs (usuario_id, nombre, presupuesto, con_gpu, total_estimado, created_at, gama_id)
+                        VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM gama WHERE nombre = ?))
                         """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
                     ps.setObject(1, usuarioId);
                     ps.setString(2, nombre != null ? nombre : "PC");
@@ -54,6 +57,12 @@ class SavedPcsRepository implements SavedPcsPort {
                     ps.setBoolean(4, conGpu);
                     ps.setDouble(5, totalEstimado);
                     ps.setObject(6, Timestamps.now());
+                    String gamaNombre = gamaNombreOrNull(gama);
+                    if (gamaNombre == null) {
+                        ps.setNull(7, Types.VARCHAR);
+                    } else {
+                        ps.setString(7, gamaNombre);
+                    }
                     ps.executeUpdate();
                     try (ResultSet keys = ps.getGeneratedKeys()) {
                         if (!keys.next()) { c.rollback(); return -1; }
@@ -72,6 +81,15 @@ class SavedPcsRepository implements SavedPcsPort {
             LOG.warn("[DB] Error guardando PC: {}", e.getMessage());
             return -1;
         }
+    }
+
+    /**
+     * {@code null} and {@link Gama#DESCONOCIDA} both mean "no gama to
+     * record" — {@code saved_pcs.gama_id} is nullable, unlike {@code
+     * preferencia_armador.gama_id} (D10, pc-builder-gama T6).
+     */
+    private static String gamaNombreOrNull(Gama gama) {
+        return (gama == null || gama == Gama.DESCONOCIDA) ? null : GamaMapeo.nombreDeGama(gama);
     }
 
     /** Un pick sin url se descarta — sin ella la fila no apunta a nada. */
@@ -112,9 +130,13 @@ class SavedPcsRepository implements SavedPcsPort {
     public List<Map<String, Object>> obtenerPcsGuardadas(UUID usuarioId) {
         List<Map<String, Object>> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT id, nombre, presupuesto, con_gpu, total_estimado, created_at " +
-                "FROM saved_pcs WHERE usuario_id=? ORDER BY created_at DESC")) {
+             PreparedStatement ps = c.prepareStatement("""
+                SELECT sp.id, sp.nombre, sp.presupuesto, sp.con_gpu, sp.total_estimado, sp.created_at,
+                       g.nombre AS gama_nombre
+                FROM saved_pcs sp
+                LEFT JOIN gama g ON g.id = sp.gama_id
+                WHERE sp.usuario_id=? ORDER BY sp.created_at DESC
+                """)) {
             ps.setObject(1, usuarioId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -125,6 +147,8 @@ class SavedPcsRepository implements SavedPcsPort {
                     row.put("conGpu",        rs.getBoolean("con_gpu"));
                     row.put("totalEstimado", rs.getDouble("total_estimado"));
                     row.put("createdAt",     Timestamps.iso(rs, "created_at"));
+                    String gamaNombre = rs.getString("gama_nombre");
+                    row.put("gama", gamaNombre != null ? GamaWire.wire(GamaMapeo.gamaDeNombre(gamaNombre)) : null);
                     row.put("picks", List.of());
                     result.add(row);
                 }

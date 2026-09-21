@@ -158,7 +158,7 @@ public class ApiController {
                                                                db.presets(), db.historial(), db.productos(), aggregator);
         this.outfitsEndpoints   = new OutfitsEndpoints(service, db.feedback(), db.outfitsGuardados(), outfitService, actorResolver);
         this.pcsEndpoints       = new PcsEndpoints(service, new ar.scraper.pcs.PcBuilder(),
-                                                     db.pcsGuardadas(), actorResolver);
+                                                     db.pcsGuardadas(), db.preferenciaArmador(), actorResolver);
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db.feedback(), recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db.categoriaStats(), db.mlOutput(), db.historial(), db.productos(), aggregator, pythonRunner);
@@ -472,8 +472,28 @@ public class ApiController {
     public ResponseEntity<ObjectNode> pcsBuilder(
             @RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
-            @RequestParam(defaultValue = "") String excluir) {
-        return pcsEndpoints.builder(presupuesto, conGpu, excluir);
+            @RequestParam(defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "") String gama) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama);
+    }
+
+    /**
+     * Backward-compatible 3-arg overload, sin mapping propio — la ruta la sigue
+     * sirviendo el método de arriba. Existe para que los call sites previos a
+     * {@code gama} sigan compilando sin editarlos.
+     */
+    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, "");
+    }
+
+    @GetMapping("/pcs/preferencia")
+    public ResponseEntity<ObjectNode> getPcsPreferencia() {
+        return pcsEndpoints.getPreferencia();
+    }
+
+    @PutMapping("/pcs/preferencia")
+    public ResponseEntity<ObjectNode> putPcsPreferencia(@RequestBody Map<String, Object> body) {
+        return pcsEndpoints.putPreferencia(body);
     }
 
     @PostMapping("/pcs/save")

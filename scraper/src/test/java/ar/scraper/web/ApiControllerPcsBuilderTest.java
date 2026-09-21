@@ -143,4 +143,53 @@ class ApiControllerPcsBuilderTest {
             assertThat(s.asText()).isNotEqualTo("gpu");
         }
     }
+
+    // ── gama query param (pc-builder-gama T6) ─────────────────────────────
+
+    @Test
+    void gamaValidReachesBuilderWithTheMappedGama() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"),
+                producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/r9"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "alta");
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("picks").get(0).get("slot").asText()).isEqualTo("cpu");
+        assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/r9");
+    }
+
+    @Test
+    void gamaAccentAndCaseInsensitive() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/r9"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "ECONÓMICA");
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("sinCompatible").toString()).contains("cpu");
+    }
+
+    @Test
+    void gamaAbsentBehavesLikeNoGamaRequested() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "");
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("sinCompatible").size()).isEqualTo(0);
+        assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/i3");
+    }
+
+    @Test
+    void gamaInvalidReturns400WithOkFalse() {
+        var resp = controller.pcsBuilder(0, false, "", "ultra");
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+    }
 }
