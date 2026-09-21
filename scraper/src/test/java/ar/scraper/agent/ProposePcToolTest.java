@@ -150,4 +150,43 @@ class ProposePcToolTest {
 
         assertThat(result.isError()).isTrue();
     }
+
+    @Test
+    @DisplayName("gama alta acepta el CPU de gama alta del catálogo base (pc-builder-gama T6)")
+    void gamaAltaAcceptsHighTierCpu() throws Exception {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("gama", "alta"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(streamSlots(json)).contains("cpu");
+    }
+
+    @Test
+    @DisplayName("gama económica veta el CPU de gama alta, hard filter (pc-builder-gama T6)")
+    void gamaEconomicaVetoesHighTierCpu() throws Exception {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("gama", "economica"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(streamSlots(json)).doesNotContain("cpu");
+        boolean cpuSinCompatible = false;
+        for (JsonNode n : json.get("sinCompatible")) {
+            if ("cpu".equals(n.asText())) cpuSinCompatible = true;
+        }
+        assertThat(cpuSinCompatible).isTrue();
+    }
+
+    @Test
+    @DisplayName("gama inválida → is_error (pc-builder-gama T6)")
+    void invalidGamaIsError() {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("gama", "ultra"));
+
+        assertThat(result.isError()).isTrue();
+    }
 }

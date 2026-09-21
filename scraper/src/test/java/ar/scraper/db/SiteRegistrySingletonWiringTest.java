@@ -115,6 +115,7 @@ class SiteRegistrySingletonWiringTest {
                 ScrapeRunRepository.class, SitiosRepository.class,
                 FeedbackRepository.class, SavedOutfitsRepository.class,
                 SavedPcsRepository.class,
+                PreferenciaArmadorRepository.class,
                 PreciosExternosRepository.class,
                 DatabaseService.class)) {
 

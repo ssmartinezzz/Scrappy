@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,5 +32,35 @@ class PcBuildJsonTest {
         assertThat(json.get("sinCompatible").get(0).asText()).isEqualTo("cpu");
         assertThat(json.get("presupuesto").asDouble()).isEqualTo(500_000);
         assertThat(json.get("totalEstimado").asDouble()).isEqualTo(100_000);
+    }
+
+    @Test
+    @DisplayName("mensajes serializes as an object keyed by slot, empty object when none (pc-builder-gama T6)")
+    void mensajesSerializesAsObjectKeyedBySlot() {
+        PcBuild sinMensajes = new PcBuild(List.of(), List.of("gpu"), List.of("cpu"), 0, 0);
+        ObjectNode json = PcBuildJson.toJson(sinMensajes);
+        assertThat(json.get("mensajes").isObject()).isTrue();
+        assertThat(json.get("mensajes").size()).isEqualTo(0);
+
+        PcBuild conMensajes = new PcBuild(List.of(), List.of(), List.of("cpu"), 0, 0,
+                Map.of("cpu", "ninguna CPU alcanza la gama pedida"));
+        ObjectNode jsonConMensajes = PcBuildJson.toJson(conMensajes);
+        assertThat(jsonConMensajes.get("mensajes").get("cpu").asText())
+                .isEqualTo("ninguna CPU alcanza la gama pedida");
+    }
+
+    @Test
+    @DisplayName("specs block includes gama, certificacion, velocidadMhz and tipoAlmacenamiento (pc-builder-gama T6)")
+    void specsIncludesTheFourNewFields() {
+        PcPick pick = new PcPick("cpu", "Sitio", "CPU X", 400_000, "https://t/cpu", "https://img/x.jpg", "Marca",
+                new TechSpecs("", "", "", 0, 0, "", Gama.ALTA, Certificacion.GOLD, 6000, TipoAlmacenamiento.NVME));
+        PcBuild build = new PcBuild(List.of(pick), List.of(), List.of(), 0, 400_000);
+
+        ObjectNode specs = (ObjectNode) PcBuildJson.toJson(build).get("picks").get(0).get("specs");
+
+        assertThat(specs.get("gama").asText()).isEqualTo("ALTA");
+        assertThat(specs.get("certificacion").asText()).isEqualTo("GOLD");
+        assertThat(specs.get("velocidadMhz").asInt()).isEqualTo(6000);
+        assertThat(specs.get("tipoAlmacenamiento").asText()).isEqualTo("NVME");
     }
 }

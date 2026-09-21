@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
+import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PcPick;
 
 import ar.scraper.indices.IndiceService;
@@ -87,7 +88,7 @@ class ApiControllerSavedPcsTest {
 
     @Test
     void savePcValidPayloadPersistsAndReturnsIdAndOk() {
-        when(pcsGuardadas.guardarPc(any(), eq("Mi PC"), anyList(), eq(500000.0), eq(true), eq(650000.0)))
+        when(pcsGuardadas.guardarPc(any(), eq("Mi PC"), anyList(), eq(500000.0), eq(true), eq(650000.0), any()))
                 .thenReturn(1);
 
         ResponseEntity<?> resp = controller.savePc(Map.of(
@@ -106,7 +107,7 @@ class ApiControllerSavedPcsTest {
 
     @Test
     void savePcConvertsPicksWithSpecsIntoPcPicks() {
-        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble()))
+        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any()))
                 .thenReturn(1);
 
         controller.savePc(Map.of(
@@ -125,12 +126,12 @@ class ApiControllerSavedPcsTest {
                     && "https://t/mb".equals(p.url())
                     && "AM5".equals(p.specs().socket())
                     && p.specs().watts() == 650;
-        }), eq(500000.0), eq(false), eq(250000.0));
+        }), eq(500000.0), eq(false), eq(250000.0), any());
     }
 
     @Test
     void savePcSkipsPickWithBlankUrl() {
-        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble()))
+        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any()))
                 .thenReturn(1);
         Map<String, Object> sinUrl = Map.of("slot", "cpu", "url", "");
 
@@ -142,12 +143,12 @@ class ApiControllerSavedPcsTest {
                 "totalEstimado", 0.0));
 
         verify(pcsGuardadas).guardarPc(any(), any(), argThat(list -> ((List<?>) list).size() == 1),
-                anyDouble(), anyBoolean(), anyDouble());
+                anyDouble(), anyBoolean(), anyDouble(), any());
     }
 
     @Test
     void savePcMissingSpecsAbstains() {
-        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble()))
+        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any()))
                 .thenReturn(1);
         Map<String, Object> sinSpecs = Map.of("slot", "cpu", "url", "https://t/cpu");
 
@@ -162,12 +163,12 @@ class ApiControllerSavedPcsTest {
             @SuppressWarnings("unchecked")
             List<PcPick> picks = (List<PcPick>) list;
             return picks.get(0).specs().socket().isEmpty() && picks.get(0).specs().watts() == 0;
-        }), anyDouble(), anyBoolean(), anyDouble());
+        }), anyDouble(), anyBoolean(), anyDouble(), any());
     }
 
     @Test
     void savePcDbFailureReturns500WithOkFalse() {
-        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble()))
+        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any()))
                 .thenReturn(-1);
 
         ResponseEntity<?> resp = controller.savePc(Map.of(
@@ -176,6 +177,45 @@ class ApiControllerSavedPcsTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
         JsonNode body = (JsonNode) resp.getBody();
         assertThat(body.path("ok").asBoolean()).isFalse();
+    }
+
+    @Test
+    void savePcWithGamaPersistsTheMappedGama() {
+        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), eq(Gama.ALTA)))
+                .thenReturn(1);
+
+        controller.savePc(Map.of(
+                "nombre", "Mi PC",
+                "picks", List.of(pickBody("mother", "https://t/mb")),
+                "presupuesto", 500000.0,
+                "conGpu", true,
+                "totalEstimado", 650000.0,
+                "gama", "alta"));
+
+        verify(pcsGuardadas).guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), eq(Gama.ALTA));
+    }
+
+    @Test
+    void savePcWithoutGamaPassesNull() {
+        when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), isNull()))
+                .thenReturn(1);
+
+        controller.savePc(Map.of(
+                "nombre", "Mi PC", "picks", List.of(), "presupuesto", 0.0, "conGpu", false, "totalEstimado", 0.0));
+
+        verify(pcsGuardadas).guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), isNull());
+    }
+
+    @Test
+    void savePcWithInvalidGamaReturns400AndNeverPersists() {
+        ResponseEntity<?> resp = controller.savePc(Map.of(
+                "nombre", "Mi PC", "picks", List.of(), "presupuesto", 0.0, "conGpu", false,
+                "totalEstimado", 0.0, "gama", "ultra"));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        JsonNode body = (JsonNode) resp.getBody();
+        assertThat(body.path("ok").asBoolean()).isFalse();
+        verify(pcsGuardadas, never()).guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any());
     }
 
     // ── GET /api/pcs/saved ──────────────────────────────────────────────────
