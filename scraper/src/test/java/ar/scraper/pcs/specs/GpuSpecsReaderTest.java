@@ -116,18 +116,88 @@ class GpuSpecsReaderTest {
         assertThat(gama("Placa de Video PowerColor Radeon RX 9050 8GB")).isEqualTo(Gama.BAJA);
     }
 
-    // ── abstencion por campo: GPU solo llena gama ───────────────────────
+    // ── abstencion por campo: GPU llena gama + marcaChip + generacion + VRAM ─
 
     @Test
-    void gpuSoloLlenaGama() {
+    void gpuLlenaGamaMarcaChipGeneracionYVramYAbstieneElResto() {
         TechSpecs t = reader.leer(Tokens.de("Placa de Video Asus GeForce RTX 5090 24GB"));
 
+        assertThat(t.marcaChip()).isEqualTo("NVIDIA");
+        assertThat(t.generacion()).isEqualTo(5);
+        assertThat(t.capacidadGb()).isEqualTo(24);
         assertThat(t.socket()).isEmpty();
         assertThat(t.ddr()).isEmpty();
         assertThat(t.formFactor()).isEmpty();
         assertThat(t.watts()).isZero();
-        assertThat(t.capacidadGb()).isZero();
         assertThat(t.tipoMemoria()).isEmpty();
         assertThat(t.certificacion()).isEqualTo(ar.scraper.pcs.Certificacion.NINGUNA);
+    }
+
+    // ── marcaChip (T3b) ──────────────────────────────────────────────────
+
+    @Test
+    void marcaChipNvidia() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Zotac GeForce RTX 5060 8GB")).marcaChip())
+                .isEqualTo("NVIDIA");
+    }
+
+    @Test
+    void marcaChipAmd() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Sapphire Radeon RX 7900 XTX 24GB")).marcaChip())
+                .isEqualTo("AMD");
+    }
+
+    @Test
+    void marcaChipIntel() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Intel ARC A380 6GB")).marcaChip()).isEqualTo("INTEL");
+    }
+
+    @Test
+    void marcaChipVacioCuandoNoHayMarcaLegible() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Generica Sin Modelo")).marcaChip()).isEmpty();
+    }
+
+    // ── generacion: digito de los miles del modelo ──────────────────────
+
+    @Test
+    void generacionRtx() {
+        assertThat(reader.leer(Tokens.de("Placa de Video MSI GeForce RTX 5070 12GB")).generacion()).isEqualTo(5);
+        assertThat(reader.leer(Tokens.de("Placa de Video Asus GeForce RTX 4070 12GB")).generacion()).isEqualTo(4);
+        assertThat(reader.leer(Tokens.de("Placa de Video Zotac GeForce RTX 3060 12GB")).generacion()).isEqualTo(3);
+    }
+
+    @Test
+    void generacionGtx() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Asus GeForce GTX 1660 6GB")).generacion()).isEqualTo(1);
+    }
+
+    @Test
+    void generacionRx() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Gigabyte Radeon RX 9070 XT 16GB")).generacion())
+                .isEqualTo(9);
+        assertThat(reader.leer(Tokens.de("Placa de Video PowerColor Radeon RX 7600 8GB")).generacion())
+                .isEqualTo(7);
+        assertThat(reader.leer(Tokens.de("Placa de Video Sapphire Radeon RX 6900 XT 16GB")).generacion())
+                .isEqualTo(6);
+    }
+
+    @Test
+    void generacionArcAbstiene() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Intel ARC A380 6GB")).generacion()).isZero();
+    }
+
+    // ── VRAM en capacidadGb ───────────────────────────────────────────────
+
+    @Test
+    void vramSeLeeDelPrimerTokenNgb() {
+        TechSpecs t = reader.leer(
+                Tokens.de("Placa de Video MSI Nvidia GeForce RTX 5070 Ventus 2X 12GB OC GDDR7"));
+
+        assertThat(t.capacidadGb()).isEqualTo(12);
+    }
+
+    @Test
+    void vramAbstieneCuandoNoHayTokenNgb() {
+        assertThat(reader.leer(Tokens.de("Placa de Video Generica Sin Modelo")).capacidadGb()).isZero();
     }
 }

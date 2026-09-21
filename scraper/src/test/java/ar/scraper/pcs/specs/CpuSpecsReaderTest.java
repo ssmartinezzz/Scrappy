@@ -142,17 +142,70 @@ class CpuSpecsReaderTest {
         assertThat(t.gama()).isEqualTo(Gama.MEDIA);
     }
 
-    // ── abstencion por campo: CPU solo llena socket + gama ───────────────
+    // ── abstencion por campo: CPU llena socket + gama + marcaChip + generacion ─
 
     @Test
-    void cpuSoloLlenaSocketYGama() {
+    void cpuLlenaSocketGamaMarcaChipYGeneracionYAbstieneElResto() {
         TechSpecs t = leer("Procesador Amd Ryzen 9 7900 Am5");
 
+        assertThat(t.marcaChip()).isEqualTo("AMD");
+        assertThat(t.generacion()).isEqualTo(7);
         assertThat(t.ddr()).isEmpty();
         assertThat(t.formFactor()).isEmpty();
         assertThat(t.watts()).isZero();
         assertThat(t.capacidadGb()).isZero();
         assertThat(t.tipoMemoria()).isEmpty();
         assertThat(t.certificacion()).isEqualTo(ar.scraper.pcs.Certificacion.NINGUNA);
+    }
+
+    // ── marcaChip (T3b) ──────────────────────────────────────────────────
+
+    @Test
+    void marcaChipIntel() {
+        assertThat(leer("Procesador Intel Core i5 14400F").marcaChip()).isEqualTo("INTEL");
+    }
+
+    @Test
+    void marcaChipAmd() {
+        assertThat(leer("Procesador AMD Ryzen 5 5600").marcaChip()).isEqualTo("AMD");
+    }
+
+    @Test
+    void marcaChipVacioCuandoNoHayMarcaLegible() {
+        assertThat(leer("Procesador Generico Sin Modelo").marcaChip()).isEmpty();
+    }
+
+    // ── generacion (T3b) ─────────────────────────────────────────────────
+
+    @Test
+    void generacionRyzenEsElMilesDelModelo() {
+        assertThat(leer("Micro AMD Ryzen 7 5700X 4.9GHz AM5").generacion()).isEqualTo(5);
+        assertThat(leer("Micro AMD Ryzen 9 9950X3D2 Dual Edition 5.6 GHz AM5").generacion()).isEqualTo(9);
+        assertThat(leer("Procesador AMD Ryzen 5 8500G").generacion()).isEqualTo(8);
+    }
+
+    @Test
+    void generacionCoreIDoceATreceCatorceEsElPrimerDosDigitos() {
+        assertThat(leer("Micro Intel i7-12700 4.9GHz 25MB S.1700").generacion()).isEqualTo(12);
+        assertThat(leer("Procesador Intel Core i5 14600K").generacion()).isEqualTo(14);
+        assertThat(leer("Procesador Intel Core i7 14700 5.4GHz Turbo Socket 1700 Raptor Lake").generacion())
+                .isEqualTo(14);
+    }
+
+    @Test
+    void generacionCoreIOchoNueveEsUnDigito() {
+        assertThat(leer("Procesador Intel Core i5 9400").generacion()).isEqualTo(9);
+    }
+
+    @Test
+    void generacionCoreUltraDoscientosEsQuince() {
+        // Arrow Lake ("200 series") viene despues de la 14a generacion —
+        // no hay un numero de generacion propio en el nombre del fabricante.
+        assertThat(leer("Procesador Intel Core Ultra 9 285K").generacion()).isEqualTo(15);
+    }
+
+    @Test
+    void generacionVaciaCuandoNoHayModeloLegible() {
+        assertThat(leer("Procesador Generico Sin Modelo").generacion()).isZero();
     }
 }
