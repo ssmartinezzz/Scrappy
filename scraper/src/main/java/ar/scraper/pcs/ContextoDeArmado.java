@@ -13,18 +13,20 @@ public final class ContextoDeArmado {
     private final int wattsMin;
     private final Gama gamaPedida;
     private final Certificacion certificacionMinima;
+    private final PreferenciasDeArmado preferencias;
 
     private ContextoDeArmado(TechSpecs motherSpecs, String motherDdr, int wattsMin,
-            Gama gamaPedida, Certificacion certificacionMinima) {
+            Gama gamaPedida, Certificacion certificacionMinima, PreferenciasDeArmado preferencias) {
         this.motherSpecs = motherSpecs;
         this.motherDdr = motherDdr;
         this.wattsMin = wattsMin;
         this.gamaPedida = gamaPedida;
         this.certificacionMinima = certificacionMinima;
+        this.preferencias = preferencias;
     }
 
     public static ContextoDeArmado inicial(int wattsMin) {
-        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, null, Certificacion.NINGUNA);
+        return inicial(wattsMin, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA);
     }
 
     /**
@@ -35,11 +37,18 @@ public final class ContextoDeArmado {
      * DESCONOCIDA, que no es una gama pedible (pc-builder-gama, T3a).
      */
     public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima) {
-        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima);
+        return inicial(wattsMin, gamaPedida, certificacionMinima, PreferenciasDeArmado.NINGUNA);
+    }
+
+    /** T4a, pc-builder-deep-taxonomy: carries the caller's requested technical preferences (D1). */
+    public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
+            PreferenciasDeArmado preferencias) {
+        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima, preferencias);
     }
 
     public ContextoDeArmado conMother(TechSpecs motherSpecs) {
-        return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida, certificacionMinima);
+        return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida,
+                certificacionMinima, preferencias);
     }
 
     public TechSpecs motherSpecs() {
@@ -63,14 +72,20 @@ public final class ContextoDeArmado {
         return certificacionMinima;
     }
 
+    /** Never null — {@link PreferenciasDeArmado#NINGUNA} when nothing was requested (D1). */
+    public PreferenciasDeArmado preferencias() {
+        return preferencias;
+    }
+
     /**
      * {@code motherDdr} = the board's own DDR if it parsed, else derived
-     * from its socket. Package-private (not {@code private}) so {@link
-     * EjesTecnicos#MOTHER} can rank motherboard candidates by this same
-     * derivation instead of duplicating it — two copies of a socket→DDR
-     * mapping diverge in silence (pc-builder-gama T3b).
+     * from its socket. Public (not package-private) since T4b's {@code
+     * ReglaDdrPedidaMother} (package {@code ar.scraper.pcs.reglas}) needs to
+     * derive a MOTHER CANDIDATE's own DDR the same way {@link
+     * EjesTecnicos#MOTHER} ranks it — two copies of a socket→DDR mapping
+     * diverge in silence (pc-builder-gama T3b).
      */
-    static String derivarMotherDdr(TechSpecs mother) {
+    public static String derivarMotherDdr(TechSpecs mother) {
         if (!mother.ddr().isEmpty()) return mother.ddr();
         return switch (mother.socket()) {
             case "AM5", "LGA1851" -> "DDR5";
