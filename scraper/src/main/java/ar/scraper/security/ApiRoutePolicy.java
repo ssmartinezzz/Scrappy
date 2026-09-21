@@ -189,6 +189,8 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.PATCH, HttpMethod.DELETE),
                     List.of("/api/pcs/save", "/api/pcs/saved", "/api/pcs/saved/**"),
                     Access.AUTHENTICATED, "own rows only"),
+            new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.PUT),
+                    List.of("/api/pcs/preferencia"), Access.AUTHENTICATED, "own row only"),
             new RoutePolicy(Set.of(HttpMethod.POST, HttpMethod.DELETE),
                     List.of("/api/outfits/feedback"), Access.AUTHENTICATED, "own rows only"),
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/recomendados"), Access.AUTHENTICATED),

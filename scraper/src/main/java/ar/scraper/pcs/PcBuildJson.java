@@ -26,12 +26,16 @@ public class PcBuildJson {
             n.put("img",    safe(pick.img()));
             n.put("marca",  safe(pick.marca()));
             ObjectNode specs = n.putObject("specs");
-            specs.put("socket",      pick.specs().socket());
-            specs.put("ddr",         pick.specs().ddr());
-            specs.put("formFactor",  pick.specs().formFactor());
-            specs.put("watts",       pick.specs().watts());
-            specs.put("capacidadGb", pick.specs().capacidadGb());
-            specs.put("tipoMemoria", pick.specs().tipoMemoria());
+            specs.put("socket",             pick.specs().socket());
+            specs.put("ddr",                pick.specs().ddr());
+            specs.put("formFactor",         pick.specs().formFactor());
+            specs.put("watts",              pick.specs().watts());
+            specs.put("capacidadGb",        pick.specs().capacidadGb());
+            specs.put("tipoMemoria",        pick.specs().tipoMemoria());
+            specs.put("gama",               pick.specs().gama().name());
+            specs.put("certificacion",      pick.specs().certificacion().name());
+            specs.put("velocidadMhz",       pick.specs().velocidadMhz());
+            specs.put("tipoAlmacenamiento", pick.specs().tipoAlmacenamiento().name());
         }
         ArrayNode sinStockArr = root.putArray("sinStock");
         build.sinStock().forEach(sinStockArr::add);
@@ -39,6 +43,8 @@ public class PcBuildJson {
         build.sinCompatible().forEach(sinCompatibleArr::add);
         root.put("presupuesto", build.presupuesto());
         root.put("totalEstimado", build.totalEstimado());
+        ObjectNode mensajes = root.putObject("mensajes");
+        build.mensajes().forEach(mensajes::put);
         return root;
     }
 }

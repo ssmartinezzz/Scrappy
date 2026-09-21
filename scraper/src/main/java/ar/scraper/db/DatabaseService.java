@@ -21,7 +21,9 @@ import ar.scraper.catalog.PreciosExternosPort;
 import ar.scraper.feedback.FeedbackPort;
 import ar.scraper.feedback.OutfitItemRow;
 import ar.scraper.outfits.SavedOutfitsPort;
+import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PcPick;
+import ar.scraper.pcs.PreferenciaArmadorPort;
 import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
@@ -76,6 +78,7 @@ public class DatabaseService {
     private final FeedbackPort feedbackPort;
     private final SavedOutfitsPort savedOutfitsPort;
     private final SavedPcsPort savedPcsPort;
+    private final PreferenciaArmadorPort preferenciaArmadorPort;
     private final MlOutputPort mlOutputPort;
     private final HistorialPort historialPort;
     private final SitiosPort sitiosPort;
@@ -116,6 +119,7 @@ public class DatabaseService {
                 new SitiosRepository(dataSource, siteRegistry),
                 new FeedbackRepository(dataSource), new SavedOutfitsRepository(dataSource),
                 new SavedPcsRepository(dataSource),
+                new PreferenciaArmadorRepository(dataSource),
                 new PreciosExternosRepository(dataSource));
     }
 
@@ -127,6 +131,7 @@ public class DatabaseService {
             ScrapeRunPort scrapeRunPort, SitiosPort sitiosPort,
             FeedbackPort feedbackPort, SavedOutfitsPort savedOutfitsPort,
             SavedPcsPort savedPcsPort,
+            PreferenciaArmadorPort preferenciaArmadorPort,
             PreciosExternosPort preciosExternosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
@@ -139,6 +144,7 @@ public class DatabaseService {
         this.feedbackPort = feedbackPort;
         this.savedOutfitsPort = savedOutfitsPort;
         this.savedPcsPort = savedPcsPort;
+        this.preferenciaArmadorPort = preferenciaArmadorPort;
         this.mlOutputPort = mlOutputPort;
         this.sitiosPort = sitiosPort;
         this.categoriaStatsPort = categoriaStatsPort;
@@ -216,6 +222,11 @@ public class DatabaseService {
     /** @see #favoritos() */
     public SavedPcsPort pcsGuardadas() {
         return savedPcsPort;
+    }
+
+    /** @see #favoritos() — e.g. {@code ApiController} wiring {@code PcsEndpoints} (pc-builder-gama T6). */
+    public PreferenciaArmadorPort preferenciaArmador() {
+        return preferenciaArmadorPort;
     }
 
     /** @see #favoritos() */
@@ -719,8 +730,8 @@ public class DatabaseService {
 
     /** Persiste un build de PC con sus picks. Retorna el id generado, o -1 en error. */
     public int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
-                         boolean conGpu, double totalEstimado) {
-        return savedPcsPort.guardarPc(usuarioId, nombre, picks, presupuesto, conGpu, totalEstimado);
+                         boolean conGpu, double totalEstimado, Gama gama) {
+        return savedPcsPort.guardarPc(usuarioId, nombre, picks, presupuesto, conGpu, totalEstimado, gama);
     }
 
     /** Retorna todos los PCs guardados, ordenados por created_at DESC. */
