@@ -110,7 +110,7 @@ está en castellano en `pcs/`.
   sustantivo líder `bracket|filtro|service|kit|fan|soporte|cooler` + `para
   gabinete` ⇒ no es `Gabinete`. Test con los tres nombres reales del pick de
   hoy. Medir después: cuántas de las 618 filas cambian y a qué categoría van.
-- [ ] **T2 — Vocabulario y compatibilidad (D6).** Primero el clasificador:
+- [x] **T2 — Vocabulario y compatibilidad (D6).** Primero el clasificador:
   **146 de 470 filas de `Cooler` son CPUs** (`"Procesador AMD Ryzen 9 9950X3D
   ... (no incluye cooler)"`, 85 de gama alta) porque `Cooler` corre antes que
   `CPU` y `cooler` aparece como accesorio; líder `procesador`/`microprocesador`
@@ -158,3 +158,43 @@ colateral: `"mate"` sin padear en `KW_COMIDA` vivía adentro de *Xigmatek* y
 *Ultimate*, y como palabra es un acabado (matte) en 5 de 7 nombres — se sacó,
 `"yerba"` sigue cubriendo la yerba. El catálogo vivo se corrige en el próximo
 scrape (D5).
+
+**T2 — hecho** (`be35ee7` clasificador + `4ab8246` sockets viejos + `e4f4768`
+SODIMM + `8b98a3b` cooler↔mother), cuatro commits, cada uno RED→GREEN propio.
+Suite completa 2481/0/0 (7 skips preexistentes de infra), `ERROR]`=0, BUILD
+SUCCESS, `BackendLayeringArchTest` 20/20.
+
+- **T2a** (clasificador): `KW_CPU_LIDER` (procesador/microprocesador/micro
+  amd/micro intel) corre antes que `KW_COOLER`. `startsWithAny` ahora pela un
+  "outlet" líder antes de comparar contra cualquier `*_LIDER` (generalizado a
+  los cuatro que ya existían: Gabinete-accesorio, Service, Fuente, PC) — hacía
+  falta para `"Outlet Procesador Intel Core i5 13600KF..."`. Medido aislado:
+  **146 → CPU exactas, cero cambios más** en las 3360 filas.
+- **T2b** (sockets viejos): `LGA1151`/`LGA1200`/`AM3` en `MotherboardSpecsReader`
+  y `CpuSpecsReader` (tokens + chipsets + derivación por modelo Core 8-9/10-11
+  gen). `ContextoDeArmado.derivarMotherDdr` suma `LGA1200 → DDR4` (no
+  ambiguo); `LGA1151`/`AM3` quedan abstenidos a propósito — las dos mezclan
+  placas de más de una generación de DDR. Medido: cobertura de socket
+  motherboard 504→511 (+7), CPU 253→261 (+8).
+- **T2c** (SODIMM): `ReglaSodimm` veta incondicional (sin guard de "los dos
+  lados parsearon" — `tipoMemoria` nunca abstiene), en el slot ram después de
+  `ReglaDdr`.
+- **T2d** (cooler↔mother): `TechSpecs.socketsSoportados` (campo 11, con
+  constructor de compatibilidad — CODE-2). `CoolerSpecsReader` lo llena desde
+  el nombre; `"115x"` mapea sólo a `LGA1151`, nunca a `LGA1200`. Un
+  "intel"/"amd" pelado no cuenta como señal (D6). `ReglaSocketCooler` veta
+  cuando el cooler nombra sockets, la mother parseó el suyo, y no cruzan.
+  `TechSpecsIndexer`/`producto_tech_specs` quedan sin tocar a propósito (esa
+  tabla persiste `socket_id` singular, no una lista — D7/T5). `PcBuildJson`
+  también queda sin tocar: ningún test afirma la forma exacta del JSON de
+  specs. Medido: **114/470** coolers con `socketsSoportados` no vacío —
+  coincide exacto con la cifra ya anotada en el problema medido de T2.
+
+Desviación menor de lo escrito en T2: el enunciado no pide sufijo `s1700`
+para `CoolerSpecsReader` (sí lo pide para mother/CPU en T2b), pero el TSV
+tiene nombres reales con `"s1700"` (`"Water Cooler Thermaltake TH120 V2 ARGB
+Sync AIO S1700 y AM5"`) que quedan sin ese socket individual — el cooler
+igual entra al pool porque lista AM5 además, así que no se perdió ningún
+caso de los que armé tests para, pero la cobertura de socketsSoportados
+sería mayor si se agregara. No lo agregué por no estar en el pedido
+explícito; queda como nota para T3+ si hace falta.
