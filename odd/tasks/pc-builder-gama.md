@@ -352,3 +352,86 @@ Corrección aplicada sobre lo que entregó el writer: `coolerIncluido` se sacó
 del record (ver la medición arriba). El writer lo había implementado como un
 `return false` constante con el javadoc admitiéndolo; la medición dijo que el
 campo no tiene sustento y que el plan estaba mal, no el código.
+
+**T3a — mitad entregada, BLOQUEADA por un conflicto con un test heredado
+protegido** (2026-09-19, sin commitear).
+
+Entregado y verde de forma aislada: `GpuSpecsReader` corregido (Radeon
+ramifica por serie — RX 9000 por decena, RX 5000-7000 por centena — con
+`rx9070/9060/9050` reales como test), `pcs/reglas/ReglaGama` (D2: única
+regla donde la abstención veta, comentario explícito), `pcs/reglas/
+ReglaCertificacion` (política NORMAL: `NINGUNA` no veta, comentario
+explícito), `pcs/EstimadorDeConsumo` (tabla de watts/certificación por
+gama, `null`/`BAJA` siguen dando 450/650 sin certificación — igual que
+antes), `ContextoDeArmado` con `gamaPedida`/`certificacionMinima` (`null`
+= "no se pidió gama", distinto de `Gama.DESCONOCIDA`), y `PcBuilder` con
+la sobrecarga de 5 argumentos (`armar(..., Gama gamaPedida)`) — la de 4
+argumentos delega con `null` y sigue siendo la que llaman `PcsEndpoints` y
+`propose_pc`, sin tocarlas.
+
+Evidencia medida (aislada, antes de la corrida completa):
+- RED observado: `GpuSpecsReaderTest` (3 fallos, RX 9070/9060/9050 daban
+  DESCONOCIDA) y fallos de compilación para `ReglaGama`, `ReglaCertificacion`,
+  `EstimadorDeConsumo`, `ContextoDeArmado.inicial(int,Gama,Certificacion)`/
+  `gamaPedida()`/`certificacionMinima()`, y la sobrecarga de 5 args de
+  `PcBuilder.armar`.
+- GREEN observado: `GpuSpecsReaderTest` 18/18, `ReglaGamaTest` 5/5,
+  `ReglaCertificacionTest` 6/6, `EstimadorDeConsumoTest` 9/9,
+  `ContextoDeArmadoTest` 11/11, `PcBuilderGamaTest` (nuevo, integración)
+  11/11 — todos verdes en corridas filtradas.
+
+**Bloqueo al correr la suite completa** (`mvn clean test`): **Tests run:
+2320, Failures: 1, Errors: 0, Skipped: 7** — `BUILD FAILURE`.
+
+```
+ar.scraper.pcs.TechSpecsParserTest.gpuAbstainsEntirelyInPhase1
+expected: TechSpecs[... gama=DESCONOCIDA, certificacion=NINGUNA]
+ but was: TechSpecs[... gama=MEDIA, certificacion=NINGUNA]
+```
+
+`TechSpecsParserTest.java` es uno de los dos archivos que la tarea prohíbe
+tocar. No lo edité. Razón por la que creo que cambió: ese test parsea
+`"Placa de Video Gigabyte Radeon RX 9060 XT 8GB GDDR6 GAMING OC"` bajo la
+sección `// phase-1 abstains entirely: GPU / Cooler / Monitor /
+Almacenamiento` y afirma `TechSpecs.EMPTY` completo. Pero `GpuSpecsReader`
+—entregado en T1, antes de esta tarea— ya llenaba `gama` para GPU (una RTX
+5090 da `ALTA`, no `EMPTY`); ese test sólo pasaba por **coincidencia**,
+porque el fixture elegido (RX 9060) caía exactamente en el defecto de
+numeración Radeon que T1 reportó y que esta misma tarea (T3a, punto 1) me
+pidió corregir (9060 → MEDIA, mandado por la tabla del ODD). Al corregir esa
+numeración, el mismo nombre deja de dar `DESCONOCIDA` y pasa a dar `MEDIA`,
+así que ya no es igual a `TechSpecs.EMPTY`.
+
+Es exactamente el caso que la tarea pide frenar y reportar en vez de
+resolver por mi cuenta (no edité el test, no rediseñé la regla de Radeon
+para evitar el choque). Mecánica: si `GpuSpecsReader` vuelve a dar
+`DESCONOCIDA` para RX 9060, se reabre el defecto que T3a pide cerrar; si el
+test se edita, se toca un archivo explícitamente prohibido. Ninguna de las
+dos la puedo decidir sola.
+
+Estado del árbol: sin commitear, `PcBuilderTest.java` y
+`TechSpecsParserTest.java` confirmados sin modificar (`git status --short`).
+Entregables 2–5 completos y verdes de forma aislada; entregable 1 (el fix
+de Radeon) es correcto según la tabla del ODD pero deja el árbol en rojo
+contra un test heredado protegido. **T3a no se marca hecha** hasta resolver
+este punto.
+
+
+### T3a — el test heredado que pasaba por casualidad
+
+`TechSpecsParserTest.gpuAbstainsEntirelyInPhase1` afirmaba
+`TechSpecs.EMPTY` para una GPU. Desde T1 eso es falso: `GpuSpecsReader`
+llena `gama`. Seguía en verde porque su fixture es una **RX 9060**, que caía
+en `DESCONOCIDA` por el defecto de numeración Radeon — el mismo que T3a
+corrigió. O sea que `ba876d0` y `7c01f16` se commitearon con ese test verde
+mientras el comportamiento que afirmaba ya había cambiado: un test puede
+pasar por la razón equivocada y no hay nada que grepear para encontrarlo.
+
+Lo reescribí como `gpuSoloLlenaGama`, que afirma lo que hoy es cierto y
+conserva su intención real (abstención campo por campo). Es la excepción
+estrecha al contrato de refactor: la premisa del test caducó por diseño, no
+porque se haya roto comportamiento.
+
+El writer de T3a **paró y reportó el choque en vez de editar el test**, que
+es la conducta que la tarea pedía. Si lo hubiera editado de paso, el hallazgo
+—que el verde de dos commits anteriores era casualidad— se perdía.

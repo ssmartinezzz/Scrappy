@@ -44,16 +44,27 @@ public final class GpuSpecsReader implements LectorDeSpecs {
 
         Matcher rx = RX_MODEL.matcher(padded);
         if (rx.find()) {
-            int centena = Integer.parseInt(rx.group(1)) % 1000;
+            int modelo = Integer.parseInt(rx.group(1));
+            // Radeon numera de DOS maneras y las dos estan vivas en el
+            // catalogo (medido en pc-builder-gama): RX 9000 (RDNA4) numera
+            // por DECENA, como Nvidia (9070 -> ALTA), mientras que RX
+            // 5000-7000 numera por CENTENA (6900 -> ALTA, 7600 -> MEDIA).
+            // Una sola regla numerica se come una de las dos series, asi que
+            // se ramifica por el primer digito del modelo antes de mirar el
+            // tier — nunca un umbral crudo sobre el valor completo.
+            if (modelo / 1000 == 9) {
+                int decena = modelo % 100;
+                if (decena == 90 || decena == 80 || decena == 70) return Gama.ALTA;
+                if (decena == 60) return Gama.MEDIA;
+                if (decena == 50) return Gama.BAJA;
+                return Gama.DESCONOCIDA;
+            }
+
+            int centena = modelo % 1000;
             if (centena == 900 || centena == 800) return Gama.ALTA;
             if (centena == 700 || centena == 600) return Gama.MEDIA;
             // "x500 y abajo": solo los multiplos de cien legados (500/400/…) —
-            // no un umbral numerico crudo. La serie RX 9070 (RDNA4) numera por
-            // decena como Nvidia (termina en "070"), no por centena como el
-            // resto de Radeon: 70 <= 500 daria BAJA por un umbral crudo, una
-            // afirmacion falsa para una placa que no es de gama baja. Ninguna
-            // regla de esta tabla la cubre -> DESCONOCIDA, no una lista
-            // cerrada de modelos ni una adivinanza (reportado en la tarea).
+            // no un umbral numerico crudo.
             if (centena == 500 || centena == 400 || centena == 300 || centena == 200 || centena == 100) {
                 return Gama.BAJA;
             }
