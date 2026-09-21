@@ -749,6 +749,6 @@ Check aplicable: ninguno automático — edición pasiva de documentación;
 lectura estructural del render y `grep` de los tres anclajes tocados.
 
 **Feature cerrado: 8/8.** Pendiente fuera de este ODD: PR de la rama
-`feat/pc-builder-gama` contra `master` (11 commits, `V35` sin aplicar en
+`feat/pc-builder-gama` contra `master` (10 commits, `V35` sin aplicar en
 ninguna base compartida) y el pendiente 3 de `odd/pc-builder-feedback`
 (guardados al carrusel de favoritos).
