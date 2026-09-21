@@ -38,6 +38,13 @@ public final class EjesTecnicos {
     /** Sin ejes: un gabinete más grande no es "mejor" — sólo precio decide. */
     public static final Comparator<TechSpecs> GABINETE = (a, b) -> 0;
 
+    /**
+     * Sin ejes: no hay eje de tecnología medido para coolers (AIO vs aire,
+     * altura, TDP) — trabajo pendiente que necesita datos, no código
+     * (pc-builder-gama T3b-2).
+     */
+    public static final Comparator<TechSpecs> COOLER = (a, b) -> 0;
+
     public static final Comparator<TechSpecs> FUENTE =
             Comparator.comparingInt(specs -> -specs.certificacion().ordinal());
 
