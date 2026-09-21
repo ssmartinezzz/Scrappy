@@ -3,13 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PcsPanel from '@/components/PcsPanel';
-import { fetchPcsBuilder, fmt } from '@/api';
+import { fetchPcPreferencia, fetchPcsBuilder, fmt, savePcPreferencia } from '@/api';
 
 // Mocking the api module (not global.fetch) pins the component to the seam that
 // carries VITE_API_BASE_URL — same reasoning as SuplementosPanel.test.jsx.
 vi.mock('@/api', async importOriginal => ({
   ...(await importOriginal()),
   fetchPcsBuilder: vi.fn(),
+  fetchPcPreferencia: vi.fn(),
+  savePcPreferencia: vi.fn(),
 }));
 
 const pick = (slot, nombre, extra = {}) => ({
@@ -31,6 +33,7 @@ function respuesta(overrides = {}) {
     sinCompatible: [],
     presupuesto: 0,
     totalEstimado: 100000,
+    mensajes: {},
     ...overrides,
   };
 }
@@ -43,6 +46,8 @@ function llamada(n) {
 beforeEach(() => {
   vi.clearAllMocks();
   fetchPcsBuilder.mockResolvedValue(respuesta());
+  fetchPcPreferencia.mockResolvedValue(null);
+  savePcPreferencia.mockResolvedValue(null);
 });
 
 async function armar(user) {
@@ -218,8 +223,21 @@ describe('PcsPanel — Guardar', () => {
       picks: respuesta().picks,
       presupuesto: 0,
       conGpu: false,
+      gama: null,
       totalEstimado: 100000,
     });
+  });
+
+  it('el payload de Guardar lleva la gama elegida', async () => {
+    const user = userEvent.setup();
+    const onSavePc = vi.fn().mockResolvedValue({ ok: true });
+    render(<PcsPanel onSavePc={onSavePc} />);
+    await user.click(screen.getByRole('button', { name: 'Alta' }));
+    await armar(user);
+
+    await user.click(screen.getByRole('button', { name: /Guardar/ }));
+
+    expect(onSavePc.mock.calls[0][0].gama).toBe('alta');
   });
 
   it('el botón se deshabilita mientras guarda', async () => {
@@ -233,5 +251,108 @@ describe('PcsPanel — Guardar', () => {
 
     expect(screen.getByRole('button', { name: /Guardando/ })).toBeDisabled();
     resolveSave({ ok: true });
+  });
+});
+
+describe('PcsPanel — gama', () => {
+  it('sin elegir gama, no se manda ninguna', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(llamada(0).gama).toBe('');
+    expect(screen.getByRole('button', { name: 'Cualquiera' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('los chips son excluyentes y la gama elegida viaja como gama=', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(screen.getByRole('button', { name: 'Económica' }));
+    await user.click(screen.getByRole('button', { name: 'Alta' }));
+    await armar(user);
+
+    expect(llamada(0).gama).toBe('alta');
+    expect(screen.getByRole('button', { name: 'Alta' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Económica' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Cualquiera' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('Generar con una gama guarda la preferencia con presupuesto y conGpu', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(screen.getByRole('button', { name: 'Media' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Incluir placa de video' }));
+    await armar(user);
+
+    expect(savePcPreferencia).toHaveBeenCalledTimes(1);
+    expect(savePcPreferencia).toHaveBeenCalledWith({ gama: 'media', presupuesto: null, conGpu: true });
+  });
+
+  it('Generar sin gama no guarda preferencia (el PUT la exige)', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(savePcPreferencia).not.toHaveBeenCalled();
+  });
+
+  it('la preferencia guardada precarga gama, presupuesto y conGpu — pero no arma sola', async () => {
+    fetchPcPreferencia.mockResolvedValue({ gama: 'alta', presupuesto: 900000, conGpu: true });
+    render(<PcsPanel />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Alta' })).toHaveAttribute('aria-pressed', 'true')
+    );
+    expect(screen.getByRole('checkbox', { name: 'Incluir placa de video' })).toBeChecked();
+    expect(screen.getByLabelText(/Presupuesto/)).toHaveValue('900.000');
+    expect(fetchPcsBuilder).not.toHaveBeenCalled();
+  });
+
+  it('un presupuesto null en la preferencia deja el campo vacío', async () => {
+    fetchPcPreferencia.mockResolvedValue({ gama: 'media', presupuesto: null, conGpu: false });
+    render(<PcsPanel />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Media' })).toHaveAttribute('aria-pressed', 'true')
+    );
+    expect(screen.getByLabelText(/Presupuesto/)).toHaveValue('');
+  });
+
+  it('si leer la preferencia falla, el panel sigue usable con los defaults', async () => {
+    fetchPcPreferencia.mockRejectedValue(new Error('down'));
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(llamada(0).gama).toBe('');
+  });
+});
+
+describe('PcsPanel — mensajes por slot', () => {
+  it('un slot vacío muestra el motivo que manda el servidor', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      sinStock: ['cooler'],
+      sinCompatible: ['cpu'],
+      mensajes: {
+        cooler: 'no hay productos en la categoría Cooler',
+        cpu: 'ningún CPU de gama alta compatible con el socket AM4',
+      },
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText('no hay productos en la categoría Cooler')).toBeInTheDocument();
+    expect(screen.getByText('ningún CPU de gama alta compatible con el socket AM4')).toBeInTheDocument();
+    expect(screen.getByText('Cooler')).toBeInTheDocument();
+  });
+
+  it('sin motivo del servidor, sinCompatible cae al texto genérico', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({ sinCompatible: ['gpu'], mensajes: {} }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText(/ninguna opción compatible con la mother elegida/i)).toBeInTheDocument();
   });
 });

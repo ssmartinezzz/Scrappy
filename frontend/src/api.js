@@ -457,16 +457,33 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
 
 // ─── PC Builder ───────────────────────────────────────────────────────────────
 
-export async function fetchPcsBuilder({ presupuesto = 0, conGpu = false, excluir = [] } = {}) {
+export async function fetchPcsBuilder({ presupuesto = 0, conGpu = false, excluir = [], gama = '' } = {}) {
   const p = new URLSearchParams();
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
   if (conGpu) p.set('conGpu', 'true');
   if (excluir.length > 0) p.set('excluir', excluir.join(','));
+  if (gama) p.set('gama', gama);
   const qs = p.toString();
   const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
   if (r.status === 204) return null;
   if (!r.ok) return null;
   return r.json();
+}
+
+/** null when the user never saved one (204) or on error. */
+export async function fetchPcPreferencia() {
+  const r = await authedFetch(`${BASE}/api/pcs/preferencia`);
+  if (r.status === 204 || !r.ok) return null;
+  return r.json();
+}
+
+export async function savePcPreferencia(body) {
+  const r = await authedFetch(`${BASE}/api/pcs/preferencia`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.ok ? r.json() : null;
 }
 
 // ─── Saved PCs ──────────────────────────────────────────────────────────────

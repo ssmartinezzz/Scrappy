@@ -335,7 +335,7 @@ cd frontend && npm test
 - [x] **T6 — Borde.** `GET /api/pcs/builder?gama=`, `GET`/`PUT
       /api/pcs/preferencia` (`AUTHENTICATED`), `PcBuildJson` con `mensajes`,
       entradas de `openapi.yaml`, tool `propose_pc` del agente.
-- [ ] **T7 — `/pcs`.** Chips de gama en `PcsPanel` (precargados con la
+- [x] **T7 — `/pcs`.** Chips de gama en `PcsPanel` (precargados con la
       preferencia guardada), render de `mensajes`, `fetchPcsBuilder` con el
       parámetro.
 - [ ] **T8 — Docs.** Sección de CLAUDE.md (fase 6, la escala, D2 como
@@ -692,3 +692,37 @@ el resto en `PcBuildJsonTest`, `ApiControllerPcsBuilderTest`,
 
 Siguiente: T7 (`/pcs` — chips de gama precargados desde `GET
 /api/pcs/preferencia`, render de `mensajes`, `fetchPcsBuilder` con `gama`).
+T6 commiteado como `ed03a79`.
+
+### T7 — `/pcs` (2026-09-20, sin commitear al escribir esto)
+
+Entregado, inline (tres archivos de frontend, sin decisión de diseño
+abierta): `api.js` suma `gama` a `fetchPcsBuilder` (sólo viaja si no está
+vacía), `fetchPcPreferencia` (204/no-ok → `null`) y `savePcPreferencia`
+(PUT). `PcsPanel` tiene cuatro chips excluyentes con `aria-pressed`
+(`Cualquiera` = `''` = sin filtro, `Económica`/`Media`/`Alta` = vocabulario
+de cable de `GamaWire`), con el mismo estilo que el selector de género de
+`OutfitsPanel`. Al montar lee la preferencia y **precarga los tres
+controles** (gama, presupuesto, conGpu) sin armar: armar sigue siendo el
+click en Generar, que manda `gama=` explícito. La preferencia se persiste
+en Generar —no en Regenerar— y sólo cuando hay gama elegida, porque el PUT
+la exige; es best-effort, un fallo del PUT no frena el armado. `mensajes`
+se pinta debajo de cada placeholder: en `sinCompatible` reemplaza al texto
+genérico (que queda como fallback si el servidor no mandó motivo), en
+`sinStock` se suma. `cooler` entra a `SLOT_LABELS`. El payload de Guardar
+lleva `gama` (`null` cuando es "Cualquiera") y `PcsRoute` lo copia al
+`ADD_SAVED_PC`.
+
+TDD: RED observado antes de tocar `src/` — 14 fallos (5 en `api.test.js`:
+`fetchPcPreferencia is not a function` ×2, `savePcPreferencia` ×2,
+`gama` null; 9 en `PcsPanel.test.jsx`: chips sin encontrar, `gama`
+undefined en la llamada, payload de Guardar sin `gama`, motivo sin
+renderizar). El único test existente editado es el de Guardar, que afirma
+el payload exacto y ahora lleva `gama: null` — cambio de contrato, no de
+comportamiento. GREEN: `vitest` 42 archivos, **330 tests, 0 fallos** (317 +
+13 nuevos). `VITE_API_BASE_URL=… npm run build` OK. Sin check visual en
+browser: los chips reusan clase por clase el patrón ya medido en
+`OutfitsPanel`.
+
+Siguiente: T8 (docs — sección fase 6 en CLAUDE.md, la escala, D2 como
+excepción a la política de abstención).
