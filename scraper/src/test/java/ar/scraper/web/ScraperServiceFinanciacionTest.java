@@ -63,7 +63,8 @@ class ScraperServiceFinanciacionTest {
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
                 Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
-                Mockito.mock(ar.scraper.catalog.ProductPort.class));
+                Mockito.mock(ar.scraper.catalog.ProductPort.class),
+                Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
         service.setLastResultParaTest(original);
 
         SenalFinanciacion fresh = new SenalFinanciacion("conviene_cuotas", 8.0, 92000, 7666, 12, 40);
@@ -90,7 +91,8 @@ class ScraperServiceFinanciacionTest {
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
                 Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
-                Mockito.mock(ar.scraper.catalog.ProductPort.class));
+                Mockito.mock(ar.scraper.catalog.ProductPort.class),
+                Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
 
         service.recomputarFinanciacion(aggregator);
 
@@ -118,7 +120,8 @@ class ScraperServiceFinanciacionTest {
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
                 Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
-                Mockito.mock(ar.scraper.catalog.ProductPort.class));
+                Mockito.mock(ar.scraper.catalog.ProductPort.class),
+                Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
         service.setLastResultParaTest(original);
 
         Product enriched = producto("https://site.com/b", 5000,

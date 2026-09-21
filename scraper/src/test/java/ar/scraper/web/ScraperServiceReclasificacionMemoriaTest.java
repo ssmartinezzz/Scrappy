@@ -53,7 +53,8 @@ class ScraperServiceReclasificacionMemoriaTest {
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
                 Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
-                Mockito.mock(ar.scraper.catalog.ProductPort.class));
+                Mockito.mock(ar.scraper.catalog.ProductPort.class),
+                Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
         List<Product> lista = List.of(productos);
         service.setLastResultParaTest(new AggregatedResult(
                 lista, java.util.Map.of("Sitio", lista.size()), java.util.Map.of(),
@@ -121,7 +122,8 @@ class ScraperServiceReclasificacionMemoriaTest {
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
                 Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
-                Mockito.mock(ar.scraper.catalog.ProductPort.class));
+                Mockito.mock(ar.scraper.catalog.ProductPort.class),
+                Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
 
         sinCatalogo.actualizarProductoEnMemoria(URL, "Remera", "M", "hombre", "Entrenamiento", "indumentaria");
         assertThat(sinCatalogo.getLastResult()).isNull();

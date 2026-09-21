@@ -74,6 +74,9 @@ agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
 indice / indice_valor       -- Índices macro (IPC, USD oficial) + su serie histórica (V33)
 gama                        -- Lookup sembrado: ECONOMICA/MEDIA/ALTA (V35)
 preferencia_armador         -- Última gama/presupuesto/conGpu pedida por usuario (V35)
+socket / ddr / form_factor / tipo_memoria / certificacion / tipo_almacenamiento
+                             -- Lookups sembrados para producto_tech_specs (V35)
+producto_tech_specs         -- Specs normalizadas por producto tech, url PK (V35)
 ```
 
 ### Migraciones
@@ -113,7 +116,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V25` | `productos.producto_key` (generada) + índice único — handle corto para rutas |
 | `V33` | `indice` (lookup sembrado) + `indice_valor`, para `ar.scraper.indices` |
 | `V34` | `saved_pcs` + `saved_pc_item`: builds guardados del armador de PCs |
-| `V35` | `gama` (lookup sembrado) + `preferencia_armador`; `saved_pcs.gama_id` |
+| `V35` | `gama` (lookup sembrado) + `preferencia_armador`; `saved_pcs.gama_id`; seis lookups más + `producto_tech_specs` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -2384,21 +2387,120 @@ atributos no-clave (`gama_id`, `presupuesto`, `con_gpu`) dependen de la clave
 completa (`id`, con `usuario_id` acotado por los dos índices parciales de
 arriba), no de una parte de ella ni de otro atributo no-clave.
 
-**T5 extiende esta misma `V35`** con las seis tablas de lookup de
-`producto_tech_specs` (`socket`, `ddr`, `form_factor`, `tipo_memoria`,
-`certificacion`) y esa tabla — fuera de alcance acá.
+### `producto_tech_specs` y sus seis lookups, T5 de `pc-builder-gama`
+
+Misma `V35`, mismo molde que `gama`: seis tablas de lookup (`socket`, `ddr`,
+`form_factor`, `tipo_memoria`, `certificacion`, `tipo_almacenamiento`) —
+`smallint` identity + `nombre` UNIQUE + un CHECK de dominio — y una tabla
+hija, `producto_tech_specs`, con una fila por producto tech y `url` como PK
+que referencia a `productos(url)` con `ON DELETE CASCADE`, igual que
+`producto_badge` y `producto_talle`: un producto discontinuado no puede
+dejar specs huérfanas.
+
+```sql
+CREATE TABLE socket (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_socket_nombre_domain
+        CHECK (nombre IN ('AM4', 'AM5', 'LGA1700', 'LGA1851'))
+);
+CREATE TABLE ddr (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_ddr_nombre_domain
+        CHECK (nombre IN ('DDR3', 'DDR4', 'DDR5'))
+);
+CREATE TABLE form_factor (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_form_factor_nombre_domain
+        CHECK (nombre IN ('ITX', 'MATX', 'ATX', 'EATX'))
+);
+CREATE TABLE tipo_memoria (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_tipo_memoria_nombre_domain
+        CHECK (nombre IN ('DIMM', 'SODIMM'))
+);
+CREATE TABLE certificacion (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_certificacion_nombre_domain
+        CHECK (nombre IN ('WHITE', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'TITANIUM'))
+);
+CREATE TABLE tipo_almacenamiento (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_tipo_almacenamiento_nombre_domain
+        CHECK (nombre IN ('NVME', 'SSD', 'HDD'))
+);
+
+CREATE TABLE producto_tech_specs (
+    url                    text PRIMARY KEY REFERENCES productos(url) ON DELETE CASCADE,
+    socket_id              smallint REFERENCES socket(id),
+    ddr_id                 smallint REFERENCES ddr(id),
+    form_factor_id         smallint REFERENCES form_factor(id),
+    tipo_memoria_id        smallint REFERENCES tipo_memoria(id),
+    certificacion_id       smallint REFERENCES certificacion(id),
+    gama_id                smallint REFERENCES gama(id),
+    tipo_almacenamiento_id smallint REFERENCES tipo_almacenamiento(id),
+    watts                  integer,
+    capacidad_gb           integer,
+    velocidad_mhz          integer,
+    actualizado_at         timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_producto_tech_specs_enteros_positivos CHECK (
+        (watts IS NULL OR watts > 0)
+        AND (capacidad_gb IS NULL OR capacidad_gb > 0)
+        AND (velocidad_mhz IS NULL OR velocidad_mhz > 0)
+    )
+);
+```
+
+**D10 — toda columna `*_id` es NULLABLE y NULL significa abstención**, igual
+que en `gama`/`preferencia_armador`: ninguno de los seis lookups siembra una
+fila "DESCONOCIDA"/"NINGUNA" — `Gama.DESCONOCIDA`, `Certificacion.NINGUNA` y
+`TipoAlmacenamiento.DESCONOCIDO` son centinelas de abstención del dominio
+Java, y un centinela de abstención no es un valor de FK (la misma lección de
+`marca=''` en `V21`). `watts`/`capacidad_gb`/`velocidad_mhz` son NULL cuando
+`TechSpecsParser` se abstuvo (su propio centinela ahí es `0`, no un valor que
+esta tabla repita) — el CHECK `chk_producto_tech_specs_enteros_positivos` es
+lo que impide que un `0` se escriba alguna vez.
+
+**D11 — write path propio**, molde de `ml_output`: `TechSpecsIndexer` (en
+`pcs/`) parsea el catálogo tech vivo después de agregar y llama a
+`TechSpecsPort.upsertSpecs(...)`, implementado por `TechSpecsRepository`
+(`@Repository` package-private en `db/`). `sp_upsert_run` no se toca — el
+camino por el que entra todo el catálogo queda intacto.
+
+**1FN/3FN**: `producto_tech_specs` no tiene grupo repetitivo; sus diez
+atributos no-clave dependen de la clave completa (`url`), no de una parte de
+ella ni de otro atributo no-clave. Los seis lookups son la misma
+normalización que ya usan `gama`, `rol` y `categoria`: el vocabulario cerrado
+vive en una tabla propia, no repetido como TEXT con su propio CHECK en cada
+fila que lo necesita.
 
 ### Rollback
 
 ```sql
 -- >>> rollback:V35
 ALTER TABLE saved_pcs DROP COLUMN gama_id;
+DROP TABLE producto_tech_specs;
 DROP TABLE preferencia_armador;
+DROP TABLE socket;
+DROP TABLE ddr;
+DROP TABLE form_factor;
+DROP TABLE tipo_memoria;
+DROP TABLE certificacion;
+DROP TABLE tipo_almacenamiento;
 DROP TABLE gama;
 -- <<< rollback:V35
 ```
 
-El orden es obligatorio: tanto `preferencia_armador.gama_id` como
-`saved_pcs.gama_id` referencian `gama(id)`, así que borrar `gama` antes de
-soltar las dos fallaría por FK. Ninguna otra tabla referencia a `gama` ni a
-`preferencia_armador`, así que no hace falta `CASCADE`.
+El orden es obligatorio: `producto_tech_specs` referencia a `socket`, `ddr`,
+`form_factor`, `tipo_memoria`, `certificacion`, `tipo_almacenamiento` y
+`gama`, así que tiene que soltarse antes que cualquiera de los siete. Dentro
+de ese grupo, tanto `preferencia_armador.gama_id` como `saved_pcs.gama_id`
+siguen referenciando `gama(id)`, así que `gama` se suelta último, después de
+`preferencia_armador` y de la columna de `saved_pcs`. Ninguna otra tabla
+referencia a estos ocho objetos, así que no hace falta `CASCADE`.
