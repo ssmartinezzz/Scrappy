@@ -137,7 +137,7 @@ Requisitos derivados de la gama pedida:
 
 | Gama pedida | Piso de watts | Certificación mínima | Slot cooler |
 |---|---|---|---|
-| alta | 750 sin GPU · 1000 con GPU | GOLD | sí, si el CPU no lo incluye |
+| alta | 750 sin GPU · 1000 con GPU | GOLD | sí (la condición "si el CPU no lo incluye" se cayó en T1) |
 | media | 550 · 750 | BRONZE | no |
 | económica | 450 · 650 | NINGUNA | no |
 
@@ -307,9 +307,10 @@ cd frontend && npm test
       reemplazan `CriterioScoreMlPrecioUrl` (D12–D14); un criterio por
       `SlotDeArmado`; `RamSpecsReader` lee MHz; `AlmacenamientoSpecsReader`
       nuevo; `RecommendationService` sale del constructor de `PcBuilder`.
-- [ ] **T3b-2 — Cooler y mensajes.** Slot `cooler` dinámico (D4, sólo gama
-      ALTA, después del pick de CPU); `mensajes` por slot vacío (D6) usando
-      `ReglaCompatibilidad.motivo()`, que existe desde T2 sin consumidor.
+- [x] **T3b-2 — Cooler y mensajes.** Slot `cooler` (D4, sólo gama ALTA,
+      insertado después de `cpu`, sin reglas ni eje de ranking); `mensajes`
+      por slot vacío (D6) usando `ReglaCompatibilidad.motivo()`, que existía
+      desde T2 sin consumidor.
 - [ ] **T4 — Persistencia.** `V35`, `Gama` como lookup con FK,
       `PreferenciaArmadorPort` + su `@Repository` package-private en `db/`,
       `preferencia_armador` en `truncateAll`, rollback en `docs/DATABASE.md`.
@@ -513,3 +514,42 @@ fallos de compilación contra `TipoAlmacenamiento` / `AlmacenamientoSpecsReader`
 / `EjesTecnicos` inexistentes, y `almacenamientoAbstainsEntirelyInPhase1` en
 rojo (`tipoAlmacenamiento=NVME, capacidadGb=480` contra `EMPTY`) antes de
 reescribirlo.
+
+### T3b-2 — cooler y mensajes (2026-09-20, sin commitear al escribir esto)
+
+Entregado: `SLOT_COOLER` (categoría `Cooler`, `List.of()` de reglas,
+`EjesTecnicos.COOLER` sin ejes) insertado justo después de `cpu` cuando
+`gamaPedida == ALTA` y **sólo** entonces — con `null`/`BAJA`/`MEDIA`/
+`DESCONOCIDA` no aparece en `picks`, `sinStock`, `sinCompatible` ni
+`mensajes`. Depende de la gama pedida, no del pick de CPU (D4 revisado en
+T1). El cooler **no tiene eje de ranking ni regla de socket**: no hay señal
+medida para leer de un cooler (AIO vs aire, altura, TDP, socket) — es
+pendiente que necesita datos, no código.
+
+`PcBuild` suma `Map<String,String> mensajes`, una entrada **sólo** por slot
+vacío. `sinStock` → `"no hay productos en la categoría <categoria>"`;
+`sinCompatible` → los `motivo()` distintos de las reglas que vetaron al
+menos un candidato, **en el orden de las reglas del slot**, unidos con
+`" · "`. Para saber cuál vetó, `esCompatible` (un `allMatch` que
+cortocircuitaba) pasó a `primeraQueVeta` → `Optional<ReglaCompatibilidad>`.
+Constructor de conveniencia de 5 argumentos conservado; `PcBuildJsonTest`
+compila sin tocarse. Serializar `mensajes` al JSON es T6.
+
+Corrección mía sobre el writer: el índice de inserción del cooler estaba
+hardcodeado (`slots.add(2, ...)`); pasó a `indiceDe(slots, "cpu") + 1`.
+
+`PcBuilderTest`: **sin tocar** (29 aserciones intactas — sin gama no hay
+cooler y `mensajes` es aditivo). `PcBuilderGamaTest` suma 7 tests: cooler
+abierto con ALTA y cerrado con MEDIA/BAJA/null; cerrado con DESCONOCIDA;
+posición después de `cpu`; cooler `sinStock` con su mensaje; `sinCompatible`
+con un motivo; con dos motivos distintos en orden de regla (una fuente cae
+por watts y otra por certificación); slot con pick sin mensaje.
+
+Verificación observada (`mvn clean test`, 2026-09-20, con la corrección del
+índice adentro): **BUILD SUCCESS, Tests run: 2370, Failures: 0, Errors: 0,
+Skipped: 7** (2363 + 7), cero `ERROR]`, `BackendLayeringArchTest` 20/20.
+RED previo observado por el writer: 6 × `cannot find symbol: method
+mensajes()` en `PcBuilderGamaTest` contra el `PcBuild` anterior.
+`PcBuilderTest` y `TechSpecsParserTest` sin tocar (`git status`).
+
+Siguiente: T4 (persistencia de la preferencia, `V35`).
