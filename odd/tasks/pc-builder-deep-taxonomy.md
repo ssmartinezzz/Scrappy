@@ -106,7 +106,7 @@ está en castellano en `pcs/`.
 
 ## Tareas
 
-- [ ] **T1 — Gabinete es gabinete (D5).** `CategoryClassifier`/`GarmentTaxonomy`:
+- [x] **T1 — Gabinete es gabinete (D5).** `CategoryClassifier`/`GarmentTaxonomy`:
   sustantivo líder `bracket|filtro|service|kit|fan|soporte|cooler` + `para
   gabinete` ⇒ no es `Gabinete`. Test con los tres nombres reales del pick de
   hoy. Medir después: cuántas de las 618 filas cambian y a qué categoría van.
@@ -144,4 +144,13 @@ con cada parámetro). T6: `npm test` + captura en `/pcs`.
 
 ## Progreso
 
-(vacío)
+**T1 — hecho** (`5e82117` + `c46e484` + `765eecb`). Suite 2443/0/0, ArchTest verde.
+Medido sobre el TSV: de 618 `Gabinete`, 609 quedan y 9 cambian (1 service →
+Otros, 2 accesorios Xigmatek → Otros, 1 → Fuente, 5 PCs armadas → PC). El
+líder ` pc ` además mueve **67 filas de `CPU` a `PC`** — PCs armadas enteras
+(`"PC AMD Ryzen 3 3200G 16GB 1TB SSD WIFI"`) que competían por el slot cpu;
+eso explica el `Mini PC MSI Cubi` que salía como el i7 más barato. Hallazgo
+colateral: `"mate"` sin padear en `KW_COMIDA` vivía adentro de *Xigmatek* y
+*Ultimate*, y como palabra es un acabado (matte) en 5 de 7 nombres — se sacó,
+`"yerba"` sigue cubriendo la yerba. El catálogo vivo se corrige en el próximo
+scrape (D5).
