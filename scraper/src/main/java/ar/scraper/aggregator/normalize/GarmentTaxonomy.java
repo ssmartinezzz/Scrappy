@@ -277,7 +277,7 @@ public final class GarmentTaxonomy {
     //
     // IMPORTANTE: solo tokens INEQUÍVOCOS (no colisionan con vocabulario de
     // ropa vía substring). No mover acá tokens amplios de KW_COMIDA como
-    // "mate" (⊂ "material") o "fruta" (⊂ "frutal") — esos deben seguir
+    // "fruta" (⊂ "frutal") — esos deben seguir
     // corriendo DESPUÉS del bloque de indumentaria.
     public static final String[] KW_ALIMENTO_TEMPRANO = {
         "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia ",
@@ -816,7 +816,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_COMIDA = {
-        "yerba","mate","cafe","te verde","infusion","cereal","granola",
+        "yerba","cafe","te verde","infusion","cereal","granola",
         // " mani " padeado, no "mani" pelado: anyMatch es un contains crudo sobre el
         // título ya padeado, así que la forma corta matcheaba DENTRO de otras palabras
         // — "Ale(mani)a" y "(Mani)jas" mandaban la camiseta de Alemania y una banda
