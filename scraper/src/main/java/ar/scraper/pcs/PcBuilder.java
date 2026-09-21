@@ -2,6 +2,7 @@ package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
 import ar.scraper.pcs.reglas.ReglaCertificacion;
+import ar.scraper.pcs.reglas.ReglaCompatibilidad;
 import ar.scraper.pcs.reglas.ReglaDdr;
 import ar.scraper.pcs.reglas.ReglaFormFactor;
 import ar.scraper.pcs.reglas.ReglaGama;
@@ -10,8 +11,11 @@ import ar.scraper.pcs.reglas.ReglaWatts;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -52,6 +56,15 @@ public class PcBuilder {
     private static final SlotDeArmado SLOT_GPU =
             new SlotDeArmado("gpu", "GPU", List.of(new ReglaGama()), new CriterioPorEjesTecnicos(EjesTecnicos.GPU));
 
+    // Opens only for gama ALTA (D4, T3b-2) — depends on the requested tier,
+    // never on the cpu pick itself: "and the CPU doesn't include a cooler"
+    // fell in T1 (309/313 CPUs say nothing about a cooler either way, see
+    // CLAUDE.md "coolerIncluido no existe"). No rules: cooler-socket
+    // compatibility isn't parsed, and abstention never vetoes outside
+    // ReglaGama's D2 inversion.
+    private static final SlotDeArmado SLOT_COOLER =
+            new SlotDeArmado("cooler", "Cooler", List.of(), new CriterioPorEjesTecnicos(EjesTecnicos.COOLER));
+
     public PcBuilder() {
     }
 
@@ -78,6 +91,10 @@ public class PcBuilder {
                 .collect(Collectors.groupingBy(Product::categoria));
 
         List<SlotDeArmado> slots = new ArrayList<>(SLOTS_FIJOS);
+        // Cooler is inserted right after cpu — pick order per the design table —
+        // and only for gama ALTA (D4); with null/BAJA/MEDIA/DESCONOCIDA it never
+        // appears anywhere below.
+        if (gamaPedida == Gama.ALTA) slots.add(indiceDe(slots, "cpu") + 1, SLOT_COOLER);
         // GPU is inserted before Almacenamiento — pick order 6, per the design table —
         // and only when the caller opted in; otherwise it never appears anywhere below.
         if (conGpu) slots.add(slots.size() - 1, SLOT_GPU);
@@ -85,6 +102,7 @@ public class PcBuilder {
         List<PcPick> picks = new ArrayList<>();
         List<String> sinStock = new ArrayList<>();
         List<String> sinCompatible = new ArrayList<>();
+        Map<String, String> mensajes = new LinkedHashMap<>();
         double remainingBudget = presupuesto;
         int wattsMin = EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu);
         Certificacion certMin = EstimadorDeConsumo.certificacionMinima(gamaPedida);
@@ -100,15 +118,17 @@ public class PcBuilder {
             }
             if (pool.isEmpty()) {
                 sinStock.add(slot.nombre());
+                mensajes.put(slot.nombre(), "no hay productos en la categoría " + slot.categoria());
                 continue;
             }
 
             final ContextoDeArmado contextoActual = contexto;
             List<Product> compatibles = pool.stream()
-                    .filter(p -> esCompatible(slot, p, contextoActual))
+                    .filter(p -> primeraQueVeta(slot, p, contextoActual).isEmpty())
                     .collect(Collectors.toList());
             if (compatibles.isEmpty()) {
                 sinCompatible.add(slot.nombre());
+                mensajes.put(slot.nombre(), mensajeSinCompatible(slot, pool, contextoActual));
                 continue;
             }
 
@@ -139,12 +159,40 @@ public class PcBuilder {
         }
 
         double totalEstimado = picks.stream().mapToDouble(PcPick::precio).sum();
-        return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado);
+        return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes);
     }
 
-    private boolean esCompatible(SlotDeArmado slot, Product candidato, ContextoDeArmado contexto) {
+    /**
+     * The first rule (in the slot's own declared order) that vetoes this
+     * candidate, or empty if it passes every rule — {@code allMatch} would
+     * short-circuit without saying which rule failed, and D6's sinCompatible
+     * message needs exactly that (pc-builder-gama T3b-2).
+     */
+    private Optional<ReglaCompatibilidad> primeraQueVeta(SlotDeArmado slot, Product candidato, ContextoDeArmado contexto) {
         TechSpecs specs = TechSpecsParser.parse(candidato.nombre(), candidato.categoria());
-        return slot.reglas().stream().allMatch(regla -> regla.permite(specs, contexto));
+        return slot.reglas().stream().filter(regla -> !regla.permite(specs, contexto)).findFirst();
+    }
+
+    /**
+     * D6: joins the distinct {@link ReglaCompatibilidad#motivo()} of whichever
+     * rules actually vetoed at least one candidate in {@code pool}, in the
+     * slot's own rule order — never candidate order, and never a rule that
+     * never fired.
+     */
+    private String mensajeSinCompatible(SlotDeArmado slot, List<Product> pool, ContextoDeArmado contexto) {
+        Set<ReglaCompatibilidad> vetantes = pool.stream()
+                .map(p -> primeraQueVeta(slot, p, contexto))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return slot.reglas().stream()
+                .filter(vetantes::contains)
+                .map(ReglaCompatibilidad::motivo)
+                .collect(Collectors.joining(" · "));
+    }
+
+    private static int indiceDe(List<SlotDeArmado> slots, String nombre) {
+        for (int i = 0; i < slots.size(); i++) if (slots.get(i).nombre().equals(nombre)) return i;
+        throw new IllegalStateException("slot inexistente: " + nombre);
     }
 
     private PcPick toPick(String slot, Product p, TechSpecs specs) {
