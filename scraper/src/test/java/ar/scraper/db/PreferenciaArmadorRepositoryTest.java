@@ -5,6 +5,8 @@ import ar.scraper.db.support.UsuarioDePrueba;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
+import ar.scraper.pcs.PreferenciasDeArmado;
+import ar.scraper.pcs.TipoAlmacenamiento;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -100,6 +102,68 @@ class PreferenciaArmadorRepositoryTest extends PostgresTestBase {
         assertThat(repository.cargar(usuario)).isPresent()
                 .get()
                 .satisfies(p -> assertThat(p.gama()).isEqualTo(Gama.BAJA));
+    }
+
+    // ── pc-builder-deep-taxonomy T5b: preferencias técnicas ──────────────────
+
+    @Test
+    void unaPreferenciaSinPedirNadaTecnicoRoundTripeaANinguna() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+
+        repository.guardar(usuario, new PreferenciaArmador(Gama.ALTA, null, false));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> assertThat(p.preferencias()).isEqualTo(PreferenciasDeArmado.NINGUNA));
+    }
+
+    @Test
+    void unaPreferenciaConLosSeisCamposTecnicosRoundTripea() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado(
+                "DDR5", "AMD", "NVIDIA", TipoAlmacenamiento.NVME, true, true);
+
+        repository.guardar(usuario, new PreferenciaArmador(Gama.ALTA, 2000000.0, true, prefs));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> assertThat(p.preferencias()).isEqualTo(prefs));
+    }
+
+    @Test
+    void unSegundoGuardarSobreescribeLasPreferenciasTecnicasTambien() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+        repository.guardar(usuario, new PreferenciaArmador(Gama.MEDIA, null, false,
+                new PreferenciasDeArmado("DDR4", "INTEL", null, null, null, null)));
+
+        PreferenciasDeArmado nuevas = new PreferenciasDeArmado(
+                "DDR5", null, "AMD", TipoAlmacenamiento.SSD, true, true);
+        repository.guardar(usuario, new PreferenciaArmador(Gama.ALTA, 1000000.0, true, nuevas));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> assertThat(p.preferencias()).isEqualTo(nuevas));
+    }
+
+    /**
+     * {@code FALSE} and {@code null} are the same "not requested" state (D2)
+     * on {@code ramDual}/{@code wifi} — the columns are {@code NOT NULL
+     * DEFAULT false}, so a saved {@code FALSE} loads back as {@code null},
+     * never re-inventing a distinction the domain says doesn't exist.
+     */
+    @Test
+    void ramDualYWifiEnFalseCargComoNoPedidos() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado(null, null, null, null, false, false);
+
+        repository.guardar(usuario, new PreferenciaArmador(Gama.MEDIA, null, false, prefs));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> {
+                    assertThat(p.preferencias().ramDual()).isNull();
+                    assertThat(p.preferencias().wifi()).isNull();
+                });
     }
 
     private int filas(UUID usuarioId) throws Exception {

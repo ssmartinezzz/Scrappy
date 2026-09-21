@@ -77,7 +77,20 @@ class TechSpecsIndexerTest {
 
         indexer.indexar(List.of(monitor));
 
-        verify(port).upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto("https://t/monitor", TechSpecs.EMPTY)));
+        verify(port).upsertSpecs(
+                List.of(new TechSpecsPort.SpecsDeProducto("https://t/monitor", "Monitor", TechSpecs.EMPTY)));
+    }
+
+    @Test
+    @DisplayName("pc-builder-deep-taxonomy T5b: the product's categoria reaches the port too, for "
+            + "wifi's Motherboard-only distinction downstream (TechSpecsRepository)")
+    void categoriaReachesThePort() {
+        Product mother = producto("ASUS TUF Gaming B850M-E WiFi", "Motherboard", "tecnologia", "https://t/mb");
+
+        indexer.indexar(List.of(mother));
+
+        verify(port).upsertSpecs(argThat(batch ->
+                batch.size() == 1 && batch.get(0).categoria().equals("Motherboard")));
     }
 
     @Test
