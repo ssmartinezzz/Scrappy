@@ -11,19 +11,35 @@ public final class ContextoDeArmado {
     private final TechSpecs motherSpecs;
     private final String motherDdr;
     private final int wattsMin;
+    private final Gama gamaPedida;
+    private final Certificacion certificacionMinima;
 
-    private ContextoDeArmado(TechSpecs motherSpecs, String motherDdr, int wattsMin) {
+    private ContextoDeArmado(TechSpecs motherSpecs, String motherDdr, int wattsMin,
+            Gama gamaPedida, Certificacion certificacionMinima) {
         this.motherSpecs = motherSpecs;
         this.motherDdr = motherDdr;
         this.wattsMin = wattsMin;
+        this.gamaPedida = gamaPedida;
+        this.certificacionMinima = certificacionMinima;
     }
 
     public static ContextoDeArmado inicial(int wattsMin) {
-        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin);
+        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, null, Certificacion.NINGUNA);
+    }
+
+    /**
+     * {@code gamaPedida == null} significa "no se pidió gama" — un concepto
+     * del LLAMADOR, distinto de {@link Gama#DESCONOCIDA} ("el parser no pudo
+     * leer la gama de este producto"). Confundirlos haría que un candidato
+     * sin gama legible se comporte como si el usuario hubiera pedido
+     * DESCONOCIDA, que no es una gama pedible (pc-builder-gama, T3a).
+     */
+    public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima) {
+        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima);
     }
 
     public ContextoDeArmado conMother(TechSpecs motherSpecs) {
-        return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin);
+        return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida, certificacionMinima);
     }
 
     public TechSpecs motherSpecs() {
@@ -36,6 +52,15 @@ public final class ContextoDeArmado {
 
     public int wattsMin() {
         return wattsMin;
+    }
+
+    /** Null cuando no se pidió gama — ver el javadoc de {@link #inicial(int, Gama, Certificacion)}. */
+    public Gama gamaPedida() {
+        return gamaPedida;
+    }
+
+    public Certificacion certificacionMinima() {
+        return certificacionMinima;
     }
 
     /** {@code motherDdr} = the board's own DDR if it parsed, else derived from its socket. */
