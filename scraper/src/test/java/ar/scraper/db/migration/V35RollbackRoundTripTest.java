@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.UUID;
@@ -18,26 +19,35 @@ import static org.assertj.core.api.Assertions.assertThat;
  * that exact block against the real migrated schema, inside a transaction
  * that always rolls back.
  *
- * <p>Only T4's objects: {@code preferencia_armador}, {@code gama} and
- * {@code saved_pcs.gama_id}. T5 extends this same {@code V35} with
- * {@code producto_tech_specs} and the other five lookups later.</p>
+ * <p>Covers T4's objects ({@code preferencia_armador}, {@code gama},
+ * {@code saved_pcs.gama_id}) and T5's ({@code producto_tech_specs} and its
+ * six lookups: {@code socket}, {@code ddr}, {@code form_factor},
+ * {@code tipo_memoria}, {@code certificacion}, {@code tipo_almacenamiento}).</p>
  */
 @DisplayName("V35 migration — the documented rollback actually runs, and is contained")
 class V35RollbackRoundTripTest extends PostgresTestBase {
 
+    private static final String[] TABLAS_DE_V35 = {
+            "preferencia_armador", "gama",
+            "producto_tech_specs", "socket", "ddr", "form_factor",
+            "tipo_memoria", "certificacion", "tipo_almacenamiento"
+    };
+
     @Test
-    @DisplayName("Rolling back drops preferencia_armador and gama, and the saved_pcs column, "
-            + "leaving the rest of the schema standing")
+    @DisplayName("Rolling back drops preferencia_armador, gama, producto_tech_specs and its six "
+            + "lookups, and the saved_pcs column, leaving the rest of the schema standing")
     void rollbackDropsOnlyItsOwnObjects() throws Exception {
         sembrarUnaPreferencia();
+        sembrarUnasSpecs();
 
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 st.execute(DocumentedRollback.sqlFor("V35"));
 
-                assertThat(existeTabla(st, "preferencia_armador")).isFalse();
-                assertThat(existeTabla(st, "gama")).isFalse();
+                for (String tabla : TABLAS_DE_V35) {
+                    assertThat(existeTabla(st, tabla)).as(tabla + " should be dropped").isFalse();
+                }
 
                 assertThat(existeTabla(st, "saved_pcs")).isTrue();
                 assertThat(existeColumna(st, "saved_pcs", "gama_id")).isFalse();
@@ -51,10 +61,22 @@ class V35RollbackRoundTripTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("preferencia_armador and the saved_pcs column drop come before dropping gama, "
-            + "and there is no CASCADE doing the work")
+    @DisplayName("producto_tech_specs drops before every lookup it references and before gama, "
+            + "preferencia_armador and the saved_pcs column drop before gama too, and there is "
+            + "no CASCADE doing the work")
     void rollbackOrdersTheDropsItself() {
         String sql = DocumentedRollback.sqlFor("V35");
+
+        int idxSpecs = sql.indexOf("DROP TABLE producto_tech_specs;");
+        assertThat(idxSpecs).as("producto_tech_specs must be dropped").isNotNegative();
+
+        for (String lookup : new String[] {"socket", "ddr", "form_factor", "tipo_memoria",
+                "certificacion", "tipo_almacenamiento", "gama"}) {
+            assertThat(idxSpecs)
+                    .as("producto_tech_specs references " + lookup + "(id): dropping it first "
+                            + "fails while producto_tech_specs still references it")
+                    .isLessThan(sql.indexOf("DROP TABLE " + lookup + ";"));
+        }
 
         assertThat(sql.indexOf("preferencia_armador"))
                 .as("preferencia_armador.gama_id references gama(id): dropping gama first "
@@ -74,6 +96,26 @@ class V35RollbackRoundTripTest extends PostgresTestBase {
                     INSERT INTO preferencia_armador (usuario_id, gama_id, con_gpu)
                     SELECT '%s', g.id, false FROM gama g WHERE g.nombre = 'ALTA'
                     """.formatted(usuario));
+        }
+    }
+
+    private void sembrarUnasSpecs() throws Exception {
+        String url = "https://v35-rollback.test/cpu-1";
+        try (Connection c = dataSource().getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO productos (url, sitio, nombre, precio, rubro) "
+                            + "VALUES (?, 'Sitio', 'Producto', 1000, 'tecnologia')")) {
+                ps.setString(1, url);
+                ps.executeUpdate();
+            }
+            try (Statement st = c.createStatement()) {
+                st.execute("""
+                        INSERT INTO producto_tech_specs (url, socket_id, gama_id)
+                        SELECT '%s', s.id, g.id
+                        FROM socket s, gama g
+                        WHERE s.nombre = 'AM5' AND g.nombre = 'ALTA'
+                        """.formatted(url));
+            }
         }
     }
 

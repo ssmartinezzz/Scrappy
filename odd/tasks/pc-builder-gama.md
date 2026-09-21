@@ -81,6 +81,7 @@ nada más**.
 | D12 | **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** | Pedido explícito del usuario (2026-09-19): "por tecnología, si DDR5, DDR4, después por velocidad, por almacenamiento". `baseMlScore` es un percentil de PRECIO y salió del armador entero: cualquier lugar donde participe vuelve a meter "lo más barato" por la ventana |
 | D13 | **La abstención va última en todo eje de ranking**, nunca primera | Un candidato cuya tecnología no se pudo leer no puede ganarle a uno que la declara. `Gama.DESCONOCIDA` y `TipoAlmacenamiento.DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` en MHz/GB y `""` en DDR son el mismo centinela para su eje. `Certificacion.NINGUNA` sí compara por ordinal porque su javadoc la define como el escalón de abajo de la escala real, no como abstención |
 | D14 | **La mother rankea por generación DDR** (derivada del socket si el nombre no la dice) | Es el slot que más pesa: se elige primera y sin reglas, así que "la más barata" clavaba DDR4/AM4 y después `ReglaDdr` vetaba toda la RAM DDR5 del catálogo. La derivación socket→DDR se comparte con `ContextoDeArmado`, no se duplica |
+| D16 | **`producto_tech_specs` persiste el record entero**, incluidos `velocidad_mhz` y el lookup `tipo_almacenamiento` que T3b-1 agregó después de diseñar el SQL | Decidido con el usuario el 2026-09-20. El SQL de abajo cubría 8 de los 10 campos de `TechSpecs`; dejar afuera justo los dos ejes que un filtro de catálogo querría (NVMe/SSD/HDD, 97% y 90% de cobertura) era una trampa silenciosa. Mismo D10: NULL por abstención, ningún `DESCONOCIDO` sembrado |
 | D15 | **Sin precomputar specs en el criterio** — medido, no hace falta | `CriterioPorEjesTecnicos` parsea dentro del comparador. Medido (JIT caliente): `elegir` sobre 625 gabinetes 1,25 ms, sobre 387 RAM 1,8 ms, `parse` 652 ns; los 7 slots ≈ 8 ms por request en el peor caso. Mismo orden que el 0,64 ms que se midió y descartó cachear en outfits (CLAUDE.md, "Medido y descartado") |
 
 ## Forma objetivo (POO / hexagonal, todo dentro del área `ar.scraper.pcs`)
@@ -210,14 +211,15 @@ ALTER TABLE saved_pcs DROP COLUMN gama_id;
 DROP TABLE producto_tech_specs;
 DROP TABLE preferencia_armador;
 DROP TABLE socket; DROP TABLE ddr; DROP TABLE form_factor;
-DROP TABLE tipo_memoria; DROP TABLE certificacion; DROP TABLE gama;
-DELETE FROM flyway_schema_history WHERE version = '35';
+DROP TABLE tipo_memoria; DROP TABLE certificacion; DROP TABLE tipo_almacenamiento;
+DROP TABLE gama;
+-- sin DELETE FROM flyway_schema_history: ningún bloque de DATABASE.md lo lleva (ver T4)
 ```
 
 ⚠️ `PostgresTestBase.truncateAll` es una lista a mano: agregar
-`preferencia_armador` y `producto_tech_specs`. **Las seis tablas de lookup
+`preferencia_armador` y `producto_tech_specs`. **Las siete tablas de lookup
 NO se truncan** (`gama`, `socket`, `ddr`, `form_factor`, `tipo_memoria`,
-`certificacion`) — son dato semilla de la migración, igual que `rol`.
+`certificacion`, `tipo_almacenamiento`) — son dato semilla de la migración, igual que `rol`.
 Truncarlas deja el esquema sin vocabulario y las FK rechazan todo.
 
 ### Specs de producto normalizadas (mismas `V35`)
@@ -237,18 +239,23 @@ CREATE TABLE form_factor (... CHECK (nombre IN ('ITX','MATX','ATX','EATX')));
 CREATE TABLE tipo_memoria (... CHECK (nombre IN ('DIMM','SODIMM')));
 CREATE TABLE certificacion (
   ... CHECK (nombre IN ('WHITE','BRONZE','SILVER','GOLD','PLATINUM','TITANIUM')));
+CREATE TABLE tipo_almacenamiento (... CHECK (nombre IN ('NVME','SSD','HDD')));  -- D16
 
 CREATE TABLE producto_tech_specs (
-  url              text PRIMARY KEY REFERENCES productos(url) ON DELETE CASCADE,
-  socket_id        smallint REFERENCES socket(id),
-  ddr_id           smallint REFERENCES ddr(id),
-  form_factor_id   smallint REFERENCES form_factor(id),
-  tipo_memoria_id  smallint REFERENCES tipo_memoria(id),
-  certificacion_id smallint REFERENCES certificacion(id),
-  gama_id          smallint REFERENCES gama(id),
-  watts            integer,
-  capacidad_gb     integer,
-  actualizado_at   timestamptz NOT NULL DEFAULT now());
+  url                    text PRIMARY KEY REFERENCES productos(url) ON DELETE CASCADE,
+  socket_id              smallint REFERENCES socket(id),
+  ddr_id                 smallint REFERENCES ddr(id),
+  form_factor_id         smallint REFERENCES form_factor(id),
+  tipo_memoria_id        smallint REFERENCES tipo_memoria(id),
+  certificacion_id       smallint REFERENCES certificacion(id),
+  gama_id                smallint REFERENCES gama(id),
+  tipo_almacenamiento_id smallint REFERENCES tipo_almacenamiento(id),   -- D16
+  watts                  integer,
+  capacidad_gb           integer,
+  velocidad_mhz          integer,                                       -- D16
+  actualizado_at         timestamptz NOT NULL DEFAULT now(),
+  CHECK ((watts IS NULL OR watts > 0) AND (capacidad_gb IS NULL OR capacidad_gb > 0)
+     AND (velocidad_mhz IS NULL OR velocidad_mhz > 0)));
 ```
 
 ⚠️ **Toda columna `*_id` es NULLABLE y NULL significa abstención** (D10).
@@ -258,7 +265,10 @@ centinela de abstención vive en el dominio Java, no en la base. `watts` y
 
 Write path: `TechSpecsPort.upsertSpecs(...)`, llamado después de agregar
 sobre los productos de `rubro='tecnologia'`, igual que `MlEnricher` llena
-`ml_output`. `sp_upsert_run` no se toca (D11).
+`ml_output`. `sp_upsert_run` no se toca (D11). ⚠️ La llamada vive en
+`web/ScraperService`, **no** en `aggregator/`: `pcs/` importa
+`aggregator.text.AccentStripper` (carve-out F3b), así que `aggregator → pcs`
+cierra un ciclo y `grafoSinCiclos` se pone rojo. Verificado antes de T5.
 
 ### Puerto (hexagonal)
 
@@ -316,7 +326,7 @@ cd frontend && npm test
       `preferencia_armador` en `truncateAll`, rollback en `docs/DATABASE.md`.
       Tests: dominio del CHECK por SQLState `23514`, UNIQUE por `23505`,
       cascade del borrado de usuario, scoping por dueño.
-- [ ] **T5 — Specs de producto persistidas.** Las seis tablas de lookup +
+- [x] **T5 — Specs de producto persistidas.** Las seis tablas de lookup +
       `producto_tech_specs` en la misma `V35`; `TechSpecsPort` en `pcs/` con
       su `@Repository` package-private en `db/`; llamada después de agregar
       sobre `rubro='tecnologia'`. Tests: NULL por abstención campo a campo
@@ -583,3 +593,59 @@ Postgres real vía Testcontainers, cero `ERROR]`, `BackendLayeringArchTest`
 `cannot find symbol: class PreferenciaArmadorRepository`.
 
 Siguiente: T5 (specs de producto persistidas, misma `V35`).
+
+### T5 — specs de producto persistidas (2026-09-20)
+
+Entregado, misma `V35` (todavía sin aplicar en ningún entorno, sigue
+editable): seis lookups más (`socket`, `ddr`, `form_factor`, `tipo_memoria`,
+`certificacion`, `tipo_almacenamiento`) y `producto_tech_specs`
+(`url` PK → `productos(url)` ON DELETE CASCADE, todo `*_id` NULLABLE = NULL
+= abstención (D10), CHECK `chk_producto_tech_specs_enteros_positivos` para
+que `watts`/`capacidad_gb`/`velocidad_mhz` nunca sean `0`); `pcs/TechSpecsPort`
+(`upsertSpecs(List<SpecsDeProducto>)`, `SpecsDeProducto(url, TechSpecs)`) +
+`db/TechSpecsRepository` package-private (resuelve cada lookup por nombre con
+un subselect en el mismo INSERT, molde `PreferenciaArmadorRepository`,
+`executeBatch`); `pcs/TechSpecsIndexer` (`@Component`, parsea sólo
+`esTech()` con url no vacía, batch vacío no llama al puerto, una fila
+`EMPTY` sí se escribe); hook en `web/ScraperService` (nuevo parámetro de
+constructor, llamada envuelta en try/catch WARN inmediatamente después de
+`aggregator.agregar(...)`, nunca en `aggregator/` para no crear el ciclo
+`aggregator ↔ pcs` que `AGREGATOR_LEAVES_F3B` ya deja abierto en un sentido).
+
+Extraído `db/GamaMapeo` (`nombreDeGama`/`gamaDeNombre`) desde
+`PreferenciaArmadorRepository` para que `TechSpecsRepository` no duplicara el
+mapeo `Gama.BAJA ↔ 'ECONOMICA'` (CODE-6) — `PreferenciaArmadorRepository`
+sigue lanzando `IllegalArgumentException` ante `Gama.DESCONOCIDA` (su columna
+es `NOT NULL`); `TechSpecsRepository` en cambio la escribe como NULL (su
+columna es NULLABLE), sin pasar por `GamaMapeo.nombreDeGama` en ese caso.
+
+`PostgresTestBase.truncateAll` suma `producto_tech_specs`; los seis lookups
+nuevos quedan afuera, mismo motivo que `gama`/`rol`/`indice`.
+`docs/DATABASE.md`: sección nueva para `producto_tech_specs` + sus lookups,
+tabla de arriba, índice de migraciones, y el bloque de rollback de `V35`
+creció a los ocho `DROP TABLE`/`ALTER TABLE` en el orden que exige la FK
+(`producto_tech_specs` antes que cualquiera de sus siete referencias; `gama`
+al final). `V35RollbackRoundTripTest` ahora siembra también una fila de
+specs y afirma las siete tablas nuevas caídas, además de las dos de T4.
+
+Verificación observada (`mvn clean test`, 2026-09-20): **BUILD SUCCESS,
+Tests run: 2412, Failures: 0, Errors: 0, Skipped: 7** (2384 + 28: 17 de
+`ProductoTechSpecsSchemaTest`, 5 de `TechSpecsRepositoryTest`, 6 de
+`TechSpecsIndexerTest`; `V35RollbackRoundTripTest` sigue en 2 —mismo test,
+aserciones ampliadas—, `PreferenciaArmadorSchemaTest`/
+`PreferenciaArmadorRepositoryTest` sin cambio en conteo), cero `ERROR]`,
+`BackendLayeringArchTest` 20/20, `SpringWiringTest` 6/6 (confirma que el
+nuevo parámetro de `ScraperService` resuelve como bean real). Postgres real
+vía Testcontainers. RED previo observado: compilación fallaba contra
+`TechSpecsPort`/`TechSpecsRepository`/`TechSpecsIndexer` inexistentes y
+contra la firma vieja de 7 argumentos de `new ScraperService(...)` en los 9
+call sites de los 5 tests que lo construyen a mano.
+`PcBuilderTest.java`/`TechSpecsParserTest.java` sin tocar (`git status`).
+
+Re-verificado por el orquestador tras dos retoques (comentario de
+`certificacion` en la migración acortado, `Collectors.toList()` →
+`toList()` en el indexer): `mvn clean test` exit 0, **2412 / 0 / 0 / 7**,
+cero `ERROR]`, `BackendLayeringArchTest` 20/20, `SpringWiringTest` 6/6.
+
+Siguiente: T6 (borde — endpoints, `PcBuildJson.mensajes`, `openapi.yaml`,
+tool `propose_pc`).
