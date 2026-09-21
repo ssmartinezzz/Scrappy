@@ -30,8 +30,11 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     private static String explicitSocket(Tokens tokens) {
         if (tokens.has("am5")) return "AM5";
         if (tokens.has("am4")) return "AM4";
+        if (tokens.has("am3")) return "AM3";
         if (tokens.has("lga1851") || tokens.has("1851")) return "LGA1851";
         if (tokens.has("lga1700") || tokens.has("1700")) return "LGA1700";
+        if (tokens.has("lga1200") || tokens.has("1200") || tokens.has("s1200")) return "LGA1200";
+        if (tokens.has("lga1151") || tokens.has("1151") || tokens.has("s1151")) return "LGA1151";
         return "";
     }
 
@@ -48,7 +51,11 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
             Map.entry("x570", "AM4"),
             Map.entry("h610", "LGA1700"), Map.entry("b660", "LGA1700"), Map.entry("b760", "LGA1700"),
             Map.entry("z690", "LGA1700"), Map.entry("z790", "LGA1700"),
-            Map.entry("h810", "LGA1851"), Map.entry("b860", "LGA1851"), Map.entry("z890", "LGA1851"));
+            Map.entry("h810", "LGA1851"), Map.entry("b860", "LGA1851"), Map.entry("z890", "LGA1851"),
+            Map.entry("h310", "LGA1151"), Map.entry("b360", "LGA1151"), Map.entry("b365", "LGA1151"),
+            Map.entry("z390", "LGA1151"), Map.entry("h370", "LGA1151"),
+            Map.entry("h410", "LGA1200"), Map.entry("b460", "LGA1200"), Map.entry("z490", "LGA1200"),
+            Map.entry("h510", "LGA1200"), Map.entry("b560", "LGA1200"), Map.entry("z590", "LGA1200"));
 
     private static String chipsetToken(Tokens tokens) {
         for (String t : tokens.array()) {
