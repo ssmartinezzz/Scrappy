@@ -298,6 +298,17 @@ public class CategoryClassifier {
      *       es un switch de red.</li>
      * </ol>
      *
+     * <p><b>PC y CPU por sustantivo líder corren PRIMERO de todos</b>
+     * (pc-builder-deep-taxonomy, T4d-1) — antes incluso de Red/Cable/GPU/etc.
+     * "PC Powered by MSI Ultimate AMD Ryzen 7 5700X B550 32GB RAM 1TB RTX
+     * 5060 750W Gold Cpu Cooler WIFI" es una PC armada entera, pero
+     * {@code KW_GPU} ("rtx 5060") corría antes que {@code KW_PC_LIDER} y se
+     * la quedaba — entraba al slot gpu de {@code PcBuilder} como una placa de
+     * video suelta. Un sustantivo líder ya es la afirmación más fuerte que
+     * tiene el nombre sobre qué ES el producto, así que no contradice "el
+     * contenedor gana": sigue siendo el mismo principio, aplicado antes de
+     * dejar que ningún otro sustantivo del título compita.</p>
+     *
      * @return la categoría tech, o {@code ""} si el texto no es tech —
      *         abstención, que deja seguir la cadena ({@code CODE-5}).
      */
@@ -309,6 +320,8 @@ public class CategoryClassifier {
         if ((t.contains(" para gabinete ") && startsWithAny(t, GarmentTaxonomy.KW_GABINETE_ACCESORIO_LIDER))
                 || startsWithAny(t, GarmentTaxonomy.KW_SERVICIO_LIDER))
             return "";
+        if (startsWithAny(t, GarmentTaxonomy.KW_PC_LIDER))                    return "PC";
+        if (startsWithAny(t, GarmentTaxonomy.KW_CPU_LIDER))                   return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED)
                 || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED_SWITCH) && esContextoRed(t)))
             return "Red";
@@ -321,10 +334,8 @@ public class CategoryClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GPU))              return "GPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOTHERBOARD))      return "Motherboard";
         if (startsWithAny(t, GarmentTaxonomy.KW_FUENTE_LIDER))                return "Fuente";
-        if (startsWithAny(t, GarmentTaxonomy.KW_PC_LIDER))                    return "PC";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GABINETE))         return "Gabinete";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUENTE))           return "Fuente";
-        if (startsWithAny(t, GarmentTaxonomy.KW_CPU_LIDER))                   return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COOLER))           return "Cooler";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CPU))              return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))              return "RAM";
