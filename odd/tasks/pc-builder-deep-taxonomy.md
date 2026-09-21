@@ -119,7 +119,7 @@ está en castellano en `pcs/`.
   H410/B460/Z490/H510/B560` → socket). `ReglaSodimm` en el slot ram.
   `CoolerSpecsReader` lee la lista de sockets; `ReglaSocketCooler` veta cuando
   cooler y mother parsearon y no se cruzan. Mensajes D6 para cada regla nueva.
-- [ ] **T3 — Ejes profundos (D4).** `TechSpecs` gana `marcaChip`, `generacion`,
+- [x] **T3 — Ejes profundos (D4).** `TechSpecs` gana `marcaChip`, `generacion`,
   `tierChipset`, `modulos`, `wifi` (T2 ya le agregó `socketsSoportados`) (con constructores de compatibilidad, CODE-2).
   Readers: CPU (marca, generación), GPU (marca, generación, VRAM en
   `capacidadGb`), mother (tier chipset, wifi, marca por socket), RAM (módulos).
@@ -198,3 +198,75 @@ igual entra al pool porque lista AM5 además, así que no se perdió ningún
 caso de los que armé tests para, pero la cobertura de socketsSoportados
 sería mayor si se agregara. No lo agregué por no estar en el pedido
 explícito; queda como nota para T3+ si hace falta.
+
+**T3 — hecho** (`261a1f5` T3a + `043a6f0` T3b + `3ff8824` T3c), tres
+commits, cada uno RED→GREEN propio. Suite completa 2531/0/0 (7 skips
+preexistentes de infra), `ERROR]`=0, BUILD SUCCESS, `BackendLayeringArchTest`
+20/20.
+
+- **T3a** (`TechSpecs`): cinco campos nuevos al final del record —
+  `marcaChip`/`generacion`/`tierChipset`/`modulos`/`wifi`. El canonical
+  pre-T3a (11 args) pasa a ser constructor de compatibilidad (CODE-2); `EMPTY`
+  actualizado. `wifi=false` es la única excepción D2 (afirmación, no
+  abstención) y quedó escrita en el javadoc del campo. RED de compilación
+  (los accessors no existían) → GREEN.
+- **T3b** (readers): `CpuSpecsReader`/`GpuSpecsReader` leen `marcaChip` +
+  `generacion` del nombre; GPU además llena VRAM en el `capacidadGb` ya
+  existente. `MotherboardSpecsReader` deriva `marcaChip` del socket,
+  `tierChipset` del `chipsetToken` que ya encontraba, y `wifi` como
+  afirmación. `RamSpecsReader` lee `modulos` SÓLO del multiplicador explícito
+  `NxMGB` — un `NGB` suelto sin multiplicador se abstiene, nunca asume 1.
+  `MotherboardSpecsReaderTest` es archivo nuevo (Motherboard no tenía test
+  directo, sólo cobertura vía `TechSpecsParserTest`). Dos tests de fase 1
+  cuyo nombre/aserción decía "sólo abstiene" quedaron desactualizados por
+  diseño y se renombraron con las aserciones nuevas
+  (`gpuSoloLlenaGama`→`gpuLlenaGamaMarcaChipGeneracionYVram`,
+  `cpuSoloLlenaSocketYGama`→`...YAbstieneElResto`). Bug propio encontrado
+  durante el desarrollo: el primer intento de `MotherboardSpecsReader.leer`
+  pasaba `tierChipset(chipsetToken)` en la posición del campo `generacion`
+  y un `0` literal en la posición de `tierChipset` — típeaba pero el orden
+  de argumentos no coincidía con el orden del record. Lo agarró el propio
+  test (`tierChipsetUnoParaXZ` daba 0 en vez de 1) antes de commitear.
+- **T3c** (`EjesTecnicos` + `PcBuildJson`): CPU `gama → generación desc`; GPU
+  `gama → generación desc → VRAM desc`; MOTHER `ddr → tierChipset rank (1=X/Z
+  < 2=B < 3=A/H, 0 última, mapeo explícito)`; RAM `ddr → módulos desc → MHz
+  desc → GB desc` — el kit va ANTES que la velocidad, tal cual D4. Abstención
+  (0) sigue última en cada sub-eje nuevo. `PcBuildJson`/`PcBuildJsonTest`
+  ganan los cinco campos en el bloque `specs`; verificado que `propose_pc`
+  (`ProposePcTool`) sigue reusando `PcBuildJson` sin duplicar serialización
+  (DOC-1 para código). RED confirmado con `git stash` de `EjesTecnicos.java`
+  (10 fallos en `EjesTecnicosTest` sobre las aserciones D4 nuevas) → stash
+  pop → GREEN. `docs/openapi.yaml` no lista campos de `specs` (sólo
+  path+método+`x-access`, como documenta `OpenApiRouteCoverageTest`), así que
+  no hizo falta tocarlo para T3.
+
+**Cobertura medida** (TSV de hardware, 3360 filas, reclasificadas con
+`CategoryClassifier` antes de parsear — igual que T1/T2):
+
+| Slot | Eje | Cobertura |
+|---|---|---|
+| CPU (389 filas) | marcaChip | 388/389 |
+| CPU | generacion | 329/389 |
+| GPU (445 filas) | marcaChip | 438/445 |
+| GPU | generacion | 355/445 |
+| GPU | VRAM (capacidadGb) | 382/445 |
+| Motherboard (515 filas) | marcaChip | 511/515 |
+| Motherboard | tierChipset | 509/515 |
+| Motherboard | wifi=true | 264/515 (el resto es `false` afirmado, D2) |
+| RAM (375 filas) | modulos | 46/375 (sólo el kit `NxMGB` explícito) |
+
+**Top-3 por slot sin gama y sin presupuesto** (mother → cpu del socket
+elegido → gpu → ram de la ddr derivada), mismo TSV:
+
+- **Mother**: `Asrock Z790I Lightning WIFI ITX DDR5 S1700` ($284.037,
+  tierChipset=1/X-Z) > `Gigabyte Z890 UD S/HDMI LGA1851 DDR5` ($320.999,
+  tier=1) > `ASRock X870 PRO-A WIFI AM5 DDR5` ($324.999, tier=1). El eje de
+  tier ahora le gana al precio: antes de T3 el pick era la DDR5 más barata
+  del catálogo (`OUTLET Biostar B650M`, $72.200, sin ningún eje de chipset).
+- **CPU** (socket LGA1700, 93 candidatos): `Intel Core i7 14700F` ($588.270,
+  gen=14) empatado en gama/generación con dos `i7 14700KF` — antes de T3
+  cualquier i7/Ryzen 7/9 de ese socket rankeaba igual y ganaba el más barato.
+- **GPU**: tres `Radeon RX 9070 16GB` (gen=9, ALTA) — antes de T3 una RTX 3070
+  y una RTX 5070 rankeaban idénticas (ambas ALTA, sin generación ni VRAM).
+- **RAM** (ddr=DDR5): tres kits `2x16GB`/`2x32GB` de 6400-7600MHz — antes de
+  T3 un kit de 32GB perdía contra un stick único más rápido del mismo DDR.
