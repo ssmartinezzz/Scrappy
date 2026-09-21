@@ -89,6 +89,12 @@ Cobertura de lo que el usuario quiere filtrar:
   `propose_pc` recibe los mismos como enums; `PUT /api/pcs/preferencia` los
   persiste. Valor inválido → 400, como `gama`.
 
+- **D9** (surgió de la medición de T3) El tier de chipset se rankea **relativo
+  a la gama pedida**, no absoluto: ALTA → X/Z primero, MEDIA → B primero,
+  BAJA → A/H primero (distancia al tier objetivo, abstención última). Sin
+  gama pedida queda tier desc como dejó T3. Sin esto una build económica
+  compraba una `Z790I` de $284k de mother antes que nada.
+
 ## Fuera de scope
 
 - Consumo real de GPU para el piso de watts (sigue por gama).
@@ -128,7 +134,7 @@ está en castellano en `pcs/`.
   `ContextoDeArmado` + seis reglas (`ReglaDdrPedida` en mother y ram,
   `ReglaMarcaChip` en mother/cpu/gpu, `ReglaTipoAlmacenamiento`,
   `ReglaRamDual`, `ReglaWifi`). `PcBuilder.armar` con overload nuevo; los
-  overloads existentes intactos.
+  overloads existentes intactos. Tier de chipset relativo a la gama (D9).
 - [ ] **T5 — Borde y persistencia (D7, D8).** `V36`, `PreferenciaArmador` +
   repository, `GET /api/pcs/builder` params, `PcBuildJson` con los campos
   nuevos, `openapi.yaml`, `propose_pc`, `OpenApiRouteCoverageTest` verde.
