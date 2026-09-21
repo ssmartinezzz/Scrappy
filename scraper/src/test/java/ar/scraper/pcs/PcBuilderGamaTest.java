@@ -230,6 +230,22 @@ class PcBuilderGamaTest {
         assertThat(build.mensajes()).containsEntry("cooler", "no hay productos en la categoría Cooler");
     }
 
+    // ── T2d, pc-builder-deep-taxonomy: cooler ↔ mother socket ────────────
+
+    @Test
+    @DisplayName("T2d: a cooler that only lists AM4 is vetoed against an AM5 mother")
+    void coolerVetadoCuandoNoSoportaElSocketDeLaMother() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard ASUS TUF Gaming B850M-E WiFi AM5 DDR5", 250_000, "Motherboard", "https://t/mb"),
+                producto("Cooler CPU Deepcool AG400 AM4 Only", 30_000, "Cooler", "https://t/cooler"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), Gama.ALTA);
+
+        assertThat(build.picks()).noneMatch(p -> p.slot().equals("cooler"));
+        assertThat(build.sinCompatible()).contains("cooler");
+        assertThat(build.mensajes()).containsEntry("cooler", "el cooler no soporta el socket de la motherboard");
+    }
+
     // ── T3b-2, D6: mensajes por slot vacío ────────────────────────────────
 
     @Test
