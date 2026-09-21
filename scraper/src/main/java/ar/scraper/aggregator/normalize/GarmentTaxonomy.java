@@ -868,6 +868,15 @@ public final class GarmentTaxonomy {
         " patchcord ", " conversor ", " prolongador ", " extension usb "
     };
 
+    /** Líder + " para gabinete " en el mismo título ⇒ destino, no producto. */
+    public static final String[] KW_GABINETE_ACCESORIO_LIDER = {
+        " bracket ", " filtro ", " soporte ", " kit "
+    };
+
+    public static final String[] KW_SERVICIO_LIDER = { " service ", " servicio " };
+    public static final String[] KW_FUENTE_LIDER = { " fuente " };
+    public static final String[] KW_PC_LIDER = { " pc " };
+
     /**
      * Redes. NO tiene "red" pelado a propósito: "red" es un color en inglés y
      * el nombre de un switch mecánico de teclado — "Teclado Mecánico Raptor
