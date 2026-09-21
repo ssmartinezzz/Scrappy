@@ -69,6 +69,36 @@ class ContextoDeArmadoTest {
     }
 
     @Test
+    @DisplayName("derives DDR4 from an LGA1200 socket — unambiguous, 10th/11th gen is DDR4-only")
+    void derivaDdr4DeLga1200() {
+        TechSpecs mother = new TechSpecs("LGA1200", "", "MATX", 0, 0, "");
+
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
+
+        assertThat(contexto.motherDdr()).isEqualTo("DDR4");
+    }
+
+    @Test
+    @DisplayName("abstains on LGA1151 — DDR3 and DDR4 boards both exist for that socket")
+    void abstieneEnLga1151() {
+        TechSpecs mother = new TechSpecs("LGA1151", "", "MATX", 0, 0, "");
+
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
+
+        assertThat(contexto.motherDdr()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("abstains on AM3")
+    void abstieneEnAm3() {
+        TechSpecs mother = new TechSpecs("AM3", "", "ATX", 0, 0, "");
+
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
+
+        assertThat(contexto.motherDdr()).isEmpty();
+    }
+
+    @Test
     @DisplayName("abstains when the board states neither ddr nor a derivable socket")
     void abstieneCuandoNoHayNadaQueDerivar() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(TechSpecs.EMPTY);
