@@ -1,6 +1,5 @@
 package ar.scraper.db;
 
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
 import org.slf4j.Logger;
@@ -29,26 +28,6 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
         this.dataSource = dataSource;
     }
 
-    /** {@code Gama.BAJA} maps to the {@code ECONOMICA} row — that row is the DB vocabulary. */
-    private static String nombreDeGama(Gama gama) {
-        return switch (gama) {
-            case BAJA -> "ECONOMICA";
-            case MEDIA -> "MEDIA";
-            case ALTA -> "ALTA";
-            case DESCONOCIDA -> throw new IllegalArgumentException(
-                    "Gama.DESCONOCIDA es un centinela de abstención, nunca un valor de FK (D10)");
-        };
-    }
-
-    private static Gama gamaDeNombre(String nombre) {
-        return switch (nombre) {
-            case "ECONOMICA" -> Gama.BAJA;
-            case "MEDIA" -> Gama.MEDIA;
-            case "ALTA" -> Gama.ALTA;
-            default -> throw new IllegalStateException("gama.nombre desconocido en la base: " + nombre);
-        };
-    }
-
     /**
      * Upsert por dueño: el {@code WHERE} del conflict target repite exactamente
      * el de {@code uq_preferencia_armador_usuario} — un índice parcial no se
@@ -56,7 +35,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
      */
     @Override
     public void guardar(UUID usuarioId, PreferenciaArmador preferencia) {
-        String gamaNombre = nombreDeGama(preferencia.gama());
+        String gamaNombre = GamaMapeo.nombreDeGama(preferencia.gama());
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
                      INSERT INTO preferencia_armador (usuario_id, gama_id, presupuesto, con_gpu, updated_at)
@@ -98,7 +77,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                 double presupuesto = rs.getDouble("presupuesto");
                 Double presupuestoOrNull = rs.wasNull() ? null : presupuesto;
                 return Optional.of(new PreferenciaArmador(
-                        gamaDeNombre(rs.getString("gama_nombre")),
+                        GamaMapeo.gamaDeNombre(rs.getString("gama_nombre")),
                         presupuestoOrNull,
                         rs.getBoolean("con_gpu")));
             }

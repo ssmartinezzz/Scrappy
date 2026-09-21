@@ -67,7 +67,8 @@ class ScraperServiceSnapshotIsolationTest {
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
                 Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
-                Mockito.mock(ar.scraper.catalog.ProductPort.class));
+                Mockito.mock(ar.scraper.catalog.ProductPort.class),
+                Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
     }
 
     private void abrir(ScraperService service) {
