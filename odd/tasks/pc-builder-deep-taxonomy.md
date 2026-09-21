@@ -135,6 +135,12 @@ está en castellano en `pcs/`.
   `ReglaMarcaChip` en mother/cpu/gpu, `ReglaTipoAlmacenamiento`,
   `ReglaRamDual`, `ReglaWifi`). `PcBuilder.armar` con overload nuevo; los
   overloads existentes intactos. Tier de chipset relativo a la gama (D9).
+- [x] **T4d — Dos hallazgos de ruido de catálogo de las builds de T4.**
+  T4d-1: `KW_PC_LIDER`/`KW_CPU_LIDER` corren primero de todo el bloque tech
+  (antes ganaba `KW_GPU`, y una PC armada entraba al slot gpu). T4d-2:
+  `EjesTecnicos.COOLER` gana un eje LIQUIDO/AIRE vía `TipoCooler` +
+  `CoolerSpecsReader` (antes el slot cooler no tenía eje y elegía lo más
+  barato de una categoría con ruido).
 - [ ] **T5 — Borde y persistencia (D7, D8).** `V36`, `PreferenciaArmador` +
   repository, `GET /api/pcs/builder` params, `PcBuildJson` con los campos
   nuevos, `openapi.yaml`, `propose_pc`, `OpenApiRouteCoverageTest` verde.
@@ -396,3 +402,53 @@ que las cuatro confirman:
   en `/pcs`. No se tocó nada para T4: está fuera del scope de esta tarea
   (T5+/otro ODD) y el catálogo scrapeado se corrige en el próximo run como
   documenta D5 de T1.
+
+**T4d — hecho** (`c833b6f` T4d-1 + `9d9f6d9` T4d-2), dos commits, cada uno
+RED→GREEN propio. Suite completa 2604/0/0 (7 skips preexistentes de infra),
+`ERROR]`=0, BUILD SUCCESS, `BackendLayeringArchTest` 20/20.
+
+- **T4d-1** (clasificador): `KW_PC_LIDER`/`KW_CPU_LIDER` se movieron al tope
+  de `clasificarTech`, justo después del guard de abstención de gabinete/
+  service y antes de `KW_RED` — antes corrían después de `KW_GPU` y seis
+  checks más, así que "PC Powered by MSI Ultimate AMD Ryzen 7 5700X B550
+  32GB RAM 1TB RTX 5060 750W Gold Cpu Cooler WIFI" clasificaba `GPU` y
+  entraba al slot gpu de `PcBuilder` como placa de video suelta. Medido
+  sobre las 3360 filas de hardware (antes/después): GPU 445→389 (-56), CPU
+  389→429 (+40), PC 72→88 (+16) — las 56 filas que cambian son o PCs
+  armadas enteras (`"PC ..."` → PC) o procesadores con cooler RGB/iGPU en
+  el nombre (`"Procesador/Micro ..."` con Radeon/RTX/RX → CPU). Ninguna
+  otra categoría se tocó.
+- **T4d-2** (`EjesTecnicos.COOLER`): ganó un eje real. `TipoCooler`
+  (LIQUIDO/AIRE/DESCONOCIDO, molde `TipoAlmacenamiento`) + campo
+  `tipoCooler` en `TechSpecs` (el canonical de 16 args pasa a ser el
+  constructor de compatibilidad, CODE-2). `CoolerSpecsReader` lo deriva del
+  nombre: pasta/limpieza/pad (`pasta`/`grasa`/`pano`/`pad`/`thermal`) veta
+  primero; un líder `fan`/`ventilador`/`kit` es un fan de gabinete, no un
+  cooler de CPU; agua/AIO explícita o un radiador (`240/280/360/420mm`)
+  junto a `cooler` es LIQUIDO; el resto de `cooler`/`disipador` es AIRE.
+  `EjesTecnicos.COOLER` rankea LIQUIDO > AIRE, DESCONOCIDO siempre última,
+  mismo mapeo explícito que el resto de los ejes. `PcBuildJson` gana
+  `tipoCooler` en `specs`. `TechSpecsIndexer`/`producto_tech_specs` quedan
+  sin tocar a propósito — la persistencia de este eje se difiere junto con
+  `socketsSoportados` (T5+). Un test de fase 1
+  (`TechSpecsParserTest.coolerAbstainsEntirelyInPhase1`) afirmaba
+  `TechSpecs.EMPTY` para un cooler que ahora resuelve `AIRE`
+  correctamente; se renombró a `coolerSoloLlenaTipoCoolerElRestoAbstiene`
+  y se reescribió para afirmar que el resto de los campos sigue abstenido,
+  mismo patrón que `almacenamientoSoloLlenaTipoYCapacidad` de T3b.
+
+**Cobertura medida** (los 323 `Cooler` que quedan tras la reclasificación de
+T4d-1, mismo TSV de 3360 filas): LIQUIDO 164, AIRE 99, DESCONOCIDO 60.
+
+**Las dos builds de T4 re-medidas sobre el mismo catálogo, mismas
+preferencias** (`MedirT4.java`, scratch):
+
+- **(2)** (MEDIA, DDR5, AMD, ramDual, wifi, NVME, conGpu NVIDIA): el pick de
+  gpu pasó de `"PC Powered by MSI Ultimate ... RTX 5060 ..."` (una PC
+  armada entera) a `"Placa de Video MSI Nvidia Geforce RTX 5060 Ti 16gb
+  Ventus 2x OC Plus GDDR7"` ($1.409.990) — una placa de video suelta de
+  verdad.
+- **(4)** (ALTA, DDR5, INTEL, AMD gpu, conGpu): el pick de cooler pasó de
+  `"Paño de limpieza Arctic para Pasta térmica"` ($1.800) a `"OUTLET CPU
+  Water Cooler Lovingcool 240mm HK-B240-02 - Argb - Black"` ($66.700) — un
+  AIO real, coherente con la gama ALTA pedida.
