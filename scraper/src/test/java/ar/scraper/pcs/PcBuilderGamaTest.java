@@ -163,4 +163,111 @@ class PcBuilderGamaTest {
 
         assertThat(build.picks()).anyMatch(p -> p.slot().equals("fuente"));
     }
+
+    // ── T3b-2, D4: el slot cooler sólo se abre con gama ALTA ─────────────
+
+    @Test
+    @DisplayName("D4: gama ALTA opens the cooler slot; gama MEDIA/BAJA/null keep it closed entirely")
+    void coolerSoloConGamaAlta() {
+        List<Product> catalogo = List.of(
+                producto("Cooler Cooler Master Hyper 212", 30_000, "Cooler", "https://t/cooler"));
+
+        PcBuild alta = builder.armar(catalogo, 0, false, Set.of(), Gama.ALTA);
+        PcBuild media = builder.armar(catalogo, 0, false, Set.of(), Gama.MEDIA);
+        PcBuild baja = builder.armar(catalogo, 0, false, Set.of(), Gama.BAJA);
+        PcBuild sinGama = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(alta.picks()).anyMatch(p -> p.slot().equals("cooler"));
+
+        assertThat(media.picks()).noneMatch(p -> p.slot().equals("cooler"));
+        assertThat(media.sinStock()).doesNotContain("cooler");
+        assertThat(media.sinCompatible()).doesNotContain("cooler");
+        assertThat(media.mensajes()).doesNotContainKey("cooler");
+
+        assertThat(baja.picks()).noneMatch(p -> p.slot().equals("cooler"));
+        assertThat(sinGama.picks()).noneMatch(p -> p.slot().equals("cooler"));
+    }
+
+    @Test
+    @DisplayName("D4: gama DESCONOCIDA (an unparseable requested tier) also keeps the cooler slot closed")
+    void coolerCerradoConGamaDesconocida() {
+        List<Product> catalogo = List.of(
+                producto("Cooler Cooler Master Hyper 212", 30_000, "Cooler", "https://t/cooler"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), Gama.DESCONOCIDA);
+
+        assertThat(build.picks()).noneMatch(p -> p.slot().equals("cooler"));
+        assertThat(build.sinStock()).doesNotContain("cooler");
+        assertThat(build.sinCompatible()).doesNotContain("cooler");
+        assertThat(build.mensajes()).doesNotContainKey("cooler");
+    }
+
+    @Test
+    @DisplayName("D4: the cooler slot sits right after cpu in pick order, before ram/gabinete/fuente/gpu")
+    void coolerVaDespuesDeCpu() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard ASUS TUF Gaming B850M-E WiFi AM5 DDR5", 250_000, "Motherboard", "https://t/mb"),
+                producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/cpu"),
+                producto("Cooler Cooler Master Hyper 212", 30_000, "Cooler", "https://t/cooler"),
+                producto("Memoria RAM Corsair Vengeance DDR5 32GB 6000MHz", 90_000, "RAM", "https://t/ram"),
+                producto("Gabinete Corsair 4000D ATX", 90_000, "Gabinete", "https://t/gabinete"),
+                producto("Fuente Antec 1000W 80 Plus Gold ATX", 150_000, "Fuente", "https://t/fuente"),
+                producto("Placa de Video Asus GeForce RTX 4090", 1_500_000, "GPU", "https://t/gpu"),
+                producto("SSD Kingston NV2 1TB", 60_000, "Almacenamiento", "https://t/ssd"));
+
+        PcBuild build = builder.armar(catalogo, 0, true, Set.of(), Gama.ALTA);
+
+        assertThat(build.picks()).extracting(PcPick::slot)
+                .containsSubsequence("cpu", "cooler", "ram", "gabinete", "fuente", "gpu", "almacenamiento");
+    }
+
+    @Test
+    @DisplayName("D6: cooler with no stock is sinStock and its mensaje names the empty category")
+    void coolerSinStockTieneMensaje() {
+        PcBuild build = builder.armar(List.of(), 0, false, Set.of(), Gama.ALTA);
+
+        assertThat(build.sinStock()).contains("cooler");
+        assertThat(build.mensajes()).containsEntry("cooler", "no hay productos en la categoría Cooler");
+    }
+
+    // ── T3b-2, D6: mensajes por slot vacío ────────────────────────────────
+
+    @Test
+    @DisplayName("D6: sinCompatible carries the single vetoing rule's motivo when only one rule fires")
+    void mensajeSinCompatibleConUnMotivo() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard Asus Prime B550M-A DDR4 AM4", 100_000, "Motherboard", "https://t/mb"),
+                producto("Memoria RAM Corsair Vengeance DDR5 64GB 6000MHz", 180_000, "RAM", "https://t/ram"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(build.sinCompatible()).contains("ram");
+        assertThat(build.mensajes()).containsEntry("ram", "la generación de RAM no coincide con la de la motherboard");
+    }
+
+    @Test
+    @DisplayName("D6: sinCompatible joins distinct motivos in the slot's own rule order when two rules each veto a different candidate")
+    void mensajeSinCompatibleConDosMotivosDistintos() {
+        List<Product> catalogo = List.of(
+                producto("Fuente Antec 400W 80 Plus Gold ATX", 50_000, "Fuente", "https://t/lowwatts"),
+                producto("Fuente Antec 800W 80 Plus Bronze ATX", 90_000, "Fuente", "https://t/lowcert"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), Gama.ALTA);
+
+        assertThat(build.sinCompatible()).contains("fuente");
+        assertThat(build.mensajes()).containsEntry("fuente",
+                "la fuente no alcanza el piso de watts requerido · la fuente no alcanza la certificación mínima requerida");
+    }
+
+    @Test
+    @DisplayName("D6: a slot with a pick has no mensaje entry")
+    void slotConPickNoTieneMensaje() {
+        List<Product> catalogo = List.of(
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB", 10_000, "RAM", "https://t/ram"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(build.picks()).anyMatch(p -> p.slot().equals("ram"));
+        assertThat(build.mensajes()).doesNotContainKey("ram");
+    }
 }
