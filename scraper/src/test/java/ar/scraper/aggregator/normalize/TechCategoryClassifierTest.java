@@ -191,6 +191,33 @@ class TechCategoryClassifierTest {
     }
 
     @Test
+    @DisplayName("Un procesador que nombra su cooler como accesorio sigue siendo CPU")
+    void unProcesadorQueNombraSuCoolerSigueSiendoCpu() {
+        // KW_COOLER corre antes que KW_CPU (el cooler de un CPU no es un CPU),
+        // así que un procesador que menciona "cooler" como accesorio caía acá.
+        // 146 de 470 filas de Cooler eran CPUs (pc-builder-deep-taxonomy, T2a).
+        assertThat(cat("Procesador AMD Ryzen 9 9950X3D 16/32 5.6GHz AM5 (no incluye cooler)"))
+                .isEqualTo("CPU");
+        assertThat(cat("Procesador AMD Ryzen 5 8500G 5.0GHz Turbo AM5 + Wraith Stealth Cooler"))
+                .isEqualTo("CPU");
+        // "Outlet" al frente es una etiqueta de venta, no el sustantivo — mismo
+        // trato que el líder de Gabinete/Fuente/PC.
+        assertThat(cat("Outlet Procesador Intel Core i5 13600KF S/Cooler S/Video LGA1700"))
+                .isEqualTo("CPU");
+        assertThat(cat("Micro AMD Ryzen 7 5700X 4.6 GHz AM4 Tray Sin Cooler"))
+                .isEqualTo("CPU");
+
+        // Un cooler sigue siendo un cooler cuando ES el producto
+        assertThat(cat("CPU Cooler Cooler Master DT621 R1")).isEqualTo("Cooler");
+        assertThat(cat("Cooler para CPU Intel/AMD Deepcool AG400")).isEqualTo("Cooler");
+        assertThat(cat("CPU Water Cooler Lovingcool 240mm AK-B240-03")).isEqualTo("Cooler");
+
+        // Micro SD no es un procesador: bare " micro " no puede entrar a la
+        // lista de líderes.
+        assertThat(cat("Tarjeta de Memoria Micro SD Kingston 64GB")).isEqualTo("Almacenamiento");
+    }
+
+    @Test
     @DisplayName("'Patinaje Dc Shoes' son zapatillas de skate, no patines")
     void patinajeDcShoesSonZapatillasDeSkate() {
         assertThat(cat("Patinaje Dc Shoes Slathletic Heritage Hombre Blancas ZXUK-9458"))

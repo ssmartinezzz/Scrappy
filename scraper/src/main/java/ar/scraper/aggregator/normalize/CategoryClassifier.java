@@ -324,6 +324,7 @@ public class CategoryClassifier {
         if (startsWithAny(t, GarmentTaxonomy.KW_PC_LIDER))                    return "PC";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GABINETE))         return "Gabinete";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUENTE))           return "Fuente";
+        if (startsWithAny(t, GarmentTaxonomy.KW_CPU_LIDER))                   return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COOLER))           return "Cooler";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CPU))              return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))              return "RAM";
@@ -361,12 +362,29 @@ public class CategoryClassifier {
         return false;
     }
 
-    /** ¿El texto ARRANCA con alguno de estos? Mismo contrato que {@link #esCableLider}. */
+    /**
+     * ¿El texto ARRANCA con alguno de estos? Mismo contrato que
+     * {@link #esCableLider}, salvo que "outlet" al frente no cuenta como el
+     * sustantivo: es una etiqueta de venta ("Outlet Procesador Intel..."),
+     * así que también se prueba el texto sin ese prefijo.
+     */
     private boolean startsWithAny(String t, String[] keywords) {
         for (String kw : keywords) {
             if (t.startsWith(kw)) return true;
         }
+        String sinOutlet = sinLiderOutlet(t);
+        if (sinOutlet != null) {
+            for (String kw : keywords) {
+                if (sinOutlet.startsWith(kw)) return true;
+            }
+        }
         return false;
+    }
+
+    /** Texto sin el prefijo " outlet " (y separadores sueltos), o null si no lo tenía. */
+    private String sinLiderOutlet(String t) {
+        if (!t.startsWith(" outlet ")) return null;
+        return " " + t.substring(" outlet ".length()).replaceFirst("^[-\\s]+", "");
     }
 
     /**

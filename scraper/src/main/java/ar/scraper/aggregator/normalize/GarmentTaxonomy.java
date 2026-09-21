@@ -878,6 +878,15 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PC_LIDER = { " pc " };
 
     /**
+     * Líder ⇒ CPU aunque el título nombre "cooler" como accesorio (pc-builder-
+     * deep-taxonomy, T2a). Bare " micro " queda afuera a propósito: se come
+     * "Micro SD".
+     */
+    public static final String[] KW_CPU_LIDER = {
+        " procesador ", " microprocesador ", " micro amd ", " micro intel "
+    };
+
+    /**
      * Redes. NO tiene "red" pelado a propósito: "red" es un color en inglés y
      * el nombre de un switch mecánico de teclado — "Teclado Mecánico Raptor
      * Fireclaw M87 Red Red Switch" tiene las dos palabras y no es un router.
