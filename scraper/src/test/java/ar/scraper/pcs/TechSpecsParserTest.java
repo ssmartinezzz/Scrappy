@@ -536,11 +536,24 @@ class TechSpecsParserTest {
         assertThat(t.certificacion()).isEqualTo(Certificacion.NINGUNA);
     }
 
+    /**
+     * Ya no se abstiene entera: {@code CoolerSpecsReader} (T4d-2) le da
+     * {@code tipoCooler} — "Cooler Master..." nombra "cooler" y no es un case
+     * fan, así que resuelve AIRE. El resto de los campos sigue abstenido,
+     * igual que {@link #almacenamientoSoloLlenaTipoYCapacidad}.
+     */
     @Test
-    void coolerAbstainsEntirelyInPhase1() {
+    void coolerSoloLlenaTipoCoolerElRestoAbstiene() {
         var t = TechSpecsParser.parse("Cooler Master Hyper 212 Black Edition", "Cooler");
 
-        assertThat(t).isEqualTo(TechSpecs.EMPTY);
+        assertThat(t.tipoCooler()).isEqualTo(TipoCooler.AIRE);
+        assertThat(t.socket()).isEmpty();
+        assertThat(t.ddr()).isEmpty();
+        assertThat(t.formFactor()).isEmpty();
+        assertThat(t.watts()).isZero();
+        assertThat(t.socketsSoportados()).isEmpty();
+        assertThat(t.gama()).isEqualTo(Gama.DESCONOCIDA);
+        assertThat(t.certificacion()).isEqualTo(Certificacion.NINGUNA);
     }
 
     @Test

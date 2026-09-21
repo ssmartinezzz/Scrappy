@@ -59,11 +59,14 @@ public final class EjesTecnicos {
     public static final Comparator<TechSpecs> GABINETE = (a, b) -> 0;
 
     /**
-     * Sin ejes: no hay eje de tecnología medido para coolers (AIO vs aire,
-     * altura, TDP) — trabajo pendiente que necesita datos, no código
-     * (pc-builder-gama T3b-2).
+     * LIQUIDO desc sobre AIRE — DESCONOCIDO siempre última (T4d-2,
+     * pc-builder-deep-taxonomy). Antes de esto el slot no tenía eje (AIO vs
+     * aire, altura, TDP siguen sin parsearse) y el precio más bajo de una
+     * categoría con ruido de clasificación ganaba: build (4) de T4 eligió un
+     * paño de limpieza para pasta térmica ($1.800) para el slot cooler.
      */
-    public static final Comparator<TechSpecs> COOLER = (a, b) -> 0;
+    public static final Comparator<TechSpecs> COOLER =
+            Comparator.comparingInt(specs -> tipoCoolerRank(specs.tipoCooler()));
 
     public static final Comparator<TechSpecs> FUENTE =
             Comparator.comparingInt(specs -> -specs.certificacion().ordinal());
@@ -105,6 +108,15 @@ public final class EjesTecnicos {
             case NVME -> 0;
             case SSD -> 1;
             case HDD -> 2;
+            case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+        };
+    }
+
+    private static int tipoCoolerRank(TipoCooler tipo) {
+        if (!tipo.esConocido()) return Integer.MAX_VALUE;
+        return switch (tipo) {
+            case LIQUIDO -> 0;
+            case AIRE -> 1;
             case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
         };
     }
