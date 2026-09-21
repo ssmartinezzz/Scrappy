@@ -397,6 +397,7 @@ function PcsRoute() {
             nombre: result.nombre,
             presupuesto: payload.presupuesto,
             conGpu: payload.conGpu,
+            gama: payload.gama ?? null,
             picks: payload.picks || [],
             totalEstimado: result.totalEstimado,
             createdAt: new Date().toISOString(),
