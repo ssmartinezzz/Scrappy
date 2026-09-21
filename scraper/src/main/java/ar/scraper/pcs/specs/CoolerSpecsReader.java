@@ -1,19 +1,37 @@
 package ar.scraper.pcs.specs;
 
 import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.TipoCooler;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reads supported sockets off a cooler's name (T2d, pc-builder-deep-
- * taxonomy). Everything else abstains, same as phase 1: 483 rows in catalog
- * and no other trivial, measured signal to read off the name yet.
+ * Reads supported sockets and cooling technology off a cooler's name (T2d +
+ * T4d-2, pc-builder-deep-taxonomy). Everything else abstains, same as phase
+ * 1: 483 rows in catalog and no other trivial, measured signal to read off
+ * the name yet.
  *
  * <p>A bare "intel"/"amd" word names no socket by itself (D6: both sides of
  * a rule must parse) — only an explicit socket token counts.</p>
+ *
+ * <p>{@link #tipoCooler}: paste/cleaner/pad products (thermal paste,
+ * cleaning cloths) veto FIRST, same shape as the "para gabinete" guard in
+ * {@code CategoryClassifier} — "Paño de limpieza Arctic para Pasta térmica"
+ * has neither "cooler" nor "disipador" today, but a paste product that
+ * happens to mention "para Cooler CPU" must not read as a cooler either. A
+ * leading "fan"/"ventilador"/"kit" is a case fan, not a CPU cooler — "Fan
+ * Cooler 120mm..." names its diameter, a CPU cooler names its socket or
+ * radiator size instead. LIQUIDO needs an explicit AIO/liquid word, or a
+ * radiator size (240/280/360/420mm) alongside "cooler". AIRE is the
+ * remaining "cooler"/"disipador" names.</p>
  */
 public final class CoolerSpecsReader implements LectorDeSpecs {
+
+    private static final String[] TOKENS_LIMPIEZA_O_PASTA = { "pasta", "grasa", "pano", "pad", "thermal" };
+    private static final String[] TOKENS_LIDER_CASE_FAN = { "fan", "ventilador", "kit" };
+    private static final String[] TOKENS_LIQUIDO = { "water", "aio", "liquid", "liquida", "watercooling" };
+    private static final String[] TOKENS_RADIADOR = { "240mm", "280mm", "360mm", "420mm" };
 
     @Override
     public String categoria() {
@@ -24,7 +42,8 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
     public TechSpecs leer(Tokens tokens) {
         return new TechSpecs("", "", "", 0, 0, "",
                 ar.scraper.pcs.Gama.DESCONOCIDA, ar.scraper.pcs.Certificacion.NINGUNA,
-                0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO, socketsSoportados(tokens));
+                0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO, socketsSoportados(tokens),
+                "", 0, 0, 0, false, tipoCooler(tokens));
     }
 
     private static List<String> socketsSoportados(Tokens tokens) {
@@ -38,5 +57,33 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
         // "115x" is the compact catalog form and maps ONLY to LGA1151, never LGA1200.
         if (tokens.has("lga1151") || tokens.has("1151") || tokens.has("115x")) sockets.add("LGA1151");
         return List.copyOf(sockets);
+    }
+
+    private static TipoCooler tipoCooler(Tokens tokens) {
+        if (tieneAlguno(tokens, TOKENS_LIMPIEZA_O_PASTA)) return TipoCooler.DESCONOCIDO;
+        if (esLiderCaseFan(tokens)) return TipoCooler.DESCONOCIDO;
+        if (esLiquido(tokens)) return TipoCooler.LIQUIDO;
+        if (tokens.has("cooler") || tokens.has("disipador")) return TipoCooler.AIRE;
+        return TipoCooler.DESCONOCIDO;
+    }
+
+    private static boolean esLiderCaseFan(Tokens tokens) {
+        String[] arr = tokens.array();
+        return arr.length > 0 && tieneAlguno(arr[0], TOKENS_LIDER_CASE_FAN);
+    }
+
+    private static boolean esLiquido(Tokens tokens) {
+        if (tieneAlguno(tokens, TOKENS_LIQUIDO)) return true;
+        return tokens.has("cooler") && tieneAlguno(tokens, TOKENS_RADIADOR);
+    }
+
+    private static boolean tieneAlguno(Tokens tokens, String[] candidatos) {
+        for (String c : candidatos) if (tokens.has(c)) return true;
+        return false;
+    }
+
+    private static boolean tieneAlguno(String valor, String[] candidatos) {
+        for (String c : candidatos) if (valor.equals(c)) return true;
+        return false;
     }
 }
