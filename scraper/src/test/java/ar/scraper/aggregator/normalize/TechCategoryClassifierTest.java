@@ -178,13 +178,8 @@ class TechCategoryClassifierTest {
     @DisplayName("Gabinete es gabinete — el líder decide, no 'para gabinete'")
     void gabineteEsGabinete() {
         assertThat(cat("Service instalación de armado de PC o cambio de gabinete")).isEqualTo("Otros");
-        // "Xigmatek" contiene "mate" (KW_COMIDA sin padear) — bug preexistente,
-        // ajeno a Gabinete, no tocado acá. Lo que este test afirma es lo que
-        // importa para T1: NINGUNO de los dos es Gabinete ni Almacenamiento.
-        assertThat(cat("Bracket disco SSD para gabinete Xigmatek Medusa"))
-                .isNotEqualTo("Gabinete").isNotEqualTo("Almacenamiento").isEqualTo("Alimentos");
-        assertThat(cat("Filtro antipolvo Xigmatek magnetico para gabinete 12x120mm"))
-                .isNotEqualTo("Gabinete").isEqualTo("Alimentos");
+        assertThat(cat("Bracket disco SSD para gabinete Xigmatek Medusa")).isEqualTo("Otros");
+        assertThat(cat("Filtro antipolvo Xigmatek magnetico para gabinete 12x120mm")).isEqualTo("Otros");
         assertThat(cat("Fuente 600W mini gabinete slim")).isEqualTo("Fuente");
         assertThat(cat("PC Armada AMD Ryzen 5 8500G+A620+32GB+1TB NVMe+Gabinete Gamer")).isEqualTo("PC");
         assertThat(cat("PC AMD Ryzen 7 8700G+A620+16GB+1TB M.2 NVMe+Gabinete Gamer")).isEqualTo("PC");
