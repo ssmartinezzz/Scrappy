@@ -2,6 +2,7 @@ package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.db.support.UsuarioDePrueba;
+import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.TechSpecs;
 import io.qameta.allure.Allure;
@@ -44,14 +45,14 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
 
     @Test
     void guardarPcReturnsPositiveId() {
-        int id = db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb")), 500000.0, false, 250000.0);
+        int id = db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb")), 500000.0, false, 250000.0, null);
 
         assertThat(id).isGreaterThan(0);
     }
 
     @Test
     void guardarPcAppearsInObtenerPcsGuardadas() {
-        db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb")), 500000.0, true, 250000.0);
+        db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb")), 500000.0, true, 250000.0, null);
 
         List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
 
@@ -64,7 +65,7 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
 
     @Test
     void guardarPcPersistsPicksWithSpecs() {
-        db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb")), 500000.0, false, 250000.0);
+        db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb")), 500000.0, false, 250000.0, null);
 
         List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
         @SuppressWarnings("unchecked")
@@ -81,7 +82,7 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
     @Test
     void guardarPcSkipsPicksWithBlankUrl() {
         PcPick sinUrl = new PcPick("cpu", "TestSitio", "Sin url", 1000.0, "", "", "", TechSpecs.EMPTY);
-        db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb"), sinUrl), 500000.0, false, 250000.0);
+        db.guardarPc(yo(), "Test", List.of(pick("mother", "https://t/mb"), sinUrl), 500000.0, false, 250000.0, null);
 
         List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
         @SuppressWarnings("unchecked")
@@ -92,9 +93,9 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
 
     @Test
     void obtenerPcsGuardadasReturnsMostRecentFirst() throws InterruptedException {
-        db.guardarPc(yo(), "PC A", List.of(), 0.0, false, 0.0);
+        db.guardarPc(yo(), "PC A", List.of(), 0.0, false, 0.0, null);
         Thread.sleep(1001); // ensure different created_at (second-precision timestamps)
-        db.guardarPc(yo(), "PC B", List.of(), 0.0, false, 0.0);
+        db.guardarPc(yo(), "PC B", List.of(), 0.0, false, 0.0, null);
 
         List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
 
@@ -104,7 +105,7 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
 
     @Test
     void eliminarPcGuardadaReturnsTrueAndRemovesFromList() {
-        int id = db.guardarPc(yo(), "Para borrar", List.of(), 0.0, false, 0.0);
+        int id = db.guardarPc(yo(), "Para borrar", List.of(), 0.0, false, 0.0, null);
 
         boolean result = db.eliminarPcGuardada(yo(), id);
 
@@ -122,7 +123,7 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
 
     @Test
     void renombrarPcUpdatesNombreInList() {
-        int id = db.guardarPc(yo(), "Viejo", List.of(), 0.0, false, 0.0);
+        int id = db.guardarPc(yo(), "Viejo", List.of(), 0.0, false, 0.0, null);
 
         boolean renamed = db.renombrarPc(yo(), id, "Nuevo");
 
@@ -136,6 +137,35 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
         boolean result = db.renombrarPc(yo(), 9999, "x");
 
         assertThat(result).isFalse();
+    }
+
+    // ── gama (pc-builder-gama T6) ───────────────────────────────────────────
+
+    @Test
+    void guardarPcPersistsGamaAndAppearsInObtenerPcsGuardadas() {
+        db.guardarPc(yo(), "Test", List.of(pick("cpu", "https://t/cpu")), 500000.0, true, 250000.0, Gama.ALTA);
+
+        List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
+
+        assertThat(list.get(0).get("gama")).isEqualTo("alta");
+    }
+
+    @Test
+    void guardarPcSinGamaDejaGamaNula() {
+        db.guardarPc(yo(), "Test", List.of(pick("cpu", "https://t/cpu")), 0.0, false, 0.0, null);
+
+        List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
+
+        assertThat(list.get(0).get("gama")).isNull();
+    }
+
+    @Test
+    void guardarPcConGamaDesconocidaDejaGamaNula() {
+        db.guardarPc(yo(), "Test", List.of(pick("cpu", "https://t/cpu")), 0.0, false, 0.0, Gama.DESCONOCIDA);
+
+        List<Map<String, Object>> list = db.obtenerPcsGuardadas(yo());
+
+        assertThat(list.get(0).get("gama")).isNull();
     }
 
     /**

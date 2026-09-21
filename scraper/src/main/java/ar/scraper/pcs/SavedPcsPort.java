@@ -18,9 +18,16 @@ import java.util.UUID;
  */
 public interface SavedPcsPort {
 
+    /**
+     * {@code gama} is nullable: {@code null} or {@link Gama#DESCONOCIDA} both
+     * mean "no gama to record" and land as {@code NULL} in {@code
+     * saved_pcs.gama_id} — a builder run before pc-builder-gama, or one with
+     * no gama requested, has none to report (D10, pc-builder-gama T6).
+     */
     int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
-                  boolean conGpu, double totalEstimado);
+                  boolean conGpu, double totalEstimado, Gama gama);
 
+    /** Each row's {@code Map} carries a {@code "gama"} wire string ({@code "alta"}/…), or {@code null}. */
     List<Map<String, Object>> obtenerPcsGuardadas(UUID usuarioId);
 
     boolean eliminarPcGuardada(UUID usuarioId, int id);

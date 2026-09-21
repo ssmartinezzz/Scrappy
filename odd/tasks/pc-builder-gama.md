@@ -332,7 +332,7 @@ cd frontend && npm test
       sobre `rubro='tecnologia'`. Tests: NULL por abstención campo a campo
       (D10), cascade al borrar el producto, dominio de cada CHECK por
       SQLState `23514`, re-upsert idempotente. **Sin** endpoint ni filtro.
-- [ ] **T6 — Borde.** `GET /api/pcs/builder?gama=`, `GET`/`PUT
+- [x] **T6 — Borde.** `GET /api/pcs/builder?gama=`, `GET`/`PUT
       /api/pcs/preferencia` (`AUTHENTICATED`), `PcBuildJson` con `mensajes`,
       entradas de `openapi.yaml`, tool `propose_pc` del agente.
 - [ ] **T7 — `/pcs`.** Chips de gama en `PcsPanel` (precargados con la
@@ -647,5 +647,48 @@ Re-verificado por el orquestador tras dos retoques (comentario de
 `toList()` en el indexer): `mvn clean test` exit 0, **2412 / 0 / 0 / 7**,
 cero `ERROR]`, `BackendLayeringArchTest` 20/20, `SpringWiringTest` 6/6.
 
-Siguiente: T6 (borde — endpoints, `PcBuildJson.mensajes`, `openapi.yaml`,
-tool `propose_pc`).
+### T6 — borde (2026-09-20, sin commitear al escribir esto)
+
+Entregado: `pcs/GamaWire` (único dueño del vocabulario de cable
+`economica|media|alta`: `parse` acepta con o sin tilde y case-insensitive,
+blank → `null` = "sin gama", inválido → `IllegalArgumentException` que cada
+borde mapea a 400; `wire` nunca acepta `DESCONOCIDA` — D10. Es distinto de
+`db/GamaMapeo`, que habla el vocabulario de la base `'ECONOMICA'`: un valor
+de cable inválido es error del cliente, una fila de lookup desconocida es un
+bug). `GET /api/pcs/builder?gama=` llama la sobrecarga de 5 args; sin `gama`
+el camino de 4 args sigue byte-idéntico. `PcBuildJson` serializa `mensajes`
+(objeto slot → motivo, vacío si no hay) y suma a `specs` los cuatro campos
+nuevos (`gama`, `certificacion`, `velocidadMhz`, `tipoAlmacenamiento`, con
+sus centinelas tal cual — la UI decide cómo mostrarlos). `GET`/`PUT
+/api/pcs/preferencia` (`AUTHENTICATED`, en `ApiRoutePolicy`): GET devuelve
+**204** si el usuario nunca guardó una y `{gama, presupuesto|null, conGpu}`
+si sí; PUT exige `gama` (400 si falta o es inválida) y devuelve la misma
+forma. **El armador no aplica solo la preferencia guardada**: T7 la precarga
+en los chips y manda `gama=` explícito. `SavedPcsPort.guardarPc` suma un
+`Gama` nullable (null/`DESCONOCIDA` → `gama_id` NULL) y
+`obtenerPcsGuardadas` devuelve `gama` (cable o null) por fila vía LEFT JOIN.
+`propose_pc` acepta `gama` como enum en el schema y el mismo parse. Dos
+entradas nuevas en `docs/openapi.yaml` (param + path), 400/204 documentados.
+
+Desvío de proceso del writer: escribió tests e implementación de una pasada,
+sin observar RED aislado. Lo observé yo después con `git stash` sobre
+`src/main` + `openapi.yaml`: `test-compile` en rojo con 4 ×
+`pcsBuilder cannot be applied` (firma sin `gama`), 8 × `cannot find symbol`
+en `ApiControllerPcsPreferenciaTest`, 8 × `guardarPc cannot be applied`.
+`GamaWireTest` no cayó porque `GamaWire.java` es untracked y el stash no lo
+saca — RED parcial, dicho como es. Decisión que el brief no tenía: la
+constructora `@Autowired` de `DatabaseService` se ensanchó
+(`PreferenciaArmadorPort`) y `SiteRegistrySingletonWiringTest` arma el
+contexto a mano, así que sumó `PreferenciaArmadorRepository.class`.
+
+Verificación observada (`mvn clean test`, corrida del writer y re-corrida
+del orquestador): **BUILD SUCCESS, Tests run: 2441, Failures: 0, Errors: 0,
+Skipped: 7** (2412 + 29: 7 `GamaWireTest`, 7 `ApiControllerPcsPreferenciaTest`,
+el resto en `PcBuildJsonTest`, `ApiControllerPcsBuilderTest`,
+`ApiControllerSavedPcsTest`, `DatabaseServiceSavedPcsTest`,
+`ProposePcToolTest`), cero `ERROR]`, `BackendLayeringArchTest` 20/20,
+`OpenApiRouteCoverageTest` 6/6, `SpringWiringTest` 6/6.
+`PcBuilderTest.java`/`TechSpecsParserTest.java` sin tocar (`git status`).
+
+Siguiente: T7 (`/pcs` — chips de gama precargados desde `GET
+/api/pcs/preferencia`, render de `mensajes`, `fetchPcsBuilder` con `gama`).

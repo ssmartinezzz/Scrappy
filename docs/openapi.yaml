@@ -881,9 +881,39 @@ paths:
         - name: excluir
           in: query
           schema: { type: string, default: "" }
+        - name: gama
+          in: query
+          description: Optional hard power-tier filter. Absent/blank means no gama requested.
+          schema: { type: string, enum: [economica, media, alta] }
       responses:
         "200":
-          description: Assembled build, with sinStock/sinCompatible per unfillable slot.
+          description: Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot.
+        "400":
+          description: Invalid gama value.
+
+  /api/pcs/preferencia:
+    get:
+      tags: [PCs]
+      summary: Get the user's last saved builder preference (gama, budget, GPU flag). Own row only.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: Saved preference.
+        "204":
+          description: No preference saved yet.
+    put:
+      tags: [PCs]
+      summary: Save the user's builder preference (gama, budget, GPU flag). Own row only.
+      x-access: AUTHENTICATED
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Preference saved.
+        "400":
+          description: Missing or invalid gama.
 
   /api/pcs/save:
     post:
