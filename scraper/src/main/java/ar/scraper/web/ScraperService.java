@@ -13,6 +13,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.health.SiteYieldGuard;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
+import ar.scraper.pcs.TechSpecsIndexer;
 import ar.scraper.scrapers.BaseScraper;
 import ar.scraper.scrapers.ScraperFactory;
 import com.microsoft.playwright.Playwright;
@@ -112,6 +113,7 @@ public class ScraperService implements CatalogSnapshotPort {
     private final MlOutputPort mlOutput;
     private final SiteRegistry siteRegistry;
     private final ProductPort productos;
+    private final TechSpecsIndexer techSpecsIndexer;
 
     /**
      * The run currently open, or null when nothing is running.
@@ -129,7 +131,8 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public ScraperService(ScraperConfig config, ResultAggregator aggregator,
                           ScrapeRunPort scrapeRun, SitiosPort sitios, MlOutputPort mlOutput,
-                          SiteRegistry siteRegistry, ProductPort productos) {
+                          SiteRegistry siteRegistry, ProductPort productos,
+                          TechSpecsIndexer techSpecsIndexer) {
         this.config       = config;
         this.aggregator   = aggregator;
         this.scrapeRun    = scrapeRun;
@@ -137,6 +140,7 @@ public class ScraperService implements CatalogSnapshotPort {
         this.mlOutput     = mlOutput;
         this.siteRegistry = siteRegistry;
         this.productos    = productos;
+        this.techSpecsIndexer = techSpecsIndexer;
     }
 
     @PostConstruct
@@ -597,6 +601,14 @@ public class ScraperService implements CatalogSnapshotPort {
 
         synchronized (catalogLock) {
             lastResult = aggregator.agregar(resultados, forceRetrain, arranqueDeLaCorrida);
+        }
+
+        // Own write path (D11 in pc-builder-gama): a broken parse here can never
+        // take down the run that just aggregated the whole catalog.
+        try {
+            techSpecsIndexer.indexar(lastResult.productos());
+        } catch (Exception e) {
+            LOG.warn("[TECH-SPECS] No se pudieron indexar las specs de producto: {}", e.getMessage());
         }
 
         // ── Guardia de rendimiento por sitio ─────────────────────────────────

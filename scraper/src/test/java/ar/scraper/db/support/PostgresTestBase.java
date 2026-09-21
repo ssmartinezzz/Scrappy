@@ -321,7 +321,10 @@ public abstract class PostgresTestBase {
                     -- pc-builder-gama (V35). `gama` is deliberately absent, same
                     -- reason as `rol`/`indice`: it is seed data the migration
                     -- itself inserts (ECONOMICA/MEDIA/ALTA), not test residue.
-                    preferencia_armador
+                    -- T5's six lookups (`socket`, `ddr`, `form_factor`,
+                    -- `tipo_memoria`, `certificacion`, `tipo_almacenamiento`) are
+                    -- absent for the same reason — seeded vocabulary, not residue.
+                    preferencia_armador, producto_tech_specs
                 RESTART IDENTITY CASCADE
                 """);
         }
