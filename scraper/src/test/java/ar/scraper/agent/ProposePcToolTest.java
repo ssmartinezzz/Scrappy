@@ -189,4 +189,146 @@ class ProposePcToolTest {
 
         assertThat(result.isError()).isTrue();
     }
+
+    // ── preferencias técnicas (pc-builder-deep-taxonomy T5d) ──────────────
+
+    @Test
+    @DisplayName("ddr pedida llega al builder: filtra la mother que no matchea")
+    void ddrReachesTheBuilder() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.add(producto("Motherboard MSI B450M DDR4 AM4", 100_000, "Motherboard", "https://t/ddr4"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("ddr", "ddr4"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(pickBySlot(json, "mother").get("url").asText()).isEqualTo("https://t/ddr4");
+    }
+
+    @Test
+    @DisplayName("ddr inválida → is_error")
+    void invalidDdrIsError() {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("ddr", "ddr3"));
+
+        assertThat(result.isError()).isTrue();
+    }
+
+    @Test
+    @DisplayName("marcaCpu pedida llega al builder")
+    void marcaCpuReachesTheBuilder() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.add(producto("Procesador Intel Core i5 12400F", 150_000, "CPU", "https://t/intel"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("marcaCpu", "intel"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(pickBySlot(json, "cpu").get("url").asText()).isEqualTo("https://t/intel");
+    }
+
+    @Test
+    @DisplayName("marcaCpu inválida → is_error")
+    void invalidMarcaCpuIsError() {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("marcaCpu", "nvidia"));
+
+        assertThat(result.isError()).isTrue();
+    }
+
+    @Test
+    @DisplayName("marcaGpu pedida llega al builder (con conGpu): sin el filtro, la Radeon gana por "
+            + "generación (7 > 4) — pedir nvidia tiene que forzar el pick a la RTX igual")
+    void marcaGpuReachesTheBuilder() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.add(producto("Placa de Video Radeon RX 7800 XT", 800_000, "GPU", "https://t/amd-gpu"));
+        catalogo.add(producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/nvidia-gpu"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("conGpu", true).put("marcaGpu", "nvidia"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(pickBySlot(json, "gpu").get("url").asText()).isEqualTo("https://t/nvidia-gpu");
+    }
+
+    @Test
+    @DisplayName("marcaGpu inválida → is_error")
+    void invalidMarcaGpuIsError() {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("marcaGpu", "intel"));
+
+        assertThat(result.isError()).isTrue();
+    }
+
+    @Test
+    @DisplayName("tipoAlmacenamiento pedido llega al builder")
+    void tipoAlmacenamientoReachesTheBuilder() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.add(producto("Disco Rigido Seagate 1TB HDD", 40_000, "Almacenamiento", "https://t/hdd"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("tipoAlmacenamiento", "hdd"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(pickBySlot(json, "almacenamiento").get("url").asText()).isEqualTo("https://t/hdd");
+    }
+
+    @Test
+    @DisplayName("tipoAlmacenamiento inválido → is_error")
+    void invalidTipoAlmacenamientoIsError() {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("tipoAlmacenamiento", "ssd"));
+
+        assertThat(result.isError()).isTrue();
+    }
+
+    @Test
+    @DisplayName("ramDual=true veta el único candidato cuando es un stick simple — el slot pasa "
+            + "a sinCompatible, no elige el simple igual")
+    void ramDualVetoesASingleStick() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.removeIf(p -> "RAM".equals(p.categoria()));
+        catalogo.add(producto("Memoria RAM Corsair Vengeance DDR5 32GB 6000MHz", 90_000, "RAM", "https://t/single"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("ramDual", true));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(streamSlots(json)).doesNotContain("ram");
+        assertThat(sinCompatibleContains(json, "ram")).isTrue();
+    }
+
+    @Test
+    @DisplayName("wifi=true veta el único candidato cuando no dice wifi — el slot pasa a "
+            + "sinCompatible, no elige la mother sin wifi igual")
+    void wifiVetoesAMotherboardWithoutWifi() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.removeIf(p -> "Motherboard".equals(p.categoria()));
+        catalogo.add(producto("Motherboard ASUS TUF Gaming B850M-E AM5 DDR5", 200_000, "Motherboard",
+                "https://t/nowifi"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("wifi", true));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(streamSlots(json)).doesNotContain("mother");
+        assertThat(sinCompatibleContains(json, "mother")).isTrue();
+    }
+
+    private boolean sinCompatibleContains(JsonNode json, String slot) {
+        for (JsonNode n : json.get("sinCompatible")) {
+            if (slot.equals(n.asText())) return true;
+        }
+        return false;
+    }
 }
