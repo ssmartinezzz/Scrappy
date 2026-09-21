@@ -2,6 +2,10 @@ package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
 import ar.scraper.outfits.RecommendationService;
+import ar.scraper.pcs.reglas.ReglaDdr;
+import ar.scraper.pcs.reglas.ReglaFormFactor;
+import ar.scraper.pcs.reglas.ReglaSocket;
+import ar.scraper.pcs.reglas.ReglaWatts;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,32 +20,31 @@ import java.util.stream.Collectors;
  * {@code SupplementCombo}'s pick/budget/exclude shape, minus the brand tiers —
  * hardware has no analogue for those yet. See odd/tasks/pc-builder.md for the
  * design (slots, vetoes, pick order) this implements.
+ *
+ * Orchestrates {@link SlotDeArmado}'s rules and {@link CriterioDeSeleccion}'s
+ * pick without knowing either's internals — see odd/tasks/pc-builder-gama.md
+ * T2 for why this stopped being one class with a string switch.
  */
 public class PcBuilder {
 
     private static final int WATTS_MIN_SIN_GPU = 450;
     private static final int WATTS_MIN_CON_GPU = 650;
 
-    private record Slot(String nombre, String categoria) {}
-
     // Anchor first: every veto below references the motherboard.
-    private static final List<Slot> SLOTS_FIJOS = List.of(
-            new Slot("mother", "Motherboard"),
-            new Slot("cpu", "CPU"),
-            new Slot("ram", "RAM"),
-            new Slot("gabinete", "Gabinete"),
-            new Slot("fuente", "Fuente"),
-            new Slot("almacenamiento", "Almacenamiento"));
+    private static final List<SlotDeArmado> SLOTS_FIJOS = List.of(
+            new SlotDeArmado("mother", "Motherboard", List.of()),
+            new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket())),
+            new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr())),
+            new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor())),
+            new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts())),
+            new SlotDeArmado("almacenamiento", "Almacenamiento", List.of()));
 
-    private static final Slot SLOT_GPU = new Slot("gpu", "GPU");
+    private static final SlotDeArmado SLOT_GPU = new SlotDeArmado("gpu", "GPU", List.of());
 
-    private static final List<String> ORDEN_FORM_FACTOR = List.of("ITX", "MATX", "ATX", "EATX");
-
-    /** Only used for {@code baseMlScore}, the same "Para ti"/budget-builder ML tiebreak. */
-    private final RecommendationService recommendationService;
+    private final CriterioDeSeleccion criterioDeSeleccion;
 
     public PcBuilder(RecommendationService recommendationService) {
-        this.recommendationService = recommendationService;
+        this.criterioDeSeleccion = new CriterioScoreMlPrecioUrl(recommendationService);
     }
 
     public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls) {
@@ -52,7 +55,7 @@ public class PcBuilder {
                 .filter(p -> p.categoria() != null)
                 .collect(Collectors.groupingBy(Product::categoria));
 
-        List<Slot> slots = new ArrayList<>(SLOTS_FIJOS);
+        List<SlotDeArmado> slots = new ArrayList<>(SLOTS_FIJOS);
         // GPU is inserted before Almacenamiento — pick order 6, per the design table —
         // and only when the caller opted in; otherwise it never appears anywhere below.
         if (conGpu) slots.add(slots.size() - 1, SLOT_GPU);
@@ -62,11 +65,9 @@ public class PcBuilder {
         List<String> sinCompatible = new ArrayList<>();
         double remainingBudget = presupuesto;
         int wattsMin = conGpu ? WATTS_MIN_CON_GPU : WATTS_MIN_SIN_GPU;
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin);
 
-        TechSpecs motherSpecs = TechSpecs.EMPTY;
-        String motherDdr = "";
-
-        for (Slot slot : slots) {
+        for (SlotDeArmado slot : slots) {
             List<Product> pool = porCategoria.getOrDefault(slot.categoria(), List.of());
             if (!excluir.isEmpty()) {
                 List<Product> frescos = pool.stream()
@@ -79,11 +80,9 @@ public class PcBuilder {
                 continue;
             }
 
-            TechSpecs motherSpecsRef = motherSpecs;
-            String motherDdrRef = motherDdr;
-            int wattsMinRef = wattsMin;
+            final ContextoDeArmado contextoActual = contexto;
             List<Product> compatibles = pool.stream()
-                    .filter(p -> esCompatible(slot.nombre(), p, motherSpecsRef, motherDdrRef, wattsMinRef))
+                    .filter(p -> esCompatible(slot, p, contextoActual))
                     .collect(Collectors.toList());
             if (compatibles.isEmpty()) {
                 sinCompatible.add(slot.nombre());
@@ -97,7 +96,7 @@ public class PcBuilder {
                         .filter(p -> p.precio() <= rem)
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) {
-                    elegido = mejorPick(affordable);
+                    elegido = criterioDeSeleccion.elegir(affordable);
                 } else {
                     // Nothing fits: spend as little as possible, not the best rank.
                     elegido = compatibles.stream()
@@ -106,13 +105,12 @@ public class PcBuilder {
                 }
                 remainingBudget = Math.max(0, remainingBudget - elegido.precio());
             } else {
-                elegido = mejorPick(compatibles);
+                elegido = criterioDeSeleccion.elegir(compatibles);
             }
 
             TechSpecs specs = TechSpecsParser.parse(elegido.nombre(), elegido.categoria());
             if ("mother".equals(slot.nombre())) {
-                motherSpecs = specs;
-                motherDdr = motherDdr(specs);
+                contexto = contexto.conMother(specs);
             }
             picks.add(toPick(slot.nombre(), elegido, specs));
         }
@@ -121,57 +119,9 @@ public class PcBuilder {
         return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado);
     }
 
-    /** {@code motherDdr} = the board's own DDR if it parsed, else derived from its socket. */
-    private String motherDdr(TechSpecs mother) {
-        if (!mother.ddr().isEmpty()) return mother.ddr();
-        return switch (mother.socket()) {
-            case "AM5", "LGA1851" -> "DDR5";
-            case "AM4" -> "DDR4";
-            default -> ""; // LGA1700 is a mixed platform (phase-1 finding) — stays abstained
-        };
-    }
-
-    private boolean esCompatible(String slotNombre, Product candidato, TechSpecs motherSpecs,
-                                 String motherDdr, int wattsMin) {
+    private boolean esCompatible(SlotDeArmado slot, Product candidato, ContextoDeArmado contexto) {
         TechSpecs specs = TechSpecsParser.parse(candidato.nombre(), candidato.categoria());
-        return switch (slotNombre) {
-            case "cpu" -> !vetaSocket(specs.socket(), motherSpecs.socket());
-            case "ram" -> !vetaDdr(specs.ddr(), motherDdr);
-            case "gabinete" -> !vetaFormFactor(specs.formFactor(), motherSpecs.formFactor());
-            case "fuente" -> !vetaWatts(specs.watts(), wattsMin);
-            default -> true; // mother, gpu, almacenamiento: no rule references these slots
-        };
-    }
-
-    private boolean vetaSocket(String cpuSocket, String motherSocket) {
-        return !cpuSocket.isEmpty() && !motherSocket.isEmpty() && !cpuSocket.equals(motherSocket);
-    }
-
-    private boolean vetaDdr(String ramDdr, String motherDdr) {
-        return !ramDdr.isEmpty() && !motherDdr.isEmpty() && !ramDdr.equals(motherDdr);
-    }
-
-    private boolean vetaFormFactor(String gabineteFormFactor, String motherFormFactor) {
-        if (gabineteFormFactor.isEmpty() || motherFormFactor.isEmpty()) return false;
-        return ORDEN_FORM_FACTOR.indexOf(gabineteFormFactor) < ORDEN_FORM_FACTOR.indexOf(motherFormFactor);
-    }
-
-    private boolean vetaWatts(int fuenteWatts, int minimo) {
-        return fuenteWatts != 0 && fuenteWatts < minimo;
-    }
-
-    /** rank -baseMlScore desc, precio asc, url asc — same tiebreak as the "Para ti" feed. */
-    private Product mejorPick(List<Product> candidatos) {
-        return candidatos.stream()
-                .min(Comparator
-                        .comparingDouble((Product p) -> -recommendationService.baseMlScore(p))
-                        .thenComparingDouble(Product::precio)
-                        .thenComparing(PcBuilder::urlDe))
-                .orElseThrow();
-    }
-
-    private static String urlDe(Product p) {
-        return p.url() != null ? p.url() : "";
+        return slot.reglas().stream().allMatch(regla -> regla.permite(specs, contexto));
     }
 
     private PcPick toPick(String slot, Product p, TechSpecs specs) {
