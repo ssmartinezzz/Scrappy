@@ -138,8 +138,10 @@ Scrappy/
         │   │                                  en F3b) + SavedOutfitsPort (lo implementa un
         │   │                                  @Repository package-private en db/)
         │   ├── identity/                   ← área: ActorResolver + Sujeto (movido de web/ en F3b)
-        │   ├── pcs/                        ← área: TechSpecs + TechSpecsParser (fase 1) + PcBuilder,
-        │   │                                  PcPick, PcBuild (fase 2; lo sirve PcsEndpoints en web/)
+        │   ├── pcs/                        ← área: TechSpecs + specs/ (un lector por categoría, fase 1/6),
+        │   │                                  PcBuilder + SlotDeArmado + reglas/ + EjesTecnicos (fases 2/6),
+        │   │                                  Gama, GamaWire, PreferenciaArmadorPort, TechSpecsPort,
+        │   │                                  SavedPcsPort (lo sirve PcsEndpoints en web/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
@@ -246,7 +248,7 @@ de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V33` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V35` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -474,40 +476,82 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 
 ---
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 y 2
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 6
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
-`TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria)`, pura,
-fill-only y con abstención (`""`/`0`, `EMPTY`) igual que `VisualAttrs`. Plan y
-cobertura medida en [`odd/tasks/pc-builder-specs.md`](./odd/tasks/pc-builder-specs.md).
+`TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
+certificacion, velocidadMhz, tipoAlmacenamiento)`, puro, fill-only y con
+abstención (`""`/`0`/`DESCONOCIDA`/`NINGUNA`, `EMPTY`) igual que `VisualAttrs`.
+Desde la fase 6 es un registry categoría → `LectorDeSpecs` (`specs/`, uno por
+categoría, sobre un `Tokens` que tokeniza una vez), con la firma pública intacta.
+Plan y cobertura medida en [`odd/tasks/pc-builder-specs.md`](./odd/tasks/pc-builder-specs.md).
 
-**Fase 2** es `PcBuilder.armar(productos, presupuesto, conGpu, excluir)`,
+**Fase 2** es `PcBuilder.armar(productos, presupuesto, conGpu, excluir[, gama])`,
 servido por `GET /api/pcs/builder` (`AUTHENTICATED`). Molde de
 `SupplementCombo`: un pick por slot, best-effort, presupuesto opcional,
-`excluir` con fallback por slot. `TechSpecs` se calcula **al armar** desde el
-snapshot — no está en `Product` ni en la base. Diseño completo en
-[`odd/tasks/pc-builder.md`](./odd/tasks/pc-builder.md); lo que hay que saber:
+`excluir` con fallback por slot. Desde la fase 6 el builder es un orquestador
+sobre objetos: cada `SlotDeArmado` lleva su categoría, sus
+`ReglaCompatibilidad` y su `CriterioDeSeleccion`; `ContextoDeArmado` acumula lo
+ya elegido. `TechSpecs` se calcula **al armar** desde el snapshot — la tabla
+`producto_tech_specs` existe (ver abajo) pero el armador no la lee (D3d).
+Diseño en [`odd/tasks/pc-builder.md`](./odd/tasks/pc-builder.md) y
+[`odd/tasks/pc-builder-gama.md`](./odd/tasks/pc-builder-gama.md); lo que hay que saber:
 
 | | |
 |---|---|
-| **La mother es el ancla y se elige primero** | Los cuatro vetos la referencian. Orden: mother → cpu → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
-| **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
-| **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en el builder, no en el parser: el parser sólo afirma lo que el nombre dice |
-| **El piso de watts es una constante supuesta, no medida** | 450 W sin GPU, 650 W con GPU. El consumo de la GPU no se parsea; cuando se parsee, reemplazar el piso por una estimación por build |
-| `sinStock` ≠ `sinCompatible` | Sin candidatos en la categoría vs. candidatos que todos cayeron por veto. Ninguno aborta el armado |
+| **La mother es el ancla y se elige primero** | Los vetos de socket, DDR y form factor la referencian. Orden: mother → cpu → (cooler, sólo gama alta) → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
+| **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso · certificación fuente ≥ mínima. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
+| ⚠️ **La gama es la ÚNICA regla donde la abstención VETA** (D2) | `ReglaGama` exige `candidato.gama() == pedida`, así que `DESCONOCIDA` cae. Es al revés a propósito: el usuario pidió un tier, y de un nombre que no se pudo leer no se puede afirmar que esté en ese tier. Sin gama pedida (`null`) la regla no filtra nada. El costo es el 17% de CPUs sin tier legible, y el mensaje del slot lo dice |
+| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. mother: DDR desc · cpu/gpu: gama desc · ram: DDR → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · gabinete: sólo precio (más grande ≠ mejor). Siempre precio asc → url asc al final |
+| **La abstención va ÚLTIMA en todo eje de ranking** (D13) | `DESCONOCIDA`/`DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` y `""` son el mismo centinela para su eje. Un pendrive (sin tecnología legible) ya no puede ganarle a un NVMe como "el disco de la PC" — se hunde solo, sin veto nuevo. `Certificacion.NINGUNA` sí compara por ordinal: es el escalón real de abajo, no abstención |
+| **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en `ContextoDeArmado`, no en el parser, y el ranking de mother la comparte (D14): "la más barata" clavaba AM4/DDR4 y después `ReglaDdr` vetaba toda la RAM DDR5 |
+| **El piso de watts y la certificación mínima salen de la gama pedida** (`EstimadorDeConsumo`) | alta: 750 / 1000 W con GPU, GOLD · media: 550 / 750, BRONZE · económica o sin gama: 450 / 650, NINGUNA. Siguen siendo constantes, ahora por tier; el consumo de la GPU sigue sin parsearse |
+| **El slot `cooler` sólo existe en gama alta** (D4) | Se inserta después del cpu, sin reglas y sin eje (sólo precio). La condición "y si el CPU no trae cooler" se cayó en T1: 309/313 CPUs no dicen nada al respecto |
+| `sinStock` ≠ `sinCompatible`, y ambos traen **motivo** (D6) | Sin candidatos en la categoría vs. candidatos que todos cayeron por veto. `PcBuild.mensajes` (slot → motivo de la regla que vació el slot) es lo que la UI pinta debajo del placeholder. Ninguno aborta el armado |
+
+**Escala de gama** (`Gama`, `BAJA < MEDIA < ALTA` + `DESCONOCIDA`; en el cable
+es `economica|media|alta`, dueño único `GamaWire`, que nunca emite `DESCONOCIDA`):
+
+| Gama | CPU | GPU |
+|---|---|---|
+| ALTA | i9 · Ryzen 9 · cualquier `X3D` · Ultra 9 · i7 · Ryzen 7 · Ultra 7 | RTX x090/x080/x070 · RX 9070 · RX x900/x800 |
+| MEDIA | i5 · Ryzen 5 · Ultra 5 | RTX x060 · RX 9060 · RX x700/x600 |
+| BAJA | i3 · Ryzen 3 · Ultra 3 · Athlon · Celeron · Pentium | RTX x050 · GTX · ARC · RX 9050 · RX x500 y abajo |
+
+⚠️ **Radeon numera de DOS maneras y las dos están vivas en el catálogo** (64
+filas RX 9000 contra 28 de RX 5000–7000, medido 2026-09-19): en la serie 9000
+manda la **decena** como en Nvidia, en las anteriores la **centena**. Una sola
+regla numérica se come una de las dos, y con la gama como filtro duro más la
+abstención que veta, eso saca a las RX 9070 de **todo** armado sin un solo
+error. `GpuSpecsReader` ramifica por serie antes de mirar el tier.
+
+**Persistencia** (`V35`, detalle en [`docs/DATABASE.md`](./docs/DATABASE.md)):
+`gama` es lookup con FK, no un TEXT con CHECK (D8); `preferencia_armador` es
+**una fila por usuario** (D9), servida por `GET`/`PUT /api/pcs/preferencia` —
+GET da 204 hasta que el usuario guarda una, y **el armador nunca la aplica
+solo**: `/pcs` la precarga en los chips y manda `gama=` explícito.
+`producto_tech_specs` guarda el `TechSpecs` entero normalizado (seis lookups)
+con su propio write path (`TechSpecsIndexer` desde `ScraperService`, no
+`sp_upsert_run` — D11); es la base del filtro por specs de `/catalogo`, que
+**no** es de esta fase (D3c). **La abstención ahí es NULL, nunca una fila de
+lookup** (D10): `DESCONOCIDA`/`NINGUNA` son centinelas del dominio Java y un
+centinela no es un valor de FK — exactamente lo que rompió `marca=''` en `V21`.
 
 **Fase 3** es la página `/pcs` (`PcsPanel`, molde de `SuplementosPanel`): sin
-picker de tipos porque los slots son fijos del lado del servidor; presupuesto +
-checkbox `conGpu` + Generar/Regenerar con `excluir` por slot; `sinStock` y
-`sinCompatible` se pintan como placeholders distintos. Plan y evidencia en
+picker de tipos porque los slots son fijos del lado del servidor; chips de
+gama excluyentes (`Cualquiera` = sin filtro) + presupuesto + checkbox `conGpu`
++ Generar/Regenerar con `excluir` por slot; `sinStock` y `sinCompatible` se
+pintan como placeholders distintos con su `mensaje`. La preferencia se
+persiste en Generar, no en Regenerar. Plan y evidencia en
 [`odd/tasks/pc-builder-ui.md`](./odd/tasks/pc-builder-ui.md).
 
 **Fase 4** persiste el build (`saved_pcs` + `saved_pc_item`, molde
-`saved_outfits`) con Guardar en `/pcs` y listado en `/armadores` — ver el
-párrafo de esa ruta más abajo.
+`saved_outfits`, `gama_id` nullable desde `V35`) con Guardar en `/pcs` y
+listado en `/armadores` — ver el párrafo de esa ruta más abajo.
 
-**Fase 5** es la tool `propose_pc` del agente (ver LLM Catalog Agent). Plan y
-evidencia en [`odd/tasks/pc-builder-agent-tool.md`](./odd/tasks/pc-builder-agent-tool.md).
+**Fase 5** es la tool `propose_pc` del agente (ver LLM Catalog Agent), que
+acepta `gama` como enum. Plan y evidencia en
+[`odd/tasks/pc-builder-agent-tool.md`](./odd/tasks/pc-builder-agent-tool.md).
 
 Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicionó la fase 2:
 
@@ -517,6 +561,14 @@ Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicion�
 | CPU socket | 81% | Los misses son casi todos **memorias clasificadas como `CPU`** ("AMD EXPO / Intel XMP"), no CPUs sin socket |
 | Motherboard ddr | 78% | El nombre dice socket y no DDR; derivarlo del chipset es seguro en AM4/AM5/LGA1851 y **no** en LGA1700, que es mixto |
 | Gabinete formFactor | **7%** | El nombre no lo dice. El veto Gabinete ⊇ Mother no puede correr sobre nombres: abstención = sin veto, igual que `VisualCoherence` |
+
+Y lo que dijo la de fase 6 (dev DB, 3435 filas de hardware, 2026-09-19):
+CPU con tier legible **260/313 = 83%** · GPU con familia+modelo **429/462 =
+93%** · fuente con certificación 80+ **295/347 = 85%** · RAM con velocidad
+**377/387 = 97%** (116 traen el número pelado detrás del `DDRn`; se acepta
+sólo contra una whitelist de velocidades DDR reales) · almacenamiento con
+tecnología **260/290 = 90%** (los 30 restantes son pendrives y micro SD, no
+discos). `Cooler` tiene 483 filas y hasta esta fase no era slot.
 
 El parser **tokeniza** (split en todo no-alfanumérico) en vez de padear
 substrings: `1851` no puede matchear adentro de `B860M`. Los sufijos de chipset

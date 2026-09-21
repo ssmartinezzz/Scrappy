@@ -4,6 +4,7 @@ import {
   deleteSavedPc,
   fetchData,
   fetchIndices,
+  fetchPcPreferencia,
   fetchPcsBuilder,
   fetchRecomendacion,
   fetchSavedPcs,
@@ -11,6 +12,7 @@ import {
   fetchTendencias,
   renamePc,
   savePc,
+  savePcPreferencia,
   startScrape,
 } from '@/api';
 
@@ -176,6 +178,14 @@ describe('fetchPcsBuilder', () => {
     expect(calledUrl().searchParams.get('excluir')).toBe('https://a,https://b');
   });
 
+  it('sends gama only when set', async () => {
+    await fetchPcsBuilder({ gama: '' });
+    expect(calledUrl().searchParams.has('gama')).toBe(false);
+
+    await fetchPcsBuilder({ gama: 'alta' });
+    expect(calledUrl().searchParams.get('gama')).toBe('alta');
+  });
+
   it('returns null on a 204 (no scrape run yet)', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
 
@@ -186,6 +196,40 @@ describe('fetchPcsBuilder', () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
 
     await expect(fetchPcsBuilder({})).resolves.toBeNull();
+  });
+});
+
+describe('PC builder preference', () => {
+  it('fetchPcPreferencia GETs /api/pcs/preferencia and returns the parsed body', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ gama: 'alta', presupuesto: 900000, conGpu: true }));
+
+    await expect(fetchPcPreferencia()).resolves.toEqual({ gama: 'alta', presupuesto: 900000, conGpu: true });
+    expect(calledUrl().pathname).toBe('/api/pcs/preferencia');
+  });
+
+  it('fetchPcPreferencia returns null on 204 (never saved) and when not ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
+    await expect(fetchPcPreferencia()).resolves.toBeNull();
+
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    await expect(fetchPcPreferencia()).resolves.toBeNull();
+  });
+
+  it('savePcPreferencia PUTs the body and returns the parsed response', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ gama: 'media', presupuesto: null, conGpu: false }));
+    const body = { gama: 'media', presupuesto: null, conGpu: false };
+
+    await expect(savePcPreferencia(body)).resolves.toEqual(body);
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(calledUrl().pathname).toBe('/api/pcs/preferencia');
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual(body);
+  });
+
+  it('savePcPreferencia returns null when the response is not ok', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({}) });
+
+    await expect(savePcPreferencia({ gama: 'x' })).resolves.toBeNull();
   });
 });
 

@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Cpu, PackageSearch, Unplug } from 'lucide-react';
-import { fetchPcsBuilder, fmt } from '../api';
+import { fetchPcPreferencia, fetchPcsBuilder, fmt, savePcPreferencia } from '../api';
 import { MoneyInput } from './ui/money-input';
 import { cn } from '@/lib/utils';
 
 const SLOT_LABELS = {
   mother: 'Motherboard',
   cpu: 'CPU',
+  cooler: 'Cooler',
   ram: 'RAM',
   gabinete: 'Gabinete',
   fuente: 'Fuente',
@@ -18,6 +19,15 @@ const SLOT_LABELS = {
 function slotLabel(slot) {
   return SLOT_LABELS[slot] ?? slot;
 }
+
+// '' es "sin filtro": el servidor arma sin gama, como antes de la fase 6. Los
+// otros tres son el vocabulario de cable de GamaWire, no el del enum Java.
+const GAMAS = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'economica', label: 'Económica' },
+  { value: 'media', label: 'Media' },
+  { value: 'alta', label: 'Alta' },
+];
 
 /** Une solo los campos con dato — un clasificador que se abstiene deja "" / 0. */
 function resumenSpecs(specs) {
@@ -35,6 +45,7 @@ function resumenSpecs(specs) {
 export default function PcsPanel({ onSavePc } = {}) {
   const [presupuesto, setPresupuesto] = useState('');
   const [conGpu, setConGpu] = useState(false);
+  const [gama, setGama] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -45,6 +56,21 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [vistos, setVistos] = useState({});
   const reduceMotion = useReducedMotion();
 
+  // La preferencia guardada sólo precarga los controles: el armado sigue
+  // siendo un click explícito, y manda gama= por su cuenta.
+  useEffect(() => {
+    let vivo = true;
+    fetchPcPreferencia()
+      .then(pref => {
+        if (!vivo || !pref) return;
+        setGama(pref.gama ?? '');
+        setPresupuesto(pref.presupuesto != null ? String(pref.presupuesto) : '');
+        setConGpu(Boolean(pref.conGpu));
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
   /**
    * @param {boolean} acumulando  true desde "Regenerar": arrastra lo ya visto para
    *   pedir el siguiente candidato. false desde "Generar": consulta nueva, se
@@ -53,6 +79,15 @@ export default function PcsPanel({ onSavePc } = {}) {
   async function generar(acumulando = false) {
     setLoading(true);
     setError(null);
+    // El PUT exige gama, así que "Cualquiera" no persiste nada. Es best-effort:
+    // que falle guardar la preferencia no puede frenar el armado.
+    if (!acumulando && gama) {
+      savePcPreferencia({
+        gama,
+        presupuesto: presupuesto ? Number(presupuesto) : null,
+        conGpu,
+      }).catch(() => {});
+    }
     const previos = acumulando ? vistos : {};
     const excluir = Object.values(previos).flat();
     try {
@@ -60,6 +95,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         presupuesto: presupuesto ? Number(presupuesto) : 0,
         conGpu,
         excluir,
+        gama,
       });
       setData(resp);
       const nuevos = resp?.picks ?? [];
@@ -88,6 +124,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         picks: data.picks,
         presupuesto: presupuesto ? Number(presupuesto) : 0,
         conGpu,
+        gama: gama || null,
         totalEstimado: data.totalEstimado,
       });
     } finally {
@@ -98,12 +135,33 @@ export default function PcsPanel({ onSavePc } = {}) {
   const picks = data?.picks ?? [];
   const sinStock = data?.sinStock ?? [];
   const sinCompatible = data?.sinCompatible ?? [];
+  const mensajes = data?.mensajes ?? {};
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[920px] px-[20px] py-[24px]">
         <p className="mb-[6px] text-eyebrow uppercase text-t3">Armador</p>
         <h1 className="mb-[24px] text-display-2 text-t1">Armador de PCs</h1>
+
+        <div className="mb-[16px] flex flex-wrap items-center gap-[8px]" role="group" aria-label="Gama">
+          {GAMAS.map(g => (
+            <button
+              key={g.value}
+              type="button"
+              onClick={() => setGama(g.value)}
+              aria-pressed={gama === g.value}
+              className={cn(
+                'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem]',
+                '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                gama === g.value
+                  ? 'border border-transparent bg-primary text-white'
+                  : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
+              )}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
 
         <div className="mb-[24px] flex flex-wrap items-end gap-[12px]">
           <div className="min-w-[200px] flex-1">
@@ -238,6 +296,11 @@ export default function PcsPanel({ onSavePc } = {}) {
                   <span className="text-center text-[.78rem] text-t4">
                     Sin stock
                   </span>
+                  {mensajes[slot] && (
+                    <span className="text-center text-[.7rem] text-t4">
+                      {mensajes[slot]}
+                    </span>
+                  )}
                 </div>
               ))}
 
@@ -254,7 +317,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                     Sin compatible
                   </span>
                   <span className="text-center text-[.7rem] text-t4">
-                    ninguna opción compatible con la mother elegida
+                    {mensajes[slot] || 'ninguna opción compatible con la mother elegida'}
                   </span>
                 </div>
               ))}
