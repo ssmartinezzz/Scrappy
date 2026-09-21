@@ -338,7 +338,7 @@ cd frontend && npm test
 - [x] **T7 — `/pcs`.** Chips de gama en `PcsPanel` (precargados con la
       preferencia guardada), render de `mensajes`, `fetchPcsBuilder` con el
       parámetro.
-- [ ] **T8 — Docs.** Sección de CLAUDE.md (fase 6, la escala, D2 como
+- [x] **T8 — Docs.** Sección de CLAUDE.md (fase 6, la escala, D2 como
       excepción a la política de abstención), evidencia medida en este doc.
 
 ## Progreso
@@ -694,7 +694,7 @@ Siguiente: T7 (`/pcs` — chips de gama precargados desde `GET
 /api/pcs/preferencia`, render de `mensajes`, `fetchPcsBuilder` con `gama`).
 T6 commiteado como `ed03a79`.
 
-### T7 — `/pcs` (2026-09-20, sin commitear al escribir esto)
+### T7 — `/pcs` (2026-09-20, commit `24eeda3`)
 
 Entregado, inline (tres archivos de frontend, sin decisión de diseño
 abierta): `api.js` suma `gama` a `fetchPcsBuilder` (sólo viaja si no está
@@ -726,3 +726,29 @@ browser: los chips reusan clase por clase el patrón ya medido en
 
 Siguiente: T8 (docs — sección fase 6 en CLAUDE.md, la escala, D2 como
 excepción a la política de abstención).
+
+### T8 — docs (2026-09-21)
+
+Reescrita la sección "Armador de PCs" de `CLAUDE.md` (ahora "fases 1 a 6"),
+no apilada: la tabla de reglas suma D2 como ⚠️ (la única regla donde la
+abstención veta, con el porqué y el costo del 17%), D12/D13/D14 (escalera
+por slot, abstención última, mother por DDR), el piso de watts y la
+certificación por gama (`EstimadorDeConsumo`, reemplaza la fila "constante
+supuesta"), el slot cooler y `mensajes`. Sección nueva de escala de gama con
+la trampa de las dos numeraciones de Radeon, y un párrafo de persistencia
+(D8–D11, D3c/D3d) que apunta a `docs/DATABASE.md`, donde `V35` ya estaba
+documentada desde T4/T5. Evidencia medida de fase 6 (2026-09-19) debajo de
+la de fase 1. Dos punteros stale corregidos fuera de la sección: el árbol
+(`pcs/` decía "fase 1/2") y "`V1`..`V33`" → `V35` en la sección de base.
+Cada afirmación nueva se contrastó contra el código antes de escribirla
+(`ReglaGama.permite`, `ReglaCertificacion`, `EstimadorDeConsumo`,
+`PcBuilder` orden de slots, `GpuSpecsReader` rama RX 9000,
+`ScraperService` → `TechSpecsIndexer`).
+
+Check aplicable: ninguno automático — edición pasiva de documentación;
+lectura estructural del render y `grep` de los tres anclajes tocados.
+
+**Feature cerrado: 8/8.** Pendiente fuera de este ODD: PR de la rama
+`feat/pc-builder-gama` contra `master` (11 commits, `V35` sin aplicar en
+ninguna base compartida) y el pendiente 3 de `odd/pc-builder-feedback`
+(guardados al carrusel de favoritos).
