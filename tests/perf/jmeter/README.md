@@ -138,14 +138,16 @@ Hace falta un backend vivo y un usuario:
 scripts/dev-db.sh up
 tests/e2e/run-e2e.sh --api --keep-up          # levanta el backend y lo deja arriba
 
-# Las credenciales: cualquier cuenta sirve. Si ya corriste la suite e2e,
-# el archivo que generó tiene una.
-set -a; . tests/e2e/.e2e-secrets.env; set +a
-export PERF_USERNAME="$ADMIN_BOOTSTRAP_USERNAME"
-export PERF_PASSWORD="$ADMIN_BOOTSTRAP_PASSWORD"
+tests/perf/perf-user.sh                   # crea la cuenta por la API real
+set -a; . tests/perf/.perf-credentials.env; set +a
 
 tests/perf/jmeter/run.sh smoke
 ```
+
+`perf-user.sh` crea un VIEWER con `POST /api/usuarios` —la API real, no SQL— y
+deja usuario y password en `tests/perf/.perf-credentials.env`, gitignored y modo
+600. Rol VIEWER y no ADMIN: todos los endpoints que se miden son
+`AUTHENTICATED`, y una suite de carga no necesita poder borrar el catálogo.
 
 ```
 ./run.sh smoke | carga | stress | spike | login
