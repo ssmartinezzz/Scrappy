@@ -144,4 +144,42 @@ class ContextoDeArmadoTest {
         assertThat(contexto.gamaPedida()).isEqualTo(Gama.ALTA);
         assertThat(contexto.certificacionMinima()).isEqualTo(Certificacion.GOLD);
     }
+
+    // ── T4a: preferencias pedidas ────────────────────────────────────────
+
+    @Test
+    @DisplayName("inicial(wattsMin) alone means no preferences were requested — NINGUNA")
+    void inicialSinPreferenciasDejaNinguna() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
+
+        assertThat(contexto.preferencias()).isEqualTo(PreferenciasDeArmado.NINGUNA);
+    }
+
+    @Test
+    @DisplayName("inicial(wattsMin, gamaPedida, certMin) alone also means no preferences were requested — NINGUNA")
+    void inicialConGamaSinPreferenciasDejaNinguna() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD);
+
+        assertThat(contexto.preferencias()).isEqualTo(PreferenciasDeArmado.NINGUNA);
+    }
+
+    @Test
+    @DisplayName("inicial(wattsMin, gamaPedida, certMin, preferencias) carries the preferences through")
+    void inicialConPreferenciasLasExpone() {
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado("DDR5", "AMD", null, null, null, null);
+
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD, prefs);
+
+        assertThat(contexto.preferencias()).isEqualTo(prefs);
+    }
+
+    @Test
+    @DisplayName("conMother preserves preferencias across the mother transition")
+    void conMotherPreservaPreferencias() {
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado("DDR5", "AMD", null, null, null, null);
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD, prefs)
+                .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
+
+        assertThat(contexto.preferencias()).isEqualTo(prefs);
+    }
 }
