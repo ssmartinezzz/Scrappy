@@ -873,7 +873,25 @@ public final class GarmentTaxonomy {
         " bracket ", " filtro ", " soporte ", " kit "
     };
 
-    public static final String[] KW_SERVICIO_LIDER = { " service ", " servicio " };
+    /**
+     * Líder ⇒ accesorio, sin necesidad de que el título nombre su destino
+     * (pc-builder-top-tier, T4). "Bracket" está además en {@link
+     * #KW_GABINETE_ACCESORIO_LIDER}, que exige " para gabinete ": las tres
+     * filas que lideran con bracket son accesorios, y las dos que no nombran
+     * el gabinete se escapaban a Almacenamiento y a Cooler. Los otros tres de
+     * esa lista siguen siendo condicionales — "Kit de RAM" y "Soporte de
+     * Monitor" son productos de verdad.
+     */
+    public static final String[] KW_ACCESORIO_LIDER = { " bracket " };
+
+    /**
+     * "Armado" es mano de obra, no producto: las 10 filas que lideran con él
+     * son el SERVICIO de armado ("ARMADO DE PC ESPECIAL (No incluye
+     * instalación de sistema operativo)"). Dos se habían ido a GPU y competían
+     * por el slot gpu del armador. Una PC armada de verdad lidera con "PC",
+     * que es {@link #KW_PC_LIDER}.
+     */
+    public static final String[] KW_SERVICIO_LIDER = { " service ", " servicio ", " armado " };
     public static final String[] KW_FUENTE_LIDER = { " fuente " };
     public static final String[] KW_PC_LIDER = { " pc " };
 
