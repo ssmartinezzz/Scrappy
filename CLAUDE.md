@@ -91,6 +91,12 @@ Scrappy/
 ├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
 │                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
 ├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
+├── tests/perf/                  ← performance: DOS suites independientes sobre los mismos endpoints
+│   ├── jmeter/                  ←   jmeter-java-dsl (Java, pom propio; `*IT` ⇒ `mvn verify`, nunca `mvn test`)
+│   └── locust/                  ←   locust (Python, venv propio)
+│                                  Ninguna levanta el backend: exigen uno vivo (`run-e2e.sh --api --keep-up`).
+│                                  Presupuestos p95 MEDIDOS (15.987 productos, 2026-09-22). Ojo: los caros
+│                                  son los SQL (`data` 160ms, `facets` 150ms), no los armadores (`pcs` 23ms)
 └── scraper/
     ├── pom.xml
     ├── src/test/

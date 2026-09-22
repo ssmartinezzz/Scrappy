@@ -94,3 +94,10 @@ tests/e2e/.run/
 frontend/playwright-report/
 frontend/test-results/
 frontend/e2e/.artifacts/
+
+# tests/perf: artefactos de las dos suites de performance. Nada de esto es
+# fuente — el venv y los reportes se regeneran en cada corrida, y target/
+# lo maneja Maven.
+tests/perf/locust/.venv/
+tests/perf/locust/.resultados/
+tests/perf/jmeter/target/
