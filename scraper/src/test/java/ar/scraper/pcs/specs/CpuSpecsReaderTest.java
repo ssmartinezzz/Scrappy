@@ -208,4 +208,48 @@ class CpuSpecsReaderTest {
     void generacionVaciaCuandoNoHayModeloLegible() {
         assertThat(leer("Procesador Generico Sin Modelo").generacion()).isZero();
     }
+
+    // ── nivel: el escalón de la familia, comparable entre marcas (D1) ────
+
+    @Test
+    void intelI9EsNivel9() {
+        assertThat(leer("Procesador Intel Core i9 14900K").nivel()).isEqualTo(9);
+    }
+
+    @Test
+    void ryzen9EsNivel9() {
+        assertThat(leer("Procesador AMD Ryzen 9 9950X3D 5.7GHz Turbo AM5").nivel()).isEqualTo(9);
+    }
+
+    @Test
+    void ultra9EsNivel9() {
+        assertThat(leer("Procesador Intel Core Ultra 9 285K").nivel()).isEqualTo(9);
+    }
+
+    @Test
+    void intelI7EsNivel7() {
+        assertThat(leer("Procesador Intel Core i7 14700F 5.4GHz Turbo Socket 1700").nivel()).isEqualTo(7);
+    }
+
+    @Test
+    void ryzen5EsNivel5() {
+        assertThat(leer("Procesador AMD Ryzen 5 9600 6/12 5.2GHz AM5").nivel()).isEqualTo(5);
+    }
+
+    @Test
+    void ryzen3EsNivel3() {
+        assertThat(leer("Procesador AMD Ryzen 3 3200G").nivel()).isEqualTo(3);
+    }
+
+    @Test
+    void athlonNoTieneNivelDeFamilia() {
+        // Athlon/Celeron/Pentium tienen gama BAJA pero no juegan en la escala
+        // 9/7/5/3: abstención, que el eje manda al final (D13).
+        assertThat(leer("Outlet Procesador Amd Athlon 3000g").nivel()).isZero();
+    }
+
+    @Test
+    void unNombreSinFamiliaAbstiene() {
+        assertThat(leer("Procesador Intel Xeon E5-2650").nivel()).isZero();
+    }
 }

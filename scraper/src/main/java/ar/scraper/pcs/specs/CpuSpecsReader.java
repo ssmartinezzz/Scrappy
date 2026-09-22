@@ -4,6 +4,7 @@ import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.pcs.TipoCooler;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -24,7 +25,7 @@ public final class CpuSpecsReader implements LectorDeSpecs {
     public TechSpecs leer(Tokens tokens) {
         return new TechSpecs(cpuSocket(tokens), "", "", 0, 0, "", gama(tokens), Certificacion.NINGUNA,
                 0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(tokens), generacion(tokens), 0, 0, false);
+                marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
     }
 
     // ── socket (unchanged from phase 1) ─────────────────────────────────
@@ -99,6 +100,21 @@ public final class CpuSpecsReader implements LectorDeSpecs {
         }
         if (tokens.has("amd") || tokens.has("ryzen") || tokens.has("athlon")) return "AMD";
         return "";
+    }
+
+    /**
+     * El escalón de la familia (9|7|5|3), que es lo que hace comparable un
+     * {@code i9} con un {@code Ryzen 9}. Athlon/Celeron/Pentium tienen gama
+     * BAJA pero no juegan en esta escala: abstienen, y el eje los manda al
+     * final (D13). Ver odd/tasks/pc-builder-top-tier.md D1.
+     */
+    private static int nivel(Tokens tokens) {
+        String padded = tokens.padded();
+        if (tokens.has("i9") || padded.contains(" ryzen 9 ") || padded.contains(" ultra 9 ")) return 9;
+        if (tokens.has("i7") || padded.contains(" ryzen 7 ") || padded.contains(" ultra 7 ")) return 7;
+        if (tokens.has("i5") || padded.contains(" ryzen 5 ") || padded.contains(" ultra 5 ")) return 5;
+        if (tokens.has("i3") || padded.contains(" ryzen 3 ") || padded.contains(" ultra 3 ")) return 3;
+        return 0;
     }
 
     private static int generacion(Tokens tokens) {
