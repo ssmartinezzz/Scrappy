@@ -148,7 +148,7 @@ está en castellano en `pcs/`.
 - [x] **T6 — UI `/pcs`.** Chips por preferencia (DDR · Marca CPU · Marca GPU ·
   Disco · RAM dual · Wifi), precarga desde la preferencia, `excluir` intacto.
   Tests vitest.
-- [ ] **T7 — Docs.** `CLAUDE.md` (fase 7 en la sección del armador, tabla de
+- [x] **T7 — Docs.** `CLAUDE.md` (fase 7 en la sección del armador, tabla de
   sitios intacta), `docs/ARCHITECTURE.md` (el porqué de D2/D5), DOC-1.
 
 ## Verificación por tarea
@@ -607,3 +607,27 @@ gpu/`M.2 NVMe`/RAM dual/WiFi, todos resaltados) y `resumenSpecs` mostró
 los ejes nuevos en un pick real: mother `LGA1700 · DDR5 · ITX · INTEL ·
 X/Z · WiFi`, cpu `LGA1700 · INTEL · gen 14`, ram `DDR5 · 32 GB · 2x`,
 cooler `AIO`.
+
+**T7 — hecho** (`29050fc`), docs-only, sin código ni tests. `CLAUDE.md`:
+header "fases 1 a 7", extendida la fila de ranking de la tabla de fase 2
+(D4/D9), fila `Fase 7` nueva (las seis preferencias, D2 con la excepción de
+`ramDual`/`wifi`, D6, `TipoCooler`) + su tabla de cobertura, párrafo
+`Persistencia` extendido con `V36` (tres lookups + columnas nullable;
+`socketsSoportados` sin persistir), y dos gotchas nuevas en "Taxonomía y
+clasificación" (el sustantivo líder generalizado a Cooler/CPU/PC/Gabinete
+con los números medidos — 146/470, 67+16 PCs, el service de $2.050 — y
+`"mate"` como acabado no como yerba). `docs/ARCHITECTURE.md`: subsección
+nueva con el porqué de D2 (la excepción de `ramDual`/`wifi` no es una
+incertidumbre inventada), D5 (arreglar en el clasificador, no en el
+armador — mismo patrón que `Cable`), D9 (tier relativo a la gama, el caso
+de la `Z790I` de $284k) y por qué `socketsSoportados` no se persiste (FK
+escalar, D10 de fase 6). `docs/API_REFERENCE.md`/`docs/ADD_SCRAPER.md`:
+sin tocar — ninguno documenta `/api/pcs/**` todavía (gap preexistente de
+fase 2/5/6, no de esta tarea). `SKILL.md`: sin tocar — no indexa
+`odd/tasks/*.md` uno por uno. `grep -rn "V35" CLAUDE.md docs/*.md | grep -v
+"V35__\|rollback\|V35 |\`V35\`"` da sólo referencias históricas correctas
+(ninguna reclama ser "la última migración"). Hallazgo aparte, no resuelto:
+`docs/ARCHITECTURE.md` nunca tuvo una sección "Armador de PCs" — ninguna de
+las fases 1-6 documentó su porqué ahí pese a `DOC-2`; T7 crea la sección
+recién con el porqué de fase 7, sin retro-documentar D1-D14 de fases
+anteriores (fuera del scope de esta tarea).
