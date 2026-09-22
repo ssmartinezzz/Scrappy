@@ -43,14 +43,27 @@ class EjesTecnicosTest {
                 TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, tierChipset, 0, false);
     }
 
+    // La marca es parte de la fixture desde D2: `generacion` sola no es
+    // comparable (14 de Intel y 9 de AMD no son la misma magnitud), así que
+    // el eje la normaliza a un año y sin marca abstiene.
     private static TechSpecs conCpuGeneracion(Gama gama, int generacion) {
+        return conCpuChip(gama, 0, "INTEL", generacion);
+    }
+
+    private static TechSpecs conCpuChip(Gama gama, int nivel, String marcaChip, int generacion) {
         return new TechSpecs("", "", "", 0, 0, "", gama, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false);
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), marcaChip, generacion, 0, 0, false,
+                TipoCooler.DESCONOCIDO, nivel);
     }
 
     private static TechSpecs conGpu(Gama gama, int generacion, int vramGb) {
+        return conGpuChip(gama, 0, "NVIDIA", generacion, vramGb);
+    }
+
+    private static TechSpecs conGpuChip(Gama gama, int nivel, String marcaChip, int generacion, int vramGb) {
         return new TechSpecs("", "", "", 0, vramGb, "", gama, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false);
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), marcaChip, generacion, 0, 0, false,
+                TipoCooler.DESCONOCIDO, nivel);
     }
 
     private static TechSpecs conCpuNivel(Gama gama, int nivel, int generacion) {
@@ -167,6 +180,60 @@ class EjesTecnicosTest {
     void gpuSinNivelVaUltimoEnEseEjeAunqueLaGamaEmpate() {
         assertThat(EjesTecnicos.GPU.compare(conGpuNivel(Gama.ALTA, 50, 3, 8), conGpuNivel(Gama.ALTA, 0, 5, 24)))
                 .isNegative();
+    }
+
+    // ── recencia: la generación se compara como AÑO, nunca cruda (D2) ────
+
+    @Test
+    void cpuComparaGeneracionesDeMarcasDistintasPorRecencia() {
+        // Ryzen 9 serie 9000 (2024) contra i9 de 14ª (2023): mismo nivel, y
+        // gana el más nuevo. Con el número crudo ganaba el i9 porque 14 > 9.
+        TechSpecs ryzen9 = conCpuChip(Gama.ALTA, 9, "AMD", 9);
+        TechSpecs i9 = conCpuChip(Gama.ALTA, 9, "INTEL", 14);
+        assertThat(EjesTecnicos.CPU.compare(ryzen9, i9)).isNegative();
+    }
+
+    @Test
+    void cpuElNivelLeGanaALaRecencia() {
+        // Un i9 de 14ª (2023) le gana a un Ryzen 7 de la serie 9000 (2024):
+        // en CPU el escalón de familia es estable y manda sobre el año.
+        TechSpecs i9 = conCpuChip(Gama.ALTA, 9, "INTEL", 14);
+        TechSpecs ryzen7 = conCpuChip(Gama.ALTA, 7, "AMD", 9);
+        assertThat(EjesTecnicos.CPU.compare(i9, ryzen7)).isNegative();
+    }
+
+    @Test
+    void cpuSinMarcaLaGeneracionAbstiene() {
+        // Sin marca el número no tiene escala: abstención, última (D13) —
+        // nunca comparado crudo contra el de otra marca.
+        TechSpecs sinMarca = conCpuChip(Gama.ALTA, 9, "", 14);
+        TechSpecs conMarca = conCpuChip(Gama.ALTA, 9, "AMD", 3);
+        assertThat(EjesTecnicos.CPU.compare(conMarca, sinMarca)).isNegative();
+    }
+
+    @Test
+    void gpuLaRecenciaLeGanaAlNivel() {
+        // RTX 5080 (2025, nivel 80) contra RX 6900 XT (2020, nivel 90): en
+        // GPU el x90 de hace cinco años no es comparable con el x80 de hoy,
+        // así que el año va ANTES que el nivel — al revés que en CPU.
+        TechSpecs rtx5080 = conGpuChip(Gama.ALTA, 80, "NVIDIA", 5, 16);
+        TechSpecs rx6900 = conGpuChip(Gama.ALTA, 90, "AMD", 6, 16);
+        assertThat(EjesTecnicos.GPU.compare(rtx5080, rx6900)).isNegative();
+    }
+
+    @Test
+    void gpuEmpataElAnioDesempataPorNivel() {
+        // RTX 5080 contra RX 9070: las dos de 2025, gana el escalón más alto.
+        TechSpecs rtx5080 = conGpuChip(Gama.ALTA, 80, "NVIDIA", 5, 16);
+        TechSpecs rx9070 = conGpuChip(Gama.ALTA, 70, "AMD", 9, 16);
+        assertThat(EjesTecnicos.GPU.compare(rtx5080, rx9070)).isNegative();
+    }
+
+    @Test
+    void gpuSinMarcaLaGeneracionAbstiene() {
+        TechSpecs sinMarca = conGpuChip(Gama.ALTA, 90, "", 9, 16);
+        TechSpecs conMarca = conGpuChip(Gama.ALTA, 50, "NVIDIA", 2, 8);
+        assertThat(EjesTecnicos.GPU.compare(conMarca, sinMarca)).isNegative();
     }
 
     // ── Fuente: certificación desc ───────────────────────────────────────
