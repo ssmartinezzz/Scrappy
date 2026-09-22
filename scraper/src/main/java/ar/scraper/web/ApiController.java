@@ -479,7 +479,25 @@ public class ApiController {
             @RequestParam(defaultValue = "") String marcaGpu,
             @RequestParam(defaultValue = "") String tipoAlmacenamiento,
             @RequestParam(required = false) Boolean ramDual,
-            @RequestParam(required = false) Boolean wifi) {
+            @RequestParam(required = false) Boolean wifi,
+            @RequestParam(required = false) Integer capacidadMinimaGb,
+            @RequestParam(defaultValue = "") String tamanioGabinete,
+            @RequestParam(defaultValue = "") String tipoCooler,
+            @RequestParam(required = false) Integer wattsMinimos) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama,
+                ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
+                capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);
+    }
+
+    /**
+     * Backward-compatible 10-arg overload, sin mapping propio — la ruta la sigue
+     * sirviendo el método de arriba. Existe para que los call sites previos a las
+     * cuatro preferencias finas de la fase 9 sigan compilando sin editarlos
+     * ({@code CODE-2}).
+     */
+    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi) {
         return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama,
                 ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
     }
