@@ -53,7 +53,40 @@ const TIPOS_ALMACENAMIENTO = [
   { value: 'hdd', label: 'HDD' },
 ];
 
+// Fase 9. Las dos primeras son vocabulario de cable de PreferenciasWire; las
+// dos últimas son PISOS en su propia unidad, y 0 es "no pedido" (el servidor
+// rechaza un 0 explícito a propósito).
+const TAMANIOS_GABINETE = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'mini', label: 'Mini tower' },
+  { value: 'mid', label: 'Mid tower' },
+  { value: 'full', label: 'Full tower' },
+];
+const TIPOS_COOLER = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'liquido', label: 'Líquida' },
+  { value: 'aire', label: 'Aire' },
+];
+// 1 TB = 1024 GB: el parser normaliza TB a GB ×1024, así que el piso viaja
+// en GB y el chip sólo traduce la etiqueta.
+const CAPACIDADES = [
+  { value: 0, label: 'Cualquiera' },
+  { value: 240, label: '240 GB' },
+  { value: 500, label: '500 GB' },
+  { value: 1024, label: '1 TB' },
+  { value: 2048, label: '2 TB' },
+];
+const WATTS = [
+  { value: 0, label: 'Cualquiera' },
+  { value: 550, label: '550 W' },
+  { value: 650, label: '650 W' },
+  { value: 750, label: '750 W' },
+  { value: 850, label: '850 W' },
+  { value: 1000, label: '1000 W' },
+];
+
 const TIER_CHIPSET_LABEL = { 1: 'X/Z', 2: 'B', 3: 'A/H' };
+const TAMANIO_GABINETE_LABEL = { MINI: 'mini tower', MID: 'mid tower', FULL: 'full tower' };
 
 /** Une solo los campos con dato — un clasificador que se abstiene deja "" / 0. */
 function resumenSpecs(specs) {
@@ -76,6 +109,10 @@ function resumenSpecs(specs) {
   if (specs.wifi) partes.push('WiFi');
   if (specs.tipoCooler === 'LIQUIDO') partes.push('AIO');
   if (specs.tipoCooler === 'AIRE') partes.push('aire');
+  if (specs.radiadorMm) partes.push(`${specs.radiadorMm} mm`);
+  if (TAMANIO_GABINETE_LABEL[specs.tamanioGabinete]) {
+    partes.push(TAMANIO_GABINETE_LABEL[specs.tamanioGabinete]);
+  }
   return partes.join(' · ');
 }
 
@@ -135,6 +172,10 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [tipoAlmacenamiento, setTipoAlmacenamiento] = useState('');
   const [ramDual, setRamDual] = useState(false);
   const [wifi, setWifi] = useState(false);
+  const [tamanioGabinete, setTamanioGabinete] = useState('');
+  const [tipoCooler, setTipoCooler] = useState('');
+  const [capacidadMinimaGb, setCapacidadMinimaGb] = useState(0);
+  const [wattsMinimos, setWattsMinimos] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -161,6 +202,10 @@ export default function PcsPanel({ onSavePc } = {}) {
         setTipoAlmacenamiento(pref.tipoAlmacenamiento ?? '');
         setRamDual(Boolean(pref.ramDual));
         setWifi(Boolean(pref.wifi));
+        setTamanioGabinete(pref.tamanioGabinete ?? '');
+        setTipoCooler(pref.tipoCooler ?? '');
+        setCapacidadMinimaGb(pref.capacidadMinimaGb ?? 0);
+        setWattsMinimos(pref.wattsMinimos ?? 0);
       })
       .catch(() => {});
     return () => { vivo = false; };
@@ -187,6 +232,10 @@ export default function PcsPanel({ onSavePc } = {}) {
         tipoAlmacenamiento: tipoAlmacenamiento || null,
         ramDual,
         wifi,
+        tamanioGabinete: tamanioGabinete || null,
+        tipoCooler: tipoCooler || null,
+        capacidadMinimaGb: capacidadMinimaGb || null,
+        wattsMinimos: wattsMinimos || null,
       }).catch(() => {});
     }
     const previos = acumulando ? vistos : {};
@@ -203,6 +252,10 @@ export default function PcsPanel({ onSavePc } = {}) {
         tipoAlmacenamiento,
         ramDual,
         wifi,
+        tamanioGabinete,
+        tipoCooler,
+        capacidadMinimaGb,
+        wattsMinimos,
       });
       setData(resp);
       const nuevos = resp?.picks ?? [];
@@ -282,6 +335,33 @@ export default function PcsPanel({ onSavePc } = {}) {
             value={tipoAlmacenamiento}
             onChange={setTipoAlmacenamiento}
           />
+          <ChipGroup
+            label="Capacidad mínima del disco"
+            options={CAPACIDADES}
+            value={capacidadMinimaGb}
+            onChange={setCapacidadMinimaGb}
+          />
+          <ChipGroup label="Refrigeración" options={TIPOS_COOLER} value={tipoCooler} onChange={setTipoCooler} />
+          <ChipGroup
+            label="Watts mínimos de la fuente"
+            options={WATTS}
+            value={wattsMinimos}
+            onChange={setWattsMinimos}
+          />
+          <div>
+            <ChipGroup
+              label="Gabinete"
+              options={TAMANIOS_GABINETE}
+              value={tamanioGabinete}
+              onChange={setTamanioGabinete}
+            />
+            {/* El dato medido va en pantalla porque el resultado es
+                contraintuitivo: 576 de 622 gabinetes del catálogo no dicen su
+                tamaño, y pedirlo los descarta a todos (D2). */}
+            <p className="mt-[6px] text-[.72rem] text-t4">
+              Ojo: pocos gabinetes declaran su tamaño en el nombre, así que pedirlo deja muy pocas opciones.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-[8px]">
             <ToggleChip label="RAM dual (2x)" pressed={ramDual} onToggle={() => setRamDual(v => !v)} />
             <ToggleChip label="Mother con WiFi" pressed={wifi} onToggle={() => setWifi(v => !v)} />
