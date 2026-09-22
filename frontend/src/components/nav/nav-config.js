@@ -3,8 +3,8 @@
 // from this same array so the two surfaces can never drift apart.
 import {
   ShoppingBag, Trophy, Sparkles,
-  Compass, LineChart, Bookmark,
-  Tag, Pill, Cpu, Boxes, TrendingUp, Sparkle, Scale, CreditCard, Star, Shirt, Clock, Users,
+  LineChart, Bookmark,
+  Tag, Pill, Cpu, Boxes, TrendingUp, Sparkle, Scale, CreditCard, Shirt, Clock, Users,
 } from 'lucide-react';
 
 // kind: 'link'  → direct NavLink, no submenu
@@ -13,13 +13,17 @@ export const NAV_CONFIG = [
   { kind: 'link', label: 'Catálogo', to: '/catalogo', icon: ShoppingBag },
   { kind: 'link', label: 'Picks', to: '/picks', icon: Trophy },
   { kind: 'link', label: 'Para ti', to: '/recomendados', icon: Sparkles },
+  { kind: 'link', label: 'Marcas', to: '/marcas', icon: Tag },
+  // "Armadores" nombra los tres armadores y nada más. Antes era "Explorar", y
+  // agrupaba tres armadores con una vista de análisis (Marcas, que se fue a
+  // primer nivel) mientras el armador de outfits colgaba de "Guardados", donde
+  // /outfits es el armador y no lo guardado.
   {
-    kind: 'menu', label: 'Explorar', icon: Compass,
+    kind: 'menu', label: 'Armadores', icon: Boxes,
     items: [
-      { label: 'Marcas', to: '/marcas', icon: Tag },
+      { label: 'Outfits', to: '/outfits', icon: Shirt },
       { label: 'Suplementos', to: '/suplementos', icon: Pill },
       { label: 'PCs', to: '/pcs', icon: Cpu },
-      { label: 'Armadores', to: '/armadores', icon: Boxes },
     ],
   },
   {
@@ -31,13 +35,9 @@ export const NAV_CONFIG = [
       { label: 'Cuotas', to: '/financiacion', icon: CreditCard },
     ],
   },
-  {
-    kind: 'menu', label: 'Guardados', icon: Bookmark,
-    items: [
-      { label: 'Favoritos', to: '/favoritos', icon: Star },
-      { label: 'Outfits', to: '/outfits', icon: Shirt },
-    ],
-  },
+  // Un solo destino: /favoritos junta productos, outfits guardados y PCs
+  // guardadas. /armadores se borró — era la misma idea en otra ruta.
+  { kind: 'link', label: 'Guardados', to: '/favoritos', icon: Bookmark },
   // Los destinos de administración van como links directos al final de la
   // fila/drawer, no agrupados bajo un menú "Admin". Con dos ya daría para
   // agruparlos, y sigue sin hacerse a propósito: el label de primer nivel

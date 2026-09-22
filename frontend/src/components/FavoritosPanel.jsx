@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { LayoutGrid, List, ShoppingBag } from 'lucide-react';
 import BuySignal from './BuySignal';
+import SavedOutfitCard from './SavedOutfitCard';
+import SavedPcCard from './SavedPcCard';
 import { TiltCarousel } from './ui/tilt-carousel';
 import { ImageWithFallback } from './ui/image-with-fallback';
 import { fmt } from '../api';
@@ -16,7 +18,12 @@ function ImgFallbackIcon({ size = 20 }) {
 const VIEW_MODE_KEY = 'favoritos:viewMode';
 
 // ─── FavoritosPanel ───────────────────────────────────────────────────────────
-export default function FavoritosPanel({ favoritos, onOpenDetail, onDeleteFavorito }) {
+export default function FavoritosPanel({
+  favoritos, onOpenDetail, onDeleteFavorito,
+  savedOutfits = [], savedPcs = [],
+  onDeleteSavedOutfit, onRenameSavedOutfit,
+  onDeleteSavedPc, onRenameSavedPc,
+}) {
   const items = favoritos || [];
   const isEmpty = items.length === 0;
 
@@ -49,8 +56,11 @@ export default function FavoritosPanel({ favoritos, onOpenDetail, onDeleteFavori
     }
   }
 
-  // Slide model (design ADR-2, narrowed post-saved-pcs-armadores: saved
-  // outfits moved to /armadores, so this is product slides only now).
+  // Slide model (design ADR-2). El carrusel sigue siendo SÓLO de productos:
+  // los outfits y las PCs guardadas viven en sus propias secciones debajo,
+  // con sus tarjetas (nav-guardados-armadores D2). Un outfit no tiene una
+  // imagen única que poner en un slide, que es por lo que salió del carrusel
+  // en saved-pcs-armadores.
   const slides = useMemo(() => items.map(f => ({
     kind: 'product',
     id: f.url,
@@ -197,6 +207,49 @@ export default function FavoritosPanel({ favoritos, onOpenDetail, onDeleteFavori
         )}
         </>
         )}
+
+        {/* Guardados de los armadores. Se renderizan siempre, incluso sin un
+            solo producto favorito: son tres colecciones independientes que
+            comparten pantalla, no tres vistas de la misma. */}
+        <section style={{ marginTop: isEmpty ? 0 : '2rem' }}>
+          <h2 style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)', marginBottom:12 }}>
+            👕 Outfits guardados
+          </h2>
+          {savedOutfits.length === 0 ? (
+            <p style={{ fontSize:'.85rem', color:'var(--t3)' }}>Todavía no guardaste ningún outfit.</p>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
+              {savedOutfits.map(o => (
+                <SavedOutfitCard
+                  key={o.id}
+                  outfit={o}
+                  onDelete={onDeleteSavedOutfit}
+                  onRename={onRenameSavedOutfit}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={{ marginTop:'2rem' }}>
+          <h2 style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)', marginBottom:12 }}>
+            🖥 PCs guardadas
+          </h2>
+          {savedPcs.length === 0 ? (
+            <p style={{ fontSize:'.85rem', color:'var(--t3)' }}>Todavía no guardaste ninguna PC.</p>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
+              {savedPcs.map(p => (
+                <SavedPcCard
+                  key={p.id}
+                  pc={p}
+                  onDelete={onDeleteSavedPc}
+                  onRename={onRenameSavedPc}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
