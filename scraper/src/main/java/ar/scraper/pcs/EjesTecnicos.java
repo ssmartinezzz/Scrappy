@@ -80,12 +80,30 @@ public final class EjesTecnicos {
      * aire, altura, TDP siguen sin parsearse) y el precio más bajo de una
      * categoría con ruido de clasificación ganaba: build (4) de T4 eligió un
      * paño de limpieza para pasta térmica ($1.800) para el slot cooler.
+     *
+     * <p>La fase 9 (D6) le agrega el radiador como SEGUNDO eje: entre dos
+     * AIO gana la de 360mm sobre la de 240mm. 84 de los 171 líquidos del
+     * catálogo lo declaran; los otros 87 abstienen (0) y, por D7, quedan
+     * detrás dentro de su propio escalón — nunca delante.</p>
      */
     public static final Comparator<TechSpecs> COOLER =
-            Comparator.comparingInt(specs -> tipoCoolerRank(specs.tipoCooler()));
+            Comparator.<TechSpecs>comparingInt(specs -> tipoCoolerRank(specs.tipoCooler()))
+                    .thenComparingInt(specs -> masEsMejor(specs.radiadorMm()));
 
+    /**
+     * Certificación desc → watts desc — D6, fase 9.
+     *
+     * <p>Hasta la fase 8 el eje era la certificación SOLA, así que entre dos
+     * GOLD desempataba el precio y ganaba siempre la más chica: la fuente
+     * quedaba apenas por encima del piso de watts que {@link
+     * EstimadorDeConsumo} pide, sin margen para nada. La certificación sigue
+     * mandando —una GOLD de 650 W le gana a una sin certificar de 1200 W— y
+     * el reparto por cuotas de la fase 8 impide que este eje le vacíe la caja
+     * a los slots que vienen después.</p>
+     */
     public static final Comparator<TechSpecs> FUENTE =
-            Comparator.comparingInt(specs -> -specs.certificacion().ordinal());
+            Comparator.<TechSpecs>comparingInt(specs -> -specs.certificacion().ordinal())
+                    .thenComparingInt(specs -> masEsMejor(specs.watts()));
 
     /**
      * Gama → recencia desc → nivel de modelo desc → VRAM desc — D1/D2.

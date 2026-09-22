@@ -294,6 +294,9 @@ describe('PcsPanel — gama', () => {
       gama: 'media', presupuesto: null, conGpu: true,
       ddr: null, marcaCpu: null, marcaGpu: null, tipoAlmacenamiento: null,
       ramDual: false, wifi: false,
+      // Fase 9: las cuatro nuevas viajan como null cuando no se pidieron —
+      // nunca como 0, que el servidor rechaza a propósito.
+      tamanioGabinete: null, tipoCooler: null, capacidadMinimaGb: null, wattsMinimos: null,
     });
   });
 

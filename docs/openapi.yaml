@@ -909,6 +909,30 @@ paths:
           in: query
           description: Optional hard filter for a motherboard that declares wifi. Absent means not requested.
           schema: { type: boolean }
+        - name: capacidadMinimaGb
+          in: query
+          description: >-
+            Optional storage capacity FLOOR in GB ("at least N"), not an exact match — asking for
+            1024 still admits a 2 TB drive. Absent means not requested; 0 is rejected.
+          schema: { type: integer, minimum: 1 }
+        - name: tamanioGabinete
+          in: query
+          description: >-
+            Optional hard case TOWER SIZE filter — a different axis from the board form factor the
+            Gabinete ⊇ Mother veto uses. Absent/blank means not requested.
+          schema: { type: string, enum: [mini, mid, full] }
+        - name: tipoCooler
+          in: query
+          description: >-
+            Optional hard cooling-technology filter. Requesting one also OPENS the cooler slot at
+            any tier, which otherwise exists only for gama=alta. Absent/blank means not requested.
+          schema: { type: string, enum: [liquido, aire] }
+        - name: wattsMinimos
+          in: query
+          description: >-
+            Optional PSU watts FLOOR. It only ever RAISES the build's own floor (derived from gama
+            and conGpu), never lowers it. Absent means not requested; 0 is rejected.
+          schema: { type: integer, minimum: 1 }
       responses:
         "200":
           description: Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot.
