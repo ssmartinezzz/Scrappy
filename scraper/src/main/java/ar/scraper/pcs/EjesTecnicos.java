@@ -23,10 +23,25 @@ public final class EjesTecnicos {
     private EjesTecnicos() {
     }
 
-    /** DDR desc → tier de chipset (X/Z=1 < B=2 < A/H=3, 0 última) — D4. */
-    public static final Comparator<TechSpecs> MOTHER =
-            Comparator.<TechSpecs>comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
-                    .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset()));
+    /**
+     * DDR desc → tier de chipset, en el orden absoluto de T3 (X/Z=1 < B=2 <
+     * A/H=3, 0 última) — equivalente a {@link #mother(Gama)} sin gama
+     * pedida. Ver {@link #mother(Gama)} para el ranking RELATIVO a la gama
+     * (D9, pc-builder-deep-taxonomy T4c).
+     */
+    public static final Comparator<TechSpecs> MOTHER = mother(null);
+
+    /**
+     * DDR desc → tier de chipset relativo a {@code gamaPedida} — D9. Sin
+     * gama pedida ({@code null}) o con {@link Gama#DESCONOCIDA}, no hay
+     * target y se mantiene el orden absoluto de T3 (X/Z < B < A/H). Con una
+     * gama pedible, el target es ALTA→X/Z, MEDIA→B, BAJA→A/H y el rank es la
+     * distancia |tier - target| — 0 (abstención) sigue siempre última.
+     */
+    public static Comparator<TechSpecs> mother(Gama gamaPedida) {
+        return Comparator.<TechSpecs>comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
+                .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida));
+    }
 
     /** Gama → generación desc — D4. */
     public static final Comparator<TechSpecs> CPU =
@@ -99,8 +114,26 @@ public final class EjesTecnicos {
         return valor == 0 ? Integer.MAX_VALUE : -valor;
     }
 
-    /** {@code TechSpecs.tierChipset()} ya es "menor es mejor" (1=X/Z, 2=B, 3=A/H) — sólo 0 (abstención) se mapea a mano. */
-    private static int tierChipsetRank(int tier) {
-        return tier == 0 ? Integer.MAX_VALUE : tier;
+    /**
+     * D9: sin target (gamaPedida null o DESCONOCIDA) usa el tier tal cual
+     * (ya es "menor es mejor": 1=X/Z, 2=B, 3=A/H, T3's absolute order). Con
+     * target, el rank es la distancia |tier - target| — el chipset que más
+     * se acerca a lo pedido gana, no el más alto en la escala absoluta. 0
+     * (abstención) siempre último, en cualquiera de los dos modos.
+     */
+    private static int tierChipsetRank(int tier, Gama gamaPedida) {
+        if (tier == 0) return Integer.MAX_VALUE;
+        Integer target = targetTierChipset(gamaPedida);
+        return target == null ? tier : Math.abs(tier - target);
+    }
+
+    private static Integer targetTierChipset(Gama gamaPedida) {
+        if (gamaPedida == null) return null;
+        return switch (gamaPedida) {
+            case ALTA -> 1;
+            case MEDIA -> 2;
+            case BAJA -> 3;
+            case DESCONOCIDA -> null; // gama pedida ilegible: sin target, orden absoluto de T3
+        };
     }
 }
