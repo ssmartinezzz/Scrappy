@@ -28,7 +28,27 @@ public final class AlmacenamientoSpecsReader implements LectorDeSpecs {
                 Gama.DESCONOCIDA, Certificacion.NINGUNA, 0, tipo(tokens));
     }
 
+    /**
+     * Un disco externo USB no es el disco de la PC que se está armando, así
+     * que abstiene la TECNOLOGÍA en vez de declararse NVMe/SSD/HDD. Se
+     * resuelve por abstención y no por una regla de veto nueva, que es la
+     * misma política que los pendrives: la abstención es el último escalón
+     * del eje, así que se hunde solo y sigue siendo elegible como último
+     * recurso si no hay nada más.
+     *
+     * <p>Medido sobre la dev DB (2026-09-22): 18 de las 266 filas activas de
+     * Almacenamiento son externas, y {@code externo}/{@code externa} sola las
+     * cubre a las 18 — {@code portable}/{@code portatil} no suma ninguna por
+     * su cuenta, así que no entran al vocabulario y no pueden traer falsos
+     * positivos. Con un piso de capacidad pedido, un "HD HDD EXTERNO 4TB
+     * SEAGATE PORTABLE USB 3.0" le ganaba el slot a los discos internos.</p>
+     */
+    private static boolean esExterno(Tokens tokens) {
+        return tokens.has("externo") || tokens.has("externa");
+    }
+
     private static TipoAlmacenamiento tipo(Tokens tokens) {
+        if (esExterno(tokens)) return TipoAlmacenamiento.DESCONOCIDO;
         if (tokens.has("nvme") || tieneM2(tokens)) return TipoAlmacenamiento.NVME;
         if (tokens.has("ssd")) return TipoAlmacenamiento.SSD;
         if (tokens.has("hdd")) return TipoAlmacenamiento.HDD;

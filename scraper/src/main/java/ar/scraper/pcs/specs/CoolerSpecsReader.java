@@ -71,9 +71,27 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
         return TipoCooler.DESCONOCIDO;
     }
 
+    /**
+     * Un fan de gabinete, por su sustantivo líder. Cubre las dos grafías, que
+     * son el mismo producto con las palabras al revés: {@code "Fan Cooler
+     * 120mm..."} y {@code "Cooler Fan 120mm..."}. La fase 7 sólo miraba el
+     * PRIMER token, así que ataja la primera y dejaba pasar la segunda —
+     * medido sobre la dev DB (2026-09-22): las 6 filas activas que lideran con
+     * "cooler fan" son fans de 120/140mm, ninguna es un cooler de CPU, y la
+     * más barata ganaba el slot cuando se pedía refrigeración por aire.
+     *
+     * <p>El par tiene que ser ADYACENTE y al principio: {@code "Cooler CPU
+     * Deepcool AK400 con Fan de 120mm"} nombra un fan más adelante y sigue
+     * siendo un cooler de CPU. Un {@code "outlet"} líder se pela antes de
+     * comparar, misma política que {@code CategoryClassifier.startsWithAny}.</p>
+     */
     private static boolean esLiderCaseFan(Tokens tokens) {
         String[] arr = tokens.array();
-        return arr.length > 0 && tieneAlguno(arr[0], TOKENS_LIDER_CASE_FAN);
+        int i = (arr.length > 0 && arr[0].equals("outlet")) ? 1 : 0;
+        if (arr.length <= i) return false;
+        if (tieneAlguno(arr[i], TOKENS_LIDER_CASE_FAN)) return true;
+        return arr[i].equals("cooler") && arr.length > i + 1
+                && tieneAlguno(arr[i + 1], TOKENS_LIDER_CASE_FAN);
     }
 
     private static boolean esLiquido(Tokens tokens) {
