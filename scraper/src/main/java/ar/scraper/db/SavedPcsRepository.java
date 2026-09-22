@@ -174,7 +174,7 @@ class SavedPcsRepository implements SavedPcsPort {
              ResultSet rs = st.executeQuery("""
                      SELECT i.pc_id, i.slot, i.url, i.sitio, i.nombre, i.precio, i.img, i.marca,
                             i.socket, i.ddr, i.form_factor, i.watts, i.capacidad_gb, i.tipo_memoria,
-                            p.precio AS precio_actual
+                            p.precio AS precio_actual, p.producto_key
                      FROM saved_pc_item i
                      LEFT JOIN productos p ON p.url = i.url
                      ORDER BY i.pc_id, i.posicion
@@ -198,6 +198,10 @@ class SavedPcsRepository implements SavedPcsPort {
                 item.put("specs", specs);
                 double precioActual = rs.getDouble("precio_actual");
                 item.put("precioActual", rs.wasNull() ? null : precioActual);
+                // Mismo motivo que en SavedOutfitsRepository: el handle corto
+                // es lo único que el cliente no puede derivar solo, y es lo que
+                // le permite al panel de detalle pedir la fila entera.
+                item.put("key", rs.getString("producto_key"));
                 porPc.computeIfAbsent(rs.getInt("pc_id"), k -> new ArrayList<>()).add(item);
             }
         }
