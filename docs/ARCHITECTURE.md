@@ -765,6 +765,48 @@ ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,
 la misma clase de trabajo que `/api/grupos` hace por request.
 
+### ¿Por qué se borró `/armadores` en vez de dejar tres destinos guardados?
+
+**El problema no era que faltara una pantalla, era que el reparto no
+significaba nada.** `/favoritos` tenía productos, `/armadores` tenía outfits y
+PCs guardadas, y el menú `Guardados` ofrecía "Favoritos" y "Outfits" — donde
+"Outfits" apuntaba a `/outfits`, que es el **armador**, no lo guardado. Tres
+nombres, tres destinos y ninguna regla que dijera qué va dónde: los outfits
+guardados ya se habían mudado una vez, de `/favoritos` a `/armadores`, en
+`saved-pcs-armadores`. Una segunda mudanza sin un criterio sólo habría
+programado la tercera.
+
+El criterio que se eligió es el que ya usa el resto del nav: **un menú agrupa
+cosas del mismo tipo**. "Armadores" agrupa los tres armadores, "Análisis" las
+cuatro vistas de análisis, y lo guardado —que es una sola idea— es un link, no
+un menú con un solo ítem. `Marcas` salió del menú renombrado por la misma
+regla: es exploración del catálogo, no un armador, y dejarla ahí habría
+mantenido viva justo la mezcla que se estaba deshaciendo.
+
+**Por qué las tres colecciones comparten pantalla en vez de tres rutas.** Se
+evaluaron las dos formas. Tres destinos separados (`/favoritos`, outfits
+guardados, PCs guardadas) mantienen cada lista corta, pero reinstalan el
+problema original: tres nombres para la misma pregunta —"¿qué guardé?"— y una
+navegación que hay que recorrer para contestarla. Una pantalla con tres
+secciones la contesta de una. El costo aceptado es que la página crece con lo
+guardado; se mitiga con lo que la vista ya tenía, el toggle carrusel/lista de
+productos, que no se tocó.
+
+**Por qué las secciones de guardados se renderizan aunque no haya un solo
+producto favorito.** Son tres colecciones independientes que comparten
+pantalla, no tres vistas del mismo dato. Colgarlas del estado vacío de
+productos habría hecho que una PC guardada desapareciera de la pantalla al
+borrar el último favorito — un dato que el usuario guardó, invisible por una
+condición que no tiene nada que ver con él. Por la misma razón el contador del
+header sigue contando **sólo productos**: dice "N productos guardados", y
+sumarle outfits y PCs haría que la frase dejara de ser cierta.
+
+**Por qué el estado no se movió.** `savedOutfits`/`savedPcs` ya vivían en el
+reducer de `AppLayout` y ya los cargaba la misma ruta, así que el cambio es de
+quién los renderiza y nada más. Mover el estado "de paso" habría mezclado una
+decisión de navegación con una de arquitectura de datos, y habría vuelto
+imposible leer el diff como lo que es.
+
 ### ¿Por qué el backend no sirve TLS y sólo le cree al proxy de loopback?
 
 Porque el que termina TLS es otro proceso, y decidir *a quién* creerle es la
