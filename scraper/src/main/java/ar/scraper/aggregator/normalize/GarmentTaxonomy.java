@@ -277,7 +277,7 @@ public final class GarmentTaxonomy {
     //
     // IMPORTANTE: solo tokens INEQUÍVOCOS (no colisionan con vocabulario de
     // ropa vía substring). No mover acá tokens amplios de KW_COMIDA como
-    // "mate" (⊂ "material") o "fruta" (⊂ "frutal") — esos deben seguir
+    // "fruta" (⊂ "frutal") — esos deben seguir
     // corriendo DESPUÉS del bloque de indumentaria.
     public static final String[] KW_ALIMENTO_TEMPRANO = {
         "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia ",
@@ -816,7 +816,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_COMIDA = {
-        "yerba","mate","cafe","te verde","infusion","cereal","granola",
+        "yerba","cafe","te verde","infusion","cereal","granola",
         // " mani " padeado, no "mani" pelado: anyMatch es un contains crudo sobre el
         // título ya padeado, así que la forma corta matcheaba DENTRO de otras palabras
         // — "Ale(mani)a" y "(Mani)jas" mandaban la camiseta de Alemania y una banda
@@ -866,6 +866,24 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CABLE_LIDER = {
         " cable ", " cables ", " adaptador ", " adaptadores ", " ficha ",
         " patchcord ", " conversor ", " prolongador ", " extension usb "
+    };
+
+    /** Líder + " para gabinete " en el mismo título ⇒ destino, no producto. */
+    public static final String[] KW_GABINETE_ACCESORIO_LIDER = {
+        " bracket ", " filtro ", " soporte ", " kit "
+    };
+
+    public static final String[] KW_SERVICIO_LIDER = { " service ", " servicio " };
+    public static final String[] KW_FUENTE_LIDER = { " fuente " };
+    public static final String[] KW_PC_LIDER = { " pc " };
+
+    /**
+     * Líder ⇒ CPU aunque el título nombre "cooler" como accesorio (pc-builder-
+     * deep-taxonomy, T2a). Bare " micro " queda afuera a propósito: se come
+     * "Micro SD".
+     */
+    public static final String[] KW_CPU_LIDER = {
+        " procesador ", " microprocesador ", " micro amd ", " micro intel "
     };
 
     /**

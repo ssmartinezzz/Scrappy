@@ -302,6 +302,13 @@ public class CategoryClassifier {
      *         abstención, que deja seguir la cadena ({@code CODE-5}).
      */
     private String clasificarTech(String t) {
+        // Gabinete es gabinete (D5, pc-builder-deep-taxonomy): un accesorio o
+        // servicio que sólo NOMBRA "para gabinete" no es el producto — abstiene
+        // de TODO el bloque tech, no sólo de Gabinete, así que un bracket con
+        // "disco ssd" en el nombre tampoco cae en Almacenamiento más abajo.
+        if ((t.contains(" para gabinete ") && startsWithAny(t, GarmentTaxonomy.KW_GABINETE_ACCESORIO_LIDER))
+                || startsWithAny(t, GarmentTaxonomy.KW_SERVICIO_LIDER))
+            return "";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED)
                 || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED_SWITCH) && esContextoRed(t)))
             return "Red";
@@ -313,8 +320,11 @@ public class CategoryClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MONITOR))          return "Monitor";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GPU))              return "GPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MOTHERBOARD))      return "Motherboard";
+        if (startsWithAny(t, GarmentTaxonomy.KW_FUENTE_LIDER))                return "Fuente";
+        if (startsWithAny(t, GarmentTaxonomy.KW_PC_LIDER))                    return "PC";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GABINETE))         return "Gabinete";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUENTE))           return "Fuente";
+        if (startsWithAny(t, GarmentTaxonomy.KW_CPU_LIDER))                   return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COOLER))           return "Cooler";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CPU))              return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))              return "RAM";
@@ -350,6 +360,31 @@ public class CategoryClassifier {
             if (t.startsWith(kw)) return true;
         }
         return false;
+    }
+
+    /**
+     * ¿El texto ARRANCA con alguno de estos? Mismo contrato que
+     * {@link #esCableLider}, salvo que "outlet" al frente no cuenta como el
+     * sustantivo: es una etiqueta de venta ("Outlet Procesador Intel..."),
+     * así que también se prueba el texto sin ese prefijo.
+     */
+    private boolean startsWithAny(String t, String[] keywords) {
+        for (String kw : keywords) {
+            if (t.startsWith(kw)) return true;
+        }
+        String sinOutlet = sinLiderOutlet(t);
+        if (sinOutlet != null) {
+            for (String kw : keywords) {
+                if (sinOutlet.startsWith(kw)) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Texto sin el prefijo " outlet " (y separadores sueltos), o null si no lo tenía. */
+    private String sinLiderOutlet(String t) {
+        if (!t.startsWith(" outlet ")) return null;
+        return " " + t.substring(" outlet ".length()).replaceFirst("^[-\\s]+", "");
     }
 
     /**
