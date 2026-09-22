@@ -16,6 +16,10 @@ class GpuSpecsReaderTest {
         return reader.leer(Tokens.de(nombre)).gama();
     }
 
+    private TechSpecs leer(String nombre) {
+        return reader.leer(Tokens.de(nombre));
+    }
+
     @Test
     void categoriaEsGpu() {
         assertThat(reader.categoria()).isEqualTo("GPU");
@@ -199,5 +203,44 @@ class GpuSpecsReaderTest {
     @Test
     void vramAbstieneCuandoNoHayTokenNgb() {
         assertThat(reader.leer(Tokens.de("Placa de Video Generica Sin Modelo")).capacidadGb()).isZero();
+    }
+
+    // ── nivel: la decena del modelo, comparable entre marcas (D1) ────────
+
+    @Test
+    void rtx5080EsNivel80() {
+        assertThat(leer("Placa de Video ASUS ROG GeForce RTX 5080 16GB GDDR7").nivel()).isEqualTo(80);
+    }
+
+    @Test
+    void rtx5060EsNivel60() {
+        assertThat(leer("Placa de Video MSI GeForce RTX 5060 8GB").nivel()).isEqualTo(60);
+    }
+
+    @Test
+    void rx9070EsNivel70() {
+        // RX 9000 numera por DECENA, como Nvidia — misma ramificación que gama().
+        assertThat(leer("Placa de Video ASRock AMD Radeon RX 9070 16GB Challenger").nivel()).isEqualTo(70);
+    }
+
+    @Test
+    void rx6900EsNivel90() {
+        // RX 5000-7000 numera por CENTENA: 6900 es el tope de su serie.
+        assertThat(leer("Placa De Video Asrock Phantom Gaming Radeon Rx 6900 Xt 16gb").nivel()).isEqualTo(90);
+    }
+
+    @Test
+    void rx7600EsNivel60() {
+        assertThat(leer("Placa de Video ASRock AMD Radeon RX 7600 Steel Legend 8GB").nivel()).isEqualTo(60);
+    }
+
+    @Test
+    void gtx1050TiEsNivel50() {
+        assertThat(leer("Placa de Video Nvidia GeForce GTX 1050 Ti 4GB").nivel()).isEqualTo(50);
+    }
+
+    @Test
+    void unNombreSinModeloAbstiene() {
+        assertThat(leer("Placa de Video Intel Arc A750 8GB").nivel()).isZero();
     }
 }
