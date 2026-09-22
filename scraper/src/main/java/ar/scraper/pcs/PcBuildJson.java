@@ -42,6 +42,8 @@ public class PcBuildJson {
             specs.put("modulos",            pick.specs().modulos());
             specs.put("wifi",               pick.specs().wifi());
             specs.put("tipoCooler",         pick.specs().tipoCooler().name());
+            specs.put("tamanioGabinete",    pick.specs().tamanioGabinete().name());
+            specs.put("radiadorMm",         pick.specs().radiadorMm());
         }
         ArrayNode sinStockArr = root.putArray("sinStock");
         build.sinStock().forEach(sinStockArr::add);
