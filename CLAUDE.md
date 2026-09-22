@@ -93,7 +93,9 @@ Scrappy/
 ├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
 ├── tests/perf/                  ← performance: DOS suites independientes sobre los mismos endpoints
 │   ├── jmeter/                  ←   jmeter-java-dsl (Java, pom propio; `*IT` ⇒ `mvn verify`, nunca `mvn test`)
-│   └── locust/                  ←   locust (Python, venv propio)
+│   ├── locust/                  ←   locust como motor + pytest como runner, sobre uv: `uv run pytest`
+│   │                                Lo lento (carga/stress/spike) está marcado `lento` y sale del default
+│   └── perf-user.sh             ←   crea la cuenta VIEWER por la API real → `.perf-credentials.env`
 │                                  Ninguna levanta el backend: exigen uno vivo (`run-e2e.sh --api --keep-up`).
 │                                  Presupuestos p95 MEDIDOS (15.987 productos, 2026-09-22). Ojo: los caros
 │                                  son los SQL (`data` 160ms, `facets` 150ms), no los armadores (`pcs` 23ms)

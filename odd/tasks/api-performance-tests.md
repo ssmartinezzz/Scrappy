@@ -30,6 +30,27 @@ app), persistencia de resultados, dashboards.
 
 ## Decisiones
 
+- **D12 — Locust se usa de librería, no por su CLI, y el runner es pytest.**
+  Pedido explícito: "que me quede un `uv run pytest`". El runner vive adentro
+  del proceso de pytest (`Environment` + `create_local_runner`), así que el
+  veredicto es una aserción común y no un exit code que haya que interpretar
+  desde afuera, y cada escenario puede juzgarse con SU criterio — `test_stress`
+  no afirma presupuesto porque se espera que rompa, y `test_spike` afirma la
+  tasa de error y no la latencia. `run.sh` y `locustfile.py` se van.
+  ⚠ El `monkey.patch_all()` de gevent tiene que ser el primer import de
+  `conftest.py`: pytest importa medio mundo al arrancar, y un parche tardío deja
+  dos mundos conviviendo.
+- **D13 — lo lento sale del default.** `carga`, `stress` y `spike` van marcados
+  `lento` y `addopts` los excluye: `uv run pytest` son ~90 s (baseline + login).
+  Una suite que tarda diez minutos por defecto deja de correrse, y entonces no
+  mide nada.
+- **D14 — la cuenta de performance se crea por la API real**
+  (`POST /api/usuarios`), no con SQL: el punto de estas suites es ejercitar lo
+  que se despliega. Username con sufijo único por corrida, porque la API no
+  expone cambiarle la password a otra cuenta —deliberadamente— y una cuenta fija
+  sería irrecuperable el día que se pierda el archivo. Rol VIEWER: todo lo que
+  se mide es `AUTHENTICATED`.
+
 - **D1 — dos suites, no una.** El usuario eligió JMeter y Locust. Van
   **independientes a propósito**: cada una se para sola, sin archivos
   compartidos y sin comentarios que referencien a la otra. El punto es poder
@@ -94,6 +115,9 @@ app), persistencia de resultados, dashboards.
 - [x] T6 — arreglar tres definiciones de endpoint que la corrida real desmintió
       (`recomendados` page base 1; `categorias` y `tipos` obligatorios) y el
       smoke aleatorio de Locust
+- [x] T8 — la suite de Python pasa a **pytest sobre uv** (`uv run pytest`), con
+      Locust como motor usado de librería en vez de por su CLI; y la cuenta de
+      performance se crea por la API real con `tests/perf/perf-user.sh`
 - [x] T7 — arreglar los defectos encontrados: el 500 de `/api/recomendados`
       (TDD: 5 tests, RED antes del fix), los `required` faltantes del OpenAPI y
       las seis copias del costo de Argon2id
@@ -104,7 +128,9 @@ app), persistencia de resultados, dashboards.
 
 | corrida | resultado |
 |---|---|
-| Locust `smoke` (1 usuario, 30 s) | 591 requests, ~50 por endpoint, 0 errores, verde |
+| `uv run pytest` (baseline + login) | **2 passed, 3 deselected, 90 s** |
+| `uv run pytest -m lento -k spike` | **1 passed, 120 s** — el camino marcado también corre |
+| Locust CLI `smoke` (1 usuario, 30 s), antes de T8 | 591 requests, ~50 por endpoint, 0 errores, verde |
 | Locust `carga` (20 usuarios, 3 min) | **2653 requests, 0 errores**, verde |
 | Locust `login` (10 usuarios, 1 min) | 285 requests, p95 **43 ms**, verde |
 | JMeter `SmokeIT` (1 hilo, 20 iter) | BUILD SUCCESS, verde |
@@ -159,10 +185,16 @@ classpath pasan: `copy-resources` levantó el `docs/openapi.yaml` nuevo.
 
 ### Entorno usado
 
-Usuario `perf-user` (rol VIEWER) sembrado a mano en la dev DB con un hash
-Argon2id generado con los mismos parámetros que `PasswordHasher`. El
-`e2e-admin` de `tests/e2e/.e2e-secrets.env` no existe en este volumen de
-Postgres, así que la vía documentada en los README no funcionó tal cual.
+La primera corrida sembró `perf-user` **a mano en la dev DB**, con un hash
+Argon2id generado con los mismos parámetros que `PasswordHasher`: `e2e-admin`
+no existía en ese volumen de Postgres y la vía de los README no funcionó tal
+cual. T8 cerró eso: `tests/perf/perf-user.sh` crea la cuenta por
+`POST /api/usuarios` y deja las credenciales en `.perf-credentials.env`.
+
+Nota sobre el `e2e-admin` faltante: se resolvió solo. El backend que se levantó
+para medir lleva las variables de `.e2e-secrets.env`, así que `AdminSeeder` lo
+sembró al arrancar — por eso el script lo encuentra como fallback y no pide
+credenciales. El diagnóstico original era correcto en su momento, no un error.
 
 ### Verificación de construcción
 

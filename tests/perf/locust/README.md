@@ -1,16 +1,33 @@
 # Performance testing con Locust
 
-Suite de carga sobre la API de Scrappy. La carga se escribe en Python: cada
-usuario virtual es una instancia de una clase, y cada cosa que hace es un
-método decorado con `@task`.
+Suite de carga sobre la API de Scrappy. **Locust es el motor y pytest el
+runner**: la carga se define como clases de usuario virtual, pero cada escenario
+es un test común, y el veredicto es una aserción en vez de un exit code que haya
+que interpretar desde afuera.
 
 ```
 locust/
-├── locustfile.py     el test entero: qué se pide, quién lo pide, cuándo está mal
-├── requirements.txt  locust + requests
-├── run.sh            las cinco formas de carga
-└── .venv/            se crea sola en la primera corrida (gitignored)
+├── pyproject.toml        uv: locust + pytest + requests, y la config de pytest
+├── conftest.py           el backend, el token, y `correr_carga(...)`
+├── carga.py              qué se pide (ENDPOINTS) y quién lo pide (los usuarios)
+├── test_rendimiento.py   los cinco escenarios, como tests
+└── .venv/                la crea uv sola en la primera corrida (gitignored)
 ```
+
+```bash
+cd tests/perf/locust
+uv run pytest                    # baseline + login — ~90 s
+uv run pytest -m lento           # carga, stress y spike — ~10 min
+uv run pytest -k baseline        # uno solo
+```
+
+`uv` se encarga del venv y de las dependencias: no hay nada que instalar a mano.
+
+Por defecto corre lo rápido. Las formas largas están marcadas `lento` y se piden
+explícitamente, porque una suite que tarda diez minutos por defecto deja de
+correrse — y entonces no mide nada.
+
+---
 
 ---
 
@@ -18,16 +35,23 @@ locust/
 
 No son cuatro intensidades de lo mismo: son cuatro preguntas distintas.
 
-| Tipo | La pregunta | Qué se espera |
+| Test | La pregunta | Qué se espera |
 |---|---|---|
-| **Smoke** | ¿Cuánto tarda cada endpoint cuando nadie más molesta? | Verde. Es la **baseline** — el número contra el que se escriben todos los presupuestos |
-| **Carga** | Con el tráfico esperado, ¿seguimos dentro del presupuesto? | Verde. Un rojo acá es un problema **hoy** |
-| **Stress** | ¿Dónde se rompe? | **Rojo, y está bien.** El dato no es verde/rojo: es *en cuántos usuarios* se dispara la latencia |
-| **Spike** | Un pico de golpe, ¿se recupera? | Contesta otra cosa que stress: no cuánto aguanta, sino si vuelve a la normalidad |
+| `test_baseline` | ¿Cuánto tarda cada endpoint cuando nadie más molesta? | Verde. Es la **baseline** — el número contra el que se escriben todos los presupuestos |
+| `test_carga_esperada` | Con el tráfico esperado, ¿seguimos dentro del presupuesto? | Verde. Un rojo acá es un problema **hoy** |
+| `test_stress` | ¿Dónde se rompe? | **Rojo, y está bien.** El dato no es verde/rojo: es *en cuántos usuarios* se dispara la latencia |
+| `test_spike` | Un pico de golpe, ¿se recupera? | Contesta otra cosa que stress: no cuánto aguanta, sino si vuelve a la normalidad |
 
-El orden importa. Sin la baseline del smoke, los presupuestos de `locustfile.py`
-son números inventados y un rojo no distingue "la app está lenta" de "el techo
-estaba mal puesto".
+El orden importa. Sin la baseline, los presupuestos de `carga.py` son números
+inventados y un rojo no distingue "la app está lenta" de "el techo estaba mal
+puesto".
+
+Cada test se juzga con su propio criterio, y eso se ve en el código:
+`test_stress` **no afirma ningún presupuesto** —se espera que rompa, y mezclarlo
+con `test_carga_esperada` haría que un rojo deje de significar algo— y
+`test_spike` afirma la tasa de error y no la latencia, porque bajo un pico la
+latencia sube y eso es correcto; lo que no puede pasar es que el backend empiece
+a rechazar.
 
 ---
 
@@ -115,34 +139,31 @@ consulta SQL con faceteo. Ninguna de las dos cosas era obvia leyendo el código.
 
 ## Correrlo
 
-Hace falta un backend vivo y un usuario:
+Hace falta un backend vivo y una cuenta:
 
 ```bash
 scripts/dev-db.sh up
-tests/e2e/run-e2e.sh --api --keep-up          # levanta el backend y lo deja arriba
+tests/e2e/run-e2e.sh --api --keep-up      # levanta el backend y lo deja arriba
 
-# Las credenciales: cualquier cuenta sirve. Si ya corriste la suite e2e,
-# el archivo que generó tiene una.
-set -a; . tests/e2e/.e2e-secrets.env; set +a
-export PERF_USERNAME="$ADMIN_BOOTSTRAP_USERNAME"
-export PERF_PASSWORD="$ADMIN_BOOTSTRAP_PASSWORD"
+tests/perf/perf-user.sh                   # crea la cuenta por la API real
+set -a; . tests/perf/.perf-credentials.env; set +a
 
-tests/perf/locust/run.sh smoke
+cd tests/perf/locust && uv run pytest
 ```
 
-```
-./run.sh smoke     1 usuario, 30 s
-./run.sh carga     20 usuarios, 3 min
-./run.sh stress    200 usuarios, 5 min
-./run.sh spike     150 de golpe, 2 min
-./run.sh login     sólo POST /api/auth/login
-./run.sh ui        la UI web en :8089
-```
+`perf-user.sh` crea un VIEWER con `POST /api/usuarios` —la API real, no SQL— y
+deja usuario y password en `tests/perf/.perf-credentials.env`, gitignored y modo
+600. El username lleva un sufijo único por corrida: la API no expone cambiarle
+la password a otra cuenta (deliberadamente), así que una cuenta fija sería
+irrecuperable el día que se pierda el archivo.
 
-Cada corrida deja `.resultados/<forma>.html` y los CSV al lado.
-El exit code es 1 si algún endpoint se pasó de su presupuesto.
+Rol VIEWER y no ADMIN: todos los endpoints que se miden son `AUTHENTICATED`.
+Una suite de carga no necesita poder borrar el catálogo.
 
-`PERF_API_BASE_URL` apunta a otro backend si hace falta.
+`PERF_API_BASE_URL` apunta a otro backend si hace falta. Esta suite **no levanta
+el backend**: `tests/e2e/run-e2e.sh` ya hace eso, y una segunda copia de 140
+líneas de manejo de procesos es una que después se separa. Si no hay nadie
+escuchando, la fixture falla diciendo qué correr, en vez de medir el vacío.
 
 ---
 
@@ -153,7 +174,7 @@ número que sale no es la latencia del endpoint: es la de Argon2id, que en esta
 app está medido en ~22 ms de verify. Es el error más común de una suite de perf, y hace
 que el test deje de poder ver una mejora. Acá el token se pide una vez en
 `test_start` y lo comparten todos. El costo de loguearse se mide aparte, con
-`./run.sh login`.
+`uv run pytest -k login`.
 
 **`wait_time` es tiempo de lectura, no relleno.** Un usuario real mira la
 pantalla entre click y click. Sin esa pausa, 20 usuarios virtuales generan el
@@ -163,11 +184,19 @@ tráfico de varios cientos reales, y "20 usuarios" deja de querer decir nada.
 escribe contamina el catálogo y hace que la segunda corrida ya no mida lo mismo
 que la primera.
 
+**Y una de plomería:** el `monkey.patch_all()` de gevent tiene que ser lo
+primero de `conftest.py`, antes de cualquier otro import. Locust corre sobre
+gevent, que reemplaza el socket, el threading y el sleep de la stdlib por
+versiones cooperativas; si algo ya importó `socket` cuando el parche llega,
+quedan dos mundos conviviendo y la carga se cuelga o serializa sin avisar.
+pytest importa medio mundo apenas arranca, así que el parche no puede ir adentro
+de un test.
+
 ---
 
 ## Agregar un endpoint
 
-Una línea en `ENDPOINTS`, en `locustfile.py`:
+Una línea en `ENDPOINTS`, en `carga.py`:
 
 ```python
 ("mi_endpoint", "/api/lo-que-sea?param=1", 2, 800),
@@ -175,6 +204,7 @@ Una línea en `ENDPOINTS`, en `locustfile.py`:
 ```
 
 El **peso** es cuán seguido le pega el mix (`data` tiene 5, `status` tiene 1: el
-catálogo se pide mucho más que el status). El **techo** sale de correr `./run.sh smoke` y después `./run.sh carga`, y
+catálogo se pide mucho más que el status). El **techo** sale de correr
+`uv run pytest -k baseline` y después `uv run pytest -m lento -k carga`, y
 aplicar `max(2 × p95, p95 + 25 ms)`. No de la intuición: la sección "la
 intuición estaba al revés" cuenta cómo salió esa apuesta la primera vez.
