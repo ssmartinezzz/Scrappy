@@ -248,7 +248,7 @@ de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V35` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V36` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -476,7 +476,7 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 
 ---
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 6
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 7
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
@@ -502,7 +502,7 @@ Diseño en [`odd/tasks/pc-builder.md`](./odd/tasks/pc-builder.md) y
 | **La mother es el ancla y se elige primero** | Los vetos de socket, DDR y form factor la referencian. Orden: mother → cpu → (cooler, sólo gama alta) → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
 | **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso · certificación fuente ≥ mínima. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
 | ⚠️ **La gama es la ÚNICA regla donde la abstención VETA** (D2) | `ReglaGama` exige `candidato.gama() == pedida`, así que `DESCONOCIDA` cae. Es al revés a propósito: el usuario pidió un tier, y de un nombre que no se pudo leer no se puede afirmar que esté en ese tier. Sin gama pedida (`null`) la regla no filtra nada. El costo es el 17% de CPUs sin tier legible, y el mensaje del slot lo dice |
-| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. mother: DDR desc · cpu/gpu: gama desc · ram: DDR → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · gabinete: sólo precio (más grande ≠ mejor). Siempre precio asc → url asc al final |
+| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12, extendida en fase 7 por D4/D9) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. Desde fase 7: cpu: gama → generación desc · gpu: gama → generación desc → VRAM (`capacidadGb`) desc · mother: DDR → tier de chipset, rankeado por **distancia a la gama pedida** (D9: ALTA→X/Z, MEDIA→B, BAJA→A/H; sin gama pedida cae al orden absoluto X/Z<B<A/H de fase 6) · ram: DDR → módulos (kit `NxMGB`) desc → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · cooler: `TipoCooler` LIQUIDO > AIRE (fase 7, antes sólo precio) · gabinete: sólo precio (más grande ≠ mejor; el ruido que hacía elegir un service se corrigió en el clasificador, no acá — ver Taxonomía y clasificación). Siempre precio asc → url asc al final, abstención última en todo sub-eje nuevo (D13) |
 | **La abstención va ÚLTIMA en todo eje de ranking** (D13) | `DESCONOCIDA`/`DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` y `""` son el mismo centinela para su eje. Un pendrive (sin tecnología legible) ya no puede ganarle a un NVMe como "el disco de la PC" — se hunde solo, sin veto nuevo. `Certificacion.NINGUNA` sí compara por ordinal: es el escalón real de abajo, no abstención |
 | **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en `ContextoDeArmado`, no en el parser, y el ranking de mother la comparte (D14): "la más barata" clavaba AM4/DDR4 y después `ReglaDdr` vetaba toda la RAM DDR5 |
 | **El piso de watts y la certificación mínima salen de la gama pedida** (`EstimadorDeConsumo`) | alta: 750 / 1000 W con GPU, GOLD · media: 550 / 750, BRONZE · económica o sin gama: 450 / 650, NINGUNA. Siguen siendo constantes, ahora por tier; el consumo de la GPU sigue sin parsearse |
@@ -525,17 +525,29 @@ regla numérica se come una de las dos, y con la gama como filtro duro más la
 abstención que veta, eso saca a las RX 9070 de **todo** armado sin un solo
 error. `GpuSpecsReader` ramifica por serie antes de mirar el tier.
 
-**Persistencia** (`V35`, detalle en [`docs/DATABASE.md`](./docs/DATABASE.md)):
+**Persistencia** (`V35` + `V36`, detalle en [`docs/DATABASE.md`](./docs/DATABASE.md)):
 `gama` es lookup con FK, no un TEXT con CHECK (D8); `preferencia_armador` es
 **una fila por usuario** (D9), servida por `GET`/`PUT /api/pcs/preferencia` —
 GET da 204 hasta que el usuario guarda una, y **el armador nunca la aplica
 solo**: `/pcs` la precarga en los chips y manda `gama=` explícito.
-`producto_tech_specs` guarda el `TechSpecs` entero normalizado (seis lookups)
-con su propio write path (`TechSpecsIndexer` desde `ScraperService`, no
-`sp_upsert_run` — D11); es la base del filtro por specs de `/catalogo`, que
-**no** es de esta fase (D3c). **La abstención ahí es NULL, nunca una fila de
-lookup** (D10): `DESCONOCIDA`/`NINGUNA` son centinelas del dominio Java y un
-centinela no es un valor de FK — exactamente lo que rompió `marca=''` en `V21`.
+`producto_tech_specs` guarda el `TechSpecs` entero normalizado con su propio
+write path (`TechSpecsIndexer` desde `ScraperService`, no `sp_upsert_run` —
+D11); es la base del filtro por specs de `/catalogo`, que **no** es de esta
+fase (D3c). **La abstención ahí es NULL, nunca una fila de lookup** (D10):
+`DESCONOCIDA`/`NINGUNA` son centinelas del dominio Java y un centinela no es
+un valor de FK — exactamente lo que rompió `marca=''` en `V21`.
+
+Desde fase 7, `V36` suma tres lookups más (`marca_chip`, `chipset_tier`,
+`tipo_cooler`, mismo molde que los seis de `V35`) y columnas nullable en
+`preferencia_armador` (las seis preferencias — `ram_dual`/`wifi` son la
+excepción `NOT NULL DEFAULT false`, D2 de `pc-builder-deep-taxonomy`) y en
+`producto_tech_specs` (`marca_chip_id`, `chipset_tier_id`, `tipo_cooler_id`,
+`generacion`, `modulos`, `wifi`). **`socketsSoportados` (el veto cooler↔mother
+de D6, fase 7) NO se persiste**: `producto_tech_specs` sigue guardando un
+`socket_id` singular vía FK, y un cooler real puede listar varios sockets —
+forzar esa lista en una columna FK escalar la truncaría. Queda diferido, no
+descartado; la compatibilidad se sigue calculando al armar, desde el
+snapshot en memoria, igual que el resto de `TechSpecs` (D3d).
 
 **Fase 3** es la página `/pcs` (`PcsPanel`, molde de `SuplementosPanel`): sin
 picker de tipos porque los slots son fijos del lado del servidor; chips de
@@ -552,6 +564,26 @@ listado en `/armadores` — ver el párrafo de esa ruta más abajo.
 **Fase 5** es la tool `propose_pc` del agente (ver LLM Catalog Agent), que
 acepta `gama` como enum. Plan y evidencia en
 [`odd/tasks/pc-builder-agent-tool.md`](./odd/tasks/pc-builder-agent-tool.md).
+
+**Fase 7** agrega seis preferencias técnicas pedidas como filtro duro y
+profundiza los ejes de ranking dentro de cada tier — pedido explícito del
+usuario ("muchas veces no me arma bien"). Diseño y medición completos en
+[`odd/tasks/pc-builder-deep-taxonomy.md`](./odd/tasks/pc-builder-deep-taxonomy.md).
+
+| | |
+|---|---|
+| **Las seis preferencias** viven en `PreferenciasDeArmado` (`ddr`, `marcaCpu`, `marcaGpu`, `tipoAlmacenamiento`, `ramDual`, `wifi`), todas nullable = "no pedida" (D1). Cable: `ddr=DDR4\|DDR5` (mother+ram) · `marcaCpu=intel\|amd` (mother+cpu) · `marcaGpu=nvidia\|amd` (gpu) · `tipoAlmacenamiento=nvme\|sata\|hdd` (almacenamiento) · `ramDual=true` (ram) · `wifi=true` (mother). Una regla por preferencia, molde `ReglaGama`: `ReglaDdrPedida`, `ReglaMarcaChip` (una sola clase sirve a mother/cpu/gpu — D3, la marca de la mother sale del socket: `AM*`→AMD, `LGA*`→Intel), `ReglaTipoAlmacenamiento`, `ReglaRamDual`, `ReglaWifi` |
+| ⚠️ **La abstención vuelve a vetar cuando HAY preferencia pedida** (D2, misma inversión que `gama`) | Pedir DDR5 y no poder leer la DDR de una mother (ni derivarla del socket) la descarta. **Excepción escrita a propósito**: `ramDual`/`wifi` nunca abstienen — el nombre es la afirmación (`2x` presente / `wifi` presente), y su ausencia es `false`, no "no sé"; sólo `TRUE` pide algo, `FALSE` se comporta como "no pedida" |
+| **Compatibilidad nueva, sólo donde los dos lados parsean** (D6) | RAM `SODIMM` (notebook) veta incondicional en el slot ram — `tipoMemoria` nunca abstiene, no hace falta el guard de "los dos lados parsearon" —; cooler↔mother por socket, cuando el cooler lista sockets soportados y la mother parseó el suyo (`socketsSoportados`, sin persistir — ver Persistencia); sockets viejos (`LGA1151`, `LGA1200`, `AM3` + chipsets `H310/B360/Z390/H410/B460/Z490/H510/B560`) suman al vocabulario de `MotherboardSpecsReader`/`CpuSpecsReader` para que `ReglaSocket` los vea en vez de abstenerlos |
+| **`TipoCooler`** (`LIQUIDO`/`AIRE`/`DESCONOCIDO`, molde `TipoAlmacenamiento`) | Le da al slot cooler un eje real por primera vez — hasta fase 6 sólo tenía precio, y el más barato de una categoría con ruido de clasificación ganaba siempre |
+
+Cobertura medida (TSV de hardware, 3360 filas, reclasificadas con los cambios
+de T1/T2a/T4d-1, 2026-09-21): CPU marcaChip **388/389**, generación
+**329/389** · GPU marcaChip **438/445**, generación **355/445**, VRAM
+(`capacidadGb`) **382/445** · Motherboard marcaChip **511/515**, tierChipset
+**509/515**, wifi=true **264/515** (el resto es `false` afirmado, D2) · RAM
+módulos (kit `NxMGB` explícito) **46/375** · Cooler, tras la reclasificación
+de T4d-1 (323 filas): LIQUIDO 164 · AIRE 99 · DESCONOCIDO 60.
 
 Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicionó la fase 2:
 
@@ -1016,6 +1048,31 @@ categoría tech propia y el bloque TECH corre antes que el de ropa, así que no 
 protegía de nada: les bloqueaba la clasificación correcta. El guard existe para
 que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
 Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
+
+**El sustantivo líder que ya usaba `Cable` se generalizó a Cooler/CPU/PC y a
+Gabinete, y las tres veces encontró plata (`pc-builder-deep-taxonomy`, fase
+7).** `startsWithAny` ahora pela un `"outlet"` líder antes de comparar contra
+cualquier `*_LIDER` — hacía falta para `"Outlet Procesador Intel Core i5
+13600KF..."`. Con `KW_CPU_LIDER` (`procesador`/`microprocesador`/`micro
+amd`/`micro intel`) corriendo antes que `KW_COOLER`: **146 de 470 filas de
+`Cooler` eran CPUs** (`"Procesador AMD Ryzen 9 9950X3D ... (no incluye
+cooler)"`, 85 de gama alta) — `cooler` sólo aparecía mencionado como
+accesorio. Con `KW_PC_LIDER` al tope de todo `clasificarTech` (antes corría
+después de `KW_GPU` y seis checks más): **67 PCs armadas enteras vivían en
+`CPU`** (`"PC AMD Ryzen 3 3200G 16GB 1TB SSD WIFI"` competía por el slot cpu)
+y **16 más en `GPU`** (`"PC Powered by MSI Ultimate ... RTX 5060 ..."` entraba
+al slot gpu como si fuera una placa de video suelta) — 83 PCs enteras
+compitiendo como componentes sueltos antes de que el líder cubriera las dos
+formas de nombrarlas. Y el slot Gabinete elegía un **service**:
+`"service instalación de armado de pc"` ($2.050) ganaba porque `KW_GABINETE`
+matchea `"para gabinete"` sin mirar qué nombra el producto — el líder
+`bracket|filtro|service|kit|fan|soporte` + `"para gabinete"` como destino, no
+como categoría, lo saca.
+
+**Un keyword de comida sin padear vivía adentro de dos marcas, y ahí era un
+acabado, no un sabor.** `"mate"` sin padear en `KW_COMIDA` matcheaba dentro de
+*Xigmatek* y *Ultimate* — en 5 de 7 nombres reales es un acabado (*matte*), no
+yerba mate. Se sacó de `KW_COMIDA`; `"yerba"` sigue cubriendo la yerba real.
 
 ### Índices y señales
 
