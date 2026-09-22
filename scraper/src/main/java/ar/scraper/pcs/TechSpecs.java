@@ -27,11 +27,12 @@ public record TechSpecs(
         int generacion,   // 0 = abstención
         int tierChipset,  // Motherboard only; 0 = abstención; 1 = X/Z, 2 = B, 3 = A/H — menor es mejor, mapeado explícito nunca por valor
         int modulos,      // RAM only; 0 = abstención
-        boolean wifi      // Motherboard only; false es una AFIRMACIÓN ("no trae wifi"), nunca abstención — D2, la excepción
+        boolean wifi,     // Motherboard only; false es una AFIRMACIÓN ("no trae wifi"), nunca abstención — D2, la excepción
+        TipoCooler tipoCooler // Cooler only; DESCONOCIDO = abstención
 ) {
     public static final TechSpecs EMPTY =
             new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                    0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false);
+                    0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO);
 
     /**
      * Pre-{@code pc-builder-gama} shape, kept so callers that only ever read
@@ -84,5 +85,21 @@ public record TechSpecs(
             List<String> socketsSoportados) {
         this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion,
                 velocidadMhz, tipoAlmacenamiento, socketsSoportados, "", 0, 0, 0, false);
+    }
+
+    /**
+     * pc-builder-deep-taxonomy T3a-T4c shape (16 args, the record's canonical
+     * constructor before T4d-2 appended {@code tipoCooler}): kept so every
+     * existing reader and the T1-T4 rule tests keep compiling untouched —
+     * refactor contract, CODE-2. The new field defaults to its abstention
+     * value, same as EMPTY.
+     */
+    public TechSpecs(String socket, String ddr, String formFactor, int watts, int capacidadGb, String tipoMemoria,
+            Gama gama, Certificacion certificacion, int velocidadMhz, TipoAlmacenamiento tipoAlmacenamiento,
+            List<String> socketsSoportados, String marcaChip, int generacion, int tierChipset, int modulos,
+            boolean wifi) {
+        this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion,
+                velocidadMhz, tipoAlmacenamiento, socketsSoportados, marcaChip, generacion, tierChipset, modulos,
+                wifi, TipoCooler.DESCONOCIDO);
     }
 }
