@@ -85,4 +85,29 @@ class RamSpecsReaderTest {
 
         assertThat(t.velocidadMhz()).isZero();
     }
+
+    // ── modulos (T3b, pc-builder-deep-taxonomy) ─────────────────────────
+
+    @Test
+    void modulosSeLeeDelKitConMultiplicador() {
+        var t = leer("Memoria RAM Patriot Viper RGB 32GB (2x16GB) 5600 MHz DDR5");
+
+        assertThat(t.modulos()).isEqualTo(2);
+    }
+
+    @Test
+    void modulosSeLeeDelKitConMultiplicadorSegundoFixture() {
+        var t = leer("Memoria Team DDR4 32GB (2x16GB) 3200MHz T-Force Vulcan Z Grey CL16");
+
+        assertThat(t.modulos()).isEqualTo(2);
+    }
+
+    @Test
+    void modulosAbstieneEnUnNgbStandaloneSinMultiplicador() {
+        // Un solo "32GB" sin "(NxMGB)" no dice si es un stick o un kit —
+        // no se asume 1.
+        var t = leer("Memoria RAM Kingston Fury Beast DDR5 32GB 6000MHz Negra CL36");
+
+        assertThat(t.modulos()).isZero();
+    }
 }

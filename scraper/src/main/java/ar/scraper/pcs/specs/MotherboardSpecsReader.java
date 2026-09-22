@@ -3,7 +3,9 @@ package ar.scraper.pcs.specs;
 import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.TipoAlmacenamiento;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,12 +21,15 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     @Override
     public TechSpecs leer(Tokens tokens) {
         String chipsetToken = chipsetToken(tokens);
+        String socket = motherboardSocket(tokens, chipsetToken);
         return new TechSpecs(
-                motherboardSocket(tokens, chipsetToken),
+                socket,
                 ddr(tokens),
                 motherboardFormFactor(tokens, chipsetToken),
                 0, 0, "",
-                Gama.DESCONOCIDA, Certificacion.NINGUNA);
+                Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
+                marcaChip(socket), 0, tierChipset(chipsetToken), 0, wifi(tokens));
     }
 
     private static String explicitSocket(Tokens tokens) {
@@ -101,5 +106,33 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
         // board — the modal default in this catalog.
         if (chipsetToken != null) return "ATX";
         return "";
+    }
+
+    // ── marcaChip + tierChipset + wifi (T3b, pc-builder-deep-taxonomy) ───
+
+    private static String marcaChip(String socket) {
+        if (socket.startsWith("AM")) return "AMD";
+        if (socket.startsWith("LGA")) return "INTEL";
+        return "";
+    }
+
+    /** Menor es mejor, como el resto de EjesTecnicos: X/Z=1 (top), B=2, A/H=3, sin chipset legible=0 (abstención). */
+    private static int tierChipset(String chipsetToken) {
+        if (chipsetToken == null) return 0;
+        return switch (chipsetToken.charAt(0)) {
+            case 'x', 'z' -> 1;
+            case 'b' -> 2;
+            case 'a', 'h' -> 3;
+            default -> 0;
+        };
+    }
+
+    private static boolean wifi(Tokens tokens) {
+        String[] arr = tokens.array();
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i].equals("wifi") || arr[i].startsWith("wifi")) return true;
+            if (arr[i].equals("wi") && i + 1 < arr.length && arr[i + 1].equals("fi")) return true;
+        }
+        return false;
     }
 }

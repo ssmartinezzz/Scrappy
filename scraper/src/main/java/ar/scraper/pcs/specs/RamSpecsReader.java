@@ -5,6 +5,7 @@ import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
 
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,7 +37,8 @@ public final class RamSpecsReader implements LectorDeSpecs {
     @Override
     public TechSpecs leer(Tokens tokens) {
         return new TechSpecs("", ddr(tokens), "", 0, capacidadGb(tokens), tipoMemoria(tokens),
-                Gama.DESCONOCIDA, Certificacion.NINGUNA, velocidadMhz(tokens), TipoAlmacenamiento.DESCONOCIDO);
+                Gama.DESCONOCIDA, Certificacion.NINGUNA, velocidadMhz(tokens), TipoAlmacenamiento.DESCONOCIDO,
+                List.of(), "", 0, 0, modulos(tokens), false);
     }
 
     private static String ddr(Tokens tokens) {
@@ -63,6 +65,15 @@ public final class RamSpecsReader implements LectorDeSpecs {
 
     private static String tipoMemoria(Tokens tokens) {
         return tokens.has("sodimm") ? "SODIMM" : "DIMM";
+    }
+
+    /** Solo el kit con multiplicador afirma el numero de modulos — un "NGB" standalone no dice si es un stick o un kit. */
+    private static int modulos(Tokens tokens) {
+        for (String t : tokens.array()) {
+            Matcher m = GB_MULTIPLIER.matcher(t);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+        }
+        return 0;
     }
 
     /**
