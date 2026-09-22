@@ -53,6 +53,18 @@ class EjesTecnicosTest {
                 TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false);
     }
 
+    private static TechSpecs conCpuNivel(Gama gama, int nivel, int generacion) {
+        return new TechSpecs("", "", "", 0, 0, "", gama, Certificacion.NINGUNA, 0,
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false,
+                TipoCooler.DESCONOCIDO, nivel);
+    }
+
+    private static TechSpecs conGpuNivel(Gama gama, int nivel, int generacion, int vramGb) {
+        return new TechSpecs("", "", "", 0, vramGb, "", gama, Certificacion.NINGUNA, 0,
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false,
+                TipoCooler.DESCONOCIDO, nivel);
+    }
+
     // ── CPU / GPU: gama desc, DESCONOCIDA siempre última ─────────────────
 
     @Test
@@ -112,6 +124,49 @@ class EjesTecnicosTest {
     @Test
     void gpuSinGeneracionVaUltimaEnEseEjeAunqueLaGamaEmpate() {
         assertThat(EjesTecnicos.GPU.compare(conGpu(Gama.ALTA, 5, 8), conGpu(Gama.ALTA, 0, 24))).isNegative();
+    }
+
+    // ── nivel: el escalón DENTRO de la gama, comparable entre marcas (D1) ─
+
+    @Test
+    void cpuEmpataGamaDesempataPorNivelDesc() {
+        // i9/Ryzen 9 (nivel 9) le gana a i7/Ryzen 7 (nivel 7) dentro de ALTA.
+        assertThat(EjesTecnicos.CPU.compare(conCpuNivel(Gama.ALTA, 9, 9), conCpuNivel(Gama.ALTA, 7, 14)))
+                .isNegative();
+    }
+
+    @Test
+    void cpuElNivelLeGanaALaGeneracion() {
+        // El caso del usuario: un Ryzen 9 de la serie 9000 le gana a un i7 de
+        // 14ª. Antes de D1 ganaba el i7 porque 14 > 9, comparando magnitudes
+        // de marcas distintas.
+        assertThat(EjesTecnicos.CPU.compare(conCpuNivel(Gama.ALTA, 9, 9), conCpuNivel(Gama.ALTA, 7, 14)))
+                .isNegative();
+    }
+
+    @Test
+    void cpuSinNivelVaUltimoEnEseEjeAunqueLaGamaEmpate() {
+        assertThat(EjesTecnicos.CPU.compare(conCpuNivel(Gama.ALTA, 3, 0), conCpuNivel(Gama.ALTA, 0, 14)))
+                .isNegative();
+    }
+
+    @Test
+    void cpuLaGamaSigueGanandoleAlNivel() {
+        assertThat(EjesTecnicos.CPU.compare(conCpuNivel(Gama.ALTA, 3, 0), conCpuNivel(Gama.MEDIA, 9, 0)))
+                .isNegative();
+    }
+
+    @Test
+    void gpuEmpataGamaDesempataPorNivelDesc() {
+        // RTX 5080 (nivel 80) le gana a RX 9070 (nivel 70): las dos son ALTA.
+        assertThat(EjesTecnicos.GPU.compare(conGpuNivel(Gama.ALTA, 80, 5, 16), conGpuNivel(Gama.ALTA, 70, 9, 16)))
+                .isNegative();
+    }
+
+    @Test
+    void gpuSinNivelVaUltimoEnEseEjeAunqueLaGamaEmpate() {
+        assertThat(EjesTecnicos.GPU.compare(conGpuNivel(Gama.ALTA, 50, 3, 8), conGpuNivel(Gama.ALTA, 0, 5, 24)))
+                .isNegative();
     }
 
     // ── Fuente: certificación desc ───────────────────────────────────────

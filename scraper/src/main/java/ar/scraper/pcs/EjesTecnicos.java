@@ -17,6 +17,14 @@ import java.util.Comparator;
  * enum ordinal, same reasoning as {@link Gama}'s own javadoc. {@code 0} in
  * {@code velocidadMhz}/{@code capacidadGb} and {@code ""} in {@code ddr}
  * are that same abstention sentinel for their axes.</p>
+ *
+ * <p>{@code nivel} (D1, pc-builder-top-tier) va entre {@code gama} y {@code
+ * generacion} en CPU y GPU, y es el único eje de potencia comparable ENTRE
+ * marcas: {@code gama} mete a un i7 y a un i9 en la misma bolsa, y {@code
+ * generacion} es la generación real en Intel pero el dígito de los miles del
+ * modelo en AMD y Nvidia — {@code 14 > 9 > 5} hacía ganar al i7 sobre un
+ * Ryzen 9 y a una RX 9070 sobre una RTX 5080, por aritmética y no por
+ * potencia.</p>
  */
 public final class EjesTecnicos {
 
@@ -43,9 +51,10 @@ public final class EjesTecnicos {
                 .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida));
     }
 
-    /** Gama → generación desc — D4. */
+    /** Gama → nivel de familia desc → generación desc — D4, extendido por D1 (pc-builder-top-tier). */
     public static final Comparator<TechSpecs> CPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(specs.generacion()));
 
     /** DDR desc → módulos (kit) desc → MHz desc → GB desc — D4: el kit va ANTES que la velocidad. */
@@ -71,9 +80,10 @@ public final class EjesTecnicos {
     public static final Comparator<TechSpecs> FUENTE =
             Comparator.comparingInt(specs -> -specs.certificacion().ordinal());
 
-    /** Gama → generación desc → VRAM desc — D4. */
+    /** Gama → nivel de modelo desc → generación desc → VRAM desc — D4, extendido por D1 (pc-builder-top-tier). */
     public static final Comparator<TechSpecs> GPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(specs.generacion()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 

@@ -4,6 +4,7 @@ import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.pcs.TipoCooler;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -30,7 +31,7 @@ public final class GpuSpecsReader implements LectorDeSpecs {
     public TechSpecs leer(Tokens tokens) {
         return new TechSpecs("", "", "", 0, vram(tokens), "", gama(tokens), Certificacion.NINGUNA,
                 0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(tokens), generacion(tokens), 0, 0, false);
+                marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
     }
 
     private static Gama gama(Tokens tokens) {
@@ -87,6 +88,30 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         if (tokens.has("radeon") || tokens.has("rx")) return "AMD";
         if (tokens.has("arc")) return "INTEL";
         return "";
+    }
+
+    /**
+     * El escalon del modelo (90|80|70|60|50), que es lo que hace comparable
+     * una RTX 5080 con una RX 9080. Ramifica por serie igual que {@link
+     * #gama(Tokens)}: RX 9000 y todo Nvidia numeran por DECENA, RX 5000-7000
+     * por CENTENA. Ver odd/tasks/pc-builder-top-tier.md D1.
+     */
+    private static int nivel(Tokens tokens) {
+        String padded = tokens.padded();
+
+        Matcher rtx = RTX_MODEL.matcher(padded);
+        if (rtx.find()) return Integer.parseInt(rtx.group(1)) % 100;
+
+        Matcher gtx = GTX_MODEL.matcher(padded);
+        if (gtx.find()) return Integer.parseInt(gtx.group(1)) % 100;
+
+        Matcher rx = RX_MODEL.matcher(padded);
+        if (rx.find()) {
+            int modelo = Integer.parseInt(rx.group(1));
+            return modelo / 1000 == 9 ? modelo % 100 : modelo % 1000 / 10;
+        }
+
+        return 0;
     }
 
     /** El digito de los miles del modelo — RTX/GTX/RX numeran distinto (ver gama()), pero la generacion es siempre esa posicion. */
