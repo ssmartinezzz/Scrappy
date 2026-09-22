@@ -11,17 +11,76 @@ package ar.scraper.pcs;
  * <p>{@code tipoAlmacenamiento}'s wire word for {@link TipoAlmacenamiento#SSD}
  * is {@code "sata"}, not {@code "ssd"} — the wire vocabulary names the
  * interface a user shops by, not the enum's own Java name.</p>
+ *
+ * <p>Fase 9 adds four more. The two floors ({@code capacidadMinimaGb},
+ * {@code wattsMinimos}) travel as plain integers — there is no enum to name,
+ * and the UI's chips are just convenient values, never a closed domain the
+ * server enforces. The two enums keep the same shape as the others: a
+ * lowercase word, and never an abstention sentinel.</p>
  */
 public final class PreferenciasWire {
 
     private PreferenciasWire() {}
 
-    /** Blank/null every field parses to {@link PreferenciasDeArmado#NINGUNA}. */
+    /**
+     * Pre-fase-9 shape: none of the four new preferences requested. Blank/null
+     * every field parses to {@link PreferenciasDeArmado#NINGUNA}.
+     */
     public static PreferenciasDeArmado parse(String ddrWire, String marcaCpuWire, String marcaGpuWire,
             String tipoAlmacenamientoWire, Boolean ramDual, Boolean wifi) {
+        return parse(ddrWire, marcaCpuWire, marcaGpuWire, tipoAlmacenamientoWire, ramDual, wifi,
+                null, null, null, null);
+    }
+
+    /** Fase 9: the six above plus capacidad/tamaño/cooler/watts. */
+    public static PreferenciasDeArmado parse(String ddrWire, String marcaCpuWire, String marcaGpuWire,
+            String tipoAlmacenamientoWire, Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabineteWire, String tipoCoolerWire, Integer wattsMinimos) {
         return new PreferenciasDeArmado(
                 parseDdr(ddrWire), parseMarcaCpu(marcaCpuWire), parseMarcaGpu(marcaGpuWire),
-                parseTipoAlmacenamiento(tipoAlmacenamientoWire), ramDual, wifi);
+                parseTipoAlmacenamiento(tipoAlmacenamientoWire), ramDual, wifi,
+                capacidadMinimaGb, parseTamanioGabinete(tamanioGabineteWire),
+                parseTipoCooler(tipoCoolerWire), wattsMinimos);
+    }
+
+    public static TamanioGabinete parseTamanioGabinete(String wire) {
+        if (wire == null || wire.isBlank()) return null;
+        return switch (wire.trim().toLowerCase()) {
+            case "mini" -> TamanioGabinete.MINI;
+            case "mid" -> TamanioGabinete.MID;
+            case "full" -> TamanioGabinete.FULL;
+            default -> throw new IllegalArgumentException("tamanioGabinete inválido: " + wire);
+        };
+    }
+
+    public static TipoCooler parseTipoCooler(String wire) {
+        if (wire == null || wire.isBlank()) return null;
+        return switch (wire.trim().toLowerCase()) {
+            case "liquido" -> TipoCooler.LIQUIDO;
+            case "aire" -> TipoCooler.AIRE;
+            default -> throw new IllegalArgumentException("tipoCooler inválido: " + wire);
+        };
+    }
+
+    public static String wireTamanioGabinete(TamanioGabinete tamanio) {
+        if (tamanio == null) return null;
+        return switch (tamanio) {
+            case MINI -> "mini";
+            case MID -> "mid";
+            case FULL -> "full";
+            case DESCONOCIDO -> throw new IllegalArgumentException(
+                    "TamanioGabinete.DESCONOCIDO es un centinela de abstención, nunca un valor de borde");
+        };
+    }
+
+    public static String wireTipoCooler(TipoCooler tipo) {
+        if (tipo == null) return null;
+        return switch (tipo) {
+            case LIQUIDO -> "liquido";
+            case AIRE -> "aire";
+            case DESCONOCIDO -> throw new IllegalArgumentException(
+                    "TipoCooler.DESCONOCIDO es un centinela de abstención, nunca un valor de borde");
+        };
     }
 
     public static String parseDdr(String wire) {

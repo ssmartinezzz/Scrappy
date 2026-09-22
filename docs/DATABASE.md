@@ -79,6 +79,7 @@ socket / ddr / form_factor / tipo_memoria / certificacion / tipo_almacenamiento
 producto_tech_specs         -- Specs normalizadas por producto tech, url PK (V35)
 marca_chip / chipset_tier / tipo_cooler
                              -- Lookups sembrados más para preferencia_armador/producto_tech_specs (V36)
+tamanio_gabinete            -- Lookup sembrado: MINI/MID/FULL, tamaño de torre (V37)
 ```
 
 ### Migraciones
@@ -120,6 +121,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V34` | `saved_pcs` + `saved_pc_item`: builds guardados del armador de PCs |
 | `V35` | `gama` (lookup sembrado) + `preferencia_armador`; `saved_pcs.gama_id`; seis lookups más + `producto_tech_specs` |
 | `V36` | `marca_chip`/`chipset_tier`/`tipo_cooler` (lookups sembrados) + columnas de preferencias en `preferencia_armador` y `producto_tech_specs` |
+| `V37` | `tamanio_gabinete` (lookup sembrado) + `radiador_mm` y las cuatro preferencias finas de la fase 9 |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -2613,3 +2615,75 @@ ella misma, así que rolling back `V36` deja `preferencia_armador` y
 el mismo invariante que `V35RollbackRoundTripTest` verifica para lo que deja
 de `V34`. Ninguna otra tabla referencia a estos tres objetos, así que no hace
 falta `CASCADE`.
+
+## `V37` — `tamanio_gabinete` + las cuatro preferencias finas, fase 9 del armador
+
+Un lookup más, mismo molde que los nueve de `V35`/`V36`: `smallint` identity +
+`nombre` UNIQUE + un CHECK de dominio, sembrado con `MINI`/`MID`/`FULL`.
+Respalda el tamaño de torre del gabinete (D1 en
+`odd/tasks/pc-builder-fine-grained-prefs.md`), que es un eje **distinto** de
+`form_factor`: el tamaño es cuánto ocupa el gabinete, el form factor es qué
+placa entra adentro. El veto Gabinete ⊇ Mother sigue corriendo sobre
+`form_factor`, sin tocarse.
+
+`producto_tech_specs` suma `tamanio_gabinete_id` (FK nullable) y `radiador_mm`
+(entero nullable, el tamaño del radiador de una refrigeración líquida).
+`preferencia_armador` suma las cuatro preferencias nuevas: `capacidad_minima_gb`,
+`tamanio_gabinete_id`, `tipo_cooler_id` y `watts_minimos`, **todas nullable =
+"no pedida"** (D1 de la fase 7).
+
+⚠️ **El CHECK de enteros positivos de `producto_tech_specs` se DROPEA y se
+vuelve a crear, no se edita.** `V35` está aplicada y es byte-frozen; la única
+forma de ampliar su constraint para que cubra también `radiador_mm` es
+reemplazarla acá. Lo mismo para los dos pisos de `preferencia_armador`, que
+llevan su propio CHECK: `PreferenciasDeArmado` rechaza un piso de `0` a
+propósito —un filtro que no filtra no es un pedido— y la base no puede
+contradecirla.
+
+`tamanio_gabinete` no siembra una fila `DESCONOCIDO`, igual que los nueve
+lookups anteriores: un centinela de abstención es un concepto del dominio
+Java, nunca un valor al que una foreign key pueda apuntar (la regla que `V21`
+fijó con `marca=''`).
+
+**1FN/3FN**: la tabla nueva no tiene grupo repetitivo, y las columnas nuevas de
+`preferencia_armador`/`producto_tech_specs` dependen de la clave completa de su
+tabla, no de una parte ni de otro atributo no-clave.
+
+### Rollback
+
+```sql
+-- >>> rollback:V37
+ALTER TABLE preferencia_armador
+    DROP CONSTRAINT chk_preferencia_armador_pisos_positivos,
+    DROP COLUMN capacidad_minima_gb,
+    DROP COLUMN tamanio_gabinete_id,
+    DROP COLUMN tipo_cooler_id,
+    DROP COLUMN watts_minimos;
+ALTER TABLE producto_tech_specs
+    DROP CONSTRAINT chk_producto_tech_specs_enteros_positivos;
+ALTER TABLE producto_tech_specs
+    DROP COLUMN tamanio_gabinete_id,
+    DROP COLUMN radiador_mm;
+ALTER TABLE producto_tech_specs
+    ADD CONSTRAINT chk_producto_tech_specs_enteros_positivos CHECK (
+        (watts IS NULL OR watts > 0)
+        AND (capacidad_gb IS NULL OR capacidad_gb > 0)
+        AND (velocidad_mhz IS NULL OR velocidad_mhz > 0)
+    );
+DROP TABLE tamanio_gabinete;
+-- <<< rollback:V37
+```
+
+El orden es obligatorio en los dos sentidos. Adentro del bloque: las dos
+columnas que referencian `tamanio_gabinete` se sueltan antes que la tabla, y el
+CHECK ampliado se restaura a su forma de `V35` **después** de soltar
+`radiador_mm` —un CHECK no puede nombrar una columna que ya no existe—, para
+que revertir `V37` deje el esquema exactamente como `V36` lo dejaba.
+
+⚠️ Y entre bloques: **los rollbacks componen en orden inverso**. `V37` agrega
+`preferencia_armador.tipo_cooler_id`, que referencia la tabla `tipo_cooler` que
+`V36` creó, así que el `DROP TABLE tipo_cooler` del bloque de `V36` **falla**
+mientras `V37` siga aplicada. Por eso `V36RollbackRoundTripTest` ejecuta primero
+el bloque de `V37` y después el suyo: cada bloque sigue siendo dueño exactamente
+de sus propios objetos, en vez de que `V36` tenga que conocer columnas que no
+creó.

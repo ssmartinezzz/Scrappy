@@ -476,7 +476,7 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 
 ---
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 8
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 9
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
@@ -613,6 +613,31 @@ ranking**: la mother se elige primero (`Asrock Z790I`, `LGA1700`) y
 plataforma. Es la limitación greedy que ya describe la fila "la mother es el
 ancla": no se prueba otra mother. Probar varias plataformas es otro tamaño de
 cambio, y queda pendiente.
+
+**Fase 9** hace pedibles cuatro ejes que el armador decidía solo, y profundiza
+dos rankings — pedido del usuario (2026-09-22): *"que en /pcs se pueda elegir
+la cantidad de GB... profundidad del gabinete... más profundidad en los cooler,
+water, aire... más profundidad en los watts de las fuentes"*. Diseño y medición
+completos en [`odd/tasks/pc-builder-fine-grained-prefs.md`](./odd/tasks/pc-builder-fine-grained-prefs.md).
+
+| | |
+|---|---|
+| **Cuatro preferencias nuevas**, mismo molde que las seis de la fase 7 | `capacidadMinimaGb` (piso de GB del disco) · `tamanioGabinete` (`mini\|mid\|full`) · `tipoCooler` (`liquido\|aire`) · `wattsMinimos` (piso de la fuente). Reglas `ReglaCapacidadMinima`, `ReglaTamanioGabinete`, `ReglaTipoCoolerPedido`; los watts NO son regla nueva (ver abajo) |
+| ⚠️ **El tamaño de torre es un eje DISTINTO del form factor, y "mid-ATX" no existe** | `TamanioGabinete` (`MINI`/`MID`/`FULL`/`DESCONOCIDO`) es cuánto ocupa el gabinete; `formFactor` (ITX/MATX/ATX/EATX) es qué placa entra. El catálogo los nombra por separado —`"MID-TOWER EATX"` trae los dos— y el veto Gabinete ⊇ Mother sigue corriendo sobre `formFactor`, sin tocarse |
+| ⚠️ **El gabinete es el eje pobre, y es un dato medido** | Sólo **46 de 622** gabinetes declaran su tamaño (MID 43 · FULL 2 · MINI 1, dev DB 2026-09-22). Con la abstención vetando (D2, la misma inversión que `gama`), pedir `mid` deja 43 candidatos y `full` deja **dos**. `/pcs` lo dice en pantalla debajo de los chips: el resultado es contraintuitivo y el número tiene que estar a la vista |
+| **Los dos pisos son "al menos", no valores exactos** | Pedir 1 TB admite un disco de 2 TB, que es justo el mejor candidato. Un piso de `0` se **rechaza** en el borde: un filtro que no filtra no es un pedido |
+| **Pedir un tipo de cooler ABRE el slot**, aunque la gama no sea ALTA | Hasta la fase 8 el cooler era una decisión de tier y sólo existía en gama alta. Pedir refrigeración líquida y recibir un armado sin cooler no responde la pregunta que se hizo. Sin pedido, byte por byte igual que antes |
+| **El piso de watts pedido SUBE, nunca baja** | `wattsMin = max(EstimadorDeConsumo.wattsMinimos(gama, conGpu), pedido)`. Pedir 550 W en un armado de gama alta con GPU (piso 1000) no puede dejarlo sin fuente suficiente. Por eso no hay `ReglaCompatibilidad` nueva: `ReglaWatts` ya veta contra `contexto.wattsMin()` y no cambió una línea |
+| **Dos ejes de ranking nuevos, y los dos cambian el default** | `COOLER`: tipo → **radiador desc** (entre dos AIO gana la de 360mm; 84 de los 171 líquidos lo declaran). `FUENTE`: certificación → **watts desc** — hasta acá el eje era la certificación sola, así que entre dos GOLD desempataba el precio y ganaba la más chica, apenas por encima del piso. La certificación sigue mandando: una GOLD de 650 W le gana a una sin certificar de 1200 W |
+| **`tamanioGabinete` y `radiadorMm` SÍ se persisten; los pisos pedidos no** | `V37` (ver [`docs/DATABASE.md`](./docs/DATABASE.md)): lookup `tamanio_gabinete` + columnas en `producto_tech_specs`. Los pisos son del PEDIDO, no del producto, así que van sólo a `preferencia_armador` |
+| ⚠️ **Los rollbacks componen en orden inverso, y `V37` lo hizo visible** | `V37` cuelga un `tipo_cooler_id` de `preferencia_armador` que referencia la tabla que creó `V36`, así que el `DROP TABLE tipo_cooler` del bloque de `V36` falla mientras `V37` siga aplicada. `V36RollbackRoundTripTest` ejecuta primero el bloque de `V37`; cada bloque sigue siendo dueño exactamente de sus propios objetos |
+
+**El total estimado de `/pcs` va en pesos y en dólares**, con la cotización del
+**mismo servicio que el badge del header** (`GET /api/indices` → `usd.ultimoValor`,
+el dólar oficial de `indices-service`). Si ese servicio viene `sin_datos`, sin
+valor o falla entero, la línea en dólares **no se muestra** — no hay tasa
+hardcodeada de reemplazo, que es la misma regla que `InflacionService` rompía
+(ver [Índices y señales](#índices-y-señales)).
 
 Cobertura medida (TSV de hardware, 3360 filas, reclasificadas con los cambios
 de T1/T2a/T4d-1, 2026-09-21): CPU marcaChip **388/389**, generación

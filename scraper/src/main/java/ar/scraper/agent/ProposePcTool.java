@@ -75,6 +75,14 @@ public class ProposePcTool implements CatalogTool {
         tipoAlmacenamiento.putArray("enum").add("nvme").add("sata").add("hdd");
         props.putObject("ramDual").put("type", "boolean");
         props.putObject("wifi").put("type", "boolean");
+        props.putObject("capacidadMinimaGb").put("type", "integer");
+        ObjectNode tamanioGabinete = props.putObject("tamanioGabinete");
+        tamanioGabinete.put("type", "string");
+        tamanioGabinete.putArray("enum").add("mini").add("mid").add("full");
+        ObjectNode tipoCooler = props.putObject("tipoCooler");
+        tipoCooler.put("type", "string");
+        tipoCooler.putArray("enum").add("liquido").add("aire");
+        props.putObject("wattsMinimos").put("type", "integer");
 
         return new ToolSpec(NAME,
                 "Arma una PC con el catálogo actual: un pick por slot (motherboard, CPU, RAM, gabinete, "
@@ -88,7 +96,12 @@ public class ProposePcTool implements CatalogTool {
                         + "(generación de RAM/motherboard, marca del chip de CPU/GPU, tecnología de disco) y "
                         + "'ramDual'/'wifi' piden un kit dual (2x) y una motherboard con wifi respectivamente — "
                         + "los seis se comportan igual que 'gama': un componente cuyo nombre no se pudo leer "
-                        + "queda afuera, no adentro. NUNCA guarda nada — si el usuario quiere conservar el "
+                        + "queda afuera, no adentro. 'capacidadMinimaGb' y 'wattsMinimos' son PISOS ('al "
+                        + "menos N'), no valores exactos: pedir 1024 GB deja entrar un disco de 2 TB. "
+                        + "'tamanioGabinete' ('mini'/'mid'/'full') es el tamaño de torre — NO el form factor de "
+                        + "la placa — y el catálogo lo declara en pocos gabinetes, así que pedirlo achica mucho "
+                        + "el pool. 'tipoCooler' ('liquido'/'aire') además ABRE el slot de cooler aunque la gama "
+                        + "no sea alta. NUNCA guarda nada — si el usuario quiere conservar el "
                         + "armado, lo guarda desde la página /pcs.",
                 schema);
     }
@@ -149,7 +162,29 @@ public class ProposePcTool implements CatalogTool {
         }
         Boolean ramDual = args.hasNonNull("ramDual") ? args.path("ramDual").asBoolean() : null;
         Boolean wifi = args.hasNonNull("wifi") ? args.path("wifi").asBoolean() : null;
-        PreferenciasDeArmado prefs = new PreferenciasDeArmado(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
+
+        ar.scraper.pcs.TamanioGabinete tamanioGabinetePedido;
+        try {
+            tamanioGabinetePedido = PreferenciasWire.parseTamanioGabinete(
+                    args.path("tamanioGabinete").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'tamanioGabinete' tiene que ser 'mini', 'mid' o 'full'.");
+        }
+        ar.scraper.pcs.TipoCooler tipoCoolerPedido;
+        try {
+            tipoCoolerPedido = PreferenciasWire.parseTipoCooler(args.path("tipoCooler").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'tipoCooler' tiene que ser 'liquido' o 'aire'.");
+        }
+
+        PreferenciasDeArmado prefs;
+        try {
+            prefs = new PreferenciasDeArmado(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
+                    enteroPositivo(args, "capacidadMinimaGb"), tamanioGabinetePedido, tipoCoolerPedido,
+                    enteroPositivo(args, "wattsMinimos"));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", e.getMessage());
+        }
 
         AggregatedResult result = catalogo.getLastResult();
         if (result == null || result.productos() == null) {
@@ -158,5 +193,19 @@ public class ProposePcTool implements CatalogTool {
 
         PcBuild build = pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs);
         return ToolResult.ok("", PcBuildJson.toJson(build).toString());
+    }
+
+    /**
+     * Un piso ausente es {@code null} ("no pedido"); uno presente tiene que
+     * ser un entero positivo. {@link PreferenciasDeArmado} rechaza el 0 a
+     * propósito — un filtro que no filtra no es un pedido.
+     */
+    private static Integer enteroPositivo(JsonNode args, String clave) {
+        if (!args.hasNonNull(clave)) return null;
+        JsonNode n = args.path(clave);
+        if (!n.isNumber()) {
+            throw new IllegalArgumentException("El parámetro '" + clave + "' tiene que ser un número.");
+        }
+        return n.asInt();
     }
 }

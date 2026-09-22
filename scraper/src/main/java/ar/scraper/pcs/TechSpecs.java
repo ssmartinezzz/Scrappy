@@ -29,14 +29,19 @@ public record TechSpecs(
         int modulos,      // RAM only; 0 = abstención
         boolean wifi,     // Motherboard only; false es una AFIRMACIÓN ("no trae wifi"), nunca abstención — D2, la excepción
         TipoCooler tipoCooler, // Cooler only; DESCONOCIDO = abstención
-        int nivel         // CPU/GPU only; 0 = abstención. El escalón DENTRO de la gama, y la ÚNICA
+        int nivel,        // CPU/GPU only; 0 = abstención. El escalón DENTRO de la gama, y la ÚNICA
                           // magnitud de potencia comparable entre marcas: CPU 9|7|5|3 (i9 ≡ Ryzen 9),
                           // GPU 90|80|70|60|50 (RTX 5080 ≡ RX 9080). `generacion` NO lo es — ver
                           // EjesTecnicos.anioDe y odd/tasks/pc-builder-top-tier.md D1.
+        TamanioGabinete tamanioGabinete, // Gabinete only; DESCONOCIDO = abstención. Eje DISTINTO de
+                          // formFactor (D1, fase 9): el tamaño de torre es cuánto ocupa, el form
+                          // factor es qué placa entra. El veto Gabinete ⊇ Mother sigue en formFactor.
+        int radiadorMm    // Cooler only; 0 = abstención. Sólo un token entero dígitos+mm cuenta.
 ) {
     public static final TechSpecs EMPTY =
             new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                    0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, 0);
+                    0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, 0,
+                    TamanioGabinete.DESCONOCIDO, 0);
 
     /**
      * Pre-{@code pc-builder-gama} shape, kept so callers that only ever read
@@ -121,5 +126,21 @@ public record TechSpecs(
         this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion,
                 velocidadMhz, tipoAlmacenamiento, socketsSoportados, marcaChip, generacion, tierChipset, modulos,
                 wifi, tipoCooler, 0);
+    }
+
+    /**
+     * pc-builder-top-tier T1 shape (18 args, the record's canonical
+     * constructor before fase 9 appended {@code tamanioGabinete}/{@code
+     * radiadorMm}): kept so every existing reader and rule test keeps
+     * compiling untouched — refactor contract, CODE-2. The two new fields
+     * default to their abstention values, same as EMPTY.
+     */
+    public TechSpecs(String socket, String ddr, String formFactor, int watts, int capacidadGb, String tipoMemoria,
+            Gama gama, Certificacion certificacion, int velocidadMhz, TipoAlmacenamiento tipoAlmacenamiento,
+            List<String> socketsSoportados, String marcaChip, int generacion, int tierChipset, int modulos,
+            boolean wifi, TipoCooler tipoCooler, int nivel) {
+        this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion,
+                velocidadMhz, tipoAlmacenamiento, socketsSoportados, marcaChip, generacion, tierChipset, modulos,
+                wifi, tipoCooler, nivel, TamanioGabinete.DESCONOCIDO, 0);
     }
 }

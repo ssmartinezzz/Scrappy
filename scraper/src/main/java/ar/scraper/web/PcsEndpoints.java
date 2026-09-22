@@ -61,16 +61,31 @@ class PcsEndpoints {
     /**
      * {@code ddr}/{@code marcaCpu}/{@code marcaGpu}/{@code tipoAlmacenamiento} are wire values
      * (pc-builder-deep-taxonomy D8), blank/absent meaning "not requested" — same contract as
-     * {@code gama}. {@code ramDual}/{@code wifi} are {@code null} when absent.
+     * {@code gama}. {@code ramDual}/{@code wifi} are {@code null} when absent. Pre-fase-9 shape:
+     * none of the four newer preferences requested.
      */
     ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi) {
+        return builder(presupuesto, conGpu, excluir, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento,
+                ramDual, wifi, null, "", "", null);
+    }
+
+    /**
+     * Fase 9: {@code capacidadMinimaGb}/{@code wattsMinimos} are FLOORS in their own unit
+     * ({@code null} = not requested), {@code tamanioGabinete}/{@code tipoCooler} are wire
+     * words ("mini"/"mid"/"full", "liquido"/"aire"), blank/absent meaning "not requested".
+     */
+    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos) {
         Gama gamaPedida;
         PreferenciasDeArmado prefs;
         try {
             gamaPedida = GamaWire.parse(gama);
-            prefs = PreferenciasWire.parse(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
+            prefs = PreferenciasWire.parse(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
+                    capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);
         } catch (IllegalArgumentException e) {
             ObjectNode resp = JsonNodeFactory.instance.objectNode();
             resp.put("ok", false);
@@ -109,7 +124,9 @@ class PcsEndpoints {
             gama = GamaWire.parse(gamaRaw != null ? String.valueOf(gamaRaw) : null);
             prefs = PreferenciasWire.parse(
                     stringDe(body, "ddr"), stringDe(body, "marcaCpu"), stringDe(body, "marcaGpu"),
-                    stringDe(body, "tipoAlmacenamiento"), booleanDe(body, "ramDual"), booleanDe(body, "wifi"));
+                    stringDe(body, "tipoAlmacenamiento"), booleanDe(body, "ramDual"), booleanDe(body, "wifi"),
+                    enteroDe(body, "capacidadMinimaGb"), stringDe(body, "tamanioGabinete"),
+                    stringDe(body, "tipoCooler"), enteroDe(body, "wattsMinimos"));
         } catch (IllegalArgumentException e) {
             resp.put("ok", false);
             resp.put("mensaje", e.getMessage());
@@ -137,6 +154,21 @@ class PcsEndpoints {
         return valor != null ? Boolean.parseBoolean(String.valueOf(valor)) : null;
     }
 
+    /**
+     * Un piso ausente o ilegible es "no pedido", no un cero: un {@code 0} sí
+     * llegaría a {@link PreferenciasDeArmado}, que lo rechaza a propósito.
+     */
+    private static Integer enteroDe(Map<String, Object> body, String clave) {
+        Object valor = body.get(clave);
+        if (valor == null) return null;
+        if (valor instanceof Number n) return n.intValue();
+        try {
+            return Integer.valueOf(String.valueOf(valor).trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(clave + " inválido: " + valor);
+        }
+    }
+
     private ObjectNode preferenciaJson(PreferenciaArmador p) {
         ObjectNode json = JsonNodeFactory.instance.objectNode();
         json.put("gama", GamaWire.wire(p.gama()));
@@ -149,10 +181,18 @@ class PcsEndpoints {
         putNullableString(json, "tipoAlmacenamiento", PreferenciasWire.wireTipoAlmacenamiento(prefs.tipoAlmacenamiento()));
         json.put("ramDual", Boolean.TRUE.equals(prefs.ramDual()));
         json.put("wifi", Boolean.TRUE.equals(prefs.wifi()));
+        putNullableInt(json, "capacidadMinimaGb", prefs.capacidadMinimaGb());
+        putNullableString(json, "tamanioGabinete", PreferenciasWire.wireTamanioGabinete(prefs.tamanioGabinete()));
+        putNullableString(json, "tipoCooler", PreferenciasWire.wireTipoCooler(prefs.tipoCooler()));
+        putNullableInt(json, "wattsMinimos", prefs.wattsMinimos());
         return json;
     }
 
     private static void putNullableString(ObjectNode json, String campo, String valor) {
+        if (valor != null) json.put(campo, valor); else json.putNull(campo);
+    }
+
+    private static void putNullableInt(ObjectNode json, String campo, Integer valor) {
         if (valor != null) json.put(campo, valor); else json.putNull(campo);
     }
 
