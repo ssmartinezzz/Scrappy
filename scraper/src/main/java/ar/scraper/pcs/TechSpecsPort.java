@@ -12,7 +12,25 @@ import java.util.List;
  */
 public interface TechSpecsPort {
 
-    record SpecsDeProducto(String url, TechSpecs specs) {}
+    /**
+     * {@code categoria} was added in pc-builder-deep-taxonomy T5b: {@code
+     * wifi} on {@code producto_tech_specs} is only ever an affirmed
+     * true/false for a Motherboard row (NULL otherwise, abstention or "not
+     * applicable" — TechSpecsRepository is what tells the two apart, and it
+     * needs the category to do it).
+     */
+    record SpecsDeProducto(String url, String categoria, TechSpecs specs) {
+
+        /**
+         * Pre-T5b shape (2 args, the record's canonical constructor before
+         * {@code categoria} was added): kept so every existing caller/test
+         * keeps compiling untouched — refactor contract, CODE-2. Defaults to
+         * {@code ""}, which never equals {@code "Motherboard"}.
+         */
+        public SpecsDeProducto(String url, TechSpecs specs) {
+            this(url, "", specs);
+        }
+    }
 
     /** Idempotent: re-upserting the same url updates its row in place. */
     void upsertSpecs(List<SpecsDeProducto> specs);
