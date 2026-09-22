@@ -29,6 +29,32 @@ const GAMAS = [
   { value: 'alta', label: 'Alta' },
 ];
 
+// Las cuatro listas de abajo son el vocabulario de cable de PreferenciasWire
+// (D8) — no los enums Java. '' es siempre "no pedida".
+const DDRS = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'ddr4', label: 'DDR4' },
+  { value: 'ddr5', label: 'DDR5' },
+];
+const MARCAS_CPU = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'intel', label: 'Intel' },
+  { value: 'amd', label: 'AMD' },
+];
+const MARCAS_GPU = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'nvidia', label: 'NVIDIA' },
+  { value: 'amd', label: 'AMD' },
+];
+const TIPOS_ALMACENAMIENTO = [
+  { value: '', label: 'Cualquiera' },
+  { value: 'nvme', label: 'M.2 NVMe' },
+  { value: 'sata', label: 'SSD SATA' },
+  { value: 'hdd', label: 'HDD' },
+];
+
+const TIER_CHIPSET_LABEL = { 1: 'X/Z', 2: 'B', 3: 'A/H' };
+
 /** Une solo los campos con dato — un clasificador que se abstiene deja "" / 0. */
 function resumenSpecs(specs) {
   if (!specs) return '';
@@ -39,13 +65,76 @@ function resumenSpecs(specs) {
   if (specs.watts) partes.push(`${specs.watts} W`);
   if (specs.capacidadGb) partes.push(`${specs.capacidadGb} GB`);
   if (specs.tipoMemoria) partes.push(specs.tipoMemoria);
+  if (specs.marcaChip) partes.push(specs.marcaChip);
+  // Una sola grafía por marca (no por slot): Intel es "gen N", todo lo demás
+  // (AMD, y cualquier GPU) es "serie N000".
+  if (specs.generacion) {
+    partes.push(specs.marcaChip === 'INTEL' ? `gen ${specs.generacion}` : `serie ${specs.generacion}000`);
+  }
+  if (specs.tierChipset) partes.push(TIER_CHIPSET_LABEL[specs.tierChipset]);
+  if (specs.modulos) partes.push(`${specs.modulos}x`);
+  if (specs.wifi) partes.push('WiFi');
+  if (specs.tipoCooler === 'LIQUIDO') partes.push('AIO');
+  if (specs.tipoCooler === 'AIRE') partes.push('aire');
   return partes.join(' · ');
+}
+
+function ChipGroup({ label, options, value, onChange }) {
+  return (
+    <div>
+      <p className="mb-[6px] text-[.8rem] font-semibold text-t3">{label}</p>
+      <div className="flex flex-wrap items-center gap-[8px]" role="group" aria-label={label}>
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={value === o.value}
+            className={cn(
+              'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem]',
+              '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+              value === o.value
+                ? 'border border-transparent bg-primary text-white'
+                : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ToggleChip({ label, pressed, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={pressed}
+      className={cn(
+        'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem]',
+        '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+        pressed
+          ? 'border border-transparent bg-primary text-white'
+          : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
+      )}
+    >
+      {label}
+    </button>
+  );
 }
 
 export default function PcsPanel({ onSavePc } = {}) {
   const [presupuesto, setPresupuesto] = useState('');
   const [conGpu, setConGpu] = useState(false);
   const [gama, setGama] = useState('');
+  const [ddr, setDdr] = useState('');
+  const [marcaCpu, setMarcaCpu] = useState('');
+  const [marcaGpu, setMarcaGpu] = useState('');
+  const [tipoAlmacenamiento, setTipoAlmacenamiento] = useState('');
+  const [ramDual, setRamDual] = useState(false);
+  const [wifi, setWifi] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -66,6 +155,12 @@ export default function PcsPanel({ onSavePc } = {}) {
         setGama(pref.gama ?? '');
         setPresupuesto(pref.presupuesto != null ? String(pref.presupuesto) : '');
         setConGpu(Boolean(pref.conGpu));
+        setDdr(pref.ddr ?? '');
+        setMarcaCpu(pref.marcaCpu ?? '');
+        setMarcaGpu(pref.marcaGpu ?? '');
+        setTipoAlmacenamiento(pref.tipoAlmacenamiento ?? '');
+        setRamDual(Boolean(pref.ramDual));
+        setWifi(Boolean(pref.wifi));
       })
       .catch(() => {});
     return () => { vivo = false; };
@@ -86,6 +181,12 @@ export default function PcsPanel({ onSavePc } = {}) {
         gama,
         presupuesto: presupuesto ? Number(presupuesto) : null,
         conGpu,
+        ddr: ddr || null,
+        marcaCpu: marcaCpu || null,
+        marcaGpu: marcaGpu || null,
+        tipoAlmacenamiento: tipoAlmacenamiento || null,
+        ramDual,
+        wifi,
       }).catch(() => {});
     }
     const previos = acumulando ? vistos : {};
@@ -96,6 +197,12 @@ export default function PcsPanel({ onSavePc } = {}) {
         conGpu,
         excluir,
         gama,
+        ddr,
+        marcaCpu,
+        marcaGpu,
+        tipoAlmacenamiento,
+        ramDual,
+        wifi,
       });
       setData(resp);
       const nuevos = resp?.picks ?? [];
@@ -163,6 +270,24 @@ export default function PcsPanel({ onSavePc } = {}) {
           ))}
         </div>
 
+        <div className="mb-[24px] flex flex-col gap-[14px]">
+          <ChipGroup label="Memoria" options={DDRS} value={ddr} onChange={setDdr} />
+          <ChipGroup label="CPU" options={MARCAS_CPU} value={marcaCpu} onChange={setMarcaCpu} />
+          {conGpu && (
+            <ChipGroup label="Placa de video" options={MARCAS_GPU} value={marcaGpu} onChange={setMarcaGpu} />
+          )}
+          <ChipGroup
+            label="Disco"
+            options={TIPOS_ALMACENAMIENTO}
+            value={tipoAlmacenamiento}
+            onChange={setTipoAlmacenamiento}
+          />
+          <div className="flex flex-wrap gap-[8px]">
+            <ToggleChip label="RAM dual (2x)" pressed={ramDual} onToggle={() => setRamDual(v => !v)} />
+            <ToggleChip label="Mother con WiFi" pressed={wifi} onToggle={() => setWifi(v => !v)} />
+          </div>
+        </div>
+
         <div className="mb-[24px] flex flex-wrap items-end gap-[12px]">
           <div className="min-w-[200px] flex-1">
             <label
@@ -182,7 +307,10 @@ export default function PcsPanel({ onSavePc } = {}) {
             <input
               type="checkbox"
               checked={conGpu}
-              onChange={e => setConGpu(e.target.checked)}
+              onChange={e => {
+                setConGpu(e.target.checked);
+                if (!e.target.checked) setMarcaGpu('');
+              }}
               className="h-[18px] w-[18px] cursor-pointer accent-primary"
             />
             Incluir placa de video

@@ -457,12 +457,21 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
 
 // ─── PC Builder ───────────────────────────────────────────────────────────────
 
-export async function fetchPcsBuilder({ presupuesto = 0, conGpu = false, excluir = [], gama = '' } = {}) {
+export async function fetchPcsBuilder({
+  presupuesto = 0, conGpu = false, excluir = [], gama = '',
+  ddr = '', marcaCpu = '', marcaGpu = '', tipoAlmacenamiento = '', ramDual = false, wifi = false,
+} = {}) {
   const p = new URLSearchParams();
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
   if (conGpu) p.set('conGpu', 'true');
   if (excluir.length > 0) p.set('excluir', excluir.join(','));
   if (gama) p.set('gama', gama);
+  if (ddr) p.set('ddr', ddr);
+  if (marcaCpu) p.set('marcaCpu', marcaCpu);
+  if (marcaGpu) p.set('marcaGpu', marcaGpu);
+  if (tipoAlmacenamiento) p.set('tipoAlmacenamiento', tipoAlmacenamiento);
+  if (ramDual) p.set('ramDual', 'true');
+  if (wifi) p.set('wifi', 'true');
   const qs = p.toString();
   const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
   if (r.status === 204) return null;
