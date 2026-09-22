@@ -8,6 +8,9 @@ import ar.scraper.pcs.GamaWire;
 import ar.scraper.pcs.PcBuild;
 import ar.scraper.pcs.PcBuildJson;
 import ar.scraper.pcs.PcBuilder;
+import ar.scraper.pcs.PreferenciasDeArmado;
+import ar.scraper.pcs.PreferenciasWire;
+import ar.scraper.pcs.TipoAlmacenamiento;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -58,6 +61,20 @@ public class ProposePcTool implements CatalogTool {
         gama.put("type", "string");
         ArrayNode gamaEnum = gama.putArray("enum");
         gamaEnum.add("economica").add("media").add("alta");
+        ObjectNode ddr = props.putObject("ddr");
+        ddr.put("type", "string");
+        ddr.putArray("enum").add("ddr4").add("ddr5");
+        ObjectNode marcaCpu = props.putObject("marcaCpu");
+        marcaCpu.put("type", "string");
+        marcaCpu.putArray("enum").add("intel").add("amd");
+        ObjectNode marcaGpu = props.putObject("marcaGpu");
+        marcaGpu.put("type", "string");
+        marcaGpu.putArray("enum").add("nvidia").add("amd");
+        ObjectNode tipoAlmacenamiento = props.putObject("tipoAlmacenamiento");
+        tipoAlmacenamiento.put("type", "string");
+        tipoAlmacenamiento.putArray("enum").add("nvme").add("sata").add("hdd");
+        props.putObject("ramDual").put("type", "boolean");
+        props.putObject("wifi").put("type", "boolean");
 
         return new ToolSpec(NAME,
                 "Arma una PC con el catálogo actual: un pick por slot (motherboard, CPU, RAM, gabinete, "
@@ -66,8 +83,13 @@ public class ProposePcTool implements CatalogTool {
                         + "sin tope). 'excluir' es una lista de urls de picks que el usuario rechazó, para que "
                         + "no se repitan en el próximo armado. 'gama' es un filtro DURO de potencia opcional "
                         + "('economica'/'media'/'alta'): pedirla exige que cada componente relevante alcance ese "
-                        + "tier, y un componente cuyo nombre no se pudo leer queda afuera, no adentro. NUNCA "
-                        + "guarda nada — si el usuario quiere conservar el armado, lo guarda desde la página /pcs.",
+                        + "tier, y un componente cuyo nombre no se pudo leer queda afuera, no adentro. "
+                        + "'ddr'/'marcaCpu'/'marcaGpu'/'tipoAlmacenamiento' son filtros DUROS opcionales más "
+                        + "(generación de RAM/motherboard, marca del chip de CPU/GPU, tecnología de disco) y "
+                        + "'ramDual'/'wifi' piden un kit dual (2x) y una motherboard con wifi respectivamente — "
+                        + "los seis se comportan igual que 'gama': un componente cuyo nombre no se pudo leer "
+                        + "queda afuera, no adentro. NUNCA guarda nada — si el usuario quiere conservar el "
+                        + "armado, lo guarda desde la página /pcs.",
                 schema);
     }
 
@@ -101,12 +123,40 @@ public class ProposePcTool implements CatalogTool {
             return ToolResult.error("", "El parámetro 'gama' tiene que ser 'economica', 'media' o 'alta'.");
         }
 
+        String ddr;
+        try {
+            ddr = PreferenciasWire.parseDdr(args.path("ddr").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'ddr' tiene que ser 'ddr4' o 'ddr5'.");
+        }
+        String marcaCpu;
+        try {
+            marcaCpu = PreferenciasWire.parseMarcaCpu(args.path("marcaCpu").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'marcaCpu' tiene que ser 'intel' o 'amd'.");
+        }
+        String marcaGpu;
+        try {
+            marcaGpu = PreferenciasWire.parseMarcaGpu(args.path("marcaGpu").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'marcaGpu' tiene que ser 'nvidia' o 'amd'.");
+        }
+        TipoAlmacenamiento tipoAlmacenamiento;
+        try {
+            tipoAlmacenamiento = PreferenciasWire.parseTipoAlmacenamiento(args.path("tipoAlmacenamiento").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'tipoAlmacenamiento' tiene que ser 'nvme', 'sata' o 'hdd'.");
+        }
+        Boolean ramDual = args.hasNonNull("ramDual") ? args.path("ramDual").asBoolean() : null;
+        Boolean wifi = args.hasNonNull("wifi") ? args.path("wifi").asBoolean() : null;
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
+
         AggregatedResult result = catalogo.getLastResult();
         if (result == null || result.productos() == null) {
             return ToolResult.error("", "No hay catálogo cargado todavía. Corré un scraping primero.");
         }
 
-        PcBuild build = pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida);
+        PcBuild build = pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs);
         return ToolResult.ok("", PcBuildJson.toJson(build).toString());
     }
 }
