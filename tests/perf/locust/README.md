@@ -11,6 +11,7 @@ locust/
 ├── conftest.py           el backend, el token, y `correr_carga(...)`
 ├── carga.py              qué se pide (ENDPOINTS) y quién lo pide (los usuarios)
 ├── test_rendimiento.py   los cinco escenarios, como tests
+├── .resultados/          un reporte HTML por escenario (gitignored)
 └── .venv/                la crea uv sola en la primera corrida (gitignored)
 ```
 
@@ -19,6 +20,7 @@ cd tests/perf/locust
 uv run pytest                    # baseline + login — ~90 s
 uv run pytest -m lento           # carga, stress y spike — ~10 min
 uv run pytest -k baseline        # uno solo
+uv run pytest -m lento -k stress --ui   # con la UI en vivo en :8089
 ```
 
 `uv` se encarga del venv y de las dependencias, y la cuenta se crea sola la
@@ -53,6 +55,42 @@ con `test_carga_esperada` haría que un rojo deje de significar algo— y
 `test_spike` afirma la tasa de error y no la latencia, porque bajo un pico la
 latencia sube y eso es correcto; lo que no puede pasar es que el backend empiece
 a rechazar.
+
+---
+
+## Ver lo que corrió
+
+Cada escenario deja **el reporte HTML de Locust** —el mismo que da `--html` en
+el CLI: tabla por endpoint, percentiles y el gráfico de latencia y RPS contra
+el tiempo— en `.resultados/<nombre-del-test>.html`.
+
+```bash
+uv run pytest -k baseline
+xdg-open .resultados/test_baseline.html
+```
+
+La ruta se imprime al final de cada corrida, junto con la tabla de percentiles.
+Ese gráfico es donde se ve la **forma** de un stress o de un spike, que es
+justo lo que un número resumen no te puede contar: en qué escalón se dobló la
+latencia, si el throughput se aplanó, si después del pico volvió.
+
+Y para verlo moverse en vivo, `--ui` levanta la UI web de Locust en
+<http://localhost:8089> mientras dura la corrida:
+
+```bash
+uv run pytest -m lento -k stress --ui
+```
+
+La UI muere con el escenario; el HTML queda. Para explorar a mano conviene un
+escenario largo, que da tiempo a mirar.
+
+> ⚠ Con `--ui`, `sys.argv` queda neutralizado mientras vive la UI. No es magia
+> defensiva: la UI de Locust llama a `ui_extra_args_dict()` sin argumentos —al
+> construirse **y al servir cada request**— y eso termina en
+> `parser.parse_args(None)`, o sea el parser de Locust leyendo los argumentos de
+> *pytest*. Muere con `unrecognized arguments: -k --ui`, y como es un
+> `SystemExit` se propaga hasta el test. Neutralizarlo sólo durante la
+> construcción no alcanza: ahí el 500 aparece recién cuando abrís la página.
 
 ---
 

@@ -20,10 +20,22 @@ from pathlib import Path  # noqa: E402
 import gevent  # noqa: E402
 import pytest  # noqa: E402
 import requests  # noqa: E402
+from locust.argument_parser import parse_options  # noqa: E402
 from locust.env import Environment  # noqa: E402
+from locust.html import get_html_report  # noqa: E402
+from locust.stats import stats_history  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import carga  # noqa: E402
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--ui",
+        action="store_true",
+        help="Levanta la UI web de Locust en :8089 durante la corrida, para "
+             "verla moverse en vivo. Sin esto igual queda el reporte HTML.",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -174,24 +186,75 @@ class Medicion:
         return "\n".join(filas)
 
 
+RESULTADOS = Path(__file__).resolve().parent / ".resultados"
+
+
 @pytest.fixture
-def correr_carga(host: str):
+def correr_carga(host: str, request):
     """Corre una forma de carga y devuelve su `Medicion`.
 
     Locust se usa como librería, no por su CLI: el runner vive adentro del
     proceso de pytest, así que el veredicto es una aserción común y no un exit
     code que haya que interpretar desde afuera.
+
+    Lo que Locust da gratis por su CLI y acá hay que pedir a mano:
+
+    * **El reporte HTML** — el mismo que `--html`, con la tabla por endpoint, los
+      percentiles y el gráfico. Se escribe siempre, en `.resultados/<test>.html`.
+      El gráfico sale de `stats_history`, que muestrea el runner mientras corre;
+      sin ese greenlet el reporte sale con las tablas pero sin la curva, que es
+      justo donde se ve la forma de un stress o de un spike.
+    * **La UI web** — con `--ui` queda en http://localhost:8089 durante la
+      corrida, para verla moverse en vivo.
     """
 
     def _correr(clase_de_usuario, *, usuarios: int, spawn_rate: float, segundos: float) -> Medicion:
-        entorno = Environment(user_classes=[clase_de_usuario], host=host)
+        # `parse_options(args=[])` NO es decorativo. La UI web de Locust lee
+        # `environment.parsed_options` y, si está en None, se lo pide a su propio
+        # parser — que lee `sys.argv`, o sea los argumentos de PYTEST, y muere con
+        # "unrecognized arguments: -k --ui". Los defaults de Locust, parseados de
+        # una lista vacía, son exactamente lo que hace falta.
+        entorno = Environment(user_classes=[clase_de_usuario], host=host,
+                              parsed_options=parse_options(args=[]))
         entorno.create_local_runner()
-        entorno.runner.start(usuarios, spawn_rate=spawn_rate)
-        gevent.spawn_later(segundos, entorno.runner.quit)
-        entorno.runner.greenlet.join()
+
+        # Muestrea el runner mientras corre: es lo que llena la curva del reporte.
+        muestreo = gevent.spawn(stats_history, entorno.runner)
+
+        # `sys.argv` queda neutralizado mientras vive la UI, y no es magia
+        # defensiva. La UI de Locust llama a `ui_extra_args_dict()` sin
+        # argumentos —al construirse Y al servir cada request— y eso termina en
+        # `parser.parse_args(None)`: el parser de Locust leyendo los argumentos
+        # de PYTEST. Muere con "unrecognized arguments: -k --ui", y como es un
+        # `SystemExit` se propaga hasta el test. Neutralizarlo sólo durante la
+        # construcción no alcanza: el 500 aparece recién cuando abrís la página.
+        # Es el precio de usar de librería algo pensado para ser un CLI.
+        argv = sys.argv
+        try:
+            if request.config.getoption("--ui"):
+                sys.argv = ["locust"]
+                entorno.create_web_ui("127.0.0.1", 8089)
+                print("\n  UI de Locust en vivo: http://localhost:8089\n")
+
+            entorno.runner.start(usuarios, spawn_rate=spawn_rate)
+            gevent.spawn_later(segundos, entorno.runner.quit)
+            entorno.runner.greenlet.join()
+        finally:
+            muestreo.kill(block=False)
+            if entorno.web_ui:
+                entorno.web_ui.stop()
+            sys.argv = argv
 
         medicion = Medicion(entorno.stats)
         print(f"\n{medicion.tabla()}\n")
+
+        RESULTADOS.mkdir(exist_ok=True)
+        reporte = RESULTADOS / f"{request.node.name}.html"
+        # show_download_link=False: el botón de descarga sólo tiene sentido
+        # dentro de la UI web, y este archivo se abre desde el disco.
+        reporte.write_text(get_html_report(entorno, show_download_link=False),
+                           encoding="utf-8")
+        print(f"  reporte: {reporte}\n")
         return medicion
 
     return _correr

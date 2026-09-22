@@ -44,6 +44,19 @@ app), persistencia de resultados, dashboards.
   `lento` y `addopts` los excluye: `uv run pytest` son ~90 s (baseline + login).
   Una suite que tarda diez minutos por defecto deja de correrse, y entonces no
   mide nada.
+- **D16 — el reporte HTML y la UI web vuelven, esta vez a mano.** Al pasar el
+  runner a pytest se perdieron las dos cosas que el CLI de Locust daba gratis.
+  `correr_carga` escribe ahora `.resultados/<test>.html` con
+  `get_html_report`, y `--ui` levanta la UI en :8089 durante la corrida. La
+  curva del reporte necesita además un greenlet de `stats_history` muestreando
+  el runner: sin él salen las tablas pero no el gráfico, que es donde se ve la
+  forma de un stress o de un spike.
+  ⚠ Con la UI hay que neutralizar `sys.argv` **mientras la UI vive**, no sólo al
+  construirla: llama a `ui_extra_args_dict()` sin argumentos en cada request y
+  termina parseando los argumentos de pytest con el parser de Locust
+  (`SystemExit`, que se propaga hasta el test). Con el parche sólo en la
+  construcción, el 500 aparece recién al abrir la página.
+  `addopts` lleva `-s`: lo que esta suite imprime ES el resultado, no ruido.
 - **D15 — la cuenta se resuelve sola: entorno → archivo → crearla.** Pedido:
   "simplificá cómo corro". Las dos suites buscan `PERF_USERNAME`/`PERF_PASSWORD`
   en el entorno, después en `.perf-credentials.env`, y si no hay ninguno corren
