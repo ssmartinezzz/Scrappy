@@ -41,6 +41,7 @@ public class PcBuildJson {
             specs.put("tierChipset",        pick.specs().tierChipset());
             specs.put("modulos",            pick.specs().modulos());
             specs.put("wifi",               pick.specs().wifi());
+            specs.put("tipoCooler",         pick.specs().tipoCooler().name());
         }
         ArrayNode sinStockArr = root.putArray("sinStock");
         build.sinStock().forEach(sinStockArr::add);

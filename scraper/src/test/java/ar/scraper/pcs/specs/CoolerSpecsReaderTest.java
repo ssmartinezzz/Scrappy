@@ -1,6 +1,7 @@
 package ar.scraper.pcs.specs;
 
 import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.TipoCooler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -77,5 +78,45 @@ class CoolerSpecsReaderTest {
         assertThat(t.ddr()).isEmpty();
         assertThat(t.formFactor()).isEmpty();
         assertThat(t.watts()).isZero();
+    }
+
+    // ── tipoCooler (T4d-2): LIQUIDO/AIRE/DESCONOCIDO off the cooler's name ──
+
+    @Test
+    void aguaExplicitaEsLiquido() {
+        assertThat(leer("CPU Water Cooler Lovingcool 240mm AK-B240-03 - ARGB - Black").tipoCooler())
+                .isEqualTo(TipoCooler.LIQUIDO);
+    }
+
+    @Test
+    void nombreConCoolerEsAire() {
+        assertThat(leer("CPU Cooler Cooler Master DT621 R1").tipoCooler())
+                .isEqualTo(TipoCooler.AIRE);
+    }
+
+    @Test
+    void disipadorParaCpuEsAire() {
+        assertThat(leer("Cooler para CPU Intel/AMD Deepcool AG400").tipoCooler())
+                .isEqualTo(TipoCooler.AIRE);
+    }
+
+    @Test
+    void unFanDeGabineteNoEsUnCoolerDeCpu() {
+        // Líder "fan" con diámetro de fan (120mm), no un radiador de AIO ni
+        // un cooler de CPU nombrado como tal.
+        assertThat(leer("Fan Cooler 120mm Lovingcool DZPKK-120-Logo - Black").tipoCooler())
+                .isEqualTo(TipoCooler.DESCONOCIDO);
+    }
+
+    @Test
+    void unPanoDeLimpiezaParaPastaTermicaNoEsUnCooler() {
+        assertThat(leer("Paño de limpieza Arctic para Pasta térmica - Cleaner activo - por unidad").tipoCooler())
+                .isEqualTo(TipoCooler.DESCONOCIDO);
+    }
+
+    @Test
+    void unaPastaTermicaNoEsUnCooler() {
+        assertThat(leer("Pasta Térmica Arctic MX-4 4g").tipoCooler())
+                .isEqualTo(TipoCooler.DESCONOCIDO);
     }
 }

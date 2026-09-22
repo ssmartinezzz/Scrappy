@@ -138,6 +138,27 @@ class EjesTecnicosTest {
         assertThat(EjesTecnicos.GABINETE.compare(a, b)).isZero();
     }
 
+    // ── Cooler: LIQUIDO desc sobre AIRE, DESCONOCIDO siempre última (T4d-2) ─
+
+    private static TechSpecs conTipoCooler(TipoCooler tipo) {
+        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, 0, 0, false, tipo);
+    }
+
+    @Test
+    void coolerPrefiereLiquidoSobreAire() {
+        assertThat(EjesTecnicos.COOLER.compare(conTipoCooler(TipoCooler.LIQUIDO), conTipoCooler(TipoCooler.AIRE)))
+                .isNegative();
+    }
+
+    @Test
+    void coolerDesconocidoSiempreVaUltimo() {
+        assertThat(EjesTecnicos.COOLER.compare(conTipoCooler(TipoCooler.AIRE), conTipoCooler(TipoCooler.DESCONOCIDO)))
+                .isNegative();
+        assertThat(EjesTecnicos.COOLER.compare(conTipoCooler(TipoCooler.DESCONOCIDO), conTipoCooler(TipoCooler.LIQUIDO)))
+                .isPositive();
+    }
+
     // ── Almacenamiento: tipo desc (NVME > SSD > HDD > DESCONOCIDO) → GB desc ─
 
     @Test

@@ -80,4 +80,18 @@ class PcBuildJsonTest {
         assertThat(specs.get("modulos").asInt()).isEqualTo(2);
         assertThat(specs.get("wifi").asBoolean()).isTrue();
     }
+
+    @Test
+    @DisplayName("specs block includes tipoCooler (pc-builder-deep-taxonomy T4d-2)")
+    void specsIncludesTipoCooler() {
+        PcPick pick = new PcPick("cooler", "Sitio", "Cooler X", 30_000, "https://t/c", "https://img/c.jpg", "Marca",
+                new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
+                        0, TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, 0, 0, false,
+                        TipoCooler.LIQUIDO));
+        PcBuild build = new PcBuild(List.of(pick), List.of(), List.of(), 0, 30_000);
+
+        ObjectNode specs = (ObjectNode) PcBuildJson.toJson(build).get("picks").get(0).get("specs");
+
+        assertThat(specs.get("tipoCooler").asText()).isEqualTo("LIQUIDO");
+    }
 }
