@@ -885,16 +885,42 @@ paths:
           in: query
           description: Optional hard power-tier filter. Absent/blank means no gama requested.
           schema: { type: string, enum: [economica, media, alta] }
+        - name: ddr
+          in: query
+          description: Optional hard DDR generation filter. Absent/blank means not requested.
+          schema: { type: string, enum: [ddr4, ddr5] }
+        - name: marcaCpu
+          in: query
+          description: Optional hard CPU chip-brand filter. Absent/blank means not requested.
+          schema: { type: string, enum: [intel, amd] }
+        - name: marcaGpu
+          in: query
+          description: Optional hard GPU chip-brand filter. Absent/blank means not requested.
+          schema: { type: string, enum: [nvidia, amd] }
+        - name: tipoAlmacenamiento
+          in: query
+          description: Optional hard storage-technology filter. Absent/blank means not requested.
+          schema: { type: string, enum: [nvme, sata, hdd] }
+        - name: ramDual
+          in: query
+          description: Optional hard filter for a dual-channel (2x) RAM kit. Absent means not requested.
+          schema: { type: boolean }
+        - name: wifi
+          in: query
+          description: Optional hard filter for a motherboard that declares wifi. Absent means not requested.
+          schema: { type: boolean }
       responses:
         "200":
           description: Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot.
         "400":
-          description: Invalid gama value.
+          description: Invalid gama or technical-preference value.
 
   /api/pcs/preferencia:
     get:
       tags: [PCs]
-      summary: Get the user's last saved builder preference (gama, budget, GPU flag). Own row only.
+      summary: >-
+        Get the user's last saved builder preference (gama, budget, GPU flag, and the technical
+        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi). Own row only.
       x-access: AUTHENTICATED
       responses:
         "200":
@@ -903,7 +929,9 @@ paths:
           description: No preference saved yet.
     put:
       tags: [PCs]
-      summary: Save the user's builder preference (gama, budget, GPU flag). Own row only.
+      summary: >-
+        Save the user's builder preference (gama, budget, GPU flag, and the technical
+        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi). Own row only.
       x-access: AUTHENTICATED
       requestBody:
         content:
@@ -913,7 +941,7 @@ paths:
         "200":
           description: Preference saved.
         "400":
-          description: Missing or invalid gama.
+          description: Missing or invalid gama, or an invalid technical-preference value.
 
   /api/pcs/save:
     post:
