@@ -130,7 +130,7 @@ está en castellano en `pcs/`.
   Readers: CPU (marca, generación), GPU (marca, generación, VRAM en
   `capacidadGb`), mother (tier chipset, wifi, marca por socket), RAM (módulos).
   `EjesTecnicos` extendido según D4. Medir cobertura de cada eje nuevo.
-- [ ] **T4 — Preferencias pedidas (D1–D3).** `PreferenciasDeArmado` +
+- [x] **T4 — Preferencias pedidas (D1–D3).** `PreferenciasDeArmado` +
   `ContextoDeArmado` + seis reglas (`ReglaDdrPedida` en mother y ram,
   `ReglaMarcaChip` en mother/cpu/gpu, `ReglaTipoAlmacenamiento`,
   `ReglaRamDual`, `ReglaWifi`). `PcBuilder.armar` con overload nuevo; los
@@ -276,3 +276,123 @@ elegido → gpu → ram de la ddr derivada), mismo TSV:
   y una RTX 5070 rankeaban idénticas (ambas ALTA, sin generación ni VRAM).
 - **RAM** (ddr=DDR5): tres kits `2x16GB`/`2x32GB` de 6400-7600MHz — antes de
   T3 un kit de 32GB perdía contra un stick único más rápido del mismo DDR.
+
+**T4 — hecho** (`4c5ed4f` T4a + `2c48967` T4b + `c248437` T4c), tres
+commits, cada uno RED→GREEN propio. Suite completa 2592/0/0 (7 skips
+preexistentes de infra), `ERROR]`=0, BUILD SUCCESS, `BackendLayeringArchTest`
+20/20.
+
+- **T4a** (`PreferenciasDeArmado` + `ContextoDeArmado`): record de seis
+  campos, todos nullable = "no pedida" (D1). Validación en el constructor
+  compacto: `ddr` sólo `DDR4`/`DDR5`, `marcaCpu` sólo `INTEL`/`AMD`,
+  `marcaGpu` sólo `NVIDIA`/`AMD`, `tipoAlmacenamiento` nunca `DESCONOCIDO`
+  (es el centinela de abstención, no un valor pedible). `ramDual`/`wifi` son
+  `Boolean`, no `boolean`: sólo `TRUE` pide algo, `FALSE` se comporta como
+  `null` — la excepción documentada de D2. `ContextoDeArmado.inicial` gana
+  un cuarto overload que las carga; `derivarMotherDdr` pasó de
+  package-private a `public` porque T4b la necesita desde
+  `ar.scraper.pcs.reglas`.
+- **T4b** (seis reglas): molde `ReglaGama` — `null` permite, un valor
+  pedido veta en desacuerdo Y en abstención (D2), salvo `ramDual`/`wifi`
+  donde sólo `TRUE` filtra. `ReglaMarcaChip` es UNA clase que sirve a los
+  tres slots (mother/cpu/gpu), construida con la preferencia que cada slot
+  lee — D3: mother y cpu leen `marcaCpu`, gpu lee `marcaGpu`. Las reglas
+  ahora hornean el valor pedido en su constructor para que `motivo()` lo
+  pueda nombrar (`"no es DDR5, la DDR pedida"`), lo que obligó a que
+  `PcBuilder.SLOTS_FIJOS`/`SLOT_GPU` dejaran de ser `static final` y pasaran
+  a `slotsFijos(prefs)`/`slotGpu(prefs)`, construidos de nuevo en cada
+  llamada a `armar`. Overload de 6 args; los de 4 y 5 delegan con `NINGUNA`
+  y quedan byte-for-byte (`PcBuilderPreferenciasTest.ningunaEsIdenticaAlOverloadDe5Args`).
+
+  Desviación de proceso (no de diseño): al escribir T4c en paralelo mientras
+  corría la verificación de suite completa de T4b en background, dos edits
+  de `PcBuilder.java` (las llamadas a `elegir(..., contexto)` de 2 args y el
+  wiring por `Function` del slot mother) se colaron en el `git add` del
+  commit T4b antes de que `CriterioDeSeleccion`/`CriterioPorEjesTecnicos`
+  tuvieran esa forma — el commit T4b (`2c48967`) por sí solo no compila
+  aislado. Se dejó así (no se hizo `amend`, por la regla de nunca amendear
+  salvo pedido explícito) y el commit T4c siguiente restaura la
+  compilación completa del árbol; el RED de T4c se confirmó igual,
+  stasheando sólo `EjesTecnicos`/`CriterioDeSeleccion`/`CriterioPorEjesTecnicos`
+  (dejando el `PcBuilder.java` ya-commiteado) y viendo el fallo de compilación
+  real (`cannot find symbol: method mother(Gama)`, mismatch de interfaz en
+  `PcBuilder.java:213`).
+- **T4c** (D9): `EjesTecnicos.mother(Gama gamaPedida)` rankea el tier de
+  chipset por distancia a un target (ALTA→1/X-Z, MEDIA→2/B, BAJA→3/A-H);
+  sin gama pedida o con `DESCONOCIDA`, sin target, cae al orden absoluto de
+  T3. `EjesTecnicos.MOTHER` se preserva como `mother(null)` — ningún test
+  ni caller previo cambia. `CriterioDeSeleccion.elegir` gana un parámetro
+  `ContextoDeArmado`; sólo el criterio de mother lo usa de verdad (ctor por
+  `Function<ContextoDeArmado, Comparator<TechSpecs>>` en
+  `CriterioPorEjesTecnicos`), el resto de los slots siguen con su
+  `Comparator<TechSpecs>` fijo e ignoran el contexto. Confirmado que el
+  ripple de la firma no sale de `ar.scraper.pcs` (grep de `CriterioDeSeleccion`
+  y `elegir(` fuera de `pcs/`: cero resultados) — no hizo falta el STOP.
+
+**Las cuatro builds de aceptación** (TSV de hardware, 3360 filas, mismo
+catálogo reclasificado que T1-T3, sin presupuesto — `MedirT4.java`, scratch):
+
+```
+========== (1) NINGUNA ==========
+  mother           $   284.037 | Mother Asrock Z790I Lightning WIFI ITX DDR5 S1700
+  cpu              $   588.270 | Procesador Intel Core i7 14700F 5.4GHz Turbo Socket 1700 Raptor Lake
+  ram              $ 1.102.200 | Memoria Team DDR5 32GB (2x16GB) 7600MHz T-Force Delta RGB Black CL36
+  gabinete         $    22.500 | GABINETE NOVA CM-04Q1 MICRO ATX P/MOTHER A520M B550M H510M A620M
+  fuente           $   949.990 | Fuente MSI 1600W 80 Plus Titanium Modular MEG AI1600T ATX 3.1 PCIe 5.1
+  almacenamiento   $   918.990 | Disco sólido SSD Kingston NV3 4TB M.2 NVMe PCIe 4.0 6000MB/s
+
+========== (2) MEDIA, DDR5, AMD, ramDual, wifi, NVME, conGpu NVIDIA ==========
+  mother           $    83.300 | OUTLET - Motherboard Asrock B850M Pro A Wifi DDR5 AM5
+  cpu              $   382.999 | Procesador AMD Ryzen 5 9600 6/12 5.2GHz AM5
+  ram              $ 1.102.200 | Memoria Team DDR5 32GB (2x16GB) 7600MHz T-Force Delta RGB Black CL36
+  gabinete         $    22.500 | GABINETE NOVA CM-04Q1 MICRO ATX P/MOTHER A520M B550M H510M A620M
+  fuente           $   949.990 | Fuente MSI 1600W 80 Plus Titanium Modular MEG AI1600T ATX 3.1 PCIe 5.1
+  gpu              $ 2.680.028 | PC Powered by MSI Ultimate AMD Ryzen 7 5700X B550 32GB RAM 1TB RTX 5060 750W Gold Cpu Cooler WIFI
+  almacenamiento   $   918.990 | Disco sólido SSD Kingston NV3 4TB M.2 NVMe PCIe 4.0 6000MB/s
+
+========== (3) BAJA, DDR4, INTEL ==========
+  mother           $    79.999 | Outlet Motherboard ASRock H510 PRO BTC+ Mining S1200 DDR4
+  cpu              $   157.089 | Micro Intel I3-10100F 4.3Ghz 6Mb S.1200
+  ram              $   199.030 | Memoria RAM Patriot Viper Steel DDR4 32GB (2x16GB) 3600MHz CL18
+  gabinete         $    27.800 | OUTLET - Gabinete Gamer Zer01 Gaming Gemini 1 Fan Fixed Rgb
+  fuente           $   949.990 | Fuente MSI 1600W 80 Plus Titanium Modular MEG AI1600T ATX 3.1 PCIe 5.1
+  almacenamiento   $   918.990 | Disco sólido SSD Kingston NV3 4TB M.2 NVMe PCIe 4.0 6000MB/s
+
+========== (4) ALTA, DDR5, INTEL, AMD gpu, conGpu ==========
+  mother           $   284.037 | Mother Asrock Z790I Lightning WIFI ITX DDR5 S1700
+  cpu              $   588.270 | Procesador Intel Core i7 14700F 5.4GHz Turbo Socket 1700 Raptor Lake
+  cooler           $     1.800 | Paño de limpieza Arctic para Pasta térmica - Cleaner activo - por unidad
+  ram              $ 1.102.200 | Memoria Team DDR5 32GB (2x16GB) 7600MHz T-Force Delta RGB Black CL36
+  gabinete         $    22.500 | GABINETE NOVA CM-04Q1 MICRO ATX P/MOTHER A520M B550M H510M A620M
+  fuente           $   949.990 | Fuente MSI 1600W 80 Plus Titanium Modular MEG AI1600T ATX 3.1 PCIe 5.1
+  gpu              $ 1.324.990 | Placa de Video ASRock AMD Radeon RX 9070 16GB Challenger
+  almacenamiento   $   918.990 | Disco sólido SSD Kingston NV3 4TB M.2 NVMe PCIe 4.0 6000MB/s
+```
+
+Ninguna build tuvo `sinStock`/`sinCompatible`/`mensajes` — el catálogo
+medido siempre tuvo al menos un candidato compatible por slot pedido. Lo
+que las cuatro confirman:
+
+- **(1) vs (4)**: la mother `Z790I` (tier=1, X/Z) gana en las dos —
+  coincide con D9: sin gama pedida (T3 absoluto) Y con gama ALTA pedida
+  (target=1) el mismo tier de X/Z queda arriba; son el mismo pick por
+  razones distintas, no una casualidad.
+- **(2)**: con gama MEDIA pedida, la mother pasa de la `Z790I` ($284k,
+  tier=1) a una `B850M` OUTLET ($83k, tier=2/B) — D9 funcionando en el
+  catálogo real, no sólo en el test: el tier B le gana al X/Z porque está
+  más cerca del target MEDIA=2.
+- **(3)**: DDR4 + INTEL pedidos filtran correctamente a una mother/CPU de
+  socket viejo (`S1200`/`H510`) — ninguna DDR5 ni AMD se cuela.
+- **Hallazgo del catálogo, no de T4**: el pick de GPU en (2) es
+  `"PC Powered by MSI Ultimate ... RTX 5060 ..."` — una PC ARMADA ENTERA
+  categorizada como `GPU`, no una placa de video suelta (el guard de T1
+  contra "PC armada" no cubrió este nombre). Y el pick de cooler en (4) es
+  un paño de limpieza para pasta térmica, no un cooler — `EjesTecnicos.COOLER`
+  no tiene eje (sólo precio, T3b-2 "trabajo pendiente"), así que el ítem
+  más barato de una categoría con ruido de clasificación gana. Ninguno de
+  los dos es un bug de T4 — las reglas de T4 (marca/ddr/tipo) hicieron
+  exactamente lo que tenían que hacer sobre esos candidatos — pero quedan
+  anotados acá porque son ruido de clasificación real que un usuario vería
+  en `/pcs`. No se tocó nada para T4: está fuera del scope de esta tarea
+  (T5+/otro ODD) y el catálogo scrapeado se corrige en el próximo run como
+  documenta D5 de T1.
