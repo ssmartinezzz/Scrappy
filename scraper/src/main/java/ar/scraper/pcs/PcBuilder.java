@@ -1,6 +1,7 @@
 package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
+import ar.scraper.pcs.reglas.ReglaCapacidadMinima;
 import ar.scraper.pcs.reglas.ReglaCertificacion;
 import ar.scraper.pcs.reglas.ReglaCompatibilidad;
 import ar.scraper.pcs.reglas.ReglaDdr;
@@ -13,7 +14,9 @@ import ar.scraper.pcs.reglas.ReglaRamDual;
 import ar.scraper.pcs.reglas.ReglaSocket;
 import ar.scraper.pcs.reglas.ReglaSocketCooler;
 import ar.scraper.pcs.reglas.ReglaSodimm;
+import ar.scraper.pcs.reglas.ReglaTamanioGabinete;
 import ar.scraper.pcs.reglas.ReglaTipoAlmacenamiento;
+import ar.scraper.pcs.reglas.ReglaTipoCoolerPedido;
 import ar.scraper.pcs.reglas.ReglaWatts;
 import ar.scraper.pcs.reglas.ReglaWifi;
 
@@ -40,15 +43,25 @@ import java.util.stream.Collectors;
  */
 public class PcBuilder {
 
-    // Opens only for gama ALTA (D4, T3b-2) — depends on the requested tier,
-    // never on the cpu pick itself: "and the CPU doesn't include a cooler"
-    // fell in T1 (309/313 CPUs say nothing about a cooler either way, see
-    // CLAUDE.md "coolerIncluido no existe"). ReglaSocketCooler (D6, T2d)
-    // vetoes when the cooler names sockets and the mother's socket isn't
-    // among them; either side unparsed abstains, same as every other rule.
-    private static final SlotDeArmado SLOT_COOLER =
-            new SlotDeArmado("cooler", "Cooler", List.of(new ReglaSocketCooler()),
-                    new CriterioPorEjesTecnicos(EjesTecnicos.COOLER));
+    /**
+     * Opens for gama ALTA (D4, T3b-2) — a decision about the requested tier,
+     * never about the cpu pick itself: "and the CPU doesn't include a cooler"
+     * fell in T1 (309/313 CPUs say nothing about a cooler either way, see
+     * CLAUDE.md "coolerIncluido no existe"). ReglaSocketCooler (D6, T2d)
+     * vetoes when the cooler names sockets and the mother's socket isn't
+     * among them; either side unparsed abstains, same as every other rule.
+     *
+     * <p>Fase 9 (D4) adds the second way in: asking for a cooling technology
+     * opens the slot at any tier. Asking for liquid cooling and getting a
+     * build with no cooler in it does not answer the question that was
+     * asked. Built fresh per call, same reason as {@link #slotsFijos}: the
+     * requested tipo bakes into {@link ReglaTipoCoolerPedido#motivo()}.</p>
+     */
+    private static SlotDeArmado slotCooler(PreferenciasDeArmado prefs) {
+        return new SlotDeArmado("cooler", "Cooler",
+                List.of(new ReglaSocketCooler(), new ReglaTipoCoolerPedido(prefs.tipoCooler())),
+                new CriterioPorEjesTecnicos(EjesTecnicos.COOLER));
+    }
 
     public PcBuilder() {
     }
@@ -92,7 +105,9 @@ public class PcBuilder {
         // Cooler is inserted right after cpu — pick order per the design table —
         // and only for gama ALTA (D4); with null/BAJA/MEDIA/DESCONOCIDA it never
         // appears anywhere below.
-        if (gamaPedida == Gama.ALTA) slots.add(indiceDe(slots, "cpu") + 1, SLOT_COOLER);
+        if (gamaPedida == Gama.ALTA || preferencias.tipoCooler() != null) {
+            slots.add(indiceDe(slots, "cpu") + 1, slotCooler(preferencias));
+        }
         // GPU is inserted before Almacenamiento — pick order 6, per the design table —
         // and only when the caller opted in; otherwise it never appears anywhere below.
         if (conGpu) slots.add(slots.size() - 1, slotGpu(preferencias));
@@ -106,7 +121,11 @@ public class PcBuilder {
         // slot caro vaciarle la caja a todos los que vienen después.
         CuotasDePresupuesto cuotas = CuotasDePresupuesto.para(slots);
         double arrastre = 0;
-        int wattsMin = EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu);
+        // D5: el piso pedido SUBE el del armado, nunca lo baja. El de la gama
+        // es un piso de seguridad del armado (una GPU de gama alta consume lo
+        // que consume), el pedido es del usuario; manda el más alto.
+        int wattsMin = Math.max(EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu),
+                preferencias.wattsMinimos() != null ? preferencias.wattsMinimos() : 0);
         Certificacion certMin = EstimadorDeConsumo.certificacionMinima(gamaPedida);
         ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin, preferencias);
 
@@ -225,12 +244,17 @@ public class PcBuilder {
                         List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
                                 new ReglaRamDual(prefs.ramDual())),
                         new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
-                new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor()),
+                // D1, fase 9: ReglaFormFactor (¿entra la mother?) y
+                // ReglaTamanioGabinete (¿es del tamaño pedido?) son dos ejes
+                // distintos, no uno — ver TamanioGabinete.
+                new SlotDeArmado("gabinete", "Gabinete",
+                        List.of(new ReglaFormFactor(), new ReglaTamanioGabinete(prefs.tamanioGabinete())),
                         new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
                 new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
                         new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE)),
                 new SlotDeArmado("almacenamiento", "Almacenamiento",
-                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento())),
+                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
+                                new ReglaCapacidadMinima(prefs.capacidadMinimaGb())),
                         new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO)));
     }
 
