@@ -25,6 +25,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * objects (both tables themselves, and its six lookups) are untouched by
  * this rollback — dropping only the columns V36 added leaves them standing,
  * same as {@link V35RollbackRoundTripTest} verifies for V34's.</p>
+ *
+ * <p>Runs {@code V37}'s block first: rollbacks compose in reverse order, and
+ * {@code V37} hangs a {@code tipo_cooler_id} off {@code preferencia_armador}
+ * that would block this one's {@code DROP TABLE tipo_cooler}. See
+ * {@link V37RollbackRoundTripTest}.</p>
  */
 @DisplayName("V36 migration — the documented rollback actually runs, and is contained")
 class V36RollbackRoundTripTest extends PostgresTestBase {
@@ -41,6 +46,12 @@ class V36RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // Los rollbacks COMPONEN en orden inverso: V37 agrega
+                // preferencia_armador.tipo_cooler_id, que referencia la tabla
+                // tipo_cooler que crea V36, así que el DROP TABLE de abajo falla
+                // mientras V37 siga aplicada. Se revierte V37 primero en vez de
+                // ensuciar el bloque de V36 con columnas que no creó.
+                st.execute(DocumentedRollback.sqlFor("V37"));
                 st.execute(DocumentedRollback.sqlFor("V36"));
 
                 for (String tabla : TABLAS_DE_V36) {
