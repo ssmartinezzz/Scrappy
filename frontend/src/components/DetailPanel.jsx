@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { fetchHistorial, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
+import { fetchHistorial, fetchProductoDetalle, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
@@ -334,16 +334,42 @@ function PriceContext({ product: p, st }) {
 }
 
 // ─── DetailPanel ─────────────────────────────────────────────────────────────
-export default function DetailPanel({ product: p, catStats, onClose }) {
+export default function DetailPanel({ product, catStats, onClose }) {
   const [hist, setHist] = useState(null);
+
+  // No todos los llamadores traen una fila de catálogo. Un ítem de un outfit o
+  // de una PC guardada es una FOTO —{slot, nombre, precio, url, img, key}— y
+  // sin `ml` ni `categoria` este mismo componente se dibuja a medias: sin
+  // gauge, sin segmento/percentil/z-score, sin distribución y sin link al
+  // historial completo. El síntoma se lee como "otro panel", pero el archivo
+  // siempre fue el mismo; lo que cambia es qué tan flaco llega el objeto.
+  // Se hidrata por el handle corto, que es la única pieza que el llamador no
+  // puede derivar solo, y sólo cuando falta algo: una fila de /catalogo o de
+  // /favoritos ya viene entera y no pide nada.
+  const [vivo, setVivo] = useState(null);
+  useEffect(() => {
+    setVivo(null);
+    if (product.ml || !product.key) return;
+    let montado = true;
+    fetchProductoDetalle(product.key)
+      .then(d => { if (montado && d?.producto) setVivo(d.producto); })
+      .catch(() => {});
+    return () => { montado = false; };
+  }, [product.key, product.ml]);
+
+  // La foto gana sobre el catálogo vivo en lo que ya venía: el nombre y el
+  // precio que muestra la tarjeta desde la que se abrió el panel tienen que
+  // ser los mismos que el panel muestra. Lo vivo sólo llena lo que faltaba.
+  const p = vivo ? { ...vivo, ...product } : product;
+
   const ml  = p.ml || {};
   // catStats está keyeado por la categoria CANÓNICA desde V16 (design DD6),
   // no por la salida de normCat — normCat sigue vivo solo para slugify/URLs.
   const st  = catStats?.[p.categoria];
 
   useEffect(() => {
-    if (p.url) fetchHistorial(p.url).then(setHist).catch(() => setHist(null));
-  }, [p.url]);
+    if (product.url) fetchHistorial(product.url).then(setHist).catch(() => setHist(null));
+  }, [product.url]);
 
   // Swipe-to-dismiss (TASK-8) — native touch events, no library.
   // Right-ward swipe only; horizontal-dominant gesture required to avoid

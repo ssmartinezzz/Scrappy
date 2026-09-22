@@ -160,7 +160,8 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
         try (java.sql.Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("""
                      SELECT i.outfit_id, i.clase, i.ranura, i.url, i.sitio, i.nombre, i.precio,
-                            i.img, i.categoria, i.marca, p.precio AS precio_actual
+                            i.img, i.categoria, i.marca, p.precio AS precio_actual,
+                            p.producto_key
                      FROM saved_outfit_item i
                      LEFT JOIN productos p ON p.url = i.url
                      ORDER BY i.outfit_id, i.clase, i.posicion
@@ -178,6 +179,12 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
                 item.put("marca",  rs.getString("marca"));
                 double precioActual = rs.getDouble("precio_actual");
                 item.put("precioActual", rs.wasNull() ? null : precioActual);
+                // Handle corto del producto vivo. Sin él, el panel de detalle
+                // que abre un ítem guardado no puede pedir la fila entera del
+                // catálogo y queda sin ML, sin distribución y sin link al
+                // historial completo. null cuando el producto ya no existe:
+                // no hay fila que pedir, igual que precioActual.
+                item.put("key", rs.getString("producto_key"));
                 (esSlot ? slots : suplementos)
                         .computeIfAbsent(rs.getInt("outfit_id"), k -> new ArrayList<>())
                         .add(item);
