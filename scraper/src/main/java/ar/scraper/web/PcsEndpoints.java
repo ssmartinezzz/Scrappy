@@ -10,6 +10,8 @@ import ar.scraper.pcs.PcBuilder;
 import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
+import ar.scraper.pcs.PreferenciasDeArmado;
+import ar.scraper.pcs.PreferenciasWire;
 import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.pcs.TechSpecs;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -53,13 +55,26 @@ class PcsEndpoints {
 
     /** {@code gama} is the wire value ("economica"/"media"/"alta"); blank/absent means no tier filter. */
     ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
+        return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
+    }
+
+    /**
+     * {@code ddr}/{@code marcaCpu}/{@code marcaGpu}/{@code tipoAlmacenamiento} are wire values
+     * (pc-builder-deep-taxonomy D8), blank/absent meaning "not requested" — same contract as
+     * {@code gama}. {@code ramDual}/{@code wifi} are {@code null} when absent.
+     */
+    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi) {
         Gama gamaPedida;
+        PreferenciasDeArmado prefs;
         try {
             gamaPedida = GamaWire.parse(gama);
+            prefs = PreferenciasWire.parse(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
         } catch (IllegalArgumentException e) {
             ObjectNode resp = JsonNodeFactory.instance.objectNode();
             resp.put("ok", false);
-            resp.put("mensaje", "gama inválida: " + gama);
+            resp.put("mensaje", e.getMessage());
             return ResponseEntity.badRequest().body(resp);
         }
 
@@ -73,7 +88,7 @@ class PcsEndpoints {
                         .filter(s -> !s.isBlank())
                         .collect(Collectors.toSet());
 
-        PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida);
+        PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs);
         return ResponseEntity.ok(PcBuildJson.toJson(build));
     }
 
@@ -89,11 +104,15 @@ class PcsEndpoints {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         Object gamaRaw = body.get("gama");
         Gama gama;
+        PreferenciasDeArmado prefs;
         try {
             gama = GamaWire.parse(gamaRaw != null ? String.valueOf(gamaRaw) : null);
+            prefs = PreferenciasWire.parse(
+                    stringDe(body, "ddr"), stringDe(body, "marcaCpu"), stringDe(body, "marcaGpu"),
+                    stringDe(body, "tipoAlmacenamiento"), booleanDe(body, "ramDual"), booleanDe(body, "wifi"));
         } catch (IllegalArgumentException e) {
             resp.put("ok", false);
-            resp.put("mensaje", "gama inválida: " + gamaRaw);
+            resp.put("mensaje", e.getMessage());
             return ResponseEntity.badRequest().body(resp);
         }
         if (gama == null) {
@@ -103,9 +122,19 @@ class PcsEndpoints {
         }
         Double presupuesto = body.get("presupuesto") != null ? asDouble(body.get("presupuesto")) : null;
         boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
-        PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu);
+        PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu, prefs);
         preferenciaArmador.guardar(Sujeto.de(actorResolver), preferencia);
         return ResponseEntity.ok(preferenciaJson(preferencia));
+    }
+
+    private static String stringDe(Map<String, Object> body, String clave) {
+        Object valor = body.get(clave);
+        return valor != null ? String.valueOf(valor) : null;
+    }
+
+    private static Boolean booleanDe(Map<String, Object> body, String clave) {
+        Object valor = body.get(clave);
+        return valor != null ? Boolean.parseBoolean(String.valueOf(valor)) : null;
     }
 
     private ObjectNode preferenciaJson(PreferenciaArmador p) {
@@ -113,7 +142,18 @@ class PcsEndpoints {
         json.put("gama", GamaWire.wire(p.gama()));
         if (p.presupuesto() != null) json.put("presupuesto", p.presupuesto()); else json.putNull("presupuesto");
         json.put("conGpu", p.conGpu());
+        PreferenciasDeArmado prefs = p.preferencias();
+        putNullableString(json, "ddr", PreferenciasWire.wireDdr(prefs.ddr()));
+        putNullableString(json, "marcaCpu", PreferenciasWire.wireMarcaCpu(prefs.marcaCpu()));
+        putNullableString(json, "marcaGpu", PreferenciasWire.wireMarcaGpu(prefs.marcaGpu()));
+        putNullableString(json, "tipoAlmacenamiento", PreferenciasWire.wireTipoAlmacenamiento(prefs.tipoAlmacenamiento()));
+        json.put("ramDual", Boolean.TRUE.equals(prefs.ramDual()));
+        json.put("wifi", Boolean.TRUE.equals(prefs.wifi()));
         return json;
+    }
+
+    private static void putNullableString(ObjectNode json, String campo, String valor) {
+        if (valor != null) json.put(campo, valor); else json.putNull(campo);
     }
 
     // ─── PCs guardadas ───────────────────────────────────────────────────────

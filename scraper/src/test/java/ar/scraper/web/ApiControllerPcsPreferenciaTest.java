@@ -12,6 +12,8 @@ import ar.scraper.outfits.RecommendationService;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
+import ar.scraper.pcs.PreferenciasDeArmado;
+import ar.scraper.pcs.TipoAlmacenamiento;
 import ar.scraper.web.support.SujetoDePrueba;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
@@ -145,6 +147,81 @@ class ApiControllerPcsPreferenciaTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        verifyNoInteractions(preferenciaArmador);
+    }
+
+    // ── preferencias técnicas (pc-builder-deep-taxonomy T5c) ──────────────
+
+    @Test
+    void getReturns200WithTechnicalPreferencesInTheJson() {
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado(
+                "DDR5", "AMD", "NVIDIA", TipoAlmacenamiento.NVME, true, true);
+        when(preferenciaArmador.cargar(any()))
+                .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true, prefs)));
+
+        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+        ObjectNode body = resp.getBody();
+
+        assertThat(body.get("ddr").asText()).isEqualTo("ddr5");
+        assertThat(body.get("marcaCpu").asText()).isEqualTo("amd");
+        assertThat(body.get("marcaGpu").asText()).isEqualTo("nvidia");
+        assertThat(body.get("tipoAlmacenamiento").asText()).isEqualTo("nvme");
+        assertThat(body.get("ramDual").asBoolean()).isTrue();
+        assertThat(body.get("wifi").asBoolean()).isTrue();
+    }
+
+    @Test
+    void getReturns200WithNullTechnicalFieldsAndFalseBooleansWhenNothingRequested() {
+        when(preferenciaArmador.cargar(any()))
+                .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
+
+        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+        ObjectNode body = resp.getBody();
+
+        assertThat(body.get("ddr").isNull()).isTrue();
+        assertThat(body.get("marcaCpu").isNull()).isTrue();
+        assertThat(body.get("marcaGpu").isNull()).isTrue();
+        assertThat(body.get("tipoAlmacenamiento").isNull()).isTrue();
+        assertThat(body.get("ramDual").asBoolean()).isFalse();
+        assertThat(body.get("wifi").asBoolean()).isFalse();
+    }
+
+    @Test
+    void putValidPayloadWithTechnicalPreferencesPersistsAndReturns200() {
+        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of(
+                "gama", "alta", "ddr", "ddr4", "marcaCpu", "intel", "marcaGpu", "amd",
+                "tipoAlmacenamiento", "sata", "ramDual", true, "wifi", false));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        ObjectNode body = resp.getBody();
+        assertThat(body.get("ddr").asText()).isEqualTo("ddr4");
+        assertThat(body.get("marcaCpu").asText()).isEqualTo("intel");
+        assertThat(body.get("marcaGpu").asText()).isEqualTo("amd");
+        assertThat(body.get("tipoAlmacenamiento").asText()).isEqualTo("sata");
+        assertThat(body.get("ramDual").asBoolean()).isTrue();
+        assertThat(body.get("wifi").asBoolean()).isFalse();
+        verify(preferenciaArmador).guardar(any(), eq(new PreferenciaArmador(Gama.ALTA, null, false,
+                new PreferenciasDeArmado("DDR4", "INTEL", "AMD", TipoAlmacenamiento.SSD, true, false))));
+    }
+
+    @Test
+    void putInvalidDdrReturns400AndNeverPersists() {
+        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "ddr", "ddr3"));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("ddr");
+        verifyNoInteractions(preferenciaArmador);
+    }
+
+    @Test
+    void putInvalidTipoAlmacenamientoReturns400AndNeverPersists() {
+        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(
+                Map.of("gama", "alta", "tipoAlmacenamiento", "ssd"));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("tipoAlmacenamiento");
         verifyNoInteractions(preferenciaArmador);
     }
 }
