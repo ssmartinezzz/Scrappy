@@ -37,11 +37,18 @@ Corrida antes de decidir nada, sobre las filas reales de cada categoría:
 | Cooler | 342 | palabra de cooler 314; líquidos 171; de esos, **84 (49%) declaran radiador** (240mm×41, 360mm×38, 420mm×2, 280mm×1, 120mm×2) |
 | Gabinete | 622 | tamaño de torre **46 (7%)**: MID 43 · FULL 2 · MINI 1. Form factor **54 (9%)** |
 
-⚠️ **El gabinete es el eje pobre, y es un dato, no una estimación.** Con la
-política de abstención invertida (ver D2) pedir `mid` deja 43 candidatos,
-`full` deja **2** y `mini` deja **1**. Se construye igual porque el usuario
-eligió ese eje explícitamente sabiendo el número, pero el mensaje del slot
-tiene que poder explicarlo.
+⚠️ **Esos conteos son sobre TODAS las filas, y el armador no ve todas.** La
+corrida de T8 lo hizo visible: el snapshot del armador tiene sólo las filas
+**activas**, y sobre ésas el gabinete es **40 de 575** — MID 39 · MINI 1 ·
+**FULL 0**. Los dos únicos full tower del catálogo están soft-deleted, así
+que hoy pedir `full` no deja dos candidatos: deja **ninguno**, y el slot sale
+en `sinCompatible`. Toda medición que pretenda describir lo que el armador
+hace tiene que filtrar `activo IS NOT FALSE`; la del armado lo hacía y las
+de cobertura no.
+
+⚠️ **El gabinete es el eje pobre, y es un dato, no una estimación.** Se
+construye igual porque el usuario eligió ese eje explícitamente sabiendo el
+número, pero el mensaje del slot tiene que poder explicarlo.
 
 Las dos unidades vienen **pegadas** al número en el 100% de las filas
 (`750W`, `1TB`) — medido: cero filas con `750 W` / `1 TB` separados. Los
@@ -90,13 +97,13 @@ base (sigue diferido desde la fase 7), y probar varias plataformas de mother
       Checks: tests de regla + `NINGUNA` idéntica al overload anterior.
 - [x] **T4 — Armado: cableado en `PcBuilder` (D4/D5).** Slot cooler abierto
       por pedido; piso de watts `max`. Checks: test de armado real.
-- [ ] **T5 — Borde: endpoints + agente.** `ApiController`/`PcsEndpoints`
+- [x] **T5 — Borde: endpoints + agente.** `ApiController`/`PcsEndpoints`
       query params y JSON de preferencia; `propose_pc`; `docs/openapi.yaml`.
-- [ ] **T6 — Persistencia: `V37`.** Lookup `tamanio_gabinete`, columnas en
+- [x] **T6 — Persistencia: `V37`.** Lookup `tamanio_gabinete`, columnas en
       `preferencia_armador` y `producto_tech_specs`, write path e indexer.
-- [ ] **T7 — UI: `/pcs`.** Chips de capacidad mínima, tamaño de gabinete,
+- [x] **T7 — UI: `/pcs`.** Chips de capacidad mínima, tamaño de gabinete,
       cooler y watts mínimos; `resumenSpecs` muestra los campos nuevos.
-- [ ] **T9 — Total estimado en pesos y en dólares.** Pedido del usuario
+- [x] **T9 — Total estimado en pesos y en dólares.** Pedido del usuario
       (2026-09-22, a mitad de la fase): el total de `/pcs` muestra además su
       equivalente en USD, tomando el **mismo servicio que el badge del
       header** (`GET /api/indices` → `usd.ultimoValor`, dólar oficial de
@@ -104,7 +111,7 @@ base (sigue diferido desde la fase 7), y probar varias plataformas de mother
       línea en dólares **no se muestra** — un factor nunca viaja sin marcar,
       y no hay tasa hardcodeada de reemplazo (ver CLAUDE.md, "Índices y
       señales"). Checks: test de `PcsPanel` con y sin dato de dólar.
-- [ ] **T8 — Docs y medición final.** `CLAUDE.md`, `docs/DATABASE.md`, y una
+- [x] **T8 — Docs y medición final.** `CLAUDE.md`, `docs/DATABASE.md`, y una
       corrida real de `PcBuilder.armar` sobre la dev DB con el antes/después.
 
 ## Criterios de aceptación
@@ -115,3 +122,70 @@ base (sigue diferido desde la fase 7), y probar varias plataformas de mother
    legible cuando lo vacía (`sinCompatible` + `motivo()`).
 3. Pedir un piso de watts por debajo del de la gama no baja el piso real (D5).
 4. Suite entera verde en el commit (`TEST-1`): backend, frontend.
+
+## T8 — La medición (dev DB, 6875 filas de `tecnologia` activas, 2026-09-22)
+
+Corriendo `PcBuilder.armar` de verdad sobre el catálogo real. El **antes** es
+`aec48af` (master antes de mergear la fase 9) en un worktree aparte, con el
+mismo catálogo y el mismo armado; no es una estimación ni una re-lectura del
+diff.
+
+| Armado | Slot | Antes (`aec48af`) | Después (fase 9) |
+|---|---|---|---|
+| sin presupuesto, GPU, gama alta | cooler | `Water Cooler 240mm` $66.700 | `Be Quiet! SILENT LOOP 3` **420mm** $244.035 |
+| $2.000.000, GPU, gama alta | cooler | `Water Cooler 240mm` $66.700 | `Lovingcool` **360mm** $77.800 |
+| $1.000.000, gama MEDIA, sin GPU | fuente | `Corsair RMe750` **750W** PLATINUM $157.536 | `Gamemax GX-1050` **1050W** PLATINUM $196.700 |
+| $1.000.000, gama MEDIA, sin GPU | cooler | *(no existía el slot)* | `CPU Cooler Raptor Cryo` AIRE $18.400 |
+
+El resto de los slots no se movió en ninguno de los tres armados: mother, cpu,
+ram, gabinete, gpu y almacenamiento eligen exactamente lo mismo antes y después.
+Eso es lo que se quería — los dos ejes nuevos tocan sólo los dos slots que
+nombran.
+
+⚠️ **El eje de watts se ejerce menos de lo que parece.** En los armados de gama
+alta la fuente ya elegía el tope de certificación que entraba en la cuota
+(TITANIUM 1600W y PLATINUM 1050W), así que el eje nuevo no cambió nada ahí. El
+único armado donde se ve es el de gama media, porque es el único con dos
+certificaciones iguales compitiendo. Es una mejora real y acotada, no una que
+cambie todos los armados.
+
+### Las preferencias nuevas, ejercidas
+
+| Pedido | Qué hizo |
+|---|---|
+| disco ≥ 2 TB | `HD HDD 4TB WD BLUE SATA III` $356.510 (el disco de 1 TB que elegía sin pedido ya no califica) |
+| fuente ≥ 1000 W | `Gamemax GX-1050` — el mismo que ya elegía; el piso no bajó nada |
+| cooler LIQUIDO | `Lovingcool 360mm` |
+| gabinete MID | `TEROS TE-1036S MID TOWER` $44.229 — contra los $22.500 del NOVA sin pedir tamaño |
+| gabinete FULL | **slot vacío**, `sinCompatible`: *"no es un gabinete FULL, el tamaño pedido"*. Es el caso de cobertura cero descrito arriba |
+| cooler AIRE en gama media | abre el slot, que sin pedido no existiría |
+
+### Dos defectos que sólo aparecieron al armar de verdad
+
+Ningún test los veía, porque los dos son sobre qué hay en el catálogo, no sobre
+qué hace el código con lo que le das.
+
+1. **Un fan de gabinete ganaba el slot de refrigeración por aire.** El guard de
+   la fase 7 mira **sólo el primer token**, así que ataja `"Fan Cooler 120mm..."`
+   y dejaba pasar `"Cooler Fan 120mm..."`, que es el mismo producto con las
+   palabras al revés. Las 6 filas activas que lideran así son fans de 120/140mm
+   y ninguna es un cooler de CPU; la más barata ($7.250) ganaba el slot. Ahora
+   el líder cubre el par adyacente, y el pick pasó a `CPU Cooler Raptor Cryo`
+   ($18.400), que es un cooler de CPU.
+
+2. **Un disco externo USB ganaba el slot del disco.** Con un piso de capacidad
+   pedido, `"HD HDD EXTERNO 4TB SEAGATE PORTABLE USB 3.0"` le ganaba a los
+   internos — y un disco externo no es el disco de la PC que se está armando.
+   18 de las 266 filas activas de Almacenamiento son externas. Ahora
+   `AlmacenamientoSpecsReader` **abstiene la tecnología** de un externo en vez
+   de vetarlo con una regla nueva: es la política de los pendrives, la
+   abstención es el último escalón del eje y el producto se hunde solo, pero
+   sigue siendo elegible como último recurso. `externo`/`externa` sola cubre
+   las 18 y `portable`/`portatil` no suma ninguna por su cuenta, así que no
+   entra al vocabulario y no puede traer falsos positivos.
+
+   Esto rompió dos tests existentes que usaban un disco **externo** como fixture
+   de "esto es un HDD". No es el contrato de refactor (`CODE-2`): es un cambio
+   de comportamiento deliberado, y lo que esos tests querían probar era la
+   lectura del keyword, no la externalidad. Se les cambió el fixture por un
+   disco interno real del catálogo.

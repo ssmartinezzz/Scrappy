@@ -624,13 +624,34 @@ completos en [`odd/tasks/pc-builder-fine-grained-prefs.md`](./odd/tasks/pc-build
 |---|---|
 | **Cuatro preferencias nuevas**, mismo molde que las seis de la fase 7 | `capacidadMinimaGb` (piso de GB del disco) · `tamanioGabinete` (`mini\|mid\|full`) · `tipoCooler` (`liquido\|aire`) · `wattsMinimos` (piso de la fuente). Reglas `ReglaCapacidadMinima`, `ReglaTamanioGabinete`, `ReglaTipoCoolerPedido`; los watts NO son regla nueva (ver abajo) |
 | ⚠️ **El tamaño de torre es un eje DISTINTO del form factor, y "mid-ATX" no existe** | `TamanioGabinete` (`MINI`/`MID`/`FULL`/`DESCONOCIDO`) es cuánto ocupa el gabinete; `formFactor` (ITX/MATX/ATX/EATX) es qué placa entra. El catálogo los nombra por separado —`"MID-TOWER EATX"` trae los dos— y el veto Gabinete ⊇ Mother sigue corriendo sobre `formFactor`, sin tocarse |
-| ⚠️ **El gabinete es el eje pobre, y es un dato medido** | Sólo **46 de 622** gabinetes declaran su tamaño (MID 43 · FULL 2 · MINI 1, dev DB 2026-09-22). Con la abstención vetando (D2, la misma inversión que `gama`), pedir `mid` deja 43 candidatos y `full` deja **dos**. `/pcs` lo dice en pantalla debajo de los chips: el resultado es contraintuitivo y el número tiene que estar a la vista |
+| ⚠️ **El gabinete es el eje pobre, y el número hay que medirlo sobre las filas ACTIVAS** | Sobre lo que el armador realmente ve —el snapshot, `activo IS NOT FALSE`— son **40 de 575**: MID 39 · MINI 1 · **FULL 0** (dev DB, 2026-09-22). Sobre el total de 622 filas dan 46 (MID 43 · FULL 2 · MINI 1), pero los dos full tower están soft-deleted, así que hoy pedir `full` no deja dos candidatos sino **ninguno**, y el slot sale en `sinCompatible`. Con la abstención vetando (D2, la misma inversión que `gama`), `/pcs` lo avisa en pantalla debajo de los chips: el resultado es contraintuitivo y el número tiene que estar a la vista. **Toda medición que pretenda describir lo que el armador hace tiene que filtrar por `activo`** — contar el catálogo entero describe otra cosa |
 | **Los dos pisos son "al menos", no valores exactos** | Pedir 1 TB admite un disco de 2 TB, que es justo el mejor candidato. Un piso de `0` se **rechaza** en el borde: un filtro que no filtra no es un pedido |
 | **Pedir un tipo de cooler ABRE el slot**, aunque la gama no sea ALTA | Hasta la fase 8 el cooler era una decisión de tier y sólo existía en gama alta. Pedir refrigeración líquida y recibir un armado sin cooler no responde la pregunta que se hizo. Sin pedido, byte por byte igual que antes |
 | **El piso de watts pedido SUBE, nunca baja** | `wattsMin = max(EstimadorDeConsumo.wattsMinimos(gama, conGpu), pedido)`. Pedir 550 W en un armado de gama alta con GPU (piso 1000) no puede dejarlo sin fuente suficiente. Por eso no hay `ReglaCompatibilidad` nueva: `ReglaWatts` ya veta contra `contexto.wattsMin()` y no cambió una línea |
 | **Dos ejes de ranking nuevos, y los dos cambian el default** | `COOLER`: tipo → **radiador desc** (entre dos AIO gana la de 360mm; 84 de los 171 líquidos lo declaran). `FUENTE`: certificación → **watts desc** — hasta acá el eje era la certificación sola, así que entre dos GOLD desempataba el precio y ganaba la más chica, apenas por encima del piso. La certificación sigue mandando: una GOLD de 650 W le gana a una sin certificar de 1200 W |
 | **`tamanioGabinete` y `radiadorMm` SÍ se persisten; los pisos pedidos no** | `V37` (ver [`docs/DATABASE.md`](./docs/DATABASE.md)): lookup `tamanio_gabinete` + columnas en `producto_tech_specs`. Los pisos son del PEDIDO, no del producto, así que van sólo a `preferencia_armador` |
 | ⚠️ **Los rollbacks componen en orden inverso, y `V37` lo hizo visible** | `V37` cuelga un `tipo_cooler_id` de `preferencia_armador` que referencia la tabla que creó `V36`, así que el `DROP TABLE tipo_cooler` del bloque de `V36` falla mientras `V37` siga aplicada. `V36RollbackRoundTripTest` ejecuta primero el bloque de `V37`; cada bloque sigue siendo dueño exactamente de sus propios objetos |
+
+⚠️ **Dos defectos que ningún test podía ver, porque son sobre qué hay en el
+catálogo y no sobre qué hace el código con lo que le das.** Los encontró armar
+de verdad contra la dev DB (T8 de la fase 9), y los dos son de la misma familia
+que el bracket y el service de la fase 8:
+
+- **Un fan de gabinete ganaba el slot de refrigeración por aire.** El guard de
+  fan de la fase 7 mira **sólo el primer token**, así que ataja `"Fan Cooler
+  120mm..."` y dejaba pasar `"Cooler Fan 120mm..."` — el mismo producto con las
+  palabras al revés. Las 6 filas activas que lideran así son fans de 120/140mm,
+  ninguna es un cooler de CPU, y la más barata ($7.250) se llevaba el slot.
+  `CoolerSpecsReader.esLiderCaseFan` cubre ahora el par adyacente (y pela un
+  `outlet` líder antes, igual que `startsWithAny`).
+- **Un disco externo USB ganaba el slot del disco.** Con un piso de capacidad
+  pedido, `"HD HDD EXTERNO 4TB SEAGATE PORTABLE USB 3.0"` le ganaba a los
+  internos. 18 de las 266 filas activas de Almacenamiento son externas.
+  `AlmacenamientoSpecsReader` **abstiene la tecnología** de un externo en vez de
+  vetarlo: misma política que los pendrives — la abstención es el último escalón
+  del eje, el producto se hunde solo y sigue siendo elegible como último
+  recurso. `externo`/`externa` sola cubre las 18; `portable`/`portatil` no suma
+  ninguna por su cuenta y por eso no entra al vocabulario.
 
 **El total estimado de `/pcs` va en pesos y en dólares**, con la cotización del
 **mismo servicio que el badge del header** (`GET /api/indices` → `usd.ultimoValor`,
