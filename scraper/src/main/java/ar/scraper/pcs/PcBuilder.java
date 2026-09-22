@@ -101,7 +101,11 @@ public class PcBuilder {
         List<String> sinStock = new ArrayList<>();
         List<String> sinCompatible = new ArrayList<>();
         Map<String, String> mensajes = new LinkedHashMap<>();
-        double remainingBudget = presupuesto;
+        // D3: con presupuesto, cada slot ve su cuota más lo que los anteriores
+        // dejaron sin gastar — nunca el restante entero, que dejaba al primer
+        // slot caro vaciarle la caja a todos los que vienen después.
+        CuotasDePresupuesto cuotas = CuotasDePresupuesto.para(slots);
+        double arrastre = 0;
         int wattsMin = EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu);
         Certificacion certMin = EstimadorDeConsumo.certificacionMinima(gamaPedida);
         ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin, preferencias);
@@ -132,19 +136,22 @@ public class PcBuilder {
 
             Product elegido;
             if (presupuesto > 0) {
-                final double rem = remainingBudget;
+                final double disponible = cuotas.cuota(slot.nombre(), presupuesto) + arrastre;
                 List<Product> affordable = compatibles.stream()
-                        .filter(p -> p.precio() <= rem)
+                        .filter(p -> p.precio() <= disponible)
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) {
                     elegido = slot.criterio().elegir(affordable, contextoActual);
                 } else {
-                    // Nothing fits: spend as little as possible, not the best rank.
+                    // D5: nothing fits the quota — spend as little as possible
+                    // rather than leave the slot empty. Un armado incompleto es
+                    // peor que uno con un componente flojo, y sinCompatible
+                    // sigue reservado para los vetos.
                     elegido = compatibles.stream()
                             .min(Comparator.comparingDouble(Product::precio))
                             .orElseThrow();
                 }
-                remainingBudget = Math.max(0, remainingBudget - elegido.precio());
+                arrastre = Math.max(0, disponible - elegido.precio());
             } else {
                 elegido = slot.criterio().elegir(compatibles, contextoActual);
             }

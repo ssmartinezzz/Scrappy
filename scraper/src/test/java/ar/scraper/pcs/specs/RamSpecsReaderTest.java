@@ -110,4 +110,12 @@ class RamSpecsReaderTest {
 
         assertThat(t.modulos()).isZero();
     }
+
+    @Test
+    void ddr2SeLeeAunqueNoEntreEnNingunaMotherDeHoy() {
+        // Una sola fila en el catálogo, pero sin leerla el reader abstiene y
+        // ReglaDdr no puede vetarla: una Kimota DDR2 2GB de 2007 entraba en un
+        // armado con mother DDR5 y ganaba el slot por ser lo más barato.
+        assertThat(leer("Memoria RAM Kimota DDR2 2GB 800MHz").ddr()).isEqualTo("DDR2");
+    }
 }
