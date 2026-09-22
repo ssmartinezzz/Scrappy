@@ -74,8 +74,10 @@ public final class ContextoDeArmado {
         if (!mother.ddr().isEmpty()) return mother.ddr();
         return switch (mother.socket()) {
             case "AM5", "LGA1851" -> "DDR5";
-            case "AM4" -> "DDR4";
-            default -> ""; // LGA1700 is a mixed platform (phase-1 finding) — stays abstained
+            case "AM4", "LGA1200" -> "DDR4"; // LGA1200 (10th/11th gen) is DDR4-only, unambiguous
+            // LGA1700 is mixed (phase-1 finding); LGA1151 and AM3 both span two DDR
+            // generations across their boards — all three stay abstained
+            default -> "";
         };
     }
 }
