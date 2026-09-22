@@ -12,6 +12,7 @@ from gevent import monkey  # noqa: E402  (tiene que ser el primer import)
 monkey.patch_all()
 
 import os  # noqa: E402
+import subprocess  # noqa: E402
 import sys  # noqa: E402
 from dataclasses import dataclass  # noqa: E402
 from pathlib import Path  # noqa: E402
@@ -47,17 +48,63 @@ def host() -> str:
     return url
 
 
+_PERF = Path(__file__).resolve().parents[1]
+_CREDENCIALES = _PERF / ".perf-credentials.env"
+
+
+def _leer_archivo_de_credenciales() -> tuple[str, str] | None:
+    if not _CREDENCIALES.exists():
+        return None
+    valores = {}
+    for linea in _CREDENCIALES.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, _, valor = linea.partition("=")
+        valores[clave.strip()] = valor.strip()
+    usuario, password = valores.get("PERF_USERNAME"), valores.get("PERF_PASSWORD")
+    return (usuario, password) if usuario and password else None
+
+
 @pytest.fixture(scope="session")
-def credenciales() -> tuple[str, str]:
+def credenciales(host: str) -> tuple[str, str]:
+    """La cuenta con la que se mide, resuelta sin que haya que exportar nada.
+
+    Tres lugares, en orden: el entorno (para apuntar a otra cuenta sin tocar
+    nada), el archivo que dejó `perf-user.sh`, y —si no hay ninguno— correr
+    `perf-user.sh` acá mismo. Acordarse de exportar dos variables antes de cada
+    corrida es exactamente el tipo de paso que hace que una suite se deje de
+    correr.
+
+    `LoginUser` lee estas mismas variables del entorno para su POST, así que se
+    exportan al proceso además de devolverse.
+    """
     usuario, password = os.environ.get("PERF_USERNAME"), os.environ.get("PERF_PASSWORD")
-    if not usuario or not password:
-        pytest.fail(
-            "faltan PERF_USERNAME / PERF_PASSWORD.\n"
-            "  tests/perf/perf-user.sh          # crea la cuenta por la API\n"
-            "  set -a; . tests/perf/.perf-credentials.env; set +a\n"
-            "No tienen default porque un default sería una password commiteada.",
-            pytrace=False,
-        )
+
+    if not (usuario and password):
+        par = _leer_archivo_de_credenciales()
+        if par is None:
+            print(f"\nsin credenciales: creando la cuenta con {_PERF / 'perf-user.sh'}")
+            resultado = subprocess.run(
+                [str(_PERF / "perf-user.sh")],
+                capture_output=True, text=True,
+                env={**os.environ, "PERF_API_BASE_URL": host},
+            )
+            if resultado.returncode != 0:
+                pytest.fail(
+                    "no se pudo crear la cuenta de performance:\n"
+                    f"{resultado.stdout}{resultado.stderr}\n"
+                    "Corré el script a mano con un ADMIN:\n"
+                    "  ADMIN_USERNAME=<vos> ADMIN_PASSWORD=<tu password> "
+                    "tests/perf/perf-user.sh",
+                    pytrace=False,
+                )
+            par = _leer_archivo_de_credenciales()
+        assert par is not None, f"{_CREDENCIALES} quedó sin PERF_USERNAME/PERF_PASSWORD"
+        usuario, password = par
+
+    # LoginUser las lee del entorno, no de esta fixture.
+    os.environ["PERF_USERNAME"], os.environ["PERF_PASSWORD"] = usuario, password
     return usuario, password
 
 

@@ -44,6 +44,16 @@ app), persistencia de resultados, dashboards.
   `lento` y `addopts` los excluye: `uv run pytest` son ~90 s (baseline + login).
   Una suite que tarda diez minutos por defecto deja de correrse, y entonces no
   mide nada.
+- **D15 — la cuenta se resuelve sola: entorno → archivo → crearla.** Pedido:
+  "simplificá cómo corro". Las dos suites buscan `PERF_USERNAME`/`PERF_PASSWORD`
+  en el entorno, después en `.perf-credentials.env`, y si no hay ninguno corren
+  `perf-user.sh` ellas mismas. Con el backend arriba, un solo comando alcanza.
+  Acordarse de exportar dos variables antes de cada corrida es exactamente el
+  paso que hace que una suite se deje de correr. El entorno sigue ganando, para
+  poder medir con otra cuenta sin tocar nada.
+  ⚠ No se agregó un runner único que envuelva a las dos: la asimetría entre
+  `uv run pytest` y `run.sh smoke` es inherente a las herramientas, y es justo
+  lo que se quería poder comparar. Un wrapper la escondería.
 - **D14 — la cuenta de performance se crea por la API real**
   (`POST /api/usuarios`), no con SQL: el punto de estas suites es ejercitar lo
   que se despliega. Username con sufijo único por corrida, porque la API no
@@ -128,6 +138,8 @@ app), persistencia de resultados, dashboards.
 
 | corrida | resultado |
 |---|---|
+| `uv run pytest` **sin exportar nada y sin archivo de credenciales** | **2 passed**, 90 s — creó la cuenta sola |
+| `run.sh smoke` **sin exportar nada y sin archivo de credenciales** | **BUILD SUCCESS** — creó la cuenta sola |
 | `uv run pytest` (baseline + login) | **2 passed, 3 deselected, 90 s** |
 | `uv run pytest -m lento -k spike` | **1 passed, 120 s** — el camino marcado también corre |
 | Locust CLI `smoke` (1 usuario, 30 s), antes de T8 | 591 requests, ~50 por endpoint, 0 errores, verde |

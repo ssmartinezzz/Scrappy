@@ -26,8 +26,25 @@ if [ "$FORMA" = "jmx" ]; then
 fi
 
 curl -sf -o /dev/null "$HOST/" || die "no hay backend en $HOST (ver README.md)"
+
+# La cuenta, resuelta sin que haya que exportar nada. Tres lugares, en orden:
+# el entorno (para apuntar a otra cuenta sin tocar nada), el archivo que dejó
+# perf-user.sh, y —si no hay ninguno— correr perf-user.sh acá mismo. Acordarse
+# de exportar dos variables antes de cada corrida es exactamente el tipo de paso
+# que hace que una suite se deje de correr.
+CREDENCIALES="$AQUI/../.perf-credentials.env"
+if [ -z "${PERF_USERNAME:-}" ] || [ -z "${PERF_PASSWORD:-}" ]; then
+  if [ ! -f "$CREDENCIALES" ]; then
+    say "sin credenciales: creando la cuenta con perf-user.sh"
+    PERF_API_BASE_URL="$HOST" "$AQUI/../perf-user.sh" >/dev/null || die \
+"no se pudo crear la cuenta de performance. Corré el script a mano con un ADMIN:
+   ADMIN_USERNAME=<vos> ADMIN_PASSWORD=<tu password> tests/perf/perf-user.sh"
+  fi
+  # shellcheck disable=SC1090
+  set -a; . "$CREDENCIALES"; set +a
+fi
 [ -n "${PERF_USERNAME:-}" ] && [ -n "${PERF_PASSWORD:-}" ] || die \
-  "faltan PERF_USERNAME / PERF_PASSWORD (ver README.md)"
+  "$CREDENCIALES quedó sin PERF_USERNAME/PERF_PASSWORD"
 
 case "$FORMA" in
   smoke)  CLASE=SmokeIT  ;;

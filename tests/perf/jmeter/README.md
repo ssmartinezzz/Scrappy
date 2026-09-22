@@ -132,35 +132,32 @@ consulta SQL con faceteo. Ninguna de las dos cosas era obvia leyendo el código.
 
 ## Correrlo
 
-Hace falta un backend vivo y un usuario:
+Un backend vivo, y nada más:
 
 ```bash
 scripts/dev-db.sh up
-tests/e2e/run-e2e.sh --api --keep-up          # levanta el backend y lo deja arriba
-
-tests/perf/perf-user.sh                   # crea la cuenta por la API real
-set -a; . tests/perf/.perf-credentials.env; set +a
+tests/e2e/run-e2e.sh --api --keep-up      # backend en :3000, lo deja arriba
 
 tests/perf/jmeter/run.sh smoke
 ```
 
-`perf-user.sh` crea un VIEWER con `POST /api/usuarios` —la API real, no SQL— y
-deja usuario y password en `tests/perf/.perf-credentials.env`, gitignored y modo
-600. Rol VIEWER y no ADMIN: todos los endpoints que se miden son
-`AUTHENTICATED`, y una suite de carga no necesita poder borrar el catálogo.
+No hay que exportar nada. La cuenta se resuelve sola: si no hay
+`PERF_USERNAME`/`PERF_PASSWORD` en el entorno ni un
+`tests/perf/.perf-credentials.env`, el runner corre `perf-user.sh`, que crea un
+VIEWER con `POST /api/usuarios` —la API real, no SQL— y deja las credenciales en
+ese archivo (gitignored, modo 600). Rol VIEWER y no ADMIN: todo lo que se mide
+es `AUTHENTICATED`, y una suite de carga no necesita poder borrar el catálogo.
+
+Acordarse de exportar dos variables antes de cada corrida es exactamente el tipo
+de paso que hace que una suite se deje de correr.
 
 ```
 ./run.sh smoke | carga | stress | spike | login
 ./run.sh jmx                      # exporta target/jmx/*.jmx para la GUI
 ```
 
-`PERF_API_BASE_URL` apunta a otro backend si hace falta.
-
-**`mvn test` acá no corre nada.** Las clases se llaman `*IT` y las ejecuta
-Failsafe en `mvn verify`, que es la convención de Maven para "esto necesita algo
-vivo del otro lado". Y este módulo no es parte del build del backend: si viviera
-en `scraper/src/test/java`, cada commit dispararía una corrida de carga contra
-un backend que probablemente no esté levantado.
+`PERF_USERNAME`/`PERF_PASSWORD` en el entorno ganan, por si querés medir con otra
+cuenta. `PERF_API_BASE_URL` apunta a otro backend.
 
 ---
 
