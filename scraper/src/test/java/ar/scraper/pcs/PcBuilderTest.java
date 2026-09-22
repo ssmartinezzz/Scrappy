@@ -321,10 +321,11 @@ class PcBuilderTest {
                 producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"),
                 producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 15_000, "RAM", "https://t/ram-cara"));
 
-        // Remaining budget at RAM's turn: 14000 - 1000 - 1000 = 12000. The 15000
-        // stick ranks better (EjesTecnicos.RAM: 32GB > 16GB, same DDR and no MHz
-        // stated on either) but does not fit.
-        PcBuild build = builder.armar(catalogo, 14_000, false, Set.of());
+        // RAM's quota at its turn is its own share plus everything the two
+        // cheap slots before it left over: (.1714+.2857+.1429)*25000 - 2000 =
+        // 13000. The 15000 stick ranks better (EjesTecnicos.RAM: 32GB > 16GB,
+        // same DDR and no MHz stated on either) but does not fit.
+        PcBuild build = builder.armar(catalogo, 25_000, false, Set.of());
 
         PcPick ram = build.picks().stream().filter(p -> p.slot().equals("ram")).findFirst().orElseThrow();
         assertThat(ram.url()).isEqualTo("https://t/ram-barata");
@@ -339,13 +340,69 @@ class PcBuilderTest {
                 producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"),
                 producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 15_000, "RAM", "https://t/ram-cara"));
 
-        // Remaining budget at RAM's turn: 7000 - 1000 - 1000 = 5000. Neither stick
-        // fits; the cheaper one wins even though the 32GB one ranks better, because
-        // once nothing is affordable rank stops mattering and price alone decides.
+        // RAM's quota at its turn: (.1714+.2857+.1429)*7000 - 2000 = 2200.
+        // Neither stick fits; the cheaper one wins even though the 32GB one ranks
+        // better, because once nothing is affordable rank stops mattering and
+        // price alone decides (D5).
         PcBuild build = builder.armar(catalogo, 7_000, false, Set.of());
 
         PcPick ram = build.picks().stream().filter(p -> p.slot().equals("ram")).findFirst().orElseThrow();
         assertThat(ram.url()).isEqualTo("https://t/ram-barata");
+    }
+
+    // ── reparto por cuotas (D3, pc-builder-top-tier) ─────────────────────
+
+    @Test
+    @DisplayName("un slot caro no le vacia la caja al que viene despues: la fuente sigue certificada")
+    void unSlotCaroNoSeComeElPresupuestoDeLosSiguientes() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard Asus Prime B550M-A DDR4 AM4", 50_000, "Motherboard", "https://t/mb"),
+                producto("Procesador Amd Ryzen 5 5600 Am4", 100_000, "CPU", "https://t/cpu"),
+                producto("Memoria RAM Corsair Vengeance DDR4 32GB Cara", 850_000, "RAM", "https://t/ram-cara"),
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB", 100_000, "RAM", "https://t/ram"),
+                producto("Gabinete Corsair 4000D ATX", 30_000, "Gabinete", "https://t/gab"),
+                producto("Fuente Antec 750W 80 Plus Gold ATX", 200_000, "Fuente", "https://t/fuente-gold"),
+                producto("Fuente Generica 500W", 20_000, "Fuente", "https://t/fuente-generica"),
+                producto("SSD Kingston NV2 1TB", 30_000, "Almacenamiento", "https://t/ssd"));
+
+        // Greedy, la RAM de 850.000 entra (quedaban 850.000) y deja la caja en
+        // cero: el slot fuente cae al fallback y elige la generica sin
+        // certificar. Con cuotas la RAM ve 450.000, no entra, y la fuente
+        // llega con 548.600 — el caso que reporto el usuario.
+        PcBuild build = builder.armar(catalogo, 1_000_000, false, Set.of());
+
+        PcPick fuente = build.picks().stream().filter(p -> p.slot().equals("fuente")).findFirst().orElseThrow();
+        assertThat(fuente.specs().certificacion()).isEqualTo(Certificacion.GOLD);
+        assertThat(build.picks()).extracting(PcPick::url).doesNotContain("https://t/ram-cara");
+    }
+
+    @Test
+    @DisplayName("lo que un slot no gasta se arrastra al siguiente, que puede pasarse de su propia cuota")
+    void loNoGastadoSeArrastraAlSlotSiguiente() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard Asus Prime B550M-A DDR4 AM4", 1_000, "Motherboard", "https://t/mb"),
+                producto("Procesador Amd Ryzen 9 5900 Am4", 40_000, "CPU", "https://t/cpu-caro"),
+                producto("Procesador Amd Ryzen 3 5300 Am4", 5_000, "CPU", "https://t/cpu-barato"));
+
+        // La cuota propia del cpu es 28.570, menos que los 40.000 del Ryzen 9;
+        // entra igual porque la mother dejo 16.140 sin gastar.
+        PcBuild build = builder.armar(catalogo, 100_000, false, Set.of());
+
+        PcPick cpu = build.picks().stream().filter(p -> p.slot().equals("cpu")).findFirst().orElseThrow();
+        assertThat(cpu.url()).isEqualTo("https://t/cpu-caro");
+    }
+
+    @Test
+    @DisplayName("sin presupuesto no hay cuotas: gana el mejor de cada slot, cueste lo que cueste")
+    void sinPresupuestoNoHayCuotas() {
+        List<Product> catalogo = List.of(
+                producto("Placa de Video Nvidia GeForce RTX 5080 16GB", 10_000_000, "GPU", "https://t/gpu-top"),
+                producto("Placa de Video Nvidia GeForce RTX 5060 8GB", 100_000, "GPU", "https://t/gpu-media"));
+
+        PcBuild build = builder.armar(catalogo, 0, true, Set.of());
+
+        PcPick gpu = build.picks().stream().filter(p -> p.slot().equals("gpu")).findFirst().orElseThrow();
+        assertThat(gpu.url()).isEqualTo("https://t/gpu-top");
     }
 
     // ── excluir fallback ──────────────────────────────────────────────────

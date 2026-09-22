@@ -476,7 +476,7 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 
 ---
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 7
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 8
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
@@ -499,10 +499,13 @@ Diseño en [`odd/tasks/pc-builder.md`](./odd/tasks/pc-builder.md) y
 
 | | |
 |---|---|
+| **El presupuesto se reparte por cuotas, no lo agarra el primer slot** (D3, fase 8) | `CuotasDePresupuesto` le da a cada slot `share × presupuesto` más lo que los anteriores dejaron sin gastar. Con GPU: mother 12 · cpu 20 · ram 10 · gabinete 6 · fuente 10 · gpu 30 · almacenamiento 12; se **normalizan sobre los slots presentes**, así que sin GPU ese 30 se reparte solo y el cooler de gama ALTA entra con su 6 sin tabla nueva. Las proporciones son **supuestas, no medidas**, igual que el piso de watts. Antes cada slot veía TODO el restante y, con el precio como mero desempate, se llevaba el mejor que entrara: medido con $2.000.000, la RAM se llevaba $1.102.200 —el 55% de la caja— y al llegar el slot `fuente` no quedaba nada asequible, así que caía al fallback *"gastá lo mínimo"* y elegía la más barata del catálogo, **sin certificar**. El ranking de fuente ya era correcto; nunca llegaba a ejercerse |
+| **Presupuesto vacío es el modo "top top"** (D4, fase 8) | Sin presupuesto no hay cuotas ni filtro de precio: gana el mejor de cada slot por eje técnico, cueste lo que cueste. Es un modo, no un caso borde |
+| **El fallback "el más barato" se conserva** (D5, fase 8) | Cuando ni con el arrastre entra nada en la cuota, el slot elige el más barato compatible en vez de salir vacío: un armado incompleto es peor que uno con un componente flojo, y `sinCompatible` sigue reservado para los vetos |
 | **La mother es el ancla y se elige primero** | Los vetos de socket, DDR y form factor la referencian. Orden: mother → cpu → (cooler, sólo gama alta) → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
 | **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso · certificación fuente ≥ mínima. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
 | ⚠️ **La gama es la ÚNICA regla donde la abstención VETA** (D2) | `ReglaGama` exige `candidato.gama() == pedida`, así que `DESCONOCIDA` cae. Es al revés a propósito: el usuario pidió un tier, y de un nombre que no se pudo leer no se puede afirmar que esté en ese tier. Sin gama pedida (`null`) la regla no filtra nada. El costo es el 17% de CPUs sin tier legible, y el mensaje del slot lo dice |
-| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12, extendida en fase 7 por D4/D9) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. Desde fase 7: cpu: gama → generación desc · gpu: gama → generación desc → VRAM (`capacidadGb`) desc · mother: DDR → tier de chipset, rankeado por **distancia a la gama pedida** (D9: ALTA→X/Z, MEDIA→B, BAJA→A/H; sin gama pedida cae al orden absoluto X/Z<B<A/H de fase 6) · ram: DDR → módulos (kit `NxMGB`) desc → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · cooler: `TipoCooler` LIQUIDO > AIRE (fase 7, antes sólo precio) · gabinete: sólo precio (más grande ≠ mejor; el ruido que hacía elegir un service se corrigió en el clasificador, no acá — ver Taxonomía y clasificación). Siempre precio asc → url asc al final, abstención última en todo sub-eje nuevo (D13) |
+| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12, extendida en fase 7 por D4/D9) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. Desde fase 8: cpu: gama → **nivel** de familia desc → **año** desc · gpu: gama → **año** desc → **nivel** de modelo desc → VRAM (`capacidadGb`) desc · mother: DDR → tier de chipset, rankeado por **distancia a la gama pedida** (D9: ALTA→X/Z, MEDIA→B, BAJA→A/H; sin gama pedida cae al orden absoluto X/Z<B<A/H de fase 6) · ram: DDR → módulos (kit `NxMGB`) desc → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · cooler: `TipoCooler` LIQUIDO > AIRE (fase 7, antes sólo precio) · gabinete: sólo precio (más grande ≠ mejor; el ruido que hacía elegir un service se corrigió en el clasificador, no acá — ver Taxonomía y clasificación). Siempre precio asc → url asc al final, abstención última en todo sub-eje nuevo (D13) |
 | **La abstención va ÚLTIMA en todo eje de ranking** (D13) | `DESCONOCIDA`/`DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` y `""` son el mismo centinela para su eje. Un pendrive (sin tecnología legible) ya no puede ganarle a un NVMe como "el disco de la PC" — se hunde solo, sin veto nuevo. `Certificacion.NINGUNA` sí compara por ordinal: es el escalón real de abajo, no abstención |
 | **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en `ContextoDeArmado`, no en el parser, y el ranking de mother la comparte (D14): "la más barata" clavaba AM4/DDR4 y después `ReglaDdr` vetaba toda la RAM DDR5 |
 | **El piso de watts y la certificación mínima salen de la gama pedida** (`EstimadorDeConsumo`) | alta: 750 / 1000 W con GPU, GOLD · media: 550 / 750, BRONZE · económica o sin gama: 450 / 650, NINGUNA. Siguen siendo constantes, ahora por tier; el consumo de la GPU sigue sin parsearse |
@@ -576,6 +579,40 @@ usuario ("muchas veces no me arma bien"). Diseño y medición completos en
 | ⚠️ **La abstención vuelve a vetar cuando HAY preferencia pedida** (D2, misma inversión que `gama`) | Pedir DDR5 y no poder leer la DDR de una mother (ni derivarla del socket) la descarta. **Excepción escrita a propósito**: `ramDual`/`wifi` nunca abstienen — el nombre es la afirmación (`2x` presente / `wifi` presente), y su ausencia es `false`, no "no sé"; sólo `TRUE` pide algo, `FALSE` se comporta como "no pedida" |
 | **Compatibilidad nueva, sólo donde los dos lados parsean** (D6) | RAM `SODIMM` (notebook) veta incondicional en el slot ram — `tipoMemoria` nunca abstiene, no hace falta el guard de "los dos lados parsearon" —; cooler↔mother por socket, cuando el cooler lista sockets soportados y la mother parseó el suyo (`socketsSoportados`, sin persistir — ver Persistencia); sockets viejos (`LGA1151`, `LGA1200`, `AM3` + chipsets `H310/B360/Z390/H410/B460/Z490/H510/B560`) suman al vocabulario de `MotherboardSpecsReader`/`CpuSpecsReader` para que `ReglaSocket` los vea en vez de abstenerlos |
 | **`TipoCooler`** (`LIQUIDO`/`AIRE`/`DESCONOCIDO`, molde `TipoAlmacenamiento`) | Le da al slot cooler un eje real por primera vez — hasta fase 6 sólo tenía precio, y el más barato de una categoría con ruido de clasificación ganaba siempre |
+
+**Fase 8** arregla el tope del catálogo y el reparto del presupuesto — pedido
+del usuario (2026-09-22): "las fuentes que tiene el armador de PC no están
+certificadas" y, preguntando por el modo sin presupuesto, "si quiero ir a lo
+top top?". Diseño y medición completos en
+[`odd/tasks/pc-builder-top-tier.md`](./odd/tasks/pc-builder-top-tier.md).
+
+| | |
+|---|---|
+| ⚠️ **`generacion` no es una magnitud, son dos** (D2) | En Intel es la generación Core real (`i7 14700F` → 14); en AMD y Nvidia es el **dígito de los miles del modelo** (`Ryzen 9 9950X3D` → 9, `RTX 5080` → 5). Comparadas crudas, `14 > 9 > 5` hacía que **Intel le ganara a AMD en CPU y AMD a Nvidia en GPU, siempre**, por aritmética y no por potencia: sin presupuesto el armado era `i7 14700F` + `RX 9070` teniendo un `Ryzen 9 9950X3D` y una `RTX 5080` en el catálogo. `EjesTecnicos.anioCpu`/`anioGpu` la normalizan a año de lanzamiento, ramificando por marca. La tabla es **por slot, no global**: `AMD`+`9` es Ryzen 9000 (2024) en CPU y RX 9000 (2025) en GPU. Sin marca legible, o fuera de tabla, abstiene y va última — un número sin escala no puede rankear contra uno que sí la tiene. Misma clase de bug que las RX 9000 de la fase 7 |
+| **`nivel`: el escalón DENTRO de la gama** (D1) | `Gama.ALTA` mete en la misma bolsa a `i7`, `i9`, `Ryzen 9` y `Ultra 9`, y a `RTX 5090`, `RTX 5080` y `RX 9070`. `nivel` (CPU `9\|7\|5\|3` de la familia · GPU `90\|80\|70\|60\|50` del modelo, ramificando por serie igual que `gama()`) es la única magnitud de potencia **comparable entre marcas**: un `i9` y un `Ryzen 9` son pares. Cobertura medida (dev DB, 7054 filas, 2026-09-22): CPU **374/427 (88%)**, GPU **346/388 (89%)**. Athlon/Celeron/Pentium abstienen: tienen gama BAJA pero no juegan en la escala |
+| ⚠️ **El orden de los dos ejes DIFIERE entre CPU y GPU, y es medido** | CPU va `nivel → año`: el dígito de familia es un escalón estable y de vida larga, así que un `i9` de 2023 vale más que un `Ryzen 7` de 2024. GPU va `año → nivel`: el escalón de modelo no sobrevive a cinco años de proceso — una `RX 6900 XT` (x90 de 2020) no es comparable con una `RTX 5080` (x80 de 2025), y con el nivel primero le ganaba. `gama` corre antes que los dos, así que una x50 nueva nunca le gana a una x90 vieja: están en gamas distintas |
+| **`nivel` no se persiste** (D7) | `producto_tech_specs` no crece y no hay migración en esta fase. Mismo precedente que `socketsSoportados`: el armador calcula `TechSpecs` al armar desde el snapshot (D3d) |
+| **`ReglaCertificacion` NO cambió** (D6) | Sigue dejando pasar `NINGUNA` (política normal de abstención). Con el reparto por cuotas la fuente sin certificar deja de ganar por presupuesto agotado, que era la causa real; invertir la regla vaciaría el slot en vez de arreglarlo |
+| **DDR2 entró al vocabulario de `RamSpecsReader`** | Una sola fila activa, pero sin leerla el reader abstiene, `ReglaDdr` no puede vetarla, y una `Kimota DDR2 2GB` de 2007 ganaba el slot `ram` de un armado con mother DDR5 por ser lo más barato del pool |
+
+Medido en el catálogo real (dev DB, 7054 filas de `tecnologia`, 2026-09-22),
+corriendo `PcBuilder.armar` de verdad — la fuente sale **certificada en los 8
+armados** probados (4 presupuestos × 2 gamas):
+
+| | antes de fase 8 | después |
+|---|---|---|
+| sin presupuesto, gpu | `RX 9070` $1.324.990 | `RTX 5080` $2.988.500 |
+| sin presupuesto, cpu | `i7 14700F` $588.270 | `i9 14900K` $685.072 |
+| $2.000.000, fuente | `Jalatec Jt-520` **`NINGUNA`** $25.881 | `Corsair RM750` **`PLATINUM`** |
+| $2.000.000, gpu | `"ARMADO ITEM 6302"` $800 | `RX 6900 XT` $739.878 |
+| $2.000.000, almacenamiento | `Bracket Disco SSD` $3.300 | `SSD M.2 1TB` $217.339 |
+
+⚠️ **El `Ryzen 9 9950X3D` sigue sin salir en el modo top-top, y no es el
+ranking**: la mother se elige primero (`Asrock Z790I`, `LGA1700`) y
+`ReglaSocket` veta todo AM5 después — el `i9 14900K` es el tope real de esa
+plataforma. Es la limitación greedy que ya describe la fila "la mother es el
+ancla": no se prueba otra mother. Probar varias plataformas es otro tamaño de
+cambio, y queda pendiente.
 
 Cobertura medida (TSV de hardware, 3360 filas, reclasificadas con los cambios
 de T1/T2a/T4d-1, 2026-09-21): CPU marcaChip **388/389**, generación
@@ -698,10 +735,38 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
-Outfits `/outfits` · PCs `/pcs` · Armadores `/armadores` · Historial de
-precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
-`/armadores` lista lo guardado desde `/outfits` y `/pcs` — los outfits
-guardados salieron de `/favoritos`, que ahora sólo tiene productos.
+Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
+`/tendencias` redirige a `/analisis/mercado`.
+
+**El nav tiene dos menús y cuatro links, y la división es semántica**
+(`nav-guardados-armadores`, 2026-09-22): el menú **Armadores** nombra los tres
+armadores y nada más (`/outfits` · `/suplementos` · `/pcs`); el menú
+**Análisis** las cuatro vistas de análisis; y **Guardados** es un *link*, no
+un menú, porque hay un solo destino. `Marcas` salió a primer nivel: es una
+vista de exploración del catálogo, no un armador.
+
+⚠️ **`/armadores` NO existe más.** Era la misma idea que `/favoritos` en otra
+ruta, y el reparto no cerraba: los outfits guardados habían salido de
+`/favoritos` hacia `/armadores` en `saved-pcs-armadores`, mientras `Outfits`
+colgaba del menú `Guardados` apuntando al **armador**, no a lo guardado.
+`/favoritos` junta ahora las tres colecciones, y **una PC guardada se trata
+exactamente como un outfit**: el carrusel ya tenía el slide de *colección*
+(`kind:'outfit'` en `TiltCarousel` — un collage de sus miembros más una tira
+expandible debajo), que no es algo propio de la ropa sino "una cosa guardada
+que tiene partes". Los `picks` de una PC ya traen `{nombre, img, sitio,
+precio}`, la misma forma que `OutfitCollage` y la tira consumen, así que el
+slide de PC no adapta nada. Los slides de outfit habían salido del carrusel en
+`saved-pcs-armadores`; esto los devuelve.
+
+| | |
+|---|---|
+| **Una sola tira abierta a la vez** | El estado es `{coleccion:'outfit'\|'pc', id}`, no dos banderas: abrir una PC cierra el outfit que estuviera abierto. Dos estados separados dejarían dos tiras apiladas debajo del mismo carrusel |
+| **Renombrar y eliminar viven en la vista de LISTA** | `SavedOutfitCard`/`SavedPcCard`, reusadas sin redibujar. En un slide no hay dónde ponerlos sin taparle el collage — el mismo reparto que la vista tenía antes de `saved-pcs-armadores` |
+| **El carrusel aparece con CUALQUIER cosa guardada**, no sólo con productos | Antes el cuerpo entero colgaba de `items.length`, así que borrar el último favorito habría hecho desaparecer una PC guardada de la pantalla |
+| **El contador del header cuenta SÓLO productos** | Dice "N productos guardados"; sumarle outfits y PCs haría la frase falsa. Hay un test que lo fija |
+
+El estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
+`AppLayout` y ya los cargaba esta misma ruta.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
 la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de
@@ -1068,6 +1133,31 @@ formas de nombrarlas. Y el slot Gabinete elegía un **service**:
 matchea `"para gabinete"` sin mirar qué nombra el producto — el líder
 `bracket|filtro|service|kit|fan|soporte` + `"para gabinete"` como destino, no
 como categoría, lo saca.
+
+**El líder tuvo que dejar de pedir permiso: `bracket` y `armado` (fase 8).** El
+guard de fase 7 exigía `" para gabinete "` en el mismo título, así que sólo
+frenaba a los accesorios que nombraban su destino. `"Bracket Disco SSD para
+Xigmatek Gaming X"` ($3.300) se escapaba a `Almacenamiento` y ganaba el slot
+del disco por ser lo más barato del pool; `"Bracket Cooler Master Soporte Para
+Fan Cooler LGA1700"` hacía lo mismo en `Cooler`. Las **tres** filas del
+catálogo que lideran con `bracket` son accesorios, así que `KW_ACCESORIO_LIDER`
+abstiene incondicionalmente — los otros tres líderes de
+`KW_GABINETE_ACCESORIO_LIDER` siguen condicionales, porque `"Kit de RAM"` y
+`"Soporte de Monitor"` sí son productos. Y `armado` entró a
+`KW_SERVICIO_LIDER`: las **10** filas que lideran con él son mano de obra
+(`"ARMADO DE PC ESPECIAL (No incluye instalación de sistema operativo)"`), ocho
+ya estaban en `Otros` y dos se habían ido a `GPU`, donde competían por el slot
+gpu del armador. Una PC armada de verdad lidera con `PC`, que es `KW_PC_LIDER`.
+
+⚠️ **Un arreglo de clasificación no se ve hasta el próximo scrape, y eso se
+parece exactamente a que no esté arreglado.** La categoría se fija al scrapear
+y vive en `productos.categoria`; el armador lee el snapshot de la base, no
+reclasifica. El guard de gabinete de la fase 7 funcionaba perfecto en los tests
+mientras `/pcs` seguía mostrando el bracket, porque la dev DB traía 205 filas
+clasificadas con el código viejo (73 `Cooler→CPU`, 59 `CPU→PC`, 16 `GPU→PC`, 8
+`Monitor→PC`, 7 de `Gabinete`). Antes de diagnosticar un bug de taxonomía,
+correr el clasificador de HOY sobre los nombres de la base y comparar: si el
+drift lo explica, lo que falta es un scrape.
 
 **Un keyword de comida sin padear vivía adentro de dos marcas, y ahí era un
 acabado, no un sabor.** `"mate"` sin padear en `KW_COMIDA` matcheaba dentro de

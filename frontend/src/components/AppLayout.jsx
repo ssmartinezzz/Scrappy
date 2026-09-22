@@ -36,7 +36,6 @@ const FinanPanel     = lazy(() => import('./FinanPanel'));
 const RecomendadosPanel = lazy(() => import('./RecomendadosPanel'));
 const SuplementosPanel  = lazy(() => import('./SuplementosPanel'));
 const PcsPanel          = lazy(() => import('./PcsPanel'));
-const ArmadoresPanel    = lazy(() => import('./ArmadoresPanel'));
 const CronjobsPage      = lazy(() => import('./CronjobsPage'));
 const UsuariosAdminPanel = lazy(() => import('./UsuariosAdminPanel'));
 const PriceHistoryPage  = lazy(() => import('./PriceHistoryPage'));
@@ -332,6 +331,9 @@ function OportunidadesBadgeRoute() {
   return <OportunidadesBadgePage onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
+// nav-guardados-armadores: /armadores se borró y sus handlers se mudaron acá
+// sin cambiar — el estado ya vivía en este reducer y ya lo cargaba esta misma
+// ruta, así que lo único que cambió es quién lo renderiza (D5).
 function FavoritosRoute() {
   const { S, dispatch } = useOutletContext();
   return (
@@ -341,6 +343,24 @@ function FavoritosRoute() {
       onDeleteFavorito={async (url) => {
         await removeFavorito(url);
         dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
+      }}
+      savedOutfits={S.savedOutfits || []}
+      savedPcs={S.savedPcs || []}
+      onDeleteSavedOutfit={async (id) => {
+        await deleteSavedOutfit(id);
+        dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });
+      }}
+      onRenameSavedOutfit={async (id, nombre) => {
+        await renameOutfit(id, nombre);
+        dispatch({ type: 'RENAME_SAVED_OUTFIT', id, nombre });
+      }}
+      onDeleteSavedPc={async (id) => {
+        await deleteSavedPc(id);
+        dispatch({ type: 'REMOVE_SAVED_PC', id });
+      }}
+      onRenameSavedPc={async (id, nombre) => {
+        await renamePc(id, nombre);
+        dispatch({ type: 'RENAME_SAVED_PC', id, nombre });
       }}
     />
   );
@@ -408,32 +428,6 @@ function PcsRoute() {
   );
 }
 
-function ArmadoresRoute() {
-  const { S, dispatch } = useOutletContext();
-  return (
-    <ArmadoresPanel
-      savedOutfits={S.savedOutfits || []}
-      savedPcs={S.savedPcs || []}
-      onDeleteSavedOutfit={async (id) => {
-        await deleteSavedOutfit(id);
-        dispatch({ type: 'REMOVE_SAVED_OUTFIT', id });
-      }}
-      onRenameSavedOutfit={async (id, nombre) => {
-        await renameOutfit(id, nombre);
-        dispatch({ type: 'RENAME_SAVED_OUTFIT', id, nombre });
-      }}
-      onDeleteSavedPc={async (id) => {
-        await deleteSavedPc(id);
-        dispatch({ type: 'REMOVE_SAVED_PC', id });
-      }}
-      onRenameSavedPc={async (id, nombre) => {
-        await renamePc(id, nombre);
-        dispatch({ type: 'RENAME_SAVED_PC', id, nombre });
-      }}
-    />
-  );
-}
-
 // No outlet context needed — CronjobsPage owns its own fetch/local state,
 // same reasoning as CategoryPicksPage/FinanRoute (ADR-1, sdd/scraper-cronjobs/design).
 function CronjobsRoute() {
@@ -459,7 +453,6 @@ export {
   OutfitsRoute as OutfitsPanelRoute, FinanRoute as FinanPanelRoute,
   SuplementosRoute as SuplementosPanelRoute,
   PcsRoute as PcsPanelRoute,
-  ArmadoresRoute as ArmadoresPanelRoute,
   CronjobsRoute as CronjobsPanelRoute,
   UsuariosAdminRoute as UsuariosAdminPanelRoute,
 };

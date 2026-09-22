@@ -605,6 +605,88 @@ armar**, desde el snapshot en memoria — igual que el resto de `TechSpecs`
 (D3d de fase 6: la tabla existe, el armador no la lee) — así que no persistir
 la lista no le saca nada al usuario hoy; queda diferido, no descartado.
 
+### ¿Por qué el armador de PCs compara la generación como año, usa dos órdenes de eje distintos para CPU y GPU, y reparte el presupuesto por cuotas?
+
+**D1/D2 (fase 8, `pc-builder-top-tier`) — `generacion` no era una magnitud,
+eran dos.** El eje de CPU y GPU era `gama → generación desc`, y ese número
+significa cosas distintas según la marca: en Intel es la generación Core real
+(`i7 14700F` → 14), en AMD y Nvidia es el dígito de los **miles del modelo**
+(`Ryzen 9 9950X3D` → 9, `RTX 5080` → 5). Comparados crudos, `14 > 9 > 5`
+significaba que **Intel le ganaba a AMD en CPU y AMD a Nvidia en GPU,
+siempre**, por aritmética y no por potencia. Es la misma clase de bug que las
+RX 9000 de fase 7 (*"Radeon numera de DOS maneras"*), y la respuesta es la
+misma: ramificar por marca antes de comparar. La tabla de años es **por
+slot, no global**, porque `AMD`+`9` es Ryzen 9000 (2024) en CPU y RX 9000
+(2025) en GPU — un mapa único afirmaría que son lo mismo. Sin marca legible el
+valor abstiene y va último: un número sin escala no puede rankear contra uno
+que sí la tiene, y meterlo a la fuerza es exactamente el bug que se está
+cerrando.
+
+**Por qué hizo falta `nivel` además del año.** `Gama` es una escala de tres
+peldaños, y `ALTA` mete en la misma bolsa a un `i7` y a un `i9`, y a una `RTX
+5090` y una `RX 9070`. El dígito de familia (CPU) y la decena del modelo (GPU)
+son el escalón de adentro, y a diferencia de la generación **sí** son
+comparables entre marcas: un `i9` y un `Ryzen 9` son pares, una `RTX 5080` y
+una `RX 9080` también. Cobertura medida: 88% en CPU, 89% en GPU.
+
+**Por qué el orden de los dos ejes difiere entre CPU y GPU.** Es la parte
+menos obvia, y es medida, no estética. En CPU el nivel va **antes** que el
+año: el dígito de familia es un escalón estable y de vida larga —un `i9` es el
+tope de su generación, siempre— así que un `i9` de 2023 vale más que un `Ryzen
+7` de 2024. En GPU el año va **antes** que el nivel: el escalón de modelo no
+sobrevive a cinco años de proceso, y con el nivel primero una `RX 6900 XT`
+(x90 de 2020) le ganaba a una `RTX 5080` (x80 de 2025). Un solo orden para los
+dos ejes se equivoca en uno de los dos casos; la salvaguarda es que `gama`
+corre antes que ambos, así que una x50 nueva nunca le gana a una x90 vieja
+—están en gamas distintas— y el orden por año sólo desempata dentro del mismo
+tier.
+
+**D3 — por qué el presupuesto se reparte por cuotas y no se gasta greedy.**
+`PcBuilder` le daba a cada slot **todo** el restante, y como el precio es sólo
+desempate, cada slot se llevaba el mejor candidato que entrara. Medido con
+$2.000.000: la RAM se llevaba $1.102.200 —el 55% de la caja— y cuando llegaba
+el turno del slot `fuente` no quedaba nada asequible, así que caía al fallback
+*"gastá lo mínimo"* y elegía la fuente más barata del catálogo, sin certificar.
+El síntoma que reportó el usuario fue "las fuentes no están certificadas", pero
+**el ranking de fuente ya era correcto** (certificación desc; sin presupuesto
+elige la MSI 1600W Titanium): nunca llegaba a ejercerse. Arreglar la regla de
+certificación —vetar `NINGUNA` cuando hay gama pedida— habría atacado el
+síntoma: el slot habría salido vacío con un mensaje en vez de traer una fuente
+mala, que no es lo que el usuario pidió. La causa es la asignación, no el
+filtro, y por eso `ReglaCertificacion` no se tocó.
+
+**Por qué las shares se normalizan sobre los slots presentes.** Una tabla por
+combinación (con GPU, sin GPU, con cooler de gama ALTA, sin cooler) son cuatro
+listas que tienen que sumar 1.0 cada una y que hay que tocar juntas cada vez
+que aparece un slot. Normalizar `share_i / Σ shares presentes` es una sola
+tabla que ya cubre las cuatro y cualquier slot futuro. Un slot fuera de la
+tabla toma la share media en vez de cero: un slot que nadie agregó debe recibir
+algo de plata, no quedar condenado al fallback del más barato en todo armado
+con presupuesto. Las proporciones en sí son **supuestas, no medidas**, igual
+que el piso de watts de `EstimadorDeConsumo`, y están documentadas como tales.
+
+**Por qué el fallback "el más barato" se conservó.** Cuando ni con el arrastre
+entra nada en la cuota, el slot podría salir vacío con un motivo, como hace
+`sinCompatible`. Se eligió lo contrario: un armado incompleto es peor que uno
+con un componente flojo, y `sinCompatible` significa "ningún candidato pasó un
+veto de compatibilidad" —una afirmación técnica— mientras que "no te alcanza"
+es una afirmación sobre la plata. Mezclarlas haría que el mensaje del slot
+dejara de significar una sola cosa.
+
+**Por qué presupuesto vacío es un modo, no un caso borde.** Sin presupuesto no
+hay cuotas ni filtro de precio: gana el mejor de cada slot por eje técnico,
+cueste lo que cueste. Es la respuesta a "si quiero ir a lo top top", y D1/D2
+son justamente lo que la hacen cierta — antes de ellos ese modo devolvía un
+`i7 14700F` y una `RX 9070` teniendo un `Ryzen 9 9950X3D` y una `RTX 5080` en
+el catálogo.
+
+**Lo que esta fase NO cerró, y por qué.** El `Ryzen 9 9950X3D` sigue sin salir
+en el modo top-top, y no es el ranking: la mother se elige primero (`Asrock
+Z790I`, `LGA1700`) y `ReglaSocket` veta todo AM5 después, así que el `i9
+14900K` es el tope real de **esa** plataforma. La mother es el ancla por
+diseño (fase 2) y no se prueba una segunda; elegir plataforma en vez de mother
+es un cambio de otro tamaño, y se deja anotado en vez de resuelto a medias.
+
 ### ¿Por qué Morashop tiene page y plataforma propias si es un Tiendanube común?
 
 Porque el valor de `plataforma` no describe la tienda, **rutea el scraper**. Desde `V20` `ScraperFactory` elige la clase leyendo `sitio.plataforma` vía `SiteRegistry`, y los name-sets en código se borraron (`CODE-6`). Morashop necesita una page propia, así que necesita un valor propio; rutearla por nombre de sitio reintroduciría exactamente lo que `V20` sacó. `monkyforce` ya había sentado el precedente. El costo aceptado es que `plataforma` sigue derivando hacia "discriminador de ruteo" más que hacia "qué software corre la tienda" — una deriva que ya existía con `vaypol` y `qloud`.
@@ -764,6 +846,80 @@ contadores. Se paga una sola vez: los `cats` quedan cacheados por rubro, así qu
 ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,
 la misma clase de trabajo que `/api/grupos` hace por request.
+
+### ¿Por qué se borró `/armadores` en vez de dejar tres destinos guardados?
+
+**El problema no era que faltara una pantalla, era que el reparto no
+significaba nada.** `/favoritos` tenía productos, `/armadores` tenía outfits y
+PCs guardadas, y el menú `Guardados` ofrecía "Favoritos" y "Outfits" — donde
+"Outfits" apuntaba a `/outfits`, que es el **armador**, no lo guardado. Tres
+nombres, tres destinos y ninguna regla que dijera qué va dónde: los outfits
+guardados ya se habían mudado una vez, de `/favoritos` a `/armadores`, en
+`saved-pcs-armadores`. Una segunda mudanza sin un criterio sólo habría
+programado la tercera.
+
+El criterio que se eligió es el que ya usa el resto del nav: **un menú agrupa
+cosas del mismo tipo**. "Armadores" agrupa los tres armadores, "Análisis" las
+cuatro vistas de análisis, y lo guardado —que es una sola idea— es un link, no
+un menú con un solo ítem. `Marcas` salió del menú renombrado por la misma
+regla: es exploración del catálogo, no un armador, y dejarla ahí habría
+mantenido viva justo la mezcla que se estaba deshaciendo.
+
+**Por qué una PC guardada es literalmente un slide de outfit.** El carrusel ya
+tenía dos tipos de slide: el de producto (una imagen) y el de outfit (un
+collage de sus miembros, más una tira expandible debajo). Ese segundo tipo no
+describe ropa, describe **una cosa guardada que tiene partes**, y una PC es
+exactamente eso. El nombre `kind:'outfit'` quedó de cuando era el único caso;
+renombrarlo a `'coleccion'` habría sido más honesto, pero tocar el contrato del
+carrusel para eso mezcla un cambio de vocabulario con uno de comportamiento, y
+el archivo ya documenta que es genérico ("this file knows nothing about
+favorites/outfits"). Lo que decidió el diseño es que los `picks` de una PC ya
+traen `{nombre, img, sitio, precio}`, la misma forma que `OutfitCollage` y la
+tira consumen: no hubo que adaptar nada, que es la prueba de que el tipo de
+slide ya era el correcto.
+
+**Por qué una sola tira abierta a la vez.** Dos estados independientes
+(`outfitAbierto`, `pcAbierta`) permiten dos tiras apiladas debajo del mismo
+carrusel, y no hay layout donde eso se lea bien. El estado es un par
+`{coleccion, id}`: abrir cualquiera cierra la anterior, sin necesidad de que
+una colección sepa de la otra.
+
+**Por qué renombrar y eliminar quedaron sólo en la vista de lista.** Un slide
+es un collage a pantalla parcial; meterle dos controles encima tapa justamente
+lo que lo hace reconocible. La vista de lista ya existía para eso y ya era
+donde vivían esas acciones antes de `saved-pcs-armadores`. El costo es que
+renombrar exige cambiar de vista; se aceptó porque es una acción rara y el
+toggle está siempre visible.
+
+**Por qué el carrusel dejó de colgar de `items.length`.** El cuerpo entero se
+gateaba con "¿hay productos favoritos?", herencia de cuando la pantalla era
+sólo de productos. Con tres colecciones eso significa que borrar el último
+favorito hace desaparecer de la pantalla una PC que el usuario guardó — un
+dato vivo, invisible por una condición que no lo menciona.
+
+**Por qué las tres colecciones comparten pantalla en vez de tres rutas.** Se
+evaluaron las dos formas. Tres destinos separados (`/favoritos`, outfits
+guardados, PCs guardadas) mantienen cada lista corta, pero reinstalan el
+problema original: tres nombres para la misma pregunta —"¿qué guardé?"— y una
+navegación que hay que recorrer para contestarla. Una pantalla con tres
+secciones la contesta de una. El costo aceptado es que la página crece con lo
+guardado; se mitiga con lo que la vista ya tenía, el toggle carrusel/lista de
+productos, que no se tocó.
+
+**Por qué las secciones de guardados se renderizan aunque no haya un solo
+producto favorito.** Son tres colecciones independientes que comparten
+pantalla, no tres vistas del mismo dato. Colgarlas del estado vacío de
+productos habría hecho que una PC guardada desapareciera de la pantalla al
+borrar el último favorito — un dato que el usuario guardó, invisible por una
+condición que no tiene nada que ver con él. Por la misma razón el contador del
+header sigue contando **sólo productos**: dice "N productos guardados", y
+sumarle outfits y PCs haría que la frase dejara de ser cierta.
+
+**Por qué el estado no se movió.** `savedOutfits`/`savedPcs` ya vivían en el
+reducer de `AppLayout` y ya los cargaba la misma ruta, así que el cambio es de
+quién los renderiza y nada más. Mover el estado "de paso" habría mezclado una
+decisión de navegación con una de arquitectura de datos, y habría vuelto
+imposible leer el diff como lo que es.
 
 ### ¿Por qué el backend no sirve TLS y sólo le cree al proxy de loopback?
 

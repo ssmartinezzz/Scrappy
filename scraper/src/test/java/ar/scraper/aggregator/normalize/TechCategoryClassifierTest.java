@@ -191,6 +191,32 @@ class TechCategoryClassifierTest {
     }
 
     @Test
+    @DisplayName("Un bracket es un bracket aunque no diga 'para gabinete'")
+    void unBracketNoEsElComponenteAlQueSeAtornilla() {
+        // El guard de la fase 7 exigía " para gabinete " en el mismo título, así
+        // que estos tres se escapaban y ganaban su slot por ser lo más barato
+        // del pool: el de Almacenamiento a $3.300 y el de Cooler.
+        assertThat(cat("Bracket Disco SSD para Xigmatek Gaming X")).isEqualTo("Otros");
+        assertThat(cat("Bracket Cooler Master Soporte Para Fan Cooler LGA1700")).isEqualTo("Otros");
+        assertThat(cat("Bracket Disco SSD para Gabinete Xigmatek Medusa")).isEqualTo("Otros");
+    }
+
+    @Test
+    @DisplayName("'Armado de PC' es el SERVICIO de armado, no una PC armada")
+    void armadoLiderEsUnServicio() {
+        // Las 10 filas que lideran con "armado" son mano de obra, no producto —
+        // ocho ya vivían en Otros y dos se habían ido a GPU, donde competían
+        // por el slot gpu del armador ("ARMADO ITEM 6302" a $800).
+        assertThat(cat("ARMADO ITEM 6302 GTX 1050 Ti ATHLON 950 8GB")).isEqualTo("Otros");
+        assertThat(cat("ARMADO DE PC PROMO GTX 1060")).isEqualTo("Otros");
+        assertThat(cat("ARMADO DE BRIX/NOTEBOOK Y AFINES")).isEqualTo("Otros");
+        assertThat(cat("ARMADO BASICO DE PC (No incluye instalación de sistema operativo)")).isEqualTo("Otros");
+
+        // Y una PC armada de verdad, que NO lidera con "armado", sigue siendo PC.
+        assertThat(cat("PC Armada AMD Ryzen 5 8500G+A620+32GB+1TB NVMe+Gabinete Gamer")).isEqualTo("PC");
+    }
+
+    @Test
     @DisplayName("Un procesador que nombra su cooler como accesorio sigue siendo CPU")
     void unProcesadorQueNombraSuCoolerSigueSiendoCpu() {
         // KW_COOLER corre antes que KW_CPU (el cooler de un CPU no es un CPU),
