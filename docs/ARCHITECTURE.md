@@ -783,6 +783,38 @@ un menú con un solo ítem. `Marcas` salió del menú renombrado por la misma
 regla: es exploración del catálogo, no un armador, y dejarla ahí habría
 mantenido viva justo la mezcla que se estaba deshaciendo.
 
+**Por qué una PC guardada es literalmente un slide de outfit.** El carrusel ya
+tenía dos tipos de slide: el de producto (una imagen) y el de outfit (un
+collage de sus miembros, más una tira expandible debajo). Ese segundo tipo no
+describe ropa, describe **una cosa guardada que tiene partes**, y una PC es
+exactamente eso. El nombre `kind:'outfit'` quedó de cuando era el único caso;
+renombrarlo a `'coleccion'` habría sido más honesto, pero tocar el contrato del
+carrusel para eso mezcla un cambio de vocabulario con uno de comportamiento, y
+el archivo ya documenta que es genérico ("this file knows nothing about
+favorites/outfits"). Lo que decidió el diseño es que los `picks` de una PC ya
+traen `{nombre, img, sitio, precio}`, la misma forma que `OutfitCollage` y la
+tira consumen: no hubo que adaptar nada, que es la prueba de que el tipo de
+slide ya era el correcto.
+
+**Por qué una sola tira abierta a la vez.** Dos estados independientes
+(`outfitAbierto`, `pcAbierta`) permiten dos tiras apiladas debajo del mismo
+carrusel, y no hay layout donde eso se lea bien. El estado es un par
+`{coleccion, id}`: abrir cualquiera cierra la anterior, sin necesidad de que
+una colección sepa de la otra.
+
+**Por qué renombrar y eliminar quedaron sólo en la vista de lista.** Un slide
+es un collage a pantalla parcial; meterle dos controles encima tapa justamente
+lo que lo hace reconocible. La vista de lista ya existía para eso y ya era
+donde vivían esas acciones antes de `saved-pcs-armadores`. El costo es que
+renombrar exige cambiar de vista; se aceptó porque es una acción rara y el
+toggle está siempre visible.
+
+**Por qué el carrusel dejó de colgar de `items.length`.** El cuerpo entero se
+gateaba con "¿hay productos favoritos?", herencia de cuando la pantalla era
+sólo de productos. Con tres colecciones eso significa que borrar el último
+favorito hace desaparecer de la pantalla una PC que el usuario guardó — un
+dato vivo, invisible por una condición que no lo menciona.
+
 **Por qué las tres colecciones comparten pantalla en vez de tres rutas.** Se
 evaluaron las dos formas. Tres destinos separados (`/favoritos`, outfits
 guardados, PCs guardadas) mantienen cada lista corta, pero reinstalan el
