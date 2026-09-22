@@ -62,7 +62,11 @@ class AlmacenamientoSpecsReaderTest {
 
     @Test
     void hddPorPalabraExplicita() {
-        var t = leer("HD HDD EXTERNO 4TB WD ELEMENTS USB 3.0");
+        // El fixture era un disco EXTERNO USB; desde que un externo abstiene
+        // la tecnología (no es el disco de la PC que se arma), este test
+        // necesitaba un disco interno para seguir probando lo que quería
+        // probar, que es la lectura del keyword "HDD".
+        var t = leer("Disco Interno Hdd Seagate 4TB Sata Iii Skyhawk Surveillance");
 
         assertThat(t.tipoAlmacenamiento()).isEqualTo(TipoAlmacenamiento.HDD);
         assertThat(t.capacidadGb()).isEqualTo(4096); // 4TB -> 4096GB
@@ -70,7 +74,9 @@ class AlmacenamientoSpecsReaderTest {
 
     @Test
     void discoDuroEsHdd() {
-        var t = leer("Disco Duro Externo Seagate 2TB");
+        // Idem: fixture interno, porque lo que se prueba acá es que "disco
+        // duro" lea como HDD, no que un externo lo haga.
+        var t = leer("Disco Duro HDD 2TB Western Digital WD Sata III Purple");
 
         assertThat(t.tipoAlmacenamiento()).isEqualTo(TipoAlmacenamiento.HDD);
     }
@@ -126,5 +132,39 @@ class AlmacenamientoSpecsReaderTest {
         var t = leer("SSD Generico M.2 2280 NVMe Sin Marca");
 
         assertThat(t.capacidadGb()).isZero();
+    }
+
+    @Test
+    void unDiscoExternoUsbNoDeclaraLaTecnologiaDelDiscoDeUnaPc() {
+        // Un disco externo USB no es el disco de la PC que se está armando.
+        // Abstiene en vez de vetarse con una regla nueva, que es la misma
+        // política que los pendrives: la abstención es el último escalón del
+        // eje, así que se hunde solo y sigue siendo elegible como último
+        // recurso. Medido sobre la dev DB (2026-09-22): 18 de 266 filas
+        // activas de Almacenamiento son externas, y con un piso de capacidad
+        // pedido un "HD HDD EXTERNO 4TB SEAGATE PORTABLE USB 3.0" le ganaba
+        // el slot a los discos internos.
+        assertThat(leer("HD HDD EXTERNO 4TB SEAGATE PORTABLE USB 3.0").tipoAlmacenamiento())
+                .isEqualTo(TipoAlmacenamiento.DESCONOCIDO);
+        assertThat(leer("HD SSD EXTERNO 2TB KINGSTON XS2000 USB 3.2 GEN2X2 GRIS").tipoAlmacenamiento())
+                .isEqualTo(TipoAlmacenamiento.DESCONOCIDO);
+        assertThat(leer("SSD Externo Kingston XS2000 2TB USB-C 2000MB/s").tipoAlmacenamiento())
+                .isEqualTo(TipoAlmacenamiento.DESCONOCIDO);
+    }
+
+    @Test
+    void laCapacidadDeUnDiscoExternoSeSigueLeyendo() {
+        // Sólo abstiene la TECNOLOGÍA: la capacidad es un hecho del producto
+        // y no depende de dónde se enchufe (fill-only por campo, CODE-5).
+        assertThat(leer("HD HDD EXTERNO 4TB SEAGATE PORTABLE USB 3.0").capacidadGb())
+                .isEqualTo(4096);
+    }
+
+    @Test
+    void unDiscoInternoNoSeVeAfectado() {
+        assertThat(leer("Disco Solido Ssd 512gb M.2 Sata 2280 Oem").tipoAlmacenamiento())
+                .isEqualTo(TipoAlmacenamiento.NVME);
+        assertThat(leer("Disco Duro 2TB Seagate Barracuda 7200rpm").tipoAlmacenamiento())
+                .isEqualTo(TipoAlmacenamiento.HDD);
     }
 }

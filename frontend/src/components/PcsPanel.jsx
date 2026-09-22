@@ -374,10 +374,15 @@ export default function PcsPanel({ onSavePc } = {}) {
               onChange={setTamanioGabinete}
             />
             {/* El dato medido va en pantalla porque el resultado es
-                contraintuitivo: 576 de 622 gabinetes del catálogo no dicen su
-                tamaño, y pedirlo los descarta a todos (D2). */}
+                contraintuitivo: sobre las filas ACTIVAS, 535 de 575 gabinetes
+                no dicen su tamaño y pedirlo los descarta a todos (D2). Hoy
+                "full tower" no tiene ni un candidato activo, así que la frase
+                tiene que admitir que el slot puede quedar vacío — decir "muy
+                pocas opciones" cuando el número real es cero sería mentir en
+                el lugar donde se toma la decisión. */}
             <p className="mt-[6px] text-[.72rem] text-t4">
-              Ojo: pocos gabinetes declaran su tamaño en el nombre, así que pedirlo deja muy pocas opciones.
+              Ojo: pocos gabinetes declaran su tamaño en el nombre. Pedirlo deja muy pocas opciones, y
+              puede dejar el slot vacío.
             </p>
           </div>
           <div className="flex flex-wrap gap-[8px]">

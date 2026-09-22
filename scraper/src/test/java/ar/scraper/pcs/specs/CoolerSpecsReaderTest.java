@@ -152,4 +152,31 @@ class CoolerSpecsReaderTest {
     void unCoolerDeAireNoDeclaraRadiador() {
         assertThat(leer("CPU Cooler Cooler Master DT621 R1").radiadorMm()).isZero();
     }
+
+    @Test
+    void unFanDeGabineteQueLideraConCoolerTampocoEsUnCoolerDeCpu() {
+        // El guard de la fase 7 mira SÓLO el primer token, así que ataja
+        // "Fan Cooler 120mm..." y deja pasar "Cooler Fan 120mm...", que es el
+        // mismo producto con las dos palabras al revés. Medido sobre la dev DB
+        // (2026-09-22): las 6 filas activas que lideran con "cooler fan" son
+        // fans de gabinete de 120/140mm, ninguna es un cooler de CPU — y la
+        // más barata ($7.250) ganaba el slot cuando se pedía refrigeración
+        // por aire.
+        assertThat(leer("Cooler Fan ID-Cooling FL-12025 White").tipoCooler())
+                .isEqualTo(TipoCooler.DESCONOCIDO);
+        assertThat(leer("Cooler FAN Be Quiet! LIGHT WINGS LX 140mm ARGB PWM").tipoCooler())
+                .isEqualTo(TipoCooler.DESCONOCIDO);
+        assertThat(leer("Cooler Fan Cooler Master Halo 120 3en1 White").tipoCooler())
+                .isEqualTo(TipoCooler.DESCONOCIDO);
+    }
+
+    @Test
+    void unCoolerDeCpuQueNombraUnFanMasAdelanteSigueSiendoUnCooler() {
+        // El par tiene que ser ADYACENTE y al principio: acá "fan" aparece,
+        // pero el producto se nombra a sí mismo como cooler de CPU primero.
+        assertThat(leer("Cooler CPU Deepcool AK400 con Fan de 120mm").tipoCooler())
+                .isEqualTo(TipoCooler.AIRE);
+        assertThat(leer("Cooler Master Hyper 212 Black Edition").tipoCooler())
+                .isEqualTo(TipoCooler.AIRE);
+    }
 }
