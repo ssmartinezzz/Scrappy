@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Cpu, PackageSearch, Unplug } from 'lucide-react';
-import { fetchPcPreferencia, fetchPcsBuilder, fmt, savePcPreferencia } from '../api';
+import { fetchIndices, fetchPcPreferencia, fetchPcsBuilder, fmt, savePcPreferencia } from '../api';
 import { MoneyInput } from './ui/money-input';
 import { cn } from '@/lib/utils';
 
@@ -176,6 +176,11 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [tipoCooler, setTipoCooler] = useState('');
   const [capacidadMinimaGb, setCapacidadMinimaGb] = useState(0);
   const [wattsMinimos, setWattsMinimos] = useState(0);
+  // Cotización del MISMO servicio que el badge del header (GET /api/indices,
+  // dólar oficial de indices-service). null = no hay dato: no se muestra la
+  // línea en dólares en vez de inventar una tasa — ver CLAUDE.md, "Un factor
+  // nunca viaja sin marcar".
+  const [cotizacionUsd, setCotizacionUsd] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -206,6 +211,19 @@ export default function PcsPanel({ onSavePc } = {}) {
         setTipoCooler(pref.tipoCooler ?? '');
         setCapacidadMinimaGb(pref.capacidadMinimaGb ?? 0);
         setWattsMinimos(pref.wattsMinimos ?? 0);
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  useEffect(() => {
+    let vivo = true;
+    fetchIndices()
+      .then(d => {
+        if (!vivo) return;
+        const usd = d?.usd;
+        if (!usd || usd.confianza === 'sin_datos' || !usd.ultimoValor) return;
+        setCotizacionUsd(usd.ultimoValor);
       })
       .catch(() => {});
     return () => { vivo = false; };
@@ -428,11 +446,16 @@ export default function PcsPanel({ onSavePc } = {}) {
         {data !== null && (picks.length > 0 || sinStock.length > 0 || sinCompatible.length > 0) && (
           <>
             {picks.length > 0 && (
-              <div className="mb-[16px] flex items-baseline justify-end gap-[8px]">
+              <div className="mb-[16px] flex flex-wrap items-baseline justify-end gap-[8px]">
                 <span className="text-[.8rem] font-semibold text-t3">Total estimado</span>
                 <span className="text-[1.3rem] font-extrabold tabular-nums text-primary" aria-live="polite">
                   ${fmt(data.totalEstimado)}
                 </span>
+                {cotizacionUsd && (
+                  <span className="text-[.85rem] font-semibold tabular-nums text-t3">
+                    {`US$ ${Math.round(data.totalEstimado / cotizacionUsd).toLocaleString('es-AR')}`}
+                  </span>
+                )}
               </div>
             )}
 
