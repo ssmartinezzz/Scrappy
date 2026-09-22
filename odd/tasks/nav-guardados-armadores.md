@@ -55,15 +55,32 @@ implementación.
 
 ## Tareas
 
-- [ ] **T1 — nav-config.** `Explorar`→`Armadores` con los tres armadores,
+- [x] **T1 — nav-config.** `Explorar`→`Armadores` con los tres armadores,
   `Marcas` como link de primer nivel, `Guardados` como link a `/favoritos`.
   Verificación: `npm test`.
-- [ ] **T2 — `/favoritos` absorbe outfits y PCs guardadas.** Secciones nuevas en
+- [x] **T2 — `/favoritos` absorbe outfits y PCs guardadas.** Secciones nuevas en
   `FavoritosPanel`, wiring en `AppLayout`. Verificación: `npm test`.
-- [ ] **T3 — borrar `/armadores`.** Ruta, panel, test y lazy import.
+- [x] **T3 — borrar `/armadores`.** Ruta, panel, test y lazy import.
   Verificación: `npm test`.
-- [ ] **T4 — docs.** `CLAUDE.md` (bloque de rutas del frontend).
+- [x] **T4 — docs.** `CLAUDE.md` (bloque de rutas del frontend).
 
 ## Progreso
 
-Sin empezar.
+**4/4 completas**, rama `feat/nav-guardados-armadores` sobre `master` `1f22100`.
+Commit único: `05aa4f8` (+ este doc).
+
+Verificación observada, no inferida:
+
+- `npx vitest run`: **352/352**, 42 archivos. RED observado antes de cada
+  implementación (T1 4 fallos en `nav-config.test.js` · T2 8 fallos en el
+  `FavoritosPanel.test.jsx` nuevo).
+- `vite build` limpio con `VITE_API_BASE_URL` seteada (es build-time y el
+  config falla a propósito sin ella).
+- **Chequeo visual real** en un viewport de 390×860, con el componente montado
+  sin backend: las dos secciones nuevas renderizan en orden (`Outfits
+  guardados` en y=483, `PCs guardadas` en y=703), `scrollWidth == innerWidth`
+  (sin scroll horizontal) y la única entrada de consola es un `favicon.ico`
+  404 del propio preview. Los tests unitarios no pueden ver layout, así que
+  esto no es opcional.
+- `grep` sobre `frontend/src` y `frontend/e2e`: no queda una sola referencia
+  viva a `/armadores` fuera de los comentarios que explican por qué se fue.

@@ -698,10 +698,28 @@ Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` 
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
-Outfits `/outfits` · PCs `/pcs` · Armadores `/armadores` · Historial de
-precios `/historial/:key`. `/tendencias` redirige a `/analisis/mercado`.
-`/armadores` lista lo guardado desde `/outfits` y `/pcs` — los outfits
-guardados salieron de `/favoritos`, que ahora sólo tiene productos.
+Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
+`/tendencias` redirige a `/analisis/mercado`.
+
+**El nav tiene dos menús y cuatro links, y la división es semántica**
+(`nav-guardados-armadores`, 2026-09-22): el menú **Armadores** nombra los tres
+armadores y nada más (`/outfits` · `/suplementos` · `/pcs`); el menú
+**Análisis** las cuatro vistas de análisis; y **Guardados** es un *link*, no
+un menú, porque hay un solo destino. `Marcas` salió a primer nivel: es una
+vista de exploración del catálogo, no un armador.
+
+⚠️ **`/armadores` NO existe más.** Era la misma idea que `/favoritos` en otra
+ruta, y el reparto no cerraba: los outfits guardados habían salido de
+`/favoritos` hacia `/armadores` en `saved-pcs-armadores`, mientras `Outfits`
+colgaba del menú `Guardados` apuntando al **armador**, no a lo guardado.
+`/favoritos` junta ahora las tres colecciones en tres secciones —productos
+(carrusel o lista, con su toggle intacto), outfits guardados y PCs guardadas—
+reusando `SavedOutfitCard` y `SavedPcCard` sin redibujarlas. El contador del
+header sigue contando **sólo productos**; las dos secciones nuevas se
+renderizan siempre, incluso sin un favorito, porque son colecciones
+independientes que comparten pantalla y no tres vistas de la misma cosa. El
+estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
+`AppLayout` y ya los cargaba esta misma ruta.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
 la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de
