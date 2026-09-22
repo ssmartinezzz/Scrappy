@@ -4,12 +4,18 @@ import ar.scraper.model.Product;
 import ar.scraper.pcs.reglas.ReglaCertificacion;
 import ar.scraper.pcs.reglas.ReglaCompatibilidad;
 import ar.scraper.pcs.reglas.ReglaDdr;
+import ar.scraper.pcs.reglas.ReglaDdrPedidaMother;
+import ar.scraper.pcs.reglas.ReglaDdrPedidaRam;
 import ar.scraper.pcs.reglas.ReglaFormFactor;
 import ar.scraper.pcs.reglas.ReglaGama;
+import ar.scraper.pcs.reglas.ReglaMarcaChip;
+import ar.scraper.pcs.reglas.ReglaRamDual;
 import ar.scraper.pcs.reglas.ReglaSocket;
 import ar.scraper.pcs.reglas.ReglaSocketCooler;
 import ar.scraper.pcs.reglas.ReglaSodimm;
+import ar.scraper.pcs.reglas.ReglaTipoAlmacenamiento;
 import ar.scraper.pcs.reglas.ReglaWatts;
+import ar.scraper.pcs.reglas.ReglaWifi;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,31 +39,6 @@ import java.util.stream.Collectors;
  * T2 for why this stopped being one class with a string switch.
  */
 public class PcBuilder {
-
-    // Anchor first: every veto below references the motherboard.
-    // cpu/gpu carry ReglaGama; fuente carries ReglaCertificacion — both are
-    // no-ops when no gama was requested (ContextoDeArmado.gamaPedida()==null),
-    // so wiring them unconditionally keeps the no-gama path byte-for-byte
-    // identical to pre-pc-builder-gama behavior (T3a contract).
-    //
-    // Each slot carries its own CriterioDeSeleccion (EjesTecnicos, T3b) —
-    // price is only ever the tiebreak inside that criterio, never the
-    // objective here.
-    private static final List<SlotDeArmado> SLOTS_FIJOS = List.of(
-            new SlotDeArmado("mother", "Motherboard", List.of(), new CriterioPorEjesTecnicos(EjesTecnicos.MOTHER)),
-            new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket(), new ReglaGama()),
-                    new CriterioPorEjesTecnicos(EjesTecnicos.CPU)),
-            new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr(), new ReglaSodimm()),
-                    new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
-            new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor()),
-                    new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
-            new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
-                    new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE)),
-            new SlotDeArmado("almacenamiento", "Almacenamiento", List.of(),
-                    new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO)));
-
-    private static final SlotDeArmado SLOT_GPU =
-            new SlotDeArmado("gpu", "GPU", List.of(new ReglaGama()), new CriterioPorEjesTecnicos(EjesTecnicos.GPU));
 
     // Opens only for gama ALTA (D4, T3b-2) — depends on the requested tier,
     // never on the cpu pick itself: "and the CPU doesn't include a cooler"
@@ -83,25 +64,38 @@ public class PcBuilder {
      * requesting an unparseable tier (that's {@link Gama#DESCONOCIDA}, a
      * per-candidate parser outcome). With null, {@link ReglaGama} and {@link
      * ReglaCertificacion} are no-ops and every slot behaves exactly as
-     * before pc-builder-gama.
+     * before pc-builder-gama. No technical preferences requested either —
+     * see the 6-arg overload (pc-builder-deep-taxonomy T4b).
      */
     public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls,
             Gama gamaPedida) {
+        return armar(productos, presupuesto, conGpu, excluirUrls, gamaPedida, PreferenciasDeArmado.NINGUNA);
+    }
+
+    /**
+     * {@code prefs}' fields default to "not requested" (D1) — with {@link
+     * PreferenciasDeArmado#NINGUNA} every slot's extra rule is a no-op and
+     * this behaves exactly like the 5-arg overload (pinned by
+     * {@code PcBuilderPreferenciasTest.ningunaEsIdenticaAlOverloadDe5Args}).
+     */
+    public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls,
+            Gama gamaPedida, PreferenciasDeArmado prefs) {
         if (productos == null) productos = List.of();
         final Set<String> excluir = excluirUrls != null ? excluirUrls : Set.of();
+        final PreferenciasDeArmado preferencias = prefs != null ? prefs : PreferenciasDeArmado.NINGUNA;
 
         Map<String, List<Product>> porCategoria = productos.stream()
                 .filter(p -> p.categoria() != null)
                 .collect(Collectors.groupingBy(Product::categoria));
 
-        List<SlotDeArmado> slots = new ArrayList<>(SLOTS_FIJOS);
+        List<SlotDeArmado> slots = new ArrayList<>(slotsFijos(preferencias));
         // Cooler is inserted right after cpu — pick order per the design table —
         // and only for gama ALTA (D4); with null/BAJA/MEDIA/DESCONOCIDA it never
         // appears anywhere below.
         if (gamaPedida == Gama.ALTA) slots.add(indiceDe(slots, "cpu") + 1, SLOT_COOLER);
         // GPU is inserted before Almacenamiento — pick order 6, per the design table —
         // and only when the caller opted in; otherwise it never appears anywhere below.
-        if (conGpu) slots.add(slots.size() - 1, SLOT_GPU);
+        if (conGpu) slots.add(slots.size() - 1, slotGpu(preferencias));
 
         List<PcPick> picks = new ArrayList<>();
         List<String> sinStock = new ArrayList<>();
@@ -110,7 +104,7 @@ public class PcBuilder {
         double remainingBudget = presupuesto;
         int wattsMin = EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu);
         Certificacion certMin = EstimadorDeConsumo.certificacionMinima(gamaPedida);
-        ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin);
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin, preferencias);
 
         for (SlotDeArmado slot : slots) {
             List<Product> pool = porCategoria.getOrDefault(slot.categoria(), List.of());
@@ -143,7 +137,7 @@ public class PcBuilder {
                         .filter(p -> p.precio() <= rem)
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) {
-                    elegido = slot.criterio().elegir(affordable);
+                    elegido = slot.criterio().elegir(affordable, contextoActual);
                 } else {
                     // Nothing fits: spend as little as possible, not the best rank.
                     elegido = compatibles.stream()
@@ -152,7 +146,7 @@ public class PcBuilder {
                 }
                 remainingBudget = Math.max(0, remainingBudget - elegido.precio());
             } else {
-                elegido = slot.criterio().elegir(compatibles);
+                elegido = slot.criterio().elegir(compatibles, contextoActual);
             }
 
             TechSpecs specs = TechSpecsParser.parse(elegido.nombre(), elegido.categoria());
@@ -197,6 +191,47 @@ public class PcBuilder {
     private static int indiceDe(List<SlotDeArmado> slots, String nombre) {
         for (int i = 0; i < slots.size(); i++) if (slots.get(i).nombre().equals(nombre)) return i;
         throw new IllegalStateException("slot inexistente: " + nombre);
+    }
+
+    /**
+     * Built fresh per {@code armar} call — not a static final list like
+     * pre-T4b — because the six preference rules (T4b, D1-D3) bake their
+     * requested value into their constructor so {@code motivo()} can name
+     * it; with {@link PreferenciasDeArmado#NINGUNA} every extra rule is a
+     * no-op and never fires, so {@code mensajes} never mentions them
+     * (byte-for-byte with pre-T4b — CODE-2). Existing rules stay first,
+     * preference rules after, per slot (D1's wiring order).
+     */
+    private static List<SlotDeArmado> slotsFijos(PreferenciasDeArmado prefs) {
+        return List.of(
+                new SlotDeArmado("mother", "Motherboard",
+                        List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
+                                new ReglaWifi(prefs.wifi())),
+                        // D9, T4c: chipset tier ranked relative to the requested gama —
+                        // only known per-call, off ContextoDeArmado.gamaPedida().
+                        new CriterioPorEjesTecnicos(
+                                (ContextoDeArmado ctx) -> EjesTecnicos.mother(ctx.gamaPedida()))),
+                new SlotDeArmado("cpu", "CPU",
+                        List.of(new ReglaSocket(), new ReglaGama(), new ReglaMarcaChip(prefs.marcaCpu())),
+                        new CriterioPorEjesTecnicos(EjesTecnicos.CPU)),
+                new SlotDeArmado("ram", "RAM",
+                        List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
+                                new ReglaRamDual(prefs.ramDual())),
+                        new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
+                new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor()),
+                        new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
+                new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
+                        new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE)),
+                new SlotDeArmado("almacenamiento", "Almacenamiento",
+                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento())),
+                        new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO)));
+    }
+
+    /** Built fresh per call, same reason as {@link #slotsFijos} — marcaGpu bakes into ReglaMarcaChip's motivo. */
+    private static SlotDeArmado slotGpu(PreferenciasDeArmado prefs) {
+        return new SlotDeArmado("gpu", "GPU",
+                List.of(new ReglaGama(), new ReglaMarcaChip(prefs.marcaGpu())),
+                new CriterioPorEjesTecnicos(EjesTecnicos.GPU));
     }
 
     private PcPick toPick(String slot, Product p, TechSpecs specs) {
