@@ -5,6 +5,8 @@ import ar.scraper.pcs.TipoCooler;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Reads supported sockets and cooling technology off a cooler's name (T2d +
@@ -32,6 +34,7 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
     private static final String[] TOKENS_LIDER_CASE_FAN = { "fan", "ventilador", "kit" };
     private static final String[] TOKENS_LIQUIDO = { "water", "aio", "liquid", "liquida", "watercooling" };
     private static final String[] TOKENS_RADIADOR = { "240mm", "280mm", "360mm", "420mm" };
+    private static final Pattern RADIADOR = Pattern.compile("^(\\d{3})mm$");
 
     @Override
     public String categoria() {
@@ -43,7 +46,8 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
         return new TechSpecs("", "", "", 0, 0, "",
                 ar.scraper.pcs.Gama.DESCONOCIDA, ar.scraper.pcs.Certificacion.NINGUNA,
                 0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO, socketsSoportados(tokens),
-                "", 0, 0, 0, false, tipoCooler(tokens));
+                "", 0, 0, 0, false, tipoCooler(tokens), 0,
+                ar.scraper.pcs.TamanioGabinete.DESCONOCIDO, radiadorMm(tokens));
     }
 
     private static List<String> socketsSoportados(Tokens tokens) {
@@ -85,5 +89,27 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
     private static boolean tieneAlguno(String valor, String[] candidatos) {
         for (String c : candidatos) if (valor.equals(c)) return true;
         return false;
+    }
+
+    /**
+     * Tamaño del radiador, en mm — el eje que separa dos AIO entre sí (fase
+     * 9, D6). Sólo lo declara un cooler que ya leyó como LIQUIDO: el
+     * diámetro de un fan de gabinete ("Fan Cooler 120mm") tiene la misma
+     * forma y no es un radiador, y {@link #tipoCooler} ya abstiene ahí por
+     * el líder.
+     *
+     * <p>Sólo un token ENTERO de tres dígitos + {@code mm} cuenta. Ruido
+     * real que esto tiene que ignorar: "Masterliquid 360 Core" (un 360
+     * suelto, sin unidad) y "Th240" (dígitos pegados a letras). Medido: 84
+     * de los 171 líquidos del catálogo lo declaran — 240mm×41, 360mm×38,
+     * 420mm×2, 280mm×1 (2026-09-22).</p>
+     */
+    private static int radiadorMm(Tokens tokens) {
+        if (tipoCooler(tokens) != TipoCooler.LIQUIDO) return 0;
+        for (String t : tokens.array()) {
+            Matcher m = RADIADOR.matcher(t);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+        }
+        return 0;
     }
 }

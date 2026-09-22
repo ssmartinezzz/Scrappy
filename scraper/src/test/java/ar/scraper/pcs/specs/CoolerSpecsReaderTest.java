@@ -119,4 +119,37 @@ class CoolerSpecsReaderTest {
         assertThat(leer("Pasta Térmica Arctic MX-4 4g").tipoCooler())
                 .isEqualTo(TipoCooler.DESCONOCIDO);
     }
+
+    // ── radiador: fase 9 (pc-builder-fine-grained-prefs T1) ──────────────
+
+    @Test
+    void leeElRadiadorDeUnaRefrigeracionLiquida() {
+        // 84 de los 171 líquidos del catálogo declaran radiador (medido 2026-09-22).
+        assertThat(leer("CPU Water Cooler Lovingcool 360mm AK-B360-03 - Argb - Black").radiadorMm())
+                .isEqualTo(360);
+        assertThat(leer("Water Cooling Sharkoon S70 Rgb Aio 240mm 600rpm A 2000rpm").radiadorMm())
+                .isEqualTo(240);
+    }
+
+    @Test
+    void unNumeroSueltoQueNoLleveMmNoEsUnRadiador() {
+        // "Masterliquid 360 Core" y "Th240" dejan un 360/un th240 dando
+        // vueltas: sólo el token entero digitos+mm cuenta, misma política
+        // que la capacidad de AlmacenamientoSpecsReader.
+        assertThat(leer("Water Cooling Thermaltake Th240 V2 Argb Sync Aio Snow White").radiadorMm())
+                .isZero();
+    }
+
+    @Test
+    void elDiametroDeUnFanDeGabineteNoEsUnRadiador() {
+        // El líder "fan" ya abstiene el tipo; el radiador tiene que abstener
+        // por el mismo motivo o un fan de 120mm rankearía como AIO chico.
+        assertThat(leer("Fan Cooler 120mm Lovingcool DZPKK-120-Logo - Black").radiadorMm())
+                .isZero();
+    }
+
+    @Test
+    void unCoolerDeAireNoDeclaraRadiador() {
+        assertThat(leer("CPU Cooler Cooler Master DT621 R1").radiadorMm()).isZero();
+    }
 }
