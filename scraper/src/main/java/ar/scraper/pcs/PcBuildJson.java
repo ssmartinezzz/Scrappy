@@ -36,6 +36,11 @@ public class PcBuildJson {
             specs.put("certificacion",      pick.specs().certificacion().name());
             specs.put("velocidadMhz",       pick.specs().velocidadMhz());
             specs.put("tipoAlmacenamiento", pick.specs().tipoAlmacenamiento().name());
+            specs.put("marcaChip",          pick.specs().marcaChip());
+            specs.put("generacion",         pick.specs().generacion());
+            specs.put("tierChipset",        pick.specs().tierChipset());
+            specs.put("modulos",            pick.specs().modulos());
+            specs.put("wifi",               pick.specs().wifi());
         }
         ArrayNode sinStockArr = root.putArray("sinStock");
         build.sinStock().forEach(sinStockArr::add);

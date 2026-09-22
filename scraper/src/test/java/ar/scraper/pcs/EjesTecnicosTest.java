@@ -29,8 +29,28 @@ class EjesTecnicosTest {
         return new TechSpecs("", ddr, "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, mhz, TipoAlmacenamiento.DESCONOCIDO);
     }
 
+    private static TechSpecs conRamModulos(String ddr, int modulos, int mhz, int gb) {
+        return new TechSpecs("", ddr, "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, mhz,
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, 0, modulos, false);
+    }
+
     private static TechSpecs conMother(String socket, String ddr) {
         return new TechSpecs(socket, ddr, "", 0, 0, "");
+    }
+
+    private static TechSpecs conMotherTier(String ddr, int tierChipset) {
+        return new TechSpecs("", ddr, "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, tierChipset, 0, false);
+    }
+
+    private static TechSpecs conCpuGeneracion(Gama gama, int generacion) {
+        return new TechSpecs("", "", "", 0, 0, "", gama, Certificacion.NINGUNA, 0,
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false);
+    }
+
+    private static TechSpecs conGpu(Gama gama, int generacion, int vramGb) {
+        return new TechSpecs("", "", "", 0, vramGb, "", gama, Certificacion.NINGUNA, 0,
+                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false);
     }
 
     // ── CPU / GPU: gama desc, DESCONOCIDA siempre última ─────────────────
@@ -54,6 +74,44 @@ class EjesTecnicosTest {
     @Test
     void gpuUsaElMismoOrdenQueCpu() {
         assertThat(EjesTecnicos.GPU.compare(conGama(Gama.ALTA), conGama(Gama.DESCONOCIDA))).isNegative();
+    }
+
+    // ── CPU: gama → generación desc, abstención (0) última (D4) ─────────
+
+    @Test
+    void cpuEmpataGamaDesempataPorGeneracionDesc() {
+        assertThat(EjesTecnicos.CPU.compare(conCpuGeneracion(Gama.ALTA, 14), conCpuGeneracion(Gama.ALTA, 12)))
+                .isNegative();
+    }
+
+    @Test
+    void cpuSinGeneracionVaUltimaEnEseEjeAunqueLaGamaEmpate() {
+        assertThat(EjesTecnicos.CPU.compare(conCpuGeneracion(Gama.ALTA, 12), conCpuGeneracion(Gama.ALTA, 0)))
+                .isNegative();
+    }
+
+    @Test
+    void cpuLaGamaSigueGanandoleALaGeneracion() {
+        // Una ALTA de generación vieja le gana a una MEDIA de generación nueva.
+        assertThat(EjesTecnicos.CPU.compare(conCpuGeneracion(Gama.ALTA, 9), conCpuGeneracion(Gama.MEDIA, 14)))
+                .isNegative();
+    }
+
+    // ── GPU: gama → generación desc → VRAM desc (D4) ─────────────────────
+
+    @Test
+    void gpuEmpataGamaDesempataPorGeneracionDesc() {
+        assertThat(EjesTecnicos.GPU.compare(conGpu(Gama.ALTA, 5, 16), conGpu(Gama.ALTA, 4, 16))).isNegative();
+    }
+
+    @Test
+    void gpuEmpataGamaYGeneracionDesempataPorVramDesc() {
+        assertThat(EjesTecnicos.GPU.compare(conGpu(Gama.ALTA, 5, 16), conGpu(Gama.ALTA, 5, 8))).isNegative();
+    }
+
+    @Test
+    void gpuSinGeneracionVaUltimaEnEseEjeAunqueLaGamaEmpate() {
+        assertThat(EjesTecnicos.GPU.compare(conGpu(Gama.ALTA, 5, 8), conGpu(Gama.ALTA, 0, 24))).isNegative();
     }
 
     // ── Fuente: certificación desc ───────────────────────────────────────
@@ -137,6 +195,30 @@ class EjesTecnicosTest {
         assertThat(EjesTecnicos.RAM.compare(conRam("DDR4", 3200, 32), conRam("DDR4", 3200, 16))).isNegative();
     }
 
+    // ── RAM: módulos (kit) va ANTES que MHz — D4 ──────────────────────────
+
+    @Test
+    void ramPrefiereMasModulosSobreMenosAunqueLaOtraTengaMasMhz() {
+        // Un kit dual-channel le gana a un stick único más rápido.
+        assertThat(EjesTecnicos.RAM.compare(
+                conRamModulos("DDR5", 2, 3200, 16),
+                conRamModulos("DDR5", 1, 6000, 16))).isNegative();
+    }
+
+    @Test
+    void ramSinModulosVaUltimaEnEseEjeAunqueLaOtraTengaMenosMhz() {
+        assertThat(EjesTecnicos.RAM.compare(
+                conRamModulos("DDR5", 2, 3200, 16),
+                conRamModulos("DDR5", 0, 6000, 16))).isNegative();
+    }
+
+    @Test
+    void ramEmpataModulosDesempataPorMhz() {
+        assertThat(EjesTecnicos.RAM.compare(
+                conRamModulos("DDR5", 2, 6000, 16),
+                conRamModulos("DDR5", 2, 3200, 16))).isNegative();
+    }
+
     // ── Motherboard: DDR desc, derivada del socket cuando no la declara ──
 
     @Test
@@ -155,5 +237,28 @@ class EjesTecnicosTest {
         // LGA1700 es plataforma mixta (phase-1): no deriva a ninguna DDR, y
         // ese "" tiene que perder incluso contra un socket con DDR derivada.
         assertThat(EjesTecnicos.MOTHER.compare(conMother("AM4", ""), conMother("LGA1700", ""))).isNegative();
+    }
+
+    // ── Motherboard: DDR → tier de chipset (X/Z=1 < B=2 < A/H=3, 0 última) — D4 ─
+
+    @Test
+    void motherEmpataDdrDesempataPorTierChipset() {
+        assertThat(EjesTecnicos.MOTHER.compare(conMotherTier("DDR5", 1), conMotherTier("DDR5", 2))).isNegative();
+    }
+
+    @Test
+    void motherTierBLeGanaATierAyH() {
+        assertThat(EjesTecnicos.MOTHER.compare(conMotherTier("DDR5", 2), conMotherTier("DDR5", 3))).isNegative();
+    }
+
+    @Test
+    void motherSinChipsetLegibleVaUltimaEnEseEjeAunqueLaDdrEmpate() {
+        assertThat(EjesTecnicos.MOTHER.compare(conMotherTier("DDR5", 1), conMotherTier("DDR5", 0))).isNegative();
+    }
+
+    @Test
+    void motherLaDdrSigueGanandoleAlTierDeChipset() {
+        // Una DDR5 de tier bajo le gana a una DDR4 de tier alto.
+        assertThat(EjesTecnicos.MOTHER.compare(conMotherTier("DDR5", 3), conMotherTier("DDR4", 1))).isNegative();
     }
 }

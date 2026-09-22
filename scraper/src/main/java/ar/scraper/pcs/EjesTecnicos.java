@@ -23,15 +23,20 @@ public final class EjesTecnicos {
     private EjesTecnicos() {
     }
 
-    /** DDR desc — la del nombre, y si no parseó, la derivada del socket. */
+    /** DDR desc → tier de chipset (X/Z=1 < B=2 < A/H=3, 0 última) — D4. */
     public static final Comparator<TechSpecs> MOTHER =
-            Comparator.comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)));
+            Comparator.<TechSpecs>comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
+                    .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset()));
 
+    /** Gama → generación desc — D4. */
     public static final Comparator<TechSpecs> CPU =
-            Comparator.comparingInt(specs -> gamaRank(specs.gama()));
+            Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.generacion()));
 
+    /** DDR desc → módulos (kit) desc → MHz desc → GB desc — D4: el kit va ANTES que la velocidad. */
     public static final Comparator<TechSpecs> RAM =
             Comparator.<TechSpecs>comparingInt(specs -> ddrRank(specs.ddr()))
+                    .thenComparingInt(specs -> masEsMejor(specs.modulos()))
                     .thenComparingInt(specs -> masEsMejor(specs.velocidadMhz()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 
@@ -48,8 +53,11 @@ public final class EjesTecnicos {
     public static final Comparator<TechSpecs> FUENTE =
             Comparator.comparingInt(specs -> -specs.certificacion().ordinal());
 
+    /** Gama → generación desc → VRAM desc — D4. */
     public static final Comparator<TechSpecs> GPU =
-            Comparator.comparingInt(specs -> gamaRank(specs.gama()));
+            Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.generacion()))
+                    .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 
     public static final Comparator<TechSpecs> ALMACENAMIENTO =
             Comparator.<TechSpecs>comparingInt(specs -> tipoAlmacenamientoRank(specs.tipoAlmacenamiento()))
@@ -89,5 +97,10 @@ public final class EjesTecnicos {
     /** "Más es mejor" para un entero >= 0, con 0 (abstención) siempre al final, nunca primero. */
     private static int masEsMejor(int valor) {
         return valor == 0 ? Integer.MAX_VALUE : -valor;
+    }
+
+    /** {@code TechSpecs.tierChipset()} ya es "menor es mejor" (1=X/Z, 2=B, 3=A/H) — sólo 0 (abstención) se mapea a mano. */
+    private static int tierChipsetRank(int tier) {
+        return tier == 0 ? Integer.MAX_VALUE : tier;
     }
 }
