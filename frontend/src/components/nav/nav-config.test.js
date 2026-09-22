@@ -61,6 +61,37 @@ describe('visibleNav — role-based filtering (design D6)', () => {
     expect(result[0].items.map(i => i.label)).toEqual(['Mercado']);
   });
 
+  // nav-guardados-armadores: el menú "Armadores" nombra los tres armadores y
+  // nada más; "Guardados" dejó de ser menú (una sola pantalla, /favoritos) y
+  // "Marcas" salió a primer nivel porque no es un armador.
+  it('el menú Armadores tiene exactamente los tres armadores, en orden', () => {
+    const armadores = NAV_CONFIG.find(n => n.label === 'Armadores');
+
+    expect(armadores.kind).toBe('menu');
+    expect(armadores.items.map(i => i.to)).toEqual(['/outfits', '/suplementos', '/pcs']);
+  });
+
+  it('ya no existe el menú Explorar ni el destino /armadores', () => {
+    expect(NAV_CONFIG.map(n => n.label)).not.toContain('Explorar');
+
+    const destinos = NAV_CONFIG.flatMap(n => n.kind === 'link' ? [n.to] : n.items.map(i => i.to));
+    expect(destinos).not.toContain('/armadores');
+  });
+
+  it('Guardados es un link directo a /favoritos, no un menú', () => {
+    const guardados = NAV_CONFIG.find(n => n.label === 'Guardados');
+
+    expect(guardados.kind).toBe('link');
+    expect(guardados.to).toBe('/favoritos');
+  });
+
+  it('Marcas es un link de primer nivel', () => {
+    const marcas = NAV_CONFIG.find(n => n.label === 'Marcas');
+
+    expect(marcas.kind).toBe('link');
+    expect(marcas.to).toBe('/marcas');
+  });
+
   it('the real NAV_CONFIG hides Cronjobs for a VIEWER and shows it for an ADMIN', () => {
     const viewerLabels = visibleNav(NAV_CONFIG, ['VIEWER']).map(n => n.label);
     const adminLabels = visibleNav(NAV_CONFIG, ['ADMIN']).map(n => n.label);
