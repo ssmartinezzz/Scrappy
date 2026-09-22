@@ -473,8 +473,24 @@ public class ApiController {
             @RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
             @RequestParam(defaultValue = "") String excluir,
-            @RequestParam(defaultValue = "") String gama) {
-        return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama);
+            @RequestParam(defaultValue = "") String gama,
+            @RequestParam(defaultValue = "") String ddr,
+            @RequestParam(defaultValue = "") String marcaCpu,
+            @RequestParam(defaultValue = "") String marcaGpu,
+            @RequestParam(defaultValue = "") String tipoAlmacenamiento,
+            @RequestParam(required = false) Boolean ramDual,
+            @RequestParam(required = false) Boolean wifi) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama,
+                ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
+    }
+
+    /**
+     * Backward-compatible 4-arg overload, sin mapping propio — la ruta la sigue
+     * sirviendo el método de arriba. Existe para que los call sites previos a
+     * las preferencias técnicas de T5c sigan compilando sin editarlos.
+     */
+    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
     }
 
     /**
@@ -483,7 +499,7 @@ public class ApiController {
      * {@code gama} sigan compilando sin editarlos.
      */
     public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir) {
-        return pcsEndpoints.builder(presupuesto, conGpu, excluir, "");
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, "", "", "", "", "", null, null);
     }
 
     @GetMapping("/pcs/preferencia")

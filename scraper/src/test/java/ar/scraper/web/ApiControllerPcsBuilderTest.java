@@ -192,4 +192,126 @@ class ApiControllerPcsBuilderTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
     }
+
+    // ── preferencias técnicas (pc-builder-deep-taxonomy T5c) ──────────────
+
+    @Test
+    void ddrValidFiltersMotherboard() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Motherboard ASUS PRIME B650M DDR5 AM5", 200_000, "Motherboard", "https://t/ddr5"),
+                producto("Motherboard ASUS PRIME B450M DDR4 AM4", 150_000, "Motherboard", "https://t/ddr4"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "ddr4", "", "", "", null, null);
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/ddr4");
+    }
+
+    @Test
+    void ddrInvalidReturns400WithOkFalse() {
+        var resp = controller.pcsBuilder(0, false, "", "", "ddr3", "", "", "", null, null);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("ddr");
+    }
+
+    @Test
+    void marcaCpuValidFiltersCpu() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Procesador Intel Core i5 12400F", 150_000, "CPU", "https://t/intel"),
+                producto("Procesador AMD Ryzen 5 5600X AM4", 140_000, "CPU", "https://t/amd"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "", "amd", "", "", null, null);
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/amd");
+    }
+
+    @Test
+    void marcaCpuInvalidReturns400WithOkFalse() {
+        var resp = controller.pcsBuilder(0, false, "", "", "", "nvidia", "", "", null, null);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("marcaCpu");
+    }
+
+    @Test
+    void marcaGpuValidFiltersGpuWhenConGpu() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/nvidia"),
+                producto("Placa de Video Radeon RX 7800 XT", 800_000, "GPU", "https://t/amd"))));
+
+        var resp = controller.pcsBuilder(0, true, "", "", "", "", "amd", "", null, null);
+        ObjectNode body = resp.getBody();
+
+        String gpuUrl = null;
+        for (var pick : body.get("picks")) {
+            if ("gpu".equals(pick.get("slot").asText())) gpuUrl = pick.get("url").asText();
+        }
+        assertThat(gpuUrl).isEqualTo("https://t/amd");
+    }
+
+    @Test
+    void marcaGpuInvalidReturns400WithOkFalse() {
+        var resp = controller.pcsBuilder(0, true, "", "", "", "", "intel", "", null, null);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("marcaGpu");
+    }
+
+    @Test
+    void tipoAlmacenamientoValidFiltersAlmacenamiento() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("SSD Kingston NV2 1TB M.2 NVMe", 60_000, "Almacenamiento", "https://t/nvme"),
+                producto("Disco Rigido Seagate 1TB HDD", 40_000, "Almacenamiento", "https://t/hdd"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "hdd", null, null);
+        ObjectNode body = resp.getBody();
+
+        String almacenamientoUrl = null;
+        for (var pick : body.get("picks")) {
+            if ("almacenamiento".equals(pick.get("slot").asText())) almacenamientoUrl = pick.get("url").asText();
+        }
+        assertThat(almacenamientoUrl).isEqualTo("https://t/hdd");
+    }
+
+    @Test
+    void tipoAlmacenamientoInvalidReturns400WithOkFalse() {
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "ssd", null, null);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("tipoAlmacenamiento");
+    }
+
+    @Test
+    void ramDualTrueFiltersToTheKit() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Memoria Corsair DDR5 32GB (2x16GB) 6000MHz", 180_000, "RAM", "https://t/kit"),
+                producto("Memoria Corsair DDR5 32GB 6000MHz", 170_000, "RAM", "https://t/single"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", true, null);
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/kit");
+    }
+
+    @Test
+    void wifiTrueFiltersMotherboard() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Motherboard ASUS TUF Gaming B650M-E WiFi AM5", 200_000, "Motherboard", "https://t/wifi"),
+                producto("Motherboard ASUS TUF Gaming B650M-E AM5", 190_000, "Motherboard", "https://t/nowifi"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, true);
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/wifi");
+    }
 }
