@@ -546,6 +546,65 @@ auricular archivado como procesador.
 
 **Por qué la comida no entra al combo del outfit de Gym**: ese combo se armaba con TODOS los subtipos, así que cada tipo nuevo le agregaba una tarjeta a una grilla que ya tenía 21 — el crecimiento de 17 a 21 que figuraba como pendiente nunca fue una decisión, fue un efecto. Ahora `OutfitsEndpoints` pide `TIPOS_COMBO_OUTFIT` explícito: ahí el stack es una sugerencia fija, y elegir es el trabajo de `/suplementos`, que sí los ofrece completos.
 
+### ¿Por qué el armador de PCs vetea por abstención cuando hay una preferencia pedida, arregla el ruido en el clasificador y no en el armador, y rankea el chipset relativo a la gama?
+
+**D2 (fase 7, `pc-builder-deep-taxonomy`) — la abstención vuelve a vetar cuando
+el usuario pidió algo.** Es la misma inversión que ya regía para `gama` desde
+fase 6 (`pc-builder-gama`): en el resto del armador "no sé" no filtra nada
+—los vetos de socket/DDR/form factor, `VisualCoherence`— porque vetar sobre
+una abstención vacía el pool sin necesidad. Pedir una preferencia técnica
+cambia esa cuenta: si el usuario pide DDR5 y una mother no dice su DDR (ni se
+puede derivar del socket), no hay forma honesta de afirmar que la cumple, así
+que se descarta igual que si dijera la DDR equivocada. **La excepción es
+`ramDual`/`wifi`, y está escrita a propósito**: en el resto de las
+preferencias un candidato puede genuinamente no decir nada; `wifi` y
+`ramDual` no tienen ese tercer estado — el nombre de una mother o afirma
+"wifi" o no lo afirma, y esa ausencia YA es la respuesta completa ("no tiene",
+no "no sé"), así que no hay abstención de más que vetear. Tratarlas como el
+resto habría inventado una incertidumbre que el dato no tiene.
+
+**D5 — el ruido de clasificación se arregla en el clasificador, nunca en el
+armador.** El slot Gabinete elegía un service de armado porque `KW_GABINETE`
+matchea `"para gabinete"` sin mirar el sustantivo líder del nombre — el mismo
+patrón que ya protegía a `Cable` (`"Fuente ... Cables Largos"` no es un
+cable, ver Taxonomía y clasificación en `CLAUDE.md`). Corregirlo en
+`PcBuilder` con un veto adicional del slot habría escondido el síntoma sin
+tocar la causa: el producto seguiría mal categorizado para `/catalogo`, para
+el ML, para cualquier otra superficie que lea `categoria` — exactamente el
+motivo por el que `richer-category-taxonomy` y `close-1nf-and-3nf-foundation`
+ya tratan la categoría como un dato compartido, no una opinión del armador.
+Generalizar el sustantivo líder (`bracket|filtro|service|kit|fan|soporte` +
+`"para gabinete"` como destino) resolvió Gabinete, y de paso destapó el mismo
+patrón faltante en dos lugares más —`KW_CPU_LIDER` corriendo después de
+`KW_COOLER`, `KW_PC_LIDER` corriendo después de `KW_GPU`—: tres síntomas con
+forma distinta, una sola causa, el orden de los keywords, no su presencia.
+
+**D9 — el tier de chipset se rankea relativo a la gama pedida, no en orden
+absoluto.** T3 de fase 7 le dio a mother un eje de tier de chipset (X/Z > B >
+A/H) y sin gama pedida eso alcanza: más caro casi siempre es mejor. Pero con
+gama pedida, "mejor tier" deja de ser la pregunta correcta — con el ranking
+absoluto, una build de gama MEDIA seguía llevándose la `Asrock Z790I
+Lightning WIFI` de **$284.037** (tier X/Z, la misma que gana sin ninguna gama
+pedida) contra el pedido explícito del usuario. D9 rankea por **distancia**
+al tier objetivo de la gama (ALTA→X/Z, MEDIA→B, BAJA→A/H) en vez de por tier
+absoluto; sin gama pedida cae al orden de T3. Medido contra el catálogo real:
+la misma preferencia MEDIA baja el pick de mother de $284k (tier X/Z) a una
+`B850M` OUTLET de $83.300 (tier B) — el tier B gana porque está más cerca del
+objetivo, no porque sea "peor" en abstracto. Sin esto, pedir una gama barata
+seguía comprando la mother más cara del catálogo.
+
+**Por qué `socketsSoportados` (el veto cooler↔mother, D6 de fase 7) no se
+persiste.** `producto_tech_specs` guarda `socket_id` **singular** con FK a
+`socket` (D10 de fase 6: abstención = NULL, nunca una fila de lookup) — el
+mismo molde que ya usan `gama`, `ddr`, `tipo_almacenamiento`. Un cooler real
+puede listar varios sockets compatibles (`"AM5 y AM4"`, `"115x y 1200"`), y
+eso es una lista, no un escalar: forzarla en una columna FK singular perdería
+sockets o exigiría una tabla `producto_tech_specs_socket` N:M aparte que
+ninguna superficie pide todavía. La compatibilidad se sigue calculando **al
+armar**, desde el snapshot en memoria — igual que el resto de `TechSpecs`
+(D3d de fase 6: la tabla existe, el armador no la lee) — así que no persistir
+la lista no le saca nada al usuario hoy; queda diferido, no descartado.
+
 ### ¿Por qué Morashop tiene page y plataforma propias si es un Tiendanube común?
 
 Porque el valor de `plataforma` no describe la tienda, **rutea el scraper**. Desde `V20` `ScraperFactory` elige la clase leyendo `sitio.plataforma` vía `SiteRegistry`, y los name-sets en código se borraron (`CODE-6`). Morashop necesita una page propia, así que necesita un valor propio; rutearla por nombre de sitio reintroduciría exactamente lo que `V20` sacó. `monkyforce` ya había sentado el precedente. El costo aceptado es que `plataforma` sigue derivando hacia "discriminador de ruteo" más que hacia "qué software corre la tienda" — una deriva que ya existía con `vaypol` y `qloud`.
