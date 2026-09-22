@@ -2,6 +2,7 @@ package ar.scraper.db;
 
 import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
+import ar.scraper.pcs.TamanioGabinete;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TechSpecsPort;
 import ar.scraper.pcs.TipoAlmacenamiento;
@@ -17,12 +18,12 @@ import java.sql.Types;
 import java.util.List;
 
 /**
- * Persistence for {@code producto_tech_specs} (V35): the specs {@code
- * TechSpecsIndexer} parses off each tech product's name, one row per url.
- * Every {@code *_id} is resolved from its lookup by name in the same
- * statement — same molde as {@code PreferenciaArmadorRepository}'s
- * {@code (SELECT id FROM gama WHERE nombre = ?)} — rather than caching ids
- * in Java, so the six lookups stay the single source of the vocabulary.
+ * Persistence for {@code producto_tech_specs} (V35, widened by V36 and V37):
+ * the specs {@code TechSpecsIndexer} parses off each tech product's name, one
+ * row per url. Every {@code *_id} is resolved from its lookup by name in the
+ * same statement — same molde as {@code PreferenciaArmadorRepository}'s
+ * {@code (SELECT id FROM gama WHERE nombre = ?)} — rather than caching ids in
+ * Java, so the lookups stay the single source of the vocabulary.
  */
 @Repository
 class TechSpecsRepository implements TechSpecsPort {
@@ -35,6 +36,7 @@ class TechSpecsRepository implements TechSpecsPort {
                 certificacion_id, gama_id, tipo_almacenamiento_id,
                 watts, capacidad_gb, velocidad_mhz,
                 marca_chip_id, chipset_tier_id, tipo_cooler_id, generacion, modulos, wifi,
+                tamanio_gabinete_id, radiador_mm,
                 actualizado_at
             ) VALUES (
                 ?,
@@ -50,6 +52,8 @@ class TechSpecsRepository implements TechSpecsPort {
                 (SELECT id FROM chipset_tier WHERE nombre = ?),
                 (SELECT id FROM tipo_cooler WHERE nombre = ?),
                 ?, ?, ?,
+                (SELECT id FROM tamanio_gabinete WHERE nombre = ?),
+                ?,
                 now()
             )
             ON CONFLICT (url) DO UPDATE SET
@@ -69,6 +73,8 @@ class TechSpecsRepository implements TechSpecsPort {
                 generacion             = EXCLUDED.generacion,
                 modulos                = EXCLUDED.modulos,
                 wifi                   = EXCLUDED.wifi,
+                tamanio_gabinete_id    = EXCLUDED.tamanio_gabinete_id,
+                radiador_mm            = EXCLUDED.radiador_mm,
                 actualizado_at         = now()
             """;
 
@@ -128,6 +134,9 @@ class TechSpecsRepository implements TechSpecsPort {
         } else {
             ps.setNull(17, Types.BOOLEAN);
         }
+        setNullableString(ps, 18, specs.tamanioGabinete() == TamanioGabinete.DESCONOCIDO
+                ? null : specs.tamanioGabinete().name());
+        setNullableInt(ps, 19, specs.radiadorMm());
     }
 
     private static String blank(String valor) {
