@@ -141,7 +141,7 @@ está en castellano en `pcs/`.
   `EjesTecnicos.COOLER` gana un eje LIQUIDO/AIRE vía `TipoCooler` +
   `CoolerSpecsReader` (antes el slot cooler no tenía eje y elegía lo más
   barato de una categoría con ruido).
-- [ ] **T5 — Borde y persistencia (D7, D8).** `V36`, `PreferenciaArmador` +
+- [x] **T5 — Borde y persistencia (D7, D8).** `V36`, `PreferenciaArmador` +
   repository, `GET /api/pcs/builder` params, `PcBuildJson` con los campos
   nuevos, `openapi.yaml`, `propose_pc`, `OpenApiRouteCoverageTest` verde.
   `docs/DATABASE.md` con `V36` y su rollback.
@@ -452,3 +452,111 @@ preferencias** (`MedirT4.java`, scratch):
   `"Paño de limpieza Arctic para Pasta térmica"` ($1.800) a `"OUTLET CPU
   Water Cooler Lovingcool 240mm HK-B240-02 - Argb - Black"` ($66.700) — un
   AIO real, coherente con la gama ALTA pedida.
+
+**T5 — hecho** (`9af36e5` T5a + `3e2b907` T5b + `3c1d98d` T5c + `42e5fdf`
+T5d), cuatro commits, cada uno RED→GREEN propio. Suite completa 2657/0/0
+(7 skips preexistentes de `ml.PythonRunnerSequencingTest`/
+`PythonRunnerEsperarConDrainTest`, sin relación con esto), `ERROR]`=0, BUILD
+SUCCESS, `BackendLayeringArchTest` 20/20, `OpenApiRouteCoverageTest` verde.
+
+- **T5a** (`V36__preferencias_de_armado.sql`): tres lookups sembrados más
+  (`marca_chip`, `chipset_tier`, `tipo_cooler`, molde de los seis de `V35`)
+  + columnas nullable en `preferencia_armador` (`ddr_id`, `marca_cpu_id`,
+  `marca_gpu_id`, `tipo_almacenamiento_id`, más `ram_dual`/`wifi` NOT NULL
+  DEFAULT false — D2) y en `producto_tech_specs` (`marca_chip_id`,
+  `chipset_tier_id`, `tipo_cooler_id`, `generacion`, `modulos`, `wifi`
+  nullable ahí — NULL es abstención O "no es Motherboard", las dos cosas se
+  escriben igual). RED confirmado sacando el `.sql` del directorio de
+  migraciones y viendo `42P01`/`42703` (relación/columna inexistente) antes
+  de restaurarlo. `docs/DATABASE.md` documenta `V36` con su rollback
+  (`PreferenciasDeArmadoSchemaTest` + `V36RollbackRoundTripTest`, nuevos).
+  `PostgresTestBase.truncateAll` NO gana los tres lookups nuevos — mismo
+  criterio que los seis de `V35`, son vocabulario sembrado, no residuo.
+
+  Hallazgo de proceso (no de diseño): un test que hace `INSERT INTO
+  productos` crudo (sin pasar por `sp_upsert_run`) necesita una fila
+  preexistente en `sitio` — `TechSpecsRepositoryTest`/`V35RollbackRoundTripTest`
+  (ya committeados, de T4/T5 de `pc-builder-gama`) dependían en silencio de
+  que OTRA clase de test (`UnownedRowTest`/`DeleteProductosGlobalGuardTest`)
+  sembrara esa fila antes en la misma corrida de Testcontainers compartida
+  — `sitio` nunca se trunca entre tests. Corriendo esas clases aisladas
+  (`-Dtest=UnaClase`) eso rompe con `fk_productos_sitio` violada, algo que
+  la corrida completa nunca muestra. No es un bug de este cambio: los tests
+  nuevos de T5a/T5b se escribieron auto-sembrando esa fila (molde
+  `UnownedRowTest`) para no depender del orden de la suite, y se aplicó el
+  mismo arreglo a `TechSpecsRepositoryTest.insertarProducto` (pre-existente,
+  tocado igual para agregar los casos nuevos de T5b).
+
+- **T5b** (`PreferenciaArmador` + repos + indexer): `PreferenciaArmador`
+  gana el campo `preferencias` (constructor de compatibilidad de 3 args,
+  CODE-2). `PreferenciaArmadorRepository.guardar/cargar` hacen round-trip de
+  los seis campos nuevos, resolviendo cada lookup por nombre en el mismo
+  statement (molde `gama`); `ramDual`/`wifi` en `FALSE` cargan como `null`
+  al leer — la columna NOT NULL DEFAULT false no puede distinguir "pedido
+  en falso" de "no pedido" y D2 dice que son el mismo estado, así que la
+  normalización pasa en la LECTURA, no en la escritura (`PUT` sigue
+  persistiendo el `false` literal que mandó el cliente).
+
+  `TechSpecsPort.SpecsDeProducto` gana `categoria` (constructor de
+  compatibilidad de 2 args) — hacía falta porque `producto_tech_specs.wifi`
+  sólo es una afirmación real en una fila Motherboard; en cualquier otra
+  categoría el `wifi=false` que trae el reader es un default, no una
+  aserción, y `TechSpecsRepository` necesita la categoría para no
+  escribirlo como si lo fuera. `marcaChip`/`generacion`/`modulos` se
+  escriben directo desde los centinelas de abstención de `TechSpecs`
+  (`""`/`0`); `tierChipset` (`int` 1/2/3/0) mapea a `chipset_tier` con un
+  `switch` privado en el repository — no hizo falta una clase compartida
+  tipo `GamaMapeo` porque `tierChipset` es un concepto sólo de
+  `producto_tech_specs`, `PreferenciaArmador` no lo pide nunca.
+
+- **T5c** (el cable): `pcs/PreferenciasWire` (molde `GamaWire`) — parse+wire
+  para los seis, case-insensitive, blank/null = no pedido,
+  `IllegalArgumentException` nombrando el campo en un valor inválido. El
+  dato no obvio: la palabra de borde de `TipoAlmacenamiento.SSD` es
+  `"sata"`, no `"ssd"` — el vocabulario de borde nombra la interfaz que el
+  usuario reconoce, no el nombre Java del enum. `GET /api/pcs/builder` gana
+  los seis query params y los reenvía al overload de 6 args de
+  `PcBuilder.armar` que T4b ya dejó listo; inválido → 400 con `mensaje`
+  nombrando el parámetro, mismo shape que `gama`. `GET`/`PUT
+  /api/pcs/preferencia` ganan los mismos seis campos (`ramDual`/`wifi`
+  siempre presentes como boolean; el resto null cuando no se pidió).
+  `ApiController.pcsBuilder` mantiene los overloads de 3 y 4 args sin
+  mapping propio (CODE-2) — los tests existentes que llamaban esas formas
+  siguen compilando sin tocarlos. `docs/openapi.yaml` documenta los seis
+  parámetros/campos; `OpenApiRouteCoverageTest` sigue verde porque sólo
+  afirma path+método+`x-access`, no la forma de los params.
+
+- **T5d** (`propose_pc`): mismo `PreferenciasWire`, mismo mensaje de error
+  por campo que ya usaba `gama`. Hallazgo de proceso durante el RED: tres
+  de los diez tests nuevos (`marcaGpu`/`ramDual`/`wifi`) pasaban en VERDE
+  sin ninguna implementación — sus fixtures tenían un solo candidato
+  compatible (nada que vetar) o el candidato "correcto" ya ganaba por el
+  eje de ranking existente (generación) sin necesidad del filtro. Se
+  reescribieron para forzar un caso que discrimine de verdad: un competidor
+  que gana por default y sólo el filtro puede cambiar, o un único candidato
+  que no matchea y tiene que terminar en `sinCompatible` en vez de elegido
+  igual — recién ahí el RED fue real (confirmado antes de tocar
+  `ProposePcTool`).
+
+**Boot real del jar** (`fashion-scraper-1.0.0.jar`, JRE 21, contra
+`fashion-scraper-pg` — Postgres de dev en 127.0.0.1:5432/scraper): arrancó
+en 3.933s. `flyway_schema_history` confirma `version=36, description=
+'preferencias de armado', success=t`; las tres tablas nuevas y las doce
+columnas de `preferencia_armador` existen (verificado con `\d` +
+`information_schema.columns`). `grep -E "V36|WARN|ERROR"` del log de boot:
+sin `ERROR`, dos `WARN` preexistentes de una corrida interrumpida anterior
+(nada de T5). Las cuatro llamadas HTTP autenticadas con la cuenta de
+servicio del `.env`:
+
+- `GET /api/pcs/builder?gama=media&ddr=DDR5&marcaCpu=amd&ramDual=true&wifi=true&tipoAlmacenamiento=nvme&conGpu=true&marcaGpu=nvidia`
+  → 200, mother `OUTLET - Motherboard Asrock B850M Pro A Wifi DDR5 AM5`
+  ($83.300, `wifi:true`, `tierChipset:2`), cpu `AMD Ryzen 5 9600` — coincide
+  exacto con la build (2) ya documentada arriba, contra el catálogo vivo.
+- `GET /api/pcs/builder?ddr=DDR3` → 400,
+  `{"ok":false,"mensaje":"ddr inválida: DDR3"}`.
+- `PUT /api/pcs/preferencia` (los seis campos + gama/presupuesto/conGpu) →
+  200, eco exacto del body persistido.
+- `GET /api/pcs/preferencia` → 200, idéntico byte a byte a lo que el `PUT`
+  devolvió — round trip real contra Postgres, no un mock.
+
+Jar detenido al terminar (`kill` del PID del proceso).
