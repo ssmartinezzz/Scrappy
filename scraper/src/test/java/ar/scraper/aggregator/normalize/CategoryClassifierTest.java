@@ -235,6 +235,15 @@ class CategoryClassifierTest {
     }
 
     @Test
+    void mateEsUnColorNoUnaComida() {
+        // "mate" (matte) es un acabado en 5 de los 7 nombres del catálogo que lo
+        // dicen como palabra, y sin padear vive adentro de "Xigmatek"/"Ultimate".
+        assertThat(classifier.normalizarCategoria(null, "Cinturon VCP Liam Negro Mate")).isEqualTo("Cinturón");
+        assertThat(classifier.normalizarCategoria(null, "Filtro Antipolvo Xigmatek Magnetico 140x432mm"))
+                .isNotEqualTo("Alimentos");
+    }
+
+    @Test
     void salsaNoEsMusculosa() {
         Allure.parameter("raw", (String) null);
         Allure.parameter("nombre", "MRS TASTE BBQ Salsa Top Chef");
