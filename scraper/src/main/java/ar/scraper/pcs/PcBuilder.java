@@ -7,6 +7,7 @@ import ar.scraper.pcs.reglas.ReglaDdr;
 import ar.scraper.pcs.reglas.ReglaFormFactor;
 import ar.scraper.pcs.reglas.ReglaGama;
 import ar.scraper.pcs.reglas.ReglaSocket;
+import ar.scraper.pcs.reglas.ReglaSodimm;
 import ar.scraper.pcs.reglas.ReglaWatts;
 
 import java.util.ArrayList;
@@ -45,7 +46,8 @@ public class PcBuilder {
             new SlotDeArmado("mother", "Motherboard", List.of(), new CriterioPorEjesTecnicos(EjesTecnicos.MOTHER)),
             new SlotDeArmado("cpu", "CPU", List.of(new ReglaSocket(), new ReglaGama()),
                     new CriterioPorEjesTecnicos(EjesTecnicos.CPU)),
-            new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr()), new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
+            new SlotDeArmado("ram", "RAM", List.of(new ReglaDdr(), new ReglaSodimm()),
+                    new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
             new SlotDeArmado("gabinete", "Gabinete", List.of(new ReglaFormFactor()),
                     new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
             new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),

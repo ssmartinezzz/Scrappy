@@ -28,8 +28,11 @@ public final class CpuSpecsReader implements LectorDeSpecs {
     private static String explicitSocket(Tokens tokens) {
         if (tokens.has("am5")) return "AM5";
         if (tokens.has("am4")) return "AM4";
+        if (tokens.has("am3")) return "AM3";
         if (tokens.has("lga1851") || tokens.has("1851")) return "LGA1851";
         if (tokens.has("lga1700") || tokens.has("1700")) return "LGA1700";
+        if (tokens.has("lga1200") || tokens.has("1200") || tokens.has("s1200")) return "LGA1200";
+        if (tokens.has("lga1151") || tokens.has("1151") || tokens.has("s1151")) return "LGA1151";
         return "";
     }
 
@@ -37,6 +40,10 @@ public final class CpuSpecsReader implements LectorDeSpecs {
     private static final Pattern RYZEN_MODEL = Pattern.compile("ryzen \\d+ ([3-9])\\d{3}\\w*");
     // Core i[3579] 1[234]xxx (12th-14th gen desktop model numbers).
     private static final Pattern CORE_MODEL = Pattern.compile("i[3579] (1[234])\\d{2}\\w*");
+    // Core i[3579] 1[01]xxx (10th-11th gen).
+    private static final Pattern CORE_MODEL_1200 = Pattern.compile("i[3579] (1[01])\\d{2}\\w*");
+    // Core i[3579] [89]xxx (8th-9th gen).
+    private static final Pattern CORE_MODEL_1151 = Pattern.compile("i[3579] ([89])\\d{3}\\w*");
     // Core Ultra 2xx (the "200 series", Arrow Lake).
     private static final Pattern CORE_ULTRA_MODEL = Pattern.compile("ultra \\d+ 2\\d{2}\\w*");
 
@@ -48,8 +55,9 @@ public final class CpuSpecsReader implements LectorDeSpecs {
         Matcher ryzen = RYZEN_MODEL.matcher(padded);
         if (ryzen.find()) return ryzen.group(1).charAt(0) >= '7' ? "AM5" : "AM4";
         if (CORE_ULTRA_MODEL.matcher(padded).find()) return "LGA1851";
-        Matcher core = CORE_MODEL.matcher(padded);
-        if (core.find()) return "LGA1700";
+        if (CORE_MODEL.matcher(padded).find()) return "LGA1700";
+        if (CORE_MODEL_1200.matcher(padded).find()) return "LGA1200";
+        if (CORE_MODEL_1151.matcher(padded).find()) return "LGA1151";
         return "";
     }
 

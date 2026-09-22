@@ -176,6 +176,72 @@ class TechSpecsParserTest {
         assertThat(t.formFactor()).isEqualTo("MATX");
     }
 
+    // ── Motherboard: old sockets (pc-builder-deep-taxonomy T2b) ────────────
+
+    @Test
+    void motherboardExplicitLga1200TokenAndChipsetMSuffix() {
+        var t = TechSpecsParser.parse("Mother Asus Prime H510M-R R2.0 LGA1200", "Motherboard");
+
+        assertThat(t.socket()).isEqualTo("LGA1200");
+        assertThat(t.formFactor()).isEqualTo("MATX");
+    }
+
+    @Test
+    void motherboardExplicitS1200TokenAndBareChipset() {
+        var t = TechSpecsParser.parse("Mother ASRock H510 Pro BTC+ S1200 Mineria", "Motherboard");
+
+        assertThat(t.socket()).isEqualTo("LGA1200");
+        assertThat(t.formFactor()).isEqualTo("ATX");
+    }
+
+    @Test
+    void motherboardChipsetB560MDerivesLga1200WithExplicitS1200Token() {
+        var t = TechSpecsParser.parse("Mother Gigabyte B560M DS3H AC WiFi DDR4 S1200", "Motherboard");
+
+        assertThat(t.socket()).isEqualTo("LGA1200");
+        assertThat(t.ddr()).isEqualTo("DDR4");
+        assertThat(t.formFactor()).isEqualTo("MATX");
+    }
+
+    @Test
+    void motherboardChipsetDerivesLga1151FromBareChipsetNoSuffix() {
+        var t = TechSpecsParser.parse("Motherboard Asrock H310M-HDV DDR4", "Motherboard");
+
+        assertThat(t.socket()).isEqualTo("LGA1151");
+        assertThat(t.formFactor()).isEqualTo("MATX");
+    }
+
+    @Test
+    void motherboardChipsetsZ390B365B360H370DeriveLga1151() {
+        assertThat(TechSpecsParser.parse("Motherboard Asus Prime Z390-A", "Motherboard").socket())
+                .isEqualTo("LGA1151");
+        assertThat(TechSpecsParser.parse("Motherboard MSI B365M Pro", "Motherboard").socket())
+                .isEqualTo("LGA1151");
+        assertThat(TechSpecsParser.parse("Motherboard Gigabyte B360M DS3H", "Motherboard").socket())
+                .isEqualTo("LGA1151");
+        assertThat(TechSpecsParser.parse("Motherboard Asrock H370M Pro4", "Motherboard").socket())
+                .isEqualTo("LGA1151");
+    }
+
+    @Test
+    void motherboardChipsetsH410B460Z490Z590DeriveLga1200() {
+        assertThat(TechSpecsParser.parse("Motherboard Asus Prime H410M-E", "Motherboard").socket())
+                .isEqualTo("LGA1200");
+        assertThat(TechSpecsParser.parse("Motherboard MSI B460M Pro", "Motherboard").socket())
+                .isEqualTo("LGA1200");
+        assertThat(TechSpecsParser.parse("Motherboard Gigabyte Z490 Aorus Elite", "Motherboard").socket())
+                .isEqualTo("LGA1200");
+        assertThat(TechSpecsParser.parse("Motherboard Asrock Z590 Steel Legend", "Motherboard").socket())
+                .isEqualTo("LGA1200");
+    }
+
+    @Test
+    void motherboardExplicitAm3TokenFromPlusSuffix() {
+        var t = TechSpecsParser.parse("Motherboard ASRock 970 Extreme3 AM3+", "Motherboard");
+
+        assertThat(t.socket()).isEqualTo("AM3");
+    }
+
     // ── CPU: explicit tokens + derived from model number ───────────────────
 
     @Test
@@ -232,6 +298,58 @@ class TechSpecsParserTest {
         var t = TechSpecsParser.parse("Procesador Intel Core Ultra 7 Socket 1851", "CPU");
 
         assertThat(t.socket()).isEqualTo("LGA1851");
+    }
+
+    // ── CPU: old sockets (pc-builder-deep-taxonomy T2b) ─────────────────────
+
+    @Test
+    void cpuExplicitLga1151Token() {
+        var t = TechSpecsParser.parse(
+                "Microprocesador Intel Core i5 9400 Coffeelake 4.1GHz 9MB LGA1151", "CPU");
+
+        assertThat(t.socket()).isEqualTo("LGA1151");
+    }
+
+    @Test
+    void cpuDerivedLga1151FromCoreI9thGenModelNumber() {
+        var t = TechSpecsParser.parse("Procesador Intel Core i5 9400", "CPU");
+
+        assertThat(t.socket()).isEqualTo("LGA1151");
+    }
+
+    @Test
+    void cpuDerivedLga1151FromCoreI8thGenModelNumber() {
+        var t = TechSpecsParser.parse("Procesador Intel Core i5 8400", "CPU");
+
+        assertThat(t.socket()).isEqualTo("LGA1151");
+    }
+
+    @Test
+    void cpuDerivedLga1200FromCoreI10thGenModelNumber() {
+        var t = TechSpecsParser.parse("Procesador Intel Core i5 10400F", "CPU");
+
+        assertThat(t.socket()).isEqualTo("LGA1200");
+    }
+
+    @Test
+    void cpuDerivedLga1200FromCoreI11thGenModelNumber() {
+        var t = TechSpecsParser.parse("Procesador Intel Core i7 11700K", "CPU");
+
+        assertThat(t.socket()).isEqualTo("LGA1200");
+    }
+
+    @Test
+    void cpuExplicitS1200Token() {
+        var t = TechSpecsParser.parse("Procesador Intel Core i5 S1200", "CPU");
+
+        assertThat(t.socket()).isEqualTo("LGA1200");
+    }
+
+    @Test
+    void cpuExplicitAm3TokenFromPlusSuffix() {
+        var t = TechSpecsParser.parse("Micro AMD Phenom II X4 965 AM3+", "CPU");
+
+        assertThat(t.socket()).isEqualTo("AM3");
     }
 
     @Test

@@ -185,6 +185,22 @@ class PcBuilderTest {
         assertThat(build.sinCompatible()).contains("ram");
     }
 
+    // ── SODIMM veto (T2c, pc-builder-deep-taxonomy) ─────────────────────
+
+    @Test
+    @DisplayName("SODIMM ram is vetoed even when it is the only candidate in the pool")
+    void sodimmEsVetadaAunSiendoElUnicoCandidato() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard Asus Prime B550M-A DDR4 AM4", 100_000, "Motherboard", "https://t/mb"),
+                producto("Memoria RAM SODIMM Kingston DDR4 16GB Notebook", 40_000, "RAM", "https://t/ram"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(build.picks()).noneMatch(p -> p.slot().equals("ram"));
+        assertThat(build.sinCompatible()).contains("ram");
+        assertThat(build.mensajes().get("ram")).contains("SODIMM");
+    }
+
     // ── form factor veto (gabinete.formFactor vs mother.formFactor) ─────
 
     @Test
