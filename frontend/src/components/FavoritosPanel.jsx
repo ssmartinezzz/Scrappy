@@ -56,20 +56,53 @@ export default function FavoritosPanel({
     }
   }
 
-  // Slide model (design ADR-2). El carrusel sigue siendo SÓLO de productos:
-  // los outfits y las PCs guardadas viven en sus propias secciones debajo,
-  // con sus tarjetas (nav-guardados-armadores D2). Un outfit no tiene una
-  // imagen única que poner en un slide, que es por lo que salió del carrusel
-  // en saved-pcs-armadores.
-  const slides = useMemo(() => items.map(f => ({
-    kind: 'product',
-    id: f.url,
-    title: f.nombre || f.url,
-    cta: 'Ver detalle',
-    image: f.img,
-    descontinuado: f.descontinuado,
-    onActivate: () => onOpenDetail?.(f),
-  })), [items, onOpenDetail]);
+  // Una sola tira abierta a la vez, identificada por colección + id: abrir una
+  // PC cierra el outfit que estuviera abierto. Dos estados separados dejarían
+  // dos tiras apiladas debajo del mismo carrusel.
+  const [expandido, setExpandido] = useState(null); // { coleccion:'outfit'|'pc', id } | null
+  const miembrosId = (coleccion, id) => `favoritos-${coleccion}-miembros-${id}`;
+  const toggle = (coleccion, id) => setExpandido(prev =>
+    prev && prev.coleccion === coleccion && prev.id === id ? null : { coleccion, id });
+
+  // Slide model (design ADR-2 + nav-guardados-armadores D6). `kind:'outfit'`
+  // es el slide de COLECCIÓN del carrusel —un collage de sus miembros más una
+  // tira expandible—, no algo propio de la ropa: una PC guardada lo usa tal
+  // cual, que es lo que "iguales a los outfits" quiere decir. Sus `picks`
+  // ya traen `{nombre, img, sitio, precio}`, exactamente la forma que
+  // `OutfitCollage` y la tira consumen, así que no hace falta adaptar nada.
+  const slides = useMemo(() => {
+    const productos = items.map(f => ({
+      kind: 'product',
+      id: f.url,
+      title: f.nombre || f.url,
+      cta: 'Ver detalle',
+      image: f.img,
+      descontinuado: f.descontinuado,
+      onActivate: () => onOpenDetail?.(f),
+    }));
+    const coleccion = (lista, nombreColeccion, miembrosDe, etiqueta) => lista.map(x => ({
+      kind: 'outfit',
+      id: `${nombreColeccion}-${x.id}`,
+      title: x.nombre || etiqueta,
+      cta: `Ver ${etiqueta.toLowerCase()}`,
+      members: miembrosDe(x),
+      expanded: expandido?.coleccion === nombreColeccion && expandido?.id === x.id,
+      controlsId: miembrosId(nombreColeccion, x.id),
+      onActivate: () => toggle(nombreColeccion, x.id),
+    }));
+    return [
+      ...productos,
+      ...coleccion(savedOutfits, 'outfit', o => o.slots || [], 'Outfit'),
+      ...coleccion(savedPcs, 'pc', p => p.picks || [], 'PC'),
+    ];
+  }, [items, savedOutfits, savedPcs, onOpenDetail, expandido]);
+
+  const abierto = expandido && (expandido.coleccion === 'outfit'
+    ? savedOutfits.find(o => o.id === expandido.id)
+    : savedPcs.find(p => p.id === expandido.id));
+  const miembrosAbiertos = !abierto ? []
+    : (expandido.coleccion === 'outfit' ? abierto.slots : abierto.picks) || [];
+  const hayAlgo = items.length > 0 || savedOutfits.length > 0 || savedPcs.length > 0;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -89,7 +122,7 @@ export default function FavoritosPanel({
           </div>
         </div>
 
-        {!isEmpty && (
+        {hayAlgo && (
           <div role="group" aria-label="Modo de vista de favoritos" style={{ display:'flex', gap:8, marginLeft:'auto' }}>
             <button
               type="button"
@@ -128,19 +161,114 @@ export default function FavoritosPanel({
       {/* Body */}
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
 
-        {isEmpty && (
-          <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem' }}>
-            Todavía no marcaste productos como favoritos.
-            Usá el botón ☆ en cada producto del catálogo.
+        {/* Sin nada guardado nombramos las TRES cosas que se pueden guardar:
+            un solo mensaje sobre productos escondería que los outfits y las
+            PCs también viven acá. */}
+        {!hayAlgo && (
+          <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', lineHeight:1.9 }}>
+            <div>Todavía no marcaste productos como favoritos. Usá el botón ☆ en cada producto del catálogo.</div>
+            <div>Todavía no guardaste ningún outfit. Armá uno en Armadores → Outfits.</div>
+            <div>Todavía no guardaste ninguna PC. Armá una en Armadores → PCs.</div>
           </div>
         )}
 
-        {!isEmpty && viewMode === 'carousel' && (
-          <TiltCarousel slides={slides} />
+        {hayAlgo && viewMode === 'carousel' && (
+          <>
+            <TiltCarousel slides={slides} />
+
+            {abierto && (
+              <div
+                id={miembrosId(expandido.coleccion, abierto.id)}
+                role="region"
+                aria-label={`Componentes de ${abierto.nombre || 'Guardado'}`}
+                style={{
+                  marginTop:20, display:'flex', flexDirection:'column', gap:8,
+                  maxWidth:480, marginLeft:'auto', marginRight:'auto',
+                }}>
+                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--t3)' }}>
+                  {expandido.coleccion === 'outfit' ? 'Prendas' : 'Componentes'} de "{abierto.nombre || 'Guardado'}"
+                </div>
+                {miembrosAbiertos.map((m, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="favoritos-outfit-member"
+                    onClick={() => onOpenDetail?.(m)}
+                    style={{
+                      display:'flex', alignItems:'center', gap:10, minHeight:44,
+                      background:'var(--s2)', border:'1px solid var(--bd)', borderRadius:8,
+                      padding:'.5rem .65rem', cursor:'pointer', textAlign:'left',
+                    }}>
+                    <ImageWithFallback
+                      src={m.img}
+                      alt={m.nombre}
+                      loading="lazy"
+                      className="h-11 w-11 flex-shrink-0 rounded-md border border-border object-cover"
+                      fallbackClassName="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md border border-border bg-s3"
+                      fallback={<ImgFallbackIcon size={18} />}
+                    />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{
+                        fontSize:'.78rem', fontWeight:600, color:'var(--t1)',
+                        overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+                      }}>{m.nombre || '—'}</div>
+                      <div style={{ fontSize:'.7rem', color:'var(--t3)' }}>{m.sitio}</div>
+                    </div>
+                    {m.precio > 0 && (
+                      <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--p2)', flexShrink:0 }}>
+                        ${fmt(m.precio)}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {!isEmpty && viewMode === 'list' && (
+        {/* La lista es donde viven renombrar y eliminar: el carrusel no tiene
+            dónde ponerlos sin taparle el collage al slide. Las tres secciones
+            se muestran siempre que haya algo, porque son colecciones
+            independientes que comparten pantalla. */}
+        {hayAlgo && viewMode === 'list' && (
         <>
+        {savedOutfits.length > 0 && (
+          <section style={{ marginBottom:'1.5rem' }}>
+            <h2 style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)', marginBottom:12 }}>
+              👕 Outfits guardados
+            </h2>
+            <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
+              {savedOutfits.map(o => (
+                <SavedOutfitCard
+                  key={o.id}
+                  outfit={o}
+                  onDelete={onDeleteSavedOutfit}
+                  onRename={onRenameSavedOutfit}
+                  onOpenDetail={onOpenDetail}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {savedPcs.length > 0 && (
+          <section style={{ marginBottom:'1.5rem' }}>
+            <h2 style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)', marginBottom:12 }}>
+              🖥 PCs guardadas
+            </h2>
+            <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
+              {savedPcs.map(p => (
+                <SavedPcCard
+                  key={p.id}
+                  pc={p}
+                  onDelete={onDeleteSavedPc}
+                  onRename={onRenameSavedPc}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Individual favorited products */}
         {items.length > 0 && (
           <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
@@ -207,49 +335,6 @@ export default function FavoritosPanel({
         )}
         </>
         )}
-
-        {/* Guardados de los armadores. Se renderizan siempre, incluso sin un
-            solo producto favorito: son tres colecciones independientes que
-            comparten pantalla, no tres vistas de la misma. */}
-        <section style={{ marginTop: isEmpty ? 0 : '2rem' }}>
-          <h2 style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)', marginBottom:12 }}>
-            👕 Outfits guardados
-          </h2>
-          {savedOutfits.length === 0 ? (
-            <p style={{ fontSize:'.85rem', color:'var(--t3)' }}>Todavía no guardaste ningún outfit.</p>
-          ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
-              {savedOutfits.map(o => (
-                <SavedOutfitCard
-                  key={o.id}
-                  outfit={o}
-                  onDelete={onDeleteSavedOutfit}
-                  onRename={onRenameSavedOutfit}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section style={{ marginTop:'2rem' }}>
-          <h2 style={{ fontSize:'.85rem', fontWeight:800, color:'var(--t1)', marginBottom:12 }}>
-            🖥 PCs guardadas
-          </h2>
-          {savedPcs.length === 0 ? (
-            <p style={{ fontSize:'.85rem', color:'var(--t3)' }}>Todavía no guardaste ninguna PC.</p>
-          ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
-              {savedPcs.map(p => (
-                <SavedPcCard
-                  key={p.id}
-                  pc={p}
-                  onDelete={onDeleteSavedPc}
-                  onRename={onRenameSavedPc}
-                />
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </div>
   );
