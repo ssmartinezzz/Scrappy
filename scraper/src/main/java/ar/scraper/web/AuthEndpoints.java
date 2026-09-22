@@ -68,8 +68,11 @@ import java.util.Set;
  * endpoint into an oracle for which usernames exist. The same reasoning extends
  * to <b>timing</b>: an unknown username is verified against a fixed decoy hash
  * instead of returning early, so "no such user" costs the same Argon2id work as
- * "wrong password" — otherwise the two branches differ by ~76 ms, comfortably
- * measurable over a network, and an identical body would not hide it.</p>
+ * "wrong password" — otherwise the two branches differ by ~22 ms (re-measured
+ * 2026-09-22; see {@code PasswordHasher}), comfortably measurable over a
+ * network, and an identical body would not hide it. The gap got smaller than
+ * the 76 ms first documented, not harmless: 22 ms still stands well clear of
+ * the jitter on a LAN, which is where this oracle would be read from.</p>
  */
 @RestController
 @RequestMapping("/api/auth")

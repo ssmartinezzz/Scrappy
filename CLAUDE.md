@@ -1344,7 +1344,7 @@ el catálogo real primero.
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
 | La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | Ya no falta infraestructura: el cliente existe (`frontend/src/lib/authSession.js`) y `tests/e2e/run-e2e.sh` lo ejercita contra un backend real. Falta la medición en sí, que es un trabajo aparte — nadie corrió todavía refrescos concurrentes para ver dónde cae el número. Hasta entonces queda como está, documentado como propuesta |
-| Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev): 76 ms hash / 76 ms verify con `m=16384, t=2, p=1`. Falta la máquina que importa — el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
+| Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev, re-medidos 2026-09-22): **~22 ms hash / ~22 ms verify** con `m=16384, t=2, p=1`. Decía 76/76 hasta esa fecha, con el mismo método y la misma máquina; lo desmintió la suite de perf, que clavó el `POST /api/auth/login` **entero** en 43 ms p95 — un número que no puede ser la mitad del verify que contiene. Cuál de las dos corridas fue la anómala no se sabe. Falta igual la máquina que importa: el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
 
 ### Sin dueño
 
