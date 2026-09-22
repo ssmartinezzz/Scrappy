@@ -77,6 +77,8 @@ preferencia_armador         -- Última gama/presupuesto/conGpu pedida por usuari
 socket / ddr / form_factor / tipo_memoria / certificacion / tipo_almacenamiento
                              -- Lookups sembrados para producto_tech_specs (V35)
 producto_tech_specs         -- Specs normalizadas por producto tech, url PK (V35)
+marca_chip / chipset_tier / tipo_cooler
+                             -- Lookups sembrados más para preferencia_armador/producto_tech_specs (V36)
 ```
 
 ### Migraciones
@@ -117,6 +119,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V33` | `indice` (lookup sembrado) + `indice_valor`, para `ar.scraper.indices` |
 | `V34` | `saved_pcs` + `saved_pc_item`: builds guardados del armador de PCs |
 | `V35` | `gama` (lookup sembrado) + `preferencia_armador`; `saved_pcs.gama_id`; seis lookups más + `producto_tech_specs` |
+| `V36` | `marca_chip`/`chipset_tier`/`tipo_cooler` (lookups sembrados) + columnas de preferencias en `preferencia_armador` y `producto_tech_specs` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -2504,3 +2507,109 @@ de ese grupo, tanto `preferencia_armador.gama_id` como `saved_pcs.gama_id`
 siguen referenciando `gama(id)`, así que `gama` se suelta último, después de
 `preferencia_armador` y de la columna de `saved_pcs`. Ninguna otra tabla
 referencia a estos ocho objetos, así que no hace falta `CASCADE`.
+
+## `V36` — `marca_chip` + `chipset_tier` + `tipo_cooler`, T5 de `pc-builder-deep-taxonomy`
+
+Tres lookups más, mismo molde que los seis de `V35`: `smallint` identity +
+`nombre` UNIQUE + un CHECK de dominio, sembrados. Respaldan las preferencias
+técnicas pedidas (D1/D7 en `odd/tasks/pc-builder-deep-taxonomy.md`) — marca
+del chip (CPU/GPU), tier de chipset de motherboard, tecnología de cooler — y
+los ejes correspondientes que `TechSpecsParser` ya lee desde T3/T4 de esa
+misma feature, ahora persistidos en `producto_tech_specs`.
+
+```sql
+CREATE TABLE marca_chip (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_marca_chip_nombre_domain
+        CHECK (nombre IN ('INTEL', 'AMD', 'NVIDIA'))
+);
+CREATE TABLE chipset_tier (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_chipset_tier_nombre_domain
+        CHECK (nombre IN ('X_Z', 'B', 'A_H'))
+);
+CREATE TABLE tipo_cooler (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_tipo_cooler_nombre_domain
+        CHECK (nombre IN ('LIQUIDO', 'AIRE'))
+);
+
+ALTER TABLE preferencia_armador
+    ADD COLUMN ddr_id                 smallint REFERENCES ddr(id),
+    ADD COLUMN marca_cpu_id           smallint REFERENCES marca_chip(id),
+    ADD COLUMN marca_gpu_id           smallint REFERENCES marca_chip(id),
+    ADD COLUMN tipo_almacenamiento_id smallint REFERENCES tipo_almacenamiento(id),
+    ADD COLUMN ram_dual               boolean NOT NULL DEFAULT false,
+    ADD COLUMN wifi                   boolean NOT NULL DEFAULT false;
+
+ALTER TABLE producto_tech_specs
+    ADD COLUMN marca_chip_id   smallint REFERENCES marca_chip(id),
+    ADD COLUMN chipset_tier_id smallint REFERENCES chipset_tier(id),
+    ADD COLUMN tipo_cooler_id  smallint REFERENCES tipo_cooler(id),
+    ADD COLUMN generacion      smallint,
+    ADD COLUMN modulos         smallint,
+    ADD COLUMN wifi            boolean;
+```
+
+**`tipo_cooler` no siembra `DESCONOCIDO`** (D10, como el resto): es el
+centinela de abstención de `TipoCooler` en Java, no un valor de FK.
+
+**Las seis columnas nuevas de `preferencia_armador` son NULLABLE, NULL =
+"no pedida" (D1)**, salvo `ram_dual`/`wifi`: esas dos son `boolean NOT NULL
+DEFAULT false`, porque D2 las trata distinto — `FALSE` se comporta exactamente
+como "no pedida", nunca como abstención, así que no hace falta un tercer
+estado. `ddr_id` reusa el lookup `ddr` de `V35` (incluye `DDR3`, aunque
+`PreferenciasDeArmado` sólo permite pedir `DDR4`/`DDR5` — esa restricción es
+de la app, no de la FK). `tipo_almacenamiento_id` reusa `tipo_almacenamiento`
+de `V35` igual.
+
+**Las seis columnas nuevas de `producto_tech_specs` son NULLABLE, NULL =
+abstención del parser (D10)** — con una excepción documentada: `wifi` en esta
+tabla puede ser NULL por dos razones distintas ("el parser no leyó nada" y
+"esta fila no es una Motherboard"), y las dos se escriben igual, NULL. Sólo
+una fila cuya categoría es Motherboard recibe `true`/`false` real —
+`TechSpecsIndexer` es quien conoce la categoría del producto al momento de
+escribir, así que la distinción se resuelve ahí, no en la tabla.
+
+**1FN/3FN**: ninguna de las tres tablas nuevas tiene grupo repetitivo; sus
+columnas nuevas en `preferencia_armador`/`producto_tech_specs` dependen de la
+clave completa de cada tabla, no de una parte de ella ni de otro atributo
+no-clave. Los tres lookups son la misma normalización que ya usan `gama` y
+los seis de `V35`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V36
+ALTER TABLE producto_tech_specs
+    DROP COLUMN marca_chip_id,
+    DROP COLUMN chipset_tier_id,
+    DROP COLUMN tipo_cooler_id,
+    DROP COLUMN generacion,
+    DROP COLUMN modulos,
+    DROP COLUMN wifi;
+ALTER TABLE preferencia_armador
+    DROP COLUMN ddr_id,
+    DROP COLUMN marca_cpu_id,
+    DROP COLUMN marca_gpu_id,
+    DROP COLUMN tipo_almacenamiento_id,
+    DROP COLUMN ram_dual,
+    DROP COLUMN wifi;
+DROP TABLE marca_chip;
+DROP TABLE chipset_tier;
+DROP TABLE tipo_cooler;
+-- <<< rollback:V36
+```
+
+El orden es obligatorio: las columnas nuevas de `producto_tech_specs` y de
+`preferencia_armador` referencian `marca_chip`, `chipset_tier` y
+`tipo_cooler`, así que se sueltan antes que las tres tablas. `V35` no se toca:
+esta migración nunca agregó columnas a ningún objeto que `V35` no haya creado
+ella misma, así que rolling back `V36` deja `preferencia_armador` y
+`producto_tech_specs` en pie (con sus columnas de `V35`, sin las de `V36`) —
+el mismo invariante que `V35RollbackRoundTripTest` verifica para lo que deja
+de `V34`. Ninguna otra tabla referencia a estos tres objetos, así que no hace
+falta `CASCADE`.
