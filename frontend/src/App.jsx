@@ -17,7 +17,6 @@ import AppLayout, {
   RecomendadosPanelRoute,
   SuplementosPanelRoute,
   PcsPanelRoute,
-  ArmadoresPanelRoute,
   CronjobsPanelRoute,
   UsuariosAdminPanelRoute,
 } from './components/AppLayout';
@@ -161,7 +160,6 @@ export default function App() {
             <Route path="outfits"    element={<OutfitsPanelRoute/>}/>
             <Route path="suplementos" element={<SuplementosPanelRoute/>}/>
             <Route path="pcs"        element={<PcsPanelRoute/>}/>
-            <Route path="armadores"  element={<ArmadoresPanelRoute/>}/>
             <Route path="recomendados" element={<RecomendadosPanelRoute/>}/>
             <Route path="financiacion" element={<FinanPanelRoute/>}/>
             {/* frontend-auth-ui Phase 7 (design D6, tasks-part2 7.8): explicit

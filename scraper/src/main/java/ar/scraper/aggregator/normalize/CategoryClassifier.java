@@ -318,6 +318,7 @@ public class CategoryClassifier {
         // de TODO el bloque tech, no sólo de Gabinete, así que un bracket con
         // "disco ssd" en el nombre tampoco cae en Almacenamiento más abajo.
         if ((t.contains(" para gabinete ") && startsWithAny(t, GarmentTaxonomy.KW_GABINETE_ACCESORIO_LIDER))
+                || startsWithAny(t, GarmentTaxonomy.KW_ACCESORIO_LIDER)
                 || startsWithAny(t, GarmentTaxonomy.KW_SERVICIO_LIDER))
             return "";
         if (startsWithAny(t, GarmentTaxonomy.KW_PC_LIDER))                    return "PC";
