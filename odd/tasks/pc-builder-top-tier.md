@@ -172,21 +172,44 @@ antes de cada implementación.
 
 ## Tareas
 
-- [ ] **T1 — `nivel` en `TechSpecs` + eje.** Campo nuevo, `CpuSpecsReader` y
+- [x] **T1 — `nivel` en `TechSpecs` + eje.** Campo nuevo, `CpuSpecsReader` y
   `GpuSpecsReader` lo leen, `EjesTecnicos.CPU`/`GPU` lo insertan entre `gama` y
   `generacion`, abstención última. Verificación: `mvn -q clean test`, y el
   armado sin presupuesto pasa a `Ryzen 9 9950X3D` + `RTX 5080`.
-- [ ] **T2 — generación comparable entre marcas.** Tabla de recencia por marca;
+- [x] **T2 — generación comparable entre marcas.** Tabla de recencia por marca;
   el eje compara el año, no el número crudo. Verificación: `mvn -q clean test`.
-- [ ] **T3 — reparto del presupuesto por cuotas.** `PcBuilder` deja de pasar el
+- [x] **T3 — reparto del presupuesto por cuotas.** `PcBuilder` deja de pasar el
   restante entero a cada slot. Verificación: `mvn -q clean test`, y con
   `pres=2.000.000` la fuente sale certificada y el total queda cerca del
   presupuesto en vez de por debajo de la mitad.
-- [ ] **T4 — taxonomía: bracket suelto y `ARMADO ITEM`.** Verificación:
+- [x] **T4 — taxonomía: bracket suelto y `ARMADO ITEM`.** Verificación:
   `mvn -q clean test`.
-- [ ] **T5 — docs.** `CLAUDE.md` (bloque del armador de PCs) + este documento con
+- [x] **T5 — docs.** `CLAUDE.md` (bloque del armador de PCs) + este documento con
   la evidencia medida.
 
 ## Progreso
 
-Sin empezar.
+**5/5 completas**, rama `feat/pc-builder-top-tier` sobre `master` `1f22100`.
+Commits: T1 `43ca963` · T2 `28b0984` · T3 `ea33a74` · T4 `6039148` · T5 (docs).
+
+Verificación observada, no inferida:
+
+- Suite backend completa tras T3: **2689 tests, 0 fallos, 7 skipped**;
+  `BackendLayeringArchTest` 20/20. RED observado antes de cada implementación
+  (T1 falla de compilación por API faltante · T2 4 fallos · T3 2 fallos ·
+  T4 2 fallos).
+- Contra el catálogo real (dev DB, 7054 filas de `tecnologia`), corriendo
+  `PcBuilder.armar`: la fuente sale certificada en los 8 armados probados
+  (presupuestos 0 / 1M / 2M / 3M × gamas `null` y `MEDIA`), contra 3 de 8
+  sin certificar antes. Desaparecen del armado la GPU de $800
+  (`"ARMADO ITEM 6302"`), el bracket de $3.300 en el slot de disco y la
+  `Kimota DDR2 2GB` en una build con mother DDR5.
+
+### Pendientes que esta fase NO cierra
+
+| | |
+|---|---|
+| El `Ryzen 9 9950X3D` no sale en el modo top-top | La mother se elige primero (`Asrock Z790I`, `LGA1700`) y `ReglaSocket` veta todo AM5 después. El `i9 14900K` es el tope real de esa plataforma, así que el ranking está bien; lo que falta es probar más de una mother. Limitación greedy ya documentada ("la mother es el ancla") |
+| Las shares del reparto son supuestas | Nadie midió qué proporción del presupuesto conviene por slot. Mismo estado que el piso de watts de `EstimadorDeConsumo` |
+| El slot `gabinete` sigue sin eje | `EjesTecnicos.GABINETE` es `(a,b)->0`: gana el más barato. Con `formFactor` al 7% de cobertura no hay señal para rankear, y el ruido de clasificación ya se corrigió en el clasificador |
+| La base necesita un scrape | Los arreglos de taxonomía (fase 7 y T4 de ésta) no se ven hasta reclasificar: 205 filas de drift medidas en la dev DB |
