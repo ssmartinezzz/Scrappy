@@ -145,7 +145,7 @@ está en castellano en `pcs/`.
   repository, `GET /api/pcs/builder` params, `PcBuildJson` con los campos
   nuevos, `openapi.yaml`, `propose_pc`, `OpenApiRouteCoverageTest` verde.
   `docs/DATABASE.md` con `V36` y su rollback.
-- [ ] **T6 — UI `/pcs`.** Chips por preferencia (DDR · Marca CPU · Marca GPU ·
+- [x] **T6 — UI `/pcs`.** Chips por preferencia (DDR · Marca CPU · Marca GPU ·
   Disco · RAM dual · Wifi), precarga desde la preferencia, `excluir` intacto.
   Tests vitest.
 - [ ] **T7 — Docs.** `CLAUDE.md` (fase 7 en la sección del armador, tabla de
@@ -560,3 +560,50 @@ servicio del `.env`:
   devolvió — round trip real contra Postgres, no un mock.
 
 Jar detenido al terminar (`kill` del PID del proceso).
+
+**T6 — hecho** (`59ef784`), un commit, RED→GREEN. Baseline `npm test`
+330/330 (42 archivos). RED confirmado: 6 tests nuevos de
+`fetchPcsBuilder` en `api.test.js` + 10 tests nuevos en
+`PcsPanel.test.jsx` (grupos de chips, reset del grupo GPU, precarga de
+preferencia, ejes nuevos de `resumenSpecs`) fallando por la razón
+correcta; de paso, agregar los cinco chips de "Cualquiera" rompió dos
+tests preexistentes de `gama` que hacían `getByRole('button', {name:
+'Cualquiera'})` sin scope (ahora ambiguo entre 5 grupos) — se
+corrigieron acotando con `within(getByRole('group', ...))`, y el test
+de `savePcPreferencia` con gama se extendió con los seis campos nuevos
+en el body esperado (edit de test declarado, no un refactor — CODE-2).
+Final `npm test` 345/345 (42 archivos), sin skips.
+
+`api.js`: `fetchPcsBuilder` manda `ddr`/`marcaCpu`/`marcaGpu`/
+`tipoAlmacenamiento` sólo si no son `''`, y `ramDual`/`wifi` sólo si son
+`true` — mismo criterio que `gama`/`conGpu` ya tenían. `PcsPanel.jsx`:
+cuatro `ChipGroup` (Memoria/CPU/Placa de video/Disco, vocabulario de
+cable en minúscula: `ddr4`/`ddr5`, `intel`/`amd`, `nvidia`/`amd`,
+`nvme`/`sata`/`hdd`) + dos `ToggleChip` (RAM dual, Mother con WiFi) bajo
+la fila de Gama. El grupo Placa de video sólo se monta con `conGpu`, y
+desmarcar el checkbox resetea `marcaGpu` a `''` de una — evita mandar un
+filtro de marca de GPU con `conGpu=false`, que el backend ignoraría en
+silencio. La precarga de preferencia y el body de `savePcPreferencia` en
+`Generar` (sólo cuando hay gama, igual que antes) ganan los seis campos.
+`resumenSpecs` agrega `marcaChip`, `generacion` (`gen N` si
+`marcaChip==='INTEL'`, si no `serie N000` — una sola grafía por marca,
+no por slot, tal cual pide la letra), `tierChipset` (`1→X/Z`, `2→B`,
+`3→A/H`), `modulos` (`Nx`), `wifi` (sólo si `true`) y `tipoCooler`
+(`LIQUIDO→AIO`, `AIRE→aire`); abstención (`''`/`0`/`false`/
+`'DESCONOCIDO'`) sigue sin agregar nada a la línea, mismo criterio que
+los seis campos que ya tenía.
+
+Chequeo visual (390×844, sin backend — molde de la memoria "visual
+checks need no backend"): `frontend/preview.html` +
+`src/preview-entry.jsx` temporales, `window.fetch` stubeado por
+pathname para `/api/pcs/builder` y `/api/pcs/preferencia` antes del
+import, sondeado con las Playwright MCP tools (`browser_navigate`,
+`browser_resize`, `browser_evaluate`, `browser_take_screenshot`) y
+borrados al terminar (vivían en `frontend/`, no están gitignoreados).
+`document.documentElement.scrollWidth` dio **390** en el formulario y
+después de `Generar` con ocho picks — sin scroll horizontal. Los seis
+chips reflejaron la preferencia precargada (`alta`/`DDR5`/`Intel`/`AMD`
+gpu/`M.2 NVMe`/RAM dual/WiFi, todos resaltados) y `resumenSpecs` mostró
+los ejes nuevos en un pick real: mother `LGA1700 · DDR5 · ITX · INTEL ·
+X/Z · WiFi`, cpu `LGA1700 · INTEL · gen 14`, ram `DDR5 · 32 GB · 2x`,
+cooler `AIO`.
