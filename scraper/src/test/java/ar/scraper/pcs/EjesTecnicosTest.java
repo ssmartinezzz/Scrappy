@@ -182,6 +182,12 @@ class EjesTecnicosTest {
                 .isNegative();
     }
 
+    @Test
+    void ramDdr2VaDebajoDeDdr3PeroPorEncimaDeLaAbstencion() {
+        assertThat(EjesTecnicos.RAM.compare(conRam("DDR3", 0, 8), conRam("DDR2", 0, 8))).isNegative();
+        assertThat(EjesTecnicos.RAM.compare(conRam("DDR2", 0, 8), conRam("", 0, 8))).isNegative();
+    }
+
     // ── recencia: la generación se compara como AÑO, nunca cruda (D2) ────
 
     @Test
