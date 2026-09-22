@@ -114,6 +114,7 @@ public final class EjesTecnicos {
             case "DDR5" -> 0;
             case "DDR4" -> 1;
             case "DDR3" -> 2;
+            case "DDR2" -> 3;
             default -> Integer.MAX_VALUE; // "" — no parseó, ni siquiera derivada
         };
     }
