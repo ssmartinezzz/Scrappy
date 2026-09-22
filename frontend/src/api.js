@@ -460,6 +460,10 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
 export async function fetchPcsBuilder({
   presupuesto = 0, conGpu = false, excluir = [], gama = '',
   ddr = '', marcaCpu = '', marcaGpu = '', tipoAlmacenamiento = '', ramDual = false, wifi = false,
+  // Fase 9. Los dos pisos viajan sólo si son > 0: el servidor RECHAZA un 0
+  // (un filtro que no filtra no es un pedido), así que "sin pedido" es
+  // ausencia del parámetro, nunca `capacidadMinimaGb=0`.
+  capacidadMinimaGb = 0, tamanioGabinete = '', tipoCooler = '', wattsMinimos = 0,
 } = {}) {
   const p = new URLSearchParams();
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
@@ -472,6 +476,10 @@ export async function fetchPcsBuilder({
   if (tipoAlmacenamiento) p.set('tipoAlmacenamiento', tipoAlmacenamiento);
   if (ramDual) p.set('ramDual', 'true');
   if (wifi) p.set('wifi', 'true');
+  if (capacidadMinimaGb > 0) p.set('capacidadMinimaGb', capacidadMinimaGb);
+  if (tamanioGabinete) p.set('tamanioGabinete', tamanioGabinete);
+  if (tipoCooler) p.set('tipoCooler', tipoCooler);
+  if (wattsMinimos > 0) p.set('wattsMinimos', wattsMinimos);
   const qs = p.toString();
   const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
   if (r.status === 204) return null;
