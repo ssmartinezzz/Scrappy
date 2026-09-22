@@ -186,6 +186,54 @@ describe('fetchPcsBuilder', () => {
     expect(calledUrl().searchParams.get('gama')).toBe('alta');
   });
 
+  it('sends ddr only when set', async () => {
+    await fetchPcsBuilder({ ddr: '' });
+    expect(calledUrl().searchParams.has('ddr')).toBe(false);
+
+    await fetchPcsBuilder({ ddr: 'ddr5' });
+    expect(calledUrl().searchParams.get('ddr')).toBe('ddr5');
+  });
+
+  it('sends marcaCpu only when set', async () => {
+    await fetchPcsBuilder({ marcaCpu: '' });
+    expect(calledUrl().searchParams.has('marcaCpu')).toBe(false);
+
+    await fetchPcsBuilder({ marcaCpu: 'intel' });
+    expect(calledUrl().searchParams.get('marcaCpu')).toBe('intel');
+  });
+
+  it('sends marcaGpu only when set', async () => {
+    await fetchPcsBuilder({ marcaGpu: '' });
+    expect(calledUrl().searchParams.has('marcaGpu')).toBe(false);
+
+    await fetchPcsBuilder({ marcaGpu: 'nvidia' });
+    expect(calledUrl().searchParams.get('marcaGpu')).toBe('nvidia');
+  });
+
+  it('sends tipoAlmacenamiento only when set', async () => {
+    await fetchPcsBuilder({ tipoAlmacenamiento: '' });
+    expect(calledUrl().searchParams.has('tipoAlmacenamiento')).toBe(false);
+
+    await fetchPcsBuilder({ tipoAlmacenamiento: 'nvme' });
+    expect(calledUrl().searchParams.get('tipoAlmacenamiento')).toBe('nvme');
+  });
+
+  it('sends ramDual only when true', async () => {
+    await fetchPcsBuilder({ ramDual: false });
+    expect(calledUrl().searchParams.has('ramDual')).toBe(false);
+
+    await fetchPcsBuilder({ ramDual: true });
+    expect(calledUrl().searchParams.get('ramDual')).toBe('true');
+  });
+
+  it('sends wifi only when true', async () => {
+    await fetchPcsBuilder({ wifi: false });
+    expect(calledUrl().searchParams.has('wifi')).toBe(false);
+
+    await fetchPcsBuilder({ wifi: true });
+    expect(calledUrl().searchParams.get('wifi')).toBe('true');
+  });
+
   it('returns null on a 204 (no scrape run yet)', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
 

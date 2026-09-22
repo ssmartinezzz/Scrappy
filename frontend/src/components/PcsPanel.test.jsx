@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -53,6 +53,11 @@ beforeEach(() => {
 async function armar(user) {
   await user.click(screen.getByRole('button', { name: 'Generar' }));
   await waitFor(() => expect(fetchPcsBuilder).toHaveBeenCalledTimes(1));
+}
+
+/** Scopes a query to one chip group, since "Cualquiera"/"AMD" repeat across groups. */
+function grupo(nombre) {
+  return within(screen.getByRole('group', { name: nombre }));
 }
 
 describe('PcsPanel — Regenerar', () => {
@@ -261,7 +266,7 @@ describe('PcsPanel — gama', () => {
     await armar(user);
 
     expect(llamada(0).gama).toBe('');
-    expect(screen.getByRole('button', { name: 'Cualquiera' })).toHaveAttribute('aria-pressed', 'true');
+    expect(grupo('Gama').getByRole('button', { name: 'Cualquiera' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('los chips son excluyentes y la gama elegida viaja como gama=', async () => {
@@ -274,7 +279,7 @@ describe('PcsPanel — gama', () => {
     expect(llamada(0).gama).toBe('alta');
     expect(screen.getByRole('button', { name: 'Alta' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Económica' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'Cualquiera' })).toHaveAttribute('aria-pressed', 'false');
+    expect(grupo('Gama').getByRole('button', { name: 'Cualquiera' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('Generar con una gama guarda la preferencia con presupuesto y conGpu', async () => {
@@ -285,7 +290,11 @@ describe('PcsPanel — gama', () => {
     await armar(user);
 
     expect(savePcPreferencia).toHaveBeenCalledTimes(1);
-    expect(savePcPreferencia).toHaveBeenCalledWith({ gama: 'media', presupuesto: null, conGpu: true });
+    expect(savePcPreferencia).toHaveBeenCalledWith({
+      gama: 'media', presupuesto: null, conGpu: true,
+      ddr: null, marcaCpu: null, marcaGpu: null, tipoAlmacenamiento: null,
+      ramDual: false, wifi: false,
+    });
   });
 
   it('Generar sin gama no guarda preferencia (el PUT la exige)', async () => {
@@ -354,5 +363,168 @@ describe('PcsPanel — mensajes por slot', () => {
     await armar(user);
 
     expect(screen.getByText(/ninguna opción compatible con la mother elegida/i)).toBeInTheDocument();
+  });
+});
+
+describe('PcsPanel — preferencias técnicas', () => {
+  it('sin elegir nada, ninguno de los seis parámetros técnicos se manda', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(llamada(0)).toMatchObject({
+      ddr: '', marcaCpu: '', marcaGpu: '', tipoAlmacenamiento: '', ramDual: false, wifi: false,
+    });
+  });
+
+  it('DDR5 + Intel + RAM dual + WiFi + M.2 NVMe se mandan como esos seis parámetros', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(grupo('Memoria').getByRole('button', { name: 'DDR5' }));
+    await user.click(grupo('CPU').getByRole('button', { name: 'Intel' }));
+    await user.click(grupo('Disco').getByRole('button', { name: 'M.2 NVMe' }));
+    await user.click(screen.getByRole('button', { name: 'RAM dual (2x)' }));
+    await user.click(screen.getByRole('button', { name: 'Mother con WiFi' }));
+    await armar(user);
+
+    expect(llamada(0)).toMatchObject({
+      ddr: 'ddr5', marcaCpu: 'intel', marcaGpu: '', tipoAlmacenamiento: 'nvme', ramDual: true, wifi: true,
+    });
+  });
+
+  it('el grupo de placa de video sólo existe con conGpu marcado, y se resetea al desmarcar', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    expect(screen.queryByRole('group', { name: 'Placa de video' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Incluir placa de video' }));
+    expect(screen.getByRole('group', { name: 'Placa de video' })).toBeInTheDocument();
+    await user.click(grupo('Placa de video').getByRole('button', { name: 'NVIDIA' }));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Incluir placa de video' }));
+    expect(screen.queryByRole('group', { name: 'Placa de video' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Incluir placa de video' }));
+    await armar(user);
+
+    expect(llamada(0).marcaGpu).toBe('');
+  });
+
+  it('la preferencia guardada precarga los seis chips técnicos', async () => {
+    fetchPcPreferencia.mockResolvedValue({
+      gama: 'alta', presupuesto: 900000, conGpu: true,
+      ddr: 'ddr5', marcaCpu: 'intel', marcaGpu: 'nvidia', tipoAlmacenamiento: 'nvme',
+      ramDual: true, wifi: true,
+    });
+    render(<PcsPanel />);
+
+    await waitFor(() =>
+      expect(grupo('Memoria').getByRole('button', { name: 'DDR5' })).toHaveAttribute('aria-pressed', 'true')
+    );
+    expect(grupo('CPU').getByRole('button', { name: 'Intel' })).toHaveAttribute('aria-pressed', 'true');
+    expect(grupo('Placa de video').getByRole('button', { name: 'NVIDIA' })).toHaveAttribute('aria-pressed', 'true');
+    expect(grupo('Disco').getByRole('button', { name: 'M.2 NVMe' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'RAM dual (2x)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Mother con WiFi' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('PcsPanel — resumenSpecs de los ejes profundos', () => {
+  it('CPU Intel muestra marca y generación como "gen N"', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      picks: [pick('cpu', 'Core i7 14700F', {
+        specs: {
+          socket: 'LGA1700', ddr: '', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+          marcaChip: 'INTEL', generacion: 14, tierChipset: 0, modulos: 0, wifi: false, tipoCooler: 'DESCONOCIDO',
+        },
+      })],
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText('LGA1700 · INTEL · gen 14')).toBeInTheDocument();
+  });
+
+  it('CPU AMD muestra la generación como "serie N000"', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      picks: [pick('cpu', 'Ryzen 5 9600', {
+        specs: {
+          socket: 'AM5', ddr: '', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+          marcaChip: 'AMD', generacion: 9, tierChipset: 0, modulos: 0, wifi: false, tipoCooler: 'DESCONOCIDO',
+        },
+      })],
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText('AM5 · AMD · serie 9000')).toBeInTheDocument();
+  });
+
+  it('Motherboard muestra el tier de chipset y wifi=true, sin generación', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      picks: [pick('mother', 'B850M Pro A Wifi', {
+        specs: {
+          socket: 'AM5', ddr: 'DDR5', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+          marcaChip: 'AMD', generacion: 0, tierChipset: 2, modulos: 0, wifi: true, tipoCooler: 'DESCONOCIDO',
+        },
+      })],
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText('AM5 · DDR5 · AMD · B · WiFi')).toBeInTheDocument();
+  });
+
+  it('RAM muestra el kit como "Nx" y cooler líquido como "AIO"', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      picks: [
+        pick('ram', 'Team DDR5 32GB', {
+          specs: {
+            socket: '', ddr: 'DDR5', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+            marcaChip: '', generacion: 0, tierChipset: 0, modulos: 2, wifi: false, tipoCooler: 'DESCONOCIDO',
+          },
+        }),
+        pick('cooler', 'Water Cooler 240mm', {
+          specs: {
+            socket: '', ddr: '', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+            marcaChip: '', generacion: 0, tierChipset: 0, modulos: 0, wifi: false, tipoCooler: 'LIQUIDO',
+          },
+        }),
+      ],
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText('DDR5 · 2x')).toBeInTheDocument();
+    expect(screen.getByText('AIO')).toBeInTheDocument();
+  });
+
+  it('cooler de aire muestra "aire", y abstención total no agrega nada a la línea', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      picks: [
+        pick('cooler', 'Cooler Master Hyper 212', {
+          specs: {
+            socket: '', ddr: '', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+            marcaChip: '', generacion: 0, tierChipset: 0, modulos: 0, wifi: false, tipoCooler: 'AIRE',
+          },
+        }),
+        pick('gpu', 'Placa de video genérica', {
+          specs: {
+            socket: '', ddr: '', formFactor: '', watts: 0, capacidadGb: 0, tipoMemoria: '',
+            marcaChip: '', generacion: 0, tierChipset: 0, modulos: 0, wifi: false, tipoCooler: 'DESCONOCIDO',
+          },
+        }),
+      ],
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.getByText('aire')).toBeInTheDocument();
+    expect(screen.queryByText(/gen \d|serie \d|AIO|X\/Z/)).not.toBeInTheDocument();
   });
 });
