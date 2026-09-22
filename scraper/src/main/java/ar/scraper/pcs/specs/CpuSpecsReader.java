@@ -3,7 +3,9 @@ package ar.scraper.pcs.specs;
 import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.TipoAlmacenamiento;
 
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -20,7 +22,9 @@ public final class CpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs(cpuSocket(tokens), "", "", 0, 0, "", gama(tokens), Certificacion.NINGUNA);
+        return new TechSpecs(cpuSocket(tokens), "", "", 0, 0, "", gama(tokens), Certificacion.NINGUNA,
+                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
+                marcaChip(tokens), generacion(tokens), 0, 0, false);
     }
 
     // ── socket (unchanged from phase 1) ─────────────────────────────────
@@ -84,5 +88,39 @@ public final class CpuSpecsReader implements LectorDeSpecs {
         // Xeon es de servidor: no mapea a esta escala de escritorio, queda
         // DESCONOCIDA salvo evidencia medida que diga lo contrario.
         return Gama.DESCONOCIDA;
+    }
+
+    // ── marcaChip + generacion (T3b, pc-builder-deep-taxonomy) ───────────
+
+    private static String marcaChip(Tokens tokens) {
+        if (tokens.has("intel") || tokens.has("i3") || tokens.has("i5") || tokens.has("i7") || tokens.has("i9")
+                || tokens.has("ultra") || tokens.has("celeron") || tokens.has("pentium")) {
+            return "INTEL";
+        }
+        if (tokens.has("amd") || tokens.has("ryzen") || tokens.has("athlon")) return "AMD";
+        return "";
+    }
+
+    private static int generacion(Tokens tokens) {
+        String padded = tokens.padded();
+
+        Matcher ryzen = RYZEN_MODEL.matcher(padded);
+        if (ryzen.find()) return ryzen.group(1).charAt(0) - '0';
+
+        // Core Ultra "200 series" (Arrow Lake) viene despues de la 14a
+        // generacion; el fabricante no le puso un numero de generacion
+        // propio, asi que se mapea a mano en 15.
+        if (CORE_ULTRA_MODEL.matcher(padded).find()) return 15;
+
+        Matcher core = CORE_MODEL.matcher(padded);
+        if (core.find()) return Integer.parseInt(core.group(1));
+
+        Matcher core1200 = CORE_MODEL_1200.matcher(padded);
+        if (core1200.find()) return Integer.parseInt(core1200.group(1));
+
+        Matcher core1151 = CORE_MODEL_1151.matcher(padded);
+        if (core1151.find()) return Integer.parseInt(core1151.group(1));
+
+        return 0;
     }
 }
