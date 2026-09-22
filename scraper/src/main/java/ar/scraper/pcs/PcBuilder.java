@@ -7,6 +7,7 @@ import ar.scraper.pcs.reglas.ReglaDdr;
 import ar.scraper.pcs.reglas.ReglaFormFactor;
 import ar.scraper.pcs.reglas.ReglaGama;
 import ar.scraper.pcs.reglas.ReglaSocket;
+import ar.scraper.pcs.reglas.ReglaSocketCooler;
 import ar.scraper.pcs.reglas.ReglaSodimm;
 import ar.scraper.pcs.reglas.ReglaWatts;
 
@@ -61,11 +62,12 @@ public class PcBuilder {
     // Opens only for gama ALTA (D4, T3b-2) — depends on the requested tier,
     // never on the cpu pick itself: "and the CPU doesn't include a cooler"
     // fell in T1 (309/313 CPUs say nothing about a cooler either way, see
-    // CLAUDE.md "coolerIncluido no existe"). No rules: cooler-socket
-    // compatibility isn't parsed, and abstention never vetoes outside
-    // ReglaGama's D2 inversion.
+    // CLAUDE.md "coolerIncluido no existe"). ReglaSocketCooler (D6, T2d)
+    // vetoes when the cooler names sockets and the mother's socket isn't
+    // among them; either side unparsed abstains, same as every other rule.
     private static final SlotDeArmado SLOT_COOLER =
-            new SlotDeArmado("cooler", "Cooler", List.of(), new CriterioPorEjesTecnicos(EjesTecnicos.COOLER));
+            new SlotDeArmado("cooler", "Cooler", List.of(new ReglaSocketCooler()),
+                    new CriterioPorEjesTecnicos(EjesTecnicos.COOLER));
 
     public PcBuilder() {
     }
