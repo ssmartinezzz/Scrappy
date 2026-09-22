@@ -712,13 +712,23 @@ vista de exploración del catálogo, no un armador.
 ruta, y el reparto no cerraba: los outfits guardados habían salido de
 `/favoritos` hacia `/armadores` en `saved-pcs-armadores`, mientras `Outfits`
 colgaba del menú `Guardados` apuntando al **armador**, no a lo guardado.
-`/favoritos` junta ahora las tres colecciones en tres secciones —productos
-(carrusel o lista, con su toggle intacto), outfits guardados y PCs guardadas—
-reusando `SavedOutfitCard` y `SavedPcCard` sin redibujarlas. El contador del
-header sigue contando **sólo productos**; las dos secciones nuevas se
-renderizan siempre, incluso sin un favorito, porque son colecciones
-independientes que comparten pantalla y no tres vistas de la misma cosa. El
-estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
+`/favoritos` junta ahora las tres colecciones, y **una PC guardada se trata
+exactamente como un outfit**: el carrusel ya tenía el slide de *colección*
+(`kind:'outfit'` en `TiltCarousel` — un collage de sus miembros más una tira
+expandible debajo), que no es algo propio de la ropa sino "una cosa guardada
+que tiene partes". Los `picks` de una PC ya traen `{nombre, img, sitio,
+precio}`, la misma forma que `OutfitCollage` y la tira consumen, así que el
+slide de PC no adapta nada. Los slides de outfit habían salido del carrusel en
+`saved-pcs-armadores`; esto los devuelve.
+
+| | |
+|---|---|
+| **Una sola tira abierta a la vez** | El estado es `{coleccion:'outfit'\|'pc', id}`, no dos banderas: abrir una PC cierra el outfit que estuviera abierto. Dos estados separados dejarían dos tiras apiladas debajo del mismo carrusel |
+| **Renombrar y eliminar viven en la vista de LISTA** | `SavedOutfitCard`/`SavedPcCard`, reusadas sin redibujar. En un slide no hay dónde ponerlos sin taparle el collage — el mismo reparto que la vista tenía antes de `saved-pcs-armadores` |
+| **El carrusel aparece con CUALQUIER cosa guardada**, no sólo con productos | Antes el cuerpo entero colgaba de `items.length`, así que borrar el último favorito habría hecho desaparecer una PC guardada de la pantalla |
+| **El contador del header cuenta SÓLO productos** | Dice "N productos guardados"; sumarle outfits y PCs haría la frase falsa. Hay un test que lo fija |
+
+El estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
 `AppLayout` y ya los cargaba esta misma ruta.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
