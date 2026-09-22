@@ -261,4 +261,47 @@ class EjesTecnicosTest {
         // Una DDR5 de tier bajo le gana a una DDR4 de tier alto.
         assertThat(EjesTecnicos.MOTHER.compare(conMotherTier("DDR5", 3), conMotherTier("DDR4", 1))).isNegative();
     }
+
+    // ── Motherboard: tier de chipset RELATIVO a la gama pedida — D9 ──────
+
+    @Test
+    void motherConGamaMediaPrefiereBSobreXZ() {
+        // MEDIA -> target=2 (B); B (tier=2, distancia 0) esta mas cerca que X/Z (tier=1, distancia 1).
+        assertThat(EjesTecnicos.mother(Gama.MEDIA).compare(conMotherTier("DDR5", 2), conMotherTier("DDR5", 1)))
+                .isNegative();
+    }
+
+    @Test
+    void motherConGamaMediaPrefiereBSobreAyH() {
+        // B (tier=2, distancia 0) esta mas cerca del target MEDIA=2 que A/H (tier=3, distancia 1).
+        assertThat(EjesTecnicos.mother(Gama.MEDIA).compare(conMotherTier("DDR5", 2), conMotherTier("DDR5", 3)))
+                .isNegative();
+    }
+
+    @Test
+    void motherConGamaBajaPrefiereAyHSobreB() {
+        // BAJA -> target=3 (A/H); A/H (tier=3, distancia 0) le gana a B (tier=2, distancia 1).
+        assertThat(EjesTecnicos.mother(Gama.BAJA).compare(conMotherTier("DDR5", 3), conMotherTier("DDR5", 2)))
+                .isNegative();
+    }
+
+    @Test
+    void motherSinGamaPedidaMantieneElOrdenAbsolutoDeT3() {
+        // gamaPedida == null: sin target, vuelve al orden absoluto de T3 (X/Z < B < A/H).
+        assertThat(EjesTecnicos.mother(null).compare(conMotherTier("DDR5", 1), conMotherTier("DDR5", 2)))
+                .isNegative();
+    }
+
+    @Test
+    void motherAbstencionSigueUltimaConGamaPedida() {
+        assertThat(EjesTecnicos.mother(Gama.MEDIA).compare(conMotherTier("DDR5", 2), conMotherTier("DDR5", 0)))
+                .isNegative();
+    }
+
+    @Test
+    void motherConGamaMediaLaDdrSigueGanandoleAlTierDeChipset() {
+        // Una DDR5 lejos del target le gana a una DDR4 en el target exacto.
+        assertThat(EjesTecnicos.mother(Gama.MEDIA).compare(conMotherTier("DDR5", 1), conMotherTier("DDR4", 2)))
+                .isNegative();
+    }
 }
