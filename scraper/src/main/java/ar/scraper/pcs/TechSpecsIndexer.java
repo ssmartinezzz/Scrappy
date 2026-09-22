@@ -26,7 +26,7 @@ public class TechSpecsIndexer {
                 .filter(Product::esTech)
                 .filter(p -> p.url() != null && !p.url().isBlank())
                 .map(p -> new TechSpecsPort.SpecsDeProducto(
-                        p.url(), TechSpecsParser.parse(p.nombre(), p.categoria())))
+                        p.url(), p.categoria(), TechSpecsParser.parse(p.nombre(), p.categoria())))
                 .toList();
         if (specs.isEmpty()) return;
         port.upsertSpecs(specs);
