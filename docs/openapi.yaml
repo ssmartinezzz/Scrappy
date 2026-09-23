@@ -815,10 +815,19 @@ paths:
       parameters:
         - name: categorias
           in: query
+          required: true
+          description: >-
+            Comma-separated category list. Blank or absent is an unconditional 400
+            ("Missing required parameter: categorias"), so it is not optional.
           schema: { type: string }
         - name: presupuesto
           in: query
-          schema: { type: number, default: 0 }
+          required: true
+          description: >-
+            Must be strictly positive; 0 is rejected with 400. Documented with a
+            default of 0 until 2026-09-22, which made every call that relied on the
+            default a guaranteed 400.
+          schema: { type: number, exclusiveMinimum: 0 }
         - name: genero
           in: query
           schema: { type: string }
@@ -837,6 +846,8 @@ paths:
       responses:
         "200":
           description: Assembled outfit under budget.
+        "400":
+          description: "`categorias` missing/blank, or `presupuesto` not positive."
 
   /api/suplementos/tipos:
     get:
@@ -855,9 +866,15 @@ paths:
       parameters:
         - name: tipos
           in: query
+          required: true
+          description: >-
+            Comma-separated supplement subtypes (see GET /api/suplementos/tipos).
+            Blank, absent, or a list that parses to nothing is an unconditional 400
+            ("tipos is required"), so it is not optional.
           schema: { type: string }
         - name: presupuesto
           in: query
+          description: "0 means no budget cap — unlike /api/outfits/builder, where 0 is rejected."
           schema: { type: number, default: 0 }
         - name: excluir
           in: query
@@ -865,6 +882,8 @@ paths:
       responses:
         "200":
           description: Assembled combo.
+        "400":
+          description: "`tipos` missing or blank."
 
   /api/pcs/builder:
     get:

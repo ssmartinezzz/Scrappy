@@ -14,9 +14,20 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Parameters: measured here, unmeasured where it counts.</b> The encoder
  * defaults are {@code m=16384} (16 MiB), {@code t=2}, {@code p=1}, and on this
- * Linux dev machine that costs <b>76 ms to hash and 76 ms to verify</b>
- * (20 iterations after warmup). That is a sane login cost, so the defaults
- * stand.</p>
+ * Linux dev machine that costs <b>~22 ms to hash and ~22 ms to verify</b>
+ * (20 iterations after warmup, 2026-09-22: median 22.0 / 21.3 ms, max 26.8).
+ * That is a sane login cost, so the defaults stand.</p>
+ *
+ * <p><b>This number was 76 ms until 2026-09-22</b>, measured the same way and on
+ * the same machine. The re-measurement came from the other end: the perf suite
+ * (see {@code tests/perf/}) clocked a whole {@code POST /api/auth/login} at
+ * <b>43 ms p95</b> under ten concurrent users — a full HTTP round trip, JWT
+ * issuing and DB reads included, which cannot be half the cost of the verify it
+ * contains. Re-running the benchmark gave 22 ms. Which of the two runs was the
+ * anomaly is not known; what is known is that the figure documented here has to
+ * be one somebody can reproduce today. Every downstream claim derived from it
+ * (the login rate limiter's "attempts per second", the timing-attack argument in
+ * {@code AuthEndpoints}) was corrected with it.</p>
  *
  * <p>What has <b>not</b> been measured is the portable Windows target this
  * project actually installs onto, and that is the machine the number matters on

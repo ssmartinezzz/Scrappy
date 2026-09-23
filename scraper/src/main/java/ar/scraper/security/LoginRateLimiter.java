@@ -14,8 +14,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * Ventana deslizante de <b>fallos</b> de login, por cuenta y global.
  *
  * <p>Sin esto el único freno de {@code POST /api/auth/login} es el costo de
- * Argon2id: ~76 ms, o sea ~13 intentos por segundo por core. Eso es un peaje,
- * no un límite.</p>
+ * Argon2id: ~22 ms, o sea <b>~45 intentos por segundo por core</b>. Eso es un
+ * peaje, no un límite — y es tres veces y media más flojo de lo que decía este
+ * javadoc hasta 2026-09-22, cuando el costo se re-midió en 22 ms y no en los
+ * 76 que estaban documentados (ver {@code PasswordHasher}). La conclusión no
+ * cambia, se refuerza: el argumento a favor de esta ventana deslizante era
+ * válido a 13 intentos/s y lo es más a 45.</p>
  *
  * <p>No hay clave por IP a propósito. {@code getRemoteAddr()} devuelve la IP
  * del proxy en cuanto haya uno adelante, y ahí todos los clientes caen en el

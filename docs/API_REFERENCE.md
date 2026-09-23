@@ -117,7 +117,8 @@ inexistente, cuenta con `activo=FALSE` y body malformado:
 Distinguirlos convertiría al endpoint en un oráculo de qué usuarios existen. Por
 la misma razón el tiempo de respuesta tampoco los distingue: cuando el usuario no
 existe se verifica igual contra un hash señuelo, así que las dos ramas cuestan el
-mismo Argon2id (~76 ms) en vez de diferir en algo perfectamente medible por red.
+mismo Argon2id (~22 ms, re-medido 2026-09-22) en vez de diferir en algo
+perfectamente medible por red.
 
 **429** — cinco fallos sobre la misma cuenta en 15 minutos, o cien en total, con
 `Retry-After` en segundos. Se cuentan **fallos, no intentos**: un login
