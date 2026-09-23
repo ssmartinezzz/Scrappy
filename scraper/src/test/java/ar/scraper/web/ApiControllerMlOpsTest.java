@@ -14,6 +14,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.PythonRunner.TrainingStatus;
+import ar.scraper.scrape.ScraperStatus;
 import ar.scraper.model.Product;
 import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -285,6 +286,36 @@ class ApiControllerMlOpsTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
+    }
+
+    @Test
+    void mlAplicarReturns409WhileAScrapeIsRunning() {
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(), facets, 0, 0));
+        when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
+
+        var resp = controller.mlAplicar();
+        JsonNode body = AllureSteps.toJson(resp.getBody());
+
+        // El scrape es el dueño prioritario del pipeline: comparten los tres
+        // archivos fijos del cwd, así que aplicar NO puede colarse encima.
+        assertThat(resp.getStatusCode().value()).isEqualTo(409);
+        assertThat(body.get("error").asText()).contains("scraping");
+        verify(pythonRunner, never()).ejecutar(any());
+    }
+
+    @Test
+    void mlAplicarReturns409WhenAnotherScoringRunIsInFlight() {
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(), facets, 0, 0));
+        when(pythonRunner.isScoringEnCurso()).thenReturn(true);
+
+        var resp = controller.mlAplicar();
+        JsonNode body = AllureSteps.toJson(resp.getBody());
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(409);
+        assertThat(body.get("error").asText()).contains("ML");
+        verify(pythonRunner, never()).ejecutar(any());
     }
 
     // ── POST /api/ml/renormalizar ────────────────────────────────────────

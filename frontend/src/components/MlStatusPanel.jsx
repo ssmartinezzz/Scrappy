@@ -89,7 +89,16 @@ export default function MlStatusPanel() {
 
   const handleApply = async () => {
     setApplying(true);
-    await aplicarModeloML();
+    const started = await aplicarModeloML();
+    if (!started) {
+      // POST rechazado (400 sin catálogo, 409 si hay un scrape u otro scoring
+      // en vuelo — el pipeline no es reentrante) — mismo trato que handleTrain:
+      // salir del estado "aplicando" y avisar, en vez de mostrar tres segundos
+      // de progreso falso indistinguibles del camino feliz.
+      setApplying(false);
+      showToast('No se pudo aplicar el modelo ML.', 'error');
+      return;
+    }
     setTimeout(() => { setApplying(false); reload(); }, 3000);
   };
 
