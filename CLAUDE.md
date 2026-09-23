@@ -853,9 +853,10 @@ correcto: la app sí está gateada).
 ⚠️ **Lo que protege la superficie administrativa es el BODY, no la ruta.**
 `GET /api/openapi.yaml` es `PERMIT` en `ApiRoutePolicy`, y
 `OpenApiDocumentController` **filtra al servir**: borra toda operación con
-`x-access: ADMIN` y descarta entera la path que se queda sin ninguna. De 77
-operaciones documentadas viajan 43 — las `PERMIT` + `AUTHENTICATED`, exactamente
-lo que alcanza un VIEWER. Las 34 `ADMIN` (`DELETE /api/db/productos`,
+`x-access: ADMIN` y descarta entera la path que se queda sin ninguna. De **86**
+operaciones documentadas viajan **51** — las 8 `PERMIT` + las 43
+`AUTHENTICATED`, exactamente lo que alcanza un VIEWER. Las 35 `ADMIN`
+(`DELETE /api/db/productos`,
 `/api/agent/**`, `/api/usuarios/**`, `POST /api/scrape`…) **nunca cruzan el
 cable**. Filtrar en el frontend sería teatro: el documento completo igual
 viajaría y se leería en la pestaña Network.
@@ -1233,6 +1234,26 @@ clasificadas con el código viejo (73 `Cooler→CPU`, 59 `CPU→PC`, 16 `GPU→P
 `Monitor→PC`, 7 de `Gabinete`). Antes de diagnosticar un bug de taxonomía,
 correr el clasificador de HOY sobre los nombres de la base y comparar: si el
 drift lo explica, lo que falta es un scrape.
+
+**`Conjunto` es ropa, y corría antes que todo: se llevaba 348 filas de
+tecnologia.** `KW_CONJUNTO` incluye `"combo"`, `" kit "`, `" pack "` y `" set "`,
+ubicuos en SKUs de hardware, y `CategoryClassifier` lo evaluaba antes de OFICINA
+y TECH (correcto *dentro* de ropa, por ADR-4: que un conjunto no quede
+first-matched como Musculosa). Contra 212 filas de indumentaria legítimas había
+**348 de tecnologia**: 77 bundles mother+CPU invisibles a los slots `mother` y
+`cpu`, 41 PCs enteras que `KW_PC_LIDER` nunca veía —corría después—, y 17 RAM, 8
+declarando el kit `NxMGB` que la preferencia `ramDual` busca. El arreglo mueve
+las dos reglas después de TECH: **316 de 348 se recuperan** (84 Motherboard, 68
+Teclado, 49 PC, 17 CPU, 16 GPU) y **212/212 de indumentaria siguen en
+`Conjunto`**. Los 32 restantes son gaps de vocabulario aparte (kits de
+ventiladores, `"Gaming Kit Tec+Mouse"` abreviado, `"Acces Point"` con el typo de
+origen, sets de valijas).
+
+⚠️ Lo encontró el **set de evaluación** ([`ml-tests/eval/`](./ml-tests/eval/README.md)),
+no un test: `TechCategoryClassifierTest` **afirmaba el bug** como correcto
+(`"Gabinete Gamer Kit c/Fuente 500W"` → `Conjunto`, con el comentario *«"kit "
+gana, ver ADR-4»*), contradiciendo el encabezado de su propia sección. Un test
+puede congelar un defecto; una segunda opinión sobre el catálogo real, no.
 
 **Un keyword de comida sin padear vivía adentro de dos marcas, y ahí era un
 acabado, no un sabor.** `"mate"` sin padear en `KW_COMIDA` matcheaba dentro de
