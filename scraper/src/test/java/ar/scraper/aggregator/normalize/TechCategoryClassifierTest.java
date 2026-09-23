@@ -84,7 +84,8 @@ class TechCategoryClassifierTest {
     @DisplayName("El orden del bloque tech es load-bearing: el contenedor gana sobre lo que contiene")
     void elOrdenDelBloqueTechEsLoadBearing() {
         // Gabinete ANTES que Fuente: 23 gabinetes activos vienen con fuente incluida
-        assertThat(cat("Gabinete Gamer Kit c/Fuente 500W")).isEqualTo("Conjunto"); // "kit " gana, ver ADR-4
+        // Esperaba "Conjunto" hasta que el set de evaluación mostró que era un bug.
+        assertThat(cat("Gabinete Gamer Kit c/Fuente 500W")).isEqualTo("Gabinete");
         assertThat(cat("Gabinete Sentey c/Fuente 500W ATX")).isEqualTo("Gabinete");
 
         // Gabinete ANTES que Cooler: 268 gabinetes nombran sus fans
