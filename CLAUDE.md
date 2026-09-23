@@ -853,9 +853,10 @@ correcto: la app sí está gateada).
 ⚠️ **Lo que protege la superficie administrativa es el BODY, no la ruta.**
 `GET /api/openapi.yaml` es `PERMIT` en `ApiRoutePolicy`, y
 `OpenApiDocumentController` **filtra al servir**: borra toda operación con
-`x-access: ADMIN` y descarta entera la path que se queda sin ninguna. De 77
-operaciones documentadas viajan 43 — las `PERMIT` + `AUTHENTICATED`, exactamente
-lo que alcanza un VIEWER. Las 34 `ADMIN` (`DELETE /api/db/productos`,
+`x-access: ADMIN` y descarta entera la path que se queda sin ninguna. De **86**
+operaciones documentadas viajan **51** — las 8 `PERMIT` + las 43
+`AUTHENTICATED`, exactamente lo que alcanza un VIEWER. Las 35 `ADMIN`
+(`DELETE /api/db/productos`,
 `/api/agent/**`, `/api/usuarios/**`, `POST /api/scrape`…) **nunca cruzan el
 cable**. Filtrar en el frontend sería teatro: el documento completo igual
 viajaría y se leería en la pestaña Network.
