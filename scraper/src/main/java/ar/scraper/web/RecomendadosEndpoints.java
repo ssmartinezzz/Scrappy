@@ -126,13 +126,31 @@ class RecomendadosEndpoints {
         List<Product> ranked = recommendationService.rank(candidatos, feedback);
 
         int total = ranked.size();
-        int desde = Math.min((page - 1) * size, total);
-        int hasta = Math.min(desde + size, total);
+
+        // `page` es base 1 y `size` un tamaño, pero los dos llegan de un query
+        // param y nada garantiza que respeten eso. Acotar sólo por arriba —que
+        // es lo que hacía `Math.min` sola— deja pasar un `page` <= 0 a un índice
+        // NEGATIVO: `subList(-24, 0)` tira `IndexOutOfBoundsException`, o sea un
+        // HTTP 500 con stack trace disparado desde la URL. Lo mismo un `size`
+        // <= 0, por el otro extremo del rango.
+        //
+        // Se acota en vez de rechazar con 400 porque `/api/data` ya recibe el
+        // mismo `page=0` fuera de contrato y sirve la primera página: dos
+        // endpoints que leen el mismo parámetro no pueden estar en desacuerdo
+        // sobre qué significa un valor inválido, y de las dos conductas la que
+        // ya está en producción es la que no se cae.
+        int paginaPedida = Math.max(1, page);
+        int tamanio      = Math.max(1, size);
+
+        int desde = Math.min((paginaPedida - 1) * tamanio, total);
+        int hasta = Math.min(desde + tamanio, total);
         List<Product> pagina = ranked.subList(desde, hasta);
 
         ObjectNode root = JsonNodeFactory.instance.objectNode();
-        root.put("page",  page);
-        root.put("size",  size);
+        // El eco es lo que se SIRVIÓ, no lo que se pidió: devolver `page: 0`
+        // junto a la primera página le mentiría al cliente sobre dónde está.
+        root.put("page",  paginaPedida);
+        root.put("size",  tamanio);
         root.put("total", total);
         ArrayNode items = root.putArray("items");
         for (Product p : pagina) {

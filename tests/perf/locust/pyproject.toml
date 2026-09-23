@@ -1,0 +1,24 @@
+[project]
+name = "scrappy-perf"
+version = "1.0.0"
+description = "Suite de performance de la API de Scrappy: Locust como motor de carga, pytest como runner."
+requires-python = ">=3.11"
+dependencies = [
+    "locust==2.32.4",
+    "pytest==8.3.4",
+    "requests==2.32.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+# Por defecto corre lo rápido: el smoke (la baseline) y el login, ~90 s en total.
+# Las formas largas —carga, stress, spike— son minutos de reloj y se piden a
+# mano: `uv run pytest -m lento`. Una suite que tarda cinco minutos por defecto
+# deja de correrse.
+# -s (sin captura) a propósito: lo que esta suite imprime —la tabla por endpoint
+# y dónde quedó el reporte— ES el resultado, no ruido de diagnóstico. Capturarlo
+# y mostrarlo sólo cuando algo falla es al revés de lo que hace falta acá.
+addopts = "-v -s -m 'not lento'"
+markers = [
+    "lento: minutos de reloj real. Excluido por defecto; corrélo con -m lento",
+]

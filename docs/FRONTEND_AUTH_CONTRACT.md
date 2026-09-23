@@ -293,4 +293,4 @@ arranque, así un cambio de rol server-side aparece dentro de una vida de token
 |---|---|
 | La ventana de gracia de 10 s | Propuesta, no medición. Medirla necesita justo el cliente que vos vas a escribir |
 | Los topes de rate-limit del reseteo (3/h por dirección, 10/h por IP, 100/h global) | Propuestas, sin validar contra tráfico real |
-| Parámetros de Argon2id | Medidos en Linux (76 ms), sin medir en el Windows portable |
+| Parámetros de Argon2id | Medidos en Linux (~22 ms, re-medidos 2026-09-22; decían 76), sin medir en el Windows portable |

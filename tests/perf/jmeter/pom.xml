@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Módulo Maven independiente: no hereda del pom del backend ni es un módulo suyo.
+
+  Un test de performance no es un test unitario. Si estas clases vivieran en
+  `scraper/src/test/java`, cada `mvn test` del backend —el que corre en cada
+  commit y en CI— arrancaría una corrida de carga contra un backend que
+  probablemente no esté levantado. Acá no se ejecuta nada salvo que lo pidas.
+
+      mvn -f tests/perf/jmeter/pom.xml verify -Dit.test=SmokeIT
+      tests/perf/jmeter/run.sh smoke
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>ar.scraper.perf</groupId>
+    <artifactId>scrappy-perf-jmeter</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <name>Scrappy — suite de performance (JMeter)</name>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jmeter.dsl.version>2.2.1</jmeter.dsl.version>
+        <junit.version>5.11.3</junit.version>
+        <assertj.version>3.26.3</assertj.version>
+    </properties>
+
+    <dependencies>
+        <!-- JMeter de verdad, manejado desde Java en vez de desde la GUI.
+             El plan que arma esta API ES un plan de JMeter: `ExportarJmx` lo
+             escribe como .jmx y se abre en la GUI sin traducir nada. -->
+        <dependency>
+            <groupId>us.abstracta.jmeter</groupId>
+            <artifactId>jmeter-java-dsl</artifactId>
+            <version>${jmeter.dsl.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Sin un parent que maneje versiones de plugins, Maven usa el
+                 compiler-plugin 3.1, que todavía apunta a source/target 5.
+                 Pinearlo no es prolijidad: sin esto el módulo no compila. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+
+            <!-- Failsafe, no Surefire, y las clases se llaman *IT.
+                 `mvn test` acá no corre NADA: hace falta `mvn verify`. Es la
+                 convención de Maven para "esto necesita algo vivo del otro
+                 lado", que es exactamente el caso. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.2</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- `run.sh jmx` exporta los planes como .jmx para la GUI de JMeter. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>ar.scraper.perf.ExportarJmx</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
