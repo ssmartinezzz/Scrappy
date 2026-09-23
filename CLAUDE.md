@@ -1234,6 +1234,26 @@ clasificadas con el código viejo (73 `Cooler→CPU`, 59 `CPU→PC`, 16 `GPU→P
 correr el clasificador de HOY sobre los nombres de la base y comparar: si el
 drift lo explica, lo que falta es un scrape.
 
+**`Conjunto` es ropa, y corría antes que todo: se llevaba 348 filas de
+tecnologia.** `KW_CONJUNTO` incluye `"combo"`, `" kit "`, `" pack "` y `" set "`,
+ubicuos en SKUs de hardware, y `CategoryClassifier` lo evaluaba antes de OFICINA
+y TECH (correcto *dentro* de ropa, por ADR-4: que un conjunto no quede
+first-matched como Musculosa). Contra 212 filas de indumentaria legítimas había
+**348 de tecnologia**: 77 bundles mother+CPU invisibles a los slots `mother` y
+`cpu`, 41 PCs enteras que `KW_PC_LIDER` nunca veía —corría después—, y 17 RAM, 8
+declarando el kit `NxMGB` que la preferencia `ramDual` busca. El arreglo mueve
+las dos reglas después de TECH: **316 de 348 se recuperan** (84 Motherboard, 68
+Teclado, 49 PC, 17 CPU, 16 GPU) y **212/212 de indumentaria siguen en
+`Conjunto`**. Los 32 restantes son gaps de vocabulario aparte (kits de
+ventiladores, `"Gaming Kit Tec+Mouse"` abreviado, `"Acces Point"` con el typo de
+origen, sets de valijas).
+
+⚠️ Lo encontró el **set de evaluación** ([`ml-tests/eval/`](./ml-tests/eval/README.md)),
+no un test: `TechCategoryClassifierTest` **afirmaba el bug** como correcto
+(`"Gabinete Gamer Kit c/Fuente 500W"` → `Conjunto`, con el comentario *«"kit "
+gana, ver ADR-4»*), contradiciendo el encabezado de su propia sección. Un test
+puede congelar un defecto; una segunda opinión sobre el catálogo real, no.
+
 **Un keyword de comida sin padear vivía adentro de dos marcas, y ahí era un
 acabado, no un sabor.** `"mate"` sin padear en `KW_COMIDA` matcheaba dentro de
 *Xigmatek* y *Ultimate* — en 5 de 7 nombres reales es un acabado (*matte*), no
@@ -1352,7 +1372,6 @@ Dos cosas que se rompen en silencio si se tocan:
 | Problema | Estado |
 |---------|--------|
 | La e2e **completa** sigue sin correr en CI — sólo el smoke de login | `e2e-login-smoke.yml` cubre 8 de los 26 specs de browser (sesión, cookie de refresh, topología) y **cero** de los 51 de la capa API. Es a propósito: un check que cuesta lo mismo que la suite entera se termina esquivando. Pero significa que roles, tabs, reseteo y backend-down siguen dependiendo de que alguien corra `tests/e2e/run-e2e.sh` a mano. Así se coló el PR #179, que mergeó con todo verde dejando la browser en 21 fallos de 26 |
-| `KW_CONJUNTO` corre antes de OFICINA y TECH, y se come **348 filas de tecnologia** | `CategoryClassifier.java:140` matchea `KW_CONJUNTO` antes que cualquier otro bloque —correcto *dentro* de ropa, para que un conjunto deportivo no quede first-matched como Musculosa— pero el set incluye `"combo"`, `" kit "`, `" pack "` y `" set "`, que son ubicuos en SKUs de hardware. Resultado: 348 productos de tecnologia viven en `Conjunto`, una categoría de ROPA, contra 212 de indumentaria legítimos. Entre ellos **77 bundles mother+CPU** (`"Kit Mother ASUS PRIME A520M-K + Procesador Ryzen 5 5600GT"`), invisibles a los slots `mother` y `cpu`; **41 PCs enteras** (`"PC ARMADA AMD RYZEN 5 8600G+...+GABINETE KIT"`) que `KW_PC_LIDER` nunca ve, porque `KW_CONJUNTO` corre antes de `clasificarTech` entero; y **17 RAM, 8 de ellas declarando el kit `NxMGB` explícito** (`"KLEVV FIT V DDR5 32GB Kit (2x16GB)"`) — justo las que la preferencia `ramDual` de la fase 7 busca y el eje "módulos desc" rankea. **No es drift**: corriendo el clasificador de HOY sobre esos 348 nombres, los 348 vuelven a `Conjunto`. Lo encontró el set de evaluación ([`ml-tests/eval/`](./ml-tests/eval/README.md)) |
 | `ResetRateLimiter` y `LoginRateLimiter` deciden lo OPUESTO sobre la clave por IP | `LoginRateLimiter` no tiene clave por IP **a propósito**, y su javadoc explica por qué: `getRemoteAddr()` devuelve la IP del proxy en cuanto haya uno adelante, y ahí todos los clientes caen en el mismo balde sin que nada falle. `ResetRateLimiter` sí la tiene, y la alimenta con ese mismo `getRemoteAddr()`. Detrás de un proxy su tope de 10/h pasa a ser global de hecho, y frena los resets de todos. Hoy es latente —ninguna de las tres vías de instalación proxea `/api`— pero las dos clases no pueden seguir contestando distinto a la misma pregunta. El arreglo es el que su hermana ya describe: allowlist de proxies de confianza antes de mirar `X-Forwarded-For`, nunca confiar en el header a ciegas |
 | `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
 

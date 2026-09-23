@@ -94,8 +94,10 @@ categoría de ropa, contra 212 de indumentaria legítimas: 77 bundles mother+CPU
 41 PCs enteras que `KW_PC_LIDER` nunca ve, y 17 RAM (8 con el kit `NxMGB`
 explícito que la preferencia `ramDual` busca). Verificado que **no es drift**:
 el clasificador de hoy devuelve los 348 a `Conjunto`. Anotado en los bugs
-abiertos de `CLAUDE.md`; **no arreglado** — está fuera del alcance autorizado de
-este documento, que era etiquetar.
+abiertos de `CLAUDE.md`. **Arreglado después, a pedido del usuario**: las dos
+reglas de `Conjunto` se movieron a después de TECH — 316 de 348 recuperados,
+212/212 de indumentaria intactos, suite 2787 verde. El test que lo cubría
+(`TechCategoryClassifierTest`) **afirmaba el bug**, así que hubo que corregirlo.
 
 Los desacuerdos también van en la otra dirección (el modelo mandó cuatro SSD
 NVMe y dos productos de red a `Otros`), que es la evidencia de que el set no

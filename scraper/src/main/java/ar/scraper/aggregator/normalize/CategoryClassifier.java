@@ -133,13 +133,6 @@ public class CategoryClassifier {
             return nutriTemprano.isEmpty() ? "Alimentos" : nutriTemprano;
         }
 
-        // ── COMBO / MULTI-PIEZA (ver ADR-4) — corre ANTES de cualquier otro
-        // bloque para que un SKU combo nunca quede first-matched como una sola
-        // pieza (torso o piernas). KW_TRAJE queda deliberadamente afuera del
-        // bloque torso usado en (b): un traje siempre resuelve a "Traje".
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CONJUNTO)) return "Conjunto";
-        if (matchesTorsoBlock(t) && matchesPiernasBlock(t)) return "Conjunto";
-
         // ── OFICINA (ANTES de TECH — el orden es load-bearing) ──────────────
         // Cuatro colisiones REALES del catálogo de INPRO obligan a que esto
         // corra primero, y las cuatro son de sustantivos compartidos, no de
@@ -158,6 +151,13 @@ public class CategoryClassifier {
         // filas activas, no elegido por prolijidad. Ver `clasificarTech`.
         String tech = clasificarTech(t);
         if (!tech.isEmpty()) return tech;
+
+        // ── COMBO / MULTI-PIEZA (ver ADR-4) — antes de ropa/calzado, para que un
+        // SKU combo no quede first-matched como una sola pieza; DESPUÉS de OFICINA
+        // y TECH, porque "combo"/" kit "/" pack " son ubicuos en hardware y se
+        // llevaban 348 filas de tecnologia a una categoría de ropa.
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CONJUNTO)) return "Conjunto";
+        if (matchesTorsoBlock(t) && matchesPiernasBlock(t)) return "Conjunto";
 
         // ── EQUIPAMIENTO DEPORTIVO (antes del bloque de ropa Y del fallback
         // de calzado): "Paleta De Pádel adidas Adipower Ctrl Team 3.3" caía en
