@@ -314,6 +314,24 @@ zero-shot con prompts en inglés y labels en español, abstención por margen.
 Cache en `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` =
 `<SCRAPER_MODELS_ROOT>/marqo`.
 
+⚠️ **El scoring NO es reentrante, y a lo sumo corre UNA vez a la vez.**
+`PythonRunner.ejecutar` resuelve tres rutas **fijas** en el cwd del proceso
+—`ml_productos.json`, `ml_output.json`, `precio_historico.json`— y se las pasa
+al subproceso como argv, así que dos corridas concurrentes se escriben los
+archivos entre sí y ninguna falla ruidosamente: la segunda lee el input de la
+primera o publica un output mezclado. Había dos llamadores capaces de chocar —el
+path de scrape vía `ResultAggregator` y `POST /api/ml/aplicar`, que lanzaba su
+hilo virtual **sin guard alguno**, a diferencia del entrenamiento, que ya
+reservaba su slot con `intentarReservarSecuenciaIndiceVisual`—. Hoy el slot lo
+toma `conReservaDeScoring` (CAS, molde del entrenamiento) y `/api/ml/aplicar`
+rechaza en la puerta con **409** si hay un scrape `RUNNING` u otro scoring en
+vuelo. El scrape es el dueño prioritario: degradarlo en silencio (su `ejecutar`
+devolviendo `null` = corrida sin ML) para que entre un "aplicar" manual sería el
+intercambio equivocado, y por eso el rechazo va en el endpoint y no en el path
+de scrape. En el frontend, `MlStatusPanel.handleApply` **tiene** que avisar del
+rechazo: mostraba "Aplicando..." tres segundos indistinguibles del camino feliz,
+así que un guard correcto se veía como un no-op silencioso.
+
 **Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
 103 valores en `richer-category-taxonomy` y a **105** en `V32`, y vive en DOS
 lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la

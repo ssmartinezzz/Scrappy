@@ -608,7 +608,15 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: Applied.
+          description: Started in the background.
+        "400":
+          description: No catalog loaded yet — run a scrape first.
+        "409":
+          description: >-
+            A scrape or another scoring run is already in flight. The scoring
+            pipeline is not reentrant: it resolves `ml_productos.json` and
+            `ml_output.json` in the process cwd, so two concurrent runs
+            overwrite each other's files.
 
   /api/ml/renormalizar:
     post:

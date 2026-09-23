@@ -116,16 +116,50 @@ class MlEndpoints {
         return ResponseEntity.ok(HistorialJson.construir(hist));
     }
 
+    /**
+     * Re-aplica el pipeline ML sobre el catálogo en memoria, en background.
+     *
+     * <p>Los dos rechazos de abajo existen porque el scoring NO es reentrante:
+     * {@code PythonRunner.ejecutar} resuelve {@code ml_productos.json} y
+     * {@code ml_output.json} en el cwd del proceso, así que dos corridas
+     * concurrentes se pisan los archivos sin que nada falle ruidosamente. El
+     * path de scrape llega al mismo {@code ejecutar} vía
+     * {@code ResultAggregator}, y este endpoint lanzaba su hilo virtual sin
+     * mirar a nadie.
+     *
+     * <p>El scrape es el dueño prioritario: es la operación larga y visible, y
+     * degradarla en silencio (su {@code ejecutar} devolviendo {@code null} =
+     * corrida sin ML) para que entre un "aplicar" manual sería el intercambio
+     * equivocado. Por eso el rechazo va acá, en la puerta, con la misma forma
+     * que {@code CronJobRunner.runJob} ya usa para no pisar un scrape en curso.
+     * La exclusión mutua atómica sigue viviendo junto al recurso
+     * ({@code PythonRunner.conReservaDeScoring}), que es lo que cierra el
+     * TOCTOU entre este chequeo y el arranque del hilo.
+     */
     ResponseEntity<Object> mlAplicar() {
         var r = service.getLastResult();
         if (r == null) return ResponseEntity.badRequest()
             .body(java.util.Map.of("error", "No hay datos. Ejecutá un scraping primero."));
 
+        if (service.getStatus() == ar.scraper.scrape.ScraperStatus.RUNNING)
+            return ResponseEntity.status(409).body(java.util.Map.of(
+                "error", "Hay un scraping en curso, que ya corre el pipeline ML. "
+                       + "Esperá a que termine y volvé a intentar."));
+
+        if (pythonRunner.isScoringEnCurso())
+            return ResponseEntity.status(409).body(java.util.Map.of(
+                "error", "Ya hay una corrida del pipeline ML en vuelo. "
+                       + "Esperá a que termine y volvé a intentar."));
+
         // Re-ejecutar pipeline ML sobre datos actuales en background
         Thread.ofVirtual().start(() -> {
             try {
                 String prodJson = aggregator.getMlEnricher().serializarProductos(r.productos());
-                var mlOut = aggregator.getPythonRunner().ejecutar(prodJson);
+                // Mismo objeto que el guard de arriba consultó (PythonRunner es
+                // @Component, y aggregator.getPythonRunner() devuelve ese mismo
+                // singleton) — nombrarlo por el campo inyectado deja a la vista que
+                // la reserva y su consumidor son la misma instancia.
+                var mlOut = pythonRunner.ejecutar(prodJson);
                 if (mlOut != null) {
                     var enriquecidos = aggregator.getMlEnricher().enriquecer(r.productos(), mlOut);
                     // Persistir categorías refinadas

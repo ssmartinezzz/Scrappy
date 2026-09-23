@@ -38,6 +38,61 @@ public class PythonRunner {
         new java.util.concurrent.atomic.AtomicReference<>(BackfillStatus.idle());
 
     /**
+     * Slot de admisión del pipeline de scoring ({@link #ejecutar}): a lo sumo
+     * UNA corrida a la vez.
+     *
+     * <p>No es control de recursos, es integridad de datos. {@link #ejecutar}
+     * resuelve TRES rutas fijas en el cwd del proceso —{@code ml_productos.json},
+     * {@code ml_output.json}, {@code precio_historico.json}— y se las pasa al
+     * subproceso como argv. Dos corridas concurrentes se escriben los archivos
+     * entre sí, y ninguna falla ruidosamente: la segunda lee el input de la
+     * primera o publica un output mezclado.
+     *
+     * <p>Había dos llamadores capaces de chocar: el path de scrape
+     * ({@code ResultAggregator.ejecutarPipelineMl}) y
+     * {@code POST /api/ml/aplicar}, que lanzaba un hilo virtual sin guard
+     * alguno — a diferencia del entrenamiento, que ya reservaba su slot con
+     * {@link #intentarReservarSecuenciaIndiceVisual}. Este campo cierra ese
+     * hueco con el mismo molde (CAS, así un burst no puede tener dos
+     * ganadores).
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean scoringEnCurso =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /**
+     * ¿Hay una corrida de scoring en vuelo? Lo consulta
+     * {@code MlEndpoints.mlAplicar} para rechazar en la puerta con un 409 en
+     * vez de descubrirlo recién adentro de {@link #conReservaDeScoring}, donde
+     * el rechazo ya no tiene a quién contestarle (corre en un hilo de fondo).
+     */
+    public boolean isScoringEnCurso() { return scoringEnCurso.get(); }
+
+    /**
+     * Ejecuta {@code cuerpo} con el slot de scoring reservado, o devuelve
+     * {@code null} sin correrlo si ya había una corrida en vuelo.
+     *
+     * <p>Package-private como seam de test: permite verificar la exclusión
+     * mutua y la liberación en el {@code finally} sin depender de un
+     * intérprete Python real ni de los archivos del cwd.
+     *
+     * <p>El rechazo NO libera el slot — liberar una reserva que este llamado
+     * nunca tomó dejaría entrar a un tercero en paralelo con el cuerpo que
+     * sigue corriendo, que es justo la colisión que el guard cierra.
+     */
+    <T> T conReservaDeScoring(java.util.function.Supplier<T> cuerpo) {
+        if (!scoringEnCurso.compareAndSet(false, true)) {
+            LOG.warn("[ML] Ya hay una corrida de scoring en vuelo — esta solicitud se descarta "
+                    + "(comparten ml_productos.json/ml_output.json en el cwd)");
+            return null;
+        }
+        try {
+            return cuerpo.get();
+        } finally {
+            scoringEnCurso.set(false);
+        }
+    }
+
+    /**
      * Flag GPU/CPU por-job para los cron runs (scraper-cronjobs PR1, ver ADR-2
      * en sdd/scraper-cronjobs/design). {@code true} (default) = comportamiento
      * actual sin cambios (probe CUDA si está disponible). {@code false} = fuerza
@@ -64,6 +119,15 @@ public class PythonRunner {
      * método — vive en {@code DatabaseService} y {@code ApiController}.
      */
     public JsonNode ejecutar(String productosJson) {
+        return conReservaDeScoring(() -> ejecutarScoring(productosJson));
+    }
+
+    /**
+     * Cuerpo sincrónico de {@link #ejecutar}, extraído sin cambios para que el
+     * slot de {@link #conReservaDeScoring} envuelva la corrida entera —
+     * escritura del input incluida, que es donde empieza la colisión.
+     */
+    private JsonNode ejecutarScoring(String productosJson) {
         boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
         var stderrTail = new java.util.concurrent.ConcurrentLinkedDeque<String>();
         try {
