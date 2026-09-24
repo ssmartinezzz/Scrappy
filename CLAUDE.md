@@ -270,10 +270,6 @@ Lo mínimo para no romper nada sin abrir ese archivo:
 | **Una migración aplicada es byte-frozen** | Flyway valida checksums; hasta agregar un comentario rompe `flyway validate`. Por eso el rollback se documenta, no se edita el `.sql` |
 | **Las dos funciones plpgsql se editan en su `R__`** | `sp_upsert_run` y `sp_soft_delete_ausentes`. Nunca una migración versionada nueva para tocarlas |
 | **El soft-delete está acotado a los sitios del batch** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15) |
-| **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
-| **`favoritos` ya no tiene PK sobre `url`** | Desde `V26` la PK es subrogada y la unicidad por url vive en un índice **parcial** (`WHERE usuario_id IS NULL`). Postgres no infiere un índice parcial solo: todo `ON CONFLICT (url)` tiene que repetir ese `WHERE` o rechaza la sentencia entera, primer insert incluido |
-| **`marca` vacía se guarda NULL, nunca `''`** | `''` es el centinela de abstención de `BrandExtractor` y `fk_productos_marca` no puede referenciarlo — el header de `V21` fija el contrato: NULL en la base, `""` en el borde Java. `sp_upsert_run` lo cumple con `nullif(r->>'marca','')`; `updateNormalizacion` escribía `''` literal y **reventaba la FK al reclasificar cualquier producto sin marca**. Dos write paths a la misma columna tienen que escribir con la misma regla |
-| **`precio_historico` registra cambios, no avistajes** | Un producto que vuelve tras un soft-delete se trata por su precio, como cualquier fila existente — no como URL nueva |
 
 **Lecturas:** `/api/data` y `/api/facets` consultan SQL (18 filtros, orden y
 paginación como `WHERE`/`ORDER BY`/`LIMIT`). El resto de las superficies
@@ -881,12 +877,31 @@ a nivel `AppLayout`, no rutas.
 > | Si estás tocando… | Andá a |
 > |---|---|
 > | auth, CORS, cookies, sesión, el status de una corrida | [Frontend ↔ backend](#frontend--backend-sesión-orígenes-y-status) |
+> | retomar/descartar una corrida, un scrape parcial, cronjobs | [Corridas parciales y retomas](#corridas-parciales-y-retomas) |
 > | el toolchain, un jar, el venv, la base de dev, arrancar los servicios | [Entorno y procesos](#entorno-procesos-y-config) |
 > | un scraper, una page, una URL de catálogo o de imagen | [Leer un sitio](#leer-un-sitio) |
 > | keywords, categorías, el guard no-textil, normalización | [Taxonomía y clasificación](#taxonomía-y-clasificación) |
 > | IPC, dólar, el deflactor, la señal de compra | [Índices y señales](#índices-y-señales) |
 > | un picker, una tarjeta que scrollea, chips animados | [Frontend: layout](#frontend-layout) |
 > | `docker-compose.yml`, el Dockerfile, los orígenes | [Docker](#docker) |
+
+### Corridas parciales y retomas
+
+⚠️ **El guard de "ya hay un scrape corriendo" era check-then-set, y abrió dos
+corridas en el mismo segundo.** No es teórico: el 2026-09-24 11:16:59 se
+abrieron la 21 (cron: entreno, morashop) y la 22 (5 sitios tech) a la vez.
+`runState` es UNA referencia, así que la segunda pisó a la primera: los sitios
+de la 21 nunca se marcaron, nadie la cerró, y quedó `RUNNING` para siempre — la
+corrida fantasma que después no se podía ni retomar ni descartar. `iniciarScraping`
+y `reanudar()` entran ahora por `tomarElTurno()`, un `compareAndSet`.
+
+**Una retoma que no resuelve ningún sitio se cierra sola, no revienta.**
+`pendientes` trae `sitio_key` (normalizado: sin puntos, sin espacios) y
+`buildSiteList` filtra por `nombre`, así que un sitio dinámico con un punto en
+el nombre no matchea ninguno. Con la lista vacía,
+`Executors.newFixedThreadPool(0)` tira `IllegalArgumentException`, `agregar`
+nunca corre y la corrida recién adoptada queda abierta otra vez. Hoy se cierra
+como `CANCELLED` sin tocar el catálogo.
 
 ### Frontend ↔ backend: sesión, orígenes y status
 
