@@ -269,7 +269,7 @@ Lo mínimo para no romper nada sin abrir ese archivo:
 | **Toda tabla nueva cumple 1FN y 3FN** | Precondición, no aspiración. Si no las cumple, se rediseña antes de escribir la migración |
 | **Una migración aplicada es byte-frozen** | Flyway valida checksums; hasta agregar un comentario rompe `flyway validate`. Por eso el rollback se documenta, no se edita el `.sql` |
 | **Las dos funciones plpgsql se editan en su `R__`** | `sp_upsert_run` y `sp_soft_delete_ausentes`. Nunca una migración versionada nueva para tocarlas |
-| **El soft-delete está acotado a los sitios del batch** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15) |
+| **El soft-delete está acotado a los sitios que la CORRIDA miró** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15). Con corrida persistida el alcance sale de `touched_at >= started_at` **∩ los sitios enrolados en `scrape_run_site`**: la ventana sola adoptaba sitios de otras corridas, ver [Corridas parciales y retomas](#corridas-parciales-y-retomas) |
 | **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
 | **`favoritos` ya no tiene PK sobre `url`** | Desde `V26` la PK es subrogada y la unicidad por url vive en un índice **parcial** (`WHERE usuario_id IS NULL`). Postgres no infiere un índice parcial solo: todo `ON CONFLICT (url)` tiene que repetir ese `WHERE` o rechaza la sentencia entera, primer insert incluido |
 | **`marca` vacía se guarda NULL, nunca `''`** | `''` es el centinela de abstención de `BrandExtractor` y `fk_productos_marca` no puede referenciarlo — el header de `V21` fija el contrato: NULL en la base, `""` en el borde Java. `sp_upsert_run` lo cumple con `nullif(r->>'marca','')`; `updateNormalizacion` escribía `''` literal y **reventaba la FK al reclasificar cualquier producto sin marca**. Dos write paths a la misma columna tienen que escribir con la misma regla |
@@ -881,12 +881,74 @@ a nivel `AppLayout`, no rutas.
 > | Si estás tocando… | Andá a |
 > |---|---|
 > | auth, CORS, cookies, sesión, el status de una corrida | [Frontend ↔ backend](#frontend--backend-sesión-orígenes-y-status) |
+> | retomar/descartar una corrida, un scrape parcial, cronjobs | [Corridas parciales y retomas](#corridas-parciales-y-retomas) |
 > | el toolchain, un jar, el venv, la base de dev, arrancar los servicios | [Entorno y procesos](#entorno-procesos-y-config) |
 > | un scraper, una page, una URL de catálogo o de imagen | [Leer un sitio](#leer-un-sitio) |
 > | keywords, categorías, el guard no-textil, normalización | [Taxonomía y clasificación](#taxonomía-y-clasificación) |
 > | IPC, dólar, el deflactor, la señal de compra | [Índices y señales](#índices-y-señales) |
 > | un picker, una tarjeta que scrollea, chips animados | [Frontend: layout](#frontend-layout) |
 > | `docker-compose.yml`, el Dockerfile, los orígenes | [Docker](#docker) |
+
+### Corridas parciales y retomas
+
+⚠️ **`agregar` sólo conoce los sitios que le pasaron, así que su lista de
+productos ES el subconjunto — y asignarla a `lastResult` borraba el catálogo.**
+Era correcto mientras toda corrida cubriera los 29 sitios y falso en cuanto
+dejó de hacerlo: un cronjob de tecnología, o una retoma con un solo sitio
+pendiente, dejaban en memoria únicamente esos productos. Medido contra la dev
+DB (2026-09-24): la corrida 22 (5 sitios tech) cerró con **951** productos y la
+retoma de la 16 con **1022**, sobre **15.907** activos que la base nunca dejó
+de tener — `0 desactivados` en las dos, o sea que el borrado era **sólo en
+memoria**. Y eso alcanza: `/api/grupos`, `/api/mejores`, outfits, suplementos,
+PCs, recomendados, marcas y el total de `/api/status` leen el snapshot, no SQL.
+Hoy `ScraperService.catalogoEntero` recarga los activos y los pasa por
+`fromDBParcial` —lo mismo que el refresco progresivo ya hacía por sitio— y
+conserva del batch sólo `erroresPorSitio` y `statsPorSitio`, que son hechos de
+esa corrida y no se derivan de la base.
+
+⚠️ **El guard de "ya hay un scrape corriendo" era check-then-set, y abrió dos
+corridas en el mismo segundo.** No es teórico: el 2026-09-24 11:16:59 se
+abrieron la 21 (cron: entreno, morashop) y la 22 (5 sitios tech) a la vez.
+`runState` es UNA referencia, así que la segunda pisó a la primera: los sitios
+de la 21 nunca se marcaron, nadie la cerró, y quedó `RUNNING` para siempre — la
+corrida fantasma que después no se podía ni retomar ni descartar. `iniciarScraping`
+y `reanudar()` entran ahora por `tomarElTurno()`, un `compareAndSet`.
+
+**Descartar una corrida interrumpida es un endpoint** (`POST /api/scrape/discard`),
+no un botón que esconde el cartel. Cierra como `CANCELLED` **todas** las
+`INTERRUPTED`, porque `ultimaInterrumpida()` nombra sólo la más reciente y
+descartar de a una destaparía la siguiente en el próximo arranque.
+`POST /api/scrape/cancel` no sirve para esto: exige `RUNNING`, que es
+exactamente lo que una corrida interrumpida no está.
+
+**Una retoma que no resuelve ningún sitio se cierra sola, no revienta.**
+`pendientes` trae `sitio_key` (normalizado: sin puntos, sin espacios) y
+`buildSiteList` filtra por `nombre`, así que un sitio dinámico con un punto en
+el nombre no matchea ninguno. Con la lista vacía,
+`Executors.newFixedThreadPool(0)` tira `IllegalArgumentException`, `agregar`
+nunca corre y la corrida recién adoptada queda abierta otra vez. Hoy se cierra
+como `CANCELLED` sin tocar el catálogo.
+
+⚠️ **Una ventana de tiempo no es una corrida, y el barrido final confundía las
+dos.** `ProductRepository.alcanceDelRun` leía `touched_at >= started_at` a
+secas, y el `started_at` de una corrida RETOMADA puede ser de hace días: todo
+sitio que **otra** corrida hubiera tocado en esa ventana entraba a `p_sitios`,
+aunque ésta no lo hubiera mirado nunca — y ahí "ausente" vuelve a significar
+algo sobre un sitio que nadie visitó, que es justo lo que el header de
+`R__sp_soft_delete_ausentes` prohíbe y lo que el 2026-08-15 desactivó 5806
+productos de 19 sitios en una sentencia. Medido: la corrida 16 arrancó el 22 a
+las 16:49 y se retomó el 24 a las 14:54, con cinco corridas en el medio —una
+completa—, así que su ventana nombraba los 28 sitios del catálogo para una
+corrida que había mirado cinco. Hoy la unión se acota además a los sitios que
+la corrida tiene enrolados en `scrape_run_site`, en **la misma query** (la
+invariante es que `p_urls` y `p_sitios` no puedan ensancharse por separado, así
+que no pueden salir de dos lecturas).
+
+| | |
+|---|---|
+| **Es un angostamiento puro** | Un sitio entra sólo si la corrida lo enroló **y** escribió filas suyas en la ventana. Un sitio enrolado cuyo scraper se rompió llega con 0 productos y sigue quedando afuera por el lado del tiempo — "se rompió" no es "se vació", y eso lo detecta `SiteYieldGuard`, no el barrido |
+| **El join va por `sitio_key`, no por `sitio`** | `productos.sitio` es la forma de display (`Vcp`) y `scrape_run_site.sitio_key` es identidad (`vcp`). Compararlos directo no matchea nada y **vacía el alcance en silencio** — el mismo par de vocabularios que documenta el header de `V29` |
+| **El puerto recibe la corrida, no un reloj** | `ProductPort.upsertProductos(List, CorridaEnCurso)`; `CorridaEnCurso(runId, startedAt)` vive en `scrape/`. Pasar sólo el `Instant` era la forma exacta del bug: un reloj no puede decir qué sitios miró una corrida |
 
 ### Frontend ↔ backend: sesión, orígenes y status
 

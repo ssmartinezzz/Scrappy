@@ -372,9 +372,11 @@ public class ScraperService implements CatalogSnapshotPort {
 
     // ── Lanzar scraping ─────────────────────────────────────────────────────
     public boolean iniciarScraping(Set<String> sitiosSeleccionados, boolean forceRetrain) {
-        if (status.get() == ScraperStatus.RUNNING) return false;
+        // Con check-then-set entraron dos llamadores el 2026-09-24 11:16:59 y
+        // abrieron las corridas 21 y 22; `runState` sólo puede nombrar una, así
+        // que la 21 quedó RUNNING para siempre.
+        if (!tomarElTurno()) return false;
         this.forceRetrain = forceRetrain;
-        status.set(ScraperStatus.RUNNING);
         statusMsg.set("Iniciando scrapers...");
         Thread.ofVirtual().start(() -> {
             try { ejecutarScraping(sitiosSeleccionados); }
@@ -390,6 +392,15 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public boolean iniciarScraping(Set<String> sitiosSeleccionados) {
         return iniciarScraping(sitiosSeleccionados, false);
+    }
+
+    /** RUNNING sólo si no lo estaba ya, atómicamente: gana exactamente uno. */
+    private boolean tomarElTurno() {
+        for (ScraperStatus libre : new ScraperStatus[]{
+                ScraperStatus.IDLE, ScraperStatus.DONE, ScraperStatus.ERROR}) {
+            if (status.compareAndSet(libre, ScraperStatus.RUNNING)) return true;
+        }
+        return false;
     }
 
     private void ejecutarScraping(Set<String> sitiosSeleccionados) throws Exception {
@@ -409,6 +420,21 @@ public class ScraperService implements CatalogSnapshotPort {
 
         List<ScraperConfig.SiteConfig> todos = buildSiteList(sitiosSeleccionados);
         int totalSitios = todos.size();
+
+        // `pendientes` trae `sitio_key` y `buildSiteList` filtra por `nombre`:
+        // si no matchea ninguno, `newFixedThreadPool(0)` tira y la corrida recién
+        // adoptada queda abierta otra vez.
+        if (totalSitios == 0) {
+            RUN_LOG.warn("[AVISO]   No hay ningún sitio que scrapear ({}). "
+                         + "La corrida se cierra sin tocar el catálogo.",
+                    sitiosSeleccionados == null ? "registro vacío"
+                            : "ninguno de " + sitiosSeleccionados + " está en el registro");
+            if (adoptada != null) adoptarCorrida(adoptada);
+            cerrarRun("CANCELLED", lastResult != null ? lastResult.productos().size() : 0);
+            status.set(ScraperStatus.DONE);
+            statusMsg.set("No había sitios que scrapear");
+            return;
+        }
 
         cancelado.set(false);
         playwrightsVivos.clear();
@@ -597,10 +623,13 @@ public class ScraperService implements CatalogSnapshotPort {
         // un resume trae sólo la mitad reanudada (design D4). Sin corrida
         // persistida el alcance vuelve a derivarse del batch, como antes.
         RunState corrida = runState.get();
-        java.time.Instant arranqueDeLaCorrida = corrida != null ? corrida.startedAt() : null;
+        ar.scraper.scrape.CorridaEnCurso enCurso = corrida != null
+                ? new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt())
+                : null;
 
+        AggregatedResult delBatch = aggregator.agregar(resultados, forceRetrain, enCurso);
         synchronized (catalogLock) {
-            lastResult = aggregator.agregar(resultados, forceRetrain, arranqueDeLaCorrida);
+            lastResult = catalogoEntero(delBatch);
         }
 
         // Own write path (D11 in pc-builder-gama): a broken parse here can never
@@ -664,6 +693,40 @@ public class ScraperService implements CatalogSnapshotPort {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /**
+     * El catálogo entero, no sólo los sitios de esta corrida.
+     *
+     * <p>{@code agregar} sólo conoce los resultados que le pasaron, así que en
+     * una corrida parcial su lista ES el subconjunto: la corrida 22 (5 sitios
+     * tech) cerró con 951 productos sobre 15.907 activos, con {@code 0
+     * desactivados} en la base (2026-09-24).</p>
+     *
+     * <p>Del batch se conservan {@code erroresPorSitio} y {@code statsPorSitio},
+     * que no se derivan de la base. {@code conteoPorSitio} pasa a ser el de
+     * activos, que es contra lo que {@link SiteYieldGuard} ya compara.</p>
+     */
+    AggregatedResult catalogoEntero(AggregatedResult delBatch) {
+        try {
+            List<Product> activos = productos.cargarProductos();
+            if (activos.isEmpty()) return delBatch;
+
+            Set<String> urlsDelBatch = delBatch.productos().stream()
+                    .map(Product::url)
+                    .filter(u -> u != null && !u.isBlank())
+                    .collect(Collectors.toSet());
+
+            AggregatedResult completo = aggregator.fromDBParcial(activos, lastResult, urlsDelBatch);
+            return new AggregatedResult(
+                    completo.productos(), completo.conteoPorSitio(),
+                    delBatch.erroresPorSitio(), completo.facets(),
+                    completo.minPrecio(), completo.maxPrecio(), delBatch.statsPorSitio());
+        } catch (Exception e) {
+            LOG.warn("[AGG] no se pudo recargar el catálogo completo tras agregar, "
+                     + "queda sólo lo de esta corrida: {}", e.getMessage());
+            return delBatch;
+        }
+    }
+
     private void actualizarProgreso(List<SitioProgress> lista, int idx,
                                     SitioEstado estado, int n, String error, long ms) {
         if (idx < 0 || idx >= lista.size()) return;
@@ -695,7 +758,7 @@ public class ScraperService implements CatalogSnapshotPort {
     public boolean reanudar() {
         var det = interrumpida.get();
         if (det == null) return false;
-        if (status.get() == ScraperStatus.RUNNING) return false;
+        if (!tomarElTurno()) return false;
 
         try {
             // Un sitio puede haber salido del registro entre la caída y el
@@ -710,7 +773,6 @@ public class ScraperService implements CatalogSnapshotPort {
             interrumpida.set(null);
 
             RunState adoptada = new RunState(det.runId(), det.uuid(), det.startedAt());
-            status.set(ScraperStatus.RUNNING);
             cancelado.set(false);
             playwrightsVivos.clear();
 
@@ -740,6 +802,25 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
+     * Cierra como CANCELLED toda corrida interrumpida, sin scrapear ni tocar el
+     * catálogo. {@code cancelar()} no sirve para esto: exige {@code RUNNING}, que
+     * es justo lo que una corrida interrumpida no está.
+     */
+    public int descartarInterrumpidas() {
+        try {
+            List<Long> cerradas = scrapeRun.descartarInterrumpidas(java.time.Instant.now());
+            interrumpida.set(null);
+            if (!cerradas.isEmpty())
+                RUN_LOG.warn("[DESCARTE] {} corrida(s) interrumpida(s) cerradas sin retomar: {}",
+                        cerradas.size(), cerradas);
+            return cerradas.size();
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudieron descartar las corridas interrumpidas: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * El caso que se olvida: la caída fue DESPUÉS de que todos los sitios
      * terminaron, durante la pasada de ML/agregación. Re-scrapear acá es trabajo
      * puro perdido — lo único que quedó debiendo es el barrido final.
@@ -761,7 +842,8 @@ public class ScraperService implements CatalogSnapshotPort {
         try {
             adoptarCorrida(corrida);
             statusMsg.set("Barrido final de la corrida retomada...");
-            productos.upsertProductos(List.of(), corrida.startedAt());
+            productos.upsertProductos(List.of(),
+                    new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt()));
 
             List<ar.scraper.model.Product> prods = productos.cargarProductos();
             synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }

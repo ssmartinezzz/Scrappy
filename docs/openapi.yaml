@@ -467,6 +467,15 @@ paths:
         "200":
           description: "`{ hayInterrumpida, uuid, atendidos, pendientes, salteados, soloFaltaLaPasadaFinal }`"
 
+  /api/scrape/discard:
+    post:
+      tags: [Scraping]
+      summary: Discard the interrupted-run offer — closes it as CANCELLED, scrapes nothing.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`{ descartadas: integer, mensaje }`"
+
   /api/scrape/resume:
     post:
       tags: [Scraping]

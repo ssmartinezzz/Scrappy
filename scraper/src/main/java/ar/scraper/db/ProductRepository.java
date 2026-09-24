@@ -23,7 +23,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -75,7 +74,7 @@ class ProductRepository implements ProductPort {
      */
     @Override
     public UpsertStats upsertProductos(List<Product> productos) {
-        return upsertProductos(productos, null);
+        return upsertProductos(productos, (ar.scraper.scrape.CorridaEnCurso) null);
     }
 
     /**
@@ -110,12 +109,21 @@ class ProductRepository implements ProductPort {
      * {@code started_at} — would read them as absent and soft-delete products
      * the run had just written.</p>
      *
-     * @param runStartedAt the run's {@code started_at}, or {@code null} when the
-     *                     caller has no run; then the scope falls back to the
-     *                     batch, behaving exactly as it did before this change.
+     * <p><b>And why the time bound alone is not the run.</b> A resumed run keeps
+     * its original {@code started_at}, which can be days old, so the window
+     * swept up sites ANOTHER run had touched in between — sites this run never
+     * looked at, where "absent" means nothing. The run's own
+     * {@code scrape_run_site} rows narrow it back, and only narrow: a site must
+     * still have written rows inside the window, so a broken scraper's 0
+     * products stay out exactly as before.</p>
+     *
+     * @param corrida the run this write belongs to, or {@code null} when the
+     *                caller has no run; then the scope falls back to the batch,
+     *                behaving exactly as it did before this change.
      */
     @Override
-    public UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt) {
+    public UpsertStats upsertProductos(List<Product> productos,
+                                       ar.scraper.scrape.CorridaEnCurso corrida) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
@@ -143,8 +151,8 @@ class ProductRepository implements ProductPort {
                 // productos, y no hay que confundir "se rompió" con "se vació".
                 // Sale de lo que la corrida efectivamente tocó — de la base
                 // cuando hay run, del batch cuando no.
-                Alcance alcance = runStartedAt != null
-                        ? alcanceDelRun(c, runStartedAt)
+                Alcance alcance = corrida != null
+                        ? alcanceDelRun(c, corrida)
                         : alcanceDelBatch(productos);
                 int desactivados = softDeleteAusentes(c, alcance.urls(), now, alcance.sitios());
 
@@ -232,15 +240,27 @@ class ProductRepository implements ProductPort {
      * <p>Read inside the caller's transaction and after {@code sp_upsert_run},
      * so this batch's own rows are already stamped and included.</p>
      */
-    private Alcance alcanceDelRun(Connection c, Instant runStartedAt) throws SQLException {
+    private Alcance alcanceDelRun(Connection c, ar.scraper.scrape.CorridaEnCurso corrida)
+            throws SQLException {
         Set<String> urls   = new LinkedHashSet<>();
         Set<String> sitios = new LinkedHashSet<>();
-        try (PreparedStatement ps = c.prepareStatement(
-                "SELECT url, sitio FROM productos WHERE touched_at >= ?")) {
+        // One query still, so p_urls and p_sitios cannot widen apart. The join
+        // goes through sitio_key: `productos.sitio` is display ("Vcp") and
+        // `scrape_run_site.sitio_key` is identity ("vcp"), so comparing the two
+        // columns directly matches nothing and empties the scope in silence.
+        String sql = "SELECT p.url, p.sitio"
+                   + "  FROM productos p"
+                   + " WHERE p.touched_at >= ?"
+                   + "   AND EXISTS (SELECT 1 FROM scrape_run_site s"
+                   + "                WHERE s.scrape_run_id = ?"
+                   + "                  AND s.sitio_key = p.sitio_key)";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
             // Bound as a parameter at UTC: a formatted literal would be read in
             // the session zone, which pgjdbc takes from the JVM, making the
             // predicate depend on the machine the backend runs on.
-            ps.setObject(1, runStartedAt.truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
+            ps.setObject(1, corrida.startedAt().truncatedTo(ChronoUnit.SECONDS)
+                    .atOffset(ZoneOffset.UTC));
+            ps.setLong(2, corrida.runId());
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String url   = rs.getString(1);

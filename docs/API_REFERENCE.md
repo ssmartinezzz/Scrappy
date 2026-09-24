@@ -445,6 +445,25 @@ puro perdido.
 
 ---
 
+## POST /scrape/discard
+
+**ADMIN.** Descarta la oferta: cierra como `CANCELLED` toda corrida
+`INTERRUPTED` y **no scrapea nada**. Responde `{ descartadas: N, mensaje }`.
+
+Es la contraparte de `/scrape/resume`, y no existía: la única forma de sacar
+una corrida interrumpida del camino era retomarla — correr un scrape que nadie
+pidió. `/scrape/cancel` no aplica, porque exige una corrida `RUNNING` y el
+proceso de una interrumpida está muerto.
+
+Cierra **todas**, no sólo la ofrecida: `GET /scrape/interrupted` nombra la más
+reciente, así que descartar de a una destapa la siguiente en el próximo
+arranque.
+
+No toca el catálogo. Una corrida interrumpida ya renunció a su barrido final;
+descartarla formaliza esa renuncia, no deshace lo que la corrida escribió.
+
+---
+
 ## POST /scrape/resume
 
 **ADMIN.** Retoma la corrida interrumpida. Sólo los sitios que faltan.
@@ -462,7 +481,10 @@ Tres caídas, tres comportamientos:
 1. **A mitad de un sitio** → ese sitio vuelve a `PENDING` y se re-scrapea.
 2. **Después de varios** → sólo los que faltan.
 3. **Después de que todos terminaron** → **no se re-scrapea nada**: corre sólo
-   el barrido final, con el alcance derivado de `touched_at >= started_at`.
+   el barrido final, con el alcance derivado de `touched_at >= started_at`
+   **acotado a los sitios que la corrida tiene enrolados** — la ventana sola
+   adopta sitios que otras corridas tocaron entre la caída y la retoma (ver
+   [`docs/DATABASE.md`](./DATABASE.md)).
 
 ⚠️ El caso 3 **no vuelve a correr el pipeline de ML**. Esa mitad se recupera
 sola en la próxima corrida normal. Lo que no se puede postergar es el barrido:
