@@ -47,6 +47,12 @@ export async function retomarScrape() {
   return r.ok ? r.json() : null;
 }
 
+// Closes the interrupted run(s) as CANCELLED without scraping anything.
+export async function descartarInterrumpida() {
+  const r = await authedFetch(`${BASE}/api/scrape/discard`, { method: 'POST' });
+  return r.ok ? r.json() : null;
+}
+
 export async function limpiarCatalogo() {
   return authedFetch(`${BASE}/api/db/productos`, { method: 'DELETE' });
 }

@@ -75,18 +75,14 @@ describe('InterruptedRunBanner — the two actions', () => {
     expect(onRetomar).toHaveBeenCalledTimes(1);
   });
 
-  it('hides on the dismiss button, and says so is only for now', async () => {
+  it('discards on the dismiss button, and says what it really does', async () => {
     const onDismiss = vi.fn();
     renderBanner({ onDismiss });
 
-    const ocultar = screen.getByRole('button', { name: /ocultar/i });
-    await userEvent.click(ocultar);
+    await userEvent.click(screen.getByRole('button', { name: /descartar/i }));
 
-    // "Ocultar", never "Descartar": there is no discard endpoint, and a label
-    // promising to throw the run away would describe something the button
-    // cannot do.
     expect(onDismiss).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: /descartar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ocultar/i })).not.toBeInTheDocument();
   });
 
   it('locks both actions while the resume is in flight', () => {
@@ -96,7 +92,7 @@ describe('InterruptedRunBanner — the two actions', () => {
     // changes ("Retomar" -> "Retomando..."), so matching the idle wording here
     // would assert the button had vanished rather than that it is locked.
     expect(screen.getByRole('button', { name: /retoma/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /ocultar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /descartar/i })).toBeDisabled();
   });
 
   it('shows why a refused resume was refused, keeping the banner up', () => {

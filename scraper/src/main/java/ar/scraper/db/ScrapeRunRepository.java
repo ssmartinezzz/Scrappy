@@ -326,6 +326,50 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
+     * {@code finished_at} is filled only when missing. A run marked INTERRUPTED
+     * at boot already has one — the moment the interruption was noticed — and
+     * overwriting it would move the end of a run that ended days ago.
+     */
+    @Override
+    public List<Long> descartarInterrumpidas(Instant cuando) throws SQLException {
+        List<Long> ids = new ArrayList<>();
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = c.prepareStatement("""
+                        UPDATE scrape_run
+                           SET status = 'CANCELLED',
+                               finished_at = COALESCE(finished_at, ?)
+                         WHERE status = 'INTERRUPTED'
+                        RETURNING id
+                        """)) {
+                    ps.setObject(1, enUtc(cuando));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) ids.add(rs.getLong(1));
+                    }
+                }
+                for (long runId : ids) {
+                    try (PreparedStatement ps = c.prepareStatement("""
+                            UPDATE scrape_run_site SET status = 'SKIPPED'
+                             WHERE scrape_run_id = ? AND status IN ('PENDING', 'RUNNING')
+                            """)) {
+                        ps.setLong(1, runId);
+                        ps.executeUpdate();
+                    }
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        }
+        if (!ids.isEmpty()) LOG.warn("[RUN] {} corrida(s) interrumpida(s) descartadas: {}", ids.size(), ids);
+        return ids;
+    }
+
+    /**
      * Marks as SKIPPED any still-pending site that is no longer in the registry,
      * and returns which ones.
      *

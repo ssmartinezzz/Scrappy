@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.catalog.UpsertStats;
+import ar.scraper.scrape.CorridaEnCurso;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -17,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -65,6 +67,16 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
         runStart = Instant.now().truncatedTo(ChronoUnit.SECONDS);
     }
 
+    /**
+     * Opens a real {@code scrape_run} enrolling {@code sitios}. A literal id
+     * would pass vacuously: one nobody enrolled matches no site and empties the
+     * scope, which looks exactly like "nothing was swept".
+     */
+    private CorridaEnCurso corridaSobre(String... sitios) throws Exception {
+        long runId = db.crearScrapeRun(UUID.randomUUID(), runStart, null, null, List.of(sitios));
+        return new CorridaEnCurso(runId, runStart);
+    }
+
     // ── Scenario: the change is a no-op on the common path ───────────────────
 
     @Test
@@ -79,7 +91,8 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
 
         // This run re-scrapes site "Uno" and only finds A. B is genuinely gone.
         UpsertStats stats = db.upsertProductos(
-                List.of(productoDe("Uno", "https://uno.com/a", "A", 1000.0)), runStart);
+                List.of(productoDe("Uno", "https://uno.com/a", "A", 1000.0)),
+                corridaSobre("Uno"));
 
         // Identical to today: B is on a site this run covered and was not seen.
         assertThat(stats.desactivados()).isEqualTo(1);
@@ -102,7 +115,8 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
 
         // Resume covers only site "Dos". The batch knows nothing about "Uno".
         UpsertStats stats = db.upsertProductos(
-                List.of(productoDe("Dos", "https://dos.com/x", "X", 900.0)), runStart);
+                List.of(productoDe("Dos", "https://dos.com/x", "X", 900.0)),
+                corridaSobre("Uno", "Dos"));
 
         // The union spans both halves, so "Uno" is in scope and its stale row goes.
         // With the batch-derived scope this row survives — that is the bug.
@@ -135,13 +149,67 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
 
         // The run re-scrapes "Uno" and finds only "otro".
         UpsertStats stats = db.upsertProductos(
-                List.of(productoDe("Uno", "https://uno.com/otro", "Otro", 200.0)), runStart);
+                List.of(productoDe("Uno", "https://uno.com/otro", "Otro", 200.0)),
+                corridaSobre("Uno"));
 
         // "borde" was touched during this run's first second, so it is present,
         // not absent. An exclusive bound — or a sub-second started_at — would
         // drop it from p_urls and soft-delete a product this run had just seen.
         assertThat(estaActivo("https://uno.com/borde")).isTrue();
         assertThat(estaActivo("https://uno.com/otro")).isTrue();
+        assertThat(stats.desactivados()).isZero();
+    }
+
+    // ── Scenario: the window is not the run ──────────────────────────────────
+
+    @Test
+    @DisplayName("A site this run never enrolled stays out of the sweep, however fresh the window is")
+    void laVentanaNoArrastraSitiosDeOtraCorrida() throws Exception {
+        // Another run touched HALF of site "Dos" inside the window, which is all
+        // it takes for a time-only scope to adopt the site and then declare the
+        // untouched half absent.
+        db.upsertProductos(List.of(
+                productoDe("Uno", "https://uno.com/a", "A", 1000.0),
+                productoDe("Dos", "https://dos.com/viejo", "Viejo", 500.0),
+                productoDe("Dos", "https://dos.com/fresco", "Fresco", 600.0)));
+        fijarTouchedAt("https://uno.com/a", runStart.minusSeconds(10));
+        fijarTouchedAt("https://dos.com/viejo", runStart.minusSeconds(10));
+        // Another run wrote this one AFTER our started_at.
+        fijarTouchedAt("https://dos.com/fresco", runStart.plusSeconds(5));
+
+        // This run only ever enrolled "Uno", and re-scraped it finding only A.
+        UpsertStats stats = db.upsertProductos(
+                List.of(productoDe("Uno", "https://uno.com/a", "A", 1000.0)),
+                corridaSobre("Uno"));
+
+        // Measured: run 16's two-day-old started_at named 28 sites for a run
+        // that had visited five (2026-09-24).
+        assertThat(estaActivo("https://dos.com/viejo"))
+                .as("nobody looked at site Dos in this run, so nothing about it is absent")
+                .isTrue();
+        assertThat(estaActivo("https://dos.com/fresco")).isTrue();
+        assertThat(estaActivo("https://uno.com/a")).isTrue();
+        assertThat(stats.desactivados()).isZero();
+    }
+
+    @Test
+    @DisplayName("Enrolling a site is not enough: it must also have been written in the window")
+    void unSitioEnroladoSinFilasNoEntraAlAlcance() throws Exception {
+        // "Dos" is enrolled and its scraper returned zero products: the
+        // narrowing must not turn enrolment into evidence.
+        db.upsertProductos(List.of(
+                productoDe("Uno", "https://uno.com/a", "A", 1000.0),
+                productoDe("Dos", "https://dos.com/intacto", "Intacto", 500.0)));
+        fijarTouchedAt("https://uno.com/a", runStart.minusSeconds(10));
+        fijarTouchedAt("https://dos.com/intacto", runStart.minusSeconds(10));
+
+        UpsertStats stats = db.upsertProductos(
+                List.of(productoDe("Uno", "https://uno.com/a", "A", 1000.0)),
+                corridaSobre("Uno", "Dos"));
+
+        assertThat(estaActivo("https://dos.com/intacto"))
+                .as("a broken scraper is not a vanished catalogue — SiteYieldGuard's job, not the sweep's")
+                .isTrue();
         assertThat(stats.desactivados()).isZero();
     }
 

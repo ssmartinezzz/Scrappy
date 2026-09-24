@@ -8,7 +8,7 @@
 // no notification and no affordance about the interrupted run").
 import { useCallback, useEffect, useState } from 'react';
 
-import { fetchInterrumpida, retomarScrape } from '../api';
+import { descartarInterrumpida, fetchInterrumpida, retomarScrape } from '../api';
 
 export function useInterruptedRun(enabled) {
   const [run, setRun]     = useState(null);
@@ -31,12 +31,21 @@ export function useInterruptedRun(enabled) {
     return () => { alive = false; };
   }, [enabled]);
 
-  // Client-side only, and deliberately so: there is no discard endpoint, and
-  // `interrumpida` is cleared by resuming and nothing else. This hides the
-  // banner for the session; a reload brings it back, because the run really
-  // is still interrupted. Pretending otherwise would be a lie about state we
-  // do not own.
-  const dismiss = useCallback(() => { setRun(null); setError(''); }, []);
+  // No error branch on purpose: clearing `run` unmounts the notice, so anything
+  // set on `error` here would have nowhere to render. A discard that never
+  // reached the server leaves the run open and the notice returns on reload.
+  const dismiss = useCallback(async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await descartarInterrumpida();
+    } catch {
+      // See above.
+    } finally {
+      setBusy(false);
+      setRun(null);
+    }
+  }, []);
 
   const retomar = useCallback(async () => {
     setBusy(true);
