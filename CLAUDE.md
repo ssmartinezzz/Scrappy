@@ -887,6 +887,21 @@ a nivel `AppLayout`, no rutas.
 
 ### Corridas parciales y retomas
 
+⚠️ **`agregar` sólo conoce los sitios que le pasaron, así que su lista de
+productos ES el subconjunto — y asignarla a `lastResult` borraba el catálogo.**
+Era correcto mientras toda corrida cubriera los 29 sitios y falso en cuanto
+dejó de hacerlo: un cronjob de tecnología, o una retoma con un solo sitio
+pendiente, dejaban en memoria únicamente esos productos. Medido contra la dev
+DB (2026-09-24): la corrida 22 (5 sitios tech) cerró con **951** productos y la
+retoma de la 16 con **1022**, sobre **15.907** activos que la base nunca dejó
+de tener — `0 desactivados` en las dos, o sea que el borrado era **sólo en
+memoria**. Y eso alcanza: `/api/grupos`, `/api/mejores`, outfits, suplementos,
+PCs, recomendados, marcas y el total de `/api/status` leen el snapshot, no SQL.
+Hoy `ScraperService.catalogoEntero` recarga los activos y los pasa por
+`fromDBParcial` —lo mismo que el refresco progresivo ya hacía por sitio— y
+conserva del batch sólo `erroresPorSitio` y `statsPorSitio`, que son hechos de
+esa corrida y no se derivan de la base.
+
 ⚠️ **El guard de "ya hay un scrape corriendo" era check-then-set, y abrió dos
 corridas en el mismo segundo.** No es teórico: el 2026-09-24 11:16:59 se
 abrieron la 21 (cron: entreno, morashop) y la 22 (5 sitios tech) a la vez.

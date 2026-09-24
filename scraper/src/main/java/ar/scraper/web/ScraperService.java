@@ -625,8 +625,9 @@ public class ScraperService implements CatalogSnapshotPort {
         RunState corrida = runState.get();
         java.time.Instant arranqueDeLaCorrida = corrida != null ? corrida.startedAt() : null;
 
+        AggregatedResult delBatch = aggregator.agregar(resultados, forceRetrain, arranqueDeLaCorrida);
         synchronized (catalogLock) {
-            lastResult = aggregator.agregar(resultados, forceRetrain, arranqueDeLaCorrida);
+            lastResult = catalogoEntero(delBatch);
         }
 
         // Own write path (D11 in pc-builder-gama): a broken parse here can never
@@ -689,6 +690,40 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * El catálogo entero, no sólo los sitios de esta corrida.
+     *
+     * <p>{@code agregar} sólo conoce los resultados que le pasaron, así que en
+     * una corrida parcial su lista ES el subconjunto: la corrida 22 (5 sitios
+     * tech) cerró con 951 productos sobre 15.907 activos, con {@code 0
+     * desactivados} en la base (2026-09-24).</p>
+     *
+     * <p>Del batch se conservan {@code erroresPorSitio} y {@code statsPorSitio},
+     * que no se derivan de la base. {@code conteoPorSitio} pasa a ser el de
+     * activos, que es contra lo que {@link SiteYieldGuard} ya compara.</p>
+     */
+    AggregatedResult catalogoEntero(AggregatedResult delBatch) {
+        try {
+            List<Product> activos = productos.cargarProductos();
+            if (activos.isEmpty()) return delBatch;
+
+            Set<String> urlsDelBatch = delBatch.productos().stream()
+                    .map(Product::url)
+                    .filter(u -> u != null && !u.isBlank())
+                    .collect(Collectors.toSet());
+
+            AggregatedResult completo = aggregator.fromDBParcial(activos, lastResult, urlsDelBatch);
+            return new AggregatedResult(
+                    completo.productos(), completo.conteoPorSitio(),
+                    delBatch.erroresPorSitio(), completo.facets(),
+                    completo.minPrecio(), completo.maxPrecio(), delBatch.statsPorSitio());
+        } catch (Exception e) {
+            LOG.warn("[AGG] no se pudo recargar el catálogo completo tras agregar, "
+                     + "queda sólo lo de esta corrida: {}", e.getMessage());
+            return delBatch;
+        }
+    }
 
     private void actualizarProgreso(List<SitioProgress> lista, int idx,
                                     SitioEstado estado, int n, String error, long ms) {
