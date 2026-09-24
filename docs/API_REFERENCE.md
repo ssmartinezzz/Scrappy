@@ -445,6 +445,25 @@ puro perdido.
 
 ---
 
+## POST /scrape/discard
+
+**ADMIN.** Descarta la oferta: cierra como `CANCELLED` toda corrida
+`INTERRUPTED` y **no scrapea nada**. Responde `{ descartadas: N, mensaje }`.
+
+Es la contraparte de `/scrape/resume`, y no existía: la única forma de sacar
+una corrida interrumpida del camino era retomarla — correr un scrape que nadie
+pidió. `/scrape/cancel` no aplica, porque exige una corrida `RUNNING` y el
+proceso de una interrumpida está muerto.
+
+Cierra **todas**, no sólo la ofrecida: `GET /scrape/interrupted` nombra la más
+reciente, así que descartar de a una destapa la siguiente en el próximo
+arranque.
+
+No toca el catálogo. Una corrida interrumpida ya renunció a su barrido final;
+descartarla formaliza esa renuncia, no deshace lo que la corrida escribió.
+
+---
+
 ## POST /scrape/resume
 
 **ADMIN.** Retoma la corrida interrumpida. Sólo los sitios que faltan.

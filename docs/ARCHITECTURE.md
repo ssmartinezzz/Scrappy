@@ -801,12 +801,26 @@ y `POST /api/scrape/resume` son ADMIN en `ApiRoutePolicy.TABLE` —medido: VIEWE
 403 en las dos, anónimo 401— así que preguntar y esconder la respuesta compraría
 un 403 por una pregunta que no hay que hacer. Un VIEWER no emite la llamada.
 
-**No hay endpoint para descartar, y la UI lo dice en vez de disimularlo.**
-`ScraperService.interrumpida` se limpia únicamente dentro de `reanudar()`. El
-botón secundario dice **"Ocultar por ahora"**, nunca "Descartar": esconde el
-aviso en esta sesión y un reload lo trae de vuelta, porque la corrida sigue
-interrumpida. La alternativa —un "Descartar" que en realidad sólo oculta— sería
-un botón mintiendo sobre estado que el cliente no posee.
+**Descartar es un endpoint, y el botón dice lo que hace.** No lo era: hasta
+`fix/resume-and-discard-an-interrupted-run`, `ScraperService.interrumpida` se
+limpiaba únicamente dentro de `reanudar()`, el botón secundario decía *"Ocultar
+por ahora"* y un reload traía el aviso de vuelta. Esa honestidad tapaba el
+problema real en vez de resolverlo: **la única salida de verdad era retomar**, o
+sea correr un scrape que nadie pidió. `POST /api/scrape/cancel` no sirve — exige
+una corrida `RUNNING`, que es exactamente lo que una interrumpida no está,
+porque el proceso que la corría está muerto.
+
+`POST /api/scrape/discard` cierra como `CANCELLED` **todas** las corridas
+`INTERRUPTED`, no sólo la que el aviso nombra. `ultimaInterrumpida()` devuelve
+la más reciente, así que descartar de a una destapa la siguiente en el próximo
+arranque, un cartel por vez y sin forma de saber cuántas hay atrás. La UI
+muestra un aviso; el endpoint limpia lo que ese aviso representa.
+
+Lo que descartar **no** hace es tocar el catálogo: una corrida interrumpida ya
+renunció a su barrido final, y descartarla es renunciar a él formalmente, no
+deshacer lo que la corrida escribió. `finished_at` tampoco se pisa — la barrida
+de arranque ya lo puso cuando detectó la interrupción, y ese es el momento en
+que la corrida terminó de verdad.
 
 **El poller no se arma solo, y eso era la mitad faltante.** Sólo el botón de
 lanzar armaba el intervalo, así que aterrizar en `/splash` con una corrida ya

@@ -50,15 +50,11 @@ export default function InterruptedRunBanner({ run, busy = false, error = '', on
         >
           {busy ? 'Retomando…' : '▶ Retomar la corrida'}
         </button>
-        {/* "Ocultar", never "Descartar": there is no discard endpoint —
-            `interrumpida` is cleared by resuming and nothing else. This hides
-            the notice for now; a reload brings it back, because the run really
-            is still interrupted. */}
         <button
           type="button" onClick={onDismiss} disabled={busy}
           className={cn('btn-sm btn-ghost text-t4', busy && 'cursor-not-allowed opacity-60')}
         >
-          Ocultar por ahora
+          Descartar la corrida
         </button>
       </div>
     </div>

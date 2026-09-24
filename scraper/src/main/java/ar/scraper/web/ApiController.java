@@ -216,6 +216,11 @@ public class ApiController {
         return scrapeControlEndpoints.retomar();
     }
 
+    @PostMapping("/scrape/discard")
+    public ResponseEntity<ObjectNode> descartarScrapeInterrumpido() {
+        return scrapeControlEndpoints.descartar();
+    }
+
     @PostMapping("/scrape/cancel")
     public ResponseEntity<ObjectNode> cancelarScrape() {
         return scrapeControlEndpoints.cancelar();

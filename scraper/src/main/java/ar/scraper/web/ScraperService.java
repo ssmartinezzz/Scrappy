@@ -800,6 +800,25 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
+     * Cierra como CANCELLED toda corrida interrumpida, sin scrapear ni tocar el
+     * catálogo. {@code cancelar()} no sirve para esto: exige {@code RUNNING}, que
+     * es justo lo que una corrida interrumpida no está.
+     */
+    public int descartarInterrumpidas() {
+        try {
+            List<Long> cerradas = scrapeRun.descartarInterrumpidas(java.time.Instant.now());
+            interrumpida.set(null);
+            if (!cerradas.isEmpty())
+                RUN_LOG.warn("[DESCARTE] {} corrida(s) interrumpida(s) cerradas sin retomar: {}",
+                        cerradas.size(), cerradas);
+            return cerradas.size();
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudieron descartar las corridas interrumpidas: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * El caso que se olvida: la caída fue DESPUÉS de que todos los sitios
      * terminaron, durante la pasada de ML/agregación. Re-scrapear acá es trabajo
      * puro perdido — lo único que quedó debiendo es el barrido final.
