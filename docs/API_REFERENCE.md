@@ -481,7 +481,10 @@ Tres caídas, tres comportamientos:
 1. **A mitad de un sitio** → ese sitio vuelve a `PENDING` y se re-scrapea.
 2. **Después de varios** → sólo los que faltan.
 3. **Después de que todos terminaron** → **no se re-scrapea nada**: corre sólo
-   el barrido final, con el alcance derivado de `touched_at >= started_at`.
+   el barrido final, con el alcance derivado de `touched_at >= started_at`
+   **acotado a los sitios que la corrida tiene enrolados** — la ventana sola
+   adopta sitios que otras corridas tocaron entre la caída y la retoma (ver
+   [`docs/DATABASE.md`](./DATABASE.md)).
 
 ⚠️ El caso 3 **no vuelve a correr el pipeline de ML**. Esa mitad se recupera
 sola en la próxima corrida normal. Lo que no se puede postergar es el barrido:
