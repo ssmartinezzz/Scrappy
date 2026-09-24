@@ -3,7 +3,6 @@ package ar.scraper.catalog;
 import ar.scraper.model.Product;
 
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,7 +40,8 @@ public interface ProductPort {
 
     UpsertStats upsertProductos(List<Product> productos);
 
-    UpsertStats upsertProductos(List<Product> productos, Instant runStartedAt);
+    /** Mismo merge, con el alcance del soft-delete derivado de la CORRIDA y no del batch. */
+    UpsertStats upsertProductos(List<Product> productos, ar.scraper.scrape.CorridaEnCurso corrida);
 
     void upsertParcial(List<Product> productos);
 

@@ -181,13 +181,42 @@ Con una corrida persistida, los dos arrays salen de una sola consulta dentro de
 la transacción del upsert, después de `sp_upsert_run`:
 
 ```sql
-SELECT url, sitio FROM productos WHERE touched_at >= <scrape_run.started_at>
+SELECT p.url, p.sitio
+  FROM productos p
+ WHERE p.touched_at >= <scrape_run.started_at>
+   AND EXISTS (SELECT 1 FROM scrape_run_site s
+                WHERE s.scrape_run_id = <scrape_run.id>
+                  AND s.sitio_key = p.sitio_key)
 ```
 
 Eso es "todo lo que esta corrida vio", y abarca las dos mitades de un resume
 porque `upsertParcial` va commiteando cada sitio a medida que termina. Sin
-corrida —un llamador sin `started_at`— el alcance vuelve a derivarse del batch,
-que es el comportamiento previo exacto.
+corrida —un llamador sin corrida— el alcance vuelve a derivarse del batch, que
+es el comportamiento previo exacto.
+
+⚠️ **El `EXISTS` no estaba, y una ventana de tiempo no es una corrida.** Hasta
+`fix/resume-and-discard-an-interrupted-run` la condición era sólo
+`touched_at >= started_at`, y el `started_at` de una corrida **retomada** puede
+ser de hace días: todo sitio que **otra** corrida hubiera tocado en esa ventana
+entraba a `p_sitios`, aunque ésta no lo hubiera mirado nunca. Medido
+(2026-09-24): la corrida 16 arrancó el 22 a las 16:49 y se retomó el 24 a las
+14:54, con cinco corridas en el medio —una completa—, así que su ventana
+nombraba los 28 sitios del catálogo para una corrida que había mirado cinco.
+Volvía a significar algo sobre un sitio que nadie visitó, que es exactamente lo
+que esta sección prohíbe.
+
+Tres cosas que hay que conservar al tocarlo:
+
+1. **Es un angostamiento puro.** Un sitio entra sólo si la corrida lo enroló
+   **y** escribió filas suyas en la ventana. Un sitio enrolado cuyo scraper se
+   rompió llega con 0 productos y sigue quedando afuera por el lado del tiempo
+   — la regla de arriba, intacta.
+2. **Sigue siendo UNA consulta.** El `EXISTS` acota los dos arrays a la vez, así
+   que la invariante de abajo no se toca.
+3. **El join va por `sitio_key`.** `productos.sitio` es la forma de display
+   (`Vcp`) y `scrape_run_site.sitio_key` es identidad (`vcp`) — las dos formas
+   que documenta el header de `V29`. Compararlas directo no matchea nada y vacía
+   el alcance **en silencio**.
 
 ⚠️ **Los dos arrays se ensanchan juntos o ninguno.** Ensanchar `p_sitios` a
 todos los sitios de la corrida dejando `p_urls` con las URLs de una sola mitad

@@ -623,9 +623,11 @@ public class ScraperService implements CatalogSnapshotPort {
         // un resume trae sólo la mitad reanudada (design D4). Sin corrida
         // persistida el alcance vuelve a derivarse del batch, como antes.
         RunState corrida = runState.get();
-        java.time.Instant arranqueDeLaCorrida = corrida != null ? corrida.startedAt() : null;
+        ar.scraper.scrape.CorridaEnCurso enCurso = corrida != null
+                ? new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt())
+                : null;
 
-        AggregatedResult delBatch = aggregator.agregar(resultados, forceRetrain, arranqueDeLaCorrida);
+        AggregatedResult delBatch = aggregator.agregar(resultados, forceRetrain, enCurso);
         synchronized (catalogLock) {
             lastResult = catalogoEntero(delBatch);
         }
@@ -840,7 +842,8 @@ public class ScraperService implements CatalogSnapshotPort {
         try {
             adoptarCorrida(corrida);
             statusMsg.set("Barrido final de la corrida retomada...");
-            productos.upsertProductos(List.of(), corrida.startedAt());
+            productos.upsertProductos(List.of(),
+                    new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt()));
 
             List<ar.scraper.model.Product> prods = productos.cargarProductos();
             synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }

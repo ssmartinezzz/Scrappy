@@ -339,8 +339,9 @@ public class DatabaseService {
      * @param runStartedAt el {@code started_at} de la corrida; {@code null}
      *                     vuelve al alcance derivado del batch.
      */
-    public UpsertStats upsertProductos(List<Product> productos, java.time.Instant runStartedAt) {
-        return productPort.upsertProductos(productos, runStartedAt);
+    public UpsertStats upsertProductos(List<Product> productos,
+                                       ar.scraper.scrape.CorridaEnCurso corrida) {
+        return productPort.upsertProductos(productos, corrida);
     }
 
     /**

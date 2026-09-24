@@ -127,11 +127,11 @@ public class ResultAggregator {
      * sin este dato el barrido deja de cubrir los sitios de la mitad
      * interrumpida y sus filas viejas quedan activas para siempre.</p>
      *
-     * @param runStartedAt {@code null} cuando no hay corrida persistida — el
-     *                     alcance vuelve a derivarse del batch, como antes.
+     * @param corrida {@code null} cuando no hay corrida persistida — el
+     *                alcance vuelve a derivarse del batch, como antes.
      */
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain,
-                                    java.time.Instant runStartedAt) {
+                                    ar.scraper.scrape.CorridaEnCurso corrida) {
         ValidationResult validacion = validarYContar(resultados);
         List<Product>    sorted     = deduplicarYOrdenar(validacion.todos());
 
@@ -139,7 +139,7 @@ public class ResultAggregator {
 
         persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
 
-        productos.upsertProductos(pipeline.enriquecidos(), runStartedAt);
+        productos.upsertProductos(pipeline.enriquecidos(), corrida);
         mlOutput.guardarMlOutput(pipeline.mlOut());
         if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
             categoriaStats.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));
