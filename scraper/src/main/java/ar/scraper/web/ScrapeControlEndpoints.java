@@ -130,6 +130,17 @@ class ScrapeControlEndpoints {
         return ResponseEntity.ok(b);
     }
 
+    /** La contraparte de {@link #retomar()}: cierra la oferta sin scrapear nada. */
+    ResponseEntity<ObjectNode> descartar() {
+        ObjectNode b = JsonNodeFactory.instance.objectNode();
+        int cerradas = service.descartarInterrumpidas();
+        b.put("descartadas", cerradas);
+        b.put("mensaje", cerradas > 0
+                ? cerradas + " corrida(s) interrumpida(s) descartada(s). El catálogo queda como está."
+                : "No había ninguna corrida interrumpida que descartar");
+        return ResponseEntity.ok(b);
+    }
+
     // ---------------------------------------------------------------
     // Cancelar
     // ---------------------------------------------------------------

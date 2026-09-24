@@ -2,9 +2,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useInterruptedRun } from './useInterruptedRun';
-import { fetchInterrumpida, retomarScrape } from '../api';
+import { descartarInterrumpida, fetchInterrumpida, retomarScrape } from '../api';
 
 vi.mock('../api', () => ({
+  descartarInterrumpida: vi.fn(),
   fetchInterrumpida: vi.fn(),
   retomarScrape: vi.fn(),
 }));
@@ -22,6 +23,7 @@ const OFERTA = {
 beforeEach(() => {
   fetchInterrumpida.mockReset().mockResolvedValue(OFERTA);
   retomarScrape.mockReset().mockResolvedValue({ retomando: true, mensaje: 'Retomando…' });
+  descartarInterrumpida.mockReset().mockResolvedValue({ descartadas: 1, mensaje: 'ok' });
 });
 
 describe('useInterruptedRun — a VIEWER is never notified (task 6.1, spec "VIEWER is not notified")', () => {
@@ -65,18 +67,27 @@ describe('useInterruptedRun — reading the offer', () => {
 });
 
 describe('useInterruptedRun — dismissing and resuming', () => {
-  it('hides the offer on dismiss without asking the backend to discard anything', async () => {
-    // There is NO discard endpoint: `interrumpida` is only cleared by resuming.
-    // Dismiss is therefore honest about its scope — it hides the banner for
-    // this session, and a reload brings it back because the run is still
-    // interrupted. Anything else would be inventing a backend surface.
+  it('really discards on dismiss, and never resumes to get rid of the offer', async () => {
     const { result } = renderHook(() => useInterruptedRun(true));
     await waitFor(() => expect(result.current.run).not.toBeNull());
 
-    act(() => { result.current.dismiss(); });
+    await act(async () => { await result.current.dismiss(); });
+
+    expect(descartarInterrumpida).toHaveBeenCalledTimes(1);
+    expect(retomarScrape).not.toHaveBeenCalled();
+    expect(result.current.run).toBeNull();
+  });
+
+  it('still hides the offer when the discard cannot reach the server', async () => {
+    // Keeping the banner up would trap a user whose backend is down in the one
+    // notice they cannot close.
+    descartarInterrumpida.mockRejectedValue(new TypeError('Failed to fetch'));
+    const { result } = renderHook(() => useInterruptedRun(true));
+    await waitFor(() => expect(result.current.run).not.toBeNull());
+
+    await act(async () => { await result.current.dismiss(); });
 
     expect(result.current.run).toBeNull();
-    expect(retomarScrape).not.toHaveBeenCalled();
   });
 
   it('clears the offer and reports success when the resume is accepted', async () => {

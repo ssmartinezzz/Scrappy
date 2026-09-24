@@ -910,6 +910,13 @@ de la 21 nunca se marcaron, nadie la cerró, y quedó `RUNNING` para siempre —
 corrida fantasma que después no se podía ni retomar ni descartar. `iniciarScraping`
 y `reanudar()` entran ahora por `tomarElTurno()`, un `compareAndSet`.
 
+**Descartar una corrida interrumpida es un endpoint** (`POST /api/scrape/discard`),
+no un botón que esconde el cartel. Cierra como `CANCELLED` **todas** las
+`INTERRUPTED`, porque `ultimaInterrumpida()` nombra sólo la más reciente y
+descartar de a una destaparía la siguiente en el próximo arranque.
+`POST /api/scrape/cancel` no sirve para esto: exige `RUNNING`, que es
+exactamente lo que una corrida interrumpida no está.
+
 **Una retoma que no resuelve ningún sitio se cierra sola, no revienta.**
 `pendientes` trae `sitio_key` (normalizado: sin puntos, sin espacios) y
 `buildSiteList` filtra por `nombre`, así que un sitio dinámico con un punto en

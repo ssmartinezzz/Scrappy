@@ -42,6 +42,14 @@ public interface ScrapeRunPort {
 
     void reabrir(long runId) throws SQLException;
 
+    /**
+     * Cierra como {@code CANCELLED} toda corrida {@code INTERRUPTED} y marca
+     * SKIPPED sus sitios abiertos. Todas, no la ofrecida: {@link
+     * #ultimaInterrumpida} nombra solo la mas reciente, asi que de a una
+     * destaparia la siguiente en el proximo arranque.
+     */
+    List<Long> descartarInterrumpidas(Instant cuando) throws SQLException;
+
     List<String> marcarAusentesDelRegistro(long runId, Collection<String> nombresActuales)
             throws SQLException;
 
