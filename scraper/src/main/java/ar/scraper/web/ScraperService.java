@@ -372,9 +372,11 @@ public class ScraperService implements CatalogSnapshotPort {
 
     // ── Lanzar scraping ─────────────────────────────────────────────────────
     public boolean iniciarScraping(Set<String> sitiosSeleccionados, boolean forceRetrain) {
-        if (status.get() == ScraperStatus.RUNNING) return false;
+        // Con check-then-set entraron dos llamadores el 2026-09-24 11:16:59 y
+        // abrieron las corridas 21 y 22; `runState` sólo puede nombrar una, así
+        // que la 21 quedó RUNNING para siempre.
+        if (!tomarElTurno()) return false;
         this.forceRetrain = forceRetrain;
-        status.set(ScraperStatus.RUNNING);
         statusMsg.set("Iniciando scrapers...");
         Thread.ofVirtual().start(() -> {
             try { ejecutarScraping(sitiosSeleccionados); }
@@ -390,6 +392,15 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public boolean iniciarScraping(Set<String> sitiosSeleccionados) {
         return iniciarScraping(sitiosSeleccionados, false);
+    }
+
+    /** RUNNING sólo si no lo estaba ya, atómicamente: gana exactamente uno. */
+    private boolean tomarElTurno() {
+        for (ScraperStatus libre : new ScraperStatus[]{
+                ScraperStatus.IDLE, ScraperStatus.DONE, ScraperStatus.ERROR}) {
+            if (status.compareAndSet(libre, ScraperStatus.RUNNING)) return true;
+        }
+        return false;
     }
 
     private void ejecutarScraping(Set<String> sitiosSeleccionados) throws Exception {
@@ -409,6 +420,21 @@ public class ScraperService implements CatalogSnapshotPort {
 
         List<ScraperConfig.SiteConfig> todos = buildSiteList(sitiosSeleccionados);
         int totalSitios = todos.size();
+
+        // `pendientes` trae `sitio_key` y `buildSiteList` filtra por `nombre`:
+        // si no matchea ninguno, `newFixedThreadPool(0)` tira y la corrida recién
+        // adoptada queda abierta otra vez.
+        if (totalSitios == 0) {
+            RUN_LOG.warn("[AVISO]   No hay ningún sitio que scrapear ({}). "
+                         + "La corrida se cierra sin tocar el catálogo.",
+                    sitiosSeleccionados == null ? "registro vacío"
+                            : "ninguno de " + sitiosSeleccionados + " está en el registro");
+            if (adoptada != null) adoptarCorrida(adoptada);
+            cerrarRun("CANCELLED", lastResult != null ? lastResult.productos().size() : 0);
+            status.set(ScraperStatus.DONE);
+            statusMsg.set("No había sitios que scrapear");
+            return;
+        }
 
         cancelado.set(false);
         playwrightsVivos.clear();
@@ -695,7 +721,7 @@ public class ScraperService implements CatalogSnapshotPort {
     public boolean reanudar() {
         var det = interrumpida.get();
         if (det == null) return false;
-        if (status.get() == ScraperStatus.RUNNING) return false;
+        if (!tomarElTurno()) return false;
 
         try {
             // Un sitio puede haber salido del registro entre la caída y el
@@ -710,7 +736,6 @@ public class ScraperService implements CatalogSnapshotPort {
             interrumpida.set(null);
 
             RunState adoptada = new RunState(det.runId(), det.uuid(), det.startedAt());
-            status.set(ScraperStatus.RUNNING);
             cancelado.set(false);
             playwrightsVivos.clear();
 
