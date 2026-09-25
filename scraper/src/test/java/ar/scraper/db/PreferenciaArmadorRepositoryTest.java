@@ -7,6 +7,7 @@ import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
 import ar.scraper.pcs.PreferenciasDeArmado;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.pcs.Uso;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -164,6 +165,45 @@ class PreferenciaArmadorRepositoryTest extends PostgresTestBase {
                     assertThat(p.preferencias().ramDual()).isNull();
                     assertThat(p.preferencias().wifi()).isNull();
                 });
+    }
+
+    // ── pc-builder-homelab T6: uso ────────────────────────────────────────
+
+    @Test
+    void unaPreferenciaSinUsoRoundTripeaComoGaming() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+
+        repository.guardar(usuario, new PreferenciaArmador(Gama.ALTA, null, false));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> assertThat(p.uso()).isEqualTo(Uso.GAMING));
+    }
+
+    @Test
+    void usoHomelabRoundTripea() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+
+        repository.guardar(usuario,
+                new PreferenciaArmador(Gama.ALTA, 2000000.0, true, PreferenciasDeArmado.NINGUNA, Uso.HOMELAB));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> assertThat(p.uso()).isEqualTo(Uso.HOMELAB));
+    }
+
+    @Test
+    void unSegundoGuardarSobreescribeElUsoTambien() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+        repository.guardar(usuario,
+                new PreferenciaArmador(Gama.MEDIA, null, false, PreferenciasDeArmado.NINGUNA, Uso.HOMELAB));
+
+        repository.guardar(usuario,
+                new PreferenciaArmador(Gama.MEDIA, null, false, PreferenciasDeArmado.NINGUNA, Uso.GAMING));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get()
+                .satisfies(p -> assertThat(p.uso()).isEqualTo(Uso.GAMING));
     }
 
     private int filas(UUID usuarioId) throws Exception {

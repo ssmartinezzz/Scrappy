@@ -19,17 +19,19 @@ public final class Tokens {
 
     private final String[] tokens;
     private final String padded;
+    private final String original;
 
-    private Tokens(String[] tokens) {
+    private Tokens(String[] tokens, String original) {
         this.tokens = tokens;
         this.padded = " " + String.join(" ", tokens) + " ";
+        this.original = original;
     }
 
     public static Tokens de(String nombre) {
         String n = AccentStripper.strip(nombre.toLowerCase());
         String cleaned = NO_ALFANUMERICO.matcher(n).replaceAll(" ").trim();
         String[] tokens = cleaned.isEmpty() ? new String[0] : cleaned.split(" ");
-        return new Tokens(tokens);
+        return new Tokens(tokens, n);
     }
 
     public boolean has(String token) {
@@ -44,5 +46,18 @@ public final class Tokens {
 
     public String[] array() {
         return tokens;
+    }
+
+    /**
+     * Acento-stripeado y lowercased, ANTES del colapso de todo no-alfanumérico
+     * a espacios — a diferencia de {@link #array()}/{@link #padded()}, esto
+     * conserva puntuación como el punto decimal. Sólo para un llamador que
+     * necesita recomponer algo que la tokenización general tira: "1.92TB"
+     * tokeniza a {@code "1"}+{@code "92tb"} (el punto es un separador como
+     * cualquier otro), y {@link ar.scraper.pcs.specs.AlmacenamientoSpecsReader}
+     * necesita el punto de vuelta para leer la capacidad real.
+     */
+    public String original() {
+        return original;
     }
 }

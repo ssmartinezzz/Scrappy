@@ -114,6 +114,54 @@ class PcBuilderTest {
         assertThat(build.sinCompatible()).doesNotContain("cpu");
     }
 
+    @Test
+    @DisplayName("T12: un Athlon 3000G sin socket explícito ahora se lee AM4 y el veto lo saca de una mother AM5")
+    void athlon3000gSeDerivaAAm4YSeVetaContraMotherAm5() {
+        // Antes de T12, "Outlet Procesador Amd Athlon 3000g" abstenía el
+        // socket, así que ReglaSocket no vetaba nada y ganaba una mother AM5
+        // incompatible por ser lo único disponible — mismo bug en gaming y en
+        // homelab (medido en la dev DB, T8/T12).
+        List<Product> catalogo = List.of(
+                producto("Motherboard MSI A620M-E PRO DDR5 AM5", 150_000, "Motherboard", "https://t/mb"),
+                producto("Outlet Procesador Amd Athlon 3000g", 50_000, "CPU", "https://t/athlon"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(build.picks()).noneMatch(p -> p.slot().equals("cpu"));
+        assertThat(build.sinCompatible()).contains("cpu");
+    }
+
+    @Test
+    @DisplayName("T12: con otra CPU AM5 compatible en el pool, el slot cae en ella en vez del Athlon vetado")
+    void athlon3000gVetadoElSlotCaeEnOtraCpuCompatible() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard MSI A620M-E PRO DDR5 AM5", 150_000, "Motherboard", "https://t/mb"),
+                producto("Outlet Procesador Amd Athlon 3000g", 50_000, "CPU", "https://t/athlon"),
+                producto("Procesador Amd Ryzen 5 8500G Am5", 200_000, "CPU", "https://t/ryzen"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(build.picks().stream().filter(p -> p.slot().equals("cpu")).findFirst().orElseThrow().url())
+                .isEqualTo("https://t/ryzen");
+        assertThat(build.sinCompatible()).doesNotContain("cpu");
+    }
+
+    @Test
+    @DisplayName("T17: un Xeon E5 v3 sin socket explícito ahora se lee LGA2011-3 y el veto lo saca de una mother AM5")
+    void xeonE5V3SeDerivaALga20113YSeVetaContraMotherAm5() {
+        // Mismo defecto que el Athlon de T12: sin socket legible, ReglaSocket
+        // abstenía y el Xeon ganaba el slot cpu de una mother AM5 por ser el
+        // único candidato (nombre real medido, T8d).
+        List<Product> catalogo = List.of(
+                producto("Motherboard MSI A620M-E PRO DDR5 AM5", 150_000, "Motherboard", "https://t/mb"),
+                producto("Procesador Intel Xeon  E5-2699 V3 Oem", 45_746, "CPU", "https://t/xeon"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of());
+
+        assertThat(build.picks()).noneMatch(p -> p.slot().equals("cpu"));
+        assertThat(build.sinCompatible()).contains("cpu");
+    }
+
     // ── ddr veto (ram.ddr vs motherDdr) ──────────────────────────────────
 
     @Test
@@ -470,8 +518,15 @@ class PcBuilderTest {
         assertThat(ram.url()).isEqualTo("https://t/ram-cara");
     }
 
+    // T18: test que fijaba el desempate asc sin presupuesto — cambio de
+    // comportamiento pedido por el usuario (2026-09-25). Sin presupuesto es
+    // el modo "top top" (D3/D4, fase 8): entre dos candidatos empatados en
+    // TODO el eje técnico, ahora gana el más CARO, no el más barato — antes
+    // de T18, presupuesto=0 no tenía ningún efecto sobre el desempate de
+    // precio, así que esta misma aserción pedía el más barato. El nombre y
+    // el armado (sin presupuesto) no cambiaron; sólo el resultado esperado.
     @Test
-    @DisplayName("ranking ties on DDR/MHz/GB (EjesTecnicos.RAM) break by price ascending")
+    @DisplayName("T18: sin presupuesto, un empate en DDR/MHz/GB (EjesTecnicos.RAM) desempata por precio DESC")
     void rankingEmpataEnTecnologiaYDesempataPorPrecio() {
         List<Product> catalogo = List.of(
                 producto("Memoria RAM Corsair Vengeance DDR4 16GB Cara", 20_000, "RAM", "https://t/ram-cara"),
@@ -480,7 +535,52 @@ class PcBuilderTest {
         PcBuild build = builder.armar(catalogo, 0, false, Set.of());
 
         PcPick ram = build.picks().stream().filter(p -> p.slot().equals("ram")).findFirst().orElseThrow();
+        assertThat(ram.url()).isEqualTo("https://t/ram-cara");
+    }
+
+    @Test
+    @DisplayName("T18: CON presupuesto, el mismo empate en RAM sigue desempatando por precio ASC — sin cambios")
+    void conPresupuestoElEmpateEnRamSigueDesempatandoPorPrecioAsc() {
+        List<Product> catalogo = List.of(
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Cara", 20_000, "RAM", "https://t/ram-cara"),
+                producto("Memoria RAM Corsair Vengeance DDR4 16GB Barata", 10_000, "RAM", "https://t/ram-barata"));
+
+        PcBuild build = builder.armar(catalogo, 999_999, false, Set.of());
+
+        PcPick ram = build.picks().stream().filter(p -> p.slot().equals("ram")).findFirst().orElseThrow();
         assertThat(ram.url()).isEqualTo("https://t/ram-barata");
+    }
+
+    // ── T18: targets medidos contra la dev DB (odd/tasks/pc-builder-homelab.md) ──
+
+    @Test
+    @DisplayName("T18: sin presupuesto, dos AIO 420mm empatados en radiador desempatan por precio DESC")
+    void sinPresupuestoDosAioDe420mmEmpatanYGanaElMasCaro() {
+        List<Product> catalogo = List.of(
+                producto("Cooler CPU Be Quiet! SILENT LOOP 3 420mm Water Cooler", 244_809, "Cooler",
+                        "https://t/silent-loop-3"),
+                producto("Water Cooler CPU Gamdias Chione E4 420 Negro", 99_990, "Cooler",
+                        "https://t/gamdias-chione"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), Gama.ALTA);
+
+        PcPick cooler = build.picks().stream().filter(p -> p.slot().equals("cooler")).findFirst().orElseThrow();
+        assertThat(cooler.url()).isEqualTo("https://t/silent-loop-3");
+    }
+
+    @Test
+    @DisplayName("T18: sin presupuesto y tipoCooler=aire, dos doble-torre empatados desempatan por precio DESC")
+    void sinPresupuestoConAirePedidoDosDobleTorreEmpatanYGanaElMasCaro() {
+        PreferenciasDeArmado aire =
+                new PreferenciasDeArmado(null, null, null, null, null, null, null, null, TipoCooler.AIRE, null);
+        List<Product> catalogo = List.of(
+                producto("Cooler CPU Be Quiet! DARK ROCK PRO 5", 225_500, "Cooler", "https://t/dark-rock-pro-5"),
+                producto("Cooler CPU ID-Cooling FROZN A620 PRO SE", 81_350, "Cooler", "https://t/frozn-a620"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), null, aire);
+
+        PcPick cooler = build.picks().stream().filter(p -> p.slot().equals("cooler")).findFirst().orElseThrow();
+        assertThat(cooler.url()).isEqualTo("https://t/dark-rock-pro-5");
     }
 
     @Test

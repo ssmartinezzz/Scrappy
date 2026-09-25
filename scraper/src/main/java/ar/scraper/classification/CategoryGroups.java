@@ -73,7 +73,10 @@ public final class CategoryGroups {
         "Almacenamiento",
         // richer-category-taxonomy
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
-        "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj"
+        "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
+        // pc-builder-homelab (V38): salió de adentro de `CPU` — 18 de 24 filas
+        // medidas — no de `Otros`. Ver V38.
+        "Mini PC"
     );
 
     /**

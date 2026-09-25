@@ -17,6 +17,21 @@ public final class AlmacenamientoSpecsReader implements LectorDeSpecs {
 
     private static final Pattern CAPACIDAD = Pattern.compile("^(\\d+)(gb|tb)$");
 
+    /**
+     * SSDs enterprise declaran la capacidad en TB decimal ("1.92TB",
+     * "3.84TB", "7.68TB") — Tokens.array() la pierde: el punto es un
+     * separador como cualquier otro, así que "1.92TB" tokeniza a
+     * {@code "1"}+{@code "92tb"}, y el patrón de un solo token de arriba
+     * leía "92tb" como 92 TB (94208 GB) en vez de 1.92 TB (1966 GB). Corre
+     * sobre {@link Tokens#original()}, que todavía tiene el punto — {@code
+     * \s*} admite tanto "1.92TB" pegado como "1.92 TB" con espacio, y el
+     * "tb" tiene que seguir inmediatamente (sin otra palabra en el medio),
+     * así que no puede confundir un "2.5\"" de form factor con una fracción
+     * de capacidad aunque después, en cualquier lugar del nombre, aparezca
+     * un token en TB.
+     */
+    private static final Pattern CAPACIDAD_DECIMAL_TB = Pattern.compile("(\\d+)\\.(\\d+)\\s*tb\\b");
+
     @Override
     public String categoria() {
         return "Almacenamiento";
@@ -73,13 +88,19 @@ public final class AlmacenamientoSpecsReader implements LectorDeSpecs {
     }
 
     /**
-     * Capacidad: sólo un token que ES enteramente dígitos+gb/tb — TB se
-     * normaliza a GB ×1024. Ruido real medido que esto tiene que ignorar:
-     * "3500MB/S" (sufijo "mb", no "gb"/"tb"), "2280"/"SN3000" (dígitos sin
-     * sufijo o con letras), "SATA III 2.5\"" y "Gen4 x4" (ningún token
-     * entero matchea el patrón).
+     * Capacidad: primero la forma decimal en TB (ver {@link
+     * #CAPACIDAD_DECIMAL_TB}), y si no hay, un token que ES enteramente
+     * dígitos+gb/tb — TB se normaliza a GB ×1024. Ruido real medido que esto
+     * tiene que ignorar: "3500MB/S" (sufijo "mb", no "gb"/"tb"),
+     * "2280"/"SN3000" (dígitos sin sufijo o con letras), "SATA III 2.5\"" y
+     * "Gen4 x4" (ningún token entero matchea el patrón).
      */
     private static int capacidadGb(Tokens tokens) {
+        Matcher decimal = CAPACIDAD_DECIMAL_TB.matcher(tokens.original());
+        if (decimal.find()) {
+            double tb = Double.parseDouble(decimal.group(1) + "." + decimal.group(2));
+            return (int) Math.round(tb * 1024);
+        }
         for (String t : tokens.array()) {
             Matcher m = CAPACIDAD.matcher(t);
             if (m.matches()) {

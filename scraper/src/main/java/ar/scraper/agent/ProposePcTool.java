@@ -11,6 +11,8 @@ import ar.scraper.pcs.PcBuilder;
 import ar.scraper.pcs.PreferenciasDeArmado;
 import ar.scraper.pcs.PreferenciasWire;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.pcs.Uso;
+import ar.scraper.pcs.UsoWire;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -83,6 +85,9 @@ public class ProposePcTool implements CatalogTool {
         tipoCooler.put("type", "string");
         tipoCooler.putArray("enum").add("liquido").add("aire");
         props.putObject("wattsMinimos").put("type", "integer");
+        ObjectNode uso = props.putObject("uso");
+        uso.put("type", "string");
+        uso.putArray("enum").add("gaming").add("homelab");
 
         return new ToolSpec(NAME,
                 "Arma una PC con el catálogo actual: un pick por slot (motherboard, CPU, RAM, gabinete, "
@@ -101,7 +106,11 @@ public class ProposePcTool implements CatalogTool {
                         + "'tamanioGabinete' ('mini'/'mid'/'full') es el tamaño de torre — NO el form factor de "
                         + "la placa — y el catálogo lo declara en pocos gabinetes, así que pedirlo achica mucho "
                         + "el pool. 'tipoCooler' ('liquido'/'aire') además ABRE el slot de cooler aunque la gama "
-                        + "no sea alta. NUNCA guarda nada — si el usuario quiere conservar el "
+                        + "no sea alta. 'uso' ('gaming'/'homelab', default 'gaming') cambia el layout entero: "
+                        + "homelab arma DOS discos ('sistema' de arranque + 'datos' a granel, capacidad primero, "
+                        + "HDD preferido) y prioriza la RAM por capacidad. Combinado con tamanioGabinete='mini' "
+                        + "arma UN solo pick de categoría Mini PC en vez de motherboard/cpu/ram/gabinete/fuente "
+                        + "sueltos. NUNCA guarda nada — si el usuario quiere conservar el "
                         + "armado, lo guarda desde la página /pcs.",
                 schema);
     }
@@ -177,6 +186,13 @@ public class ProposePcTool implements CatalogTool {
             return ToolResult.error("", "El parámetro 'tipoCooler' tiene que ser 'liquido' o 'aire'.");
         }
 
+        Uso usoPedido;
+        try {
+            usoPedido = UsoWire.parse(args.path("uso").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'uso' tiene que ser 'gaming' o 'homelab'.");
+        }
+
         PreferenciasDeArmado prefs;
         try {
             prefs = new PreferenciasDeArmado(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
@@ -191,7 +207,8 @@ public class ProposePcTool implements CatalogTool {
             return ToolResult.error("", "No hay catálogo cargado todavía. Corré un scraping primero.");
         }
 
-        PcBuild build = pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs);
+        PcBuild build = pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs,
+                usoPedido);
         return ToolResult.ok("", PcBuildJson.toJson(build).toString());
     }
 

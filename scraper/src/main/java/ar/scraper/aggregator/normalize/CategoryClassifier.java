@@ -309,6 +309,13 @@ public class CategoryClassifier {
      * contenedor gana": sigue siendo el mismo principio, aplicado antes de
      * dejar que ningún otro sustantivo del título compita.</p>
      *
+     * <p><b>Mini PC corre ANTES que PC/CPU/Monitor</b> (pc-builder-homelab,
+     * D2): "Mini Pc Cx Amd Ryzen 7 6800H 16Gb 480Gb" tiene " amd " y caía en
+     * {@code CPU} vía {@code KW_CPU} — 18 de 24 filas medidas, la misma clase
+     * de bug que las PCs armadas. Un combo "Mini PC ... + Monitor 22\"" sigue
+     * siendo un mini PC: el contenedor gana, y acá el contenedor es el mini
+     * PC, no el monitor que trae de regalo.</p>
+     *
      * @return la categoría tech, o {@code ""} si el texto no es tech —
      *         abstención, que deja seguir la cadena ({@code CODE-5}).
      */
@@ -321,8 +328,14 @@ public class CategoryClassifier {
                 || startsWithAny(t, GarmentTaxonomy.KW_ACCESORIO_LIDER)
                 || startsWithAny(t, GarmentTaxonomy.KW_SERVICIO_LIDER))
             return "";
+        if (startsWithAny(t, GarmentTaxonomy.KW_MINIPC_LIDER))                return "Mini PC";
         if (startsWithAny(t, GarmentTaxonomy.KW_PC_LIDER))                    return "PC";
         if (startsWithAny(t, GarmentTaxonomy.KW_CPU_LIDER))                   return "CPU";
+        // T14: "memoria" líder + un token DDR real gana antes que KW_CPU —
+        // sin esto, "AMD EXPO"/"Intel XMP" (el perfil de overclock del
+        // fabricante de CPU) hacía caer el stick en CPU vía " amd "/" intel ".
+        if (startsWithAny(t, GarmentTaxonomy.KW_RAM_LIDER) && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))
+            return "RAM";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED)
                 || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED_SWITCH) && esContextoRed(t)))
             return "Red";
@@ -337,6 +350,15 @@ public class CategoryClassifier {
         if (startsWithAny(t, GarmentTaxonomy.KW_FUENTE_LIDER))                return "Fuente";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GABINETE))         return "Gabinete";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUENTE))           return "Fuente";
+        // T15: Almacenamiento/Auricular/Joystick por sustantivo líder ganan
+        // antes que KW_COOLER — ahí "cooler"/"disipador" es la marca ("Cooler
+        // Master") o un accesorio del producto ("con disipador"), no lo que
+        // el producto ES.
+        if (startsWithAny(t, GarmentTaxonomy.KW_ALMACENAMIENTO_LIDER)
+                && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ALMACENAMIENTO))
+            return "Almacenamiento";
+        if (startsWithAny(t, GarmentTaxonomy.KW_AURICULAR_LIDER))            return "Auricular";
+        if (startsWithAny(t, GarmentTaxonomy.KW_JOYSTICK_LIDER))             return "Joystick";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COOLER))           return "Cooler";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CPU))              return "CPU";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RAM))              return "RAM";

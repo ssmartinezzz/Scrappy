@@ -80,6 +80,39 @@ class TechCategoryClassifierTest {
         assertThat(cat(nombre)).isEqualTo(esperado);
     }
 
+    @ParameterizedTest(name = "[{index}] \"{0}\" -> {1}")
+    @CsvSource({
+        "'Mini Pc Cx Amd Ryzen 7 6800H 16Gb 480Gb Free',                        Mini PC",
+        "'MINI PC GIGABYTE BRIX CORE I5 10210U S/MEMO S/DISCO',                 Mini PC",
+        "'Mini PC ASUS PN52-BB7000XTC Ryzen 7 5800H',                          Mini PC",
+        "'MINI PC ASUS ULTRA 5 225H NUC15CRK BAREBONE S/MEMO S/DISCO',         Mini PC",
+        "'MINI PC MSI CUBI 5 12M I3-1215U BAREBONE S/MEMO S/DISCO',            Mini PC",
+        "'Mini Pc Jalatec Jt-mpr3 Pc Ryzen 3 Amd 3250c+ 8gb + 256gb',          Mini PC",
+    })
+    @DisplayName("Mini PC sale del slot cpu: el sustantivo líder gana antes que CPU/Monitor")
+    void miniPcSaleDelSlotCpu(String nombre, String esperado) {
+        assertThat(cat(nombre)).isEqualTo(esperado);
+    }
+
+    @Test
+    @DisplayName("Un mini PC combinado con un monitor sigue siendo un mini PC — el contenedor gana")
+    void miniPcConMonitorCombinadoSigueSiendoMiniPc() {
+        assertThat(cat("Mini PC CX AMD Ryzen 7 6800H 16GB 480GB + Monitor 22\" + Kit Tec/Mouse"))
+                .isEqualTo("Mini PC");
+        assertThat(cat("Mini Pc Asus Ryzen 5 5500U 16GB 512GB + Monitor 24\""))
+                .isEqualTo("Mini PC");
+    }
+
+    @Test
+    @DisplayName("Un servicio de armado con \"brix\" en el nombre no es un mini PC, y un kit de gabinete tampoco")
+    void miniPcNoSeComeElServicioNiElKitDeGabinete() {
+        // El guard de servicio corre ANTES que el líder de Mini PC.
+        assertThat(cat("ARMADO DE BRIX/NOTEBOOK Y AFINES")).isEqualTo("Otros");
+        // "Barebone" no es un keyword de Mini PC — el líder es "Kit", y el sustantivo sigue siendo Gabinete.
+        assertThat(cat("Kit Gabinete Gamer Jalatec Barebone Jt-k80 Rgb C/Fuente 500w"))
+                .isEqualTo("Gabinete");
+    }
+
     @Test
     @DisplayName("El orden del bloque tech es load-bearing: el contenedor gana sobre lo que contiene")
     void elOrdenDelBloqueTechEsLoadBearing() {
@@ -270,5 +303,79 @@ class TechCategoryClassifierTest {
                 .isEqualTo("CPU");
         assertThat(cat("Placa de Video MSI NVIDIA GeForce RTX 5070 Ventus 2X 12GB OC GDDR7"))
                 .isEqualTo("GPU");
+    }
+
+    @Test
+    @DisplayName("T14: un pad/pasta térmica para CPU no es un CPU — KW_COOLER lo cubre antes de llegar a \" cpu \"")
+    void padTermicoParaCpuNoEsUnCpu() {
+        // Medido, pc-builder-homelab T14: "para cpu" matcheaba KW_CPU (" cpu
+        // ") porque KW_COOLER no tenía ninguna forma de "thermal pad" — sólo
+        // "pasta termica"/"grasa termica", que este nombre no usa.
+        assertThat(cat("Thermal Pad Carbice Ice Pad para CPU AM4/AM5 con Nanotubos de Carbono"))
+                .isEqualTo("Cooler");
+        assertThat(cat("Pad Termico Cooler Master para CPU 1mm")).isEqualTo("Cooler");
+        assertThat(cat("Thermal Paste Cooler Master MasterGel Pro V2")).isEqualTo("Cooler");
+        // Las dos formas ya cubiertas siguen intactas.
+        assertThat(cat("Grasa Termica Cooler Master MasterGel Maker Nano")).isEqualTo("Cooler");
+        assertThat(cat("Pasta Termica Noctua NT-H2 3.5g")).isEqualTo("Cooler");
+    }
+
+    @Test
+    @DisplayName("T14: una RAM que nombra el perfil de overclock del fabricante de CPU no es un CPU")
+    void ramConPerfilDeOverclockNoEsUnCpu() {
+        // Medido, pc-builder-homelab T14: 35 filas de RAM caían en CPU vía
+        // " amd "/" intel " (KW_CPU) por nombrar "AMD EXPO"/"Intel XMP" — el
+        // perfil de overclock del stick, no la marca de un procesador. El
+        // sustantivo líder "memoria" + un token DDR real gana antes.
+        assertThat(cat("Memoria RAM Kingston Fury Beast 16GB 5600 Mhz DDR5 CL36 Negra AMD EXPO"))
+                .isEqualTo("RAM");
+        assertThat(cat("Memoria Corsair DDR5 32GB (2x16GB) 6000MHz Vengeance CL36 Black Intel XMP 3.0 / AMD EXPO"))
+                .isEqualTo("RAM");
+        assertThat(cat("Memoria KingDian DDR4 8GB 2666MHz CL22 Solo Intel")).isEqualTo("RAM");
+        // Un CPU de verdad sigue siendo CPU: no arranca con "memoria".
+        assertThat(cat("Procesador Amd Ryzen 5 8500G 5.0GHz Turbo AM5")).isEqualTo("CPU");
+        // Una notebook con RAM en el nombre sigue ganando por su propio
+        // líder (Notebook corre antes que RAM en el bloque tech).
+        assertThat(cat("Notebook Lenovo IdeaPad 3 8GB RAM 512GB SSD")).isEqualTo("Notebook");
+    }
+
+    @Test
+    @DisplayName("T15: una RAM \"con disipador\" no es un Cooler")
+    void ramConDisipadorNoEsUnCooler() {
+        // El sustantivo líder "memoria" + un token DDR ya la manda a RAM
+        // antes de llegar a KW_COOLER (mismo mecanismo que T14) — "disipador"
+        // acá describe un accesorio del stick, no el producto.
+        assertThat(cat("MEMORIA 8GB DDR4 3200 MACROVIP MAX C/DISIPADOR")).isEqualTo("RAM");
+        assertThat(cat("Memoria Hiksemi 8gb 3200 Mhz Armor C/disipador Black Ddr4")).isEqualTo("RAM");
+    }
+
+    @Test
+    @DisplayName("T15: un disco \"con disipador\" no es un Cooler")
+    void discoConDisipadorNoEsUnCooler() {
+        // Medido: "disipador" bare en KW_COOLER se comía cualquier disco que
+        // publicitara el suyo — el sustantivo líder (HD/Disco) gana antes.
+        assertThat(cat("HD SSD 1TB WD BLACK SN850X C/DISIPADOR M.2 NVME PCIE GEN4"))
+                .isEqualTo("Almacenamiento");
+        assertThat(cat("Disco Solido SSD Hiksemi FUTURE X LITE 2TB M.2 NVMe Con Disipador"))
+                .isEqualTo("Almacenamiento");
+    }
+
+    @Test
+    @DisplayName("T15: un Joystick/Auricular de marca \"Cooler Master\" no es un Cooler")
+    void perifericoDeMarcaCoolerMasterNoEsUnCooler() {
+        // "Cooler Master" es la marca, no el producto — el sustantivo líder
+        // (Joystick/Auricular) gana antes que el bare "cooler" de KW_COOLER.
+        assertThat(cat("Joystick Cooler Master Storm Controller Xbox One/Series/PC"))
+                .isEqualTo("Joystick");
+        assertThat(cat("Auricular Cooler Master CH351 Headset")).isEqualTo("Auricular");
+    }
+
+    @Test
+    @DisplayName("T15: una controladora de fans no es un Cooler")
+    void controladoraDeFansNoEsUnCooler() {
+        // Es un hub/accesorio para controlar coolers ya instalados, no un
+        // cooler en sí — mismo trato que un bracket (KW_ACCESORIO_LIDER).
+        assertThat(cat("Controladora Cooler Master A1 Gen 2 ARGB P/Fan Coolers"))
+                .isNotEqualTo("Cooler");
     }
 }

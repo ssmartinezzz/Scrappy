@@ -85,10 +85,21 @@ public final class EjesTecnicos {
      * AIO gana la de 360mm sobre la de 240mm. 84 de los 171 líquidos del
      * catálogo lo declaran; los otros 87 abstienen (0) y, por D7, quedan
      * detrás dentro de su propio escalón — nunca delante.</p>
+     *
+     * <p>T16 (pc-builder-homelab) le agrega clase de disipador y heatpipes
+     * como TERCER y CUARTO eje — el radiador es exclusivo de líquidos
+     * (siempre 0 en AIRE), así que hasta acá las 85 filas AIRE del catálogo
+     * empataban en TODO y el precio más bajo ganaba siempre ("no importa qué
+     * gama, en los cooler siempre estaba ganando uno medio pedorro" — pedido
+     * del usuario, 2026-09-25). Entre dos líquidos el radiador ya las separó,
+     * así que estos dos ejes son un no-op ahí (abstención uniforme, D7); son
+     * los que de verdad ordenan el escalón AIRE.</p>
      */
     public static final Comparator<TechSpecs> COOLER =
             Comparator.<TechSpecs>comparingInt(specs -> tipoCoolerRank(specs.tipoCooler()))
-                    .thenComparingInt(specs -> masEsMejor(specs.radiadorMm()));
+                    .thenComparingInt(specs -> masEsMejor(specs.radiadorMm()))
+                    .thenComparingInt(specs -> claseDisipadorRank(specs.claseDisipador()))
+                    .thenComparingInt(specs -> masEsMejor(specs.heatpipes()));
 
     /**
      * Certificación desc → watts desc — D6, fase 9.
@@ -125,6 +136,50 @@ public final class EjesTecnicos {
             Comparator.<TechSpecs>comparingInt(specs -> tipoAlmacenamientoRank(specs.tipoAlmacenamiento()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 
+    /**
+     * Capacidad desc → DDR desc → módulos → MHz — D4, pc-builder-homelab.
+     * Un host de VMs/containers compra GB, no MHz: la capacidad manda antes
+     * que el resto del eje {@link #RAM}, que sigue decidiendo el empate.
+     */
+    public static final Comparator<TechSpecs> RAM_HOMELAB =
+            Comparator.<TechSpecs>comparingInt(specs -> masEsMejor(specs.capacidadGb()))
+                    .thenComparing(RAM);
+
+    /**
+     * Tecnología conocida primero → capacidad desc → HDD antes que SSD
+     * antes que NVMe — D4, pc-builder-homelab; el orden de tecnología
+     * corregido por D13 en T11. El slot {@code datos} no es el disco de
+     * sistema: es el volumen a granel, y ahí GB/$ gana — al revés que
+     * {@link #ALMACENAMIENTO}, que prioriza tecnología porque arma el disco
+     * de arranque.
+     *
+     * <p>Hasta T11 la capacidad corría PRIMERO, así que un disco externo
+     * (tecnología abstenida — {@link TipoAlmacenamiento#DESCONOCIDO}, ver
+     * {@link ar.scraper.pcs.specs.AlmacenamientoSpecsReader}) con más GB le
+     * ganaba el slot a un disco interno conocido más chico: medido en T8,
+     * un "Disco Duro Externo 1Tb Seagate Portable" salía elegido como
+     * {@code datos}. D13 es la misma regla que en todo eje: la abstención
+     * va última, ANTES de mirar cualquier otra magnitud — nunca "a igual
+     * capacidad". El conocido/desconocido corre como primer key y la
+     * capacidad queda como segundo key, sólo entre los que sí declaran
+     * tecnología.</p>
+     */
+    public static final Comparator<TechSpecs> ALMACENAMIENTO_DATOS =
+            Comparator.<TechSpecs>comparingInt(specs -> tecnologiaConocidaRank(specs.tipoAlmacenamiento()))
+                    .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()))
+                    .thenComparingInt(specs -> tipoAlmacenamientoRankDatos(specs.tipoAlmacenamiento()));
+
+    /**
+     * Gama → nivel de familia desc → RAM (GB) desc — D6, pc-builder-homelab.
+     * Mismo molde que {@link #CPU} pero sin año/generación: un mini PC
+     * barebone no siempre declara el año del chip, y lo que de verdad
+     * distingue dos mini PCs del mismo nivel es cuánta RAM trae.
+     */
+    public static final Comparator<TechSpecs> MINI_PC =
+            Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.nivel()))
+                    .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
+
     // ── ranks: menor es mejor, la abstención siempre al final ───────────
 
     private static int ddrRank(String ddr) {
@@ -157,12 +212,44 @@ public final class EjesTecnicos {
         };
     }
 
+    /**
+     * @see #ALMACENAMIENTO_DATOS — D13, T11: sólo "¿se pudo leer la
+     * tecnología?", 0 conocida / 1 abstenida. Separado de {@link
+     * #tipoAlmacenamientoRankDatos}, que ordena HDD/SSD/NVME entre sí, para
+     * que la abstención salga ANTES que la capacidad en el comparator y no
+     * pueda ganar por GB.
+     */
+    private static int tecnologiaConocidaRank(TipoAlmacenamiento tipo) {
+        return tipo.esConocido() ? 0 : 1;
+    }
+
+    /** @see #ALMACENAMIENTO_DATOS — el orden inverso de {@link #tipoAlmacenamientoRank}: HDD primero. */
+    private static int tipoAlmacenamientoRankDatos(TipoAlmacenamiento tipo) {
+        if (!tipo.esConocido()) return Integer.MAX_VALUE;
+        return switch (tipo) {
+            case HDD -> 0;
+            case SSD -> 1;
+            case NVME -> 2;
+            case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+        };
+    }
+
     private static int tipoCoolerRank(TipoCooler tipo) {
         if (!tipo.esConocido()) return Integer.MAX_VALUE;
         return switch (tipo) {
             case LIQUIDO -> 0;
             case AIRE -> 1;
             case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+        };
+    }
+
+    /** @see #COOLER — T16: doble torre gana a torre simple; DESCONOCIDA (D13) siempre última. */
+    private static int claseDisipadorRank(ClaseDisipador clase) {
+        if (!clase.esConocida()) return Integer.MAX_VALUE;
+        return switch (clase) {
+            case DOBLE_TORRE -> 0;
+            case TORRE -> 1;
+            case DESCONOCIDA -> Integer.MAX_VALUE; // inalcanzable, ver arriba
         };
     }
 

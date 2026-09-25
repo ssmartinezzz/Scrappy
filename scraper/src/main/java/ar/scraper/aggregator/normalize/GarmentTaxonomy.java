@@ -881,8 +881,29 @@ public final class GarmentTaxonomy {
      * el gabinete se escapaban a Almacenamiento y a Cooler. Los otros tres de
      * esa lista siguen siendo condicionales — "Kit de RAM" y "Soporte de
      * Monitor" son productos de verdad.
+     *
+     * <p>"Controladora" se suma en T15 (pc-builder-homelab): un hub para
+     * controlar fans/coolers ya instalados ("Controladora Cooler Master A1
+     * Gen 2 ARGB P/Fan Coolers") no es un cooler — es el accesorio, igual que
+     * un bracket.</p>
      */
-    public static final String[] KW_ACCESORIO_LIDER = { " bracket " };
+    public static final String[] KW_ACCESORIO_LIDER = { " bracket ", " controladora " };
+
+    /**
+     * Líder ⇒ Almacenamiento, antes de {@link #KW_COOLER} (T15,
+     * pc-builder-homelab): "HD SSD 1TB WD BLACK SN850X C/DISIPADOR M.2 NVME
+     * ..."/"Disco Solido SSD Hiksemi FUTURE X LITE 2TB M.2 NVMe Con
+     * Disipador" tienen "disipador" (bare en {@code KW_COOLER}) como
+     * accesorio del disco, no como el producto. Se exige además un token de
+     * {@link #KW_ALMACENAMIENTO} real — "hd"/"ssd"/"disco" solos no bastan.
+     */
+    public static final String[] KW_ALMACENAMIENTO_LIDER = { " hd ", " ssd ", " disco " };
+
+    /** Líder ⇒ Auricular, antes de {@link #KW_COOLER} (T15): "Auricular Cooler Master CH351 Headset". */
+    public static final String[] KW_AURICULAR_LIDER = { " auricular ", " auriculares " };
+
+    /** Líder ⇒ Joystick, antes de {@link #KW_COOLER} (T15): "Joystick Cooler Master Storm Controller...". */
+    public static final String[] KW_JOYSTICK_LIDER = { " joystick " };
 
     /**
      * "Armado" es mano de obra, no producto: las 10 filas que lideran con él
@@ -896,6 +917,16 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PC_LIDER = { " pc " };
 
     /**
+     * Líder ⇒ Mini PC, antes de {@link #KW_PC_LIDER} y del bloque CPU/Monitor
+     * (pc-builder-homelab, D2). Sin esto un mini PC cae en {@code CPU} vía
+     * {@code KW_CPU}'s " intel "/" amd " — 18 de 24 filas medidas — la misma
+     * clase de bug que las PCs armadas de la fase 7. "mini pc"/"minipc" van
+     * padeados de los dos lados, igual que {@code KW_PC_LIDER}; "nuc"/"brix"/
+     * "cubi" cubren los barebones que no se anuncian como "mini pc".
+     */
+    public static final String[] KW_MINIPC_LIDER = { " mini pc ", " minipc ", " nuc ", " brix ", " cubi " };
+
+    /**
      * Líder ⇒ CPU aunque el título nombre "cooler" como accesorio (pc-builder-
      * deep-taxonomy, T2a). Bare " micro " queda afuera a propósito: se come
      * "Micro SD".
@@ -903,6 +934,17 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CPU_LIDER = {
         " procesador ", " microprocesador ", " micro amd ", " micro intel "
     };
+
+    /**
+     * Líder ⇒ RAM aunque el título nombre el perfil de overclock del
+     * fabricante de CPU (pc-builder-homelab, T14). "Memoria RAM Kingston
+     * Fury Beast 16GB 5600 Mhz DDR5 CL36 Negra AMD EXPO"/"Memoria Corsair
+     * DDR5 32GB ... Intel XMP 3.0 / AMD EXPO" tienen " amd "/" intel " (el
+     * perfil de overclock, no la marca de un procesador) y caían en CPU vía
+     * {@code KW_CPU} — 35 filas medidas. Exige además un token de {@link
+     * #KW_RAM} real: "memoria" sola también nombra una microSD.
+     */
+    public static final String[] KW_RAM_LIDER = { " memoria " };
 
     /**
      * Redes. NO tiene "red" pelado a propósito: "red" es un color en inglés y
@@ -958,7 +1000,11 @@ public final class GarmentTaxonomy {
     public static final String[] KW_COOLER = {
         "cooler","watercooling","water cooling","refrigeracion liquida",
         "disipador"," aio ","fan cooler","ventilador de gabinete",
-        "ventilador para gabinete","grasa termica","pasta termica"
+        "ventilador para gabinete","grasa termica","pasta termica",
+        // T14, pc-builder-homelab: "Thermal Pad Carbice Ice Pad para CPU
+        // AM4/AM5..." no tenía "pasta termica"/"grasa termica" y caía en
+        // CPU vía " cpu " (KW_CPU) — mismo accesorio, nombre en inglés.
+        "thermal pad","pad termico","thermal paste"
     };
 
     public static final String[] KW_ALMACENAMIENTO = {
