@@ -7,6 +7,7 @@ import ar.scraper.pcs.specs.FuenteSpecsReader;
 import ar.scraper.pcs.specs.GabineteSpecsReader;
 import ar.scraper.pcs.specs.GpuSpecsReader;
 import ar.scraper.pcs.specs.LectorDeSpecs;
+import ar.scraper.pcs.specs.MiniPcSpecsReader;
 import ar.scraper.pcs.specs.MotherboardSpecsReader;
 import ar.scraper.pcs.specs.RamSpecsReader;
 import ar.scraper.pcs.specs.Tokens;
@@ -39,7 +40,8 @@ public final class TechSpecsParser {
                     new GabineteSpecsReader(),
                     new GpuSpecsReader(),
                     new CoolerSpecsReader(),
-                    new AlmacenamientoSpecsReader())
+                    new AlmacenamientoSpecsReader(),
+                    new MiniPcSpecsReader())
             .collect(Collectors.toMap(LectorDeSpecs::categoria, lector -> lector));
 
     public static TechSpecs parse(String nombre, String categoria) {

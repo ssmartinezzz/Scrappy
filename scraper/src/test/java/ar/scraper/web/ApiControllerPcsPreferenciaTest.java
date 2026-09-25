@@ -224,4 +224,55 @@ class ApiControllerPcsPreferenciaTest {
         assertThat(resp.getBody().get("mensaje").asText()).contains("tipoAlmacenamiento");
         verifyNoInteractions(preferenciaArmador);
     }
+
+    // ── uso (pc-builder-homelab T6) ─────────────────────────────────────
+
+    @Test
+    void getReturns200WithUsoInTheJson() {
+        when(preferenciaArmador.cargar(any()))
+                .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true,
+                        PreferenciasDeArmado.NINGUNA, ar.scraper.pcs.Uso.HOMELAB)));
+
+        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+
+        assertThat(resp.getBody().get("uso").asText()).isEqualTo("homelab");
+    }
+
+    @Test
+    void getDefaultsUsoToGamingWhenNeverSet() {
+        when(preferenciaArmador.cargar(any()))
+                .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
+
+        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+
+        assertThat(resp.getBody().get("uso").asText()).isEqualTo("gaming");
+    }
+
+    @Test
+    void putValidPayloadWithUsoPersistsAndReturns200() {
+        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "homelab"));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(resp.getBody().get("uso").asText()).isEqualTo("homelab");
+        verify(preferenciaArmador).guardar(any(), eq(new PreferenciaArmador(
+                Gama.ALTA, null, false, PreferenciasDeArmado.NINGUNA, ar.scraper.pcs.Uso.HOMELAB)));
+    }
+
+    @Test
+    void putAbsentUsoDefaultsToGaming() {
+        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta"));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(resp.getBody().get("uso").asText()).isEqualTo("gaming");
+    }
+
+    @Test
+    void putInvalidUsoReturns400AndNeverPersists() {
+        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "servidor"));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("uso");
+        verifyNoInteractions(preferenciaArmador);
+    }
 }

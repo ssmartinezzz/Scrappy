@@ -96,4 +96,78 @@ class CriterioPorEjesTecnicosTest {
         assertThat(conMedia.url()).isEqualTo("https://t/b650"); // MEDIA prefiere el tier B
         assertThat(sinGama.url()).isEqualTo("https://t/x670e"); // sin gama, orden absoluto: X/Z gana
     }
+
+    // ── T18, pc-builder-homelab: sinPresupuesto invierte el desempate de precio ──
+
+    @Test
+    @DisplayName("T18: sin presupuesto, un empate en el eje técnico desempata por precio DESC — gana el más caro")
+    void sinPresupuestoElEmpateEnElEjeTecnicoDesempataPorPrecioDesc() {
+        CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.RAM);
+        Product cara = ram("Memoria RAM Corsair DDR4 16GB Cara", 20_000, "https://t/cara");
+        Product barata = ram("Memoria RAM Corsair DDR4 16GB Barata", 10_000, "https://t/barata");
+
+        Product elegido = criterio.elegir(List.of(barata, cara),
+                ContextoDeArmado.inicial(0, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA,
+                        java.util.Set.of(), true));
+
+        assertThat(elegido.url()).isEqualTo("https://t/cara");
+    }
+
+    @Test
+    @DisplayName("T18: con presupuesto (default), el mismo empate sigue desempatando por precio ASC")
+    void conPresupuestoElEmpateSigueDesempatandoPorPrecioAsc() {
+        CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.RAM);
+        Product cara = ram("Memoria RAM Corsair DDR4 16GB Cara", 20_000, "https://t/cara");
+        Product barata = ram("Memoria RAM Corsair DDR4 16GB Barata", 10_000, "https://t/barata");
+
+        Product elegido = criterio.elegir(List.of(barata, cara), ContextoDeArmado.inicial(0));
+
+        assertThat(elegido.url()).isEqualTo("https://t/barata");
+    }
+
+    @Test
+    @DisplayName("T18: sin presupuesto, el gabinete (sin ejes) pasa a elegir el más caro")
+    void sinPresupuestoElGabineteEligeElMasCaro() {
+        CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE);
+        Product grande = new Product("TestSitio", "Gabinete Corsair 4000D ATX", 90_000, null,
+                "https://t/atx", "https://img/test.jpg", "Gabinete", "", List.of(),
+                Product.MlScore.EMPTY, "", "tecnologia", false);
+        Product chico = new Product("TestSitio", "Gabinete NR200P ITX", 70_000, null,
+                "https://t/itx", "https://img/test.jpg", "Gabinete", "", List.of(),
+                Product.MlScore.EMPTY, "", "tecnologia", false);
+
+        Product elegido = criterio.elegir(List.of(chico, grande),
+                ContextoDeArmado.inicial(0, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA,
+                        java.util.Set.of(), true));
+
+        assertThat(elegido.url()).isEqualTo("https://t/atx"); // más caro, ganó el desempate top-top
+    }
+
+    @Test
+    @DisplayName("T18: sin presupuesto, un empate total en eje y precio sigue desempatando por url asc")
+    void sinPresupuestoEmpateTotalSigueDesempatandoPorUrl() {
+        CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.RAM);
+        Product b = ram("Memoria RAM Corsair DDR4 16GB B", 10_000, "https://t/ram-b");
+        Product a = ram("Memoria RAM Corsair DDR4 16GB A", 10_000, "https://t/ram-a");
+
+        Product elegido = criterio.elegir(List.of(b, a),
+                ContextoDeArmado.inicial(0, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA,
+                        java.util.Set.of(), true));
+
+        assertThat(elegido.url()).isEqualTo("https://t/ram-a");
+    }
+
+    @Test
+    @DisplayName("T18: sin presupuesto, el eje técnico sigue mandando ANTES que el precio — no es 'el más caro gana siempre'")
+    void sinPresupuestoElEjeTecnicoSigueGanandoAntesQueElPrecio() {
+        CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.RAM);
+        Product masCapacidadBarata = ram("Memoria RAM Corsair DDR4 32GB", 15_000, "https://t/32gb");
+        Product menosCapacidadCara = ram("Memoria RAM Corsair DDR4 16GB", 20_000, "https://t/16gb");
+
+        Product elegido = criterio.elegir(List.of(masCapacidadBarata, menosCapacidadCara),
+                ContextoDeArmado.inicial(0, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA,
+                        java.util.Set.of(), true));
+
+        assertThat(elegido.url()).isEqualTo("https://t/32gb"); // 32GB gana el eje, aunque sea más barata
+    }
 }

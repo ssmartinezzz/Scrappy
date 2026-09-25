@@ -969,18 +969,27 @@ paths:
             Optional PSU watts FLOOR. It only ever RAISES the build's own floor (derived from gama
             and conGpu), never lowers it. Absent means not requested; 0 is rejected.
           schema: { type: integer, minimum: 1 }
+        - name: uso
+          in: query
+          description: >-
+            Build profile. Absent/blank means "gaming" (today's build, unchanged). "homelab" swaps
+            in a second storage slot (sistema + datos, capacity-first/HDD-preferred) and ranks RAM
+            by capacity first; combined with tamanioGabinete=mini it collapses into a single Mini PC
+            pick instead of the full slot set.
+          schema: { type: string, enum: [gaming, homelab] }
       responses:
         "200":
           description: Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot.
         "400":
-          description: Invalid gama or technical-preference value.
+          description: Invalid gama, uso, or technical-preference value.
 
   /api/pcs/preferencia:
     get:
       tags: [PCs]
       summary: >-
-        Get the user's last saved builder preference (gama, budget, GPU flag, and the technical
-        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi). Own row only.
+        Get the user's last saved builder preference (gama, budget, GPU flag, the technical
+        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi — and uso, absent
+        meaning "gaming"). Own row only.
       x-access: AUTHENTICATED
       responses:
         "200":
@@ -990,8 +999,9 @@ paths:
     put:
       tags: [PCs]
       summary: >-
-        Save the user's builder preference (gama, budget, GPU flag, and the technical
-        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi). Own row only.
+        Save the user's builder preference (gama, budget, GPU flag, the technical
+        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi — and uso, absent
+        meaning "gaming"). Own row only.
       x-access: AUTHENTICATED
       requestBody:
         content:
@@ -1001,7 +1011,7 @@ paths:
         "200":
           description: Preference saved.
         "400":
-          description: Missing or invalid gama, or an invalid technical-preference value.
+          description: Missing or invalid gama, uso, or an invalid technical-preference value.
 
   /api/pcs/save:
     post:

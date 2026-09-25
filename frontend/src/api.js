@@ -470,6 +470,9 @@ export async function fetchPcsBuilder({
   // (un filtro que no filtra no es un pedido), así que "sin pedido" es
   // ausencia del parámetro, nunca `capacidadMinimaGb=0`.
   capacidadMinimaGb = 0, tamanioGabinete = '', tipoCooler = '', wattsMinimos = 0,
+  // pc-builder-homelab (D3): '' es GAMING, el default de siempre — igual que
+  // gama, sólo viaja cuando el pedido difiere del default (UsoWire.parse).
+  uso = '',
 } = {}) {
   const p = new URLSearchParams();
   if (presupuesto > 0) p.set('presupuesto', presupuesto);
@@ -486,6 +489,7 @@ export async function fetchPcsBuilder({
   if (tamanioGabinete) p.set('tamanioGabinete', tamanioGabinete);
   if (tipoCooler) p.set('tipoCooler', tipoCooler);
   if (wattsMinimos > 0) p.set('wattsMinimos', wattsMinimos);
+  if (uso) p.set('uso', uso);
   const qs = p.toString();
   const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
   if (r.status === 204) return null;

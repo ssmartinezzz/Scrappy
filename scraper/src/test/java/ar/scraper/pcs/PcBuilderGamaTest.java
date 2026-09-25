@@ -286,4 +286,56 @@ class PcBuilderGamaTest {
         assertThat(build.picks()).anyMatch(p -> p.slot().equals("ram"));
         assertThat(build.mensajes()).doesNotContainKey("ram");
     }
+
+    // ── T13: la mother sólo se elige entre plataformas con CPU elegible ──
+
+    @Test
+    @DisplayName("T13: gama BAJA descarta una mother AM5 sin CPU BAJA compatible y elige la LGA1700 que sí tiene una")
+    void gamaBajaEligeLaMotherCuyaPlataformaTieneCpuElegible() {
+        // Medido en T8b: sin este cambio, la mother AM5 gana por ranking
+        // (chipset A/H, distancia 0 al target BAJA) y el i3 LGA1700 queda
+        // sinCompatible contra ella — un armado sin ninguna chance.
+        List<Product> catalogo = List.of(
+                producto("Motherboard MSI A620M-E PRO DDR5 AM5", 100_000, "Motherboard", "https://t/am5"),
+                producto("Motherboard MSI PRO B760M-A WIFI DDR4", 90_000, "Motherboard", "https://t/lga1700"),
+                producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), Gama.BAJA);
+
+        assertThat(build.picks().stream().filter(p -> p.slot().equals("mother")).findFirst().orElseThrow().url())
+                .isEqualTo("https://t/lga1700");
+        assertThat(build.picks().stream().filter(p -> p.slot().equals("cpu")).findFirst().orElseThrow().url())
+                .isEqualTo("https://t/i3");
+        assertThat(build.sinCompatible()).doesNotContain("cpu", "mother");
+    }
+
+    @Test
+    @DisplayName("T13: sin ningún CPU que alcance la gama pedida, la mother cae al ranking de siempre (fallback)")
+    void sinCpuElegibleLaMotherNoSeRestringe() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard MSI A620M-E PRO DDR5 AM5", 100_000, "Motherboard", "https://t/am5"),
+                producto("Motherboard MSI PRO B760M-A WIFI DDR4", 90_000, "Motherboard", "https://t/lga1700"));
+
+        PcBuild build = builder.armar(catalogo, 0, false, Set.of(), Gama.BAJA);
+
+        // Mismo ranking que sin la regla nueva: A/H (AM5) es tier 3, distancia 0
+        // al target BAJA; B (LGA1700) es tier 2, distancia 1 — AM5 sigue ganando.
+        assertThat(build.picks().stream().filter(p -> p.slot().equals("mother")).findFirst().orElseThrow().url())
+                .isEqualTo("https://t/am5");
+    }
+
+    @Test
+    @DisplayName("T13: sin gama pedida, la mother no se restringe (byte a byte igual que antes)")
+    void sinGamaPedidaLaMotherNoSeRestringe() {
+        List<Product> catalogo = List.of(
+                producto("Motherboard MSI A620M-E PRO DDR5 AM5", 100_000, "Motherboard", "https://t/am5"),
+                producto("Motherboard MSI PRO B760M-A WIFI DDR4", 90_000, "Motherboard", "https://t/lga1700"),
+                producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"));
+
+        PcBuild conGama = builder.armar(catalogo, 0, false, Set.of());
+        PcBuild sinGama = builder.armar(catalogo, 0, false, Set.of(), null);
+
+        assertThat(sinGama.picks()).extracting(PcPick::url)
+                .containsExactlyElementsOf(conGama.picks().stream().map(PcPick::url).toList());
+    }
 }

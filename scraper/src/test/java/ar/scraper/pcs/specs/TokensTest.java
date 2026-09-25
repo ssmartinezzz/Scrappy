@@ -41,4 +41,16 @@ class TokensTest {
         assertThat(t.array()).isEmpty();
         assertThat(t.has("anything")).isFalse();
     }
+
+    @Test
+    void originalPreservesPunctuationThatTokenizationThrowsAway() {
+        // "1.92TB" tokeniza a "1"+"92tb" — el punto decimal se pierde. Un
+        // llamador que lo necesite de vuelta (AlmacenamientoSpecsReader, para
+        // capacidades decimales) lee `original()`, que es el string
+        // acento-stripeado y lowercased ANTES del colapso a espacios.
+        Tokens t = Tokens.de("HD SSD 1.92TB KINGSTON");
+
+        assertThat(t.original()).isEqualTo("hd ssd 1.92tb kingston");
+        assertThat(t.array()).containsExactly("hd", "ssd", "1", "92tb", "kingston");
+    }
 }

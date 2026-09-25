@@ -23,7 +23,7 @@ import java.util.Map;
  */
 public final class CuotasDePresupuesto {
 
-    private static final Map<String, Double> SHARES = Map.of(
+    private static final Map<String, Double> SHARES_GAMING = Map.of(
             "mother", 0.12,
             "cpu", 0.20,
             "cooler", 0.06,
@@ -33,6 +33,22 @@ public final class CuotasDePresupuesto {
             "gpu", 0.30,
             "almacenamiento", 0.12);
 
+    /**
+     * D5, pc-builder-homelab — supuestas, no medidas, igual que las de
+     * arriba: mother 12 · cpu 18 · ram 18 · gabinete 6 · fuente 8 · sistema 8
+     * · datos 20 · gpu 20. Un homelab gasta más en RAM y en el disco de
+     * datos, menos en el disco de sistema que en {@code SHARES_GAMING}.
+     */
+    private static final Map<String, Double> SHARES_HOMELAB = Map.of(
+            "mother", 0.12,
+            "cpu", 0.18,
+            "ram", 0.18,
+            "gabinete", 0.06,
+            "fuente", 0.08,
+            "sistema", 0.08,
+            "datos", 0.20,
+            "gpu", 0.20);
+
     private final Map<String, Double> normalizadas;
 
     private CuotasDePresupuesto(Map<String, Double> normalizadas) {
@@ -40,17 +56,26 @@ public final class CuotasDePresupuesto {
     }
 
     /**
+     * Pre-{@code pc-builder-homelab} shape: sin {@link Uso}, GAMING —
+     * refactor contract, CODE-2.
+     */
+    public static CuotasDePresupuesto para(List<SlotDeArmado> slots) {
+        return para(slots, Uso.GAMING);
+    }
+
+    /**
      * Un slot fuera de la tabla toma la share media de los que sí están, en vez
      * de cero: un slot nuevo que nadie agregó acá debe recibir algo de plata,
      * no quedar condenado al fallback del más barato en todo armado con
-     * presupuesto.
+     * presupuesto. Cada {@link Uso} tiene su propia tabla (D5).
      */
-    public static CuotasDePresupuesto para(List<SlotDeArmado> slots) {
-        double media = SHARES.values().stream().mapToDouble(Double::doubleValue).average().orElse(0);
-        double total = slots.stream().mapToDouble(s -> SHARES.getOrDefault(s.nombre(), media)).sum();
+    public static CuotasDePresupuesto para(List<SlotDeArmado> slots, Uso uso) {
+        Map<String, Double> shares = uso == Uso.HOMELAB ? SHARES_HOMELAB : SHARES_GAMING;
+        double media = shares.values().stream().mapToDouble(Double::doubleValue).average().orElse(0);
+        double total = slots.stream().mapToDouble(s -> shares.getOrDefault(s.nombre(), media)).sum();
         if (total <= 0) return new CuotasDePresupuesto(Map.of());
         return new CuotasDePresupuesto(slots.stream().collect(java.util.stream.Collectors.toMap(
-                SlotDeArmado::nombre, s -> SHARES.getOrDefault(s.nombre(), media) / total, (a, b) -> a)));
+                SlotDeArmado::nombre, s -> shares.getOrDefault(s.nombre(), media) / total, (a, b) -> a)));
     }
 
     /** La parte del presupuesto que le toca a este slot, antes del arrastre. */
