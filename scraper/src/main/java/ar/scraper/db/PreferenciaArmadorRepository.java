@@ -6,6 +6,7 @@ import ar.scraper.pcs.PreferenciasDeArmado;
 import ar.scraper.pcs.TamanioGabinete;
 import ar.scraper.pcs.TipoAlmacenamiento;
 import ar.scraper.pcs.TipoCooler;
+import ar.scraper.pcs.Uso;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
@@ -47,7 +48,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                      INSERT INTO preferencia_armador (
                          usuario_id, gama_id, presupuesto, con_gpu, updated_at,
                          ddr_id, marca_cpu_id, marca_gpu_id, tipo_almacenamiento_id, ram_dual, wifi,
-                         capacidad_minima_gb, tamanio_gabinete_id, tipo_cooler_id, watts_minimos
+                         capacidad_minima_gb, tamanio_gabinete_id, tipo_cooler_id, watts_minimos,
+                         uso_id
                      ) VALUES (
                          ?, (SELECT id FROM gama WHERE nombre = ?), ?, ?, now(),
                          (SELECT id FROM ddr WHERE nombre = ?),
@@ -58,7 +60,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                          ?,
                          (SELECT id FROM tamanio_gabinete WHERE nombre = ?),
                          (SELECT id FROM tipo_cooler WHERE nombre = ?),
-                         ?
+                         ?,
+                         (SELECT id FROM uso WHERE nombre = ?)
                      )
                      ON CONFLICT (usuario_id) WHERE usuario_id IS NOT NULL DO UPDATE SET
                          gama_id                 = EXCLUDED.gama_id,
@@ -74,7 +77,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                          capacidad_minima_gb     = EXCLUDED.capacidad_minima_gb,
                          tamanio_gabinete_id     = EXCLUDED.tamanio_gabinete_id,
                          tipo_cooler_id          = EXCLUDED.tipo_cooler_id,
-                         watts_minimos           = EXCLUDED.watts_minimos
+                         watts_minimos           = EXCLUDED.watts_minimos,
+                         uso_id                  = EXCLUDED.uso_id
                      """)) {
             ps.setObject(1, usuarioId);
             ps.setString(2, gamaNombre);
@@ -94,6 +98,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
             setNullableString(ps, 12, prefs.tamanioGabinete() != null ? prefs.tamanioGabinete().name() : null);
             setNullableString(ps, 13, prefs.tipoCooler() != null ? prefs.tipoCooler().name() : null);
             setNullableInt(ps, 14, prefs.wattsMinimos());
+            setNullableString(ps, 15, UsoMapeo.nombreDeUso(preferencia.uso()));
             ps.executeUpdate();
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando preferencia de armador: {}", e.getMessage());
@@ -109,7 +114,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                             mg.nombre AS marca_gpu_nombre, ta.nombre AS tipo_almacenamiento_nombre,
                             p.ram_dual, p.wifi,
                             p.capacidad_minima_gb, tg.nombre AS tamanio_gabinete_nombre,
-                            tc.nombre AS tipo_cooler_nombre, p.watts_minimos
+                            tc.nombre AS tipo_cooler_nombre, p.watts_minimos,
+                            u.nombre AS uso_nombre
                      FROM preferencia_armador p
                      JOIN gama g ON g.id = p.gama_id
                      LEFT JOIN ddr dd ON dd.id = p.ddr_id
@@ -118,6 +124,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                      LEFT JOIN tipo_almacenamiento ta ON ta.id = p.tipo_almacenamiento_id
                      LEFT JOIN tamanio_gabinete tg ON tg.id = p.tamanio_gabinete_id
                      LEFT JOIN tipo_cooler tc ON tc.id = p.tipo_cooler_id
+                     LEFT JOIN uso u ON u.id = p.uso_id
                      WHERE p.usuario_id = ?
                      """)) {
             ps.setObject(1, usuarioId);
@@ -145,7 +152,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                         GamaMapeo.gamaDeNombre(rs.getString("gama_nombre")),
                         presupuestoOrNull,
                         rs.getBoolean("con_gpu"),
-                        prefs));
+                        prefs,
+                        UsoMapeo.usoDeNombre(rs.getString("uso_nombre"))));
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando preferencia de armador: {}", e.getMessage());

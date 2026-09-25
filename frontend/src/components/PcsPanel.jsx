@@ -14,6 +14,10 @@ const SLOT_LABELS = {
   fuente: 'Fuente',
   gpu: 'Placa de video',
   almacenamiento: 'Almacenamiento',
+  // pc-builder-homelab (D4/D6): reemplazan a `almacenamiento` cuando uso=homelab.
+  sistema: 'Disco de sistema',
+  datos: 'Disco de datos',
+  minipc: 'Mini PC',
 };
 
 function slotLabel(slot) {
@@ -27,6 +31,16 @@ const GAMAS = [
   { value: 'economica', label: 'Económica' },
   { value: 'media', label: 'Media' },
   { value: 'alta', label: 'Alta' },
+];
+
+// pc-builder-homelab (D3). A diferencia de GAMAS, '' NO es "sin filtro": es
+// GAMING, el default real de siempre (Uso no tiene estado de abstención —
+// ver UsoWire). Mismo truco que gama para el cable: '' se omite del
+// querystring y de la preferencia guardada, así que el armado gamer de hoy
+// sigue byte a byte igual sin tocar nada.
+const USOS = [
+  { value: '', label: 'Gaming' },
+  { value: 'homelab', label: 'Homelab' },
 ];
 
 // Las cuatro listas de abajo son el vocabulario de cable de PreferenciasWire
@@ -166,6 +180,8 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [presupuesto, setPresupuesto] = useState('');
   const [conGpu, setConGpu] = useState(false);
   const [gama, setGama] = useState('');
+  // '' = Gaming (default). Ver USOS.
+  const [uso, setUso] = useState('');
   const [ddr, setDdr] = useState('');
   const [marcaCpu, setMarcaCpu] = useState('');
   const [marcaGpu, setMarcaGpu] = useState('');
@@ -199,6 +215,11 @@ export default function PcsPanel({ onSavePc } = {}) {
       .then(pref => {
         if (!vivo || !pref) return;
         setGama(pref.gama ?? '');
+        // El backend siempre manda un uso concreto ("gaming"/"homelab") desde
+        // V39; una preferencia vieja (guardada antes de esa migración) puede
+        // no traer el campo — cualquier otra cosa que no sea "homelab" cae
+        // al default, igual que UsoWire.parse.
+        setUso(pref.uso === 'homelab' ? 'homelab' : '');
         setPresupuesto(pref.presupuesto != null ? String(pref.presupuesto) : '');
         setConGpu(Boolean(pref.conGpu));
         setDdr(pref.ddr ?? '');
@@ -254,6 +275,10 @@ export default function PcsPanel({ onSavePc } = {}) {
         tipoCooler: tipoCooler || null,
         capacidadMinimaGb: capacidadMinimaGb || null,
         wattsMinimos: wattsMinimos || null,
+        // Sólo viaja cuando difiere del default: UsoWire.parse ya trata
+        // ausente/null como GAMING, así que omitir la clave en Gaming deja
+        // el payload de siempre byte a byte igual (D3).
+        ...(uso === 'homelab' ? { uso } : {}),
       }).catch(() => {});
     }
     const previos = acumulando ? vistos : {};
@@ -272,6 +297,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         wifi,
         tamanioGabinete,
         tipoCooler,
+        uso,
         capacidadMinimaGb,
         wattsMinimos,
       });
@@ -320,6 +346,10 @@ export default function PcsPanel({ onSavePc } = {}) {
       <div className="mx-auto max-w-[920px] px-[20px] py-[24px]">
         <p className="mb-[6px] text-eyebrow uppercase text-t3">Armador</p>
         <h1 className="mb-[24px] text-display-2 text-t1">Armador de PCs</h1>
+
+        <div className="mb-[16px]">
+          <ChipGroup label="Uso" options={USOS} value={uso} onChange={setUso} />
+        </div>
 
         <div className="mb-[16px] flex flex-wrap items-center gap-[8px]" role="group" aria-label="Gama">
           {GAMAS.map(g => (
@@ -384,6 +414,15 @@ export default function PcsPanel({ onSavePc } = {}) {
               Ojo: pocos gabinetes declaran su tamaño en el nombre. Pedirlo deja muy pocas opciones, y
               puede dejar el slot vacío.
             </p>
+            {/* D6: en homelab, pedir "Mini tower" no arma una torre chica —
+                colapsa todo el armado en un único pick de Mini PC + disco de
+                datos. Es contraintuitivo (cambia qué slots aparecen), así que
+                se avisa en el mismo lugar donde se elige. */}
+            {uso === 'homelab' && (
+              <p className="mt-[4px] text-[.72rem] text-t4">
+                En Homelab, "Mini" arma un Mini PC + disco de datos, en vez de una torre.
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-[8px]">
             <ToggleChip label="RAM dual (2x)" pressed={ramDual} onToggle={() => setRamDual(v => !v)} />

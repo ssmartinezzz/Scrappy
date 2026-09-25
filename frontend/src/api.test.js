@@ -234,6 +234,14 @@ describe('fetchPcsBuilder', () => {
     expect(calledUrl().searchParams.get('wifi')).toBe('true');
   });
 
+  it('sends uso only when homelab', async () => {
+    await fetchPcsBuilder({ uso: '' });
+    expect(calledUrl().searchParams.has('uso')).toBe(false);
+
+    await fetchPcsBuilder({ uso: 'homelab' });
+    expect(calledUrl().searchParams.get('uso')).toBe('homelab');
+  });
+
   it('returns null on a 204 (no scrape run yet)', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => ({}) });
 

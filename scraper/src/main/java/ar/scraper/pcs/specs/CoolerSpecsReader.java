@@ -1,5 +1,6 @@
 package ar.scraper.pcs.specs;
 
+import ar.scraper.pcs.ClaseDisipador;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoCooler;
 
@@ -35,6 +36,46 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
     private static final String[] TOKENS_LIQUIDO = { "water", "aio", "liquid", "liquida", "watercooling" };
     private static final String[] TOKENS_RADIADOR = { "240mm", "280mm", "360mm", "420mm" };
     private static final Pattern RADIADOR = Pattern.compile("^(\\d{3})mm$");
+    // T15, pc-builder-homelab: los AIO de ASUS nombran su serie sin la
+    // palabra "cooler" ("ASUS TUF LC III 240") y sin el sufijo "mm" en el
+    // radiador — "LC"/"RYUO"/"RYUJIN" son series reales de ASUS ROG, nunca
+    // otra cosa en este catálogo; "lc" solo no alcanza, exige además un
+    // tamaño de radiador reconocido junto a él.
+    private static final String[] TOKENS_LIQUIDO_SERIE = { "ryuo", "ryujin" };
+    private static final String[] TOKENS_RADIADOR_BARE = { "240", "280", "360", "420" };
+
+    // T16, pc-builder-homelab: profundidad del eje AIRE — hasta acá los 85
+    // AIRE del catálogo tenían radiadorMm=0 (eje exclusivo de líquidos) y
+    // empataban en TODO, así que el más barato ganaba siempre. Vocabulario
+    // MEDIDO contra la dev DB (2026-09-25, 323 filas activas de Cooler); las
+    // entradas sin match hoy quedan igual, son series reales de fabricante y
+    // el pedido explícito las lista.
+    //
+    // Frases espaciadas: se buscan sobre `Tokens.padded()` (ya bounded con un
+    // espacio a cada lado, mismo mecanismo que KW_RAM/KW_COMIDA en
+    // GarmentTaxonomy). Sub-frases con guión ("se-214", "nh-d15"): el propio
+    // guión ya es un separador real en el título crudo, así que buscarlas
+    // sobre `Tokens.original()` (que preserva guiones, a diferencia de
+    // `padded()`) no puede "comerse" una palabra más larga.
+    private static final String[] FRASES_DOBLE_TORRE = {
+        "dark rock pro", "dark rock elite", "peerless assassin",
+        "frozn a620", "frozn a610", "hyper 612", "astria 600",
+        "phantom spirit", "dual tower", "doble torre", "dual fan"
+    };
+    private static final String[] TOKENS_DOBLE_TORRE = { "assassin", "dt621", "ak620" };
+    private static final String[] SUBFRASES_DOBLE_TORRE = { "nh-d15" };
+
+    private static final String[] FRASES_TORRE = {
+        "hyper 212", "frozn a410", "pure rock", "dark rock 5", "astria 400",
+        "v4 alpha", "maestro plus", "corefrozr", "gamma 500", "sigma 540",
+        "ice burg", "air frost 4", "rave 3"
+    };
+    private static final String[] TOKENS_TORRE = { "ak400", "ux500" };
+    private static final String[] SUBFRASES_TORRE = { "se-214", "lc-x1210", "lc-ap600" };
+
+    private static final Pattern HEATPIPE_HDP = Pattern.compile("^(\\d{1,2})hdp$");
+    private static final Pattern HEATPIPE_H = Pattern.compile("^(\\d{1,2})h$");
+    private static final Pattern HEATPIPE_PALABRA = Pattern.compile(" (\\d{1,2}) heatpipes? ");
 
     @Override
     public String categoria() {
@@ -47,7 +88,8 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
                 ar.scraper.pcs.Gama.DESCONOCIDA, ar.scraper.pcs.Certificacion.NINGUNA,
                 0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO, socketsSoportados(tokens),
                 "", 0, 0, 0, false, tipoCooler(tokens), 0,
-                ar.scraper.pcs.TamanioGabinete.DESCONOCIDO, radiadorMm(tokens));
+                ar.scraper.pcs.TamanioGabinete.DESCONOCIDO, radiadorMm(tokens),
+                claseDisipador(tokens), heatpipes(tokens));
     }
 
     private static List<String> socketsSoportados(Tokens tokens) {
@@ -96,7 +138,9 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
 
     private static boolean esLiquido(Tokens tokens) {
         if (tieneAlguno(tokens, TOKENS_LIQUIDO)) return true;
-        return tokens.has("cooler") && tieneAlguno(tokens, TOKENS_RADIADOR);
+        if (tokens.has("cooler") && tieneAlguno(tokens, TOKENS_RADIADOR)) return true;
+        if (tieneAlguno(tokens, TOKENS_LIQUIDO_SERIE)) return true;
+        return tokens.has("lc") && tieneAlguno(tokens, TOKENS_RADIADOR_BARE);
     }
 
     private static boolean tieneAlguno(Tokens tokens, String[] candidatos) {
@@ -128,6 +172,64 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
             Matcher m = RADIADOR.matcher(t);
             if (m.matches()) return Integer.parseInt(m.group(1));
         }
+        // T15: los AIO de ASUS traen el tamaño SIN "mm" ("LC 240", "RYUJIN
+        // III 360") — sólo se prueba tras la forma con "mm", y sólo entre
+        // productos que ya leyeron LIQUIDO, mismo guard que arriba.
+        for (String t : tokens.array()) {
+            if (tieneAlguno(t, TOKENS_RADIADOR_BARE)) return Integer.parseInt(t);
+        }
         return 0;
+    }
+
+    /**
+     * Doble torre &gt; torre &gt; desconocida — sólo entre coolers que ya
+     * leyeron AIRE (T16). Un líquido no tiene "clase de disipador de aire" y
+     * un fan de gabinete/una pasta térmica ya abstuvieron en {@link
+     * #tipoCooler} antes de llegar acá.
+     */
+    private static ClaseDisipador claseDisipador(Tokens tokens) {
+        if (tipoCooler(tokens) != TipoCooler.AIRE) return ClaseDisipador.DESCONOCIDA;
+        if (contieneFrase(tokens, FRASES_DOBLE_TORRE) || tieneAlguno(tokens, TOKENS_DOBLE_TORRE)
+                || contieneSubfrase(tokens, SUBFRASES_DOBLE_TORRE))
+            return ClaseDisipador.DOBLE_TORRE;
+        if (contieneFrase(tokens, FRASES_TORRE) || tieneAlguno(tokens, TOKENS_TORRE)
+                || contieneSubfrase(tokens, SUBFRASES_TORRE))
+            return ClaseDisipador.TORRE;
+        return ClaseDisipador.DESCONOCIDA;
+    }
+
+    /**
+     * Cantidad de heatpipes, sólo entre AIRE (T16): {@code "3HDP"}/{@code
+     * "4h"} son un solo token (dígitos pegados a la letra, sin separador) y
+     * {@code "N heatpipes"} es la forma en dos palabras. 0 = abstención,
+     * misma política que {@link #radiadorMm}.
+     */
+    private static int heatpipes(Tokens tokens) {
+        if (tipoCooler(tokens) != TipoCooler.AIRE) return 0;
+        for (String t : tokens.array()) {
+            Matcher m = HEATPIPE_HDP.matcher(t);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+        }
+        for (String t : tokens.array()) {
+            Matcher m = HEATPIPE_H.matcher(t);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+        }
+        Matcher m = HEATPIPE_PALABRA.matcher(tokens.padded());
+        if (m.find()) return Integer.parseInt(m.group(1));
+        return 0;
+    }
+
+    /** Frase espaciada, bounded por los espacios que ya trae {@link Tokens#padded()}. */
+    private static boolean contieneFrase(Tokens tokens, String[] frases) {
+        String p = tokens.padded();
+        for (String f : frases) if (p.contains(" " + f + " ")) return true;
+        return false;
+    }
+
+    /** Sub-frase con guión propio ("se-214"): el guión ya es un separador real, ver el comentario de arriba. */
+    private static boolean contieneSubfrase(Tokens tokens, String[] subfrases) {
+        String o = " " + tokens.original();
+        for (String f : subfrases) if (o.contains(f)) return true;
+        return false;
     }
 }

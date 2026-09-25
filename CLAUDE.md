@@ -258,7 +258,7 @@ de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md)
 ## Base de datos PostgreSQL
 
 📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V36` + las dos `R__`,
+esquema tabla por tabla, qué hizo cada migración `V1`..`V39` + las dos `R__`,
 semántica del upsert, estado de normalización, decisiones con su porqué y el
 SQL de rollback que ejecutan los tests.
 
@@ -333,7 +333,7 @@ rechazo: mostraba "Aplicando..." tres segundos indistinguibles del camino feliz,
 así que un guard correcto se veía como un no-op silencioso.
 
 **Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
-103 valores en `richer-category-taxonomy` y a **105** en `V32`, y vive en DOS
+103 valores en `richer-category-taxonomy`, a **105** en `V32` y a **106** en `V38` (`Mini PC`), y vive en DOS
 lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la
 tabla `categoria`. Dar de alta una categoría son **dos** cambios: el keyword que
 la produce y la migración que la inserta. Si falta la migración, la FK rechaza
@@ -504,7 +504,7 @@ sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
 
 ---
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 9
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 10
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
@@ -680,6 +680,28 @@ que el bracket y el service de la fase 8:
   del eje, el producto se hunde solo y sigue siendo elegible como último
   recurso. `externo`/`externa` sola cubre las 18; `portable`/`portatil` no suma
   ninguna por su cuenta y por eso no entra al vocabulario.
+
+**Fase 10** agrega el perfil **homelab** con hardware de consumo, y una
+categoría `Mini PC` — pedido del usuario (2026-09-24). Diseño y medición en
+[`odd/tasks/pc-builder-homelab.md`](./odd/tasks/pc-builder-homelab.md).
+
+| | |
+|---|---|
+| **`Uso` es un eje aparte de `Gama`** | `uso=gaming\|homelab` (dueño `UsoWire`), default gaming. Homelab cambia slots y ejes, no las reglas: `almacenamiento` se parte en `sistema` (el eje de siempre) + `datos` (capacidad desc, tecnología abstenida última), la RAM rankea por capacidad primero, cuotas propias. Persistido normalizado: lookup `uso` + FK en `preferencia_armador` (`V39`) |
+| **Modo mini PC** | `uso=homelab` + `tamanioGabinete=mini` arma sólo `minipc` + `datos` |
+| ⚠️ **No hay hardware de servidor en el catálogo** | Medido (2026-09-24, 6792 filas): 0 ECC, 0 EPYC, 1 Xeon sin mother, 0 rack. El tope "megaservidor" no se puede armar con estas tiendas |
+| **Sin presupuesto, el desempate por precio es DESC** (T18) | Adentro de un mismo escalón técnico gana el más caro — decisión del usuario, sólo sin presupuesto, en todos los slots. Con presupuesto sigue asc |
+| ⚠️ **Por eso los combos se filtran** | Con el desempate desc, `"Kit Mother ... + Procesador ..."` y `"Mini PC ... + Monitor"` ganaban por caros (y el CPU se compraba dos veces). `PcBuilder.esCombo` (`combo` o `+ <otro componente>`) los saca del pool, soft: sólo entran si son lo único del slot. `80 + Gold` y `+ Wraith Cooler` no son combos |
+| **La mother elige plataforma con CPU** (T13) | Con gama pedida, sólo mothers cuyo socket tiene algún CPU elegible de esa gama. Gama BAJA salía `cpu` en `sinCompatible` en todo presupuesto (A620M AM5 contra i3/Athlon AM4/LGA1700) |
+| **Socket derivado de la familia** | Athlon G de escritorio → `AM4`, Xeon E5 v3/v4 → `LGA2011-3`, sólo sin socket explícito. Ganaban por el fallback "el más barato" sobre una AM5 |
+| **Cooler de aire con eje** (T16) | `ClaseDisipador` (doble torre > torre > desconocida) → heatpipes. Antes los 85 AIRE empataban y ganaba siempre el `Raptor Cryo` de $18.400. No se persiste (precedente `nivel`) |
+| ⚠️ **`1.92TB` se leía 92 TB** | El tokenizer corta en el punto. `AlmacenamientoSpecsReader` lee TB decimales aparte |
+
+Limpieza de taxonomía que salió de armar de verdad: mini PCs fuera de `CPU`
+(sustantivo líder `mini pc`/`nuc`/`brix`/`cubi`), `memoria` líder con token DDR
+gana antes que la marca de CPU (35 RAM "AMD EXPO / Intel XMP" vivían en `CPU`),
+thermal pad → `Cooler`, y RAM/SSD "c/disipador", joystick, auricular y
+controladora fuera de `Cooler`.
 
 **El total estimado de `/pcs` va en pesos y en dólares**, con la cotización del
 **mismo servicio que el badge del header** (`GET /api/indices` → `usd.ultimoValor`,

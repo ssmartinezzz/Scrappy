@@ -1,5 +1,6 @@
 package ar.scraper.pcs.specs;
 
+import ar.scraper.pcs.EjesTecnicos;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
 import org.junit.jupiter.api.DisplayName;
@@ -166,5 +167,47 @@ class AlmacenamientoSpecsReaderTest {
                 .isEqualTo(TipoAlmacenamiento.NVME);
         assertThat(leer("Disco Duro 2TB Seagate Barracuda 7200rpm").tipoAlmacenamiento())
                 .isEqualTo(TipoAlmacenamiento.HDD);
+    }
+
+    // ── capacidad decimal en TB: el punto se pierde al tokenizar (T10) ───
+
+    @Test
+    void capacidadDecimalEnTbSeLeeCorrectamente() {
+        // "1.92TB" tokeniza a "1"+"92tb" — el patrón de un solo token leía
+        // "92tb" como 92 TB (94208 GB) en vez de 1.92 TB (1966 GB). El punto
+        // se pierde en Tokens.array(), así que se recompone desde
+        // Tokens.original(), que todavía lo tiene.
+        assertThat(leer("HD SSD 1.92TB KINGSTON DC600M SATA III 2.5\" P/SERVIDOR SEDC600M/1920G")
+                .capacidadGb()).isEqualTo(1966); // 1.92 * 1024 = 1966.08 -> redondeado
+
+        assertThat(leer("SSD Kingston DC600M 3.84TB Enterprise SATA III").capacidadGb())
+                .isEqualTo(3932); // 3.84 * 1024 = 3932.16
+
+        assertThat(leer("SSD Kingston DC600M 7.68TB Enterprise SATA III").capacidadGb())
+                .isEqualTo(7864); // 7.68 * 1024 = 7864.32
+    }
+
+    @Test
+    void capacidadEnteraNoSeVeAfectadaPorElFixDecimal() {
+        assertThat(leer("HD SSD 1TB Kingston").capacidadGb()).isEqualTo(1024);
+        assertThat(leer("HD HDD 4TB WD BLUE SATA III 3.5\"").capacidadGb()).isEqualTo(4096);
+        assertThat(leer("Disco Ssd M.2 Hiksemi 512GB Sata").capacidadGb()).isEqualTo(512);
+        assertThat(leer("Disco Ssd M.2 Hiksemi 1024gb Future Lite Ar Pcie 4.0 7000 Mb/s")
+                .capacidadGb()).isEqualTo(1024); // "4.0" no es una capacidad: no termina en tb/gb
+    }
+
+    // ── T11: un externo no le gana el eje `datos` a un interno conocido ──
+
+    @Test
+    void unSsdInternoDe512gbLeGanaAUnExternoDe1tbEnElEjeDatos() {
+        // Nombres reales medidos en T8 (dev DB): el externo (1TB = 1024GB)
+        // tiene MÁS capacidad cruda que el SSD interno (512GB), y ganaba el
+        // slot "datos" porque la capacidad corría antes que la tecnología en
+        // EjesTecnicos.ALMACENAMIENTO_DATOS. D13 exige abstención última,
+        // sin importar cuánta capacidad declare.
+        TechSpecs ssdInterno = leer("HD SSD 512GB LEXAR NQ100 SATA III 2.5\"");
+        TechSpecs externo = leer("Disco Duro Externo 1Tb Seagate Portable Drive");
+
+        assertThat(EjesTecnicos.ALMACENAMIENTO_DATOS.compare(ssdInterno, externo)).isLessThan(0);
     }
 }

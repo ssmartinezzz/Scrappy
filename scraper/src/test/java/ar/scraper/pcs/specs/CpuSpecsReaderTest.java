@@ -142,6 +142,76 @@ class CpuSpecsReaderTest {
         assertThat(t.gama()).isEqualTo(Gama.MEDIA);
     }
 
+    // ── socket derivado: Athlon G/GE de escritorio -> AM4 (T12, pc-builder-homelab) ─
+
+    @Test
+    void athlon3000gSinSocketExplicitoSeDerivaAAm4() {
+        // Único CPU de escritorio activo sin socket legible en la dev DB
+        // (medido, 421 filas CPU / 38 sin socket): sin este fix, perdía el
+        // veto de ReglaSocket y se armaba sobre una mother AM5.
+        assertThat(leer("Outlet Procesador Amd Athlon 3000g").socket()).isEqualTo("AM4");
+    }
+
+    @Test
+    void athlonGeDeEscritorioSeDerivaAAm4() {
+        assertThat(leer("Procesador AMD Athlon 200GE").socket()).isEqualTo("AM4");
+        assertThat(leer("Procesador AMD Athlon 220GE").socket()).isEqualTo("AM4");
+        assertThat(leer("Procesador AMD Athlon 240GE").socket()).isEqualTo("AM4");
+        assertThat(leer("Procesador AMD Athlon 300GE").socket()).isEqualTo("AM4");
+        assertThat(leer("Procesador AMD Athlon 320GE").socket()).isEqualTo("AM4");
+    }
+
+    @Test
+    void unSocketExplicitoLeGanaALaDerivacionDeAthlon() {
+        // Un socket explícito en el nombre siempre manda, aunque el modelo
+        // esté en la lista derivada.
+        assertThat(leer("Procesador AMD Athlon 3000G AM4").socket()).isEqualTo("AM4");
+    }
+
+    @Test
+    void athlonMovilNoSeDerivaSocket() {
+        // Athlon Silver/Gold móvil (sufijo "U", sin "G"/"GE" de escritorio)
+        // no tiene evidencia medida de socket — abstiene, no se inventa.
+        assertThat(leer("Notebook Amd Athlon Silver 3050U").socket()).isEmpty();
+    }
+
+    @Test
+    void xeonNoSeDerivaSocket() {
+        // Xeon es de servidor, fuera de la escala de escritorio (ver
+        // xeonEsDesconocida) — tampoco se le deriva socket. Este modelo no
+        // trae "v3"/"v4": la derivación de T17 (ver más abajo) no lo alcanza.
+        assertThat(leer("Procesador Intel Xeon E5-2670").socket()).isEmpty();
+    }
+
+    // ── socket derivado: Xeon E5 v3/v4 -> LGA2011-3 (T17, pc-builder-homelab) ─
+
+    @Test
+    void xeonE5V3SinSocketExplicitoSeDerivaALga20113() {
+        // Nombre real medido (T17, dev DB): sin esto, ReglaSocket abstiene y
+        // el Xeon gana el slot cpu de cualquier mother por ser el fallback
+        // "el más barato" — mismo defecto que el Athlon 3000G de T12.
+        assertThat(leer("Procesador Intel Xeon  E5-2699 V3 Oem").socket()).isEqualTo("LGA2011-3");
+    }
+
+    @Test
+    void xeonE5V4SinSocketExplicitoSeDerivaALga20113() {
+        assertThat(leer("Procesador Intel Xeon E5-2680 V4").socket()).isEqualTo("LGA2011-3");
+    }
+
+    @Test
+    void xeonE5SinV3NiV4NoSeDeriva() {
+        // Sin "v3"/"v4" no hay evidencia medida — sigue abstiniendo, como
+        // xeonNoSeDerivaSocket ya fija.
+        assertThat(leer("Procesador Intel Xeon E5-2670 V2").socket()).isEmpty();
+    }
+
+    @Test
+    void xeonSinE5NoSeDeriva() {
+        // Sólo la familia E5 tiene evidencia medida — un Xeon de otra
+        // familia (E3/E7/Silver/Gold/Platinum/W) sigue abstiniendo.
+        assertThat(leer("Procesador Intel Xeon Gold 6248 V3").socket()).isEmpty();
+    }
+
     // ── abstencion por campo: CPU llena socket + gama + marcaChip + generacion ─
 
     @Test

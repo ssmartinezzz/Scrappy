@@ -488,7 +488,23 @@ public class ApiController {
             @RequestParam(required = false) Integer capacidadMinimaGb,
             @RequestParam(defaultValue = "") String tamanioGabinete,
             @RequestParam(defaultValue = "") String tipoCooler,
-            @RequestParam(required = false) Integer wattsMinimos) {
+            @RequestParam(required = false) Integer wattsMinimos,
+            @RequestParam(defaultValue = "") String uso) {
+        return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama,
+                ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
+                capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso);
+    }
+
+    /**
+     * Backward-compatible 14-arg overload, sin mapping propio — la ruta la sigue
+     * sirviendo el método de arriba. Existe para que los call sites previos a
+     * {@code uso} (pc-builder-homelab T5) sigan compilando sin editarlos
+     * ({@code CODE-2}).
+     */
+    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos) {
         return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama,
                 ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
                 capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);

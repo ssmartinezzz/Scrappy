@@ -14,6 +14,8 @@ import ar.scraper.pcs.PreferenciasDeArmado;
 import ar.scraper.pcs.PreferenciasWire;
 import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.Uso;
+import ar.scraper.pcs.UsoWire;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
@@ -80,12 +82,29 @@ class PcsEndpoints {
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi,
             Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos) {
+        return builder(presupuesto, conGpu, excluir, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento,
+                ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, "");
+    }
+
+    /**
+     * pc-builder-homelab T5: {@code uso} is a wire word ("gaming"/"homelab"),
+     * blank/absent meaning {@link ar.scraper.pcs.Uso#GAMING} — the default,
+     * not "not requested" ({@link Uso} has no such state, see
+     * {@link UsoWire#parse}).
+     */
+    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos,
+            String uso) {
         Gama gamaPedida;
         PreferenciasDeArmado prefs;
+        Uso usoPedido;
         try {
             gamaPedida = GamaWire.parse(gama);
             prefs = PreferenciasWire.parse(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
                     capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);
+            usoPedido = UsoWire.parse(uso);
         } catch (IllegalArgumentException e) {
             ObjectNode resp = JsonNodeFactory.instance.objectNode();
             resp.put("ok", false);
@@ -103,7 +122,7 @@ class PcsEndpoints {
                         .filter(s -> !s.isBlank())
                         .collect(Collectors.toSet());
 
-        PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs);
+        PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido);
         return ResponseEntity.ok(PcBuildJson.toJson(build));
     }
 
@@ -120,6 +139,7 @@ class PcsEndpoints {
         Object gamaRaw = body.get("gama");
         Gama gama;
         PreferenciasDeArmado prefs;
+        Uso uso;
         try {
             gama = GamaWire.parse(gamaRaw != null ? String.valueOf(gamaRaw) : null);
             prefs = PreferenciasWire.parse(
@@ -127,6 +147,7 @@ class PcsEndpoints {
                     stringDe(body, "tipoAlmacenamiento"), booleanDe(body, "ramDual"), booleanDe(body, "wifi"),
                     enteroDe(body, "capacidadMinimaGb"), stringDe(body, "tamanioGabinete"),
                     stringDe(body, "tipoCooler"), enteroDe(body, "wattsMinimos"));
+            uso = UsoWire.parse(stringDe(body, "uso"));
         } catch (IllegalArgumentException e) {
             resp.put("ok", false);
             resp.put("mensaje", e.getMessage());
@@ -139,7 +160,7 @@ class PcsEndpoints {
         }
         Double presupuesto = body.get("presupuesto") != null ? asDouble(body.get("presupuesto")) : null;
         boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
-        PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu, prefs);
+        PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu, prefs, uso);
         preferenciaArmador.guardar(Sujeto.de(actorResolver), preferencia);
         return ResponseEntity.ok(preferenciaJson(preferencia));
     }
@@ -185,6 +206,7 @@ class PcsEndpoints {
         putNullableString(json, "tamanioGabinete", PreferenciasWire.wireTamanioGabinete(prefs.tamanioGabinete()));
         putNullableString(json, "tipoCooler", PreferenciasWire.wireTipoCooler(prefs.tipoCooler()));
         putNullableInt(json, "wattsMinimos", prefs.wattsMinimos());
+        json.put("uso", UsoWire.wire(p.uso()));
         return json;
     }
 
