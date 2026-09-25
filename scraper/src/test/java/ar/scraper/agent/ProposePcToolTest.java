@@ -190,6 +190,44 @@ class ProposePcToolTest {
         assertThat(result.isError()).isTrue();
     }
 
+    // ── uso (pc-builder-homelab T5) ────────────────────────────────────────
+
+    @Test
+    @DisplayName("uso=homelab arma sistema y datos en vez de un solo slot de almacenamiento")
+    void usoHomelabArmaSistemaYDatos() throws Exception {
+        List<Product> catalogo = new java.util.ArrayList<>(catalogoBase());
+        catalogo.add(producto("HDD Seagate Ironwolf 4TB NAS", 200_000, "Almacenamiento", "https://t/hdd"));
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogo), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("uso", "homelab"));
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(streamSlots(json)).contains("sistema", "datos").doesNotContain("almacenamiento");
+    }
+
+    @Test
+    @DisplayName("sin uso (o uso=gaming), sigue armando un solo slot de almacenamiento — default sin cambios")
+    void sinUsoSigueArmandoUnSoloSlotDeAlmacenamiento() throws Exception {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode());
+
+        assertThat(result.isError()).isFalse();
+        JsonNode json = MAPPER.readTree(result.content());
+        assertThat(streamSlots(json)).contains("almacenamiento").doesNotContain("sistema", "datos");
+    }
+
+    @Test
+    @DisplayName("uso inválido → is_error")
+    void invalidUsoIsError() {
+        ProposePcTool tool = new ProposePcTool(catalogoCon(catalogoBase()), recommendationService);
+
+        ToolResult result = tool.execute(MAPPER.createObjectNode().put("uso", "servidor"));
+
+        assertThat(result.isError()).isTrue();
+    }
+
     // ── preferencias técnicas (pc-builder-deep-taxonomy T5d) ──────────────
 
     @Test

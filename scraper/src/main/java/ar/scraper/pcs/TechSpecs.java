@@ -36,12 +36,15 @@ public record TechSpecs(
         TamanioGabinete tamanioGabinete, // Gabinete only; DESCONOCIDO = abstención. Eje DISTINTO de
                           // formFactor (D1, fase 9): el tamaño de torre es cuánto ocupa, el form
                           // factor es qué placa entra. El veto Gabinete ⊇ Mother sigue en formFactor.
-        int radiadorMm    // Cooler only; 0 = abstención. Sólo un token entero dígitos+mm cuenta.
+        int radiadorMm,   // Cooler only; 0 = abstención. Sólo un token entero dígitos+mm cuenta.
+        ClaseDisipador claseDisipador, // Cooler AIRE only; DESCONOCIDA = abstención (T16). No se
+                          // persiste en producto_tech_specs — mismo precedente que nivel (D7).
+        int heatpipes     // Cooler AIRE only; 0 = abstención (T16).
 ) {
     public static final TechSpecs EMPTY =
             new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
                     0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, 0,
-                    TamanioGabinete.DESCONOCIDO, 0);
+                    TamanioGabinete.DESCONOCIDO, 0, ClaseDisipador.DESCONOCIDA, 0);
 
     /**
      * Pre-{@code pc-builder-gama} shape, kept so callers that only ever read
@@ -142,5 +145,21 @@ public record TechSpecs(
         this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion,
                 velocidadMhz, tipoAlmacenamiento, socketsSoportados, marcaChip, generacion, tierChipset, modulos,
                 wifi, tipoCooler, nivel, TamanioGabinete.DESCONOCIDO, 0);
+    }
+
+    /**
+     * fase 9 shape (20 args, the record's canonical constructor before T16
+     * appended {@code claseDisipador}/{@code heatpipes}): kept so every
+     * existing reader and rule test keeps compiling untouched — refactor
+     * contract, CODE-2. The two new fields default to their abstention
+     * values, same as EMPTY.
+     */
+    public TechSpecs(String socket, String ddr, String formFactor, int watts, int capacidadGb, String tipoMemoria,
+            Gama gama, Certificacion certificacion, int velocidadMhz, TipoAlmacenamiento tipoAlmacenamiento,
+            List<String> socketsSoportados, String marcaChip, int generacion, int tierChipset, int modulos,
+            boolean wifi, TipoCooler tipoCooler, int nivel, TamanioGabinete tamanioGabinete, int radiadorMm) {
+        this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion,
+                velocidadMhz, tipoAlmacenamiento, socketsSoportados, marcaChip, generacion, tierChipset, modulos,
+                wifi, tipoCooler, nivel, tamanioGabinete, radiadorMm, ClaseDisipador.DESCONOCIDA, 0);
     }
 }

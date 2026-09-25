@@ -3,6 +3,8 @@ package ar.scraper.pcs;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("ContextoDeArmado — motherDdr derivation from the chosen board's socket")
@@ -181,5 +183,75 @@ class ContextoDeArmadoTest {
                 .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
 
         assertThat(contexto.preferencias()).isEqualTo(prefs);
+    }
+
+    // ── T13, pc-builder-homelab: socketsConCpuElegible ───────────────────
+
+    @Test
+    @DisplayName("inicial(wattsMin) alone means no platform restriction — empty set")
+    void inicialSinSocketsConCpuElegibleDejaVacio() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
+
+        assertThat(contexto.socketsConCpuElegible()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("inicial(wattsMin, gamaPedida, certMin, preferencias) alone also leaves it empty")
+    void inicialConPreferenciasSinSocketsDejaVacio() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD,
+                PreferenciasDeArmado.NINGUNA);
+
+        assertThat(contexto.socketsConCpuElegible()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("the 5-arg inicial carries socketsConCpuElegible through")
+    void inicialConSocketsLosExpone() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.BAJA, Certificacion.NINGUNA,
+                PreferenciasDeArmado.NINGUNA, Set.of("AM4", "LGA1700"));
+
+        assertThat(contexto.socketsConCpuElegible()).containsExactlyInAnyOrder("AM4", "LGA1700");
+    }
+
+    @Test
+    @DisplayName("conMother preserves socketsConCpuElegible across the mother transition")
+    void conMotherPreservaSocketsConCpuElegible() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.BAJA, Certificacion.NINGUNA,
+                PreferenciasDeArmado.NINGUNA, Set.of("AM4"))
+                .conMother(new TechSpecs("AM4", "", "MATX", 0, 0, ""));
+
+        assertThat(contexto.socketsConCpuElegible()).containsExactly("AM4");
+    }
+
+    // ── T18, pc-builder-homelab: sinPresupuesto (modo "top top") ─────────
+
+    @Test
+    @DisplayName("every pre-T18 inicial overload means sinPresupuesto=false — con presupuesto, byte a byte igual que antes")
+    void inicialSinArgumentoDeSinPresupuestoDaFalse() {
+        assertThat(ContextoDeArmado.inicial(450).sinPresupuesto()).isFalse();
+        assertThat(ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD).sinPresupuesto()).isFalse();
+        assertThat(ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD, PreferenciasDeArmado.NINGUNA)
+                .sinPresupuesto()).isFalse();
+        assertThat(ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD, PreferenciasDeArmado.NINGUNA,
+                Set.of()).sinPresupuesto()).isFalse();
+    }
+
+    @Test
+    @DisplayName("the 6-arg inicial carries sinPresupuesto through")
+    void inicialConSinPresupuestoLoExpone() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD,
+                PreferenciasDeArmado.NINGUNA, Set.of(), true);
+
+        assertThat(contexto.sinPresupuesto()).isTrue();
+    }
+
+    @Test
+    @DisplayName("conMother preserves sinPresupuesto across the mother transition")
+    void conMotherPreservaSinPresupuesto() {
+        ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD,
+                PreferenciasDeArmado.NINGUNA, Set.of(), true)
+                .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
+
+        assertThat(contexto.sinPresupuesto()).isTrue();
     }
 }

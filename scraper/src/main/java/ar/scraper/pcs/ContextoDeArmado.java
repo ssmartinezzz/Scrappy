@@ -1,5 +1,7 @@
 package ar.scraper.pcs;
 
+import java.util.Set;
+
 /**
  * What the build already decided while walking the slots: the chosen
  * motherboard's specs, its derived DDR generation, and the watts floor for
@@ -14,15 +16,20 @@ public final class ContextoDeArmado {
     private final Gama gamaPedida;
     private final Certificacion certificacionMinima;
     private final PreferenciasDeArmado preferencias;
+    private final Set<String> socketsConCpuElegible;
+    private final boolean sinPresupuesto;
 
     private ContextoDeArmado(TechSpecs motherSpecs, String motherDdr, int wattsMin,
-            Gama gamaPedida, Certificacion certificacionMinima, PreferenciasDeArmado preferencias) {
+            Gama gamaPedida, Certificacion certificacionMinima, PreferenciasDeArmado preferencias,
+            Set<String> socketsConCpuElegible, boolean sinPresupuesto) {
         this.motherSpecs = motherSpecs;
         this.motherDdr = motherDdr;
         this.wattsMin = wattsMin;
         this.gamaPedida = gamaPedida;
         this.certificacionMinima = certificacionMinima;
         this.preferencias = preferencias;
+        this.socketsConCpuElegible = socketsConCpuElegible;
+        this.sinPresupuesto = sinPresupuesto;
     }
 
     public static ContextoDeArmado inicial(int wattsMin) {
@@ -43,12 +50,44 @@ public final class ContextoDeArmado {
     /** T4a, pc-builder-deep-taxonomy: carries the caller's requested technical preferences (D1). */
     public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
             PreferenciasDeArmado preferencias) {
-        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima, preferencias);
+        return inicial(wattsMin, gamaPedida, certificacionMinima, preferencias, Set.of());
+    }
+
+    /**
+     * T13, pc-builder-homelab: {@code socketsConCpuElegible} is the set of
+     * platforms (sockets) whose CPU pool has at least one candidate matching
+     * {@code gamaPedida}/{@code preferencias.marcaCpu()} — computed once by
+     * {@code PcBuilder} before any slot is picked, since only it knows the
+     * CPU pool. Empty means "no restriction" (either nothing was computed,
+     * pre-T13 callers, or no platform qualified — the fallback {@link
+     * ar.scraper.pcs.reglas.ReglaPlataformaConCpu} relies on).
+     */
+    public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
+            PreferenciasDeArmado preferencias, Set<String> socketsConCpuElegible) {
+        return inicial(wattsMin, gamaPedida, certificacionMinima, preferencias, socketsConCpuElegible, false);
+    }
+
+    /**
+     * T18, pc-builder-homelab: {@code sinPresupuesto} es un hecho del
+     * LLAMADOR ({@code presupuesto <= 0} en {@link PcBuilder#armar}), no una
+     * abstención de parseo — por eso no tiene el molde null/vacío de
+     * {@code gamaPedida}/{@code socketsConCpuElegible}. {@code false} en
+     * todo overload previo preserva el comportamiento de siempre (desempate
+     * de precio ascendente); sólo con {@code true} {@link
+     * CriterioPorEjesTecnicos} invierte el desempate a descendente — "el
+     * modo top top" (D3/D4, fase 8) elige el mejor de cada slot, y entre dos
+     * candidatos empatados en el eje técnico el más caro es, a igualdad de
+     * todo lo demás, la mejor pieza disponible.
+     */
+    public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
+            PreferenciasDeArmado preferencias, Set<String> socketsConCpuElegible, boolean sinPresupuesto) {
+        return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima, preferencias,
+                socketsConCpuElegible, sinPresupuesto);
     }
 
     public ContextoDeArmado conMother(TechSpecs motherSpecs) {
         return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida,
-                certificacionMinima, preferencias);
+                certificacionMinima, preferencias, socketsConCpuElegible, sinPresupuesto);
     }
 
     public TechSpecs motherSpecs() {
@@ -75,6 +114,16 @@ public final class ContextoDeArmado {
     /** Never null — {@link PreferenciasDeArmado#NINGUNA} when nothing was requested (D1). */
     public PreferenciasDeArmado preferencias() {
         return preferencias;
+    }
+
+    /** Never null — empty means "no platform restriction" (D fallback, T13). */
+    public Set<String> socketsConCpuElegible() {
+        return socketsConCpuElegible;
+    }
+
+    /** T18: {@code presupuesto <= 0} en el llamador — "modo top top" (D3/D4, fase 8). */
+    public boolean sinPresupuesto() {
+        return sinPresupuesto;
     }
 
     /**

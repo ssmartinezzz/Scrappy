@@ -80,6 +80,7 @@ producto_tech_specs         -- Specs normalizadas por producto tech, url PK (V35
 marca_chip / chipset_tier / tipo_cooler
                              -- Lookups sembrados más para preferencia_armador/producto_tech_specs (V36)
 tamanio_gabinete            -- Lookup sembrado: MINI/MID/FULL, tamaño de torre (V37)
+uso                         -- Lookup sembrado: GAMING/HOMELAB (V39)
 ```
 
 ### Migraciones
@@ -122,6 +123,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V35` | `gama` (lookup sembrado) + `preferencia_armador`; `saved_pcs.gama_id`; seis lookups más + `producto_tech_specs` |
 | `V36` | `marca_chip`/`chipset_tier`/`tipo_cooler` (lookups sembrados) + columnas de preferencias en `preferencia_armador` y `producto_tech_specs` |
 | `V37` | `tamanio_gabinete` (lookup sembrado) + `radiador_mm` y las cuatro preferencias finas de la fase 9 |
+| `V38` | Categoría `Mini PC` (`categoria`, lookup) — fase 10 del armador |
+| `V39` | `uso` (lookup) + `preferencia_armador.uso_id` — perfil homelab, fase 10 |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -2716,3 +2719,108 @@ mientras `V37` siga aplicada. Por eso `V36RollbackRoundTripTest` ejecuta primero
 el bloque de `V37` y después el suyo: cada bloque sigue siendo dueño exactamente
 de sus propios objetos, en vez de que `V36` tenga que conocer columnas que no
 creó.
+
+## `V38` — categoría `Mini PC`, fase 10 del armador (homelab)
+
+Un solo `INSERT` a la tabla lookup de `V13`, misma forma que `V31`/`V32`: **no
+toca ningún CHECK ni ningún dominio cerrado**.
+
+**Por qué hace falta la migración y no alcanza con el código:** igual que en
+`V31`/`V32`, `productos.categoria` tiene FK a `categoria(nombre)` desde `V13`.
+Sin esta fila, todo mini PC que el clasificador mande a `Mini PC` viola la FK
+en el upsert — y como `ProductRepository` **se traga los errores SQL**, el
+síntoma sería `"0 nuevos"` en una corrida sana, no un error.
+`CategoriaLookupTableTest.laTablaYElCanonDeJavaNoPuedenDiverger` exige que esta
+tabla y `CategoryGroups.canonicalCategories()` sean el mismo conjunto.
+
+**De dónde salió: de contar, no de imaginar.** Medido sobre el catálogo vivo
+(dev DB, filas activas de `tecnologia`, 2026-09-24): 24 mini PCs, y **18 de
+ellos vivían en `CPU`** — `"Mini Pc Cx Amd Ryzen 7 6800H..."` tiene `" amd "`
+y caía en `KW_CPU`, la misma clase de bug que las PCs armadas de la fase 7
+(ver `CLAUDE.md`, "El sustantivo líder beats keyword order").
+
+**`Mini PC` es distinta de `PC`** (D1 de `odd/tasks/pc-builder-homelab.md`):
+las dos son un equipo completo, pero el armador homelab necesita elegirla como
+una pieza única (D6, el modo mini PC) — no compite por los mismos slots que
+una torre armada con componentes sueltos.
+
+### Rollback
+
+```sql
+-- >>> rollback:V38
+UPDATE productos SET categoria = 'CPU' WHERE categoria = 'Mini PC';
+DELETE FROM categoria_stats WHERE categoria = 'Mini PC';
+DELETE FROM categoria WHERE nombre = 'Mini PC';
+-- <<< rollback:V38
+```
+
+**El orden es obligatorio**, mismo motivo que `V31`/`V32`: `productos.categoria`
+(`V13`) y `categoria_stats.categoria` (`V16`) tienen FK a esta tabla. **El
+destino del `UPDATE` es `'CPU'` y no `'Otros'`**: antes de esta migración el
+clasificador mandaba estos productos a `CPU` (el bug que la migración corrige),
+así que revertir vuelve exactamente a ese estado, no a "sin clasificar".
+
+Igual que `V31`/`V32`, **este rollback no obliga a tocar ningún test ajeno**:
+`V38` no angosta ni ensancha un dominio cerrado.
+
+## `V39` — `uso` + `preferencia_armador.uso_id`, fase 10 del armador (homelab)
+
+Un lookup más, mismo molde que los diez de `V35`/`V36`/`V37`: `smallint`
+identity + `nombre` UNIQUE + un CHECK de dominio. Respalda el perfil de uso
+pedible del armador (D3/D7 en `odd/tasks/pc-builder-homelab.md`): `GAMING`
+(el armado de hoy, default) y `HOMELAB` (fase 10).
+
+```sql
+CREATE TABLE uso (
+    id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre text NOT NULL UNIQUE,
+    CONSTRAINT chk_uso_nombre_domain
+        CHECK (nombre IN ('GAMING', 'HOMELAB'))
+);
+INSERT INTO uso (nombre) VALUES ('GAMING'), ('HOMELAB');
+
+ALTER TABLE preferencia_armador
+    ADD COLUMN uso_id smallint REFERENCES uso(id);
+```
+
+**`uso` siembra las DOS filas — a diferencia de los diez lookups anteriores,
+que nunca siembran su centinela de abstención (D10, `V35`).** Acá `GAMING` NO
+es un centinela: es un valor pedible como cualquiera, con su propia fila
+normalizada, igual que las tres de `gama` (`ECONOMICA`/`MEDIA`/`ALTA`) o las
+dos de `tipo_cooler`. Guardar una fórmula tipo TEXT con CHECK repetido, o un
+booleano `es_homelab`, habría duplicado el mismo hecho en dos formas — el
+lookup + FK es la única representación (pedido explícito del usuario,
+2026-09-24, ver D7 en `odd/tasks/pc-builder-homelab.md`).
+
+`uso_id` es **NULLABLE**, y por una sola razón: toda fila de
+`preferencia_armador` guardada **antes** de esta migración no tiene ningún
+uso elegido — eso sí es abstención real ("nunca se pidió"), y NULL es lo que
+le corresponde por D10, nunca una fila sentinela inventada. Desde `V39` en
+adelante, `UsoMapeo` (en `db/`, mismo molde que `GamaMapeo`) **nunca vuelve a
+escribir NULL a propósito**: guardar `Uso.GAMING` busca la fila `'GAMING'`,
+guardar `Uso.HOMELAB` busca la fila `'HOMELAB'`. Al leer, NULL sigue
+interpretándose como `Uso.GAMING` — mismo default de siempre —, pero no
+porque `GAMING` viva ahí: porque "todavía no se guardó nada" y "se guardó
+gaming" son indistinguibles para quien arma hoy, y las dos deben comportarse
+igual.
+
+**1FN/3FN**: la tabla nueva no tiene grupo repetitivo, y `uso_id` depende de
+la clave completa de `preferencia_armador` (`id`), no de una parte ni de otro
+atributo no-clave — misma normalización que `gama` y los diez lookups
+anteriores: vocabulario cerrado en su propia tabla, referenciado por FK,
+nunca repetido como TEXT/CHECK ni duplicado como una columna derivada.
+
+### Rollback
+
+```sql
+-- >>> rollback:V39
+ALTER TABLE preferencia_armador
+    DROP COLUMN uso_id;
+DROP TABLE uso;
+-- <<< rollback:V39
+```
+
+El orden es obligatorio: `preferencia_armador.uso_id` referencia `uso`, así
+que se suelta antes que la tabla. Ninguna otra tabla referencia `uso`, así que
+no hace falta `CASCADE`. `V35`/`V36`/`V37` no se tocan: esta migración nunca
+agregó columnas a ningún objeto que ellas no hayan creado.

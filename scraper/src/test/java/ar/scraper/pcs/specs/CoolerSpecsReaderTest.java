@@ -1,5 +1,6 @@
 package ar.scraper.pcs.specs;
 
+import ar.scraper.pcs.ClaseDisipador;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoCooler;
 import org.junit.jupiter.api.DisplayName;
@@ -178,5 +179,96 @@ class CoolerSpecsReaderTest {
                 .isEqualTo(TipoCooler.AIRE);
         assertThat(leer("Cooler Master Hyper 212 Black Edition").tipoCooler())
                 .isEqualTo(TipoCooler.AIRE);
+    }
+
+    // ── T15, pc-builder-homelab: AIOs de ASUS sin "cooler" ni radiador "mm" ──
+
+    @Test
+    @DisplayName("T15: los AIO de ASUS con el token \"lc\" + un radiador sin \"mm\" son LIQUIDO")
+    void asusLcConRadiadorSinMmEsLiquido() {
+        assertThat(leer("Cooler CPU ASUS PRIME LC 240 ARGB").tipoCooler()).isEqualTo(TipoCooler.LIQUIDO);
+        assertThat(leer("ASUS TUF LC III 240").tipoCooler()).isEqualTo(TipoCooler.LIQUIDO);
+        assertThat(leer("ASUS ROG STRIX LC III 360").tipoCooler()).isEqualTo(TipoCooler.LIQUIDO);
+    }
+
+    @Test
+    @DisplayName("T15: la serie ROG Ryuo/Ryujin es LIQUIDO aunque el nombre no diga \"cooler\"")
+    void rogRyuoYRyujinSonLiquido() {
+        assertThat(leer("ROG RYUO 3 240").tipoCooler()).isEqualTo(TipoCooler.LIQUIDO);
+        assertThat(leer("ROG RYUJIN III 360").tipoCooler()).isEqualTo(TipoCooler.LIQUIDO);
+    }
+
+    @Test
+    @DisplayName("T15: esos mismos AIO de ASUS leen su radiador aunque el número no lleve \"mm\"")
+    void asusLeeElRadiadorSinSufijoMm() {
+        assertThat(leer("Cooler CPU ASUS PRIME LC 240 ARGB").radiadorMm()).isEqualTo(240);
+        assertThat(leer("ASUS TUF LC III 240").radiadorMm()).isEqualTo(240);
+        assertThat(leer("ASUS ROG STRIX LC III 360").radiadorMm()).isEqualTo(360);
+        assertThat(leer("ROG RYUO 3 240").radiadorMm()).isEqualTo(240);
+        assertThat(leer("ROG RYUJIN III 360").radiadorMm()).isEqualTo(360);
+    }
+
+    // ── T16, pc-builder-homelab: profundidad del eje AIRE ────────────────
+
+    @Test
+    @DisplayName("T16: clase doble torre — nombres reales medidos en la dev DB")
+    void claseDobleTorrePorSerieMedida() {
+        assertThat(leer("Cooler CPU Be Quiet! DARK ROCK PRO 5").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("Cooler CPU Be Quiet! DARK ROCK ELITE").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("Cooler CPU DeepCool ASSASSIN IV VC Vision Display").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("Cooler CPU ID-Cooling FROZN A620 PRO SE").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("Cooler CPU ID-Cooling FROZN A610 Black").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("CPU Cooler Cooler Master Hyper 612 APEX Black").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("CPU Cooler Cooler Master DT621 R1").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+        assertThat(leer("CPU Cooler Thermaltake ASTRIA 600 Lighting ARGB Black").claseDisipador())
+                .isEqualTo(ClaseDisipador.DOBLE_TORRE);
+    }
+
+    @Test
+    @DisplayName("T16: clase torre — nombres reales medidos en la dev DB")
+    void claseTorrePorSerieMedida() {
+        assertThat(leer("Cooler CPU ID-Cooling SE-214-XT").claseDisipador()).isEqualTo(ClaseDisipador.TORRE);
+        assertThat(leer("Cooler CPU ID-Cooling FROZN A410 Black").claseDisipador()).isEqualTo(ClaseDisipador.TORRE);
+        assertThat(leer("Cooler Cpu Thermaltake Pure Rock Black").claseDisipador()).isEqualTo(ClaseDisipador.TORRE);
+        assertThat(leer("Cooler CPU Be Quiet! DARK ROCK 5").claseDisipador()).isEqualTo(ClaseDisipador.TORRE);
+        assertThat(leer("CPU Cooler Thermaltake ASTRIA 400 ARGB Black").claseDisipador())
+                .isEqualTo(ClaseDisipador.TORRE);
+        assertThat(leer("Cpu Cooler Thermaltake UX500 Black ARGB").claseDisipador()).isEqualTo(ClaseDisipador.TORRE);
+        assertThat(leer("Cooler CPU Cooler Master Hyper 212 Black Edition").claseDisipador())
+                .isEqualTo(ClaseDisipador.TORRE);
+    }
+
+    @Test
+    @DisplayName("T16: sin señal de serie ni marcador explícito, la clase abstiene")
+    void claseAbstieneSinSenal() {
+        assertThat(leer("CPU Cooler Raptor Cryo RGB - 3P").claseDisipador()).isEqualTo(ClaseDisipador.DESCONOCIDA);
+    }
+
+    @Test
+    @DisplayName("T16: un cooler líquido nunca tiene clase de disipador de aire")
+    void unLiquidoNoTieneClaseDeAire() {
+        assertThat(leer("CPU Water Cooler Lovingcool 240mm AK-B240-03 - ARGB - Black").claseDisipador())
+                .isEqualTo(ClaseDisipador.DESCONOCIDA);
+    }
+
+    @Test
+    @DisplayName("T16: heatpipes — \"NHdp\"/\"Nh\" y \"N heatpipes\", nombres reales")
+    void heatpipesSeLeenDelNombre() {
+        assertThat(leer("CPU Cooler Cooler Master Hyper 212 3HDP ARGB - Black").heatpipes()).isEqualTo(3);
+        assertThat(leer("Cooler Cpu Evolabs Cryo Pro 4h").heatpipes()).isEqualTo(4);
+        assertThat(leer("Cooler CPU Deepcool AK620 6 Heatpipes").heatpipes()).isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("T16: sin ninguna forma de heatpipe en el nombre, abstiene")
+    void heatpipesAbstieneSinSenal() {
+        assertThat(leer("CPU Cooler Raptor Cryo RGB - 3P").heatpipes()).isZero();
     }
 }

@@ -314,4 +314,51 @@ class ApiControllerPcsBuilderTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/wifi");
     }
+
+    // ── uso (pc-builder-homelab T5) ─────────────────────────────────────
+
+    @Test
+    void usoHomelabArmaSistemaYDatos() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Motherboard ASUS TUF Gaming B850M-E WiFi AM5 DDR5", 250_000, "Motherboard", "https://t/mb"),
+                producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/cpu"),
+                producto("Memoria RAM Corsair Vengeance DDR5 64GB (2x32GB) 6000MHz", 180_000, "RAM", "https://t/ram"),
+                producto("Fuente Antec 750W 80 Plus Bronze ATX 3.1", 120_000, "Fuente", "https://t/fuente"),
+                producto("Gabinete Corsair 4000D ATX", 90_000, "Gabinete", "https://t/gabinete"),
+                producto("SSD Kingston NV2 1TB", 60_000, "Almacenamiento", "https://t/nvme"),
+                producto("HDD Seagate Ironwolf 4TB NAS", 200_000, "Almacenamiento", "https://t/hdd"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+                null, "", "", null, "homelab");
+        ObjectNode body = resp.getBody();
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        java.util.List<String> slots = new java.util.ArrayList<>();
+        body.get("picks").forEach(p -> slots.add(p.get("slot").asText()));
+        assertThat(slots).contains("sistema", "datos").doesNotContain("almacenamiento");
+    }
+
+    @Test
+    void usoAusenteSigueSiendoGaming() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("SSD Kingston NV2 1TB", 60_000, "Almacenamiento", "https://t/nvme"))));
+
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+                null, "", "", null, "");
+        ObjectNode body = resp.getBody();
+
+        java.util.List<String> slots = new java.util.ArrayList<>();
+        body.get("picks").forEach(p -> slots.add(p.get("slot").asText()));
+        assertThat(slots).contains("almacenamiento").doesNotContain("sistema", "datos");
+    }
+
+    @Test
+    void usoInvalidoReturns400WithOkFalse() {
+        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+                null, "", "", null, "servidor");
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(resp.getBody().get("mensaje").asText()).contains("uso");
+    }
 }
