@@ -17,7 +17,8 @@ public final class RamSpecsReader implements LectorDeSpecs {
     // acepte, y justamente por eso: sin leerla el reader abstiene, ReglaDdr no
     // veta, y la única DDR2 activa (una Kimota 2GB) ganaba el slot ram de un
     // armado con mother DDR5 por ser lo más barato del pool.
-    private static final Pattern DDR = Pattern.compile(" ddr([2345]) ");
+    // "dd+r": una fila real dice "Dddr4" y sin leerla ReglaDdr no la veta.
+    private static final Pattern DDR = Pattern.compile(" dd+r([2345]) ");
     private static final Pattern GB_STANDALONE = Pattern.compile("^(\\d+)gb$");
     private static final Pattern GB_MULTIPLIER = Pattern.compile("^(\\d+)x(\\d+)gb$");
 
