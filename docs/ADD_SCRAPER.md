@@ -179,6 +179,8 @@ Las tres piezas de arriba con `plataforma = 'vtex'`.
 
 `VtexPage` intenta primero la API Legacy (`/api/catalog_system/pub/products/search`), y si devuelve vacío, prueba la API IO (`/api/io/_v/api/intelligent-search/product_search/trade-policy/1`).
 
+La API Legacy responde HTTP 400 pasado `_from` ≈ 2550, así que `VtexPage` parte el catálogo por el árbol de `/api/catalog_system/pub/category/tree/3` (`fq=C:/106/108/`) hasta que cada parte entra en `VENTANA_LEGACY`, usando el total del header `resources`. Una hoja más grande que la ventana se crawlea hasta donde llega, con un WARN.
+
 ---
 
 ## Caso 4: Plataforma Vaypol/City (Rails SSR)
