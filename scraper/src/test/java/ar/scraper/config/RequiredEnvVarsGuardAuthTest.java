@@ -184,7 +184,7 @@ class RequiredEnvVarsGuardAuthTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static final Map<String, String> ENTORNO_COMPLETO = Map.of(
-            "DATABASE_URL", "jdbc:postgresql://192.0.2.1:5432/no-existe",
+            "DATABASE_URL", "jdbc:postgresql://127.0.0.1:1/no-existe",
             "DATABASE_USERNAME", "postgres",
             "DATABASE_PASSWORD", "postgres",
             "APP_CORS_ALLOWED_ORIGINS", "http://localhost:5173",
