@@ -3,6 +3,7 @@ package ar.scraper.aggregator.normalize;
 import org.springframework.stereotype.Component;
 
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Clasificador de categoría profunda post-scraping.
@@ -33,7 +34,7 @@ public class CategoryClassifier {
         if (!fromName.isEmpty()) return fromName;
 
         // Luego en la categoría cruda del sitio (limpia primero)
-        if (raw != null && !raw.isBlank()) {
+        if (StringUtils.isNotBlank(raw)) {
             String fromRaw = clasificar(raw);
             if (!fromRaw.isEmpty()) return fromRaw;
             // Si no matchea ningún keyword → limpiar la categoría cruda
@@ -97,7 +98,7 @@ public class CategoryClassifier {
     }
 
     private boolean tieneIndicadorPeso(String nombre) {
-        if (nombre == null || nombre.isBlank()) return false;
+        if (StringUtils.isBlank(nombre)) return false;
         return PESO_VOLUMEN.matcher(nombre.trim()).find();
     }
 
@@ -106,7 +107,7 @@ public class CategoryClassifier {
      * El orden de evaluación determina el resultado cuando hay ambigüedad.
      */
     private String clasificar(String texto) {
-        if (texto == null || texto.isBlank()) return "";
+        if (StringUtils.isBlank(texto)) return "";
         if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
         // Padding con espacios: permite matchear keywords cortas como "top" por
         // palabra completa (" top ") sin falsos positivos contra "laptop"/"desktop",
@@ -624,7 +625,7 @@ public class CategoryClassifier {
     }
 
     private String capitalize(String s) {
-        if (s == null || s.isBlank()) return s;
+        if (StringUtils.isBlank(s)) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase();
     }
 }

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Builds the {@link OutfitService.FeedbackModel} shared by the outfit builder
@@ -64,7 +65,7 @@ public final class FeedbackModels {
             Set<String> dismissCategorias, Set<String> allowedEstilos) {
         Map<String, Product> porUrl = new HashMap<>();
         for (Product p : productos) {
-            if (p.url() != null && !p.url().isBlank()) porUrl.put(p.url(), p);
+            if (StringUtils.isNotBlank(p.url())) porUrl.put(p.url(), p);
         }
 
         Map<String, Integer> boostLikeCount = new HashMap<>();
@@ -75,7 +76,7 @@ public final class FeedbackModels {
             if (allowedEstilos != null && !allowedEstilos.contains(row.estilo())) continue;
             if (!row.liked()) continue;
             String url = row.url();
-            if (url == null || url.isBlank()) continue;
+            if (StringUtils.isBlank(url)) continue;
             Product p = porUrl.get(url);
             if (p == null) continue; // delisted — skip silencioso
             String key = OutfitService.FeedbackModel.keyOf(p);
@@ -87,7 +88,7 @@ public final class FeedbackModels {
             if (allowedEstilos != null && !allowedEstilos.contains(row.estilo())) continue;
             if (row.liked()) continue;
             String url = row.url();
-            if (url == null || url.isBlank()) continue;
+            if (StringUtils.isBlank(url)) continue;
             Product p = porUrl.get(url);
             if (p == null) continue; // delisted — skip silencioso
             exclude.add(OutfitService.FeedbackModel.keyOf(p));

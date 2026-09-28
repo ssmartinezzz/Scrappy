@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * PC builder endpoint + saved PCs, same delegation shape as
@@ -115,7 +116,7 @@ class PcsEndpoints {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        Set<String> excluirUrls = (excluir == null || excluir.isBlank())
+        Set<String> excluirUrls = StringUtils.isBlank(excluir)
                 ? Set.of()
                 : Arrays.stream(excluir.split(","))
                         .map(String::strip)

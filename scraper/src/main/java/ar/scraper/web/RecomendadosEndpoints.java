@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * "Para ti" personalized feed.
@@ -100,7 +101,7 @@ class RecomendadosEndpoints {
         String g = p.genero() != null ? p.genero().trim() : "";
         if (g.isEmpty()) return true;
         if ("unisex".equalsIgnoreCase(g)) return true;
-        if (generoSolicitado == null || generoSolicitado.isBlank()) return true;
+        if (StringUtils.isBlank(generoSolicitado)) return true;
         if ("unisex".equalsIgnoreCase(generoSolicitado)) return true;
         return g.equalsIgnoreCase(generoSolicitado);
     }
@@ -115,7 +116,7 @@ class RecomendadosEndpoints {
         var feedback = FeedbackModels.build(feedbackRows, r.productos(), dismissCats);
 
         List<Product> candidatos = r.productos();
-        if (categoria != null && !categoria.isBlank()) {
+        if (StringUtils.isNotBlank(categoria)) {
             String c = categoria;
             candidatos = candidatos.stream()
                     .filter(p -> c.equalsIgnoreCase(p.categoria()))

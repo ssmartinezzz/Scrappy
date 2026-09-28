@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Properties;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Opt-in SMTP delivery, selected with {@code PASSWORD_RESET_CHANNEL=smtp}.
@@ -97,14 +98,14 @@ public class SmtpChannel implements PasswordResetChannel {
         impl.setPassword(password);
         Properties props = impl.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
-        props.put("mail.smtp.auth", String.valueOf(username != null && !username.isBlank()));
+        props.put("mail.smtp.auth", String.valueOf(StringUtils.isNotBlank(username)));
         props.put("mail.smtp.starttls.enable", "true");
         return impl;
     }
 
     /** {@code ana@example.com} → {@code a**@example.com}. Enough to debug, not enough to identify. */
     static String enmascarar(String direccion) {
-        if (direccion == null || direccion.isBlank()) {
+        if (StringUtils.isBlank(direccion)) {
             return "(vacío)";
         }
         int arroba = direccion.indexOf('@');

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Scraper para tiendas WooCommerce (WordPress + WooCommerce).
@@ -172,7 +173,7 @@ public class WooCommercePage extends BasePage {
      * Soporta: "ARS209 175", "$209.175,00", "209175", "ARS 209.175"
      */
     private Optional<Double> parsePrecioWC(String raw) {
-        if (raw == null || raw.isBlank()) return Optional.empty();
+        if (StringUtils.isBlank(raw)) return Optional.empty();
         // Quitar prefijo moneda (ARS, $, USD, etc.) y espacios
         String s = raw.replaceAll("[A-Za-z$€£]", "").trim();
         // Quitar espacios usados como separador de miles (formato ARS "209 175")

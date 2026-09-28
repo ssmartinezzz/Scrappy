@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Detecta la cantidad de unidades de un producto (packs/combos) a partir de
@@ -145,7 +146,7 @@ public class PackQuantityDetector {
      * cantidad fuera del tope sano) devuelve 1 (conservador).
      */
     public int detectar(String texto, String categoriaResuelta) {
-        if (texto == null || texto.isBlank()) return 1;
+        if (StringUtils.isBlank(texto)) return 1;
         if (NonTextileGuard.esClaramenteNoTextil(texto)) return 1;
 
         String t = " " + AccentStripper.strip(texto.toLowerCase()) + " ";

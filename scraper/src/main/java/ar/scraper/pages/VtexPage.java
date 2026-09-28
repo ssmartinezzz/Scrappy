@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Scraper para tiendas VTEX usando la API pública de catálogo.
@@ -128,7 +129,7 @@ public class VtexPage extends BasePage {
             try {
                 navigateTo(apiUrl);
                 String body = (String) page.evaluate("document.body.innerText");
-                if (body == null || body.isBlank() || !body.trim().startsWith("[")) break;
+                if (StringUtils.isBlank(body) || !body.trim().startsWith("[")) break;
                 JsonNode arr = MAPPER.readTree(body);
                 if (!arr.isArray() || arr.isEmpty()) break;
                 for (JsonNode prod : arr) fromVtex(prod, dom).ifPresent(result::add);
@@ -162,7 +163,7 @@ public class VtexPage extends BasePage {
             try {
                 navigateTo(apiUrl);
                 String body = (String) page.evaluate("document.body.innerText");
-                if (body == null || body.isBlank()) break;
+                if (StringUtils.isBlank(body)) break;
 
                 String trimmed = body.trim();
                 // La respuesta IO es {"products":[...],"pagination":{...}}

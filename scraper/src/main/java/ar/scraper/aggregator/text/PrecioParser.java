@@ -2,6 +2,7 @@ package ar.scraper.aggregator.text;
 
 import java.util.OptionalDouble;
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Único parser AR-locale de precio (DD2). El contrato arrancó como un port
@@ -62,7 +63,7 @@ public final class PrecioParser {
      * </ol>
      */
     public static OptionalDouble parse(String raw) {
-        if (raw == null || raw.isBlank()) return OptionalDouble.empty();
+        if (StringUtils.isBlank(raw)) return OptionalDouble.empty();
         if (PALABRAS_INVALIDAS.matcher(raw).find()) return OptionalDouble.empty();
 
         String s = NO_NUMERICO.matcher(raw).replaceAll("");

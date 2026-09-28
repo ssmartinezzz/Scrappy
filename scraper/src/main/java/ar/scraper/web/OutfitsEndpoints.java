@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Outfit builder surfaces (gym + budget-aware), the supplement builder, the
@@ -153,7 +154,7 @@ class OutfitsEndpoints {
         estilo = "casual".equalsIgnoreCase(estilo) ? "casual" : "gym";
 
         // Validate categorias
-        if (categorias == null || categorias.isBlank()) {
+        if (StringUtils.isBlank(categorias)) {
             err.put("error", "Missing required parameter: categorias");
             return ResponseEntity.badRequest().body(err);
         }
@@ -183,7 +184,7 @@ class OutfitsEndpoints {
         }
 
         // Parse excluir CSV → Set (temporary per-request exclusion, not persisted)
-        Set<String> excluirUrls = (excluir == null || excluir.isBlank())
+        Set<String> excluirUrls = StringUtils.isBlank(excluir)
                 ? Set.of()
                 : Arrays.stream(excluir.split(","))
                         .map(String::strip)
@@ -191,7 +192,7 @@ class OutfitsEndpoints {
                         .collect(Collectors.toSet());
 
         // Parse pin CSV → ordered list of URLs to lock into their sub-slots
-        List<String> pinUrls = (pin == null || pin.isBlank())
+        List<String> pinUrls = StringUtils.isBlank(pin)
                 ? List.of()
                 : Arrays.stream(pin.split(","))
                         .map(String::strip)
@@ -313,7 +314,7 @@ class OutfitsEndpoints {
      */
     ResponseEntity<Object> suplementosBuilder(String tipos, double presupuesto, String excluir) {
 
-        if (tipos == null || tipos.isBlank()) {
+        if (StringUtils.isBlank(tipos)) {
             ObjectNode err = JsonNodeFactory.instance.objectNode();
             err.put("error", "tipos is required");
             return ResponseEntity.badRequest().body(err);
@@ -333,7 +334,7 @@ class OutfitsEndpoints {
             return ResponseEntity.badRequest().body(err);
         }
 
-        Set<String> excluirUrls = (excluir == null || excluir.isBlank())
+        Set<String> excluirUrls = StringUtils.isBlank(excluir)
                 ? Set.of()
                 : Arrays.stream(excluir.split(","))
                         .map(String::strip)
@@ -459,7 +460,7 @@ class OutfitsEndpoints {
         ObjectNode resp = JsonNodeFactory.instance.objectNode();
         // Reset scoped por estilo: gym no borra casual ni la señal del feed ("catalog").
         feedback.limpiarOutfitFeedback(Sujeto.de(actorResolver),
-                (estilo == null || estilo.isBlank()) ? "gym" : estilo);
+                (StringUtils.isBlank(estilo)) ? "gym" : estilo);
         resp.put("ok", true);
         resp.put("mensaje", "Historial de feedback reseteado");
         return ResponseEntity.ok(resp);

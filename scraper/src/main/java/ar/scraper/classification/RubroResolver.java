@@ -1,5 +1,6 @@
 package ar.scraper.classification;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -67,7 +68,7 @@ public class RubroResolver {
             return "suplementos";
         } else if (catEsTextil) {
             return "indumentaria";
-        } else if (rubroExistente != null && !rubroExistente.isBlank()) {
+        } else if (StringUtils.isNotBlank(rubroExistente)) {
             return rubroExistente;
         } else {
             return "indumentaria";

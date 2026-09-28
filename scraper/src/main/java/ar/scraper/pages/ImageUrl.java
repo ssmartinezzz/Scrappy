@@ -1,5 +1,7 @@
 package ar.scraper.pages;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * One owner (CODE-6) for turning whatever a listing put in {@code src} into a
  * URL the dashboard and the zero-shot visual classifier can actually fetch.
@@ -32,7 +34,7 @@ final class ImageUrl {
         if (src.startsWith("//")) return "https:" + src;
 
         // Everything left is relative and needs an origin to mean anything.
-        if (baseUrl == null || baseUrl.isBlank()) return "";
+        if (StringUtils.isBlank(baseUrl)) return "";
         return baseUrl.replaceAll("/+$", "") + "/" + src.replaceAll("^/+", "");
     }
 }

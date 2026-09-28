@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 @Service
 public class ScraperService implements CatalogSnapshotPort {
@@ -318,7 +319,7 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     private static String noVacio(String nuevo, String anterior) {
-        return (nuevo != null && !nuevo.isBlank()) ? nuevo : anterior;
+        return StringUtils.isNotBlank(nuevo) ? nuevo : anterior;
     }
 
     /**
@@ -543,7 +544,7 @@ public class ScraperService implements CatalogSnapshotPort {
                 resultados.add(r);
 
                 int n = r.productos().size();
-                boolean tieneError = r.error() != null && !r.error().isBlank();
+                boolean tieneError = StringUtils.isNotBlank(r.error());
                 SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
 
                 int idx = idxMap.getOrDefault(r.sitio(), -1);
@@ -571,7 +572,7 @@ public class ScraperService implements CatalogSnapshotPort {
                             // catálogo entero: 23 barridos completos por corrida.
                             Set<String> urlsDelSitio = normalizados.stream()
                                     .map(Product::url)
-                                    .filter(u -> u != null && !u.isBlank())
+                                    .filter(u -> StringUtils.isNotBlank(u))
                                     .collect(Collectors.toSet());
                             synchronized (catalogLock) {
                                 lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
@@ -666,7 +667,7 @@ public class ScraperService implements CatalogSnapshotPort {
         long durMs = System.currentTimeMillis() - runStart;
 
         long conFoto = lastResult.productos().stream()
-                .filter(p -> p.imagenUrl() != null && !p.imagenUrl().isBlank()).count();
+                .filter(p -> StringUtils.isNotBlank(p.imagenUrl())).count();
         long sinFoto = lastResult.productos().size() - conFoto;
 
         RUN_LOG.info("────────────────────────────────────────────────────────");
@@ -674,13 +675,13 @@ public class ScraperService implements CatalogSnapshotPort {
                 lastResult.productos().size(), conFoto, sinFoto, formatDuracion(durMs));
 
         List<String> vacios = resultados.stream()
-                .filter(r -> r.productos().isEmpty() && (r.error() == null || r.error().isBlank()))
+                .filter(r -> r.productos().isEmpty() && StringUtils.isBlank(r.error()))
                 .map(ScrapeResult::sitio).toList();
         if (!vacios.isEmpty())
             RUN_LOG.info("[AVISO]   Sitios sin productos: {}", String.join(", ", vacios));
 
         List<String> conError = resultados.stream()
-                .filter(r -> r.error() != null && !r.error().isBlank())
+                .filter(r -> StringUtils.isNotBlank(r.error()))
                 .map(r -> r.sitio() + " (" + truncar(r.error(), 50) + ")").toList();
         if (!conError.isEmpty())
             RUN_LOG.info("[ERRORES] {}", String.join(" | ", conError));
@@ -712,7 +713,7 @@ public class ScraperService implements CatalogSnapshotPort {
 
             Set<String> urlsDelBatch = delBatch.productos().stream()
                     .map(Product::url)
-                    .filter(u -> u != null && !u.isBlank())
+                    .filter(u -> StringUtils.isNotBlank(u))
                     .collect(Collectors.toSet());
 
             AggregatedResult completo = aggregator.fromDBParcial(activos, lastResult, urlsDelBatch);
@@ -1036,9 +1037,9 @@ public class ScraperService implements CatalogSnapshotPort {
     private void logSitioResult(ScrapeResult r) {
         int n = r.productos().size();
         long ms = r.duracionMs();
-        boolean err = r.error() != null && !r.error().isBlank();
+        boolean err = StringUtils.isNotBlank(r.error());
         long conFoto = r.productos().stream()
-                .filter(p -> p.imagenUrl() != null && !p.imagenUrl().isBlank()).count();
+                .filter(p -> StringUtils.isNotBlank(p.imagenUrl())).count();
         String nombre = String.format("%-15s", r.sitio());
         String dur    = String.format("%.1fs", ms / 1000.0);
         if (err && n == 0)

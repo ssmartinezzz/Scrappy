@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Identity-key computation for {@link GroupingService}'s pre-grouping phase.
@@ -53,7 +54,7 @@ public class ProductIdentity {
     }
 
     private String normalizar(String s) {
-        if (s == null || s.isBlank()) return "";
+        if (StringUtils.isBlank(s)) return "";
         return AccentStripper.strip(s.toLowerCase()).trim();
     }
 }

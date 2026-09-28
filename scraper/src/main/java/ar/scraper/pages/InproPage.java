@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * INPRO ({@code inpro.ar}) — mobiliario de oficina.
@@ -179,7 +180,7 @@ public class InproPage extends BasePage {
     }
 
     private static List<String> extraer(Pattern p, String xml) {
-        if (xml == null || xml.isBlank()) return List.of();
+        if (StringUtils.isBlank(xml)) return List.of();
         Set<String> out = new java.util.TreeSet<>();
         Matcher m = p.matcher(xml);
         while (m.find()) out.add(m.group(1).trim());
@@ -252,7 +253,7 @@ public class InproPage extends BasePage {
 
     /** Concatena y desescapa todos los chunks de {@code self.__next_f}. */
     private static String desescaparChunks(String html) {
-        if (html == null || html.isBlank()) return "";
+        if (StringUtils.isBlank(html)) return "";
         StringBuilder sb = new StringBuilder();
         int from = 0;
         while (true) {

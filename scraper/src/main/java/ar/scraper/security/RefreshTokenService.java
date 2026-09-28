@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * The refresh-token state machine: mint, rotate, detect reuse, close.
@@ -150,7 +151,7 @@ public class RefreshTokenService {
      * forgiven by this flag; see {@link #nonceCoincide}.</p>
      */
     public Resultado rotar(String rawToken, String nonce, boolean bootstrapAdmitido) {
-        if (rawToken == null || rawToken.isBlank()) {
+        if (StringUtils.isBlank(rawToken)) {
             return new Rechazada("sin token");
         }
 
@@ -215,7 +216,7 @@ public class RefreshTokenService {
      * @return {@code false} when the token is unknown or the nonce does not match.
      */
     public boolean cerrar(String rawToken, String nonce) {
-        if (rawToken == null || rawToken.isBlank()) {
+        if (StringUtils.isBlank(rawToken)) {
             return false;
         }
         Optional<RefreshTokenRepository.Fila> quiza = repo.buscar(rawToken);
