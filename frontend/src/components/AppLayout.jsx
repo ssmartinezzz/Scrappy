@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
-import { useNavigate, Outlet, useOutletContext } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet, useOutletContext } from 'react-router-dom';
 import { readStatus } from '../lib/readStatus';
 import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
@@ -488,6 +488,7 @@ export default function AppLayout() {
   const pollingRef = useRef(null);
   const loadingRef = useRef(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const topbarRef = useRef(null);
   const tabbarRef  = useRef(null);
 
@@ -618,7 +619,18 @@ export default function AppLayout() {
   useEffect(() => {
     loadSavedOutfits();
     loadSavedPcs();
-    readStatus().then(st => {
+    // frontend-perf T5: RootGate already read /api/status once to decide this
+    // very navigation to /catalogo, and hands it here via router `state` — no
+    // reason to ask again. Consumed at most once: cleared via `replace` right
+    // away, so a later refresh (which the browser can replay against the SAME
+    // history entry, state and all) finds nothing handed and reads status
+    // itself, same as any direct /catalogo load.
+    const hasHandedStatus = location.state != null && 'status' in location.state;
+    if (hasHandedStatus) {
+      navigate(location.pathname + location.search + location.hash, { replace: true, state: null });
+    }
+    const statusPromise = hasHandedStatus ? Promise.resolve(location.state.status) : readStatus();
+    statusPromise.then(st => {
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
         loadFirstPage();
