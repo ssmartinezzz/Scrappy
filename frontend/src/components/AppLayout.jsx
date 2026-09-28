@@ -12,16 +12,20 @@ import SearchHero    from './SearchHero';
 import CatalogoFilterBar from './CatalogoFilterBar';
 import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
-import DetailPanel   from './DetailPanel';
 import RouteFallback from './RouteFallback';
 import GpuTrainingOverlay from './GpuTrainingOverlay';
-import AgentChatPanel from './AgentChatPanel';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 import { useInterruptedRun } from '../hooks/useInterruptedRun';
 import InterruptedRunBanner from './InterruptedRunBanner';
+
+// frontend-perf T3: DetailPanel pulls in @radix-ui/react-dialog, AgentChatPanel
+// pulls in framer-motion — neither belongs in the entry chunk, since both
+// mount conditionally (detail open / isAdmin) well after first paint.
+const DetailPanel    = lazy(() => import('./DetailPanel'));
+const AgentChatPanel = lazy(() => import('./AgentChatPanel'));
 
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
 const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
@@ -221,10 +225,20 @@ function CatalogoRoute() {
       })
     : S.prods;
 
-  async function handleDelete(prod) {
+  // useCallback here (dispatch/deleteProducto are stable) is what lets
+  // ProductCard's memo actually short-circuit — see ProductGrid.jsx:165 and
+  // odd/tasks/frontend-perf.md. A fresh arrow per render defeated it before.
+  const handleDelete = useCallback(async prod => {
     const ok = await deleteProducto(prod.url);
     if (ok) dispatch({ type: 'REMOVE_PROD', url: prod.url });
-  }
+  }, [dispatch]);
+
+  const handleOpenDetail = useCallback(
+    prod => dispatch({ type: 'OPEN_DETAIL', prod }), [dispatch]);
+  const handleToggleComparar = useCallback(
+    prod => dispatch({ type: 'TOGGLE_COMPARAR', prod }), [dispatch]);
+  const handleToggleFavorito = useCallback(
+    prod => dispatch({ type: 'TOGGLE_FAVORITO', prod }), [dispatch]);
 
   const gpuRunning = !!gpuTraining?.running;
 
@@ -274,9 +288,9 @@ function CatalogoRoute() {
         total={S.gymSubcatFiltro ? visibleProds.length : S.totalProds}
         comparar={S.comparar}
         favoritos={S.favoritos}
-        onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}
-        onToggleComparar={prod => dispatch({ type:'TOGGLE_COMPARAR', prod })}
-        onToggleFavorito={prod => dispatch({ type:'TOGGLE_FAVORITO', prod })}
+        onOpenDetail={handleOpenDetail}
+        onToggleComparar={handleToggleComparar}
+        onToggleFavorito={handleToggleFavorito}
         onLoadMore={loadNextPage}
         // frontend-auth-ui Phase 7 audit finding: DELETE /api/data is ADMIN
         // in ApiRoutePolicy.TABLE ("soft-deletes a catalogue product — shared
@@ -775,8 +789,10 @@ export default function AppLayout() {
       </div>
 
       {S.detailProd && (
-        <DetailPanel product={S.detailProd} catStats={S.catStats}
-                     onClose={() => dispatch({ type:'CLOSE_DETAIL' })}/>
+        <Suspense fallback={null}>
+          <DetailPanel product={S.detailProd} catStats={S.catStats}
+                       onClose={() => dispatch({ type:'CLOSE_DETAIL' })}/>
+        </Suspense>
       )}
       {S.comparar.length > 0 && (
         <CompareBar items={S.comparar}
@@ -796,7 +812,11 @@ export default function AppLayout() {
           survives navigation between views. frontend-auth-ui Phase 7 (design
           D6): /api/agent/** is wholly ADMIN in ApiRoutePolicy.TABLE, so the
           whole panel — not just its actions — is hidden for a VIEWER. */}
-      {isAdmin && <AgentChatPanel />}
+      {isAdmin && (
+        <Suspense fallback={null}>
+          <AgentChatPanel />
+        </Suspense>
+      )}
     </div>
   );
 }

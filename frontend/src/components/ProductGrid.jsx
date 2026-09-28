@@ -162,7 +162,7 @@ export default function ProductGrid({
             onOpenDetail={onOpenDetail}
             onToggleComparar={onToggleComparar}
             onToggleFavorito={onToggleFavorito}
-            onDelete={onDeleteProducto ? () => onDeleteProducto(p) : undefined}
+            onDelete={onDeleteProducto}
           />
         ))}
       </div>
