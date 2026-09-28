@@ -298,6 +298,11 @@ header `resources` dice el total real (7151 en Sporting), pero una sola consulta
 nunca pasa de ~2550. `VtexPage` parte por el árbol de categorías (`fq=C:`).
 Medido: 250 → 2540 → 7134.
 
+**Una página vacía a mitad de catálogo no es el fin:** Fullh4rd cortó en 623 de
+1918 por una página sin cards. Si el listado declara un total, sólo se termina
+después de pasarlo, y el orden se fija explícito (`sort=name_asc`): el default
+repite cards entre requests.
+
 **Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
 cada reader tenía su propia junta inline y cada una se quedaba en un punto
 distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
