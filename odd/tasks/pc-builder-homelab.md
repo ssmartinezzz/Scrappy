@@ -198,4 +198,4 @@ JAVA_HOME=/home/santiago/openjdk-24_linux-x64_bin/jdk-24 mvn -f scraper/pom.xml 
 - T18 destapó combos ganando por caros (`Kit Mother Z890 TAICHI + Ultra 9 285K`, `Mini PC + Monitor 22"`, `Combo Actualización i3 14100 8GB`) → T19. Tras T19: cero combos en los 40 armados.
 - Gama BAJA sin presupuesto: `Asus Prime H610M-K` + `Intel I3-14100`.
 - Suite backend `clean test`: 2931, 0 fallos, 7 skips preexistentes. RDD: off (global) → sin revisión nativa.
-- Sigue pendiente (anotado, no pedido): RAM `Dddr4` (typo) se monta sobre mother DDR5.
+- ~~Pendiente: RAM `Dddr4` sobre mother DDR5~~ → arreglado 2026-09-28 (`RamSpecsReader` acepta `dd+r`; suite 2932/0).

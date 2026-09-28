@@ -20,6 +20,13 @@ class RamSpecsReaderTest {
         assertThat(reader.categoria()).isEqualTo("RAM");
     }
 
+    // Typo de origen, medido (1 fila activa, 2026-09-28): sin leerla, ReglaDdr
+    // abstiene y esta DDR4 se montaba sobre una mother DDR5.
+    @Test
+    void ddrConUnaDeMasSeLeeIgual() {
+        assertThat(leer("Memoria Ram Corsair 8gb Dddr4 3200mhz Vengeance Lpx Black").ddr()).isEqualTo("DDR4");
+    }
+
     // ── forma "6000MHz" (un solo token) ──────────────────────────────────
 
     @Test
