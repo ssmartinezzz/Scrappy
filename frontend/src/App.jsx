@@ -45,6 +45,11 @@ const ApiDocsPanel = lazy(() => import('./components/ApiDocsPanel'));
 // /splash itself (explicit "re-scrape" navigation) never redirects — see SplashRoute.
 function RootGate() {
   const [gate, setGate] = useState('checking');
+  // frontend-perf T5: AppLayout used to call readStatus() again on its own
+  // mount to decide whether to start loadFirstPage/loadFacets/loadFavoritos —
+  // the exact fact this gate just read. Handed through router `state` on the
+  // toCatalogo Navigate below, and consumed at most once (see AppLayout).
+  const [status, setStatus] = useState(null);
 
   useEffect(() => {
     // `readStatus`, not `fetchStatus`: a backend that is not listening REJECTS,
@@ -53,12 +58,14 @@ function RootGate() {
     // is a catalogue, so it goes to splash, which already knows how to say the
     // backend is unreachable.
     readStatus().then(st => {
+      setStatus(st);
       setGate(st?.tieneData ? 'toCatalogo' : 'toSplash');
     });
   }, []);
 
   if (gate === 'checking') return <RouteFallback/>;
-  return <Navigate to={gate === 'toCatalogo' ? '/catalogo' : '/splash'} replace/>;
+  if (gate === 'toCatalogo') return <Navigate to="/catalogo" state={{ status }} replace/>;
+  return <Navigate to="/splash" replace/>;
 }
 
 // ─── SplashRoute ────────────────────────────────────────────────────────────
