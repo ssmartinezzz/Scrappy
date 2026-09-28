@@ -2,7 +2,7 @@ package ar.scraper.scrapers;
 
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
-import ar.scraper.pages.TechStorePage;
+import ar.scraper.pages.FullH4rdPage;
 import com.microsoft.playwright.Page;
 import java.util.List;
 
@@ -12,10 +12,9 @@ public class FullH4rdScraper extends BaseScraper {
     }
     @Override
     protected List<Product> scrape(Page page) {
-        return new TechStorePage(page, config.getTimeoutMs(),
+        return new FullH4rdPage(page, config.getTimeoutMs(),
                 sitio, baseUrl,
-                config.getPrecioMinimo(), config.getPrecioMaximo(),
-                TechStorePage.TechStoreType.FULLH4RD)
+                config.getPrecioMinimo(), config.getPrecioMaximo())
                 .scrapeAll();
     }
 }
