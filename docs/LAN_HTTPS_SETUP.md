@@ -25,7 +25,7 @@ celular por `http://192.0.2.10:5173` el login parece funcionar, y al recargar la
 sesión se perdió: el navegador descartó la cookie en silencio.
 
 Es la misma clase de bug que ya costó una vez en este repo (ver la sección de
-gotchas de [`CLAUDE.md`](../CLAUDE.md) sobre dev same-origin), así que la guía
+gotchas de [`GOTCHAS.md`](./GOTCHAS.md) sobre dev same-origin), así que la guía
 va directo al camino que funciona.
 
 ---
