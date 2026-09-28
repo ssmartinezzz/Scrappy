@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Reads of the {@code precio_historico} aggregate.
@@ -109,7 +110,7 @@ class HistorialRepository implements HistorialPort {
         if (urls == null || urls.isEmpty()) return result;
 
         List<String> validUrls = urls.stream()
-                .filter(u -> u != null && !u.isBlank())
+                .filter(u -> StringUtils.isNotBlank(u))
                 .distinct()
                 .toList();
         if (validUrls.isEmpty()) return result;

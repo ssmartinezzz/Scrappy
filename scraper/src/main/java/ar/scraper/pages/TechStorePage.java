@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Scraper genérico para tiendas de tecnología argentinas con plataformas custom.
@@ -375,7 +376,7 @@ public class TechStorePage extends BasePage {
      * </ul>
      */
     static MaximusPage parseMaximusPayload(String d) {
-        if (d == null || d.isBlank()) throw new MaximusPayloadException(prefixOf(d));
+        if (StringUtils.isBlank(d)) throw new MaximusPayloadException(prefixOf(d));
 
         JsonNode node;
         try {
@@ -462,7 +463,7 @@ public class TechStorePage extends BasePage {
             "CAT=(\\d+)", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     static List<Integer> extractMaximusCategoryIds(String navHtml) {
-        if (navHtml == null || navHtml.isBlank()) return List.of();
+        if (StringUtils.isBlank(navHtml)) return List.of();
         Set<Integer> ids = new LinkedHashSet<>();
         var m = MAXIMUS_CAT_LINK.matcher(navHtml);
         while (m.find()) {
@@ -650,7 +651,7 @@ public class TechStorePage extends BasePage {
      * the store builds its own links ({@code Tp-Link TG-3468} -> {@code Tp_Link_TG_3468}).
      */
     static String slugCompraGamer(String nombre) {
-        if (nombre == null || nombre.isBlank()) return "";
+        if (StringUtils.isBlank(nombre)) return "";
         String slug = CG_NO_ALFANUMERICO.matcher(nombre.trim()).replaceAll("_");
         return slug.replaceAll("^_+", "").replaceAll("_+$", "");
     }
@@ -702,7 +703,7 @@ public class TechStorePage extends BasePage {
     // ─── Price parser ─────────────────────────────────────────────────────
 
     static Optional<Double> parsePrecioTech(String raw) {
-        if (raw == null || raw.isBlank()) return Optional.empty();
+        if (StringUtils.isBlank(raw)) return Optional.empty();
         // Quitar todo excepto dígitos, puntos, comas
         String s = raw.replaceAll("[^0-9.,]", "").trim();
         if (s.isBlank()) return Optional.empty();

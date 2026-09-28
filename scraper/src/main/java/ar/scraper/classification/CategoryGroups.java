@@ -1,6 +1,7 @@
 package ar.scraper.classification;
 
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Canonical-category membership predicates.
@@ -149,7 +150,7 @@ public final class CategoryGroups {
 
     /** Categorías reconocidas como indumentaria o calzado (no suplemento/alimentos). */
     public static boolean esIndumentariaOCalzado(String cat) {
-        if (cat == null || cat.isBlank()) return false;
+        if (StringUtils.isBlank(cat)) return false;
         return esCalzado(cat) || INDUMENTARIA_O_CALZADO_EXTRA.contains(cat);
     }
 

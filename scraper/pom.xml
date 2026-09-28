@@ -86,6 +86,12 @@
             <version>5.9</version>
         </dependency>
 
+        <!-- Declarada: el código la usa directo; antes llegaba sólo transitiva vía opencsv -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
         <!-- JDBC + HikariCP (default pool in Spring Boot 3.2) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

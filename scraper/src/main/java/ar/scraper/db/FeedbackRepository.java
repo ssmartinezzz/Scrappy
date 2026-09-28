@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for taste signal: {@code outfit_feedback_item} (per-item likes and
@@ -60,7 +61,7 @@ class FeedbackRepository implements FeedbackPort {
             ps.setString(3, slot);
             ps.setString(4, url);
             ps.setBoolean(5, liked);
-            ps.setString(6, (estilo == null || estilo.isBlank()) ? "gym" : estilo);
+            ps.setString(6, StringUtils.isBlank(estilo) ? "gym" : estilo);
             ps.setObject(7, Timestamps.now());
             ps.executeUpdate();
         } catch (Exception e) {
@@ -89,7 +90,7 @@ class FeedbackRepository implements FeedbackPort {
                         rs.getString("slot"),
                         rs.getString("url"),
                         rs.getBoolean("liked"),
-                        (estilo == null || estilo.isBlank()) ? "gym" : estilo));
+                        (StringUtils.isBlank(estilo)) ? "gym" : estilo));
             }
             }
         } catch (Exception e) {
@@ -130,7 +131,7 @@ class FeedbackRepository implements FeedbackPort {
      */
     @Override
     public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
-        if (estilo == null || estilo.isBlank()) return;
+        if (StringUtils.isBlank(estilo)) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM outfit_feedback_item WHERE usuario_id=? AND estilo=?")) {
@@ -149,7 +150,7 @@ class FeedbackRepository implements FeedbackPort {
      */
     @Override
     public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
-        if (categoria == null || categoria.isBlank()) return;
+        if (StringUtils.isBlank(categoria)) return;
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -186,7 +187,7 @@ class FeedbackRepository implements FeedbackPort {
     /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
     @Override
     public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
-        if (categoria == null || categoria.isBlank()) return;
+        if (StringUtils.isBlank(categoria)) return;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM categoria_dismiss WHERE usuario_id=? AND categoria=?")) {

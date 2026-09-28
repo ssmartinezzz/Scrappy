@@ -1,6 +1,7 @@
 package ar.scraper.pcs;
 
 import ar.scraper.aggregator.text.AccentStripper;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Wire↔domain mapping for the {@code gama} value that travels over HTTP and
@@ -26,7 +27,7 @@ public final class GamaWire {
      * IllegalArgumentException} — callers map that to a 400.
      */
     public static Gama parse(String valorWire) {
-        if (valorWire == null || valorWire.isBlank()) return null;
+        if (StringUtils.isBlank(valorWire)) return null;
         String normalizado = AccentStripper.strip(valorWire.trim().toLowerCase());
         return switch (normalizado) {
             case "economica" -> Gama.BAJA;

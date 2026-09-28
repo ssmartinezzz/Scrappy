@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Value object representing a group of comparable products across sites.
@@ -39,7 +40,7 @@ public class ProductGroup {
 
         // Imagen: preferir la del producto más barato con imagen disponible
         this.img = productos.stream()
-                .filter(p -> p.imagenUrl() != null && !p.imagenUrl().isBlank())
+                .filter(p -> StringUtils.isNotBlank(p.imagenUrl()))
                 .findFirst()
                 .map(Product::imagenUrl).orElse("");
     }

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Scraper para Vaypol / SomosCity — plataforma Next.js SSR.
@@ -95,7 +96,7 @@ public class VaypolPage extends BasePage {
         }
         // Enriquecer imágenes faltantes via HttpClient paralelo (NO Playwright)
         long sinImg = result.stream()
-            .filter(p -> p.imagenUrl() == null || p.imagenUrl().isBlank()).count();
+            .filter(p -> StringUtils.isBlank(p.imagenUrl())).count();
         if (sinImg > 0) {
             log.info("[{}] {} sin imagen → enriching via HttpClient paralelo", sitio, sinImg);
             result = enricherImagenesHttp(result);
@@ -136,8 +137,8 @@ public class VaypolPage extends BasePage {
         var cntConnErr   = new java.util.concurrent.atomic.AtomicInteger(0);
 
         for (Product p : productos) {
-            if (p.imagenUrl() != null && !p.imagenUrl().isBlank()) continue;
-            if (p.url()      == null  ||  p.url().isBlank())       continue;
+            if (StringUtils.isNotBlank(p.imagenUrl())) continue;
+            if (StringUtils.isBlank(p.url())) continue;
 
             tasks.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
                 String img = fetchOgImageWithRetry(client, p.url(),
@@ -162,7 +163,7 @@ public class VaypolPage extends BasePage {
 
         return productos.stream().map(p -> {
             String img = imgMap.get(p.url());
-            if (img != null && !img.isBlank())
+            if (StringUtils.isNotBlank(img))
                 return new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
                         p.url(), img, p.categoria(), p.genero(), p.talles());
             return p;
@@ -241,7 +242,7 @@ public class VaypolPage extends BasePage {
      * Solo procesa los primeros 4KB donde está el <head>.
      */
     private String extraerOgImage(String html) {
-        if (html == null || html.isBlank()) return "";
+        if (StringUtils.isBlank(html)) return "";
         String head = html.substring(0, Math.min(html.length(), 5000));
         int ogIdx = head.indexOf("og:image");
         if (ogIdx < 0) return "";
@@ -268,7 +269,7 @@ public class VaypolPage extends BasePage {
                 "  return el ? el.textContent : null;" +
                 "})()"
             );
-            if (rawJson == null || rawJson.isBlank()) return List.of();
+            if (StringUtils.isBlank(rawJson)) return List.of();
 
             // Parsear __NEXT_DATA__ para productos
             JsonNode root = MAPPER.readTree(rawJson);
@@ -286,7 +287,7 @@ public class VaypolPage extends BasePage {
                 fromNextData(p, base).ifPresent(result::add);
             }
             log.info("[{}] __NEXT_DATA__ → {} productos, {} con imagen", sitio, result.size(),
-                    result.stream().filter(x -> x.imagenUrl() != null && !x.imagenUrl().isBlank()).count());
+                    result.stream().filter(x -> StringUtils.isNotBlank(x.imagenUrl())).count());
             return result;
 
         } catch (Exception e) {
@@ -457,7 +458,7 @@ public class VaypolPage extends BasePage {
             String raw = (String) page.evaluate(
                 "(function(){var el=document.getElementById('__NEXT_DATA__');" +
                 "return el?el.textContent:null;})()");
-            if (raw == null || raw.isBlank()) return Map.of();
+            if (StringUtils.isBlank(raw)) return Map.of();
 
             JsonNode items = MAPPER.readTree(raw)
                     .path("props").path("pageProps").path("initialReduxState")
@@ -514,7 +515,7 @@ public class VaypolPage extends BasePage {
                         url, img, "", genero, List.of()));
             }
             long conImg = result.stream()
-                    .filter(p -> p.imagenUrl() != null && !p.imagenUrl().isBlank()).count();
+                    .filter(p -> StringUtils.isNotBlank(p.imagenUrl())).count();
             log.debug("[{}] links → {} productos, {} con imagen", sitio, result.size(), conImg);
             return result;
         } catch (Exception e) {

@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.catalog.ProductJson;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 
 /**
@@ -67,12 +68,12 @@ class ComparadorEndpoints {
 
         // Filtrar y agrupar
         var filtered = r.productos().stream()
-            .filter(p -> q == null || q.isBlank()
+            .filter(p -> StringUtils.isBlank(q)
                 || p.nombre().toLowerCase().contains(q.toLowerCase())
                 || (p.marca() != null && p.marca().toLowerCase().contains(q.toLowerCase())))
-            .filter(p -> categoria == null || categoria.isBlank()
+            .filter(p -> StringUtils.isBlank(categoria)
                 || (p.categoria() != null && p.categoria().equalsIgnoreCase(categoria)))
-            .filter(p -> rubro == null || rubro.isBlank()
+            .filter(p -> StringUtils.isBlank(rubro)
                 || (p.rubro() != null && p.rubro().equalsIgnoreCase(rubro)))
             .collect(java.util.stream.Collectors.toList());
 
@@ -85,7 +86,7 @@ class ComparadorEndpoints {
         // sería siempre vacía. Post-filtrando, "?sitio=freres" responde lo que
         // el usuario quiere decir — las comparaciones donde freres participa.
         // Va antes de paginar para que `total` cuente lo filtrado.
-        if (sitio != null && !sitio.isBlank()) {
+        if (StringUtils.isNotBlank(sitio)) {
             grupos = grupos.stream()
                 .filter(g -> g.getProductos().stream()
                     .anyMatch(p -> p.sitio() != null && p.sitio().equalsIgnoreCase(sitio)))
@@ -180,7 +181,7 @@ class ComparadorEndpoints {
                 }
             }
             response.put("resultados", results);
-            if (url != null && !url.isBlank() && !results.isEmpty())
+            if (StringUtils.isNotBlank(url) && !results.isEmpty())
                 preciosExternos.guardarPreciosExternos(url, sitio, results);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -251,7 +252,7 @@ class ComparadorEndpoints {
         java.util.regex.Pattern.compile("\\s{2,}");
 
     private String limpiarQueryBusqueda(String nombre) {
-        if (nombre == null || nombre.isBlank()) return "";
+        if (StringUtils.isBlank(nombre)) return "";
         String q = nombre;
 
         // 1. Quitar talles alfabeticos sueltos (XL, XXL, S, M, L, etc.)

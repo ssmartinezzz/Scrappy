@@ -7,6 +7,7 @@ import ar.scraper.model.Product;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * The single row → {@link Product} mapping, shared by every read path
@@ -92,7 +93,7 @@ final class ProductRowMapper {
                 rs.getString("url"), rs.getString("imagen_url"),
                 rs.getString("categoria"), rs.getString("genero"),
                 talles, ml, marca != null ? marca : "",
-                rubro != null && !rubro.isBlank() ? rubro : "indumentaria",
+                StringUtils.isNotBlank(rubro) ? rubro : "indumentaria",
                 gymrat, marcaPremium, Product.SenalCompra.EMPTY,
                 Product.SenalFinanciacion.EMPTY, cantidadUnidades,
                 subCategoria != null ? subCategoria : "", visual);

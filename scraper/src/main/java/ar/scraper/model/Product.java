@@ -1,6 +1,7 @@
 package ar.scraper.model;
 
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 public record Product(
         String sitio,
@@ -156,7 +157,7 @@ public record Product(
          */
         public MlScore(int scoreP, String badge, boolean ofertaReal,
                        String tendencia, int pctilCategoria, double zScore, String segment) {
-            this(scoreP, (badge != null && !badge.isBlank()) ? List.of(badge) : List.of(),
+            this(scoreP, StringUtils.isNotBlank(badge) ? List.of(badge) : List.of(),
                  ofertaReal, tendencia, pctilCategoria, zScore, segment);
         }
 

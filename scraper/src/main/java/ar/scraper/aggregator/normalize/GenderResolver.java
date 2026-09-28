@@ -4,6 +4,7 @@ import ar.scraper.aggregator.text.AccentStripper;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Gender resolution with feminine-coded category override + infantil guard.
@@ -72,7 +73,7 @@ public class GenderResolver {
         if (combined.contains("wmns") || combined.contains("w ") ||
             combined.contains(" w)")) return "mujer";
 
-        if (raw != null && !raw.isBlank()) return raw.trim().toLowerCase();
+        if (StringUtils.isNotBlank(raw)) return raw.trim().toLowerCase();
 
         // Sin ninguna señal de género (ni nombre ni spec del sitio): Calza es,
         // en este catálogo, predominantemente de mujer (80 mujer vs. un puñado

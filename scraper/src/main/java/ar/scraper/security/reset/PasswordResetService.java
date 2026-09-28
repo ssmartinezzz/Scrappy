@@ -20,6 +20,7 @@ import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * "I forgot my password", from request to new password.
@@ -165,7 +166,7 @@ public class PasswordResetService {
      *         tell them apart either.
      */
     public boolean confirmar(String token, String nuevaPassword) {
-        if (token == null || token.isBlank() || nuevaPassword == null || nuevaPassword.length() < 8) {
+        if (StringUtils.isBlank(token) || nuevaPassword == null || nuevaPassword.length() < 8) {
             return false;
         }
         Instant ahora = reloj.instant();

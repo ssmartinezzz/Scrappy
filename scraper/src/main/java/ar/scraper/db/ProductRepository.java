@@ -29,6 +29,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for the product aggregate: the scrape write-path
@@ -183,7 +184,7 @@ class ProductRepository implements ProductPort {
             throws Exception {
         ArrayNode arr = MAPPER.createArrayNode();
         for (Product p : productos) {
-            if (p.url() == null || p.url().isBlank()) continue;
+            if (StringUtils.isBlank(p.url())) continue;
             ObjectNode row = arr.addObject();
             row.put("url", p.url());
             row.put("sitio", p.sitio());
@@ -265,8 +266,8 @@ class ProductRepository implements ProductPort {
                 while (rs.next()) {
                     String url   = rs.getString(1);
                     String sitio = rs.getString(2);
-                    if (url != null && !url.isBlank()) urls.add(url);
-                    if (sitio != null && !sitio.isBlank()) sitios.add(sitio);
+                    if (StringUtils.isNotBlank(url)) urls.add(url);
+                    if (StringUtils.isNotBlank(sitio)) sitios.add(sitio);
                 }
             }
         }
@@ -278,9 +279,9 @@ class ProductRepository implements ProductPort {
         Set<String> urls   = new LinkedHashSet<>();
         Set<String> sitios = new LinkedHashSet<>();
         for (Product p : productos) {
-            if (p.url() == null || p.url().isBlank()) continue;
+            if (StringUtils.isBlank(p.url())) continue;
             urls.add(p.url());
-            if (p.sitio() != null && !p.sitio().isBlank()) sitios.add(p.sitio());
+            if (StringUtils.isNotBlank(p.sitio())) sitios.add(p.sitio());
         }
         return new Alcance(urls, sitios);
     }
@@ -389,7 +390,7 @@ class ProductRepository implements ProductPort {
      */
     @Override
     public java.util.Optional<Product> obtenerProductoPorKey(String key) {
-        if (key == null || key.isBlank()) return java.util.Optional.empty();
+        if (StringUtils.isBlank(key)) return java.util.Optional.empty();
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT url FROM productos WHERE producto_key = ?")) {
@@ -550,7 +551,7 @@ class ProductRepository implements ProductPort {
             // devolvía false — el agente "confirmaba" un cambio que nunca ocurría.
             // isBlank() y no isEmpty(): " " tampoco es una fila de `marca`, así que
             // dejarla pasar sería el mismo choque por otra puerta.
-            if (marca == null || marca.isBlank()) ps.setNull(2, java.sql.Types.VARCHAR);
+            if (StringUtils.isBlank(marca)) ps.setNull(2, java.sql.Types.VARCHAR);
             else ps.setString(2, marca);
             ps.setString(3, genero != null ? genero : "");
             ps.setString(4, subCategoria != null ? subCategoria : "");
@@ -587,7 +588,7 @@ class ProductRepository implements ProductPort {
                 "INSERT INTO producto_talle (url, posicion, talle) VALUES (?,?,?)")) {
             short posicion = 1;
             for (String talle : talles) {
-                if (talle == null || talle.isBlank()) continue;
+                if (StringUtils.isBlank(talle)) continue;
                 ps.setString(1, url);
                 ps.setShort(2, posicion++);
                 ps.setString(3, talle);
@@ -679,7 +680,7 @@ class ProductRepository implements ProductPort {
                 try (PreparedStatement ps = c.prepareStatement(
                         "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
                     ps.setString(1, rubro != null ? rubro : "indumentaria");
-                    ps.setString(2, actor != null && !actor.isBlank() ? actor : "local");
+                    ps.setString(2, StringUtils.isNotBlank(actor) ? actor : "local");
                     ps.setObject(3, ahora);
                     ps.setString(4, url);
                     ps.executeUpdate();
@@ -700,7 +701,7 @@ class ProductRepository implements ProductPort {
                     ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
                     ps.setString(9, subCategoria != null ? subCategoria : "");
                     ps.setObject(10, ahora);
-                    ps.setString(11, actor != null && !actor.isBlank() ? actor : "local");
+                    ps.setString(11, StringUtils.isNotBlank(actor) ? actor : "local");
                     ps.executeUpdate();
                 }
                 c.commit();

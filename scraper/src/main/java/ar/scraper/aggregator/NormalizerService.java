@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 import static ar.scraper.classification.SiteClassification.sitioKey;
 
@@ -80,7 +81,7 @@ public class NormalizerService {
         String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre);
         String genero = genderResolver.resolver(p.genero(), nombre, cat);
         List<String> talles = sizeNormalizer.normalizar(p.talles());
-        String marca  = (p.marca() == null || p.marca().isBlank())
+        String marca  = StringUtils.isBlank(p.marca())
                         ? brandExtractor.extraer(nombre, p.sitio())
                         : p.marca();
 

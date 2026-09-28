@@ -1,5 +1,6 @@
 package ar.scraper.agent;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -30,5 +31,5 @@ public class AgentConfig {
     public String baseUrl()  { return baseUrl; }
     public String model()    { return model; }
     public String apiKey()   { return apiKey; }
-    public boolean hasApiKey() { return apiKey != null && !apiKey.isBlank(); }
+    public boolean hasApiKey() { return StringUtils.isNotBlank(apiKey); }
 }

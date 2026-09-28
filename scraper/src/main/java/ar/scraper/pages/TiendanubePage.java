@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 public class TiendanubePage extends BasePage {
 
@@ -85,7 +86,7 @@ public class TiendanubePage extends BasePage {
             result.addAll(api);
         } else {
             for (String cat : catalogoUrls()) {
-                if (cat == null || cat.isBlank()) continue;
+                if (StringUtils.isBlank(cat)) continue;
                 log.debug("[{}] catalogo -> {}", sitio, cat);
                 result.addAll(scrapeJs(cat));
             }
@@ -96,7 +97,7 @@ public class TiendanubePage extends BasePage {
         // sitio+nombre en ResultAggregator colapsa lo que también aparezca en
         // el catálogo principal, así que no genera duplicados.
         for (String extra : extraUrls) {
-            if (extra == null || extra.isBlank()) continue;
+            if (StringUtils.isBlank(extra)) continue;
             log.debug("[{}] coleccion extra -> {}", sitio, extra);
             result.addAll(scrapeJs(extra));
         }
@@ -111,11 +112,11 @@ public class TiendanubePage extends BasePage {
         try {
             navigateTo(homeUrl);
             String storeId = extractStoreId();
-            if (storeId == null || storeId.isBlank()) {
+            if (StringUtils.isBlank(storeId)) {
                 navigateTo(baseUrl);
                 storeId = extractStoreId();
             }
-            if (storeId == null || storeId.isBlank()) {
+            if (StringUtils.isBlank(storeId)) {
                 log.debug("[{}] Store ID no encontrado", sitio);
                 return result;
             }
@@ -626,7 +627,7 @@ public class TiendanubePage extends BasePage {
         try {
             String headNext = (String) page.evaluate(
                 "var l=document.querySelector('link[rel=next]');l?l.getAttribute('href'):null");
-            if (headNext != null && !headNext.isBlank())
+            if (StringUtils.isNotBlank(headNext))
                 return absoluteUrl(headNext, baseUrl);
         } catch (Exception ignored) {}
 

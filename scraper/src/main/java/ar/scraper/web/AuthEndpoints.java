@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Authentication endpoints: login, refresh, logout.
@@ -164,7 +165,7 @@ public class AuthEndpoints {
         String username = body == null ? null : body.get("username");
         String password = body == null ? null : body.get("password");
 
-        if (username == null || username.isBlank() || password == null || password.isEmpty()) {
+        if (StringUtils.isBlank(username) || StringUtils.isEmpty(password)) {
             // Still pay the verification cost: an empty body returning instantly
             // would be its own, smaller, oracle.
             hasher.verify("", hashSenuelo);

@@ -1,5 +1,7 @@
 package ar.scraper.pcs;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Wire↔domain mapping for {@code uso} ("gaming"/"homelab") — same molde as
  * {@link GamaWire} (CODE-6/DOC-1), shared by the builder endpoint, the
@@ -15,7 +17,7 @@ public final class UsoWire {
 
     /** Blank/null parses to {@link Uso#GAMING} (the default). Any other non-blank value throws. */
     public static Uso parse(String valorWire) {
-        if (valorWire == null || valorWire.isBlank()) return Uso.GAMING;
+        if (StringUtils.isBlank(valorWire)) return Uso.GAMING;
         return switch (valorWire.trim().toLowerCase()) {
             case "gaming" -> Uso.GAMING;
             case "homelab" -> Uso.HOMELAB;

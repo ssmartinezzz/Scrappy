@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.nio.file.*;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
 
 @Component
 public class PythonRunner {
@@ -1187,7 +1188,7 @@ public class PythonRunner {
     String detectarPython() {
         // 1. Prioridad: -DPYTHON_EXE pasado por el bat
         String sysPy = System.getProperty("PYTHON_EXE");
-        if (sysPy != null && !sysPy.isBlank() && new java.io.File(sysPy).exists()) return sysPy;
+        if (StringUtils.isNotBlank(sysPy) && new java.io.File(sysPy).exists()) return sysPy;
 
         // 2. Buscar python portable en _tools (relativo al working dir)
         String wd = System.getProperty("user.dir");
