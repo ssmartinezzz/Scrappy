@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
+import java.util.stream.Collectors;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -346,6 +347,8 @@ public class TiendanubePage extends BasePage {
         String url = startUrl;
         int pagina = 1;
         int paginasSinProductos = 0;
+        // Un server que ignora el parámetro de paginación sirve siempre la misma página.
+        Set<String> anterior = Set.of();
 
         while (url != null && pagina <= maxPaginas) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
@@ -360,10 +363,23 @@ public class TiendanubePage extends BasePage {
                     paginasSinProductos++;
                     if (paginasSinProductos >= 2) break; // 2 páginas vacías seguidas → fin
                 } else {
-                    paginasSinProductos = 0;
                     JsonNode arr = MAPPER.readTree(json);
+                    List<Product> pageProducts = new ArrayList<>();
+                    for (JsonNode n : arr) fromJs(n).ifPresent(pageProducts::add);
+
+                    List<String> urlsPagina = pageProducts.stream().map(Product::url).toList();
+                    if (repiteLaAnterior(urlsPagina, anterior)) {
+                        log.warn("[{}] JS p{}: misma página que p{} — el server ignora el "
+                                + "parámetro de paginación, se corta la colección",
+                                sitio, pagina, pagina - 1);
+                        break;
+                    }
+                    anterior = urlsPagina.stream().filter(StringUtils::isNotBlank)
+                            .collect(Collectors.toSet());
+
+                    paginasSinProductos = 0;
                     log.debug("[{}] JS: {} en p{}", sitio, arr.size(), pagina);
-                    for (JsonNode n : arr) fromJs(n).ifPresent(result::add);
+                    result.addAll(pageProducts);
                 }
             } catch (Exception e) {
                 // Error transitorio de Playwright (ej. TargetClosedError) en una
@@ -379,7 +395,7 @@ public class TiendanubePage extends BasePage {
             // no sobre baseUrl — así una colección extra pagina sobre su propia URL)
             String nextUrl = nextPageUrl(startUrl, pagina);
 
-            // Fallback: construir URL ?page=N / ?mpage=N si el DOM no tiene el link
+            // Fallback: construir URL ?page=N si el DOM no tiene el link
             if (nextUrl == null && pagina < maxPaginas) {
                 String candidata = urlPagina(startUrl, pagina + 1);
                 // Solo usar si es diferente a la actual (evitar loops)
@@ -603,16 +619,22 @@ public class TiendanubePage extends BasePage {
             "})()";
     }
     /**
+     * "Todo ya visto" no alcanza: con scroll infinito, p1 ya cargó p2 en el DOM. Una
+     * página vacía tampoco cuenta: eso lo cubre el contador de páginas vacías.
+     */
+    static boolean repiteLaAnterior(List<String> urlsDePagina, Set<String> anterior) {
+        Set<String> actual = urlsDePagina.stream()
+                .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+        return !actual.isEmpty() && actual.equals(anterior);
+    }
+
+    /**
      * Pure static helper — extracts the max page number from a list of rendered
      * hrefs and returns maxN+1 iff maxN > currentPage and maxN < 1000.
      * No browser dependency; fully unit-testable.
      */
     public static OptionalInt resolveNextPageFromHrefs(List<String> hrefs, int currentPage) {
-        // Reconoce tanto ?page=N como ?mpage=N (colecciones TN que paginan con
-        // mpage, ej. Harvey Willys /otras-temporadas1?mpage=3). El `m?` opcional
-        // va DESPUÉS del separador [?&] para no matchear "page" embebido en otra
-        // palabra: "?mpage=3" → separador '?', 'm' opcional, "page=3".
-        var pat = java.util.regex.Pattern.compile("[?&]m?page=(\\d+)");
+        var pat = java.util.regex.Pattern.compile("[?&]page=(\\d+)");
         int maxN = -1;
         for (String h : hrefs) {
             if (h == null) continue;
@@ -679,23 +701,19 @@ public class TiendanubePage extends BasePage {
     }
 
     /**
-     * Construye la URL de la pagina N a partir de la URL base. Soporta ?page=N,
-     * ?mpage=N, /p/N y /page/N. Preserva el param de paginación ya presente en la
-     * base: si la base usa {@code mpage=} (colecciones TN tipo Harvey
-     * /otras-temporadas1), incrementa {@code mpage}; si no, usa {@code page}.
+     * Construye la URL de la pagina N a partir de la URL base. Soporta
+     * ?page=N, /p/N y /page/N.
      *
      * <p>Static + package-private: sin dependencia del browser, unit-testeable
      * ({@code TiendanubePagePaginationTest}).</p>
      */
     static String urlPagina(String base, int n) {
         if (n <= 1) return base;
-        boolean usaMpage = base.matches(".*[?&]mpage=[0-9]+.*");
-        String param = usaMpage ? "mpage" : "page";
-        String b = base.replaceAll("[?&]m?page=[0-9]+", "")
+        String b = base.replaceAll("[?&]page=[0-9]+", "")
                        .replaceAll("/page/[0-9]+", "")
                        .replaceAll("/p/[0-9]+$", "")
                        .replaceAll("[?&]$", "");   // separador colgante tras strip
         String sep = b.contains("?") ? "&" : "?";
-        return b + sep + param + "=" + n;
+        return b + sep + "page=" + n;
     }
 }

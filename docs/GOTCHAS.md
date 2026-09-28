@@ -286,6 +286,13 @@ comillas internas como `&quot;` al serializar `document.documentElement.outerHTM
 atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
 entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
 
+**En Tiendanube, "todo lo de esta página ya lo vi" es lo normal, no un loop:**
+`scrollToBottom()` dispara el scroll infinito, así que el DOM de p1 ya trae
+p2..pk y `?page=2` no aporta nada nuevo. Un guard que cortaba ahí dejó
+foreverbstrd en 72 y Harvey en 108 (2026-09-28). Que el server ignore el
+parámetro se ve de otra forma: la página es **idéntica** a la anterior
+(`TiendanubePage.repiteLaAnterior`).
+
 **Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
 cada reader tenía su propia junta inline y cada una se quedaba en un punto
 distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
