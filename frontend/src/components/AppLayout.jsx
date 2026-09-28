@@ -1,5 +1,5 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
-import { useNavigate, Outlet, useOutletContext } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet, useOutletContext } from 'react-router-dom';
 import { readStatus } from '../lib/readStatus';
 import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
@@ -12,16 +12,20 @@ import SearchHero    from './SearchHero';
 import CatalogoFilterBar from './CatalogoFilterBar';
 import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
-import DetailPanel   from './DetailPanel';
 import RouteFallback from './RouteFallback';
 import GpuTrainingOverlay from './GpuTrainingOverlay';
-import AgentChatPanel from './AgentChatPanel';
 import { CompareBar }   from './CompareComponents';
 import { CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 import { useInterruptedRun } from '../hooks/useInterruptedRun';
 import InterruptedRunBanner from './InterruptedRunBanner';
+
+// frontend-perf T3: DetailPanel pulls in @radix-ui/react-dialog, AgentChatPanel
+// pulls in framer-motion — neither belongs in the entry chunk, since both
+// mount conditionally (detail open / isAdmin) well after first paint.
+const DetailPanel    = lazy(() => import('./DetailPanel'));
+const AgentChatPanel = lazy(() => import('./AgentChatPanel'));
 
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
 const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
@@ -221,10 +225,20 @@ function CatalogoRoute() {
       })
     : S.prods;
 
-  async function handleDelete(prod) {
+  // useCallback here (dispatch/deleteProducto are stable) is what lets
+  // ProductCard's memo actually short-circuit — see ProductGrid.jsx:165 and
+  // odd/tasks/frontend-perf.md. A fresh arrow per render defeated it before.
+  const handleDelete = useCallback(async prod => {
     const ok = await deleteProducto(prod.url);
     if (ok) dispatch({ type: 'REMOVE_PROD', url: prod.url });
-  }
+  }, [dispatch]);
+
+  const handleOpenDetail = useCallback(
+    prod => dispatch({ type: 'OPEN_DETAIL', prod }), [dispatch]);
+  const handleToggleComparar = useCallback(
+    prod => dispatch({ type: 'TOGGLE_COMPARAR', prod }), [dispatch]);
+  const handleToggleFavorito = useCallback(
+    prod => dispatch({ type: 'TOGGLE_FAVORITO', prod }), [dispatch]);
 
   const gpuRunning = !!gpuTraining?.running;
 
@@ -274,9 +288,9 @@ function CatalogoRoute() {
         total={S.gymSubcatFiltro ? visibleProds.length : S.totalProds}
         comparar={S.comparar}
         favoritos={S.favoritos}
-        onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}
-        onToggleComparar={prod => dispatch({ type:'TOGGLE_COMPARAR', prod })}
-        onToggleFavorito={prod => dispatch({ type:'TOGGLE_FAVORITO', prod })}
+        onOpenDetail={handleOpenDetail}
+        onToggleComparar={handleToggleComparar}
+        onToggleFavorito={handleToggleFavorito}
         onLoadMore={loadNextPage}
         // frontend-auth-ui Phase 7 audit finding: DELETE /api/data is ADMIN
         // in ApiRoutePolicy.TABLE ("soft-deletes a catalogue product — shared
@@ -474,6 +488,7 @@ export default function AppLayout() {
   const pollingRef = useRef(null);
   const loadingRef = useRef(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const topbarRef = useRef(null);
   const tabbarRef  = useRef(null);
 
@@ -604,7 +619,18 @@ export default function AppLayout() {
   useEffect(() => {
     loadSavedOutfits();
     loadSavedPcs();
-    readStatus().then(st => {
+    // frontend-perf T5: RootGate already read /api/status once to decide this
+    // very navigation to /catalogo, and hands it here via router `state` — no
+    // reason to ask again. Consumed at most once: cleared via `replace` right
+    // away, so a later refresh (which the browser can replay against the SAME
+    // history entry, state and all) finds nothing handed and reads status
+    // itself, same as any direct /catalogo load.
+    const hasHandedStatus = location.state != null && 'status' in location.state;
+    if (hasHandedStatus) {
+      navigate(location.pathname + location.search + location.hash, { replace: true, state: null });
+    }
+    const statusPromise = hasHandedStatus ? Promise.resolve(location.state.status) : readStatus();
+    statusPromise.then(st => {
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
         loadFirstPage();
@@ -775,8 +801,10 @@ export default function AppLayout() {
       </div>
 
       {S.detailProd && (
-        <DetailPanel product={S.detailProd} catStats={S.catStats}
-                     onClose={() => dispatch({ type:'CLOSE_DETAIL' })}/>
+        <Suspense fallback={null}>
+          <DetailPanel product={S.detailProd} catStats={S.catStats}
+                       onClose={() => dispatch({ type:'CLOSE_DETAIL' })}/>
+        </Suspense>
       )}
       {S.comparar.length > 0 && (
         <CompareBar items={S.comparar}
@@ -796,7 +824,11 @@ export default function AppLayout() {
           survives navigation between views. frontend-auth-ui Phase 7 (design
           D6): /api/agent/** is wholly ADMIN in ApiRoutePolicy.TABLE, so the
           whole panel — not just its actions — is hidden for a VIEWER. */}
-      {isAdmin && <AgentChatPanel />}
+      {isAdmin && (
+        <Suspense fallback={null}>
+          <AgentChatPanel />
+        </Suspense>
+      )}
     </div>
   );
 }

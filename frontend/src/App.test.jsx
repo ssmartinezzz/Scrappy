@@ -92,7 +92,8 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
     await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
     expect(screen.getByText('Cronjobs')).toBeInTheDocument();
     expect(screen.getByText(/nuevo scraping/i)).toBeInTheDocument();
-    expect(screen.getByTitle('Ask Agent')).toBeInTheDocument();
+    // AgentChatPanel is lazy: the FAB mounts one tick after the layout.
+    expect(await screen.findByTitle('Ask Agent')).toBeInTheDocument();
   });
 
   it('a VIEWER deep-linking to /cronjobs renders AccessDenied at that URL — never a redirect', async () => {
@@ -293,5 +294,53 @@ describe('App — catalog default order', () => {
       expect(dataCall).toBeDefined();
       expect(new URL(dataCall, 'http://x').searchParams.get('orden')).toBe('precio_desc');
     });
+  });
+});
+
+describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', () => {
+  it('a cold load of "/" with data present drops the AppLayout-side re-read of /api/status', async () => {
+    // RootGate already reads /api/status to decide toCatalogo vs toSplash.
+    // AppLayout used to read it again on mount to decide whether to load
+    // first page/facets/favoritos — two reads of the same fact on one visit.
+    // Topbar independently reads /api/status on mount too, for its own ML
+    // banner (unrelated concern, out of scope for T5) — so the floor here is
+    // 2 (RootGate + Topbar), not 1: RootGate(1) + AppLayout(1) + Topbar(1) = 3
+    // before the fix, RootGate(1) + Topbar(1) = 2 after.
+    global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
+
+    renderApp('/');
+
+    await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
+
+    const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
+    expect(statusCalls).toHaveLength(2);
+  });
+
+  it('a direct load of "/catalogo" (no handed status, e.g. a refresh) still reads status itself', async () => {
+    // No RootGate in this path, so nothing is handed — AppLayout's own read
+    // plus Topbar's independent one: unchanged before and after the fix.
+    global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
+
+    renderApp('/catalogo');
+
+    await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
+
+    const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
+    expect(statusCalls).toHaveLength(2);
+  });
+
+  it('the no-data path (splash) is unaffected: "/" still lands on splash reading status twice', async () => {
+    // RootGate(1) + SplashRoute's useScrapeStatusPolling mount read(1). That
+    // second read is the pre-existing "duplicate readStatus()" the task file's
+    // Scope section already lists as out of scope — T5 only touches the
+    // toCatalogo hand-off, so this path must stay exactly as it was.
+    global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: false });
+
+    renderApp('/');
+
+    expect(await screen.findByText(/iniciar scraping/i)).toBeInTheDocument();
+
+    const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
+    expect(statusCalls).toHaveLength(2);
   });
 });
