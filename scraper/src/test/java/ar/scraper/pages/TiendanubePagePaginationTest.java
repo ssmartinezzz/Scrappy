@@ -7,8 +7,10 @@ import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.OptionalInt;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -75,31 +77,23 @@ class TiendanubePagePaginationTest {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    // harvey-otras-temporadas — paginación con param `mpage` (colecciones
-    // TN que paginan con ?mpage=N en vez de ?page=N, ej. Harvey Willys
-    // /otras-temporadas1?mpage=3).
+    // fix-failing-site-scrapers, T3 — el caso especial `mpage` se elimina:
+    // existía sólo para Harvey /otras-temporadas1, y el sitio ignoraba el
+    // parámetro server-side (misma página 18 productos siempre). Harvey pasa
+    // a paginar por `?page=N`, que sí funciona ahí.
     // ══════════════════════════════════════════════════════════════════
 
-    // (f) hrefs mpage → el helper reconoce mpage= igual que page=
+    // Antes: el helper reconocía mpage= igual que page= (mpageHrefs_returnsNextPage,
+    // ahora eliminado). CODE-2: comportamiento distinto, declarado — mpage= ya
+    // no es un patrón de paginación válido.
     @Test
-    void mpageHrefs_returnsNextPage() {
+    void mpageHrefsYaNoSeReconocen() {
         List<String> hrefs = List.of("/otras-temporadas1?mpage=1", "/otras-temporadas1?mpage=2",
                 "/otras-temporadas1?mpage=3");
         Allure.parameter("hrefs", hrefs);
         Allure.parameter("currentPage", 1);
         OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 1);
-        assertThat(result).hasValue(4);
-    }
-
-    // (g) mpage= no debe confundirse: "mpage=2" contiene "page=2" pero el
-    // número extraído debe ser el de la paginación real (2), no romperse.
-    @Test
-    void mpageSinChocarConPage() {
-        List<String> hrefs = List.of("/coleccion?mpage=5");
-        Allure.parameter("hrefs", hrefs);
-        Allure.parameter("currentPage", 2);
-        OptionalInt result = TiendanubePage.resolveNextPageFromHrefs(hrefs, 2);
-        assertThat(result).hasValue(6);
+        assertThat(result).isEmpty();
     }
 
     // ── urlPagina: preserva el param de paginación de la base ──────────
@@ -121,18 +115,62 @@ class TiendanubePagePaginationTest {
     }
 
     @Test
-    void urlPaginaPreservaMpage() {
-        Allure.parameter("baseUrl", "https://x.com/otras-temporadas1?mpage=1");
-        Allure.parameter("targetPage", 2);
-        assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1?mpage=1", 2))
-                .isEqualTo("https://x.com/otras-temporadas1?mpage=2");
+    void urlPaginaPaginaUnoDevuelveBase() {
+        Allure.parameter("baseUrl", "https://x.com/otras-temporadas1/?page=1");
+        Allure.parameter("targetPage", 1);
+        assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1/?page=1", 1))
+                .isEqualTo("https://x.com/otras-temporadas1/?page=1");
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // fix-failing-site-scrapers, T3 — guardia de repetición: un server que
+    // ignora el parámetro de paginación (Harvey con `?mpage=N`, medido: los
+    // mismos 18 productos en cada página) no puede costar 60 page loads.
+    // ══════════════════════════════════════════════════════════════════
+
+    @Test
+    @DisplayName("una página con URLs nuevas no es repetida")
+    void repiteLaAnterior_paginaNuevaNoEsRepetida() {
+        Set<String> anterior = new LinkedHashSet<>();
+        boolean repetida = TiendanubePage.repiteLaAnterior(
+                List.of("/prod/1", "/prod/2"), anterior);
+        assertThat(repetida).isFalse();
     }
 
     @Test
-    void urlPaginaPaginaUnoDevuelveBase() {
-        Allure.parameter("baseUrl", "https://x.com/otras-temporadas1?mpage=1");
-        Allure.parameter("targetPage", 1);
-        assertThat(TiendanubePage.urlPagina("https://x.com/otras-temporadas1?mpage=1", 1))
-                .isEqualTo("https://x.com/otras-temporadas1?mpage=1");
+    @DisplayName("una página idéntica a la anterior es repetida")
+    void repiteLaAnterior_paginaTotalmenteRepetidaEsRepetida() {
+        Set<String> anterior = new LinkedHashSet<>(List.of("/prod/1", "/prod/2"));
+        boolean repetida = TiendanubePage.repiteLaAnterior(
+                List.of("/prod/1", "/prod/2"), anterior);
+        assertThat(repetida)
+                .as("el server ignoró el parámetro de paginación y sirvió la misma página")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("una página que difiere de la anterior en una URL no es repetida")
+    void repiteLaAnterior_paginaParcialmenteNuevaNoEsRepetida() {
+        Set<String> anterior = new LinkedHashSet<>(List.of("/prod/1"));
+        boolean repetida = TiendanubePage.repiteLaAnterior(
+                List.of("/prod/1", "/prod/2"), anterior);
+        assertThat(repetida).isFalse();
+    }
+
+    @Test
+    @DisplayName("una página sin URLs no cuenta como repetida — es simplemente vacía")
+    void repiteLaAnterior_paginaVaciaNoEsRepetida() {
+        Set<String> anterior = new LinkedHashSet<>(List.of("/prod/1"));
+        boolean repetida = TiendanubePage.repiteLaAnterior(List.of(), anterior);
+        assertThat(repetida).isFalse();
+    }
+
+    @Test
+    @DisplayName("scroll infinito: p1 ya cargó p2 en el DOM, así que ?page=2 no trae nada nuevo — pero NO es repetida")
+    void scrollInfinitoNoEsRepetida() {
+        // Medido en foreverbstrd y Harvey: el guard cortaba en p2 con 72 y 108 productos.
+        Set<String> anterior = new LinkedHashSet<>(List.of("/prod/1", "/prod/2", "/prod/3", "/prod/4"));
+        boolean repetida = TiendanubePage.repiteLaAnterior(List.of("/prod/3", "/prod/4"), anterior);
+        assertThat(repetida).isFalse();
     }
 }
