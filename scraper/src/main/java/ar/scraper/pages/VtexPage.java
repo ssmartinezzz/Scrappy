@@ -3,8 +3,10 @@ package ar.scraper.pages;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Page;
 
+import java.util.function.ToIntFunction;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -25,7 +27,16 @@ public class VtexPage extends BasePage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int PAGE_SIZE = 50;
+    /** Techo del path IO (Vaypol y similares) — sin cambios en este fix. */
     private static final int MAX_PRODUCTS = 2500;
+
+    /** Techo sólo si el header {@code resources} nunca llega. */
+    private static final int PAGINAS_SEGURIDAD_SIN_HEADER = 400;
+    /** La API legacy da HTTP 400 con {@code _from} ≥ 2550 (medido en Sporting); se parte por categoría. */
+    static final int VENTANA_LEGACY = 2500;
+    private static final int REINTENTOS = 3;
+    private static final long ESPERA_REINTENTO_MS = 2_000;
+    private static final int PROFUNDIDAD_ARBOL = 3;
 
     private static final Set<String> PALABRAS_HOMBRE = Set.of(
             "hombre","hombres","masculino","men","man","male","caballero");
@@ -117,31 +128,181 @@ public class VtexPage extends BasePage {
         }
     }
 
-    /** VTEX Legacy catalog API — funciona para Sporting y la mayoría de tiendas VTEX tradicionales */
+    /**
+     * VTEX Legacy catalog API. Por {@code page.request()} (comparte las cookies de
+     * {@link #prepararSesion}) y no rindiendo cada página de 7-9 MB en una pestaña.
+     */
     private List<Product> scrapeApiLegacy(String dom) {
+        List<String> partes = List.of("");
+        try {
+            List<CategoriaVtex> arbol = parseArbol(MAPPER.readTree(
+                    getText(dom + "/api/catalog_system/pub/category/tree/" + PROFUNDIDAD_ARBOL)));
+            if (!arbol.isEmpty()) {
+                partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY)
+                        .stream().map(path -> "&fq=C:" + path).toList();
+            }
+        } catch (Exception e) {
+            log.warn("[{}] Legacy sin árbol de categorías, se crawlea sin partir (tope {}): {}",
+                    sitio, VENTANA_LEGACY, e.getMessage());
+        }
+        log.debug("[{}] Legacy: {} particiones", sitio, partes.size());
+
+        Set<String> vistas = new HashSet<>();
+        List<Product> result = new ArrayList<>();
+        for (String fq : partes) {
+            for (Product p : crawlLegacy(dom, fq)) {
+                if (vistas.add(p.url())) result.add(p);
+            }
+        }
+        return result;
+    }
+
+    private List<Product> crawlLegacy(String dom, String fq) {
         List<Product> result = new ArrayList<>();
         int from = 0;
-        while (from < MAX_PRODUCTS) {
+        OptionalInt total = OptionalInt.empty();
+        int reintentos = 0;
+
+        while (from < (total.isPresent() ? total.getAsInt() : PAGE_SIZE * PAGINAS_SEGURIDAD_SIN_HEADER)) {
             int to = from + PAGE_SIZE - 1;
             String apiUrl = dom + "/api/catalog_system/pub/products/search"
-                    + "?_from=" + from + "&_to=" + to + "&O=OrderByReleaseDateDESC";
+                    + "?_from=" + from + "&_to=" + to + fq + "&O=OrderByReleaseDateDESC";
             log.debug("[{}] Legacy API from={}", sitio, from);
             try {
-                navigateTo(apiUrl);
-                String body = (String) page.evaluate("document.body.innerText");
-                if (StringUtils.isBlank(body) || !body.trim().startsWith("[")) break;
+                // Playwright retiene cada body en el driver hasta dispose(): ~8 MB por página.
+                APIResponse resp = page.request().get(apiUrl);
+                boolean ok;
+                int status;
+                OptionalInt totalDeEstaPagina;
+                String body;
+                try {
+                    ok = resp.ok();
+                    status = resp.status();
+                    totalDeEstaPagina = parseResourcesTotal(resp.headers());
+                    body = ok ? resp.text() : null;
+                } finally {
+                    resp.dispose();
+                }
+                if (!ok) {
+                    if (reintentos < REINTENTOS) {
+                        reintentos++;
+                        page.waitForTimeout(ESPERA_REINTENTO_MS * reintentos);
+                        log.debug("[{}] Legacy status HTTP {} en from={}, reintento {}",
+                                sitio, status, from, reintentos);
+                        continue;
+                    }
+                    log.warn("[{}] Legacy corta en from={}: status HTTP {}", sitio, from, status);
+                    break;
+                }
+                reintentos = 0;
+                if (totalDeEstaPagina.isPresent()) total = totalDeEstaPagina;
+
+                if (StringUtils.isBlank(body) || !body.trim().startsWith("[")) {
+                    log.warn("[{}] Legacy corta en from={}: body no es un array JSON (empieza con '{}')",
+                            sitio, from, StringUtils.left(body == null ? "" : body.trim(), 30));
+                    break;
+                }
                 JsonNode arr = MAPPER.readTree(body);
-                if (!arr.isArray() || arr.isEmpty()) break;
+                if (!arr.isArray() || arr.isEmpty()) {
+                    log.debug("[{}] Legacy from={}: página vacía, fin de catálogo", sitio, from);
+                    break;
+                }
                 for (JsonNode prod : arr) fromVtex(prod, dom).ifPresent(result::add);
-                log.debug("[{}] Legacy from={}: {} acumulados", sitio, from, result.size());
-                if (arr.size() < PAGE_SIZE) break;
+                log.debug("[{}] Legacy from={}: {} acumulados (total conocido: {})",
+                        sitio, from, result.size(), total.isPresent() ? total.getAsInt() : "?");
+
+                if (!continuaPaginando(arr.size(), from, total)) break;
+                if (from + PAGE_SIZE >= VENTANA_LEGACY) {
+                    log.warn("[{}] Legacy{}: la parte supera la ventana de {} y no tiene subcategorías, quedan afuera {}",
+                            sitio, fq, VENTANA_LEGACY, total.isPresent() ? total.getAsInt() - VENTANA_LEGACY : "?");
+                    break;
+                }
                 from += PAGE_SIZE;
             } catch (Exception e) {
-                log.warn("[{}] Legacy error from={}: {}", sitio, from, e.getMessage());
+                if (reintentos < REINTENTOS) {
+                    reintentos++;
+                    page.waitForTimeout(ESPERA_REINTENTO_MS * reintentos);
+                    log.debug("[{}] Legacy error transitorio en from={}, reintento {}: {}",
+                            sitio, from, reintentos, e.getMessage());
+                    continue;
+                }
+                log.warn("[{}] Legacy corta en from={}: {}", sitio, from, e.getMessage());
                 break;
             }
         }
         return result;
+    }
+
+    record CategoriaVtex(int id, List<CategoriaVtex> hijos) { }
+
+    /** Paths {@code /106/108/1/} para {@code fq=C:}, cada uno con a lo sumo {@code ventana} productos si el árbol alcanza. */
+    static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
+        List<String> partes = new ArrayList<>();
+        for (CategoriaVtex c : arbol) particionar(c, "/", totalDe, ventana, partes);
+        return partes;
+    }
+
+    private static void particionar(CategoriaVtex c, String padre, ToIntFunction<String> totalDe,
+                                    int ventana, List<String> partes) {
+        String path = padre + c.id() + "/";
+        int total = totalDe.applyAsInt(path);
+        if (total == 0) return;
+        if (total <= ventana || c.hijos().isEmpty()) {
+            partes.add(path);
+            return;
+        }
+        for (CategoriaVtex h : c.hijos()) particionar(h, path, totalDe, ventana, partes);
+    }
+
+    static List<CategoriaVtex> parseArbol(JsonNode arbol) {
+        List<CategoriaVtex> out = new ArrayList<>();
+        if (arbol == null || !arbol.isArray()) return out;
+        for (JsonNode n : arbol) {
+            if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), parseArbol(n.path("children"))));
+        }
+        return out;
+    }
+
+    private OptionalInt totalLegacy(String dom, String path) {
+        APIResponse resp = page.request().get(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path);
+        try {
+            return resp.ok() ? parseResourcesTotal(resp.headers()) : OptionalInt.empty();
+        } finally {
+            resp.dispose();
+        }
+    }
+
+    private String getText(String url) {
+        APIResponse resp = page.request().get(url);
+        try {
+            if (!resp.ok()) throw new IllegalStateException("HTTP " + resp.status() + " en " + url);
+            return resp.text();
+        } finally {
+            resp.dispose();
+        }
+    }
+
+    /** {@code resources: 0-49/7151} → 7151. */
+    static OptionalInt parseResourcesTotal(Map<String, String> headers) {
+        if (headers == null) return OptionalInt.empty();
+        for (var e : headers.entrySet()) {
+            if (!"resources".equalsIgnoreCase(e.getKey())) continue;
+            String v = e.getValue();
+            if (v == null) continue;
+            int slash = v.lastIndexOf('/');
+            if (slash < 0 || slash == v.length() - 1) continue;
+            try {
+                return OptionalInt.of(Integer.parseInt(v.substring(slash + 1).trim()));
+            } catch (NumberFormatException ignored) { }
+        }
+        return OptionalInt.empty();
+    }
+
+    /** @param from el {@code _from} de la página que acaba de parsear, no el próximo */
+    static boolean continuaPaginando(int itemsEnPagina, int from, OptionalInt total) {
+        if (itemsEnPagina < PAGE_SIZE) return false;
+        if (total.isPresent() && (from + PAGE_SIZE) >= total.getAsInt()) return false;
+        return true;
     }
 
     /**
@@ -163,15 +324,25 @@ public class VtexPage extends BasePage {
             try {
                 navigateTo(apiUrl);
                 String body = (String) page.evaluate("document.body.innerText");
-                if (StringUtils.isBlank(body)) break;
+                if (StringUtils.isBlank(body)) {
+                    log.warn("[{}] IO corta en page={}: body vacío", sitio, page_num);
+                    break;
+                }
 
                 String trimmed = body.trim();
                 // La respuesta IO es {"products":[...],"pagination":{...}}
-                if (!trimmed.startsWith("{")) break;
+                if (!trimmed.startsWith("{")) {
+                    log.warn("[{}] IO corta en page={}: body no es un objeto JSON (empieza con '{}')",
+                            sitio, page_num, StringUtils.left(trimmed, 30));
+                    break;
+                }
 
                 JsonNode root = MAPPER.readTree(trimmed);
                 JsonNode prods = root.path("products");
-                if (!prods.isArray() || prods.isEmpty()) break;
+                if (!prods.isArray() || prods.isEmpty()) {
+                    log.debug("[{}] IO page={}: página vacía, fin de catálogo", sitio, page_num);
+                    break;
+                }
 
                 for (JsonNode prod : prods) fromVtexIO(prod, dom).ifPresent(result::add);
 

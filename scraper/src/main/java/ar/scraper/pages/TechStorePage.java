@@ -14,10 +14,14 @@ import org.apache.commons.lang3.StringUtils;
 /**
  * Scraper genérico para tiendas de tecnología argentinas con plataformas custom.
  *
- *  FULLH4RD  — PHP custom, URL: /cat/supra/{ID}/{name}/{page}
  *  COMPRAGAMER — Angular SPA, catalog read from its own static JSON feed
  *                (static.compragamer.com/productos), not scraped from the DOM
  *  MAXIMUS   — ASP.NET custom, URL: /Productos/{category}.aspx
+ *
+ * <p>FullH4rd used to live here too (URL: {@code /cat/supra/{ID}/{name}/{page}})
+ * until the site's redesign (fix-failing-site-scrapers, T5) moved it to its
+ * own {@link FullH4rdPage} — its listing markup, category discovery and
+ * pagination no longer have anything in common with this class's shape.</p>
  */
 public class TechStorePage extends BasePage {
 
@@ -30,23 +34,7 @@ public class TechStorePage extends BasePage {
     private final double precioMax;
     private final TechStoreType tipo;
 
-    public enum TechStoreType { MAXIMUS, FULLH4RD, COMPRAGAMER, GENERIC }
-
-    /** FullH4rd category map: ID → name slug */
-    private static final Map<Integer, String> FH_CATS = new LinkedHashMap<>();
-    static {
-        FH_CATS.put(3,  "placas-de-video");
-        FH_CATS.put(5,  "equipos");        // PCs armadas
-        FH_CATS.put(4,  "memorias");
-        FH_CATS.put(12, "almacenamiento");
-        FH_CATS.put(6,  "gabinetes");
-        FH_CATS.put(8,  "teclados");
-        FH_CATS.put(18, "monitores");
-        FH_CATS.put(32, "notebooks");
-        FH_CATS.put(54, "accesorios");
-        FH_CATS.put(20, "impresoras");
-        FH_CATS.put(62, "promociones");
-    }
+    public enum TechStoreType { MAXIMUS, COMPRAGAMER, GENERIC }
 
     public TechStorePage(Page page, int timeoutMs, String sitio, String baseUrl,
                          double precioMin, double precioMax, TechStoreType tipo) {
@@ -62,131 +50,10 @@ public class TechStorePage extends BasePage {
 
     public List<Product> scrapeAll() {
         return switch (tipo) {
-            case FULLH4RD    -> scrapeFullH4rd();
             case COMPRAGAMER -> scrapeCompraGamer();
             case MAXIMUS     -> scrapeMaximus();
             default          -> List.of();
         };
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // FULLH4RD — /cat/supra/{ID}/{name}/{page}
-    // ═══════════════════════════════════════════════════════════════════════
-
-    private List<Product> scrapeFullH4rd() {
-        List<Product> result = new ArrayList<>();
-        Set<String> vistas   = new HashSet<>();
-
-        for (Map.Entry<Integer, String> entry : FH_CATS.entrySet()) {
-            int    id   = entry.getKey();
-            String name = entry.getValue();
-            log.info("[{}] categoría {}/{}", sitio, id, name);
-
-            for (int p = 1; p <= 30; p++) {
-                // URL: /cat/supra/{ID}/{name}/{page}
-                String url = baseUrl + "/cat/supra/" + id + "/" + name + "/" + p;
-                try {
-                    navigateTo(url);
-                    // Esperar que carguen los productos
-                    page.waitForTimeout(800);
-
-                    var prods = extractFH4rd(vistas);
-                    if (prods.isEmpty()) {
-                        log.debug("[{}] {}/{} p{}: fin", sitio, id, name, p);
-                        break;
-                    }
-                    result.addAll(prods);
-                    log.debug("[{}] {}/{} p{}: +{}", sitio, id, name, p, prods.size());
-                } catch (Exception e) {
-                    log.debug("[{}] error {}/{} p{}: {}", sitio, id, name, p, e.getMessage());
-                    break;
-                }
-            }
-        }
-        log.info("[{}] COMPLETADO: {} productos", sitio, result.size());
-        return result;
-    }
-
-    /**
-     * FullH4rd product card structure (PHP custom):
-     *
-     * <div class="item-prod">
-     *   <a href="/prod/{slug}"><img ...></a>
-     *   <h4 class="nombre-prod">GPU RTX 5070 Ti</h4>
-     *   <div class="precio-prod">
-     *     <span class="tachado">$999.999,99</span>   ← precio original
-     *     $849.999,99                                 ← precio actual
-     *   </div>
-     * </div>
-     */
-    private List<Product> extractFH4rd(Set<String> vistas) {
-        try {
-            String json = (String) page.evaluate(
-                "(function() {" +
-                "  var results = [];" +
-                "  var seen = new Set();" +
-                "  var base = location.origin;" +
-                "  var cards = document.querySelectorAll(" +
-                "    '.item-prod, .card-prod, .prod-item, [class*=item-prod], [class*=prod]');" +
-                "  if (!cards.length) return '[]';" +
-                "  cards.forEach(function(card) {" +
-                "    try {" +
-                "      var a = card.querySelector('a[href]');" +
-                "      if (!a) return;" +
-                "      var href = a.getAttribute('href') || '';" +
-                "      var url  = href.startsWith('http') ? href : base + href;" +
-                "      if (!url || seen.has(url)) return;" +
-                "      seen.add(url);" +
-                // Nombre
-                "      var nameEl = card.querySelector('.nombre-prod, h4, h3, h2, .name, .title');" +
-                "      var nombre = nameEl ? nameEl.textContent.trim() : '';" +
-                "      if (!nombre) nombre = a.textContent.trim();" +
-                "      if (!nombre || nombre.length < 3) return;" +
-                // Imagen
-                "      var img = '';" +
-                "      var imgEl = card.querySelector('img');" +
-                "      if (imgEl) {" +
-                "        img = imgEl.getAttribute('data-src') || imgEl.getAttribute('src') || '';" +
-                "      }" +
-                // Precio original (tachado)
-                "      var priceOrig = '';" +
-                "      var taEl = card.querySelector('.tachado, del, s, .antes, .prev');" +
-                "      if (taEl) priceOrig = taEl.textContent.trim();" +
-                // Precio actual
-                "      var priceEl = card.querySelector('.precio-prod, .precio, .price, .monto, .current-price');" +
-                "      var precio = '';" +
-                "      if (priceEl) {" +
-                "        var txt = priceEl.innerText || priceEl.textContent;" +
-                // Quitar el texto tachado del precio actual
-                "        if (taEl && taEl.parentNode === priceEl) {" +
-                "          txt = txt.replace(taEl.textContent, '');" +
-                "        }" +
-                "        var m = txt.match(/\\$[\\s]?[\\d.,]+/);" +
-                "        if (m) precio = m[0].trim();" +
-                "      }" +
-                // Fallback: regex en el texto completo de la card
-                "      if (!precio) {" +
-                "        var allText = (card.innerText || card.textContent);" +
-                "        var prices = allText.match(/\\$[\\s]?[\\d][\\d., ]{3,}/gm);" +
-                "        if (prices && prices.length) {" +
-                "          var sorted = prices.map(function(p) {" +
-                "            return { raw: p, val: parseFloat(p.replace(/[^0-9]/g,'')) };" +
-                "          }).filter(function(p){return p.val>0;}).sort(function(a,b){return a.val-b.val;});" +
-                "          if (sorted.length) precio = sorted[0].raw;" +
-                "        }" +
-                "      }" +
-                "      if (!precio) return;" +
-                "      results.push({ nombre:nombre, precio:precio, precioOrig:priceOrig, url:url, img:img });" +
-                "    } catch(e) {}" +
-                "  });" +
-                "  return JSON.stringify(results);" +
-                "})()"
-            );
-            return parseProductNodes(json, vistas);
-        } catch (Exception e) {
-            log.debug("[{}] extractFH4rd error: {}", sitio, e.getMessage());
-            return List.of();
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
