@@ -293,6 +293,11 @@ foreverbstrd en 72 y Harvey en 108 (2026-09-28). Que el server ignore el
 parámetro se ve de otra forma: la página es **idéntica** a la anterior
 (`TiendanubePage.repiteLaAnterior`).
 
+**La API Legacy de VTEX da HTTP 400 pasado `_from` ≈ 2550, por consulta:** el
+header `resources` dice el total real (7151 en Sporting), pero una sola consulta
+nunca pasa de ~2550. `VtexPage` parte por el árbol de categorías (`fq=C:`).
+Medido: 250 → 2540 → 7134.
+
 **Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
 cada reader tenía su propia junta inline y cada una se quedaba en un punto
 distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
