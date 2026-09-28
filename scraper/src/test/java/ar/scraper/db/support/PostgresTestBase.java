@@ -324,6 +324,17 @@ public abstract class PostgresTestBase {
                     -- T5's six lookups (`socket`, `ddr`, `form_factor`,
                     -- `tipo_memoria`, `certificacion`, `tipo_almacenamiento`) are
                     -- absent for the same reason — seeded vocabulary, not residue.
+                    -- catalog-facets-perf (V40). `catalog_version` is deliberately
+                    -- absent, same reason as `rol`/`indice`/`gama`: its one row is
+                    -- seed data the migration itself inserts, not test residue —
+                    -- truncating it would leave the cache with no version row
+                    -- ("do not cache", by design) instead of a fresh one. It still
+                    -- cannot go stale across THIS truncate: productos/producto_talle/
+                    -- producto_badge are in the list above, and V40's AFTER TRUNCATE
+                    -- triggers bump catalog_version for each of them, so a caching
+                    -- decorator bean shared across tests in the same Spring context
+                    -- sees a version strictly higher than anything it cached before —
+                    -- a hit needs an EQUAL version, and the sequence never repeats.
                     preferencia_armador, producto_tech_specs
                 RESTART IDENTITY CASCADE
                 """);

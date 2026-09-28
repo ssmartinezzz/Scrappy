@@ -2824,3 +2824,137 @@ El orden es obligatorio: `preferencia_armador.uso_id` referencia `uso`, así
 que se suelta antes que la tabla. Ninguna otra tabla referencia `uso`, así que
 no hace falta `CASCADE`. `V35`/`V36`/`V37` no se tocan: esta migración nunca
 agregó columnas a ningún objeto que ellas no hayan creado.
+
+## `V40` — `catalog_version`, para cachear `facetas()`/`resumen()`
+
+`/api/data` y `/api/facets` recalculaban las mismas ocho facetas y el mismo
+resumen en CADA request, aunque el catálogo no hubiera cambiado entre dos
+llamadas (`catalog-facets-perf`, medido: 22.191 filas activas, ~210-230 ms por
+endpoint). Cachearlos necesita saber CUÁNDO invalidar, y ninguna de las dos
+formas obvias sirve:
+
+- **TTL**: o está stale dentro de la ventana (un scrape que acaba de terminar
+  no se ve hasta que expira), o fuerza a acortar la ventana hasta que deja de
+  ahorrar nada. Ninguna duración es correcta, porque la pregunta real no es
+  "cuánto hace que cacheé" sino "cambió algo" — y esa pregunta tiene una
+  respuesta exacta si el catálogo la contesta él mismo.
+- **Un contador plano incrementado en el mismo UPDATE que cambia el dato**:
+  serializa a los escritores entre sí (dos transacciones concurrentes
+  compitiendo por la MISMA fila desde el momento en que cada una toca
+  `productos`, no sólo al final).
+
+`catalog_version` es una tabla de una sola fila (`id boolean PRIMARY KEY
+DEFAULT true CHECK (id)` — la única fila posible, sin significado propio más
+que impedir una segunda) con un `version bigint`. El valor sale de
+`catalog_version_seq`: `nextval()` es libre de lock, así que ningún escritor
+espera a otro para OBTENER un número — sólo compiten, brevemente, al escribir
+ese número en la fila.
+
+```sql
+CREATE SEQUENCE catalog_version_seq;
+
+CREATE TABLE catalog_version (
+    id      boolean NOT NULL PRIMARY KEY DEFAULT true CHECK (id),
+    version bigint  NOT NULL
+);
+INSERT INTO catalog_version (version) VALUES (nextval('catalog_version_seq'));
+```
+
+**Un trigger la mantiene, nunca la aplicación.** `bump_catalog_version()` corre
+sobre `productos`, `producto_talle` y `producto_badge` — las tres tablas que
+`CatalogQueryRepository.facetas()`/`resumen()` leen. Es `CREATE CONSTRAINT
+TRIGGER ... DEFERRABLE INITIALLY DEFERRED FOR EACH ROW`: el lock sobre la
+fila de `catalog_version` se toma UNA vez, recién al COMMIT — nunca durante
+los 20000 `INSERT`/`UPDATE` de un batch de `sp_upsert_run` en curso. Una GUC
+transaccional (`set_config('catalog_version.bumped_txid', txid_current()::text,
+true)`) hace que, dentro de esa misma transacción, sólo la PRIMERA de esas
+20000 firings realmente incremente la versión — las otras 19999 son un
+`IF` que no hace nada. `TRUNCATE` no admite trigger diferible en Postgres, así
+que esos tres disparan de inmediato — la misma sentencia ya toma un lock
+exclusivo sobre la tabla truncada, así que un lock extra e inmediato sobre
+`catalog_version` no cuesta nada ahí.
+
+```sql
+CREATE FUNCTION bump_catalog_version() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_txid text := txid_current()::text;
+BEGIN
+    IF current_setting('catalog_version.bumped_txid', true) IS DISTINCT FROM v_txid THEN
+        UPDATE catalog_version SET version = nextval('catalog_version_seq') WHERE id;
+        PERFORM set_config('catalog_version.bumped_txid', v_txid, true);
+    END IF;
+    RETURN NULL;
+END;
+$$;
+```
+
+**Sin cambio de privilegios**: la función es `SECURITY INVOKER` (el default —
+nunca se declara `SECURITY DEFINER`), no otorga ningún `GRANT` nuevo, y fija
+su `search_path` (`pg_catalog, public`) para que resuelva `catalog_version` y
+`nextval` siempre igual, sin importar el `search_path` de quien la dispare.
+
+**1FN/3FN**: una sola fila, una sola columna de dato real (`version`); `id`
+es un centinela CHECKeado, no una clave con significado — no hay grupo
+repetitivo ni un atributo que dependa de otra cosa que no sea la identidad de
+esa única fila.
+
+**`PostgresTestBase.truncateAll` la deja afuera a propósito** — mismo motivo
+que `rol`/`indice`/`gama`: su fila la siembra la migración, no es residuo de
+test. Truncarla dejaría el cache sin fila que leer ("sin fila, no cachear",
+por diseño) en vez de una fila fresca. Igual no puede quedar stale entre
+tests que comparten un Spring context: `productos`/`producto_talle`/
+`producto_badge` SÍ están en esa lista, y el trigger de `TRUNCATE` la sube por
+cada una — así que la versión que un test siguiente ve es siempre mayor que
+cualquiera que un decorator de cache haya visto antes, nunca igual ni menor.
+
+El cache en sí (`CachingCatalogQueryPort`, en `ar.scraper.db`) lee la versión
+ANTES de calcular y la usa como parte de la clave `(cota, version)`: una
+entrada puede quedar más fresca que su etiqueta (si algo commitea entre la
+lectura y el cálculo), nunca más vieja. Ver `docs/ARCHITECTURE.md` para el
+porqué del diseño del cache en sí (decorator + single-flight).
+
+**Para la próxima migración que escriba en `productos`/`producto_talle`/
+`producto_badge` y le haga `ALTER TABLE` a esa MISMA tabla — un fix de datos
+seguido de un cambio de esquema, típicamente.** Flyway corre cada `.sql` como
+una única transacción, y los triggers de más arriba son `DEFERRABLE INITIALLY
+DEFERRED`: el evento queda pendiente hasta el COMMIT de esa transacción, y
+Postgres rechaza un `ALTER TABLE` sobre una tabla con eventos de trigger
+pendientes dentro de la misma transacción —
+`ERROR: cannot ALTER TABLE "productos" because it has pending trigger events`.
+Ya pasó: `V25RollbackRoundTripTest` insertaba en `productos` y después corría
+el rollback de `V25` (un `ALTER TABLE ... DROP COLUMN`) en la misma
+transacción — ver `SET CONSTRAINTS ALL IMMEDIATE` en ese test para el arreglo
+aplicado ahí. Dos salidas para una migración real:
+
+1. `SET CONSTRAINTS ALL IMMEDIATE;` antes del `ALTER TABLE`, en el mismo
+   `.sql` — fuerza el trigger pendiente a correr ya (sólo bumpea
+   `catalog_version`, no cambia nada más) y libera la tabla para el DDL.
+2. Partir en dos migraciones: una que escribe filas, otra —posterior— que
+   hace el `ALTER TABLE`. Cada `.sql` es su propia transacción, así que la
+   segunda arranca sin eventos pendientes.
+
+### Rollback
+
+```sql
+-- >>> rollback:V40
+DROP TRIGGER trg_catalog_version_productos_truncate ON productos;
+DROP TRIGGER trg_catalog_version_producto_talle_truncate ON producto_talle;
+DROP TRIGGER trg_catalog_version_producto_badge_truncate ON producto_badge;
+DROP TRIGGER trg_catalog_version_productos ON productos;
+DROP TRIGGER trg_catalog_version_producto_talle ON producto_talle;
+DROP TRIGGER trg_catalog_version_producto_badge ON producto_badge;
+DROP FUNCTION bump_catalog_version();
+DROP TABLE catalog_version;
+DROP SEQUENCE catalog_version_seq;
+-- <<< rollback:V40
+```
+
+Los triggers se sueltan antes que la función que ejecutan, y la función antes
+que la tabla — mismo criterio que toda la serie: nunca `CASCADE`, el orden lo
+hace explícito. `catalog_version` se suelta antes que su secuencia por la
+misma razón que en `V39`: nada más referencia a ninguna de las dos, así que
+no hay ambigüedad de orden entre ellas, pero soltar la tabla primero evita
+dejar un default huérfano si alguna vez lo tuviera.

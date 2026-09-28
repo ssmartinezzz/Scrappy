@@ -274,6 +274,14 @@ un `.env` que ya existe no pisa nada.
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.
 
+**Una migración que escribe en `productos`/`producto_talle`/`producto_badge` y
+después le hace `ALTER TABLE` a esa misma tabla, en la MISMA migración, falla**
+con `cannot ALTER TABLE ... because it has pending trigger events`: los
+triggers de `catalog_version` (`V40`) son `DEFERRABLE INITIALLY DEFERRED`, y
+Flyway corre cada `.sql` como una transacción. Arreglo: `SET CONSTRAINTS ALL
+IMMEDIATE;` antes del DDL, o partir el fix de datos y el `ALTER` en dos
+migraciones — detalle en `docs/DATABASE.md` § `V40`.
+
 ### Leer un sitio
 
 **`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
