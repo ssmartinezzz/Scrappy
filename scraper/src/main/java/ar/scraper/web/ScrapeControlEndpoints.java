@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Run control and configuration: scrape status/progress, launching a run, the
@@ -83,7 +84,7 @@ class ScrapeControlEndpoints {
                 sn.put("estado",  sp.estado().name().toLowerCase());
                 sn.put("count",   sp.productos());
                 sn.put("durMs",   sp.duracionMs());
-                if (sp.error() != null && !sp.error().isBlank())
+                if (StringUtils.isNotBlank(sp.error()))
                     sn.put("error", sp.error().length() > 60
                             ? sp.error().substring(0, 60) + "..." : sp.error());
             }

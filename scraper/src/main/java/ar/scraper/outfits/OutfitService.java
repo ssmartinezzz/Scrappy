@@ -7,6 +7,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.Comparator;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Armador de outfits (Gym): combina productos del catálogo agregado en
@@ -360,7 +361,7 @@ public class OutfitService {
      */
     private String slotDe(Product p, StyleRule rule) {
         String cat = p.categoria();
-        if (cat == null || cat.isBlank()) return null;
+        if (StringUtils.isBlank(cat)) return null;
         if (ACCESORIO_VETADO.contains(cat)) return null; // global, style-independent
         if (CALZADO_VETADO.contains(cat)) return null; // global, style-independent
         if (esCalzadoBase(cat)) {
@@ -583,7 +584,7 @@ public class OutfitService {
             if (pick != null) ordenados.add(pick);
         }
 
-        String generoResultado = (generoSolicitado != null && !generoSolicitado.isBlank())
+        String generoResultado = StringUtils.isNotBlank(generoSolicitado)
                 ? generoSolicitado : "unisex";
         double totalEstimado = ordenados.stream().mapToDouble(SlotPick::precio).sum();
         boolean presupuestoExcedido = presupuesto > 0 && totalEstimado > presupuesto;

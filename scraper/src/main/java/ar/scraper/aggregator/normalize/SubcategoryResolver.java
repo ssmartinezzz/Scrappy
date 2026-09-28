@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * 3-tier activity/sport-based subcategory classifier — design: subcategoria-field.
@@ -268,7 +269,7 @@ public class SubcategoryResolver {
      * @return non-null subcategory string; {@code ""} when no tier matches
      */
     public String resolver(String nombre, String categoria) {
-        if (nombre == null || nombre.isBlank() || categoria == null) return "";
+        if (StringUtils.isBlank(nombre) || categoria == null) return "";
         // Space-padded, accent-normalized name — enables safe word-boundary matching
         String n = " " + normalizarAcentos(nombre) + " ";
 

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Curated-brand extraction with site fallback.
@@ -70,7 +71,7 @@ public class BrandExtractor {
      *              not because this method still reads it for its own logic.
      */
     public String extraer(String nombre, String sitio) {
-        if (nombre == null || nombre.isBlank()) return "";
+        if (StringUtils.isBlank(nombre)) return "";
         String lower = nombre.toLowerCase();
 
         for (int i = 0; i < MARCAS.size(); i++) {

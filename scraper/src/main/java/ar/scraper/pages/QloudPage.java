@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Reader for stores on the Qloud platform (confirmed via {@code cdn.qloud.ar}
@@ -135,7 +136,7 @@ public class QloudPage extends BasePage {
 
     static List<Product> parseListing(String html, String sitio, String baseUrl,
                                        String categoriaHint, double precioMin, double precioMax) {
-        if (html == null || html.isBlank()) return List.of();
+        if (StringUtils.isBlank(html)) return List.of();
 
         List<Product> result = new ArrayList<>();
         Set<String> vistasEnPagina = new HashSet<>();
@@ -193,7 +194,7 @@ public class QloudPage extends BasePage {
             "href=\"https?://[^\"/]+/([a-z0-9][a-z0-9-]*)/?\"");
 
     static List<String> extractCategorySlugs(String navHtml, String baseUrl) {
-        if (navHtml == null || navHtml.isBlank()) return List.of();
+        if (StringUtils.isBlank(navHtml)) return List.of();
         Set<String> slugs = new LinkedHashSet<>();
         var m = NAV_LINK.matcher(navHtml);
         while (m.find()) {

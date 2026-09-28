@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Outfit-level coherence rules over {@link Product.VisualAttrs} — the
@@ -140,7 +141,7 @@ final class VisualCoherence {
     private static boolean chocaColor(Product.VisualAttrs a, Product.VisualAttrs b) {
         String ca = a.colorDominante();
         String cb = b.colorDominante();
-        if (ca == null || cb == null || ca.isBlank() || cb.isBlank()) return false;
+        if (StringUtils.isAnyBlank(ca, cb)) return false;
         if (NEUTROS.contains(ca) || NEUTROS.contains(cb)) return false;
 
         int ia = RUEDA_CROMATICA.indexOf(ca);

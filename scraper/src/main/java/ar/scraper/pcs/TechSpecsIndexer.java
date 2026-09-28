@@ -4,6 +4,7 @@ import ar.scraper.model.Product;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Write-only bridge from the live catalog to {@code producto_tech_specs}
@@ -24,7 +25,7 @@ public class TechSpecsIndexer {
     public void indexar(List<Product> productos) {
         List<TechSpecsPort.SpecsDeProducto> specs = productos.stream()
                 .filter(Product::esTech)
-                .filter(p -> p.url() != null && !p.url().isBlank())
+                .filter(p -> StringUtils.isNotBlank(p.url()))
                 .map(p -> new TechSpecsPort.SpecsDeProducto(
                         p.url(), p.categoria(), TechSpecsParser.parse(p.nombre(), p.categoria())))
                 .toList();

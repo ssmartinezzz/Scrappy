@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Issues and verifies the short-lived access token.
@@ -93,7 +94,7 @@ public class TokenService {
      *         {@code catch} that lets the request through.
      */
     public Optional<UUID> verificar(String token) {
-        if (token == null || token.isBlank()) {
+        if (StringUtils.isBlank(token)) {
             return Optional.empty();
         }
         try {

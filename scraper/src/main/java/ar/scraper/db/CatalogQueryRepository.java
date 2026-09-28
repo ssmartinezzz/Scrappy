@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * `/api/data`'s catalog query, in SQL (`sql-catalog-filtering`).
@@ -502,7 +503,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
     // ─── helpers ────────────────────────────────────────────────────────────
 
     private static boolean noVacio(String s) {
-        return s != null && !s.isBlank();
+        return StringUtils.isNotBlank(s);
     }
 
     private static boolean noVacia(List<String> l) {

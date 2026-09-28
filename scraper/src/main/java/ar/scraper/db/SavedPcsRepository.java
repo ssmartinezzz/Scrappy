@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for the {@code saved_pcs} aggregate. Same shape as
@@ -103,7 +104,7 @@ class SavedPcsRepository implements SavedPcsPort {
                 """)) {
             short posicion = 1;
             for (PcPick pick : picks) {
-                if (pick.url() == null || pick.url().isBlank()) continue;
+                if (StringUtils.isBlank(pick.url())) continue;
                 TechSpecs specs = pick.specs() != null ? pick.specs() : TechSpecs.EMPTY;
                 ps.setInt(1, pcId);
                 ps.setShort(2, posicion++);
@@ -232,7 +233,7 @@ class SavedPcsRepository implements SavedPcsPort {
 
     @Override
     public boolean renombrarPc(UUID usuarioId, int id, String nombre) {
-        if (nombre == null || nombre.isBlank()) return false;
+        if (StringUtils.isBlank(nombre)) return false;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE saved_pcs SET nombre=? WHERE usuario_id=? AND id=?")) {

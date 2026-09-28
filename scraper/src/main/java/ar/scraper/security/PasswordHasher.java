@@ -1,5 +1,6 @@
 package ar.scraper.security;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -57,7 +58,7 @@ public class PasswordHasher {
      *         parsed at all.
      */
     public boolean verify(String plaintext, String encoded) {
-        if (plaintext == null || encoded == null || encoded.isBlank()) {
+        if (plaintext == null || StringUtils.isBlank(encoded)) {
             return false;
         }
         try {

@@ -1,5 +1,7 @@
 package ar.scraper.pcs;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Wire↔domain mapping for the six technical preferences from
  * pc-builder-deep-taxonomy (D8) — shared by the builder endpoint, the
@@ -44,7 +46,7 @@ public final class PreferenciasWire {
     }
 
     public static TamanioGabinete parseTamanioGabinete(String wire) {
-        if (wire == null || wire.isBlank()) return null;
+        if (StringUtils.isBlank(wire)) return null;
         return switch (wire.trim().toLowerCase()) {
             case "mini" -> TamanioGabinete.MINI;
             case "mid" -> TamanioGabinete.MID;
@@ -54,7 +56,7 @@ public final class PreferenciasWire {
     }
 
     public static TipoCooler parseTipoCooler(String wire) {
-        if (wire == null || wire.isBlank()) return null;
+        if (StringUtils.isBlank(wire)) return null;
         return switch (wire.trim().toLowerCase()) {
             case "liquido" -> TipoCooler.LIQUIDO;
             case "aire" -> TipoCooler.AIRE;
@@ -84,28 +86,28 @@ public final class PreferenciasWire {
     }
 
     public static String parseDdr(String wire) {
-        if (wire == null || wire.isBlank()) return null;
+        if (StringUtils.isBlank(wire)) return null;
         String v = wire.trim().toUpperCase();
         if (v.equals("DDR4") || v.equals("DDR5")) return v;
         throw new IllegalArgumentException("ddr inválida: " + wire);
     }
 
     public static String parseMarcaCpu(String wire) {
-        if (wire == null || wire.isBlank()) return null;
+        if (StringUtils.isBlank(wire)) return null;
         String v = wire.trim().toUpperCase();
         if (v.equals("INTEL") || v.equals("AMD")) return v;
         throw new IllegalArgumentException("marcaCpu inválida: " + wire);
     }
 
     public static String parseMarcaGpu(String wire) {
-        if (wire == null || wire.isBlank()) return null;
+        if (StringUtils.isBlank(wire)) return null;
         String v = wire.trim().toUpperCase();
         if (v.equals("NVIDIA") || v.equals("AMD")) return v;
         throw new IllegalArgumentException("marcaGpu inválida: " + wire);
     }
 
     public static TipoAlmacenamiento parseTipoAlmacenamiento(String wire) {
-        if (wire == null || wire.isBlank()) return null;
+        if (StringUtils.isBlank(wire)) return null;
         return switch (wire.trim().toLowerCase()) {
             case "nvme" -> TipoAlmacenamiento.NVME;
             case "sata" -> TipoAlmacenamiento.SSD;

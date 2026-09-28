@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Builds the supplement combo (protein, creatine, vitamins, fit condiments…).
@@ -751,7 +752,7 @@ public class SupplementCombo {
         for (Product p : suplementos) {
             // Un producto sin nombre se omite: el pick se muestra por nombre, así que
             // colarlo por su categoría dejaría una fila vacía en la UI.
-            if (p.nombre() == null || p.nombre().isBlank()) continue;
+            if (StringUtils.isBlank(p.nombre())) continue;
             String nombreNormalizado = normalizar(p.nombre());
 
             String tipo = porKeyword(nombreNormalizado);

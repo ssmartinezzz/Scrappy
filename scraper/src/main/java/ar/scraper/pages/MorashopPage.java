@@ -5,6 +5,7 @@ import com.microsoft.playwright.Page;
 import java.net.URI;
 import java.util.LinkedHashSet;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Morashop-specific Tiendanube page (add-morashop-and-fix-entreno-pagination).
@@ -110,7 +111,7 @@ public class MorashopPage extends TiendanubePage {
         if (hrefs == null) return List.of();
 
         for (String href : hrefs) {
-            if (href == null || href.isBlank()) continue;
+            if (StringUtils.isBlank(href)) continue;
             String h = sinQueryNiFragmento(href.trim());
             if (h.isBlank()) continue;
 
@@ -154,7 +155,7 @@ public class MorashopPage extends TiendanubePage {
     }
 
     private static String conBarras(String path) {
-        if (path == null || path.isBlank()) return "/";
+        if (StringUtils.isBlank(path)) return "/";
         String s = path.trim();
         if (!s.startsWith("/")) s = "/" + s;
         if (!s.endsWith("/")) s = s + "/";

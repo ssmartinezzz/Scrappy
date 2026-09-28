@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 
 public abstract class BasePage {
 
@@ -172,7 +173,7 @@ public abstract class BasePage {
     }
 
     protected Optional<Double> parsePrecio(String raw) {
-        if (raw == null || raw.isBlank()) return Optional.empty();
+        if (StringUtils.isBlank(raw)) return Optional.empty();
         try {
             // Fast-path: entero puro (viene de data-price de TN/Shopify)
             String trimmed = raw.replaceAll("[^0-9.,]", "").trim();
@@ -209,7 +210,7 @@ public abstract class BasePage {
     }
 
     protected String absoluteUrl(String href, String baseUrl) {
-        if (href == null || href.isBlank()) return "";
+        if (StringUtils.isBlank(href)) return "";
         if (href.startsWith("http")) return href;
         try {
             java.net.URI base = java.net.URI.create(baseUrl);

@@ -3,6 +3,7 @@ package ar.scraper.catalog;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Handle corto y estable de un producto, derivado de su URL.
@@ -40,7 +41,7 @@ public final class ProductKey {
 
     /** {@code null} o vacío devuelven {@code ""} — abstención, nunca un centinela (`CODE-5`). */
     public static String of(String url) {
-        if (url == null || url.isEmpty()) return "";
+        if (StringUtils.isEmpty(url)) return "";
         try {
             MessageDigest md5 = MessageDigest.getInstance("MD5");
             byte[] hash = md5.digest(url.getBytes(StandardCharsets.UTF_8));

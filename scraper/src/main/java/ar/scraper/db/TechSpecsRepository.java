@@ -16,6 +16,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for {@code producto_tech_specs} (V35, widened by V36 and V37):
@@ -140,7 +141,7 @@ class TechSpecsRepository implements TechSpecsPort {
     }
 
     private static String blank(String valor) {
-        return (valor == null || valor.isBlank()) ? null : valor;
+        return StringUtils.isBlank(valor) ? null : valor;
     }
 
     private static void setNullableString(PreparedStatement ps, int index, String value) throws java.sql.SQLException {

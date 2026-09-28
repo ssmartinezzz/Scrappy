@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Fail-fast guard for spec requirement "Environment-Only Configuration"
@@ -114,14 +115,14 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
                 continue;
             }
             String value = environment.getProperty(key);
-            if (value == null || value.isBlank()) {
+            if (StringUtils.isBlank(value)) {
                 missing.add(key);
             }
         }
         if ("smtp".equalsIgnoreCase(String.valueOf(environment.getProperty(SELECTOR_DE_CANAL)).trim())) {
             for (String key : SMTP_VARS) {
                 String value = environment.getProperty(key);
-                if (value == null || value.isBlank()) {
+                if (StringUtils.isBlank(value)) {
                     missing.add(key);
                 }
             }

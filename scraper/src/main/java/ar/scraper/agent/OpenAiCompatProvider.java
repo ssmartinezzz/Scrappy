@@ -16,6 +16,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * {@link ChatProvider} adapter for the OpenAI-compatible {@code
@@ -64,7 +65,7 @@ public class OpenAiCompatProvider implements ChatProvider {
 
     @Override
     public ChatResponse next(List<ChatMessage> history, List<ToolSpec> tools, String model) {
-        String effectiveModel = (model != null && !model.isBlank()) ? model : config.model();
+        String effectiveModel = StringUtils.isNotBlank(model) ? model : config.model();
         ObjectNode bodyNode = buildChatRequestBody(history, tools, effectiveModel);
 
         HttpRequest.Builder req = HttpRequest.newBuilder()
@@ -217,7 +218,7 @@ public class OpenAiCompatProvider implements ChatProvider {
             if (data.isArray()) {
                 for (JsonNode m : data) {
                     String id = m.path("id").asText(null);
-                    if (id != null && !id.isBlank()) ids.add(id);
+                    if (StringUtils.isNotBlank(id)) ids.add(id);
                 }
             }
             return ids;

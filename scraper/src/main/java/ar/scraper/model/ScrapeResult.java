@@ -1,6 +1,7 @@
 package ar.scraper.model;
 
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 public record ScrapeResult(
         String sitio,
@@ -8,5 +9,5 @@ public record ScrapeResult(
         String error,
         long duracionMs
 ) {
-    public boolean exitoso() { return error == null || error.isBlank(); }
+    public boolean exitoso() { return StringUtils.isBlank(error); }
 }

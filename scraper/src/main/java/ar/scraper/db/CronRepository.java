@@ -19,6 +19,7 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for the {@code cron_jobs} / {@code cron_executions} aggregate.
@@ -207,7 +208,7 @@ class CronRepository implements CronPort {
                 "INSERT INTO cron_job_sitio (job_id, posicion, sitio) VALUES (?,?,?)")) {
             short posicion = 1;
             for (String sitio : sitios) {
-                if (sitio == null || sitio.isBlank()) continue;
+                if (StringUtils.isBlank(sitio)) continue;
                 ps.setLong(1, jobId);
                 ps.setShort(2, posicion++);
                 ps.setString(3, sitio);
