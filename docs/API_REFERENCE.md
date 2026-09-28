@@ -594,7 +594,7 @@ hardcodeada de 2024):
 El precio antiguo del historial se restata al presente con
 `IndiceService.deflactor(indice, desde, hasta)`, donde `desde`/`hasta` son las
 FECHAS reales del historial de precios usado por el cálculo — no una cantidad
-de puntos. Ver [`CLAUDE.md` → Índices y señales](../CLAUDE.md#índices-y-señales).
+de puntos. Ver [`GOTCHAS.md` → Índices y señales](./GOTCHAS.md#índices-y-señales).
 
 ---
 
@@ -656,7 +656,7 @@ Progreso via polling de `GET /ml/estado` (`training.phase` pasa por
 
 Re-aplica las reglas actuales de `NormalizerService` sobre el catálogo ya
 persistido en la DB (sin re-scrapear). Síncrono — corre antes de cada
-entrenamiento de imagen (ver "Pipeline ML" en `CLAUDE.md`).
+entrenamiento de imagen (ver `docs/ML_PIPELINE.md`).
 
 `totalRevisados`/`categoriaCambiada`/`marcaCambiada` describen el diff
 **intencional** detectado por `NormalizerService` (significado sin cambios).

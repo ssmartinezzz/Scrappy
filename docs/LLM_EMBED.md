@@ -266,3 +266,45 @@ Detalle de instalación y ejemplos: [`LLM_AGENT_SETUP.md`](LLM_AGENT_SETUP.md).
   diferidas, no defectos activos.
 - **`MAX_ITERATIONS = 6`** deja unos dos pasos de margen para que el modelo se
   auto-corrija más allá del flujo canónico de cuatro.
+
+---
+
+<!-- Movido desde CLAUDE.md (2026-09-28) -->
+## LLM Catalog Agent (`ar.scraper.agent`)
+
+Agente de chat con tool-use, provider-pluggable, para revisar y corregir la
+clasificación de productos por lenguaje natural. Seam `ChatProvider` con un
+adapter hoy: `OpenAiCompatProvider` (Ollama).
+
+**Exactamente 4 herramientas, TODAS de solo lectura**, dentro de un loop acotado
+(`MAX_ITERATIONS=6`): `search_products`, `view_product`, `propose_reclassify`,
+`propose_pc`. La cuarta corre `PcBuilder.armar` sobre el snapshot vivo
+(`presupuesto`, `conGpu`, `excluir` urls) y devuelve el mismo JSON que
+`GET /api/pcs/builder` — `PcBuildJson`, en `pcs/`, es la única serialización
+para los dos. El agente narra los picks; guardar sigue siendo cosa de `/pcs`.
+`PcBuilder` no es bean (lo instancia `ApiController` a mano) y `agent/` no
+puede nombrar `web/`, así que la tool construye el suyo con `RecommendationService`.
+
+**`search_products` filtra en el catálogo, no en la prosa del modelo.** Acepta `query` (texto libre sobre nombre/marca), `categoria` (enum cerrado contra el canon), `genero`, `excluir` (lista de términos vetados en el nombre) y `precioMin`/`precioMax`; todos se aplican en conjunción y hace falta al menos uno además de `excluir`. Dos razones para que sean parámetros y no texto: (1) **la categoría no es una palabra del nombre** — una "Remera sin mangas Dry Fit" clasificada `Musculosa` era invisible a `query=musculosa`, y un producto cuyo nombre no coincide con su categoría es justo el que hay que revisar, así que el punto ciego se superponía con el propósito del tool; y (2) si el modelo filtra en su respuesta en vez de en la llamada, **la barrera de grounding no lo puede ver**: hubo una tool call real con filas reales, así que el turno pasa igual. Una llamada vacía es error, no el catálogo entero cortado a 10.
+La reclasificación es **two-phase propose/confirm** — `propose_reclassify` valida
+y devuelve un diff, nunca escribe. El único write real es `POST /api/agent/apply`,
+fuera del loop, tras confirmación humana explícita y re-validando server-side.
+
+**Continuidad del chat:** cada mensaje assistant carga su `trace` (las tool calls
+que el modelo **pidió**, nunca lo que el catálogo respondió), el cliente lo
+reenvía, y el servidor **re-ejecuta** esas llamadas contra el snapshot vivo antes
+de contactar al proveedor. Un `trace` manipulado no puede inyectar un dato falso,
+y la evidencia replayada está al día. Bounds: `MAX_REPLAY_CALLS=12`.
+
+**Write path:** `aplicarReclasificacionAuditada` hace UPDATE + INSERT de auditoría
+en una sola transacción con rollback completo, y su booleano de retorno **siempre**
+se chequea. Staleness guard: compara `categoriaActual` contra la DB (no contra el
+snapshot en memoria) y devuelve `422 conflicto_stale` en vez de sobrescribir a ciegas.
+Tras escribir, parchea el catálogo en memoria y recalcula facetas.
+
+Config por env (`LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY`), todas
+opcionales — **no** están en `RequiredEnvVarsGuard`.
+
+📄 Detalle: [`docs/LLM_EMBED.md`](./LLM_EMBED.md) · setup: [`docs/LLM_AGENT_SETUP.md`](./LLM_AGENT_SETUP.md).
+
+---

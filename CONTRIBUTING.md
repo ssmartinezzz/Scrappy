@@ -331,13 +331,13 @@ En el **mismo PR**, por `COMMIT-5`:
 
 | Si tocás… | Actualizá |
 |---|---|
-| Endpoints REST | `docs/API_REFERENCE.md` + la tabla de API en `CLAUDE.md` |
+| Endpoints REST | `docs/API_REFERENCE.md` + `docs/openapi.yaml` |
 | Scoring, badges, clustering, atributos visuales | `docs/ML_PIPELINE.md` |
-| Un sitio o plataforma nueva | `docs/ADD_SCRAPER.md` + la tabla de sitios en `CLAUDE.md` |
+| Un sitio o plataforma nueva | `docs/ADD_SCRAPER.md` + `docs/SITES.md` |
 | Una decisión estructural | `docs/ARCHITECTURE.md` |
 | El esquema, una migración, el upsert o una tabla nueva | `docs/DATABASE.md` — **toda tabla nueva cumple 1FN y 3FN**, y el bloque `-- >>> rollback:VN` lo ejecuta un test |
 | El agente LLM | `docs/LLM_EMBED.md` |
-| Los armadores de outfits | La sección de armadores en `CLAUDE.md` + `ARCHITECTURE.md` si cambia el criterio |
+| Los armadores de outfits | `docs/OUTFITS.md` + `ARCHITECTURE.md` si cambia el criterio |
 | Un doc nuevo o retirado | `SKILL.md` |
 | Una convención de proceso | Este archivo, con ID nuevo |
 
