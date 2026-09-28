@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import org.apache.commons.lang3.StringUtils;
 
 @Component
 public class ScraperConfig {
@@ -94,7 +95,7 @@ public class ScraperConfig {
     public int getMaxPaginas(String nombreSitio, int fallback) {
         String key = (nombreSitio != null ? nombreSitio : "").toLowerCase();
         String raw = props.getProperty("sitio." + key + ".max_paginas");
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isBlank(raw)) return fallback;
         try {
             int parsed = Integer.parseInt(raw.trim());
             if (parsed < 1) {
@@ -116,7 +117,7 @@ public class ScraperConfig {
      */
     private List<String> parseExtraUrls(String nombre) {
         String raw = props.getProperty("sitio." + nombre + ".urls_extra", "");
-        if (raw == null || raw.isBlank()) return List.of();
+        if (StringUtils.isBlank(raw)) return List.of();
         List<String> urls = new ArrayList<>();
         for (String u : raw.split(",")) {
             String t = u.trim();

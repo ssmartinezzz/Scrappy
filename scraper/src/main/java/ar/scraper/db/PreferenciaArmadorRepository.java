@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for the one saved builder preference per user
@@ -181,7 +182,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
     }
 
     private static void setNullableString(PreparedStatement ps, int index, String value) throws Exception {
-        if (value == null || value.isBlank()) {
+        if (StringUtils.isBlank(value)) {
             ps.setNull(index, java.sql.Types.VARCHAR);
         } else {
             ps.setString(index, value);

@@ -2,6 +2,7 @@ package ar.scraper.aggregator.normalize;
 
 import java.util.Locale;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Los valores de `categoria` que la base tiene HOY y que no pertenecen al
@@ -55,7 +56,7 @@ public final class CategoryAliases {
      * Case-insensitive: {@code Pc}, {@code PC} y {@code pc} son lo mismo.
      */
     public static String canonical(String valor) {
-        if (valor == null || valor.isBlank()) return null;
+        if (StringUtils.isBlank(valor)) return null;
         return ALIAS.get(valor.trim().toLowerCase(Locale.ROOT));
     }
 

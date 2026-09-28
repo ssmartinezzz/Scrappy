@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for {@code scrape_run} and {@code scrape_run_site} (V29).
@@ -88,7 +89,7 @@ class ScrapeRunRepository implements ScrapeRunPort {
             try {
                 long runId = insertarRun(c, scrapeUuid, arranque, triggeredBy, cronJobId);
                 for (String sitio : sitios) {
-                    if (sitio == null || sitio.isBlank()) continue;
+                    if (StringUtils.isBlank(sitio)) continue;
                     asegurarSitio(c, sitio);
                     enrolarSitio(c, runId, sitio);
                 }

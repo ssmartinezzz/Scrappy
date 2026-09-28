@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Pure, stateless computation of catalog facets (talles, generos, categorias,
@@ -103,7 +104,7 @@ public final class FacetCalculator {
         Map<String, Long> conteo = new LinkedHashMap<>();
         for (Product p : productos) {
             String v = valor.apply(p);
-            if (v != null && !v.isBlank()) conteo.merge(v, 1L, Long::sum);
+            if (StringUtils.isNotBlank(v)) conteo.merge(v, 1L, Long::sum);
         }
         return conteo;
     }

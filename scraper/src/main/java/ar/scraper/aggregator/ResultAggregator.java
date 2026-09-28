@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 @Component
 public class ResultAggregator {
@@ -95,9 +96,9 @@ public class ResultAggregator {
 
     /** A product is valid iff nombre is non-blank, precio > 0, and url is non-blank. */
     private static boolean isValid(Product p) {
-        return p.nombre() != null && !p.nombre().isBlank()
+        return StringUtils.isNotBlank(p.nombre())
                 && p.precio() > 0
-                && p.url() != null && !p.url().isBlank();
+                && StringUtils.isNotBlank(p.url());
     }
 
     /** Output of {@link #validarYContar}: per-site raw counts, errors, extraction stats, and the flattened list of valid products. */
@@ -267,13 +268,13 @@ public class ResultAggregator {
     private void persistirCategoriasRefinadas(List<Product> normalizados, List<Product> enriquecidos) {
         Map<String, String> catOriginal = new HashMap<>();
         for (Product p : normalizados)
-            if (p.url() != null && !p.url().isBlank())
+            if (StringUtils.isNotBlank(p.url()))
                 catOriginal.put(p.url(), p.categoria() != null ? p.categoria() : "");
 
         int catRefinadas = 0;
         for (Product p : enriquecidos) {
             String pid = p.url();
-            if (pid == null || pid.isBlank()) continue;
+            if (StringUtils.isBlank(pid)) continue;
             String antes = catOriginal.get(pid);
             String ahora = p.categoria() != null ? p.categoria() : "";
             if (antes != null && !ahora.equals(antes)) {
@@ -492,7 +493,7 @@ public class ResultAggregator {
 
         Map<String, Product> anteriorPorUrl = new HashMap<>();
         for (Product p : previo.productos())
-            if (p.url() != null && !p.url().isBlank()) anteriorPorUrl.putIfAbsent(p.url(), p);
+            if (StringUtils.isNotBlank(p.url())) anteriorPorUrl.putIfAbsent(p.url(), p);
 
         // Emparejamiento POSICIONAL, no por URL: un producto sin URL no tiene
         // clave de reuso y tiene que enriquecerse igual, como haría fromDB.
@@ -502,7 +503,7 @@ public class ResultAggregator {
 
         for (int i = 0; i < productos.size(); i++) {
             Product p = productos.get(i);
-            Product anterior = (p.url() != null && !p.url().isBlank())
+            Product anterior = StringUtils.isNotBlank(p.url())
                     ? anteriorPorUrl.get(p.url()) : null;
             if (anterior == null || urlsRefrescadas.contains(p.url())) {
                 posiciones.add(i);

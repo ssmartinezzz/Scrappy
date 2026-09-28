@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 
 @Component
 public class MlEnricher {
@@ -27,7 +28,7 @@ public class MlEnricher {
         List<Product> result = new ArrayList<>();
 
         for (Product p : productos) {
-            String key = (p.url() != null && !p.url().isBlank()) ? p.url() : p.nombre();
+            String key = StringUtils.isNotBlank(p.url()) ? p.url() : p.nombre();
             JsonNode s  = scores.path(key);
             if (s.isMissingNode()) { result.add(p); continue; }
 
@@ -77,7 +78,7 @@ public class MlEnricher {
             // Invariante text-wins (PR4 judgment-day, A-001/B-001): un género
             // ya resuelto por texto NUNCA se pisa con la señal de imagen.
             String generoFinal = p.genero();
-            if (generoFinal == null || generoFinal.isBlank()) {
+            if (StringUtils.isBlank(generoFinal)) {
                 String gML   = s.path("generoML").asText("");
                 double gConf = s.path("genImgConf").asDouble(0.0);
                 if (("hombre".equals(gML) || "mujer".equals(gML)) && gConf >= 0.80) {
@@ -134,7 +135,7 @@ public class MlEnricher {
      * non-blank value.
      */
     private static String valorScoreOPrevio(String valorScore, String valorPrevio) {
-        if (valorScore != null && !valorScore.isBlank()) return valorScore;
+        if (StringUtils.isNotBlank(valorScore)) return valorScore;
         return valorPrevio != null ? valorPrevio : "";
     }
 

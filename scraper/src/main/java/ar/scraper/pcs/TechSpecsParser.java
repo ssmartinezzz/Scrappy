@@ -15,6 +15,7 @@ import ar.scraper.pcs.specs.Tokens;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Reads socket / DDR generation / form factor / watts / RAM capacity+speed /
@@ -45,7 +46,7 @@ public final class TechSpecsParser {
             .collect(Collectors.toMap(LectorDeSpecs::categoria, lector -> lector));
 
     public static TechSpecs parse(String nombre, String categoria) {
-        if (nombre == null || nombre.isBlank() || categoria == null) return TechSpecs.EMPTY;
+        if (StringUtils.isBlank(nombre) || categoria == null) return TechSpecs.EMPTY;
 
         LectorDeSpecs lector = LECTORES.get(categoria);
         if (lector == null) return TechSpecs.EMPTY; // Monitor/etc.: no registered reader, abstain entirely

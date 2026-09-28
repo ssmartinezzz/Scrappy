@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Sole seam through which any component resolves "who is acting" (the human
@@ -35,7 +36,7 @@ public final class ActorResolver {
 
     public String current() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || auth.getName() == null || auth.getName().isBlank()) {
+        if (auth == null || !auth.isAuthenticated() || StringUtils.isBlank(auth.getName())) {
             return LOCAL_ACTOR;
         }
         return auth.getName();

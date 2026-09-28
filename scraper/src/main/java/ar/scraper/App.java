@@ -12,6 +12,7 @@ import org.springframework.context.event.EventListener;
 import java.awt.Desktop;
 import java.net.URI;
 import java.time.Clock;
+import org.apache.commons.lang3.StringUtils;
 
 @SpringBootApplication
 @EnableScheduling
@@ -46,7 +47,7 @@ public class App {
     @EventListener(ContextRefreshedEvent.class)
     public void onStart() {
         String url = System.getenv("APP_OPEN_URL");
-        if (url == null || url.isBlank()) {
+        if (StringUtils.isBlank(url)) {
             LOG.debug("APP_OPEN_URL no configurada — no se abre el navegador (backend API-only)");
             return;
         }

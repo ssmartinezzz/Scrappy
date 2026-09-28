@@ -3,6 +3,7 @@ package ar.scraper.outfits;
 import ar.scraper.model.Product;
 
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Pure eligibility and mapping rules shared by the outfit assembler and the
@@ -117,7 +118,7 @@ final class OutfitRules {
         if ("infantil".equalsIgnoreCase(g)) return false; // nunca en el armador, ni pidiendo unisex
         if (g.isEmpty()) return true;
         if ("unisex".equalsIgnoreCase(g)) return true;
-        if (generoSolicitado == null || generoSolicitado.isBlank()) return true; // sin genero pedido: todo elegible
+        if (StringUtils.isBlank(generoSolicitado)) return true; // sin genero pedido: todo elegible
         if ("unisex".equalsIgnoreCase(generoSolicitado)) return true; // pedido unisex: todo elegible
         return g.equalsIgnoreCase(generoSolicitado);
     }

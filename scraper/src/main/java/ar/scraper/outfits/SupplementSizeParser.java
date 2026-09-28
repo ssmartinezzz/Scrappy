@@ -5,6 +5,7 @@ import ar.scraper.aggregator.text.AccentStripper;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Reads the package size out of a supplement's name, so two listings of the same
@@ -118,7 +119,7 @@ final class SupplementSizeParser {
      * others written the same way, so the relative order survives.</p>
      */
     static Tamano parse(String nombre) {
-        if (nombre == null || nombre.isBlank()) return Tamano.DESCONOCIDO;
+        if (StringUtils.isBlank(nombre)) return Tamano.DESCONOCIDO;
 
         String n = AccentStripper.strip(nombre.toLowerCase());
         double masa = 0.0, volumen = 0.0, conteo = 0.0;

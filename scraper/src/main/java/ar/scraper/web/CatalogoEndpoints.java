@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * The catalog itself: the paginated product listing with server-side filters,
@@ -250,7 +251,7 @@ class CatalogoEndpoints {
      * queda reservado para un producto que de verdad no existe.</p>
      */
     ResponseEntity<Object> productoDetalle(String key) {
-        if (key == null || key.isBlank()) return ResponseEntity.notFound().build();
+        if (StringUtils.isBlank(key)) return ResponseEntity.notFound().build();
 
         var encontrado = productos.obtenerProductoPorKey(key);
         if (encontrado.isEmpty()) return ResponseEntity.notFound().build();
@@ -313,7 +314,7 @@ class CatalogoEndpoints {
             int gymrat = 0, packs = 0;
             for (Product p : productos) {
                 String rubro = p.rubro();
-                if (rubro != null && !rubro.isBlank()) rubros.merge(rubro.toLowerCase(), 1, Integer::sum);
+                if (StringUtils.isNotBlank(rubro)) rubros.merge(rubro.toLowerCase(), 1, Integer::sum);
                 if (p.gymrat()) gymrat++;
                 if (p.esPack()) packs++;
             }

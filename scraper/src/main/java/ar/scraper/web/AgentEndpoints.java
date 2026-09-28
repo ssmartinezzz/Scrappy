@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * LLM Catalog Agent (llm-catalog-nlp) — chat / apply / models, grouped
@@ -182,8 +183,8 @@ class AgentEndpoints {
         // required check names only what's actually missing (never a
         // blanket "'url' y 'categoria'" message when only one is absent).
         List<String> faltantes = new ArrayList<>();
-        if (body.url() == null || body.url().isBlank()) faltantes.add("url");
-        if (body.categoriaPropuesta() == null || body.categoriaPropuesta().isBlank()) faltantes.add("categoriaPropuesta");
+        if (StringUtils.isBlank(body.url())) faltantes.add("url");
+        if (StringUtils.isBlank(body.categoriaPropuesta())) faltantes.add("categoriaPropuesta");
         if (!faltantes.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("ok", false, "mensaje",
                     "Faltan campos requeridos: " + String.join(", ", faltantes) + "."));
@@ -202,7 +203,7 @@ class AgentEndpoints {
         // violates V6's chk_productos_genero_domain and the caller gets an
         // opaque 500 instead of a 400 naming what was wrong.
         String generoPropuesto = body.generoPropuesto();
-        if (generoPropuesto != null && !generoPropuesto.isBlank()
+        if (StringUtils.isNotBlank(generoPropuesto)
                 && !ProposeReclassifyTool.VALID_GENEROS.contains(generoPropuesto)) {
             return ResponseEntity.badRequest()
                     .body(Map.of("ok", false, "mensaje", "Género inválido: '" + generoPropuesto + "'."));
@@ -252,10 +253,10 @@ class AgentEndpoints {
         boolean applied = productos.aplicarReclasificacionAuditada(
                 body.url(),
                 body.categoriaPropuesta(),
-                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
-                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
+                (StringUtils.isNotBlank(marca)) ? marca : previo.marca(),
+                (StringUtils.isNotBlank(genero)) ? genero : previo.genero(),
                 previo.talles(),
-                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
+                (StringUtils.isNotBlank(subCategoria)) ? subCategoria : previo.subCategoria(),
                 previo,
                 actor);
 
@@ -277,9 +278,9 @@ class AgentEndpoints {
         service.actualizarProductoEnMemoria(
                 body.url(),
                 body.categoriaPropuesta(),
-                (marca != null && !marca.isBlank()) ? marca : previo.marca(),
-                (genero != null && !genero.isBlank()) ? genero : previo.genero(),
-                (subCategoria != null && !subCategoria.isBlank()) ? subCategoria : previo.subCategoria(),
+                (StringUtils.isNotBlank(marca)) ? marca : previo.marca(),
+                (StringUtils.isNotBlank(genero)) ? genero : previo.genero(),
+                (StringUtils.isNotBlank(subCategoria)) ? subCategoria : previo.subCategoria(),
                 rubro);
 
         return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));

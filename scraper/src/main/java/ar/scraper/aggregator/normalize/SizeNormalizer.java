@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Size canonicalization.
@@ -43,7 +44,7 @@ public class SizeNormalizer {
     }
 
     private String normalizarTalle(String raw) {
-        if (raw == null || raw.isBlank()) return "";
+        if (StringUtils.isBlank(raw)) return "";
         String lower = raw.trim().toLowerCase();
         String mapped = TALLE_MAP.get(lower);
         if (mapped != null) return mapped;

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Reader for Venex, an osCommerce/ZenCart storefront (confirmed live:
@@ -201,7 +202,7 @@ public class OsCommercePage extends BasePage {
 
     static List<Product> parseListing(String html, String sitio, String baseUrl,
                                        String categoriaHint, double precioMin, double precioMax) {
-        if (html == null || html.isBlank()) return List.of();
+        if (StringUtils.isBlank(html)) return List.of();
         html = normalizeQuotedEntities(html);
 
         List<Product> result = new ArrayList<>();
@@ -257,7 +258,7 @@ public class OsCommercePage extends BasePage {
             "href=\"https?://[^\"/]+/([a-z0-9][a-z0-9-]*)/?\"");
 
     static List<String> extractTopCategorySlugs(String navHtml) {
-        if (navHtml == null || navHtml.isBlank()) return List.of();
+        if (StringUtils.isBlank(navHtml)) return List.of();
         Set<String> slugs = new LinkedHashSet<>();
         var m = TOP_NAV_LINK.matcher(navHtml);
         while (m.find()) {
@@ -268,7 +269,7 @@ public class OsCommercePage extends BasePage {
     }
 
     static List<String> extractLeafCategorySlugs(String landingHtml, String topSlug) {
-        if (landingHtml == null || landingHtml.isBlank()) return List.of();
+        if (StringUtils.isBlank(landingHtml)) return List.of();
         var pattern = java.util.regex.Pattern.compile(
                 "href=\"https?://[^\"/]+/" + java.util.regex.Pattern.quote(topSlug)
                         + "/([a-z0-9][a-z0-9-]*)/?\"");

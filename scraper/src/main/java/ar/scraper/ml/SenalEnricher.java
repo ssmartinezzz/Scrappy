@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Precompute step for the buy-signal classification (mirrors
@@ -48,7 +49,7 @@ public class SenalEnricher {
 
         List<String> urls = productos.stream()
                 .map(Product::url)
-                .filter(u -> u != null && !u.isBlank())
+                .filter(u -> StringUtils.isNotBlank(u))
                 .toList();
 
         Map<String, List<HistorialEntry>> historialPorUrl = historial.getHistorialPrecios(urls);
@@ -56,7 +57,7 @@ public class SenalEnricher {
         List<Product> result = new ArrayList<>(productos.size());
         int enriquecidos = 0;
         for (Product p : productos) {
-            if (p.url() == null || p.url().isBlank()) {
+            if (StringUtils.isBlank(p.url())) {
                 result.add(p);
                 continue;
             }

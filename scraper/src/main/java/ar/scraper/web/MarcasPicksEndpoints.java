@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.catalog.ProductJson;
 import ar.scraper.model.Product;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 
 /**
@@ -43,10 +44,10 @@ class MarcasPicksEndpoints {
         // muerto: marca ya sólo puede ser "" (filtrado abajo) o una entrada
         // real de BrandExtractor.MARCAS — nunca un nombre de sitio.
         var byMarca = r.productos().stream()
-            .filter(p -> p.marca() != null && !p.marca().isBlank())
-            .filter(p -> rubro == null || rubro.isBlank()
+            .filter(p -> StringUtils.isNotBlank(p.marca()))
+            .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
-            .filter(p -> q == null || q.isBlank()
+            .filter(p -> StringUtils.isBlank(q)
                 || p.marca().toLowerCase().contains(q.toLowerCase()))
             .collect(java.util.stream.Collectors.groupingBy(
                 p -> p.marca().trim()
@@ -78,7 +79,7 @@ class MarcasPicksEndpoints {
                 String rubroVal  = prods.get(0).rubro() != null ? prods.get(0).rubro() : "indumentaria";
 
                 String topCats = prods.stream()
-                    .filter(p -> p.categoria() != null && !p.categoria().isBlank())
+                    .filter(p -> StringUtils.isNotBlank(p.categoria()))
                     .collect(java.util.stream.Collectors.groupingBy(
                         Product::categoria, java.util.stream.Collectors.counting()))
                     .entrySet().stream()
@@ -88,7 +89,7 @@ class MarcasPicksEndpoints {
                     .collect(java.util.stream.Collectors.joining(", "));
 
                 Product best = prods.stream()
-                    .filter(p -> p.imagenUrl() != null && !p.imagenUrl().isBlank())
+                    .filter(p -> StringUtils.isNotBlank(p.imagenUrl()))
                     .min(java.util.Comparator.comparingInt(
                         p -> p.ml() != null && p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
                     .orElse(prods.get(0));
@@ -132,8 +133,8 @@ class MarcasPicksEndpoints {
 
         // Agrupar productos por categoría
         java.util.Map<String, java.util.List<Product>> byCat = r.productos().stream()
-            .filter(p -> p.categoria() != null && !p.categoria().isBlank())
-            .filter(p -> rubro == null || rubro.isBlank()
+            .filter(p -> StringUtils.isNotBlank(p.categoria()))
+            .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
             .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
             .collect(java.util.stream.Collectors.groupingBy(Product::categoria));
@@ -150,7 +151,7 @@ class MarcasPicksEndpoints {
 
                 // 1. Mejor precio/calidad: menor composite score con imagen
                 Product mejor = prods.stream()
-                    .filter(p -> p.ml() != null && p.imagenUrl() != null && !p.imagenUrl().isBlank())
+                    .filter(p -> p.ml() != null && StringUtils.isNotBlank(p.imagenUrl()))
                     .min(java.util.Comparator.comparingInt(
                         p -> p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
                     .orElse(prods.get(0));
@@ -160,7 +161,7 @@ class MarcasPicksEndpoints {
                     .filter(p -> p.ml() != null
                         && ("premium".equals(p.ml().segment()) || "standard".equals(p.ml().segment()))
                         && p.ml().scoreP() >= 30 && p.ml().scoreP() <= 65
-                        && p.imagenUrl() != null && !p.imagenUrl().isBlank())
+                        && StringUtils.isNotBlank(p.imagenUrl()))
                     .findFirst().orElse(null);
 
                 // 3. Mínimo histórico
@@ -202,7 +203,7 @@ class MarcasPicksEndpoints {
                 // integrados en la categoría en vez de quedar afuera por el único cupo
                 // de "valor" (scoreP ya es unit-price-aware en ml_pipeline).
                 java.util.List<Product> ordenados = prods.stream()
-                    .filter(p -> p.ml() != null && p.imagenUrl() != null && !p.imagenUrl().isBlank())
+                    .filter(p -> p.ml() != null && StringUtils.isNotBlank(p.imagenUrl()))
                     .sorted(java.util.Comparator.comparingInt(
                         p -> p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
                     .collect(java.util.stream.Collectors.toList());

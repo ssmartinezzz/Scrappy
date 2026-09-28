@@ -2,6 +2,7 @@ package ar.scraper.ml;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Environment resolution for the Python subprocesses: DSN translation and the
@@ -42,10 +43,10 @@ final class PythonEnv {
                 ? jdbcOrPlainUrl.substring("jdbc:".length())
                 : jdbcOrPlainUrl;
         StringBuilder query = new StringBuilder();
-        if (username != null && !username.isBlank()) {
+        if (StringUtils.isNotBlank(username)) {
             query.append("user=").append(username);
         }
-        if (password != null && !password.isBlank()) {
+        if (StringUtils.isNotBlank(password)) {
             if (query.length() > 0) query.append('&');
             query.append("password=").append(password);
         }
@@ -63,7 +64,7 @@ final class PythonEnv {
      * models directory even when the env var isn't set.
      */
     static String resolveModelsRoot(String envModelsRoot, Path workDir) {
-        if (envModelsRoot != null && !envModelsRoot.isBlank()) return envModelsRoot;
+        if (StringUtils.isNotBlank(envModelsRoot)) return envModelsRoot;
         return workDir.resolve("_models").toString();
     }
 

@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Persistence for the {@code saved_outfits} aggregate.
@@ -86,7 +87,7 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
      */
     private void insertarItems(Connection c, int outfitId, String clase, String campoRanura, String json)
             throws Exception {
-        if (json == null || json.isBlank()) return;
+        if (StringUtils.isBlank(json)) return;
         com.fasterxml.jackson.databind.JsonNode arr = MAPPER.readTree(json);
         if (!arr.isArray()) return;
         try (PreparedStatement ps = c.prepareStatement("""
@@ -221,7 +222,7 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
     /** Renombra un outfit guardado. Retorna true si existía. */
     @Override
     public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
-        if (nombre == null || nombre.isBlank()) return false;
+        if (StringUtils.isBlank(nombre)) return false;
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                 "UPDATE saved_outfits SET nombre=? WHERE usuario_id=? AND id=?")) {
