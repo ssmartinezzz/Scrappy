@@ -1,1532 +1,205 @@
 # Fashion Scraper Argentina — Guía
 
-> **Este archivo es una guía índice: qué hay y dónde leerlo.** No es un
-> changelog ni el lugar de las justificaciones. Si acá aparece un párrafo
-> explicando *por qué* se tomó una decisión, está en el archivo equivocado y
-> va a [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+> ⛔ **NO SOBRESCRIBIR ESTE ARCHIVO.** Ningún agente, skill ni flujo automático
+> (SDD, ODD, `/init`, archive, review) puede reescribir, regenerar ni agregarle
+> contenido a `CLAUDE.md` **salvo que el usuario lo pida explícitamente**.
+> El conocimiento nuevo va al doc temático que corresponde (tabla de abajo); si
+> ninguno encaja, se propone uno nuevo y se pregunta antes de crearlo.
+
+> **Este archivo es SÓLO un índice**: qué hay y dónde leerlo. No es changelog,
+> ni estado detallado, ni justificación. Tope: **250 líneas**.
 >
-> El reparto entre los documentos raíz es deliberado:
+> Reparto de los documentos raíz:
 > **`CLAUDE.md` = guía · [`CONTRIBUTING.md`](./CONTRIBUTING.md) = proceso ·
 > [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) = por qué ·
 > [`docs/DATABASE.md`](./docs/DATABASE.md) = la base, entera ·
-> [`SKILL.md`](./SKILL.md) = índice de documentación.**
->
-> Nada de la base se documenta acá ni en `ARCHITECTURE.md`: esquema,
-> migraciones, rollback y normalización viven en
-> [`docs/DATABASE.md`](./docs/DATABASE.md), y `ARCHITECTURE.md` sólo lo indexa.
->
-> Se carga en contexto en cada sesión, así que tiene que ser navegable: preferí
-> una tabla y un puntero antes que un párrafo.
->
-> Última actualización integral: 2026-09-01.
+> [`SKILL.md`](./SKILL.md) = índice completo de documentación.**
 
 ---
 
 ## Qué es
 
-Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos y
-hardware/PC) con dashboard web inteligente. Un solo `.bat` instala todo y ejecuta
-desde cero en Windows. El usuario configura parámetros de búsqueda, lanza el
-scraping (manual o por cronjobs), y navega los resultados con filtros, comparador
-multi-sitio, feed personalizado, armador de outfits, análisis de cuotas/inflación
-y panel de tendencias ML con clasificación de imagen zero-shot.
+Scraper headless de tiendas online argentinas (indumentaria, gym, suplementos,
+hardware/PC y oficina) con dashboard web: filtros, comparador multi-sitio, feed
+personalizado, armadores (outfits, suplementos, PCs), cuotas/inflación y
+tendencias ML con clasificación de imagen zero-shot.
 
 **Tres vías de instalación**, todas soportadas:
 
-1. **Windows portable** — `INSTALAR_Y_CORRER.bat` vendoriza todo el toolchain en `_tools/` e invoca el CLI nativo.
-2. **POSIX** — `Ejecutar_instalar.sh`. Asume java/mvn/node/python3 del sistema; sí vendoriza `uv` + `cli-venv`.
-3. **Docker** (aditiva, no reemplaza a las otras) — `docker compose up`: postgres + backend + frontend.
+1. **Windows portable** — `INSTALAR_Y_CORRER.bat` vendoriza el toolchain en `_tools/` e invoca el CLI nativo.
+2. **POSIX** — `Ejecutar_instalar.sh` (java/mvn/node/python3 del sistema; vendoriza `uv` + `cli-venv`).
+3. **Docker** — `docker compose up`: postgres + backend + frontend.
 
 ---
 
-## Stack técnico
-
-Tres servicios independientes (backend API-only, frontend Vite, ML Python
-subprocess) sobre PostgreSQL, 100% configurados por variables de entorno.
+## Stack
 
 | Capa | Tecnología |
 |------|-----------|
-| Backend/Scraper | Java 21 + Spring Boot 3.2 + Playwright 1.44 — **API-only**, no sirve la SPA |
-| Servidor web | Tomcat embebido en `localhost:3000` (configurable) |
-| Frontend | React 18 + Vite 8 (`frontend/`), servicio propio, habla al backend por CORS vía `VITE_API_BASE_URL` |
-| Base de datos | PostgreSQL (`DATABASE_URL`) — Flyway `V1` (15 tablas + `sp_upsert_run`/`sp_soft_delete_ausentes` en plpgsql), `V2` (auditoría del agente), `V3` (lock de clasificación manual); pool HikariCP |
-| ML Pipeline | Python 3.11 embeddable, subprocess desde Java — estadístico + TF-IDF + zero-shot visual; conecta a Postgres vía `psycopg2` |
-| Clasificación visual | Marqo-FashionSigLIP vía `open_clip` (requiere `transformers` para el tokenizer) |
-| Build | Maven + Spring Boot Maven Plugin (fat JAR), invocado por el **CLI nativo** (`cli/core/builder.py`), no por el installer |
-| CLI nativo | `cli/` — Python: `core/` headless + consola Textual + fallback texto plano. Corre sobre `_tools/cli-venv` (CPython 3.11.9 uv-managed, aislado del embeddable de ML) |
-| Config | Env-only. `.env` gitignored, generado por `cli/core/env_file.py` desde `.env.example`. Jamás parseado en runtime por Java/Python — solo variables de proceso |
-
-📄 Decisiones y su justificación: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+| Backend/Scraper | Java 21 + Spring Boot 3.2 + Playwright 1.44 — **API-only**, `localhost:3000` |
+| Frontend | React 18 + Vite 8 (`frontend/`), habla al backend por CORS (`VITE_API_BASE_URL` / `window.__API_BASE__`) |
+| Base de datos | PostgreSQL + Flyway (`V1`..`V39` + dos `R__`), HikariCP |
+| ML | Python 3.11 embeddable como subprocess: estadístico + TF-IDF + zero-shot (Marqo-FashionSigLIP) |
+| CLI nativo | `cli/` — Python sobre `_tools/cli-venv` (Textual + fallback texto plano) |
+| Config | Env-only. `.env` generado por `cli/core/env_file.py` desde `.env.example` |
 
 ---
 
-## Estructura de archivos clave
+## Índice de documentación
 
-```
-Scrappy/
-├── CLAUDE.md                    ← Este archivo (estado)
-├── CONTRIBUTING.md              ← Proceso: commits, PRs, TDD, docs — reglas con ID citable
-├── .github/PULL_REQUEST_TEMPLATE.md
-├── .github/workflows/           ← backend-tests, cli-tests, frontend-tests, ml-tests,
-│                                docker-smoke, e2e-login-smoke
-├── SKILL.md                     ← Índice de documentación
-├── INSTALAR_Y_CORRER.bat        ← Windows: aprovisiona _tools/ e invoca `-m cli`
-├── Ejecutar_instalar.sh         ← Mirror POSIX
-├── docker-compose.yml + Dockerfile + docker.env.example
-├── cli/                         ← CLI nativo (Python)
-│   ├── core/                    ←   headless: config, env_file, builder, rest,
-│   │                                processes, commands, logs, errors
-│   ├── tui/                     ←   consola Textual
-│   ├── plain/                   ←   fallback texto plano
-│   └── __main__.py              ←   detección de capacidad + routing
-├── docs/                        ← DATABASE, ARCHITECTURE, API_REFERENCE, ADD_SCRAPER,
-│                                  ML_PIPELINE, LLM_EMBED, LLM_AGENT_SETUP
-├── openspec/                    ← Artefactos SDD (changes/ activos, changes/archive/ cerrados, specs/)
-├── odd/tasks/                   ← Documentos de feature ODD (objetivo, tareas, evidencia medida)
-├── scripts/
-│   ├── dev-db.sh                ← Postgres de dev on-demand (up/down/status)
-│   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
-├── ml-tests/                    ← pytest del pipeline Python
-├── tests/cli/                   ← pytest del CLI nativo
-├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
-│                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
-├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
-├── tests/perf/                  ← performance: DOS suites independientes sobre los mismos endpoints
-│   ├── jmeter/                  ←   jmeter-java-dsl (Java, pom propio; `*IT` ⇒ `mvn verify`, nunca `mvn test`)
-│   ├── locust/                  ←   locust como motor + pytest como runner, sobre uv: `uv run pytest`
-│   │                                Lo lento (carga/stress/spike) está marcado `lento` y sale del default
-│   └── perf-user.sh             ←   crea la cuenta VIEWER por la API real → `.perf-credentials.env`
-│                                  Las DOS suites lo corren solas si faltan credenciales: con el backend
-│                                  arriba, un solo comando alcanza y no hay que exportar nada
-│                                  Ninguna levanta el backend: exigen uno vivo (`run-e2e.sh --api --keep-up`).
-│                                  Presupuestos p95 MEDIDOS (15.987 productos, 2026-09-22). Ojo: los caros
-│                                  son los SQL (`data` 160ms, `facets` 150ms), no los armadores (`pcs` 23ms)
-└── scraper/
-    ├── pom.xml
-    ├── src/test/
-    │   └── java/ar/scraper/architecture/BackendLayeringArchTest.java
-    │                                   ← reglas ArchUnit. `grafoSinCiclos` ya NO está congelada:
-    │                                     los 7 ciclos se cerraron en F3a y el golden se borró
-    └── src/main/
-        ├── java/ar/scraper/
-        │   ├── App.java                    ← Entry point Spring Boot
-        │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard
-        │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
-        │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
-        │   │                                  HistorialEntry, HistorialPort, UpsertStats,
-        │   │                                  CatalogQueryPort, ProductPort, CategoriaStatsPort,
-        │   │                                  MlOutputPort, PreciosExternosPort (los seis puertos
-        │   │                                  los implementan @Repository package-private en db/)
-        │   │                                  + ProductJson, ProductKey, HistorialJson (json de borde,
-        │   │                                  movidos de web/ en F3b)
-        │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
-        │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
-        │   │                                  implementa un @Repository package-private en db/)
-        │   ├── scrape/                     ← área: CorridaInterrumpida, ScraperStatus, ScrapeRunPort
-        │   │                                  (lo implementa un @Repository package-private en db/) +
-        │   │                                  ScrapeControlPort (lo implementa ScrapeControlAdapter,
-        │   │                                  package-private en web/)
-        │   ├── scheduling/                 ← área: CronJob, CronExecution, CronPort (lo implementa
-        │   │                                  un @Repository package-private en db/) + CronJobRunner
-        │   │                                  y CronJobService, absorbidos de cron/ en F3a
-        │   ├── favoritos/FavoritosPort     ← área: puerto del agregado favoritos (lo implementa
-        │   │                                  un @Repository package-private en db/)
-        │   ├── financiacion/               ← área: Preset, PresetPort (lo implementa un
-        │   │                                  @Repository package-private en db/)
-        │   ├── indices/                    ← área: Indice, PuntoIndice, Confianza, Deflactor, Serie,
-        │   │                                  DeflactorPorRubro, Extrapolador, IndiceService (único
-        │   │                                  entry point para ml/ y web/) + IndiceRefreshJob (ApplicationRunner,
-        │   │                                  NUNCA @PostConstruct: corre después de Flyway),
-        │   │                                  ResumenIndice, IndicePort/FuenteIndicePort — reemplaza a
-        │   │                                  InflacionService (ver Gotchas → Índices y señales)
-        │   ├── feedback/                    ← área: OutfitItemRow, FeedbackPort — outfit_feedback_item
-        │   │                                  + categoria_dismiss, una sola señal de gusto (lo
-        │   │                                  implementa un @Repository package-private en db/)
-        │   ├── outfits/                    ← área: OutfitService, OutfitBudgetBuilder, OutfitRules,
-        │   │                                  VisualCoherence, RecommendationService, FeedbackModels,
-        │   │                                  SupplementCombo, SupplementSizeParser (movidos de web/
-        │   │                                  en F3b) + SavedOutfitsPort (lo implementa un
-        │   │                                  @Repository package-private en db/)
-        │   ├── identity/                   ← área: ActorResolver + Sujeto (movido de web/ en F3b)
-        │   ├── pcs/                        ← área: TechSpecs + specs/ (un lector por categoría, fase 1/6),
-        │   │                                  PcBuilder + SlotDeArmado + reglas/ + EjesTecnicos (fases 2/6),
-        │   │                                  Gama, GamaWire, PreferenciaArmadorPort, TechSpecsPort,
-        │   │                                  SavedPcsPort (lo sirve PcsEndpoints en web/)
-        │   ├── pages/                      ← Page Object Model
-        │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
-        │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
-        │   │                                  CatalogSnapshotPort (lo implementa ScraperService)
-        │   │   ├── normalize/              ←   PackQuantityDetector, CategoryClassifier,
-        │   │   │                               GenderResolver, SizeNormalizer,
-        │   │   │                               SubcategoryResolver, GymratTagger
-        │   │   ├── grouping/               ←   GroupingService, ProductIdentity, JaccardSimilarity
-        │   │   └── text/AccentStripper     ←   hot path: 10 clases lo usan
-        │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
-        │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
-        │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
-        │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
-        │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
-        │   │                                  AdminSeeder (siembra + adopción)
-        │   │                                  ApiRoutePolicy (la matriz, como dato),
-        │   │                                  SecurityConfig + JwtAuthFilter (el gate)
-        │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,
-        │   │                                  ConsoleChannel (default) / SmtpChannel (opt-in)
-        │   ├── fuentes/                    ← adapters HTTP de indices/: ArgentinaDatosIpcFuente,
-        │   │                                  DatosGobIpcFuente (fallback), ArgentinaDatosDolarFuente
-        │   │                                  (@Component package-private implementando
-        │   │                                  FuenteIndicePort) + HttpJson + FuenteIndiceConfig
-        │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
-        │   └── web/                        ← ApiController + *Endpoints (20 clases, transporte)
-        └── resources/
-            ├── application.properties, logback-spring.xml, config.properties
-            ├── db/migration/               ← Flyway
-            └── ml/                         ← ml_pipeline.py, ml_train.py, ml_embeddings.py
-```
+### Empezar acá
 
-`scraper/ml_*.py` junto al jar son **artefactos de extracción runtime**
-(gitignoreados). La única fuente de verdad es `scraper/src/main/resources/ml/`.
+| Doc | Leelo cuando… |
+|-----|---------------|
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Antes de escribir código o commitear. Reglas con ID citable (`COMMIT-1`, `CODE-3`, `TEST-1`, `DOC-1`…) |
+| [`SKILL.md`](./SKILL.md) | Buscás un doc, una suite de test o un directorio que no está acá |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Vas a proponer un cambio estructural. Incluye el modelo `Product` y el flujo de un run |
+| [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Necesitás el árbol comentado de paquetes (`catalog/`, `pcs/`, `scrape/`, `db/`, `web/`…) |
 
-📄 Las capas del backend las hace cumplir ArchUnit (`BackendLayeringArchTest`);
-la forma objetivo (áreas `ar.scraper.<área>`, sin `db/` central) y su porqué
-están en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+### Por área
+
+| Si vas a tocar… | Leé |
+|---|---|
+| El esquema, una migración, el upsert, el rollback | [`docs/DATABASE.md`](./docs/DATABASE.md) |
+| Un sitio, una plataforma, una URL de catálogo | [`docs/SITES.md`](./docs/SITES.md) + [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md) |
+| Endpoints REST | [`docs/openapi.yaml`](./docs/openapi.yaml) (contrato) + [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) (semántica) |
+| Auth del browser, cookies, sesión | [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md) |
+| Scoring, badges, clustering, stage 1b, taxonomía de `categoria` | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) |
+| Armador de outfits o combo de suplementos | [`docs/OUTFITS.md`](./docs/OUTFITS.md) |
+| Armador de PCs (`ar.scraper.pcs`, fases 1–10) | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) + `odd/tasks/pc-builder-*.md` |
+| El agente LLM (`ar.scraper.agent`) | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) · setup: [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) |
+| Rutas, nav, `/favoritos`, `/apidocs` | [`docs/FRONTEND.md`](./docs/FRONTEND.md) |
+| Servir a otro dispositivo por HTTPS (`start lan`) | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) |
+| Algo que "no anda" y no sabés por qué | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) |
+| Bugs abiertos, pendientes, banda de precios | [`docs/KNOWN_ISSUES.md`](./docs/KNOWN_ISSUES.md) |
+
+### Gotchas por síntoma → [`docs/GOTCHAS.md`](./docs/GOTCHAS.md)
+
+| Si estás tocando… | Sección |
+|---|---|
+| auth, CORS, cookies, sesión, status de una corrida | Frontend ↔ backend |
+| retomar/descartar una corrida, scrape parcial, cronjobs | Corridas parciales y retomas |
+| toolchain, jar, venv, base de dev, arrancar servicios | Entorno, procesos y config |
+| un scraper, una page, URL de catálogo o de imagen | Leer un sitio |
+| keywords, categorías, guard no-textil, normalización | Taxonomía y clasificación |
+| IPC, dólar, deflactor, señal de compra | Índices y señales |
+| un picker, una tarjeta que scrollea, chips animados | Frontend: layout |
+| `docker-compose.yml`, Dockerfile, orígenes | Docker |
+
+### Trabajo en curso y artefactos
+
+| Dónde | Qué |
+|---|---|
+| [`odd/tasks/`](./odd/tasks/) | Documentos de feature ODD: objetivo, tareas, evidencia medida |
+| [`openspec/`](./openspec/) | SDD: `changes/` activos, `changes/archive/` cerrados, `specs/` vigentes |
+| [`ml-tests/eval/`](./ml-tests/eval/README.md) | Set de evaluación del clasificador sobre el catálogo real |
 
 ---
 
-## Sitios configurados (`config.properties`)
+## Skills
 
-| Sitio | Plataforma | Rubro | Notas |
-|-------|-----------|-------|-------|
-| freres, vcp, forever | Shopify | moda | `forever` está en el name-set SHOPIFY desde 2026-07-14 (antes caía a TN y daba 0 productos) |
-| foreverbstrd | Tiendanube | moda | URL estilo Shopify (`/collections/all`) pero es TN real — **NO** agregarlo al name-set |
-| harvey | Tiendanube | moda | Única con `urls_extra` (outlet `otras-temporadas1`, pagina con `?mpage=N`) |
-| midway, batuk, tussy, bulks, bullbenny, barnes, eldon | Tiendanube | moda | Batuk+Huoky misma tienda (huoky comentado) |
-| fuark, fursten | Tiendanube | gym | Fursten pagina solo vía fallback `?page=N`. No existe flag `GYM_SITIOS` |
-| monkyforce | Monkyforce (propio) | gym | |
-| entreno | Tiendanube | suplementos | **~636 productos**: 53 páginas de 12, la 54 devuelve 0 (medido 2026-08-20). Hasta el tope configurable rendía ~313 — el techo de 25 páginas cortaba a la mitad, en silencio. El scroll infinito corre **sólo** en `/productos/` pelado y se **apaga** con `?page=N` en la URL, así que lo que pagina de verdad es `?page=N`; `?mpage=N` es marcador client-side y no pagina nada en el HTML crudo. No tiene links de pager en el DOM: llega a la página 2 por el fallback que construye la URL |
-| morashop | Morashop (Tiendanube, page propia) | suplementos | Competidor directo de entreno, ~510 productos crudos en 12 categorías hoja. **NO es plataforma `tiendanube`** aunque la tienda lo sea: el extractor compartido le sirve tal cual, pero necesita page propia porque **no tiene URL de catálogo**. `/productos/` es una landing del tema con CERO productos y `/suplementos/` es un índice, también cero — apuntar a cualquiera de las dos da 0 en silencio (la clase de bug que cerró `V24`). `MorashopPage` descubre las hojas del landing en runtime y **tira `MorashopDiscoveryException`** si no encuentra ninguna. La API REST de TN da 404 acá, pero además está **apagada a propósito** (`usaApi()=false`): devuelve la tienda entera sin filtro por sección, y morashop además vende supermercado, electro-hogar y bodega, rubros que no tienen valor en el dominio. Sólo se crawlea `/suplementos/` |
-| sporting | VTEX | deportes | |
-| vaypol, city | Vaypol (Rails SSR custom) | deportes | |
-| dcshoes | WooCommerce | moda | |
-| fullh4rd | Scraper propio | tecnologia | Hardware/PC. Sirve el `src` del listado **root-relative** (`/img/productos/{cat}/{slug}-0.jpg`) — se absolutiza con `ImageUrl` como cualquier otro |
-| maximus | Scraper propio (API session-gated) | tecnologia | URL: `/Productos/{Slug}/maximus.aspx?/CAT={id}/SCAT=-1/M=-1/OR=1/PAGE={p}/` (el `{Slug}` es cosmético, sólo `CAT=` rutea — confirmado en vivo). Productos vía `POST /wfmWebSite2.aspx/wsNRW_Script` **desde adentro de la página ya navegada** — un cookie-less call responde HTTP 200 con `{"d":"-2, Módulo GlobalBluePoint© GBPScripts NO ADQUIRIDO."}` (el gate no se detecta por status code). `parseMaximusPayload` **lanza** `MaximusPayloadException` ante esa forma en vez de devolver una categoría vacía silenciosa — se propaga sin atrapar hasta `BaseScraper.ejecutar`. La API no trae un campo de imagen, pero sí `item_code4web`: la imagen es `{base}/Temp/App_WebSite/App_PictureFiles/Items/{item_code4web}_600.jpg` (HEAD 200 en 121/121, CAT 48/56/68/3/10, 2026-08-15). Sin código → abstención. **745 productos** en un run real de sitio completo (2026-08-13): 73 categorías descubiertas del nav, 1122 únicos, 745 dentro de `precio.maximo` |
-| compragamer | Scraper propio (feed JSON) | tecnologia | Lee `static.compragamer.com/productos` directo (1389 items, sin auth, sin paginar) — no scrapea el DOM de la SPA Angular. **650 productos** en un run real tras filtrar por stock/vendible y bandas de precio (2026-08-13). Dos claves del feed hay que reconstruirlas, no usarlas crudas: la imagen es `imagenes.compragamer.com/productos/compragamer_Imganen_general_{imagenes[].nombre}.jpg` (el typo `Imganen` es de ellos; sin el prefijo, el bucket S3 da `403 AccessDenied`), y la URL de producto es `/producto/{slug}_{id}` — el router de la SPA rutea por el sufijo `_{id}` y manda `/producto/{id}` pelado al home |
-| rockethard | Qloud (propio, multi-tienda) | tecnologia | Server-rendered, `?page=N`. **503 productos** en un run real de sitio completo con las bandas de precio de producción (2026-08-13) tras registrarlo — nunca había tenido fila en `sitio` ni entrada en `config.properties`. `/productos` es 404 confirmado, nunca usar esa ruta |
-| venex | osCommerce (propio) | tecnologia | Descubrimiento en dos niveles: categoría top → sub-categorías leaf en su landing (la landing muestra 12 productos no representativos, nunca se cuentan). `?page=N`, se detiene en página vacía **o** repetida — pasado el final real, Venex repite la última página en vez de devolver vacío. `page.content()` sirve el DOM re-serializado por Chromium (comillas dobles + entidad `&quot;`), no el HTML crudo del servidor (comillas simples) — el parser normaliza antes de matchear. El argumento de `enhancedClick` se lee **con Jackson**, no campo por campo con regex: los nombres traen la pulgada escapada (`15.6\"`) y un `"name":"([^"]*)"` se corta ahí y tira la card entera en silencio — medido en `/notebooks/`, eso costaba 20 de 47 productos únicos (2026-08-15). **1294 productos** en un run real de sitio completo (las 19 categorías top, 2026-08-13), sub-contado por esa pérdida |
-| inpro | Inpro (Tiendanube headless) | oficina | Sillas ergonómicas, standing desks, brazos de monitor, iluminación. **NO es plataforma `tiendanube`**: sirve los objetos crudos de la API de Tiendanube pero la vidriera es un Next.js propio en Vercel, y el storefront clásico no es alcanzable (`inpro.mitiendanube.com` redirige a *otra* tienda, `inproindumentaria.com.ar`; los slugs candidatos dan 410). El catálogo se lee del payload RSC (`self.__next_f`), no del DOM. Enumera por `/server-sitemap.xml` (106 productos, 16 categorías) → páginas de categoría (100 productos en 16 fetches) → los 6 handles que ninguna categoría mostró, de a uno. **101 productos** en una corrida real (2026-08-20); los 5 `pod-*` restantes son cabinas con `price: null`, se venden a consultar. El orden de las claves del JSON **no** es estable: en categoría el objeto abre con `id`, en producto con `name` — anclar en `{"id":` da 0 en la mitad de las superficies, en silencio |
-| zentra | Tiendanube | oficina | Sillas ergonómicas y standing desks — mismo catálogo que INPRO, pero Tiendanube **clásico**, no headless: `[data-product-id]` en el DOM y el extractor compartido lo lee sin tocar nada. **44 productos, todos en UNA página** (medido 2026-08-26): `?page=2` sirve una página vacía, así que corta el chequeo de dos vacías seguidas. La imagen viene SÓLO en `data-srcset` — el `src` es un GIF base64 de lazy-load en 44/44 cards; el extractor ya prueba `data-srcset` primero y descarta base64/placeholder |
-| mmartinez | Tiendanube | moda | Calzado. **37 productos de a 12 por página** (medido 2026-08-26); pagina con `?page=N` y `?mpage=N` devuelve la página 1 (marcador client-side, igual que entreno). Sus cards traen **seis** elementos de precio: el real, dos de descuento por transferencia, uno de cuota, un contenedor con todo concatenado y un `js-compare-price-display` **oculto que dice `$0`**. El extractor toma la primera HOJA que parsea a > 0, así que saltea el `$0` y agarra bien (12/12); ese `$0` además llega a `compare`, pero `PrecioParser` excluye el cero y devuelve `empty`, así que `precioOriginal` queda NULL y no fabrica un descuento contra cero |
-| vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
+Antes de responder, chequeá si alguna skill disponible aplica y cargala.
 
-### Detección de plataforma (`ScraperFactory.crear`, en orden)
-
-Desde `V20` esto lee `sitio.plataforma` vía `SiteRegistry`, no name-sets en
-código (ver [`docs/ADD_SCRAPER.md`](./docs/ADD_SCRAPER.md)). La lista de abajo
-es qué sitio hoy tiene sembrado cada valor, no un `Set.of(...)` a editar:
-
-```
-WOOCOMMERCE → dcshoes
-MAXIMUS → maximus   FULLH4RD → fullh4rd   COMPRAGAMER → compragamer
-VAYPOL  → vaypol, city
-QLOUD   → rockethard
-OSCOMMERCE → venex
-INPRO   → inpro
-VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
-SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
-MONKYFORCE → monkyforce
-MORASHOP → morashop
-default → TiendanubeScraper (JS heurístico)
-```
-
-`plataformaDeFavorito`/`crearParaFavorito` resuelven favoritos solo a SHOPIFY/VTEX.
+| Situación | Skill |
+|---|---|
+| Commits como unidades revisables | `work-unit-commits` |
+| Abrir un PR | `branch-pr` |
+| PR > 400 líneas o PRs apilados | `chained-pr` |
+| Escribir o reestructurar docs | `cognitive-doc-design` |
+| Comentarios de PR / issues | `comment-writer` |
+| Crear o triagear issues | `issue-creation`, `systemic-issue-triage` |
+| Review adversarial doble | `judgment-day` |
+| Review del diff actual | `code-review`, `simplify` |
+| Docs de librerías (Spring, React, Playwright…) | `context7-mcp` |
+| Levantar la app y verla andar | `run` |
+| SDD explícito | `gentle-sdd-*` (sólo si el usuario lo pide) |
 
 ---
 
-## API REST
+## Comandos esenciales
 
-📄 **El contrato mecánico (path, método, `x-access`, status codes) vive en
-[`docs/openapi.yaml`](./docs/openapi.yaml)**, guardado en las dos direcciones
-por `OpenApiRouteCoverageTest` — nunca prueba la forma de la respuesta, sólo
-path+método+nivel de acceso.
-
-El "por qué" (semántica 401 vs 403, scoping por dueño, el guard asimétrico de
-`DELETE /api/db/productos`, timing-attacks, CSRF/cold-boot) vive en
-[`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md). Contrato para el cliente
-de browser: [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md).
+| Qué | Cómo | Detalle |
+|---|---|---|
+| Tests backend | JDK 24 compila, JRE 21 corre; **siempre con `clean`** | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
+| Postgres de dev | `scripts/dev-db.sh up\|down\|status` | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Entorno |
+| CLI | `python -m cli` con cwd = raíz (nunca `cli/__main__.py`) | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Entorno |
+| E2E (API + browser) | `tests/e2e/run-e2e.sh` — nunca contra `vite dev` | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Frontend ↔ backend |
+| Perf | `tests/perf/locust`: `uv run pytest` · `tests/perf/jmeter`: `mvn verify` | [`SKILL.md`](./SKILL.md) |
+| Hooks de commit | `git config core.hooksPath scripts/hooks` | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
+| Jar stale tras recompilar | copiar `scraper/target/fashion-scraper-1.0.0.jar` → `scraper/scraper.jar` | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Entorno |
 
 ---
 
-## Base de datos PostgreSQL
+## Reglas que no se rompen
 
-📄 **Todo lo de la base vive en [`docs/DATABASE.md`](./docs/DATABASE.md)**:
-esquema tabla por tabla, qué hizo cada migración `V1`..`V39` + las dos `R__`,
-semántica del upsert, estado de normalización, decisiones con su porqué y el
-SQL de rollback que ejecutan los tests.
+Una línea cada una; el porqué está en el doc enlazado.
 
-Lo mínimo para no romper nada sin abrir ese archivo:
+### Base de datos → [`docs/DATABASE.md`](./docs/DATABASE.md)
 
 | Regla | |
 |---|---|
-| **Toda tabla nueva cumple 1FN y 3FN** | Precondición, no aspiración. Si no las cumple, se rediseña antes de escribir la migración |
-| **Una migración aplicada es byte-frozen** | Flyway valida checksums; hasta agregar un comentario rompe `flyway validate`. Por eso el rollback se documenta, no se edita el `.sql` |
-| **Las dos funciones plpgsql se editan en su `R__`** | `sp_upsert_run` y `sp_soft_delete_ausentes`. Nunca una migración versionada nueva para tocarlas |
-| **El soft-delete está acotado a los sitios que la CORRIDA miró** | "Ausente" sólo significa algo dentro de un sitio que se miró. Sin esa cota, scrapear un rubro daba por desaparecido el catálogo entero — pasó de verdad (2026-08-15). Con corrida persistida el alcance sale de `touched_at >= started_at` **∩ los sitios enrolados en `scrape_run_site`**: la ventana sola adoptaba sitios de otras corridas, ver [Corridas parciales y retomas](#corridas-parciales-y-retomas) |
-| **El upsert se traga los errores SQL** | `ProductRepository` loguea y devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error. Todo test afirma `nuevos()` **antes** que cualquier valor de columna |
-| **`favoritos` ya no tiene PK sobre `url`** | Desde `V26` la PK es subrogada y la unicidad por url vive en un índice **parcial** (`WHERE usuario_id IS NULL`). Postgres no infiere un índice parcial solo: todo `ON CONFLICT (url)` tiene que repetir ese `WHERE` o rechaza la sentencia entera, primer insert incluido |
-| **`marca` vacía se guarda NULL, nunca `''`** | `''` es el centinela de abstención de `BrandExtractor` y `fk_productos_marca` no puede referenciarlo — el header de `V21` fija el contrato: NULL en la base, `""` en el borde Java. `sp_upsert_run` lo cumple con `nullif(r->>'marca','')`; `updateNormalizacion` escribía `''` literal y **reventaba la FK al reclasificar cualquier producto sin marca**. Dos write paths a la misma columna tienen que escribir con la misma regla |
-| **`precio_historico` registra cambios, no avistajes** | Un producto que vuelve tras un soft-delete se trata por su precio, como cualquier fila existente — no como URL nueva |
+| Toda tabla nueva cumple 1FN y 3FN | Precondición, no aspiración |
+| Una migración aplicada es byte-frozen | Ni un comentario: rompe `flyway validate`. El rollback se documenta |
+| `sp_upsert_run` y `sp_soft_delete_ausentes` se editan en su `R__` | Nunca una versionada nueva |
+| El soft-delete se acota a los sitios que la **corrida** miró | Ventana de tiempo ∩ `scrape_run_site`, nunca sólo el reloj |
+| El upsert se traga los errores SQL | Síntoma: `"0 nuevos"`. Todo test afirma `nuevos()` primero |
+| Un centinela de abstención no es un valor de FK | `marca=''`, `DESCONOCIDA`, `NINGUNA` → NULL en la base |
+| `favoritos`: todo `ON CONFLICT (url)` repite el `WHERE` del índice parcial | Si no, Postgres rechaza la sentencia |
+| `PostgresTestBase.truncateAll` es una lista a mano | Toda tabla nueva se agrega ahí |
 
-**Lecturas:** `/api/data` y `/api/facets` consultan SQL (18 filtros, orden y
-paginación como `WHERE`/`ORDER BY`/`LIMIT`). El resto de las superficies
-(`/api/grupos`, `/api/mejores`, outfits, recomendados, agente) lee el snapshot
-en memoria.
+### Clasificación y taxonomía → [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) · [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md)
+
+| Regla | |
+|---|---|
+| Una categoría nueva son **dos** cambios | Keyword + migración. Sin migración: `"0 nuevos"` |
+| En los keywords, el espacio es el word boundary | `" ram "`, no `"ram "` |
+| El sustantivo líder gana sobre el orden de keywords | Ver `*_LIDER` en `CategoryClassifier` |
+| `NonTextileGuard` veta en silencio | Devuelve `""`, igual que "no matcheó" |
+| Un arreglo de clasificación no se ve hasta el próximo scrape | Correr el clasificador de hoy sobre la base antes de diagnosticar |
+| Una marca preferida sólo gana si está en `BrandExtractor.MARCAS` | Las dos listas viajan juntas |
+
+### Armadores → [`docs/OUTFITS.md`](./docs/OUTFITS.md) · [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md)
+
+| Regla | |
+|---|---|
+| `baseMlScore` es un percentil de **precio** | Nunca como objetivo de calidad de un armador |
+| La abstención nunca dispara una regla… | …salvo cuando el usuario **pidió** esa preferencia (gama, DDR, marca…) |
+| Todo término nuevo en `aporte` del MCKP debe ser ≤ 1.0 | Si no, el branch-and-bound poda el óptimo en silencio |
+| Medí sobre filas activas | `activo IS NOT FALSE`; el catálogo entero describe otra cosa |
+
+### Procesos y entorno → [`docs/GOTCHAS.md`](./docs/GOTCHAS.md)
+
+| Regla | |
+|---|---|
+| El scoring ML no es reentrante | Un solo slot (`conReservaDeScoring`); `/api/ml/aplicar` da 409 |
+| Una corrida parcial no reemplaza el catálogo en memoria | `ScraperService.catalogoEntero` recarga los activos |
+| `DATABASE_URL`: `jdbc:` para Java, sin prefijo para psycopg2 | `PythonRunner.toPsycopgDsn` traduce |
+| Dev (`vite dev`) es same-origin; las instalaciones reales no | Auth/CORS/cookies se verifican con `run-e2e.sh` |
+| `VITE_API_BASE_URL` es build-time | Cambiarla exige rebuild |
+| Todo cambio de auth se verifica contra un proceso real | La suite no ve esa clase de bug |
+| `ml_*.py` junto al jar son artefactos runtime | Fuente de verdad: `scraper/src/main/resources/ml/` |
 
 ---
 
-## Pipeline ML
+## Dónde va cada cosa nueva
 
-Detalle y guía de extensión en [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md).
-
-**`ml_pipeline.py` (estadístico):** por categoría+género calcula `PriceStats`
-(mediana, IQR, MAD, CV, Tukey fences). Score compuesto = 40% percentil + 35%
-z-score modificado + 25% distancia a mediana/IQR → `price_segment`
-(budget/standard/premium/luxury). **Todo el scoring usa precio unitario**
-(`precio/cantidadUnidades`); display, descuento e historial usan precio de góndola.
-
-**Badges (multi-badge, no exclusivo):** condiciones independientes, no una cadena
-`elif`. Prioridad (el principal es el primero del set): `all_time_low` >
-`below_market` > `verified_deal` > `trending` > `price_dropping` > `above_market`
-> `fake_discount`. Persistido en `productos.ml_badge` como TEXT comma-delimited;
-`/api/data?badge=` filtra por **pertenencia al set**, no por igualdad exacta.
-`ofertaReal` es un boolean aparte.
-
-**Stage 1b — ensemble texto+imagen:** gate `needs_image_fallback` (confianza de
-texto <0.75, categoría genérica o género vacío). Máx 400 inferencias por run,
-cache-first. Override de categoría gateado por incompatibilidad de tipos +
-no-downgrade + confianza ≥0.82/0.92. Los atributos visuales se agregan de forma
-**aditiva** — el texto gana.
-
-**`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + LogisticRegression,
-~30s) → `_models/text_classifier.pkl`. `--images` es no-op: la clasificación
-visual es zero-shot, sin entrenamiento.
-
-**`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía `open_clip`,
-zero-shot con prompts en inglés y labels en español, abstención por margen.
-Cache en `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` =
-`<SCRAPER_MODELS_ROOT>/marqo`.
-
-⚠️ **El scoring NO es reentrante, y a lo sumo corre UNA vez a la vez.**
-`PythonRunner.ejecutar` resuelve tres rutas **fijas** en el cwd del proceso
-—`ml_productos.json`, `ml_output.json`, `precio_historico.json`— y se las pasa
-al subproceso como argv, así que dos corridas concurrentes se escriben los
-archivos entre sí y ninguna falla ruidosamente: la segunda lee el input de la
-primera o publica un output mezclado. Había dos llamadores capaces de chocar —el
-path de scrape vía `ResultAggregator` y `POST /api/ml/aplicar`, que lanzaba su
-hilo virtual **sin guard alguno**, a diferencia del entrenamiento, que ya
-reservaba su slot con `intentarReservarSecuenciaIndiceVisual`—. Hoy el slot lo
-toma `conReservaDeScoring` (CAS, molde del entrenamiento) y `/api/ml/aplicar`
-rechaza en la puerta con **409** si hay un scrape `RUNNING` u otro scoring en
-vuelo. El scrape es el dueño prioritario: degradarlo en silencio (su `ejecutar`
-devolviendo `null` = corrida sin ML) para que entre un "aplicar" manual sería el
-intercambio equivocado, y por eso el rechazo va en el endpoint y no en el path
-de scrape. En el frontend, `MlStatusPanel.handleApply` **tiene** que avisar del
-rechazo: mostraba "Aplicando..." tres segundos indistinguibles del camino feliz,
-así que un guard correcto se veía como un no-op silencioso.
-
-**Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
-103 valores en `richer-category-taxonomy`, a **105** en `V32` y a **106** en `V38` (`Mini PC`), y vive en DOS
-lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la
-tabla `categoria`. Dar de alta una categoría son **dos** cambios: el keyword que
-la produce y la migración que la inserta. Si falta la migración, la FK rechaza
-cada producto, pero `ProductRepository` se traga los errores SQL: el síntoma es
-`"0 nuevos"` en una corrida sana, no un error. Detalle y porqué en
-[`docs/DATABASE.md`](./docs/DATABASE.md) (`V31`, `V32`) y
-[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
-
-**Un nombre de marca no es un sustantivo de producto.** `Proteína` era la
-categoría más grande del rubro suplementos y **61 de sus 201 filas no eran
-proteína** (medido 2026-09-02): `"protein "` sin espacio adelante se metía
-adentro de `MYPROTEIN` y `The Protein Lab`, y `"whey"` se comía la marca
-`Natural Whey`, que en este catálogo vende cero whey. `V32` limpió eso —
-`CategoryClassifier.sinMarcasQueNombranProteina` **borra** esas marcas del texto
-antes de clasificar nutrición, en vez de vetar el producto, para no perder los
-whey legítimos de esas mismas marcas— y recién después splitteó la categoría en
-`Proteína Isolada` y `Proteína Vegetal`. El orden importa: splitear un balde
-sucio da sub-baldes sucios.
-
-**Clustering:** `cluster_productos` usa norms cacheadas + índice invertido
-término→cluster + conteos O(1). Al tocarlo, construí los corpus de test con
-tokens **alfabéticos**: el tokenizer descarta dígitos, así que un vocabulario
-`tok1, tok2…` colapsa en UN cluster y esconde tanto el blowup como cualquier
-regresión.
-
----
-
-## Armadores de outfits
-
-Dos algoritmos con objetivos distintos, ambos leyendo el catálogo en memoria
-(no la DB), igual que `/api/data` y `/api/mejores`.
-
-| | `OutfitService.armar` | `OutfitBudgetBuilder.armarPorCategorias` |
-|---|---|---|
-| Superficie | Gym (`/api/outfits`) | Presupuesto (`/api/outfits/builder`) |
-| Objetivo | Variedad entre recargas | Óptimo global bajo presupuesto duro |
-| Algoritmo | Muestreo aleatorio ponderado | MCKP con branch-and-bound (+ modo greedy) |
-| Slots | torso, piernas, calzado + accesorio best-effort | Sub-slots: torso-base/outer, piernas, calzado, accesorio-head/feet/body |
-
-**Los dos armadores comparten UNA política de pesos, y vive en `OutfitRules`.**
-Todos los factores son neutros en 1.0 cuando no hay señal y ninguno es un filtro:
-cercanía a un centro de precio (±30%) × boost de likes (cap 4.0) × `mlFactor`
-(oportunidad ML, cap 2.5) × `VisualCoherence` (estampado/fit/color) ×
-`diversidadDeMarca` (×0.7 por marca repetida en el outfit). Lo único que cambia
-entre armadores es cuál es el centro de precio: en `armar` es la mediana del pool
-elegible; en el builder es **`presupuesto / slots abiertos`**, el reparto
-equitativo de lo que queda por gastar.
-
-⚠️ **Hasta `outfit-builder-pick-quality` el builder por presupuesto NO seguía esa
-política**: maximizaba `baseMlScore` **crudo**, sin acotar. Y `baseMlScore` es
-`(100 - scoreP) + bonus`, donde `scoreP` es el **percentil de PRECIO** dentro de
-categoría+género y los cuatro bonus son también observaciones de precio. O sea que
-la única función objetivo de una superficie cuyo punto entero es gastar un
-presupuesto era *"qué tan barato está esto para su categoría"*. Tres consecuencias
-que nadie pidió, y las tres se veían como "el builder elige cualquier cosa":
-
-1. **El presupuesto quedaba sin usar.** Cada peso de más BAJABA el objetivo, así
-   que el techo era algo que el solver tenía incentivo a esquivar. Con $100.000 y
-   dos candidatos —uno de $10.000 y uno de $95.000— elegía el de $10.000. Está
-   fijado en `OutfitBudgetBuilderPickQualityTest`.
-2. **Los likes no existían.** `RecommendationService` tiene dos scores:
-   `baseMlScore` (público) y `finalScore` (privado, = base × boost de likes). El
-   builder llamaba al primero, así que `boostLikeCount` llegaba adentro del
-   `FeedbackModel` y se descartaba. Los dislikes sí andaban —son vetos duros
-   aguas arriba—, con lo cual el feedback era **asimétrico**: se podía sacar, no
-   se podía pedir.
-3. **Cero diversidad de marca**, y el objetivo empujaba justo para el otro lado:
-   el sitio más agresivo del catálogo se llevaba los cuatro slots.
-
-**El término de presupuesto vive en el score cacheado, no en `aporte`** — y no es
-prolijidad. Depende sólo del precio del candidato, así que meterlo ahí arregla
-además el **pool**: rankear el top-60 por ML crudo lo llenaba con la cola más
-barata de cada categoría, y ningún término posterior puede elegir un producto que
-nunca llegó a ser candidato.
-
-`mlFactor` = `clamp(baseMlScore(p)/50.0, 0.5, 2.5)`. **50.0 es
-`baseMlScore(MlScore.EMPTY)`** — anclar ahí hace que un producto sin datos de ML
-dé exactamente 1.0, así que un catálogo sin pipeline conserva los pesos previos.
-El cap queda por debajo del de likes a propósito: un like es gusto, un badge es
-una observación de precio.
-
-**`VisualCoherence`** (pura, estática, compartida por los tres armadores) aplica
-tres reglas sobre `Product.visual()`: un solo estampado por outfit (×0.5),
-sin repetir fit extremo (×0.7, solo torso/piernas — `regular` es el neutro y
-oversize-arriba/entallado-abajo es un look válido), y coordinación de color
-(×0.7) por **rueda de tonos** (`rojo naranja amarillo verde celeste azul violeta
-rosa`, circular; armonía = distancia ≤ 2). Los neutros (`negro blanco gris beige
-marron`) no tienen posición en la rueda y combinan con todo. Un atributo vacío
-**nunca** dispara una regla: vienen de un clasificador que se abstiene.
-
-En el MCKP las penalizaciones de coordinación (coherencia visual × diversidad de
-marca) se aplican como **resta de un monto no-negativo**, así que la cota superior
-del branch-and-bound sigue siendo válida y no se poda ninguna rama óptima. Todo
-término que se agregue a `aporte` en el futuro tiene que conservar esa propiedad:
-un factor que pueda pasar de 1.0 empieza a podar el óptimo **en silencio**.
-
-El greedy también rankeaba mal: elegía por **coherencia sola** entre los
-asequibles y cortaba en el primero perfectamente coherente. Como la mayoría del
-catálogo se abstiene en atributos visuales, en la práctica era "el primero que
-entra en el pool barajado" — ignorando el score que acababa de calcular.
-
-**Vetos duros** (estos sí son filtros, y corren aguas arriba del peso):
-`genero=infantil` nunca es elegible · `Mochila`/`Bolso` fuera de accesorio ·
-`Botines` fuera de calzado · marca `DC` fuera de calzado en Gym · el par
-`marca|categoria` con dislike queda excluido de forma permanente.
-
-**Combo de suplementos** (`SupplementCombo`): **33 subtipos** en 6 grupos
-(Proteína · Vitaminas · Aderezos · Bebidas · Alimentos · Otros). Cada producto se
-asigna a **exactamente un** subtipo en una pasada por precedencia (específico
-antes que genérico — una barra de proteína es una barra, no un polvo). El nombre
-manda; `p.categoria()` es fallback. Ranking del pick: marca preferida → precio
-por unidad de medida → `baseMlScore` → url.
-
-**Los 12 subtipos de comida se declaran con `SubtipoSuplemento.comida(...)`, y la
-bandera arrastra dos consecuencias**: (1) quedan fuera del combo que acompaña al
-outfit de Gym —`OutfitsEndpoints` pide `TIPOS_COMBO_OUTFIT` explícito, así que esa
-grilla ya no crece sola con cada tipo nuevo—, y (2) heredan el veto
-`esElSaborDeUnPolvo`. Ese veto es el **espejo exacto** de
-`esProteinaAgregadaAUnAlimento`: un sustantivo culinario detrás de la cabeza de
-proteína es el SABOR del polvo, no el producto ("Whey Protein sabor Dulce de
-Leche" no es una mermelada). Sin él, cada keyword de comida le robaba productos al
-bucket de proteína. Se deriva de la bandera y **no se lista a mano** a propósito:
-un subtipo de comida nuevo no puede olvidarse el veto. Porqué completo en
-[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
-
-**El pick de proteína elige primero la CATEGORÍA y recién adentro la marca.**
-Desde `V32` hay tres (`Proteína Isolada` · `Proteína` · `Proteína Vegetal`) y no
-son intercambiables para quien compra: `SUPLEMENTO_CATEGORIA_PRIORIDAD` pone la
-isolada arriba y `SUPLEMENTO_CATEGORIA_ULTIMO_RECURSO` deja la vegetal para
-cuando no hay ninguna otra cosa en el pool. **La vegetal es de-preferencia, no
-veto** — con 21 filas contra 143 no gana nunca en la práctica, pero un pool que
-sólo tenga vegetal devuelve un pick en vez de dejar el slot vacío, igual que
-`mejorGrupoDeMarca` cae a todos los candidatos cuando ninguna marca preferida
-tiene stock. Para Creatina, Magnesio y el resto es un no-op.
-
-La **marca preferida tiene dos escalones**. Arriba, **BSN** (marca, o la
-**línea** Syntha-6): si hay stock gana siempre, sin mirar el $/g — pedido
-explícito del usuario (2026-09-17), porque con el conjunto plano no salía
-nunca: es la más cara por gramo de las cinco en las dos categorías de proteína
-($209/g contra $77/g de la Star isolada). Abajo, un CONJUNTO sin orden: ENA ·
-Gold Nutrition · Star Nutrition · Xtrenght compiten entre sí y **el precio por
-unidad de medida decide**. Sigue siendo un filtro DURO contra las no listadas
-—una marca de confianza le gana a una desconocida por barata que esté— y
-adentro de cada escalón no hay más jerarquía que el $/g.
-
-Era un orden hasta `feat/supplement-pick-by-price-per-gram`, y ahí estaba el
-problema: `mejorGrupoDeMarca` se quedaba con la primera marca **con stock**, así
-que con una sola whey de ENA en el pool, Star, Gold y BSN quedaban descartadas
-**antes de que el $/g las mirara**.
-
-⚠️ **Syntha-6 es una LÍNEA, no una marca**, y por eso vive en un array aparte
-(`SUPLEMENTO_LINEAS_PREFERIDAS`) que matchea contra el nombre normalizado:
-`Product.marca()` de un Syntha-6 dice `BSN`, que es quien lo fabrica, así que
-meterla en el conjunto de marcas arrastraría el catálogo entero de BSN con ella.
-`BSA` salió del conjunto — el usuario confirmó que fue un typo, y no matcheaba
-un solo producto del catálogo. Compara contra `Product.marca()`, que sale de
-`BrandExtractor` — así que una marca sólo puede ganar acá si además está en
-`BrandExtractor.MARCAS`. Las dos listas viajan juntas o la preferencia es código
-muerto (lo fue: hasta 2026-08-11 la lista curada no tenía ni una marca de
-suplementos, y todos caían al fallback por sitio). Ahí van sólo formas que se
-sostienen solas bajo `\b`: `Star` y `Gold` pelados matchearían "All Star" y
-"Gold Standard".
-
-> ⚠️ `NO_ALFANUMERICO` tiene que seguir siendo el **primer** campo estático de
-> `SupplementCombo`: varios inicializadores debajo normalizan keywords al
-> construirse, y un `Pattern` declarado después llega null a su propio uso.
-> `ExceptionInInitializerError` es el único síntoma.
-
----
-
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 10
-
-**Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
-`TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
-certificacion, velocidadMhz, tipoAlmacenamiento)`, puro, fill-only y con
-abstención (`""`/`0`/`DESCONOCIDA`/`NINGUNA`, `EMPTY`) igual que `VisualAttrs`.
-Desde la fase 6 es un registry categoría → `LectorDeSpecs` (`specs/`, uno por
-categoría, sobre un `Tokens` que tokeniza una vez), con la firma pública intacta.
-Plan y cobertura medida en [`odd/tasks/pc-builder-specs.md`](./odd/tasks/pc-builder-specs.md).
-
-**Fase 2** es `PcBuilder.armar(productos, presupuesto, conGpu, excluir[, gama])`,
-servido por `GET /api/pcs/builder` (`AUTHENTICATED`). Molde de
-`SupplementCombo`: un pick por slot, best-effort, presupuesto opcional,
-`excluir` con fallback por slot. Desde la fase 6 el builder es un orquestador
-sobre objetos: cada `SlotDeArmado` lleva su categoría, sus
-`ReglaCompatibilidad` y su `CriterioDeSeleccion`; `ContextoDeArmado` acumula lo
-ya elegido. `TechSpecs` se calcula **al armar** desde el snapshot — la tabla
-`producto_tech_specs` existe (ver abajo) pero el armador no la lee (D3d).
-Diseño en [`odd/tasks/pc-builder.md`](./odd/tasks/pc-builder.md) y
-[`odd/tasks/pc-builder-gama.md`](./odd/tasks/pc-builder-gama.md); lo que hay que saber:
-
-| | |
+| Aprendiste… | Va a |
 |---|---|
-| **El presupuesto se reparte por cuotas, no lo agarra el primer slot** (D3, fase 8) | `CuotasDePresupuesto` le da a cada slot `share × presupuesto` más lo que los anteriores dejaron sin gastar. Con GPU: mother 12 · cpu 20 · ram 10 · gabinete 6 · fuente 10 · gpu 30 · almacenamiento 12; se **normalizan sobre los slots presentes**, así que sin GPU ese 30 se reparte solo y el cooler de gama ALTA entra con su 6 sin tabla nueva. Las proporciones son **supuestas, no medidas**, igual que el piso de watts. Antes cada slot veía TODO el restante y, con el precio como mero desempate, se llevaba el mejor que entrara: medido con $2.000.000, la RAM se llevaba $1.102.200 —el 55% de la caja— y al llegar el slot `fuente` no quedaba nada asequible, así que caía al fallback *"gastá lo mínimo"* y elegía la más barata del catálogo, **sin certificar**. El ranking de fuente ya era correcto; nunca llegaba a ejercerse |
-| **Presupuesto vacío es el modo "top top"** (D4, fase 8) | Sin presupuesto no hay cuotas ni filtro de precio: gana el mejor de cada slot por eje técnico, cueste lo que cueste. Es un modo, no un caso borde |
-| **El fallback "el más barato" se conserva** (D5, fase 8) | Cuando ni con el arrastre entra nada en la cuota, el slot elige el más barato compatible en vez de salir vacío: un armado incompleto es peor que uno con un componente flojo, y `sinCompatible` sigue reservado para los vetos |
-| **La mother es el ancla y se elige primero** | Los vetos de socket, DDR y form factor la referencian. Orden: mother → cpu → (cooler, sólo gama alta) → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
-| **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso · certificación fuente ≥ mínima. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
-| ⚠️ **La gama es la ÚNICA regla donde la abstención VETA** (D2) | `ReglaGama` exige `candidato.gama() == pedida`, así que `DESCONOCIDA` cae. Es al revés a propósito: el usuario pidió un tier, y de un nombre que no se pudo leer no se puede afirmar que esté en ese tier. Sin gama pedida (`null`) la regla no filtra nada. El costo es el 17% de CPUs sin tier legible, y el mensaje del slot lo dice |
-| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12, extendida en fase 7 por D4/D9) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. Desde fase 8: cpu: gama → **nivel** de familia desc → **año** desc · gpu: gama → **año** desc → **nivel** de modelo desc → VRAM (`capacidadGb`) desc · mother: DDR → tier de chipset, rankeado por **distancia a la gama pedida** (D9: ALTA→X/Z, MEDIA→B, BAJA→A/H; sin gama pedida cae al orden absoluto X/Z<B<A/H de fase 6) · ram: DDR → módulos (kit `NxMGB`) desc → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · cooler: `TipoCooler` LIQUIDO > AIRE (fase 7, antes sólo precio) · gabinete: sólo precio (más grande ≠ mejor; el ruido que hacía elegir un service se corrigió en el clasificador, no acá — ver Taxonomía y clasificación). Siempre precio asc → url asc al final, abstención última en todo sub-eje nuevo (D13) |
-| **La abstención va ÚLTIMA en todo eje de ranking** (D13) | `DESCONOCIDA`/`DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` y `""` son el mismo centinela para su eje. Un pendrive (sin tecnología legible) ya no puede ganarle a un NVMe como "el disco de la PC" — se hunde solo, sin veto nuevo. `Certificacion.NINGUNA` sí compara por ordinal: es el escalón real de abajo, no abstención |
-| **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en `ContextoDeArmado`, no en el parser, y el ranking de mother la comparte (D14): "la más barata" clavaba AM4/DDR4 y después `ReglaDdr` vetaba toda la RAM DDR5 |
-| **El piso de watts y la certificación mínima salen de la gama pedida** (`EstimadorDeConsumo`) | alta: 750 / 1000 W con GPU, GOLD · media: 550 / 750, BRONZE · económica o sin gama: 450 / 650, NINGUNA. Siguen siendo constantes, ahora por tier; el consumo de la GPU sigue sin parsearse |
-| **El slot `cooler` sólo existe en gama alta** (D4) | Se inserta después del cpu, sin reglas y sin eje (sólo precio). La condición "y si el CPU no trae cooler" se cayó en T1: 309/313 CPUs no dicen nada al respecto |
-| `sinStock` ≠ `sinCompatible`, y ambos traen **motivo** (D6) | Sin candidatos en la categoría vs. candidatos que todos cayeron por veto. `PcBuild.mensajes` (slot → motivo de la regla que vació el slot) es lo que la UI pinta debajo del placeholder. Ninguno aborta el armado |
-
-**Escala de gama** (`Gama`, `BAJA < MEDIA < ALTA` + `DESCONOCIDA`; en el cable
-es `economica|media|alta`, dueño único `GamaWire`, que nunca emite `DESCONOCIDA`):
-
-| Gama | CPU | GPU |
-|---|---|---|
-| ALTA | i9 · Ryzen 9 · cualquier `X3D` · Ultra 9 · i7 · Ryzen 7 · Ultra 7 | RTX x090/x080/x070 · RX 9070 · RX x900/x800 |
-| MEDIA | i5 · Ryzen 5 · Ultra 5 | RTX x060 · RX 9060 · RX x700/x600 |
-| BAJA | i3 · Ryzen 3 · Ultra 3 · Athlon · Celeron · Pentium | RTX x050 · GTX · ARC · RX 9050 · RX x500 y abajo |
-
-⚠️ **Radeon numera de DOS maneras y las dos están vivas en el catálogo** (64
-filas RX 9000 contra 28 de RX 5000–7000, medido 2026-09-19): en la serie 9000
-manda la **decena** como en Nvidia, en las anteriores la **centena**. Una sola
-regla numérica se come una de las dos, y con la gama como filtro duro más la
-abstención que veta, eso saca a las RX 9070 de **todo** armado sin un solo
-error. `GpuSpecsReader` ramifica por serie antes de mirar el tier.
-
-**Persistencia** (`V35` + `V36`, detalle en [`docs/DATABASE.md`](./docs/DATABASE.md)):
-`gama` es lookup con FK, no un TEXT con CHECK (D8); `preferencia_armador` es
-**una fila por usuario** (D9), servida por `GET`/`PUT /api/pcs/preferencia` —
-GET da 204 hasta que el usuario guarda una, y **el armador nunca la aplica
-solo**: `/pcs` la precarga en los chips y manda `gama=` explícito.
-`producto_tech_specs` guarda el `TechSpecs` entero normalizado con su propio
-write path (`TechSpecsIndexer` desde `ScraperService`, no `sp_upsert_run` —
-D11); es la base del filtro por specs de `/catalogo`, que **no** es de esta
-fase (D3c). **La abstención ahí es NULL, nunca una fila de lookup** (D10):
-`DESCONOCIDA`/`NINGUNA` son centinelas del dominio Java y un centinela no es
-un valor de FK — exactamente lo que rompió `marca=''` en `V21`.
-
-Desde fase 7, `V36` suma tres lookups más (`marca_chip`, `chipset_tier`,
-`tipo_cooler`, mismo molde que los seis de `V35`) y columnas nullable en
-`preferencia_armador` (las seis preferencias — `ram_dual`/`wifi` son la
-excepción `NOT NULL DEFAULT false`, D2 de `pc-builder-deep-taxonomy`) y en
-`producto_tech_specs` (`marca_chip_id`, `chipset_tier_id`, `tipo_cooler_id`,
-`generacion`, `modulos`, `wifi`). **`socketsSoportados` (el veto cooler↔mother
-de D6, fase 7) NO se persiste**: `producto_tech_specs` sigue guardando un
-`socket_id` singular vía FK, y un cooler real puede listar varios sockets —
-forzar esa lista en una columna FK escalar la truncaría. Queda diferido, no
-descartado; la compatibilidad se sigue calculando al armar, desde el
-snapshot en memoria, igual que el resto de `TechSpecs` (D3d).
-
-**Fase 3** es la página `/pcs` (`PcsPanel`, molde de `SuplementosPanel`): sin
-picker de tipos porque los slots son fijos del lado del servidor; chips de
-gama excluyentes (`Cualquiera` = sin filtro) + presupuesto + checkbox `conGpu`
-+ Generar/Regenerar con `excluir` por slot; `sinStock` y `sinCompatible` se
-pintan como placeholders distintos con su `mensaje`. La preferencia se
-persiste en Generar, no en Regenerar. Plan y evidencia en
-[`odd/tasks/pc-builder-ui.md`](./odd/tasks/pc-builder-ui.md).
-
-**Fase 4** persiste el build (`saved_pcs` + `saved_pc_item`, molde
-`saved_outfits`, `gama_id` nullable desde `V35`) con Guardar en `/pcs` y
-listado en `/armadores` — ver el párrafo de esa ruta más abajo.
-
-**Fase 5** es la tool `propose_pc` del agente (ver LLM Catalog Agent), que
-acepta `gama` como enum. Plan y evidencia en
-[`odd/tasks/pc-builder-agent-tool.md`](./odd/tasks/pc-builder-agent-tool.md).
-
-**Fase 7** agrega seis preferencias técnicas pedidas como filtro duro y
-profundiza los ejes de ranking dentro de cada tier — pedido explícito del
-usuario ("muchas veces no me arma bien"). Diseño y medición completos en
-[`odd/tasks/pc-builder-deep-taxonomy.md`](./odd/tasks/pc-builder-deep-taxonomy.md).
-
-| | |
-|---|---|
-| **Las seis preferencias** viven en `PreferenciasDeArmado` (`ddr`, `marcaCpu`, `marcaGpu`, `tipoAlmacenamiento`, `ramDual`, `wifi`), todas nullable = "no pedida" (D1). Cable: `ddr=DDR4\|DDR5` (mother+ram) · `marcaCpu=intel\|amd` (mother+cpu) · `marcaGpu=nvidia\|amd` (gpu) · `tipoAlmacenamiento=nvme\|sata\|hdd` (almacenamiento) · `ramDual=true` (ram) · `wifi=true` (mother). Una regla por preferencia, molde `ReglaGama`: `ReglaDdrPedida`, `ReglaMarcaChip` (una sola clase sirve a mother/cpu/gpu — D3, la marca de la mother sale del socket: `AM*`→AMD, `LGA*`→Intel), `ReglaTipoAlmacenamiento`, `ReglaRamDual`, `ReglaWifi` |
-| ⚠️ **La abstención vuelve a vetar cuando HAY preferencia pedida** (D2, misma inversión que `gama`) | Pedir DDR5 y no poder leer la DDR de una mother (ni derivarla del socket) la descarta. **Excepción escrita a propósito**: `ramDual`/`wifi` nunca abstienen — el nombre es la afirmación (`2x` presente / `wifi` presente), y su ausencia es `false`, no "no sé"; sólo `TRUE` pide algo, `FALSE` se comporta como "no pedida" |
-| **Compatibilidad nueva, sólo donde los dos lados parsean** (D6) | RAM `SODIMM` (notebook) veta incondicional en el slot ram — `tipoMemoria` nunca abstiene, no hace falta el guard de "los dos lados parsearon" —; cooler↔mother por socket, cuando el cooler lista sockets soportados y la mother parseó el suyo (`socketsSoportados`, sin persistir — ver Persistencia); sockets viejos (`LGA1151`, `LGA1200`, `AM3` + chipsets `H310/B360/Z390/H410/B460/Z490/H510/B560`) suman al vocabulario de `MotherboardSpecsReader`/`CpuSpecsReader` para que `ReglaSocket` los vea en vez de abstenerlos |
-| **`TipoCooler`** (`LIQUIDO`/`AIRE`/`DESCONOCIDO`, molde `TipoAlmacenamiento`) | Le da al slot cooler un eje real por primera vez — hasta fase 6 sólo tenía precio, y el más barato de una categoría con ruido de clasificación ganaba siempre |
-
-**Fase 8** arregla el tope del catálogo y el reparto del presupuesto — pedido
-del usuario (2026-09-22): "las fuentes que tiene el armador de PC no están
-certificadas" y, preguntando por el modo sin presupuesto, "si quiero ir a lo
-top top?". Diseño y medición completos en
-[`odd/tasks/pc-builder-top-tier.md`](./odd/tasks/pc-builder-top-tier.md).
-
-| | |
-|---|---|
-| ⚠️ **`generacion` no es una magnitud, son dos** (D2) | En Intel es la generación Core real (`i7 14700F` → 14); en AMD y Nvidia es el **dígito de los miles del modelo** (`Ryzen 9 9950X3D` → 9, `RTX 5080` → 5). Comparadas crudas, `14 > 9 > 5` hacía que **Intel le ganara a AMD en CPU y AMD a Nvidia en GPU, siempre**, por aritmética y no por potencia: sin presupuesto el armado era `i7 14700F` + `RX 9070` teniendo un `Ryzen 9 9950X3D` y una `RTX 5080` en el catálogo. `EjesTecnicos.anioCpu`/`anioGpu` la normalizan a año de lanzamiento, ramificando por marca. La tabla es **por slot, no global**: `AMD`+`9` es Ryzen 9000 (2024) en CPU y RX 9000 (2025) en GPU. Sin marca legible, o fuera de tabla, abstiene y va última — un número sin escala no puede rankear contra uno que sí la tiene. Misma clase de bug que las RX 9000 de la fase 7 |
-| **`nivel`: el escalón DENTRO de la gama** (D1) | `Gama.ALTA` mete en la misma bolsa a `i7`, `i9`, `Ryzen 9` y `Ultra 9`, y a `RTX 5090`, `RTX 5080` y `RX 9070`. `nivel` (CPU `9\|7\|5\|3` de la familia · GPU `90\|80\|70\|60\|50` del modelo, ramificando por serie igual que `gama()`) es la única magnitud de potencia **comparable entre marcas**: un `i9` y un `Ryzen 9` son pares. Cobertura medida (dev DB, 7054 filas, 2026-09-22): CPU **374/427 (88%)**, GPU **346/388 (89%)**. Athlon/Celeron/Pentium abstienen: tienen gama BAJA pero no juegan en la escala |
-| ⚠️ **El orden de los dos ejes DIFIERE entre CPU y GPU, y es medido** | CPU va `nivel → año`: el dígito de familia es un escalón estable y de vida larga, así que un `i9` de 2023 vale más que un `Ryzen 7` de 2024. GPU va `año → nivel`: el escalón de modelo no sobrevive a cinco años de proceso — una `RX 6900 XT` (x90 de 2020) no es comparable con una `RTX 5080` (x80 de 2025), y con el nivel primero le ganaba. `gama` corre antes que los dos, así que una x50 nueva nunca le gana a una x90 vieja: están en gamas distintas |
-| **`nivel` no se persiste** (D7) | `producto_tech_specs` no crece y no hay migración en esta fase. Mismo precedente que `socketsSoportados`: el armador calcula `TechSpecs` al armar desde el snapshot (D3d) |
-| **`ReglaCertificacion` NO cambió** (D6) | Sigue dejando pasar `NINGUNA` (política normal de abstención). Con el reparto por cuotas la fuente sin certificar deja de ganar por presupuesto agotado, que era la causa real; invertir la regla vaciaría el slot en vez de arreglarlo |
-| **DDR2 entró al vocabulario de `RamSpecsReader`** | Una sola fila activa, pero sin leerla el reader abstiene, `ReglaDdr` no puede vetarla, y una `Kimota DDR2 2GB` de 2007 ganaba el slot `ram` de un armado con mother DDR5 por ser lo más barato del pool |
-
-Medido en el catálogo real (dev DB, 7054 filas de `tecnologia`, 2026-09-22),
-corriendo `PcBuilder.armar` de verdad — la fuente sale **certificada en los 8
-armados** probados (4 presupuestos × 2 gamas):
-
-| | antes de fase 8 | después |
-|---|---|---|
-| sin presupuesto, gpu | `RX 9070` $1.324.990 | `RTX 5080` $2.988.500 |
-| sin presupuesto, cpu | `i7 14700F` $588.270 | `i9 14900K` $685.072 |
-| $2.000.000, fuente | `Jalatec Jt-520` **`NINGUNA`** $25.881 | `Corsair RM750` **`PLATINUM`** |
-| $2.000.000, gpu | `"ARMADO ITEM 6302"` $800 | `RX 6900 XT` $739.878 |
-| $2.000.000, almacenamiento | `Bracket Disco SSD` $3.300 | `SSD M.2 1TB` $217.339 |
-
-⚠️ **El `Ryzen 9 9950X3D` sigue sin salir en el modo top-top, y no es el
-ranking**: la mother se elige primero (`Asrock Z790I`, `LGA1700`) y
-`ReglaSocket` veta todo AM5 después — el `i9 14900K` es el tope real de esa
-plataforma. Es la limitación greedy que ya describe la fila "la mother es el
-ancla": no se prueba otra mother. Probar varias plataformas es otro tamaño de
-cambio, y queda pendiente.
-
-**Fase 9** hace pedibles cuatro ejes que el armador decidía solo, y profundiza
-dos rankings — pedido del usuario (2026-09-22): *"que en /pcs se pueda elegir
-la cantidad de GB... profundidad del gabinete... más profundidad en los cooler,
-water, aire... más profundidad en los watts de las fuentes"*. Diseño y medición
-completos en [`odd/tasks/pc-builder-fine-grained-prefs.md`](./odd/tasks/pc-builder-fine-grained-prefs.md).
-
-| | |
-|---|---|
-| **Cuatro preferencias nuevas**, mismo molde que las seis de la fase 7 | `capacidadMinimaGb` (piso de GB del disco) · `tamanioGabinete` (`mini\|mid\|full`) · `tipoCooler` (`liquido\|aire`) · `wattsMinimos` (piso de la fuente). Reglas `ReglaCapacidadMinima`, `ReglaTamanioGabinete`, `ReglaTipoCoolerPedido`; los watts NO son regla nueva (ver abajo) |
-| ⚠️ **El tamaño de torre es un eje DISTINTO del form factor, y "mid-ATX" no existe** | `TamanioGabinete` (`MINI`/`MID`/`FULL`/`DESCONOCIDO`) es cuánto ocupa el gabinete; `formFactor` (ITX/MATX/ATX/EATX) es qué placa entra. El catálogo los nombra por separado —`"MID-TOWER EATX"` trae los dos— y el veto Gabinete ⊇ Mother sigue corriendo sobre `formFactor`, sin tocarse |
-| ⚠️ **El gabinete es el eje pobre, y el número hay que medirlo sobre las filas ACTIVAS** | Sobre lo que el armador realmente ve —el snapshot, `activo IS NOT FALSE`— son **40 de 575**: MID 39 · MINI 1 · **FULL 0** (dev DB, 2026-09-22). Sobre el total de 622 filas dan 46 (MID 43 · FULL 2 · MINI 1), pero los dos full tower están soft-deleted, así que hoy pedir `full` no deja dos candidatos sino **ninguno**, y el slot sale en `sinCompatible`. Con la abstención vetando (D2, la misma inversión que `gama`), `/pcs` lo avisa en pantalla debajo de los chips: el resultado es contraintuitivo y el número tiene que estar a la vista. **Toda medición que pretenda describir lo que el armador hace tiene que filtrar por `activo`** — contar el catálogo entero describe otra cosa |
-| **Los dos pisos son "al menos", no valores exactos** | Pedir 1 TB admite un disco de 2 TB, que es justo el mejor candidato. Un piso de `0` se **rechaza** en el borde: un filtro que no filtra no es un pedido |
-| **Pedir un tipo de cooler ABRE el slot**, aunque la gama no sea ALTA | Hasta la fase 8 el cooler era una decisión de tier y sólo existía en gama alta. Pedir refrigeración líquida y recibir un armado sin cooler no responde la pregunta que se hizo. Sin pedido, byte por byte igual que antes |
-| **El piso de watts pedido SUBE, nunca baja** | `wattsMin = max(EstimadorDeConsumo.wattsMinimos(gama, conGpu), pedido)`. Pedir 550 W en un armado de gama alta con GPU (piso 1000) no puede dejarlo sin fuente suficiente. Por eso no hay `ReglaCompatibilidad` nueva: `ReglaWatts` ya veta contra `contexto.wattsMin()` y no cambió una línea |
-| **Dos ejes de ranking nuevos, y los dos cambian el default** | `COOLER`: tipo → **radiador desc** (entre dos AIO gana la de 360mm; 84 de los 171 líquidos lo declaran). `FUENTE`: certificación → **watts desc** — hasta acá el eje era la certificación sola, así que entre dos GOLD desempataba el precio y ganaba la más chica, apenas por encima del piso. La certificación sigue mandando: una GOLD de 650 W le gana a una sin certificar de 1200 W |
-| **`tamanioGabinete` y `radiadorMm` SÍ se persisten; los pisos pedidos no** | `V37` (ver [`docs/DATABASE.md`](./docs/DATABASE.md)): lookup `tamanio_gabinete` + columnas en `producto_tech_specs`. Los pisos son del PEDIDO, no del producto, así que van sólo a `preferencia_armador` |
-| ⚠️ **Los rollbacks componen en orden inverso, y `V37` lo hizo visible** | `V37` cuelga un `tipo_cooler_id` de `preferencia_armador` que referencia la tabla que creó `V36`, así que el `DROP TABLE tipo_cooler` del bloque de `V36` falla mientras `V37` siga aplicada. `V36RollbackRoundTripTest` ejecuta primero el bloque de `V37`; cada bloque sigue siendo dueño exactamente de sus propios objetos |
-
-⚠️ **Dos defectos que ningún test podía ver, porque son sobre qué hay en el
-catálogo y no sobre qué hace el código con lo que le das.** Los encontró armar
-de verdad contra la dev DB (T8 de la fase 9), y los dos son de la misma familia
-que el bracket y el service de la fase 8:
-
-- **Un fan de gabinete ganaba el slot de refrigeración por aire.** El guard de
-  fan de la fase 7 mira **sólo el primer token**, así que ataja `"Fan Cooler
-  120mm..."` y dejaba pasar `"Cooler Fan 120mm..."` — el mismo producto con las
-  palabras al revés. Las 6 filas activas que lideran así son fans de 120/140mm,
-  ninguna es un cooler de CPU, y la más barata ($7.250) se llevaba el slot.
-  `CoolerSpecsReader.esLiderCaseFan` cubre ahora el par adyacente (y pela un
-  `outlet` líder antes, igual que `startsWithAny`).
-- **Un disco externo USB ganaba el slot del disco.** Con un piso de capacidad
-  pedido, `"HD HDD EXTERNO 4TB SEAGATE PORTABLE USB 3.0"` le ganaba a los
-  internos. 18 de las 266 filas activas de Almacenamiento son externas.
-  `AlmacenamientoSpecsReader` **abstiene la tecnología** de un externo en vez de
-  vetarlo: misma política que los pendrives — la abstención es el último escalón
-  del eje, el producto se hunde solo y sigue siendo elegible como último
-  recurso. `externo`/`externa` sola cubre las 18; `portable`/`portatil` no suma
-  ninguna por su cuenta y por eso no entra al vocabulario.
-
-**Fase 10** agrega el perfil **homelab** con hardware de consumo, y una
-categoría `Mini PC` — pedido del usuario (2026-09-24). Diseño y medición en
-[`odd/tasks/pc-builder-homelab.md`](./odd/tasks/pc-builder-homelab.md).
-
-| | |
-|---|---|
-| **`Uso` es un eje aparte de `Gama`** | `uso=gaming\|homelab` (dueño `UsoWire`), default gaming. Homelab cambia slots y ejes, no las reglas: `almacenamiento` se parte en `sistema` (el eje de siempre) + `datos` (capacidad desc, tecnología abstenida última), la RAM rankea por capacidad primero, cuotas propias. Persistido normalizado: lookup `uso` + FK en `preferencia_armador` (`V39`) |
-| **Modo mini PC** | `uso=homelab` + `tamanioGabinete=mini` arma sólo `minipc` + `datos` |
-| ⚠️ **No hay hardware de servidor en el catálogo** | Medido (2026-09-24, 6792 filas): 0 ECC, 0 EPYC, 1 Xeon sin mother, 0 rack. El tope "megaservidor" no se puede armar con estas tiendas |
-| **Sin presupuesto, el desempate por precio es DESC** (T18) | Adentro de un mismo escalón técnico gana el más caro — decisión del usuario, sólo sin presupuesto, en todos los slots. Con presupuesto sigue asc |
-| ⚠️ **Por eso los combos se filtran** | Con el desempate desc, `"Kit Mother ... + Procesador ..."` y `"Mini PC ... + Monitor"` ganaban por caros (y el CPU se compraba dos veces). `PcBuilder.esCombo` (`combo` o `+ <otro componente>`) los saca del pool, soft: sólo entran si son lo único del slot. `80 + Gold` y `+ Wraith Cooler` no son combos |
-| **La mother elige plataforma con CPU** (T13) | Con gama pedida, sólo mothers cuyo socket tiene algún CPU elegible de esa gama. Gama BAJA salía `cpu` en `sinCompatible` en todo presupuesto (A620M AM5 contra i3/Athlon AM4/LGA1700) |
-| **Socket derivado de la familia** | Athlon G de escritorio → `AM4`, Xeon E5 v3/v4 → `LGA2011-3`, sólo sin socket explícito. Ganaban por el fallback "el más barato" sobre una AM5 |
-| **Cooler de aire con eje** (T16) | `ClaseDisipador` (doble torre > torre > desconocida) → heatpipes. Antes los 85 AIRE empataban y ganaba siempre el `Raptor Cryo` de $18.400. No se persiste (precedente `nivel`) |
-| ⚠️ **`1.92TB` se leía 92 TB** | El tokenizer corta en el punto. `AlmacenamientoSpecsReader` lee TB decimales aparte |
-
-Limpieza de taxonomía que salió de armar de verdad: mini PCs fuera de `CPU`
-(sustantivo líder `mini pc`/`nuc`/`brix`/`cubi`), `memoria` líder con token DDR
-gana antes que la marca de CPU (35 RAM "AMD EXPO / Intel XMP" vivían en `CPU`),
-thermal pad → `Cooler`, y RAM/SSD "c/disipador", joystick, auricular y
-controladora fuera de `Cooler`.
-
-**El total estimado de `/pcs` va en pesos y en dólares**, con la cotización del
-**mismo servicio que el badge del header** (`GET /api/indices` → `usd.ultimoValor`,
-el dólar oficial de `indices-service`). Si ese servicio viene `sin_datos`, sin
-valor o falla entero, la línea en dólares **no se muestra** — no hay tasa
-hardcodeada de reemplazo, que es la misma regla que `InflacionService` rompía
-(ver [Índices y señales](#índices-y-señales)).
-
-Cobertura medida (TSV de hardware, 3360 filas, reclasificadas con los cambios
-de T1/T2a/T4d-1, 2026-09-21): CPU marcaChip **388/389**, generación
-**329/389** · GPU marcaChip **438/445**, generación **355/445**, VRAM
-(`capacidadGb`) **382/445** · Motherboard marcaChip **511/515**, tierChipset
-**509/515**, wifi=true **264/515** (el resto es `false` afirmado, D2) · RAM
-módulos (kit `NxMGB` explícito) **46/375** · Cooler, tras la reclasificación
-de T4d-1 (323 filas): LIQUIDO 164 · AIRE 99 · DESCONOCIDO 60.
-
-Lo que la medición de fase 1 dijo (dev DB, 2157 filas, 2026-09-18) y condicionó la fase 2:
-
-| Campo | Cobertura | Consecuencia |
-|---|---|---|
-| Motherboard socket / RAM ddr+GB / Fuente watts | 98–100% | Los vetos CPU↔Mother, RAM↔Mother y watts pueden ser duros |
-| CPU socket | 81% | Los misses son casi todos **memorias clasificadas como `CPU`** ("AMD EXPO / Intel XMP"), no CPUs sin socket |
-| Motherboard ddr | 78% | El nombre dice socket y no DDR; derivarlo del chipset es seguro en AM4/AM5/LGA1851 y **no** en LGA1700, que es mixto |
-| Gabinete formFactor | **7%** | El nombre no lo dice. El veto Gabinete ⊇ Mother no puede correr sobre nombres: abstención = sin veto, igual que `VisualCoherence` |
-
-Y lo que dijo la de fase 6 (dev DB, 3435 filas de hardware, 2026-09-19):
-CPU con tier legible **260/313 = 83%** · GPU con familia+modelo **429/462 =
-93%** · fuente con certificación 80+ **295/347 = 85%** · RAM con velocidad
-**377/387 = 97%** (116 traen el número pelado detrás del `DDRn`; se acepta
-sólo contra una whitelist de velocidades DDR reales) · almacenamiento con
-tecnología **260/290 = 90%** (los 30 restantes son pendrives y micro SD, no
-discos). `Cooler` tiene 483 filas y hasta esta fase no era slot.
-
-El parser **tokeniza** (split en todo no-alfanumérico) en vez de padear
-substrings: `1851` no puede matchear adentro de `B860M`. Los sufijos de chipset
-son letras, no sólo `M`: `X670E`, `B650EM`, `A620AM` existen y un match de 4-o-5
-caracteres perdía todas las Extreme.
-
----
-
-## LLM Catalog Agent (`ar.scraper.agent`)
-
-Agente de chat con tool-use, provider-pluggable, para revisar y corregir la
-clasificación de productos por lenguaje natural. Seam `ChatProvider` con un
-adapter hoy: `OpenAiCompatProvider` (Ollama).
-
-**Exactamente 4 herramientas, TODAS de solo lectura**, dentro de un loop acotado
-(`MAX_ITERATIONS=6`): `search_products`, `view_product`, `propose_reclassify`,
-`propose_pc`. La cuarta corre `PcBuilder.armar` sobre el snapshot vivo
-(`presupuesto`, `conGpu`, `excluir` urls) y devuelve el mismo JSON que
-`GET /api/pcs/builder` — `PcBuildJson`, en `pcs/`, es la única serialización
-para los dos. El agente narra los picks; guardar sigue siendo cosa de `/pcs`.
-`PcBuilder` no es bean (lo instancia `ApiController` a mano) y `agent/` no
-puede nombrar `web/`, así que la tool construye el suyo con `RecommendationService`.
-
-**`search_products` filtra en el catálogo, no en la prosa del modelo.** Acepta `query` (texto libre sobre nombre/marca), `categoria` (enum cerrado contra el canon), `genero`, `excluir` (lista de términos vetados en el nombre) y `precioMin`/`precioMax`; todos se aplican en conjunción y hace falta al menos uno además de `excluir`. Dos razones para que sean parámetros y no texto: (1) **la categoría no es una palabra del nombre** — una "Remera sin mangas Dry Fit" clasificada `Musculosa` era invisible a `query=musculosa`, y un producto cuyo nombre no coincide con su categoría es justo el que hay que revisar, así que el punto ciego se superponía con el propósito del tool; y (2) si el modelo filtra en su respuesta en vez de en la llamada, **la barrera de grounding no lo puede ver**: hubo una tool call real con filas reales, así que el turno pasa igual. Una llamada vacía es error, no el catálogo entero cortado a 10.
-La reclasificación es **two-phase propose/confirm** — `propose_reclassify` valida
-y devuelve un diff, nunca escribe. El único write real es `POST /api/agent/apply`,
-fuera del loop, tras confirmación humana explícita y re-validando server-side.
-
-**Continuidad del chat:** cada mensaje assistant carga su `trace` (las tool calls
-que el modelo **pidió**, nunca lo que el catálogo respondió), el cliente lo
-reenvía, y el servidor **re-ejecuta** esas llamadas contra el snapshot vivo antes
-de contactar al proveedor. Un `trace` manipulado no puede inyectar un dato falso,
-y la evidencia replayada está al día. Bounds: `MAX_REPLAY_CALLS=12`.
-
-**Write path:** `aplicarReclasificacionAuditada` hace UPDATE + INSERT de auditoría
-en una sola transacción con rollback completo, y su booleano de retorno **siempre**
-se chequea. Staleness guard: compara `categoriaActual` contra la DB (no contra el
-snapshot en memoria) y devuelve `422 conflicto_stale` en vez de sobrescribir a ciegas.
-Tras escribir, parchea el catálogo en memoria y recalcula facetas.
-
-Config por env (`LLM_PROVIDER`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_KEY`), todas
-opcionales — **no** están en `RequiredEnvVarsGuard`.
-
-📄 Detalle: [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) · setup: [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md).
-
----
-
-## Model `Product` (record, 19 campos)
-
-```java
-sitio, nombre, precio, precioOriginal (Double), url, imagenUrl, categoria, genero,
-talles, ml (MlScore), marca, rubro, gymrat, marcaPremium,
-senal (SenalCompra), finan (SenalFinanciacion),
-cantidadUnidades, subCategoria, visual (VisualAttrs)
-```
-
-`precioOriginal` es `Double` desde `close-1nf-and-3nf-foundation` (antes
-`String`): `null` es "no parseó / no había" (D1), nunca un sentinel string.
-Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
-momento del scrape — ver `V17` más abajo.
-
-`rubro` tiene **cuatro** valores desde `V27`: `indumentaria` · `tecnologia` ·
-`suplementos` · `oficina`. Lo resuelve `RubroResolver` por
-`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
-tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
-esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
-manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
-sobre el rubro forzado del sitio.
-
-Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
-`MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;
-`MlScore.EMPTY` es `scoreP=50` sin badges.
-`VisualAttrs` (fit/estampado/escote/colorDominante) es fill-only por campo, y
-`EMPTY` significa "el clasificador se abstuvo", no "malo".
-
----
-
-## Flujo completo de un run
-
-```
-1. Usuario configura y lanza (dashboard o cronjob)
-2. POST /api/scrape → ScraperService.iniciarScraping()
-3. Por sitio: ScraperFactory.crear() → BaseScraper.ejecutar()
-4. ResultAggregator.agregar(): dedup → NormalizerService → PythonRunner
-   (ml_pipeline.py + stage 1b visual) → MlEnricher → DatabaseService.upsertProductos()
-5. Actualización progresiva por sitio: upsertParcial + fromDBParcial — solo las
-   URLs del sitio recién terminado se re-enriquecen; el resto reusa el snapshot previo
-6. En background si corresponde: re-train de texto + backfill de embeddings
-7. Frontend pollea /api/status cada 1800ms → DONE → dashboard con filtros server-side
-```
-
-## Frontend (rutas)
-
-Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` ·
-Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
-Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
-Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
-Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
-`/tendencias` redirige a `/analisis/mercado`.
-
-**El nav tiene dos menús y cuatro links, y la división es semántica**
-(`nav-guardados-armadores`, 2026-09-22): el menú **Armadores** nombra los tres
-armadores y nada más (`/outfits` · `/suplementos` · `/pcs`); el menú
-**Análisis** las cuatro vistas de análisis; y **Guardados** es un *link*, no
-un menú, porque hay un solo destino. `Marcas` salió a primer nivel: es una
-vista de exploración del catálogo, no un armador.
-
-⚠️ **`/armadores` NO existe más.** Era la misma idea que `/favoritos` en otra
-ruta, y el reparto no cerraba: los outfits guardados habían salido de
-`/favoritos` hacia `/armadores` en `saved-pcs-armadores`, mientras `Outfits`
-colgaba del menú `Guardados` apuntando al **armador**, no a lo guardado.
-`/favoritos` junta ahora las tres colecciones, y **una PC guardada se trata
-exactamente como un outfit**: el carrusel ya tenía el slide de *colección*
-(`kind:'outfit'` en `TiltCarousel` — un collage de sus miembros más una tira
-expandible debajo), que no es algo propio de la ropa sino "una cosa guardada
-que tiene partes". Los `picks` de una PC ya traen `{nombre, img, sitio,
-precio}`, la misma forma que `OutfitCollage` y la tira consumen, así que el
-slide de PC no adapta nada. Los slides de outfit habían salido del carrusel en
-`saved-pcs-armadores`; esto los devuelve.
-
-| | |
-|---|---|
-| **Una sola tira abierta a la vez** | El estado es `{coleccion:'outfit'\|'pc', id}`, no dos banderas: abrir una PC cierra el outfit que estuviera abierto. Dos estados separados dejarían dos tiras apiladas debajo del mismo carrusel |
-| **Renombrar y eliminar viven en la vista de LISTA** | `SavedOutfitCard`/`SavedPcCard`, reusadas sin redibujar. En un slide no hay dónde ponerlos sin taparle el collage — el mismo reparto que la vista tenía antes de `saved-pcs-armadores` |
-| **El carrusel aparece con CUALQUIER cosa guardada**, no sólo con productos | Antes el cuerpo entero colgaba de `items.length`, así que borrar el último favorito habría hecho desaparecer una PC guardada de la pantalla |
-| **El contador del header cuenta SÓLO productos** | Dice "N productos guardados"; sumarle outfits y PCs haría la frase falsa. Hay un test que lo fija |
-| ⚠️ **Hay UN solo panel de detalle, y un llamador flaco lo dibuja a medias** | `DetailPanel` es el mismo archivo para `/catalogo` y para un ítem de un outfit o una PC guardada. Pero un ítem guardado es la **foto** de `saved_outfit_item`/`saved_pc_item` (`slot, sitio, nombre, precio, url, img, marca`): sin `ml` no hay gauge, segmento, percentil ni z-score; sin `categoria` no hay box plot; y "Ver historial completo" está gateado por `p?.key`. Se veía como otro panel, y era el mismo con menos datos. Los dos repositorios ya hacían `LEFT JOIN productos` para `precioActual`, así que mandan también `producto_key` (`null` si el producto ya no existe) y el panel se hidrata solo con `GET /api/producto/{key}` cuando le falta el `ml`. **La foto gana sobre el catálogo vivo** (`{ ...vivo, ...item }`): el panel muestra el mismo nombre y precio que la tarjeta desde la que se abrió |
-
-El estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
-`AppLayout` y ya los cargaba esta misma ruta.
-`/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
-botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
-la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de
-`/splash`, fuera del árbol de `AppLayout`, así que swagger-ui se queda con el
-viewport entero y no hereda sidebar ni topbar. Su único adorno es un link
-"← Volver" (un visitante anónimo que lo clickea cae en `/login`, que es lo
-correcto: la app sí está gateada).
-
-⚠️ **Lo que protege la superficie administrativa es el BODY, no la ruta.**
-`GET /api/openapi.yaml` es `PERMIT` en `ApiRoutePolicy`, y
-`OpenApiDocumentController` **filtra al servir**: borra toda operación con
-`x-access: ADMIN` y descarta entera la path que se queda sin ninguna. De **86**
-operaciones documentadas viajan **51** — las 8 `PERMIT` + las 43
-`AUTHENTICATED`, exactamente lo que alcanza un VIEWER. Las 35 `ADMIN`
-(`DELETE /api/db/productos`,
-`/api/agent/**`, `/api/usuarios/**`, `POST /api/scrape`…) **nunca cruzan el
-cable**. Filtrar en el frontend sería teatro: el documento completo igual
-viajaría y se leería en la pestaña Network.
-
-El recurso del classpath **no se toca** — `OpenApiRouteCoverageTest` lo afirma
-byte-idéntico a `docs/openapi.yaml`, y esa garantía es sobre el artefacto, no
-sobre la respuesta. El deny-list de try-it-out
-(`frontend/src/lib/apiDocs/nonExecutableOperations.js`) bajó de 10 a **3**
-entradas por lo mismo: las siete que se fueron eran `ADMIN` y ya no llegan a
-la página; quedan las tres de auth, que mutan la sesión de quien llama.
-`MlStatusPanel`, `GpuTrainingOverlay` y `AgentChatPanel` son componentes montados
-a nivel `AppLayout`, no rutas.
-
----
-
-## Gotchas
-
-> Cada uno de estos costó al menos una sesión. Están agrupados por **cuándo te
-> los cruzás**, no por subsistema, porque la pregunta que traés no es "¿de qué
-> módulo es esto?" sino "¿por qué no anda lo que acabo de tocar?".
->
-> | Si estás tocando… | Andá a |
-> |---|---|
-> | auth, CORS, cookies, sesión, el status de una corrida | [Frontend ↔ backend](#frontend--backend-sesión-orígenes-y-status) |
-> | retomar/descartar una corrida, un scrape parcial, cronjobs | [Corridas parciales y retomas](#corridas-parciales-y-retomas) |
-> | el toolchain, un jar, el venv, la base de dev, arrancar los servicios | [Entorno y procesos](#entorno-procesos-y-config) |
-> | un scraper, una page, una URL de catálogo o de imagen | [Leer un sitio](#leer-un-sitio) |
-> | keywords, categorías, el guard no-textil, normalización | [Taxonomía y clasificación](#taxonomía-y-clasificación) |
-> | IPC, dólar, el deflactor, la señal de compra | [Índices y señales](#índices-y-señales) |
-> | un picker, una tarjeta que scrollea, chips animados | [Frontend: layout](#frontend-layout) |
-> | `docker-compose.yml`, el Dockerfile, los orígenes | [Docker](#docker) |
-
-### Corridas parciales y retomas
-
-⚠️ **`agregar` sólo conoce los sitios que le pasaron, así que su lista de
-productos ES el subconjunto — y asignarla a `lastResult` borraba el catálogo.**
-Era correcto mientras toda corrida cubriera los 29 sitios y falso en cuanto
-dejó de hacerlo: un cronjob de tecnología, o una retoma con un solo sitio
-pendiente, dejaban en memoria únicamente esos productos. Medido contra la dev
-DB (2026-09-24): la corrida 22 (5 sitios tech) cerró con **951** productos y la
-retoma de la 16 con **1022**, sobre **15.907** activos que la base nunca dejó
-de tener — `0 desactivados` en las dos, o sea que el borrado era **sólo en
-memoria**. Y eso alcanza: `/api/grupos`, `/api/mejores`, outfits, suplementos,
-PCs, recomendados, marcas y el total de `/api/status` leen el snapshot, no SQL.
-Hoy `ScraperService.catalogoEntero` recarga los activos y los pasa por
-`fromDBParcial` —lo mismo que el refresco progresivo ya hacía por sitio— y
-conserva del batch sólo `erroresPorSitio` y `statsPorSitio`, que son hechos de
-esa corrida y no se derivan de la base.
-
-⚠️ **El guard de "ya hay un scrape corriendo" era check-then-set, y abrió dos
-corridas en el mismo segundo.** No es teórico: el 2026-09-24 11:16:59 se
-abrieron la 21 (cron: entreno, morashop) y la 22 (5 sitios tech) a la vez.
-`runState` es UNA referencia, así que la segunda pisó a la primera: los sitios
-de la 21 nunca se marcaron, nadie la cerró, y quedó `RUNNING` para siempre — la
-corrida fantasma que después no se podía ni retomar ni descartar. `iniciarScraping`
-y `reanudar()` entran ahora por `tomarElTurno()`, un `compareAndSet`.
-
-**Descartar una corrida interrumpida es un endpoint** (`POST /api/scrape/discard`),
-no un botón que esconde el cartel. Cierra como `CANCELLED` **todas** las
-`INTERRUPTED`, porque `ultimaInterrumpida()` nombra sólo la más reciente y
-descartar de a una destaparía la siguiente en el próximo arranque.
-`POST /api/scrape/cancel` no sirve para esto: exige `RUNNING`, que es
-exactamente lo que una corrida interrumpida no está.
-
-**Una retoma que no resuelve ningún sitio se cierra sola, no revienta.**
-`pendientes` trae `sitio_key` (normalizado: sin puntos, sin espacios) y
-`buildSiteList` filtra por `nombre`, así que un sitio dinámico con un punto en
-el nombre no matchea ninguno. Con la lista vacía,
-`Executors.newFixedThreadPool(0)` tira `IllegalArgumentException`, `agregar`
-nunca corre y la corrida recién adoptada queda abierta otra vez. Hoy se cierra
-como `CANCELLED` sin tocar el catálogo.
-
-⚠️ **Una ventana de tiempo no es una corrida, y el barrido final confundía las
-dos.** `ProductRepository.alcanceDelRun` leía `touched_at >= started_at` a
-secas, y el `started_at` de una corrida RETOMADA puede ser de hace días: todo
-sitio que **otra** corrida hubiera tocado en esa ventana entraba a `p_sitios`,
-aunque ésta no lo hubiera mirado nunca — y ahí "ausente" vuelve a significar
-algo sobre un sitio que nadie visitó, que es justo lo que el header de
-`R__sp_soft_delete_ausentes` prohíbe y lo que el 2026-08-15 desactivó 5806
-productos de 19 sitios en una sentencia. Medido: la corrida 16 arrancó el 22 a
-las 16:49 y se retomó el 24 a las 14:54, con cinco corridas en el medio —una
-completa—, así que su ventana nombraba los 28 sitios del catálogo para una
-corrida que había mirado cinco. Hoy la unión se acota además a los sitios que
-la corrida tiene enrolados en `scrape_run_site`, en **la misma query** (la
-invariante es que `p_urls` y `p_sitios` no puedan ensancharse por separado, así
-que no pueden salir de dos lecturas).
-
-| | |
-|---|---|
-| **Es un angostamiento puro** | Un sitio entra sólo si la corrida lo enroló **y** escribió filas suyas en la ventana. Un sitio enrolado cuyo scraper se rompió llega con 0 productos y sigue quedando afuera por el lado del tiempo — "se rompió" no es "se vació", y eso lo detecta `SiteYieldGuard`, no el barrido |
-| **El join va por `sitio_key`, no por `sitio`** | `productos.sitio` es la forma de display (`Vcp`) y `scrape_run_site.sitio_key` es identidad (`vcp`). Compararlos directo no matchea nada y **vacía el alcance en silencio** — el mismo par de vocabularios que documenta el header de `V29` |
-| **El puerto recibe la corrida, no un reloj** | `ProductPort.upsertProductos(List, CorridaEnCurso)`; `CorridaEnCurso(runId, startedAt)` vive en `scrape/`. Pasar sólo el `Instant` era la forma exacta del bug: un reloj no puede decir qué sitios miró una corrida |
-
-### Frontend ↔ backend: sesión, orígenes y status
-
-**El entorno de desarrollo NO tiene la forma de ninguna instalación real, y eso
-esconde bugs de auth.** `vite dev` proxea `/api`, así que el frontend queda
-**same-origin** con el backend. Las dos vías que se instalan de verdad son
-**cross-origin**: portable/POSIX es `:5173 → :3000` y Docker es `:8080 → :3000`.
-Cualquier cosa que dependa de la relación entre orígenes —`Origin`,
-`Sec-Fetch-*`, `SameSite`, si el browser guarda una cookie— se comporta distinto
-en dev y en producción, **y dev es la topología que nunca se instala**.
-
-Esto ya costó dos veces. Primero se recomendó exigir `Sec-Fetch-Site:
-same-origin` para el refresh de bootstrap, que habría dado 403 en las dos
-instalaciones reales y sólo habría andado en dev. Después, y peor: el login se
-mandaba sin `credentials: 'include'`, así que el browser descartaba la cookie de
-refresh y **la recuperación de sesión al recargar nunca funcionó** en ninguna
-instalación real — con 1570 tests de backend y 148 de frontend en verde encima.
-
-Por eso `tests/e2e/run-e2e.sh` corre siempre contra `npm run preview` y **falla
-ruidosamente si se descubre same-origin** en vez de pasar callado. Si tocás auth,
-CORS o cookies, esa suite no es opcional: los tests unitarios no pueden ver esta
-clase de bug, por construcción.
-
-**`fetchStatus` devuelve `null` si la respuesta no es ok, pero *rechaza* si no
-hay nadie escuchando:** `authedFetch` llama a `fetch` pelado, así que un backend
-muerto nunca llega al `if (!st)` — la callback muere con una promesa rechazada y
-el último `RUNNING` bueno queda congelado en pantalla mientras la pestaña siga
-abierta. Todo lector de `api.js` tiene que cubrir **las dos formas**: `null` y
-excepción. Las colapsa en "no hay status" **un solo lector**,
-`frontend/src/lib/readStatus.js`, y todo call site pasa por ahí.
-
-Vivió un tiempo adentro de `useScrapeStatusPolling.js`, y ahí estaba el
-problema: **hay DOS pollers y tres lecturas de montaje**, y el fix sólo llegó a
-uno. Los otros tres seguían llamando `fetchStatus` pelado. `AppLayout` tenía la
-copia idéntica del bug original —`await` sin try/catch adentro de un
-`setInterval`, muriendo cada 1800 ms contra un backend caído sin limpiar nunca
-el intervalo— y `RootGate` era peor: `.then()` sin `.catch()` en la ruta `/`,
-así que un backend que no escucha dejaba `gate` en `'checking'` y **la puerta de
-entrada de la app renderizaba el fallback para siempre**. Los 239 tests del
-frontend estaban en verde.
-
-Aparte de eso, `useScrapeStatusPolling` expone un `backendUnreachable`: "no lo
-puedo contactar" y "sigue corriendo" son frases distintas, y la pantalla tiene
-que decir la correcta. Ese estado **no** se mete en `scrapeStatus`, que espeja el
-`ScraperStatus` del backend; lo que se apaga es el progreso, no el campo.
-
-**El poller del splash no se arma solo salvo por una bandera de un solo tiro:**
-sólo `handleScrape` armaba el intervalo, así que aterrizar en `/splash` con una
-corrida ya `RUNNING` —lo que pasa al **retomar** una corrida interrumpida, y
-también tras un reload a mitad de corrida— dejaba el status congelado sin
-progreso ni final. Lo dispara `pollingNeeded`, que **levanta la lectura de
-montaje y nadie más**: si espejara el status vivo, el efecto que la observa
-re-armaría el intervalo en cada render que viera una corrida en curso. Al
-tocarlo, acordate de que el test correspondiente **no puede vivir en
-`App.test.jsx`** — necesita fake timers y la cadena de bootstrap de auth no
-drena bajo ellos, así que la baseline lee cero y la aserción pasa midiendo la
-lectura de montaje en vez del poller. Vive en `src/SplashRoute.test.jsx`, que
-mockea `useAuth` y fija la baseline en 1 antes de medir.
-
-**Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
-
-- **`PostgresTestBase.truncateAll` es una lista a mano, no un barrido del
-  esquema.** Toda tabla nueva hay que agregarla ahí. Si te la olvidás no falla:
-  contamina otros tests y se ve como un bug en otro lado. `rol` está excluida a
-  propósito — es dato semilla de la migración, y truncarla deja el esquema sin
-  vocabulario de roles.
-- **Un test de esquema afirma el SQLState, no `SQLException`.** Un INSERT contra
-  una tabla que todavía no existe también tira `SQLException`, así que la versión
-  floja se pone verde ANTES de escribir la migración. `23514` = CHECK,
-  `23505` = UNIQUE.
-- **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
-  `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
-  BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
-- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
-  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
-  separan, el backend deja de negarse a sembrar con la password de ejemplo.
-- **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
-  los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
-  en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos
-  los cronjobs contra una config que se ve perfecta, porque el seeder nunca pisa
-  un hash existente.
-- **`@WebMvcTest` registra los `Filter` pero no los `@Component` comunes.** Un
-  test del slice de seguridad necesita importar `SecurityConfig`, `JwtAuthFilter`
-  **y** `TokenService`, o el contexto no carga.
-- **Un fixture tiene que sembrar el mismo rol que pone en el contexto de
-  seguridad.** El rol se lee de la BASE en cada request —el token no lo lleva—
-  así que decir ADMIN en el contexto y escribir VIEWER en la tabla da un sujeto
-  que la app trata como VIEWER, correctamente, y un test que falla por algo que
-  no tiene que ver con lo que quería probar.
-- **Los relojes fijos de los tests caen en segundos exactos.** Por eso los 1540
-  tests no vieron que `iat` (segundos) y `password_changed_at` (microsegundos)
-  se comparaban directo, rechazando el token del usuario que acababa de cambiar
-  su contraseña. **Todo cambio de auth se verifica además contra un proceso
-  real**: la verificación manual encontró tres bugs que la suite no podía ver
-  —dos que impedían arrancar y este—.
-- **Convención de commits de la cadena**: subject conventional (`COMMIT-1`) y
-  `Fase N — ...` como primera línea del body. El formato `fase:n - "msj"` lo
-  rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
-  de `COMMIT-3`.
-
-### Entorno, procesos y config
-
-**Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,
-corre los tests con JRE 21. El comando completo está en
-[`CONTRIBUTING.md`](./CONTRIBUTING.md). `clean` no es opcional: sin él `mvn test`
-puede pasar contra clases viejas y fingir verde.
-
-**Jar stale:** `cli/core/builder.py` saltea el build si `scraper/scraper.jar`
-existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.0.jar`
-→ `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
-
-**`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita
-el prefijo `jdbc:` (`jdbc:postgresql://…`); psycopg2 **no** lo entiende, solo
-`postgresql://…`. `PythonRunner.toPsycopgDsn` traduce antes de pasarlo al
-subproceso. Si se agrega otro consumidor de `DATABASE_URL`, revisar esto.
-
-**Fail-fast de env vars:** el backend no tiene defaults silenciosos para
-`DATABASE_URL`/`DATABASE_USERNAME`/`DATABASE_PASSWORD`/`APP_CORS_ALLOWED_ORIGINS`
-en el profile default — `RequiredEnvVarsGuard` aborta el arranque nombrando cada
-variable faltante. Un `DATABASE_PASSWORD` **vacío** (trust-auth local) cuenta como
-presente; solo una var totalmente ausente cuenta como faltante. Fallbacks de dev
-en `application-dev.properties` (`SPRING_PROFILES_ACTIVE=dev`); los tests activan
-el profile `test` vía surefire, no por anotación.
-
-**Logs de los servicios lanzados por el CLI:** backend y frontend **no** escriben
-en la terminal (romperían el render de la consola). Van a
-`scraper/logs/{backend,frontend}.log` y se leen con el comando `logs`. Esto es
-aparte del logback del backend (`scraper.log`/`error.log`, rolling diario).
-
-**Python embeddable:** `python311._pth` congela `sys.path` (no agrega el dir del
-script ni respeta `PYTHONPATH`); `ml_pipeline.py` inserta su propio dir antes de
-importar `ml_embeddings`. Esto es **solo** del embeddable de ML (`_tools/python`) —
-`_tools/cli-venv` es un venv uv normal y no tiene el problema, por diseño.
-
-**El CLI se autentica solo, y falla fuerte si no puede:** desde
-`user-accounts-and-roles` fase 1, `RestClient` lee
-`CLI_SERVICE_ACCOUNT_USERNAME`/`_PASSWORD` del `.env`, hace `POST /api/auth/login`
-y adjunta `Authorization: Bearer`. Ante un 401 reautentica **una** vez y
-reintenta; si el segundo intento también da 401, levanta `RestError` — nunca un
-skip silencioso ni un loop de logins contra la cuenta que ya está fallando.
-**Nunca** toca `/api/auth/refresh` ni una cookie: esa superficie es del browser.
-Sin esas dos claves en el `.env` (instalación previa al cambio) el cliente se
-comporta exactamente como antes: sin login y sin header.
-
-**CLI (`_tools/cli-venv`):** si `import textual` falla, el instalador aborta con
-mensaje accionable. Para reprovisionar: borrar `_tools/uv` y `_tools/cli-venv` y
-re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
-**no** `cli/__main__.py` directo, que falla por los imports absolutos `cli.*`.
-
-**El Postgres de dev corre con `trust` — sin password — así que el bind importa
-más que de costumbre.** `scripts/dev-db.sh` mapea `127.0.0.1:5432` a propósito
-(`PG_BIND`): con el `-p 5432:5432` que tenía antes, Docker publicaba en
-`0.0.0.0` y cualquiera en la misma red entraba a la base entera sin credencial —
-usuarios y hashes incluidos. El único consumidor es el backend, que corre en el
-host, así que loopback no le saca nada a nadie. **El mapeo se fija al crear el
-contenedor**: cambiar la variable no alcanza, hay que recrearlo (`down` + `up`;
-el volumen es nombrado y los datos sobreviven).
-
-**`start lan` levanta todo solo**: detecta la IP de la LAN, genera el
-certificado (mkcert si está, autofirmado si no), levanta el terminador TLS en un
-contenedor y deriva los orígenes. `stop` lo baja. **Necesita Docker** — `local`,
-que es el default, no. El backend sigue sirviendo HTTP: el TLS lo termina el
-proxy, igual que en un deploy, para no agregar otra divergencia dev/prod.
-
-**El origen del backend se elige al arrancar, no al compilar.** `start` acepta
-`local` (default) o `lan`, y `cli/core/runtime_config.py` reescribe
-`frontend/dist/config.js` con ese origen; `api.js` lee `window.__API_BASE__` y
-cae a `VITE_API_BASE_URL` sólo si está vacío. **El mismo `dist/` sirve los dos
-modos** — cambiar de modo no rebuildea. El modo **no se persiste**: `apply_mode`
-muta el `.env` ya parseado, nunca el archivo. `lan` deriva el origen de la IP
-de la LAN detectada cuando `SCRAPPY_*_ORIGIN` no está seteada — nunca cae a
-`localhost`, que desde otro dispositivo se estaría llamando a sí mismo.
-⚠️ Para pisar esa derivación, las dos variables se leen **del entorno del
-proceso y de ningún otro lado**: `resolve_origins` mira `os.environ`, y el CLI
-nunca carga el `.env` en su propio proceso — sólo lo escribe. Ponerlas adentro
-del `.env` no tiene **ningún** efecto sobre `start lan`.
-
-**Los orígenes del `.env` ya no están clavados en `localhost`.**
-`SCRAPPY_FRONTEND_ORIGIN` y `SCRAPPY_BACKEND_ORIGIN` (leídas por
-`cli/core/env_file.py` al generar) fijan `APP_CORS_ALLOWED_ORIGINS`,
-`VITE_API_BASE_URL` y `APP_OPEN_URL`. La primera acepta lista separada por
-comas; `APP_OPEN_URL` toma la primera. Sin ellas, todo se comporta igual que
-antes. Ojo con `VITE_API_BASE_URL`: es **build-time**, así que cambiarla exige
-rebuildear el frontend, y la generación del `.env` es create-if-absent — sobre
-un `.env` que ya existe no pisa nada.
-
-**Postgres portable:** vive en `_tools/pgsql` (binarios) + `_tools/pgdata`
-(`initdb -A trust`, sin password local). Queda corriendo entre ejecuciones;
-`pg_ctl status` chequea antes de re-arrancar. Para dev sin el instalador:
-`scripts/dev-db.sh`.
-
-**Tests contra Postgres:** `PostgresTestBase` auto-selecciona Testcontainers (si
-hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
-nunca hace fallar la suite por falta de infra.
-
-### Leer un sitio
-
-**`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
-descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
-`curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles
-literales adentro) parseaba perfecto en test y rendía **0 productos en un run
-real**. Chromium normaliza los atributos a comillas dobles y escapa las
-comillas internas como `&quot;` al serializar `document.documentElement.outerHTML`
-(que es lo que `page.content()` devuelve). Cualquier parser que lea un
-atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
-entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
-
-**Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
-cada reader tenía su propia junta inline y cada una se quedaba en un punto
-distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
-que un sitio que sirve `src="/img/..."` guardaba un path pelado en
-`productos.imagen_url` en **todas** sus filas. Un path relativo no es una imagen
-peor: no es una imagen. `ImageUrl.absolutize` devuelve `""` cuando no puede
-resolver, que es lo que el pipeline ya lee como abstención (`CODE-5`).
-
-**Una clave del feed no es una URL:** Compragamer y Maximus exponen el
-identificador de la imagen, no su dirección. Los dos necesitan que se reconstruya
-la ruta del bucket alrededor de ese valor. Antes de dar por sentado que un sitio
-"no tiene imágenes", buscar en el payload la clave con la que el propio sitio
-arma su `<img>` — en Maximus el comentario del código afirmaba que no existía y
-sí existía (`item_code4web`), y eso dejó 745 productos sin imagen.
-
-**Un índice no es un catálogo, y `/productos/` no siempre es el catálogo:**
-en Tiendanube la convención es que `/productos/` liste todo, pero el tema
-puede pisarla. En Morashop `/productos/` es una landing de "8 CATEGORÍAS" con
-**cero** productos y `/suplementos/` es un índice de subcategorías, también
-cero; el catálogo entero vive un nivel más abajo. Configurar cualquiera de las
-dos rinde 0 productos sin error, sin página vacía y sin nada que un operador
-pueda ver — la clase de bug que cerró `V24`. Antes de dar por buena una URL de
-catálogo, contá los productos que sirve en crudo (`curl | rg -c data-product-id`),
-no asumas la convención. Y cuando el catálogo se descubre en runtime, que la
-falta de resultados **tire excepción**: `SiteYieldGuard` no puede cubrir el caso
-porque sólo alerta cuando un sitio **cae** contra la corrida anterior, así que
-un sitio que rinde cero en su primera corrida nunca lo despierta.
-
-**El tope de páginas de Tiendanube es configurable, y tenía DOS copias:**
-`MAX_PAGINAS_DEFAULT` (60) en `TiendanubePage`, con override opcional
-`sitio.<n>.max_paginas`. Era 25 hardcodeado y le cortaba el catálogo a entreno
-por la mitad. Lo importante para la próxima vez: el `25` estaba en **dos**
-lugares —el bound del loop y el fallback que construye la URL de la página
-siguiente— y tocar sólo el primero deja el arreglo a medias en silencio, porque
-sin URL nueva el loop se queda sin `nextUrl` y corta igual. El tope sigue siendo
-cinturón de seguridad; quien corta de verdad es el chequeo de dos páginas vacías
-seguidas, que en Tiendanube funciona porque pasado el final sirve una página
-vacía en vez de repetir la última como hace osCommerce.
-
-### Taxonomía y clasificación
-
-**`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
-por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el
-catálogo filtrado en **cada** request, paginación incluida — nada se cachea entre
-páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
-ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
-
-**En la taxonomía de categorías, el ESPACIO es el word boundary — y un keyword
-sin él se come palabras enteras en silencio.** `GarmentTaxonomy.anyMatch` es un
-`contains()` pelado sobre un texto que `CategoryClassifier` ya padeó con
-espacios. Un keyword declarado `"ram "` en vez de `" ram "` matchea adentro de
-cualquier palabra terminada en ram: *D*ram, *S*ram, In*gram*, Mono*gram*. Lo
-mismo `"malla"` con "Mallado", `"bra "` con "Hem*bra*" (adaptadores HDMI
-archivados como corpiños), `"bano "` con "Urb*ano*", `"hat "` con "T*hat*"
-(zapatillas de básquet como Gorra), `"rx "` con "Me*rx*"/"Hype*rX*", y
-`"set "`/`"kit "`/`"pack "` con Sun*set*/Wind*kit*/Doy*pack*. Nada falla, nada se
-loguea: el producto entra al catálogo con otra categoría **y con la distribución
-de precios de otra categoría**, que es de lo que se alimenta el pipeline ML.
-
-El barrido que los encontró es mecánico y se repite igual: buscar en los arrays
-`KW_*` los keywords que terminan en espacio pero **no** empiezan con uno, y
-contar los nombres reales donde el token aparece como substring pero no como
-palabra. Padear es un angostamiento, así que sólo se padea lo que tiene
-misclasificación **medida** — una forma padeada deja de matchear pegada a
-puntuación (`"(pack de 4)"`).
-
-**`NonTextileGuard` corre ANTES que todo y devuelve `""`, que el llamador no
-distingue de "ningún keyword matcheó".** Puede vetar una clasificación correcta
-sin dejar rastro. Tenía `"red "` para redes deportivas y mira los primeros 35
-caracteres: "Mouse Logitech M110 Silent Red" entra entero en esa ventana, así
-que un mouse **rojo** quedaba sin clasificar. En el catálogo no hay una sola red
-deportiva.
-
-Lo más caro de esa clase de bug no fue la contaminación sino la **ausencia**:
-hasta `richer-category-taxonomy`, `KW_TECLADO` no tenía la palabra `teclado`
-pelada —sólo `"teclado gamer"`/`"teclado mecanico"`— y 453 teclados vivían en
-`Otros`. Un set demasiado angosto no se ve como un bug; se ve como un catálogo
-con muchos productos raros.
-
-**El orden del bloque tech es dato medido, no prolijidad.** El contenedor gana
-sobre lo que contiene, y cada posición tiene un producto real detrás: Gabinete
-antes que Fuente (23 gabinetes traen fuente), Fuente antes que Cooler (27
-fuentes nombran su cooler), Gabinete antes que Cooler (268 nombran sus fans),
-Cooler antes que CPU (**321 de 646 filas de `CPU` eran disipadores**), Cámara
-antes que Monitor ("Camara Wifi Ezviz Baby Call *Monitor*"), Mousepad antes que
-Mouse. `Cable` no se detecta por aparición sino por **sustantivo líder**: "Fuente
-Segotep 500W ATX *Cables* Largos" nombra los suyos y no es un cable.
-
-**Y el guard tampoco es el lugar para frenar lo que ya tiene categoría.**
-`NonTextileGuard` listaba `"router "`, `"teclado mecanico"`, `"mouse gamer"`,
-`"monitor led"` y `"fuente atx"` — los cinco productos que nombra tienen
-categoría tech propia y el bloque TECH corre antes que el de ropa, así que no los
-protegía de nada: les bloqueaba la clasificación correcta. El guard existe para
-que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
-Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
-
-**El sustantivo líder que ya usaba `Cable` se generalizó a Cooler/CPU/PC y a
-Gabinete, y las tres veces encontró plata (`pc-builder-deep-taxonomy`, fase
-7).** `startsWithAny` ahora pela un `"outlet"` líder antes de comparar contra
-cualquier `*_LIDER` — hacía falta para `"Outlet Procesador Intel Core i5
-13600KF..."`. Con `KW_CPU_LIDER` (`procesador`/`microprocesador`/`micro
-amd`/`micro intel`) corriendo antes que `KW_COOLER`: **146 de 470 filas de
-`Cooler` eran CPUs** (`"Procesador AMD Ryzen 9 9950X3D ... (no incluye
-cooler)"`, 85 de gama alta) — `cooler` sólo aparecía mencionado como
-accesorio. Con `KW_PC_LIDER` al tope de todo `clasificarTech` (antes corría
-después de `KW_GPU` y seis checks más): **67 PCs armadas enteras vivían en
-`CPU`** (`"PC AMD Ryzen 3 3200G 16GB 1TB SSD WIFI"` competía por el slot cpu)
-y **16 más en `GPU`** (`"PC Powered by MSI Ultimate ... RTX 5060 ..."` entraba
-al slot gpu como si fuera una placa de video suelta) — 83 PCs enteras
-compitiendo como componentes sueltos antes de que el líder cubriera las dos
-formas de nombrarlas. Y el slot Gabinete elegía un **service**:
-`"service instalación de armado de pc"` ($2.050) ganaba porque `KW_GABINETE`
-matchea `"para gabinete"` sin mirar qué nombra el producto — el líder
-`bracket|filtro|service|kit|fan|soporte` + `"para gabinete"` como destino, no
-como categoría, lo saca.
-
-**El líder tuvo que dejar de pedir permiso: `bracket` y `armado` (fase 8).** El
-guard de fase 7 exigía `" para gabinete "` en el mismo título, así que sólo
-frenaba a los accesorios que nombraban su destino. `"Bracket Disco SSD para
-Xigmatek Gaming X"` ($3.300) se escapaba a `Almacenamiento` y ganaba el slot
-del disco por ser lo más barato del pool; `"Bracket Cooler Master Soporte Para
-Fan Cooler LGA1700"` hacía lo mismo en `Cooler`. Las **tres** filas del
-catálogo que lideran con `bracket` son accesorios, así que `KW_ACCESORIO_LIDER`
-abstiene incondicionalmente — los otros tres líderes de
-`KW_GABINETE_ACCESORIO_LIDER` siguen condicionales, porque `"Kit de RAM"` y
-`"Soporte de Monitor"` sí son productos. Y `armado` entró a
-`KW_SERVICIO_LIDER`: las **10** filas que lideran con él son mano de obra
-(`"ARMADO DE PC ESPECIAL (No incluye instalación de sistema operativo)"`), ocho
-ya estaban en `Otros` y dos se habían ido a `GPU`, donde competían por el slot
-gpu del armador. Una PC armada de verdad lidera con `PC`, que es `KW_PC_LIDER`.
-
-⚠️ **Un arreglo de clasificación no se ve hasta el próximo scrape, y eso se
-parece exactamente a que no esté arreglado.** La categoría se fija al scrapear
-y vive en `productos.categoria`; el armador lee el snapshot de la base, no
-reclasifica. El guard de gabinete de la fase 7 funcionaba perfecto en los tests
-mientras `/pcs` seguía mostrando el bracket, porque la dev DB traía 205 filas
-clasificadas con el código viejo (73 `Cooler→CPU`, 59 `CPU→PC`, 16 `GPU→PC`, 8
-`Monitor→PC`, 7 de `Gabinete`). Antes de diagnosticar un bug de taxonomía,
-correr el clasificador de HOY sobre los nombres de la base y comparar: si el
-drift lo explica, lo que falta es un scrape.
-
-**`Conjunto` es ropa, y corría antes que todo: se llevaba 348 filas de
-tecnologia.** `KW_CONJUNTO` incluye `"combo"`, `" kit "`, `" pack "` y `" set "`,
-ubicuos en SKUs de hardware, y `CategoryClassifier` lo evaluaba antes de OFICINA
-y TECH (correcto *dentro* de ropa, por ADR-4: que un conjunto no quede
-first-matched como Musculosa). Contra 212 filas de indumentaria legítimas había
-**348 de tecnologia**: 77 bundles mother+CPU invisibles a los slots `mother` y
-`cpu`, 41 PCs enteras que `KW_PC_LIDER` nunca veía —corría después—, y 17 RAM, 8
-declarando el kit `NxMGB` que la preferencia `ramDual` busca. El arreglo mueve
-las dos reglas después de TECH: **316 de 348 se recuperan** (84 Motherboard, 68
-Teclado, 49 PC, 17 CPU, 16 GPU) y **212/212 de indumentaria siguen en
-`Conjunto`**. Los 32 restantes son gaps de vocabulario aparte (kits de
-ventiladores, `"Gaming Kit Tec+Mouse"` abreviado, `"Acces Point"` con el typo de
-origen, sets de valijas).
-
-⚠️ Lo encontró el **set de evaluación** ([`ml-tests/eval/`](./ml-tests/eval/README.md)),
-no un test: `TechCategoryClassifierTest` **afirmaba el bug** como correcto
-(`"Gabinete Gamer Kit c/Fuente 500W"` → `Conjunto`, con el comentario *«"kit "
-gana, ver ADR-4»*), contradiciendo el encabezado de su propia sección. Un test
-puede congelar un defecto; una segunda opinión sobre el catálogo real, no.
-
-**Un keyword de comida sin padear vivía adentro de dos marcas, y ahí era un
-acabado, no un sabor.** `"mate"` sin padear en `KW_COMIDA` matcheaba dentro de
-*Xigmatek* y *Ultimate* — en 5 de 7 nombres reales es un acabado (*matte*), no
-yerba mate. Se sacó de `KW_COMIDA`; `"yerba"` sigue cubriendo la yerba real.
-
-### Índices y señales
-
-**Los meses se inventaban de una CUENTA, no de una fecha.**
-`SenalEnricher` calculaba `mesesAtras = historial.size()/4` y `SenalCalculator`
-trataba `size()-13` como "hace 12 meses" — pero `precio_historico` registra
-CAMBIOS de precio, no muestras mensuales (ver `DATABASE.md`). Un producto con 4
-cambios en una semana y uno con 1 cambio en 8 meses compartían la misma cuenta.
-Desde `indices-service` el "hace cuánto" se resuelve por FECHA:
-`IndiceService.deflactorParaRubro(rubro, desde, hasta)` toma `desde`/`hasta`
-de las fechas reales del historial, nunca de una posición en la lista.
-
-**`rubro=tecnologia` deflacta por dólar oficial, el resto por IPC.**
-`DeflactorPorRubro.resolver(rubro)` es la única regla: `"tecnologia".equals(rubro)
-→ USD_OFICIAL`, cualquier otro valor → `IPC`. Deflactar una GPU por la canasta
-del IPC responde la pregunta equivocada — una GPU sube y baja con el dólar, no
-con la inflación general.
-
-**La fuente primaria de IPC (`argentinadatos.com/v1/finanzas/indices/inflacion`)
-publica la TASA mensual, no un nivel.** `valor` puede ser negativo y la serie
-arranca en 1943 muy por debajo de 100 — es variación porcentual, no el índice
-de INDEC. `ArgentinaDatosIpcFuente.parsear` la integra a un nivel sintético
-**anclado en diciembre 2016 = 100** (la base real del IPC nacional de INDEC) y
-**descarta todo lo anterior**: componer los 80 años completos, con la hiper del
-'89 adentro, da `1.1e10` ya en 1984 y desborda `NUMERIC(14,4)` — y como el
-upsert es un solo batch, **abortaba entero y no se persistía ni un punto de
-IPC**, en silencio (encontrado arrancando el backend de verdad, 2026-09-18; 2077
-tests en verde con fixtures de 5 puntos no lo vieron). `Deflactor` necesita un
-NIVEL para el cociente `valorEn(hasta)/valorEn(desde)`. Consecuencia para quien
-lea `GET /api/indices`: el `ultimoValor` de IPC no es el número de INDEC, es una
-base 100 propia — sólo las RAZONES entre dos puntos son comparables contra la
-realidad, el valor absoluto no.
-
-**El fallback de IPC (`datos.gob.ar`, series id `148.3_INIVELGENERAL_DICI_M_26`)
-está muerto hoy** (`{"errors": [...]}`) — ya lo estaba en `InflacionService`,
-antes de este cambio. `DatosGobIpcFuente` lo trata como una falla ordinaria de
-la cadena (`FuenteIndiceException`, no una NPE), pero en la práctica la cadena
-de IPC hoy tiene una sola fuente viva. Reemplazar el id es trabajo pendiente
-(ver Problemas conocidos), no algo que este cambio resolviera.
-
-**Un factor nunca viaja sin marcar.** `Confianza` (`observado` / `extrapolado`
-/ `sin_datos`) sale de `IndiceService.deflactor` y llega hasta la UI por dos
-caminos: `SenalCompra.confianzaDeflactor` (badge de producto) y
-`GET /api/recomendacion` (campos `confianza` + `diasExtrapolados`). Serie
-vacía → `Deflactor.NEUTRO` (`factor=1.0`, `SIN_DATOS`), nunca una tasa
-hardcodeada — los `3.5%`/`150% interanual` de 2024 que `InflacionService`
-servía indistinguibles de un dato real ya no existen en `main/`. En el
-frontend, `ui/ipc-badge.jsx` (montado en `Topbar`) pinta el punto de confianza:
-ámbar para `extrapolado`, gris sin valor para `sin_datos`.
-
-`GET /api/inflacion` no existe más; es `GET /api/indices`
-(`{ ipc: ResumenIndice, usd: ResumenIndice, actualizado }`) — contrato completo
-en [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md).
-
-### Frontend: layout
-
-**El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
-depende de un `bg-s1` que no se ve.** Con 33 subtipos, dejar crecer el picker
-empuja presupuesto, botón y resultados abajo de todo — en un teléfono son ~1000px
-de chips que hay que recorrer de nuevo en cada "Regenerar". `SuplementosPanel` le
-pasa `max-h-[min(56vh,440px)] overflow-y-auto bg-s1` y `stickySelected`.
-Ese `bg-s1` **no es decorativo**: la fila "Seleccionados" usa `bg-inherit`, que
-hereda el color **computado** del padre, así que sin fondo propio en esa raíz
-resuelve a transparente y los chips pasan por debajo a la vista. `stickySelected`
-es opt-in en `MultiSelectTags` por la misma razón: un `sticky` sin contenedor con
-scroll se pega al viewport de la página, que no es lo que nadie quiere.
-
-**El picker de categorías del outfit scrollea adentro de su tarjeta, y sus chips
-tienen que ser únicos entre grupos.** `OutfitsPanel` usa el mismo
-`MultiSelectTags` que el armador de suplementos, con `stickySelected` y
-`max-h-[min(56vh,440px)] overflow-y-auto bg-s1`. Antes eran cuatro acordeones
-colapsables, que cambiaban un problema por otro: colapsados no se veía qué estaba
-seleccionado sin abrir cada grupo; expandidos, 43 chips empujaban presupuesto,
-botón y outfit abajo del fold. Medido en un viewport de 430×860: 693px de
-contenido dentro de 440px de picker, y la página **no** scrollea.
-
-Dos cosas que se rompen en silencio si se tocan:
-
-- **`bg-s1` va en el picker, no sólo en la tarjeta.** La fila "Seleccionados" usa
-  `bg-inherit`, que hereda el color **computado** del padre: sin fondo propio en
-  esa raíz resuelve a transparente y los chips se ven pasar por debajo. Verificado
-  con `getComputedStyle`: tiene que dar un color, no `rgba(0,0,0,0)`.
-- **`MultiSelectTags` anima con `layoutId={tag}`**, que exige que cada tag esté
-  montado en **exactamente un** lugar. `PICKER_GROUPS` se **deriva** de
-  `BUILDER_GROUPS` en vez de escribirse a mano, y hoy ninguna categoría se repite
-  entre grupos. Duplicar una rompe el invariante sin error: el síntoma es un chip
-  que deja de animar. Los dos `OutfitPanel` (gym/casual) no colisionan porque la
-  barra de tabs monta uno solo (`tab === 'outfit' && ...`).
-
-### Docker
-
-**Docker:**
-- `VITE_API_BASE_URL` es **build-time** (Vite lo hornea en el bundle) → cambiarlo exige `docker compose up --build`.
-- En `DATABASE_URL` el host es **`postgres`** (nombre del servicio), no `localhost`.
-- Triángulo que tiene que cerrar: `APP_CORS_ALLOWED_ORIGINS` (`:8080`) ↔ `VITE_API_BASE_URL` (`:3000`) ↔ los port mappings.
-- `pgdata`/`models`/`logs` son volúmenes nombrados → sobreviven a `docker compose down`.
-- Sin Docker en el sandbox de dev: el smoke real se valida en CI (`.github/workflows/docker-smoke.yml`).
-
----
-
-## Problemas conocidos / pendientes
-
-> Esta tabla lista **lo que está mal y sin arreglar**. Nada más.
->
-> Una decisión tomada no es un problema pendiente, y mientras vivió acá mezclada
-> con los bugs hizo que la lista pareciera deuda cuando no lo era. El *por qué*
-> de cada decisión está en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) y
-> [`docs/DATABASE.md`](./docs/DATABASE.md), que es donde lo manda `DOC-1`.
-
-### Bugs abiertos
-
-| Problema | Estado |
-|---------|--------|
-| La e2e **completa** sigue sin correr en CI — sólo el smoke de login | `e2e-login-smoke.yml` cubre 8 de los 26 specs de browser (sesión, cookie de refresh, topología) y **cero** de los 51 de la capa API. Es a propósito: un check que cuesta lo mismo que la suite entera se termina esquivando. Pero significa que roles, tabs, reseteo y backend-down siguen dependiendo de que alguien corra `tests/e2e/run-e2e.sh` a mano. Así se coló el PR #179, que mergeó con todo verde dejando la browser en 21 fallos de 26 |
-| `ResetRateLimiter` y `LoginRateLimiter` deciden lo OPUESTO sobre la clave por IP | `LoginRateLimiter` no tiene clave por IP **a propósito**, y su javadoc explica por qué: `getRemoteAddr()` devuelve la IP del proxy en cuanto haya uno adelante, y ahí todos los clientes caen en el mismo balde sin que nada falle. `ResetRateLimiter` sí la tiene, y la alimenta con ese mismo `getRemoteAddr()`. Detrás de un proxy su tope de 10/h pasa a ser global de hecho, y frena los resets de todos. Hoy es latente —ninguna de las tres vías de instalación proxea `/api`— pero las dos clases no pueden seguir contestando distinto a la misma pregunta. El arreglo es el que su hermana ya describe: allowlist de proxies de confianza antes de mirar `X-Forwarded-For`, nunca confiar en el header a ciegas |
-| `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
-
-### Necesitan datos, no código
-
-Ninguno de estos se puede cerrar sentado frente al editor: hace falta muestrear
-el catálogo real primero.
-
-| Pendiente | Qué falta |
-|---------|--------|
-| Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
-| Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
-| El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |
-| La ventana de gracia de 10 s del refresh y los umbrales de rate-limit son propuestas, no mediciones | Ya no falta infraestructura: el cliente existe (`frontend/src/lib/authSession.js`) y `tests/e2e/run-e2e.sh` lo ejercita contra un backend real. Falta la medición en sí, que es un trabajo aparte — nadie corrió todavía refrescos concurrentes para ver dónde cae el número. Hasta entonces queda como está, documentado como propuesta |
-| Parámetros de Argon2id sin medir en el Windows portable | Medidos acá (Linux dev, re-medidos 2026-09-22): **~22 ms hash / ~22 ms verify** con `m=16384, t=2, p=1`. Decía 76/76 hasta esa fecha, con el mismo método y la misma máquina; lo desmintió la suite de perf, que clavó el `POST /api/auth/login` **entero** en 43 ms p95 — un número que no puede ser la mitad del verify que contiene. Cuál de las dos corridas fue la anómala no se sabe. Falta igual la máquina que importa: el costo es memory-bound y un laptop de gama baja puede ser varias veces más lento. Hasta tener ese número, los defaults quedan como están |
-
-### Sin dueño
-
-| Pendiente | Estado |
-|---------|--------|
-| Vans 0 productos (plataforma Grimoldi custom) | Comentado en `config.properties`, pendiente investigación de su API |
-| Logg (`logg.com.ar`, ABP/ASP.NET) sigue sin scraper | **Fuera de scope por decisión explícita, no por fallar.** Diagnóstico completo en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) y en el header de `V24` |
-| El fallback de IPC (`datos.gob.ar`) apunta a un series id muerto | `148.3_INIVELGENERAL_DICI_M_26` devuelve `{"errors":[...]}`; ya estaba muerto en `InflacionService`. Falta encontrar/confirmar un id vivo — la cadena de IPC hoy corre con una sola fuente real |
-| `GET /api/recomendacion` sigue duplicando `SenalCalculator` inline | Preexistente a `indices-service`: `FinanciacionEndpoints.recomendacion` recalcula la señal a mano en vez de llamar a `SenalCalculator.compute`, en paralelo al camino que usa `SenalEnricher` para el catálogo |
-| `indice_valor` para USD (`DIARIO`) crece sin límite | ~5.7k filas desde 2011 a hoy tras la primera corrida real de `IndiceRefreshJob`. Inocuo al ritmo actual — sin poda ni partición todavía, y no hace falta con ese volumen |
-
-### Medido y descartado
-
-Lo que alguna vez estuvo en esta lista y las mediciones sacaron de ella. Se deja
-escrito para que no vuelva a proponerse.
-
-| Sospecha | Qué dijo la medición |
-|---------|--------|
-| `/api/outfits` y `/api/outfits/builder` rearman el `FeedbackModel` y pegan 2 queries a la DB en **cada** request — "candidato a cachear por corrida" | **No es un problema de performance** (medido 2026-08-18, catálogo de 6700): `FeedbackModels.build` 0,208 ms · 2 queries con pool HikariCP 0,429 ms · `OutfitService.armar` —el trabajo real del endpoint— 0,258 ms. Total ≈ 0,64 ms por request. La caché exigiría invalidar en cinco métodos de escritura, y si se escapa uno el like de un usuario deja de afectar los outfits en silencio: correctitud a cambio de 0,64 ms imperceptibles |
-| Idem, medido sin pool | ⚠️ **Trampa de medición, no un dato.** `PostgresTestBase` usa `SimpleDriverDataSource`, que abre una conexión nueva por llamada: las mismas 2 queries dan 13,5 ms así y 0,429 ms con HikariCP, 31x inflado. Cualquier medición de DB en este repo tiene que envolver el datasource de test en un `HikariDataSource` o el número es ficción |
-
-### La banda de precios: `precio.maximo=5000000`
-
-**Era `300000` hasta `add-inpro-office-store` (2026-08-20).** Esa banda no era un
-bug —filtraba lo que decía filtrar— pero borraba en silencio justo los productos
-caros de dos rubros enteros:
-
-| Sitio | Qué se perdía con 300.000 |
-|---|---|
-| Maximus (medido 2026-08-13) | notebooks `CAT=56` conservaba 0 de 16, computadoras armadas `CAT=68` 0 de 59, GPUs `CAT=48` 5 de 59 — **377 de 1122, 34%** |
-| INPRO (medido 2026-08-20) | **32 de 101, 32%**: TODAS las sillas ergonómicas de gama y TODOS los standing desks salvo los tres más baratos |
-
-Con `5000000`, INPRO entra entero: **101 de 101, 0% filtrado** (verificado contra
-el sitio en vivo). El producto más caro del catálogo es `LiberNovo Omni` a
-$2.999.000.
-
-| Lo que hay que saber | |
-|---|---|
-| **La banda es GLOBAL** | No hay override por sitio. `precio.maximo` sale de `config.properties`, lo lee `ScraperConfig`, y subirla alcanza a **todos** los sitios configurados — 29 activos desde `add-zentra-and-mmartinez`. Una banda por sitio sería una feature aparte |
-| **`PUT /api/config` NO persiste** | `ScraperConfig.setPrecioMaximo` sólo toca el `Properties` en memoria: lo que se cambia desde el dashboard se pierde al reiniciar. El valor durable es el del archivo |
-| **El número vive en cuatro lugares y tienen que decir lo mismo** | `config.properties` · el default de `ScraperConfig.getPrecioMaximo()` · `frontend/src/lib/scrapeDefaults.js` · y un test del frontend lee el `.properties` para que no puedan separarse |
-| ⚠️ **Los conteos por sitio de la tabla de sitios son con la banda VIEJA** | Están fechados y medidos a 300.000, así que **subestiman** la cobertura real de ahora. Re-medirlos es trabajo pendiente, no un dato que ya tengamos |
-| **Mueve las distribuciones del ML, y no hay nada que recalibrar** | Entran productos caros que antes no estaban, así que mediana, IQR y percentiles por categoría se corren. Los thresholds **no se tocan**: ninguna condición de `assign_badges` está denominada en pesos — todas son posiciones sobre distribuciones que se recalculan por corrida (`comp` 0-100, z-score modificado, cercos de Tukey, porcentajes). Medido ejercitando el código real: 88 combinaciones, escalando las distribuciones x10/x100/x1000/x0.01, **cero cambios de badge**. Lo fija `ml-tests/test_ml_pipeline_scale_invariance.py`. La única constante en pesos del archivo es el piso de `bin_size` en `_calc_mode`, y `mode` se reporta sin alimentar ningún score |
-
-Decisiones que antes vivían acá y ahora están donde corresponde:
-`/api/db/export`/`import` en 410 Gone → [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) ·
-`precio_orig` con strings genuinamente no parseables → [`docs/DATABASE.md`](./docs/DATABASE.md).
+| Una trampa que costó una sesión | `docs/GOTCHAS.md`, en la sección por síntoma |
+| Un bug abierto o un pendiente | `docs/KNOWN_ISSUES.md` |
+| Una decisión y su porqué | `docs/ARCHITECTURE.md` |
+| Cualquier cosa de la base | `docs/DATABASE.md` |
+| Un sitio nuevo o un cambio de plataforma | `docs/SITES.md` + `docs/ADD_SCRAPER.md` |
+| Una fase del armador de PCs | `docs/PC_BUILDER.md` + `odd/tasks/<feature>.md` |
+| Un cambio de proceso | `CONTRIBUTING.md` |
+| Un doc nuevo | Agregarlo a `SKILL.md` — **no** a este archivo sin pedido del usuario |
 
 ---
 
 ## Cómo continuar en una sesión nueva
 
-1. Leé este archivo completo.
+1. Leé este índice.
 2. Leé [`CONTRIBUTING.md`](./CONTRIBUTING.md) antes de escribir código o commitear.
-   Sus reglas tienen ID (`COMMIT-2`, `CODE-3`, `TEST-1`…): citalas en vez de parafrasearlas.
-3. Si es un clon nuevo: `git config core.hooksPath scripts/hooks`.
-4. [`SKILL.md`](./SKILL.md) es el índice del resto de la documentación.
+3. Abrí sólo el doc temático de lo que vas a tocar (tabla "Por área").
+4. Si es un clon nuevo: `git config core.hooksPath scripts/hooks`.
 5. Si hay problemas, pedí `scraper/logs/scraper.log` y `scraper/logs/error.log`.

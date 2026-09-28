@@ -263,7 +263,7 @@ monitoreo post-deploy: si en una categoría con muchos packs el badge
 `precio_alto`/`oferta_real` empieza a verse inconsistente, revisar la
 distribución `cats_precios` de esa categoría antes de re-calibrar umbrales.
 Re-calibrar thresholds está **fuera de alcance** de este change — ver
-`CLAUDE.md` → "Problemas conocidos / pendientes".
+`docs/KNOWN_ISSUES.md`.
 
 ---
 
@@ -320,3 +320,85 @@ Se sincroniza con la tabla `precio_historico` en PostgreSQL.
 **Actualización (decouple-services-postgres, Batch 2, design D4)**: desde este cambio, Python SÍ tiene acceso directo a la base — `ml_pipeline.py`/`ml_embeddings.py`/`ml_train.py` conectan vía `psycopg2` usando el env var `DATABASE_URL` (el mismo `DATABASE_URL` que usa Java para `spring.datasource.url`, pero traducido de formato JDBC a DSN libpq por `PythonRunner.toPsycopgDsn` antes de pasarlo al subproceso — psycopg2 no entiende el prefijo `jdbc:`). Ya no hay un `db_path` posicional ni un archivo `scraper.db` que resolver: `PythonRunner` fija `DATABASE_URL`/`SCRAPER_MODELS_ROOT`/`HF_HOME` como variables de entorno del subproceso (design D5).
 
 **Purga automática**: entradas > 90 días se eliminan en cada run.
+
+---
+
+<!-- Movido desde CLAUDE.md (2026-09-28) -->
+## Pipeline ML
+
+Detalle y guía de extensión en [`docs/ML_PIPELINE.md`](./ML_PIPELINE.md).
+
+**`ml_pipeline.py` (estadístico):** por categoría+género calcula `PriceStats`
+(mediana, IQR, MAD, CV, Tukey fences). Score compuesto = 40% percentil + 35%
+z-score modificado + 25% distancia a mediana/IQR → `price_segment`
+(budget/standard/premium/luxury). **Todo el scoring usa precio unitario**
+(`precio/cantidadUnidades`); display, descuento e historial usan precio de góndola.
+
+**Badges (multi-badge, no exclusivo):** condiciones independientes, no una cadena
+`elif`. Prioridad (el principal es el primero del set): `all_time_low` >
+`below_market` > `verified_deal` > `trending` > `price_dropping` > `above_market`
+> `fake_discount`. Persistido en `productos.ml_badge` como TEXT comma-delimited;
+`/api/data?badge=` filtra por **pertenencia al set**, no por igualdad exacta.
+`ofertaReal` es un boolean aparte.
+
+**Stage 1b — ensemble texto+imagen:** gate `needs_image_fallback` (confianza de
+texto <0.75, categoría genérica o género vacío). Máx 400 inferencias por run,
+cache-first. Override de categoría gateado por incompatibilidad de tipos +
+no-downgrade + confianza ≥0.82/0.92. Los atributos visuales se agregan de forma
+**aditiva** — el texto gana.
+
+**`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + LogisticRegression,
+~30s) → `_models/text_classifier.pkl`. `--images` es no-op: la clasificación
+visual es zero-shot, sin entrenamiento.
+
+**`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía `open_clip`,
+zero-shot con prompts en inglés y labels en español, abstención por margen.
+Cache en `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` =
+`<SCRAPER_MODELS_ROOT>/marqo`.
+
+⚠️ **El scoring NO es reentrante, y a lo sumo corre UNA vez a la vez.**
+`PythonRunner.ejecutar` resuelve tres rutas **fijas** en el cwd del proceso
+—`ml_productos.json`, `ml_output.json`, `precio_historico.json`— y se las pasa
+al subproceso como argv, así que dos corridas concurrentes se escriben los
+archivos entre sí y ninguna falla ruidosamente: la segunda lee el input de la
+primera o publica un output mezclado. Había dos llamadores capaces de chocar —el
+path de scrape vía `ResultAggregator` y `POST /api/ml/aplicar`, que lanzaba su
+hilo virtual **sin guard alguno**, a diferencia del entrenamiento, que ya
+reservaba su slot con `intentarReservarSecuenciaIndiceVisual`—. Hoy el slot lo
+toma `conReservaDeScoring` (CAS, molde del entrenamiento) y `/api/ml/aplicar`
+rechaza en la puerta con **409** si hay un scrape `RUNNING` u otro scoring en
+vuelo. El scrape es el dueño prioritario: degradarlo en silencio (su `ejecutar`
+devolviendo `null` = corrida sin ML) para que entre un "aplicar" manual sería el
+intercambio equivocado, y por eso el rechazo va en el endpoint y no en el path
+de scrape. En el frontend, `MlStatusPanel.handleApply` **tiene** que avisar del
+rechazo: mostraba "Aplicando..." tres segundos indistinguibles del camino feliz,
+así que un guard correcto se veía como un no-op silencioso.
+
+**Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
+103 valores en `richer-category-taxonomy`, a **105** en `V32` y a **106** en `V38` (`Mini PC`), y vive en DOS
+lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la
+tabla `categoria`. Dar de alta una categoría son **dos** cambios: el keyword que
+la produce y la migración que la inserta. Si falta la migración, la FK rechaza
+cada producto, pero `ProductRepository` se traga los errores SQL: el síntoma es
+`"0 nuevos"` en una corrida sana, no un error. Detalle y porqué en
+[`docs/DATABASE.md`](./DATABASE.md) (`V31`, `V32`) y
+[`docs/ARCHITECTURE.md`](./ARCHITECTURE.md).
+
+**Un nombre de marca no es un sustantivo de producto.** `Proteína` era la
+categoría más grande del rubro suplementos y **61 de sus 201 filas no eran
+proteína** (medido 2026-09-02): `"protein "` sin espacio adelante se metía
+adentro de `MYPROTEIN` y `The Protein Lab`, y `"whey"` se comía la marca
+`Natural Whey`, que en este catálogo vende cero whey. `V32` limpió eso —
+`CategoryClassifier.sinMarcasQueNombranProteina` **borra** esas marcas del texto
+antes de clasificar nutrición, en vez de vetar el producto, para no perder los
+whey legítimos de esas mismas marcas— y recién después splitteó la categoría en
+`Proteína Isolada` y `Proteína Vegetal`. El orden importa: splitear un balde
+sucio da sub-baldes sucios.
+
+**Clustering:** `cluster_productos` usa norms cacheadas + índice invertido
+término→cluster + conteos O(1). Al tocarlo, construí los corpus de test con
+tokens **alfabéticos**: el tokenizer descarta dígitos, así que un vocabulario
+`tok1, tok2…` colapsa en UN cluster y esconde tanto el blowup como cualquier
+regresión.
+
+---
