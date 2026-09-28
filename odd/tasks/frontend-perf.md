@@ -181,3 +181,28 @@ logic, not a regression.)
 - `cd frontend && npm test`: 47 files, 387/387 passed.
 - `cd frontend && VITE_API_BASE_URL=http://localhost:3000 npm run build`: green.
   Entry `dist/assets/index-BiMARv0G.js` — 259,198 B raw / 81,235 B gzip.
+
+## Browser measurement (2026-09-28, real backend, dev DB 22,191 active rows)
+`vite preview` of master (`index-DQrMOzuU.js`) vs branch (`index-BiMARv0G.js`),
+Chrome, logged in as ADMIN, `/catalogo`.
+
+Interaction — click a card's compare button, time to 2nd rAF, 288 cards
+loaded, CPU 4x, 10 clicks:
+- master: median 115.7 ms, max 347 ms
+- branch: median 36.0 ms, max 270 ms (CPU 1x branch: median 28.5 ms)
+
+Cold load — 48 cards in the DOM, CPU 4x:
+- no network throttle, 3 runs each: master 988/857/869 ms, branch
+  960/966/936 ms (LCP 1016-1188 vs 1132-1168) — no measurable difference.
+- Fast 4G, cache ignored: master 2024 ms (entry 187 KB transfer), branch
+  1994 ms (82 KB). Bundle size is not on the critical path.
+
+Critical path at CPU 1x (branch): JS done 20 ms → sibling-tab probe waits a
+fixed 150 ms (`authSession.js:25`) → refresh 221-243 → me → status 256-266 →
+data 351-653 and facets 357-633 (server) → first image 762 → LCP 808.
+Backend (curl, warm): `/api/data?size=48` ~230 ms, `/api/facets` ~210 ms,
+`/api/grupos` 130-220 ms; every other endpoint < 35 ms.
+Duplicate requests on load: `/api/ml/estado` x2, `/api/tendencias` x2,
+`/api/status` x2 (RootGate + Topbar).
+
+Next: `/api/data` and `/api/facets` server time is the largest single cost.
