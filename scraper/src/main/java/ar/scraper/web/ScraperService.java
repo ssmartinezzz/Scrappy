@@ -49,6 +49,9 @@ public class ScraperService implements CatalogSnapshotPort {
      * NOT the same as shortening the budget.</p>
      */
     private static final long POLL_GRANULARIDAD_MS = 5_000;
+
+    /** Gracia tras un timeout por sitio: puede terminar justo sobre el borde. */
+    private static final long GRACIA_SITIO_MS = 2_000;
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ScraperConfig    config;
@@ -499,100 +502,71 @@ public class ScraperService implements CatalogSnapshotPort {
         exec.shutdown();
 
         long deadline = System.currentTimeMillis() + TIMEOUT_GLOBAL_MIN * 60_000L;
-        List<ScrapeResult> resultados = new ArrayList<>();
         AtomicInteger completados = new AtomicInteger(0);
         AtomicInteger productosAcumulados = new AtomicInteger(0);
 
-        for (int i = 0; i < totalSitios; i++) {
-            long remaining = (deadline - System.currentTimeMillis()) / 1000;
-            long wait = Math.min(TIMEOUT_POR_SITIO_S, remaining);
+        List<ScrapeResult> resultados = SiteResultCollector.recolectar(
+                ecs, totalSitios, deadline, TIMEOUT_POR_SITIO_S, POLL_GRANULARIDAD_MS, GRACIA_SITIO_MS,
+                cancelado,
+                r -> {
+                    int n = r.productos().size();
+                    boolean tieneError = StringUtils.isNotBlank(r.error());
+                    SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
 
-            if (wait <= 0) {
-                // Timeout global — marcar todos los pendientes
-                for (SitioProgress sp : progSitios) {
-                    if (sp.estado() == SitioEstado.EN_CURSO || sp.estado() == SitioEstado.ESPERANDO) {
-                        int idx = idxMap.getOrDefault(sp.nombre(), -1);
-                        if (idx >= 0) actualizarProgreso(progSitios, idx, SitioEstado.ERROR, 0, "Deadline", 0);
-                        resultados.add(new ScrapeResult(sp.nombre(), List.of(), "Deadline global", 0));
-                        RUN_LOG.warn("[SITIO]   {} →    0 productos  (deadline global)",
-                                String.format("%-15s", sp.nombre()));
-                    }
-                }
-                break;
-            }
+                    int idx = idxMap.getOrDefault(r.sitio(), -1);
+                    if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
+                    registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
+                            n, r.error());
 
-            try {
-                long deadlineSitio = System.currentTimeMillis() + wait * 1000L;
-                Future<ScrapeResult> f =
-                        esperarResultado(ecs, deadlineSitio, POLL_GRANULARIDAD_MS, cancelado);
+                    int comp = completados.incrementAndGet();
+                    int prods = productosAcumulados.addAndGet(n);
+                    progressData = new ProgressData(totalSitios, comp, prods, List.copyOf(progSitios));
+                    statusMsg.set(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
+                    logSitioResult(r);
 
-                if (cancelado.get()) {
-                    RUN_LOG.warn("[CANCEL]  Cancelación pedida — se deja de esperar sitios");
-                    break;
-                }
-                if (f == null) {
-                    // Gracia de 2s, igual que antes: un sitio puede terminar justo
-                    // sobre el vencimiento del presupuesto.
-                    f = ecs.poll(2, TimeUnit.SECONDS);
-                    if (f == null) {
-                        RUN_LOG.warn("[ESPERA]  Sin respuesta en {}s, continuando...", wait);
-                        continue;
-                    }
-                }
-
-                ScrapeResult r = f.get();
-                resultados.add(r);
-
-                int n = r.productos().size();
-                boolean tieneError = StringUtils.isNotBlank(r.error());
-                SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
-
-                int idx = idxMap.getOrDefault(r.sitio(), -1);
-                if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
-                registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
-                        n, r.error());
-
-                int comp = completados.incrementAndGet();
-                int prods = productosAcumulados.addAndGet(n);
-                progressData = new ProgressData(totalSitios, comp, prods, List.copyOf(progSitios));
-                statusMsg.set(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
-                logSitioResult(r);
-
-                // ── Actualización progresiva ──────────────────────────────
-                // upsertParcial NO hace soft-delete → todos los sitios acumulan
-                if (!r.productos().isEmpty()) {
-                    try {
-                        var normalizados = aggregator.normalizarSolo(r.productos());
-                        productos.upsertParcial(normalizados);
-                        var todosActuales = productos.cargarProductos();
-                        if (!todosActuales.isEmpty()) {
-                            // Solo este sitio pudo cambiar algo, así que solo sus URLs
-                            // necesitan re-enriquecerse. Con fromDB completo, cada sitio
-                            // que terminaba volvía a cargar el historial de precios del
-                            // catálogo entero: 23 barridos completos por corrida.
-                            Set<String> urlsDelSitio = normalizados.stream()
-                                    .map(Product::url)
-                                    .filter(u -> StringUtils.isNotBlank(u))
-                                    .collect(Collectors.toSet());
-                            synchronized (catalogLock) {
-                                lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
+                    // ── Actualización progresiva ──────────────────────────────
+                    // upsertParcial NO hace soft-delete → todos los sitios acumulan
+                    if (!r.productos().isEmpty()) {
+                        try {
+                            var normalizados = aggregator.normalizarSolo(r.productos());
+                            productos.upsertParcial(normalizados);
+                            var todosActuales = productos.cargarProductos();
+                            if (!todosActuales.isEmpty()) {
+                                // Solo este sitio pudo cambiar algo, así que solo sus URLs
+                                // necesitan re-enriquecerse. Con fromDB completo, cada sitio
+                                // que terminaba volvía a cargar el historial de precios del
+                                // catálogo entero: 23 barridos completos por corrida.
+                                Set<String> urlsDelSitio = normalizados.stream()
+                                        .map(Product::url)
+                                        .filter(u -> StringUtils.isNotBlank(u))
+                                        .collect(Collectors.toSet());
+                                synchronized (catalogLock) {
+                                    lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
+                                }
+                                LOG.debug("[PARCIAL] {} → {} productos totales",
+                                        r.sitio(), todosActuales.size());
                             }
-                            LOG.debug("[PARCIAL] {} → {} productos totales",
-                                    r.sitio(), todosActuales.size());
+                        } catch (Exception ex) {
+                            LOG.warn("[PARCIAL] Error: {}", ex.getMessage());
                         }
-                    } catch (Exception ex) {
-                        LOG.warn("[PARCIAL] Error: {}", ex.getMessage());
                     }
-                }
+                });
+        exec.shutdownNow();
 
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                LOG.warn("Interrumpido esperando sitio {}", i);
-            } catch (Exception e) {
-                LOG.warn("Error en completionService ciclo {}: {}", i, e.getMessage());
+        // registrarSitioTerminado también acá: sin él, scrape_run_site queda
+        // RUNNING para siempre en una corrida COMPLETED.
+        if (!cancelado.get()) {
+            for (SitioProgress sp : progSitios) {
+                if (sp.estado() == SitioEstado.EN_CURSO || sp.estado() == SitioEstado.ESPERANDO) {
+                    int idx = idxMap.getOrDefault(sp.nombre(), -1);
+                    if (idx >= 0) actualizarProgreso(progSitios, idx, SitioEstado.ERROR, 0, "Deadline", 0);
+                    resultados.add(new ScrapeResult(sp.nombre(), List.of(), "Deadline global", 0));
+                    registrarSitioTerminado(sp.nombre(), "ERROR", 0, "Deadline global");
+                    RUN_LOG.warn("[SITIO]   {} →    0 productos  (deadline global)",
+                            String.format("%-15s", sp.nombre()));
+                }
             }
         }
-        exec.shutdownNow();
 
         if (cancelado.get()) {
             // `aggregator.agregar` NO corre, y eso es el punto entero. Adentro

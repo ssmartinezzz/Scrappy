@@ -286,6 +286,23 @@ comillas internas como `&quot;` al serializar `document.documentElement.outerHTM
 atributo con JS/JSON embebido tiene que aceptar las dos formas (o normalizar
 entidades antes de matchear) — no alcanza con probarlo contra un `curl`.
 
+**En Tiendanube, "todo lo de esta página ya lo vi" es lo normal, no un loop:**
+`scrollToBottom()` dispara el scroll infinito, así que el DOM de p1 ya trae
+p2..pk y `?page=2` no aporta nada nuevo. Un guard que cortaba ahí dejó
+foreverbstrd en 72 y Harvey en 108 (2026-09-28). Que el server ignore el
+parámetro se ve de otra forma: la página es **idéntica** a la anterior
+(`TiendanubePage.repiteLaAnterior`).
+
+**La API Legacy de VTEX da HTTP 400 pasado `_from` ≈ 2550, por consulta:** el
+header `resources` dice el total real (7151 en Sporting), pero una sola consulta
+nunca pasa de ~2550. `VtexPage` parte por el árbol de categorías (`fq=C:`).
+Medido: 250 → 2540 → 7134.
+
+**Una página vacía a mitad de catálogo no es el fin:** Fullh4rd cortó en 623 de
+1918 por una página sin cards. Si el listado declara un total, sólo se termina
+después de pasarlo, y el orden se fija explícito (`sort=name_asc`): el default
+repite cards entre requests.
+
 **Las URLs de imagen se absolutizan en UN solo lugar (`ar.scraper.pages.ImageUrl`):**
 cada reader tenía su propia junta inline y cada una se quedaba en un punto
 distinto — casi todas manejaban sólo la forma protocol-relative `//host/...`, así
