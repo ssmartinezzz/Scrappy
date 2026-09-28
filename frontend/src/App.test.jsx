@@ -92,7 +92,8 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
     await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
     expect(screen.getByText('Cronjobs')).toBeInTheDocument();
     expect(screen.getByText(/nuevo scraping/i)).toBeInTheDocument();
-    expect(screen.getByTitle('Ask Agent')).toBeInTheDocument();
+    // AgentChatPanel is lazy: the FAB mounts one tick after the layout.
+    expect(await screen.findByTitle('Ask Agent')).toBeInTheDocument();
   });
 
   it('a VIEWER deep-linking to /cronjobs renders AccessDenied at that URL — never a redirect', async () => {
