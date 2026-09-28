@@ -7,7 +7,7 @@
 | Sitio | Plataforma | Rubro | Notas |
 |-------|-----------|-------|-------|
 | freres, vcp, forever | Shopify | moda | `forever` está en el name-set SHOPIFY desde 2026-07-14 (antes caía a TN y daba 0 productos) |
-| foreverbstrd | Tiendanube | moda | URL estilo Shopify (`/collections/all`) pero es TN real — **NO** agregarlo al name-set |
+| foreverbstrd | Tiendanube | moda | `/collections/all` (URL estilo Shopify) pasó a dar 404; catálogo real en `/productos/`. Es TN real — **NO** agregarlo al name-set |
 | harvey | Tiendanube | moda | Única con `urls_extra` (outlet `otras-temporadas1`, pagina con `?mpage=N`) |
 | midway, batuk, tussy, bulks, bullbenny, barnes, eldon | Tiendanube | moda | Batuk+Huoky misma tienda (huoky comentado) |
 | fuark, fursten | Tiendanube | gym | Fursten pagina solo vía fallback `?page=N`. No existe flag `GYM_SITIOS` |
