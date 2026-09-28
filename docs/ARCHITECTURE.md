@@ -1309,6 +1309,26 @@ correcto de la clasificación en sí — separar "el cálculo de señales es
 correcto" de "el factor que lo alimenta es correcto" deja cada cosa medible
 por separado, antes y después del cambio.
 
+**`catalog-facets-perf`: por qué el cache es un decorator, no un método más de
+`CatalogQueryRepository`.** `CachingCatalogQueryPort` envuelve el repositorio
+sin tocar su constructor — varios tests lo instancian a mano
+(`new CatalogQueryRepository(dataSource, siteRegistry)`) y widening ese
+constructor los rompe sin que el cambio tenga nada que ver con ellos (ver
+`docs/GOTCHAS.md`). Spring resuelve el decorator como `@Primary` sobre
+`CatalogQueryPort`, con `@Qualifier` apuntando al repositorio concreto para su
+propio delegate — así producción cachea y cada test que arma el repositorio
+directamente sigue viendo la versión sin cachear, sin decidir nada por caso.
+
+Cachea sólo `facetas()`/`resumen()`, nunca `buscar()`: la página varía por
+filtro y por número de página, así que cachearla sería un mapa sin techo.
+Single-flight por `(cota, version)` — N llamadas concurrentes tras invalidar
+comparten un único `CompletableFuture` en vez de apilar N queries sobre el
+pool (`sql-catalog-filtering`'s propio hallazgo: sin pool, dos queries fueron
+31x más lentas). Acotado a un puñado de entradas (LRU): el espacio de claves
+reales es un puñado de valores de `cota`, no el catálogo entero. El versionado
+en sí —por qué una tabla `catalog_version` y no un TTL— está en
+[`DATABASE.md` § `V40`](./DATABASE.md).
+
 ---
 
 <!-- Movido desde CLAUDE.md (2026-09-28) -->

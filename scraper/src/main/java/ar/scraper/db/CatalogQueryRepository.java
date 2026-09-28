@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -115,15 +116,16 @@ class CatalogQueryRepository implements CatalogQueryPort {
                     contarHija(c, "producto_talle", "talle", cota));
             Map<String, Long> badges = contarHija(c, "producto_badge", "badge", cota);
 
-            Map<String, Long> generos = contar(c, "lower(btrim(genero))", cota);
-            Map<String, Long> categorias = contar(c,
-                    "upper(left(btrim(categoria),1)) || lower(substr(btrim(categoria),2))", cota);
-            Map<String, Long> marcas = limitar(contar(c, "btrim(marca)", cota), 30);
-            Map<String, Long> subCategorias = ordenarPorClave(contar(c, "btrim(sub_categoria)", cota));
-            Map<String, Long> fits = contar(c, "btrim(fit)", cota);
-            Map<String, Long> estampados = contar(c, "btrim(estampado)", cota);
-            Map<String, Long> escotes = contar(c, "btrim(escote)", cota);
-            Map<String, Long> colores = contar(c, "btrim(color_dominante)", cota);
+            List<Map<String, Long>> filas = contarProductosPorFaceta(c, cota);
+
+            Map<String, Long> generos = filas.get(0);
+            Map<String, Long> categorias = filas.get(1);
+            Map<String, Long> marcas = limitar(filas.get(2), 30);
+            Map<String, Long> subCategorias = ordenarPorClave(filas.get(3));
+            Map<String, Long> fits = filas.get(4);
+            Map<String, Long> estampados = filas.get(5);
+            Map<String, Long> escotes = filas.get(6);
+            Map<String, Long> colores = filas.get(7);
 
             return new Facets(
                     talles, generos, categorias, marcas, badges, subCategorias,
@@ -135,6 +137,96 @@ class CatalogQueryRepository implements CatalogQueryPort {
                     Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
+
+    /**
+     * Las ocho expresiones que antes eran ocho {@code contar(...)} — ocho barridos
+     * de {@code productos} — en UNA: un {@code GROUPING SETS} de un solo scan.
+     *
+     * <p>Cada fila del resultado pertenece a UNA de las ocho facetas; cuál es la
+     * dice {@code GROUPING(expr)}, que vale 0 para la expresión activa de esa fila
+     * y 1 para las otras siete (que llegan en NULL — así es como Postgres
+     * materializa un {@code GROUPING SETS} de conjuntos de una sola columna). El
+     * orden de {@link #FACET_EXPRS} es el índice: {@code GROUPING(expr_i) = 0}
+     * ⇒ esta fila cuenta para la faceta {@code i}.</p>
+     *
+     * <p>El blanco se excluye EN JAVA, no en el WHERE: acá conviven las ocho
+     * expresiones en una sola query, y una fila puede ser blanco en {@code fit}
+     * y no serlo en {@code marca} — un WHERE compartido las perdería a las dos.
+     * Es el mismo criterio que el {@code contar(...)} anterior aplicaba en SQL:
+     * {@code coalesce(btrim(expr), '') <> ''}.</p>
+     */
+    private List<Map<String, Long>> contarProductosPorFaceta(Connection c, Cota cota) throws SQLException {
+        String[] exprs = FACET_EXPRS;
+        StringBuilder select = new StringBuilder("SELECT ");
+        StringBuilder groupingSets = new StringBuilder();
+        for (int i = 0; i < exprs.length; i++) {
+            if (i > 0) {
+                select.append(", ");
+                groupingSets.append(", ");
+            }
+            select.append("GROUPING(k").append(i).append(") AS g").append(i).append(", k").append(i);
+            groupingSets.append("(k").append(i).append(')');
+        }
+        String sql = select + ", COUNT(*) AS cnt FROM (SELECT "
+                + joinAliased(exprs) + " FROM productos WHERE activo" + cota.sqlAnd("") + ") x"
+                + " GROUP BY GROUPING SETS (" + groupingSets + ")";
+
+        List<Map<String, Long>> crudo = new ArrayList<>(exprs.length);
+        for (int i = 0; i < exprs.length; i++) crudo.add(new java.util.LinkedHashMap<>());
+        // Acumula en listas primero: el orden final (conteo DESC, clave ASC) se
+        // decide en Java por faceta, no en el ORDER BY — mezclar ocho criterios
+        // de orden distintos en una sola cláusula no vale la pena.
+        List<List<Map.Entry<String, Long>>> porFaceta = new ArrayList<>(exprs.length);
+        for (int i = 0; i < exprs.length; i++) porFaceta.add(new ArrayList<>());
+
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            cota.bind(ps, 1);
+            try (ResultSet rs = ps.executeQuery()) {
+                int cntCol = exprs.length * 2 + 1;
+                while (rs.next()) {
+                    for (int i = 0; i < exprs.length; i++) {
+                        int gCol = i * 2 + 1;
+                        int kCol = i * 2 + 2;
+                        if (rs.getInt(gCol) != 0) continue; // no es la faceta activa de esta fila
+                        String clave = rs.getString(kCol);
+                        if (StringUtils.isBlank(clave)) break; // blanco: se excluye, igual que antes
+                        porFaceta.get(i).add(Map.entry(clave, rs.getLong(cntCol)));
+                        break;
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < exprs.length; i++) {
+            List<Map.Entry<String, Long>> entradas = porFaceta.get(i);
+            entradas.sort(Comparator
+                    .<Map.Entry<String, Long>>comparingLong(Map.Entry::getValue).reversed()
+                    .thenComparing(Map.Entry::getKey));
+            Map<String, Long> destino = crudo.get(i);
+            for (Map.Entry<String, Long> e : entradas) destino.put(e.getKey(), e.getValue());
+        }
+        return crudo;
+    }
+
+    private static String joinAliased(String[] exprs) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < exprs.length; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(exprs[i]).append(" AS k").append(i);
+        }
+        return sb.toString();
+    }
+
+    /** Orden fijo: género, categoría, marca, sub_categoría, fit, estampado, escote, color. */
+    private static final String[] FACET_EXPRS = {
+            "lower(btrim(genero))",
+            "upper(left(btrim(categoria),1)) || lower(substr(btrim(categoria),2))",
+            "btrim(marca)",
+            "btrim(sub_categoria)",
+            "btrim(fit)",
+            "btrim(estampado)",
+            "btrim(escote)",
+            "btrim(color_dominante)",
+    };
 
     @Override
     public CatalogResumen resumen() {

@@ -49,6 +49,13 @@ class V25RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(indiceExiste(st, "idx_productos_producto_key")).isTrue();
                 int productosAntes = contarProductos(st);
 
+                // catalog-facets-perf (V40): el INSERT de arriba dejó un evento de
+                // trigger diferido pendiente sobre productos (trg_catalog_version_*,
+                // DEFERRABLE INITIALLY DEFERRED) — Postgres rechaza un ALTER TABLE
+                // sobre una tabla con eventos de trigger pendientes en la misma
+                // transacción. Forzarlo a correr ahora no cambia nada que este test
+                // verifique: sólo suma una versión a catalog_version.
+                st.execute("SET CONSTRAINTS ALL IMMEDIATE");
                 st.execute(rollbackSql());
 
                 assertThat(columnaExiste(st, "producto_key")).isFalse();
