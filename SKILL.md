@@ -9,7 +9,7 @@ directorios con identidad propia. Cada entrada es independiente.
 
 | Doc | Qué cubre | Cuándo leerlo |
 |-----|-----------|---------------|
-| [`CLAUDE.md`](./CLAUDE.md) | **Estado** del proyecto: stack, sitios, API, gotchas, problemas conocidos | Siempre — inicio de sesión |
+| [`CLAUDE.md`](./CLAUDE.md) | **Guía/índice**: qué hay y dónde leerlo. No se sobrescribe sin pedido del usuario | Siempre — inicio de sesión |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | **Proceso**: commits, PRs, TDD, contrato de refactor, qué doc actualizar con cada cambio. Reglas con **ID citable** (`COMMIT-2`, `CODE-3`…) para referenciarlas en un review | Antes de escribir código o abrir un PR |
 | [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | **Por qué**: decisiones estructurales y su justificación. Para la base es sólo un índice hacia `DATABASE.md` | Antes de proponer cambios estructurales |
 | [`docs/DATABASE.md`](./docs/DATABASE.md) | **La base, entera**: esquema, las migraciones `V1`..`V24` + las `R__`, semántica del upsert, estado de normalización y el SQL de rollback que ejecutan los tests. Manda la regla de admisión: **toda tabla nueva cumple 1FN y 3FN** | Antes de tocar el esquema, escribir una migración o agregar una tabla |
@@ -30,6 +30,13 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | El agente desde Java: costura `ChatProvider`, loop acotado, tools, y las 8 reglas que lo gobiernan | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |
 | [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) | Instalar Ollama y configurar las variables `LLM_*` | Al levantar el agente por primera vez o cambiar de proveedor |
 | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) | Servir el dashboard a un celular u otro dispositivo de la red, por HTTPS: certificado, proxy que termina TLS, los **dos** `.env` de orígenes | Al probar desde otro dispositivo, o antes de armar el TLS de un deploy real |
+| [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Árbol comentado de archivos y paquetes | Al ubicar dónde vive algo |
+| [`docs/SITES.md`](./docs/SITES.md) | Sitios configurados, plataformas, rubros, detección de plataforma | Al tocar un sitio o scraper |
+| [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits y combo de suplementos | Al tocar `ar.scraper.outfits` |
+| [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–10 | Al tocar `ar.scraper.pcs` |
+| [`docs/FRONTEND.md`](./docs/FRONTEND.md) | Rutas, nav, `/favoritos`, `/apidocs` | Al tocar rutas o vistas |
+| [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) | Trampas conocidas, por síntoma | Cuando algo no anda y no sabés por qué |
+| [`docs/KNOWN_ISSUES.md`](./docs/KNOWN_ISSUES.md) | Bugs abiertos, pendientes, banda de precios | Antes de abrir un bug o cambiar la banda |
 
 ## Código con identidad propia
 

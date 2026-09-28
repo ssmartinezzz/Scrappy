@@ -567,7 +567,7 @@ resto habría inventado una incertidumbre que el dato no tiene.
 armador.** El slot Gabinete elegía un service de armado porque `KW_GABINETE`
 matchea `"para gabinete"` sin mirar el sustantivo líder del nombre — el mismo
 patrón que ya protegía a `Cable` (`"Fuente ... Cables Largos"` no es un
-cable, ver Taxonomía y clasificación en `CLAUDE.md`). Corregirlo en
+cable, ver Taxonomía y clasificación en `docs/GOTCHAS.md`). Corregirlo en
 `PcBuilder` con un veto adicional del slot habría escondido el síntoma sin
 tocar la causa: el producto seguiría mal categorizado para `/catalogo`, para
 el ML, para cualquier otra superficie que lea `categoria` — exactamente el
@@ -1308,3 +1308,50 @@ firma habría obligado a reescribir tests que ya verificaban el comportamiento
 correcto de la clasificación en sí — separar "el cálculo de señales es
 correcto" de "el factor que lo alimenta es correcto" deja cada cosa medible
 por separado, antes y después del cambio.
+
+---
+
+<!-- Movido desde CLAUDE.md (2026-09-28) -->
+## Model `Product` (record, 19 campos)
+
+```java
+sitio, nombre, precio, precioOriginal (Double), url, imagenUrl, categoria, genero,
+talles, ml (MlScore), marca, rubro, gymrat, marcaPremium,
+senal (SenalCompra), finan (SenalFinanciacion),
+cantidadUnidades, subCategoria, visual (VisualAttrs)
+```
+
+`precioOriginal` es `Double` desde `close-1nf-and-3nf-foundation` (antes
+`String`): `null` es "no parseó / no había" (D1), nunca un sentinel string.
+Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
+momento del scrape — ver `V17` más abajo.
+
+`rubro` tiene **cuatro** valores desde `V27`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina`. Lo resuelve `RubroResolver` por
+`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
+tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
+esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
+manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
+sobre el rubro forzado del sitio.
+
+Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
+`MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;
+`MlScore.EMPTY` es `scoreP=50` sin badges.
+`VisualAttrs` (fit/estampado/escote/colorDominante) es fill-only por campo, y
+`EMPTY` significa "el clasificador se abstuvo", no "malo".
+
+---
+
+## Flujo completo de un run
+
+```
+1. Usuario configura y lanza (dashboard o cronjob)
+2. POST /api/scrape → ScraperService.iniciarScraping()
+3. Por sitio: ScraperFactory.crear() → BaseScraper.ejecutar()
+4. ResultAggregator.agregar(): dedup → NormalizerService → PythonRunner
+   (ml_pipeline.py + stage 1b visual) → MlEnricher → DatabaseService.upsertProductos()
+5. Actualización progresiva por sitio: upsertParcial + fromDBParcial — solo las
+   URLs del sitio recién terminado se re-enriquecen; el resto reusa el snapshot previo
+6. En background si corresponde: re-train de texto + backfill de embeddings
+7. Frontend pollea /api/status cada 1800ms → DONE → dashboard con filtros server-side
+```
