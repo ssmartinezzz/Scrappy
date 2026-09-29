@@ -120,6 +120,13 @@ unidad de medida decide**. Sigue siendo un filtro DURO contra las no listadas
 —una marca de confianza le gana a una desconocida por barata que esté— y
 adentro de cada escalón no hay más jerarquía que el $/g.
 
+**"Regenerar" rota de marca** en Proteína en Polvo y Creatina
+(`SUBTIPOS_CON_ROTACION_DE_MARCA`, pedido del usuario 2026-09-29). Excluir sólo
+URLs no alcanzaba: con varios potes de BSN, cada click caía en otro BSN. Ahora
+se cuenta cuántas veces se mostró cada marca preferida y gana la menos vista
+—BSN primero en el empate, el resto por $/g—: BSN → la mejor $/g sin mostrar → … → BSN
+(otro pote)… Una marca sin stock se saltea.
+
 Era un orden hasta `feat/supplement-pick-by-price-per-gram`, y ahí estaba el
 problema: `mejorGrupoDeMarca` se quedaba con la primera marca **con stock**, así
 que con una sola whey de ENA en el pool, Star, Gold y BSN quedaban descartadas
