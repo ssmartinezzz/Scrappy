@@ -186,7 +186,7 @@ categoría `Mini PC` — pedido del usuario (2026-09-24). Diseño y medición en
 | | |
 |---|---|
 | **`Uso` es un eje aparte de `Gama`** | `uso=gaming\|homelab` (dueño `UsoWire`), default gaming. Homelab cambia slots y ejes, no las reglas: `almacenamiento` se parte en `sistema` (el eje de siempre) + `datos` (capacidad desc, tecnología abstenida última), la RAM rankea por capacidad primero, cuotas propias. Persistido normalizado: lookup `uso` + FK en `preferencia_armador` (`V39`) |
-| **Modo mini PC** | `uso=homelab` + `tamanioGabinete=mini` arma sólo `minipc` + `datos` |
+| **Modo mini PC** | `uso=homelab` + `tamanioGabinete=mini` arma sólo `minipc` + `datos`. En `/pcs` es el chip **Mini PC** de Uso (atajo de UI, no un valor de `UsoWire`): oculta los filtros de torre, y Homelab ya no ofrece "Mini tower" |
 | ⚠️ **No hay hardware de servidor en el catálogo** | Medido (2026-09-24, 6792 filas): 0 ECC, 0 EPYC, 1 Xeon sin mother, 0 rack. El tope "megaservidor" no se puede armar con estas tiendas |
 | **Sin presupuesto, el desempate por precio es DESC** (T18) | Adentro de un mismo escalón técnico gana el más caro — decisión del usuario, sólo sin presupuesto, en todos los slots. Con presupuesto sigue asc |
 | ⚠️ **Por eso los combos se filtran** | Con el desempate desc, `"Kit Mother ... + Procesador ..."` y `"Mini PC ... + Monitor"` ganaban por caros (y el CPU se compraba dos veces). `PcBuilder.esCombo` (`combo` o `+ <otro componente>`) los saca del pool, soft: sólo entran si son lo único del slot. `80 + Gold` y `+ Wraith Cooler` no son combos |
