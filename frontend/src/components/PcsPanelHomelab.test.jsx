@@ -190,24 +190,65 @@ describe('PcsPanel — labels de los slots homelab', () => {
     render(<PcsPanel />);
     await armar(user);
 
-    expect(screen.getByText('Mini PC')).toBeInTheDocument();
+    expect(screen.getByText('Mini PC', { ignore: 'button, script, style' })).toBeInTheDocument();
     expect(screen.getByText('Disco de datos')).toBeInTheDocument();
   });
 });
 
-describe('PcsPanel — hint de modo mini PC', () => {
-  it('sin Homelab elegido, no se muestra el hint de mini PC', () => {
+describe('PcsPanel — chip Mini PC', () => {
+  it('viaja como uso=homelab + tamanioGabinete=mini', async () => {
+    const user = userEvent.setup();
     render(<PcsPanel />);
-    expect(screen.queryByText(/mini pc/i)).not.toBeInTheDocument();
+    await user.click(grupo('Uso').getByRole('button', { name: 'Mini PC' }));
+    await armar(user);
+
+    expect(llamada(0)).toEqual(expect.objectContaining({ uso: 'homelab', tamanioGabinete: 'mini' }));
   });
 
-  it('con Homelab elegido, se muestra el hint de que Mini arma un mini PC + disco de datos', async () => {
+  it('oculta los filtros de torre y deja gama y disco', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(grupo('Uso').getByRole('button', { name: 'Mini PC' }));
+
+    for (const g of ['Memoria', 'CPU', 'Gabinete', 'Refrigeración', 'Watts mínimos de la fuente']) {
+      expect(screen.queryByRole('group', { name: g })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'RAM dual (2x)' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Incluir placa de video')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Gama' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Disco' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Capacidad mínima del disco' })).toBeInTheDocument();
+  });
+
+  it('en Homelab, Gabinete ya no ofrece Mini tower', async () => {
     const user = userEvent.setup();
     render(<PcsPanel />);
     await user.click(grupo('Uso').getByRole('button', { name: 'Homelab' }));
 
-    expect(screen.getByText(/mini pc/i)).toBeInTheDocument();
-    expect(screen.getByText(/disco de datos/i)).toBeInTheDocument();
+    expect(grupo('Gabinete').queryByRole('button', { name: 'Mini tower' })).not.toBeInTheDocument();
+  });
+
+  it('guarda la preferencia como uso=homelab + tamanioGabinete=mini', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(screen.getByRole('button', { name: 'Media' }));
+    await user.click(grupo('Uso').getByRole('button', { name: 'Mini PC' }));
+    await armar(user);
+
+    expect(savePcPreferencia).toHaveBeenCalledWith(
+      expect.objectContaining({ uso: 'homelab', tamanioGabinete: 'mini' })
+    );
+  });
+
+  it('una preferencia homelab + mini precarga el chip Mini PC', async () => {
+    fetchPcPreferencia.mockResolvedValue({
+      gama: 'media', presupuesto: null, conGpu: false, uso: 'homelab', tamanioGabinete: 'mini',
+    });
+    render(<PcsPanel />);
+
+    await waitFor(() =>
+      expect(grupo('Uso').getByRole('button', { name: 'Mini PC' })).toHaveAttribute('aria-pressed', 'true')
+    );
   });
 });
 
