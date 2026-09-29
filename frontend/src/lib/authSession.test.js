@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  FakeBroadcastChannel,
   installFakeCoordinationPrimitives,
   uninstallCoordinationPrimitives,
 } from '../test/fakeAuthPrimitives';
@@ -186,6 +187,121 @@ describe('authSession — cross-tab coordination', () => {
     const ok = await tabB.ensureFreshSession({ reason: 'test' });
     expect(ok).toBe(false);
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+// ─── bootstrap skips the fixed sibling-probe wait when nobody could answer ──
+// Measured against the real backend: with a single tab open (the common
+// case) nobody can ever answer `who-has-current`, so every load paid the
+// full 150ms SIBLING_PROBE_TIMEOUT_MS before /api/auth/refresh even started.
+// A tab that HOLDS a session advertises it with a Web Lock named
+// `scrappy-auth-session:<tabId>`; bootstrap() checks navigator.locks.query()
+// first and only pays the probe when a lock with that prefix belongs to
+// another tab.
+describe('authSession — bootstrap skips the sibling probe when no lock says a sibling exists', () => {
+  beforeEach(() => {
+    installFakeCoordinationPrimitives();
+  });
+
+  afterEach(() => {
+    uninstallCoordinationPrimitives();
+  });
+
+  it('a lone tab with locks available goes straight to the network refresh, well under the 150ms probe timeout', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokSolo', 'nonceSolo');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tab = await import('./authSession');
+
+    const start = Date.now();
+    const ok = await tab.bootstrap();
+    const elapsed = Date.now() - start;
+
+    expect(ok).toBe(true);
+    expect(tab.getAccessToken()).toBe('tokSolo');
+    expect(elapsed).toBeLessThan(100); // the probe alone would already cost 150ms
+  });
+
+  it('a sibling holding a session lock is discovered via query(), so the probe runs and the joining tab makes zero network calls', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tabA = await import('./authSession');
+    expect(await tabA.ensureFreshSession({ reason: 'test' })).toBe(true);
+
+    global.fetch.mockClear();
+
+    vi.resetModules();
+    const tabB = await import('./authSession');
+
+    expect(await tabB.bootstrap()).toBe(true);
+    expect(tabB.getAccessToken()).toBe('tokA');
+    expect(tabB.getIdentity()).toEqual({ username: 'valeria', roles: ['VIEWER'] });
+    expect(global.fetch).not.toHaveBeenCalled(); // no refresh, no /me — adopted purely via broadcast
+  });
+
+  it('ending a session releases its lock, so a later tab does not wait on a dead sibling', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tabA = await import('./authSession');
+    expect(await tabA.ensureFreshSession({ reason: 'test' })).toBe(true);
+    await tabA.logout(); // releases tabA's session lock
+
+    global.fetch.mockClear();
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokC', 'nonceC');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'carla', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tabC = await import('./authSession');
+
+    const start = Date.now();
+    const ok = await tabC.bootstrap();
+    const elapsed = Date.now() - start;
+
+    expect(ok).toBe(true);
+    expect(tabC.getAccessToken()).toBe('tokC');
+    expect(elapsed).toBeLessThan(100); // no dead lock left behind to probe against
+  });
+
+  it('with no navigator.locks (but a live channel), bootstrap still pays the fixed probe timeout — unchanged', async () => {
+    uninstallCoordinationPrimitives();
+    FakeBroadcastChannel.resetRegistry();
+    globalThis.BroadcastChannel = FakeBroadcastChannel; // channel present, locks absent
+
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokNoLocks', 'nonceNoLocks');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tab = await import('./authSession');
+
+    const start = Date.now();
+    const ok = await tab.bootstrap();
+    const elapsed = Date.now() - start;
+
+    expect(ok).toBe(true);
+    expect(tab.getAccessToken()).toBe('tokNoLocks');
+    expect(elapsed).toBeGreaterThanOrEqual(150);
+
+    delete globalThis.BroadcastChannel;
   });
 });
 
