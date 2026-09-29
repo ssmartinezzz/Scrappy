@@ -32,7 +32,8 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) | Servir el dashboard a un celular u otro dispositivo de la red, por HTTPS: certificado, proxy que termina TLS, los **dos** `.env` de orígenes | Al probar desde otro dispositivo, o antes de armar el TLS de un deploy real |
 | [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Árbol comentado de archivos y paquetes | Al ubicar dónde vive algo |
 | [`docs/SITES.md`](./docs/SITES.md) | Sitios configurados, plataformas, rubros, detección de plataforma | Al tocar un sitio o scraper |
-| [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits y combo de suplementos | Al tocar `ar.scraper.outfits` |
+| [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits: pesos, MCKP, coherencia visual, vetos | Al tocar `OutfitService`, `OutfitBudgetBuilder` o `OutfitRules` |
+| [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) | Combo de suplementos: subtipos, marca preferida, rotación de "Regenerar" | Al tocar `SupplementCombo` |
 | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–10 | Al tocar `ar.scraper.pcs` |
 | [`docs/FRONTEND.md`](./docs/FRONTEND.md) | Rutas, nav, `/favoritos`, `/apidocs` | Al tocar rutas o vistas |
 | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) | Trampas conocidas, por síntoma | Cuando algo no anda y no sabés por qué |
