@@ -563,6 +563,14 @@ public class SupplementCombo {
     };
 
     /**
+     * Subtipos donde "Regenerar" rota de MARCA y no sólo de URL: BSN primero, después
+     * la preferida todavía no mostrada con mejor $/g. Sin esto, con varios potes de
+     * BSN en el catálogo cada click caía en otro BSN y el resto nunca aparecía.
+     */
+    private static final Set<String> SUBTIPOS_CON_ROTACION_DE_MARCA =
+            Set.of("Proteína en Polvo", "Creatina");
+
+    /**
      * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice
      * nada (ver {@link #clasificarPorSubtipo}).
      *
@@ -705,6 +713,10 @@ public class SupplementCombo {
             List<Product> candidatos = porTipo.getOrDefault(subtipo.tipo(), List.of());
             if (candidatos.isEmpty()) continue;
 
+            // Se cuenta sobre el pool entero, antes de sacar lo visto.
+            Map<String, Integer> vistasPorMarca = SUBTIPOS_CON_ROTACION_DE_MARCA.contains(subtipo.tipo())
+                    ? contarVistasPorMarca(candidatos, excluir) : null;
+
             // Lo ya mostrado sale del pool, salvo que no quede nada: ahí el ciclo
             // vuelve a empezar en vez de dejar la fila vacía.
             if (!excluir.isEmpty()) {
@@ -721,7 +733,7 @@ public class SupplementCombo {
                         .filter(p -> p.precio() <= rem)
                         .collect(Collectors.toList());
                 if (!affordable.isEmpty()) {
-                    elegido = elegirPick(affordable);
+                    elegido = elegirPick(affordable, vistasPorMarca);
                 } else {
                     // Nada entra en el presupuesto restante: acá lo que importa es gastar
                     // lo mínimo posible, no el mejor $/kg — de ahí el precio absoluto.
@@ -731,7 +743,7 @@ public class SupplementCombo {
                 }
                 remainingBudget = Math.max(0, remainingBudget - elegido.precio());
             } else {
-                elegido = elegirPick(candidatos);
+                elegido = elegirPick(candidatos, vistasPorMarca);
             }
             combo.add(toSupplementPick(subtipo.tipo(), elegido));
         }
@@ -807,8 +819,58 @@ public class SupplementCombo {
      * <p>Que la marca le gane al valor frente a una marca desconocida sigue siendo
      * deliberado. Lo que cambió es que entre las preferidas ya no hay orden.</p>
      */
-    private Product elegirPick(List<Product> candidatos) {
-        return mejorValor(mejorGrupoDeMarca(mejorGrupoDeCategoria(candidatos)));
+    private Product elegirPick(List<Product> candidatos, Map<String, Integer> vistasPorMarca) {
+        List<Product> porCategoria = mejorGrupoDeCategoria(candidatos);
+        if (vistasPorMarca != null) {
+            List<Product> enRotacion = siguienteEnRotacion(porCategoria, vistasPorMarca);
+            if (!enRotacion.isEmpty()) return mejorValor(enRotacion);
+        }
+        return mejorValor(mejorGrupoDeMarca(porCategoria));
+    }
+
+    /**
+     * Candidatos de las marcas preferidas menos mostradas. Entre ellas BSN va primero;
+     * si no está, compiten todas y {@link #mejorValor} decide por $/g. Vacío si ningún
+     * candidato es de marca preferida: ahí sigue mandando {@link #mejorGrupoDeMarca}.
+     */
+    private List<Product> siguienteEnRotacion(List<Product> candidatos, Map<String, Integer> vistasPorMarca) {
+        Map<String, List<Product>> porMarca = new HashMap<>();
+        for (Product p : candidatos) {
+            String marca = marcaDeRotacion(p);
+            if (marca != null) porMarca.computeIfAbsent(marca, k -> new ArrayList<>()).add(p);
+        }
+        if (porMarca.isEmpty()) return List.of();
+
+        int menosVista = porMarca.keySet().stream()
+                .mapToInt(m -> vistasPorMarca.getOrDefault(m, 0)).min().orElseThrow();
+        List<String> turno = porMarca.keySet().stream()
+                .filter(m -> vistasPorMarca.getOrDefault(m, 0) == menosVista)
+                .collect(Collectors.toList());
+        for (String prioritaria : SUPLEMENTO_MARCAS_PRIORITARIAS) {
+            if (turno.contains(prioritaria)) return porMarca.get(prioritaria);
+        }
+        return turno.stream().flatMap(m -> porMarca.get(m).stream()).collect(Collectors.toList());
+    }
+
+    private Map<String, Integer> contarVistasPorMarca(List<Product> candidatos, Set<String> excluir) {
+        Map<String, Integer> vistas = new HashMap<>();
+        for (Product p : candidatos) {
+            if (!excluir.contains(p.url())) continue;
+            String marca = marcaDeRotacion(p);
+            if (marca != null) vistas.merge(marca, 1, Integer::sum);
+        }
+        return vistas;
+    }
+
+    /** Marca preferida canónica del producto; un Syntha-6 cuenta como BSN. null si no es preferida. */
+    private String marcaDeRotacion(Product p) {
+        if (esPrioritario(p)) {
+            return SUPLEMENTO_MARCAS_PRIORITARIAS.iterator().next();
+        }
+        if (p.marca() == null) return null;
+        return SUPLEMENTO_MARCAS_PREFERIDAS.stream()
+                .filter(m -> m.equalsIgnoreCase(p.marca()))
+                .findFirst().orElse(null);
     }
 
     /**
