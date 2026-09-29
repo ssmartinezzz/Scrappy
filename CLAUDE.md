@@ -65,7 +65,8 @@ tendencias ML con clasificación de imagen zero-shot.
 | Endpoints REST | [`docs/openapi.yaml`](./docs/openapi.yaml) (contrato) + [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) (semántica) |
 | Auth del browser, cookies, sesión | [`docs/FRONTEND_AUTH_CONTRACT.md`](./docs/FRONTEND_AUTH_CONTRACT.md) |
 | Scoring, badges, clustering, stage 1b, taxonomía de `categoria` | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) |
-| Armador de outfits o combo de suplementos | [`docs/OUTFITS.md`](./docs/OUTFITS.md) |
+| Armador de outfits | [`docs/OUTFITS.md`](./docs/OUTFITS.md) |
+| Combo de suplementos | [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) |
 | Armador de PCs (`ar.scraper.pcs`, fases 1–10) | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) + `odd/tasks/pc-builder-*.md` |
 | El agente LLM (`ar.scraper.agent`) | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) · setup: [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) |
 | Rutas, nav, `/favoritos`, `/apidocs` | [`docs/FRONTEND.md`](./docs/FRONTEND.md) |
@@ -158,7 +159,7 @@ Una línea cada una; el porqué está en el doc enlazado.
 | Un arreglo de clasificación no se ve hasta el próximo scrape | Correr el clasificador de hoy sobre la base antes de diagnosticar |
 | Una marca preferida sólo gana si está en `BrandExtractor.MARCAS` | Las dos listas viajan juntas |
 
-### Armadores → [`docs/OUTFITS.md`](./docs/OUTFITS.md) · [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md)
+### Armadores → [`docs/OUTFITS.md`](./docs/OUTFITS.md) · [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) · [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md)
 
 | Regla | |
 |---|---|

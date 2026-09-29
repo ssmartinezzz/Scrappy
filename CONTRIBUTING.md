@@ -338,6 +338,7 @@ En el **mismo PR**, por `COMMIT-5`:
 | El esquema, una migración, el upsert o una tabla nueva | `docs/DATABASE.md` — **toda tabla nueva cumple 1FN y 3FN**, y el bloque `-- >>> rollback:VN` lo ejecuta un test |
 | El agente LLM | `docs/LLM_EMBED.md` |
 | Los armadores de outfits | `docs/OUTFITS.md` + `ARCHITECTURE.md` si cambia el criterio |
+| El combo de suplementos | `docs/SUPPLEMENTS.md` + `ARCHITECTURE.md` si cambia el criterio |
 | Un doc nuevo o retirado | `SKILL.md` |
 | Una convención de proceso | Este archivo, con ID nuevo |
 
