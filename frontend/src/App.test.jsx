@@ -50,12 +50,20 @@ const CON_INTERRUMPIDA = {
   salteados: [],
 };
 
-function authedRouter({ roles, tieneData = false, interrumpida = SIN_INTERRUMPIDA }) {
+function authedRouter({
+  roles, tieneData = false,
+  // A real backend with data already reports a terminal status, not 'IDLE' —
+  // 'IDLE' -> 'IDLE' never trips the [S.scrapeStatus] dependency check, so it
+  // couldn't exercise the perf/dedupe-load-requests double-tendencias-fetch
+  // bug (T5 below). Overridable for tests that care about a specific value.
+  status = tieneData ? 'DONE' : 'IDLE',
+  interrumpida = SIN_INTERRUMPIDA,
+}) {
   return vi.fn().mockImplementation((url) => {
     const u = String(url);
     if (u.includes('/api/auth/refresh')) return Promise.resolve(refreshOk());
     if (u.includes('/api/auth/me')) return Promise.resolve(meWithRoles(roles));
-    if (u.includes('/api/status')) return Promise.resolve(jsonResponse({ tieneData, status: 'IDLE', mensaje: '' }));
+    if (u.includes('/api/status')) return Promise.resolve(jsonResponse({ tieneData, status, mensaje: '' }));
     if (u.includes('/api/scrape/interrupted')) return Promise.resolve(jsonResponse(interrumpida));
     if (u.includes('/api/sitios')) return Promise.resolve(jsonResponse({ base: [], extras: [] }));
     if (u.includes('/api/outfits/saved')) return Promise.resolve(jsonResponse([]));
@@ -302,10 +310,10 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
     // RootGate already reads /api/status to decide toCatalogo vs toSplash.
     // AppLayout used to read it again on mount to decide whether to load
     // first page/facets/favoritos — two reads of the same fact on one visit.
-    // Topbar independently reads /api/status on mount too, for its own ML
-    // banner (unrelated concern, out of scope for T5) — so the floor here is
-    // 2 (RootGate + Topbar), not 1: RootGate(1) + AppLayout(1) + Topbar(1) = 3
-    // before the fix, RootGate(1) + Topbar(1) = 2 after.
+    // perf/dedupe-load-requests also lifted Topbar's own independent
+    // /api/status read up into AppLayout (it now gets the ML banner as a
+    // prop instead), so the floor is RootGate alone: RootGate(1) +
+    // AppLayout(1) + Topbar(1) = 3 before either fix, RootGate(1) = 1 now.
     global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
 
     renderApp('/');
@@ -313,12 +321,13 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
     await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
 
     const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
-    expect(statusCalls).toHaveLength(2);
+    expect(statusCalls).toHaveLength(1);
   });
 
   it('a direct load of "/catalogo" (no handed status, e.g. a refresh) still reads status itself', async () => {
-    // No RootGate in this path, so nothing is handed — AppLayout's own read
-    // plus Topbar's independent one: unchanged before and after the fix.
+    // No RootGate in this path, so nothing is handed — AppLayout still reads
+    // it itself. Topbar no longer reads it independently (perf/dedupe-load-
+    // requests), so the floor drops from 2 to 1.
     global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
 
     renderApp('/catalogo');
@@ -326,7 +335,7 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
     await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
 
     const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
-    expect(statusCalls).toHaveLength(2);
+    expect(statusCalls).toHaveLength(1);
   });
 
   it('the no-data path (splash) is unaffected: "/" still lands on splash reading status twice', async () => {
@@ -342,5 +351,25 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
 
     const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
     expect(statusCalls).toHaveLength(2);
+  });
+
+  it('a cold load of "/" with data present fires /api/ml/estado and /api/tendencias exactly once each', async () => {
+    // Two more duplicate reads on the same cold load (perf/dedupe-load-requests):
+    // - /api/ml/estado: AppLayout already reads it once (GPU-training
+    //   recovery); Topbar read it again on its own mount for the ML banner.
+    // - /api/tendencias: the effect keyed on [S.scrapeStatus] fired once for
+    //   the reducer's 'IDLE' seed and again when the mount effect set the
+    //   real (non-IDLE) status — never a genuine RUNNING -> finished
+    //   transition, just the initial read arriving.
+    global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
+
+    renderApp('/');
+
+    await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
+
+    const mlEstadoCalls   = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/ml/estado'));
+    const tendenciasCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/tendencias'));
+    expect(mlEstadoCalls).toHaveLength(1);
+    expect(tendenciasCalls).toHaveLength(1);
   });
 });

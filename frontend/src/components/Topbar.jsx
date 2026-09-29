@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchMlResultado, fetchMlEstado, fetchStatus, fetchIndices } from '../api';
+import { fetchMlResultado, fetchIndices } from '../api';
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
@@ -16,6 +16,11 @@ export default function Topbar({
   // (ApiRoutePolicy.TABLE). Defaults false so a caller that forgets the prop
   // fails closed, not open.
   canScrape = false,
+  // perf/dedupe-load-requests: this used to be fetched here (GET /api/status
+  // + GET /api/ml/estado), duplicating AppLayout's own reads of both. AppLayout
+  // now builds the same { st, ml } shape once and hands it down; `null` (the
+  // default) just means no banner yet, same as before either read resolved.
+  mlBanner = null,
 }) {
   const sitioMap  = meta?.marcas        || {};
   const rubrosMap = facets?.rubros      || {};
@@ -45,15 +50,6 @@ export default function Topbar({
     fetchIndices()
       .then(d => setIndices(d))
       .catch(() => {});
-  }, []);
-
-  // ML banner data
-  const [mlBanner, setMlBanner] = useState(null);
-  useEffect(() => {
-    Promise.all([
-      fetchStatus().catch(() => null),
-      fetchMlEstado().catch(() => null),
-    ]).then(([st, ml]) => setMlBanner({ st, ml }));
   }, []);
 
   // Sitios: todos los que tienen productos, ordenados desc

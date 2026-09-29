@@ -78,3 +78,37 @@ describe('Topbar — user menu + logout (5.11 / 7.5)', () => {
     expect(screen.queryByRole('button', { name: /sesión de/i })).not.toBeInTheDocument();
   });
 });
+
+// perf/dedupe-load-requests: Topbar used to fetch GET /api/status + GET
+// /api/ml/estado itself for this banner — AppLayout already reads both once
+// on its own mount for other reasons, so it now hands the same { st, ml }
+// shape down as a prop and Topbar renders it without fetching anything.
+describe('Topbar — ML banner renders from the mlBanner prop (perf/dedupe-load-requests)', () => {
+  it('shows accuracy and refined count once a text model exists', () => {
+    useAuth.mockReturnValue({ identity: { username: 'valeria', roles: ['VIEWER'] }, logout: vi.fn() });
+
+    render(<Topbar {...baseProps({
+      mlBanner: { st: { mlRefinadas: 42 }, ml: { hasTextModel: true, textMeta: { accuracy: 0.873 } } },
+    })} />);
+
+    expect(screen.getByText(/87\.3% acc/)).toBeInTheDocument();
+    expect(screen.getByText(/42 ref\./)).toBeInTheDocument();
+  });
+
+  it('falls back to "ML estadístico" when there is no text model yet', () => {
+    useAuth.mockReturnValue({ identity: { username: 'valeria', roles: ['VIEWER'] }, logout: vi.fn() });
+
+    render(<Topbar {...baseProps({ mlBanner: { st: {}, ml: { hasTextModel: false } } })} />);
+
+    expect(screen.getByText(/ML estadístico/)).toBeInTheDocument();
+  });
+
+  it('renders no banner at all while the caller has not resolved it yet', () => {
+    useAuth.mockReturnValue({ identity: { username: 'valeria', roles: ['VIEWER'] }, logout: vi.fn() });
+
+    render(<Topbar {...baseProps()} />);
+
+    expect(screen.queryByText(/ML estadístico/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/acc ·/)).not.toBeInTheDocument();
+  });
+});
