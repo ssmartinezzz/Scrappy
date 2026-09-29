@@ -497,6 +497,18 @@ export default function AppLayout() {
   const [gpuTraining, setGpuTraining] = useState(null);
   const gpuPollingRef = useRef(null);
 
+  // perf/dedupe-load-requests: Topbar used to fetch GET /api/status + GET
+  // /api/ml/estado itself, on its own mount, purely for this ML banner — both
+  // already get read once below for other reasons (catalog load decision,
+  // GPU-training recovery). `undefined` means "not settled yet", distinct
+  // from a resolved `null`, so the banner appears only once both have
+  // settled — same timing Topbar's own Promise.all used to give it.
+  const [statusForBanner, setStatusForBanner] = useState();
+  const [mlEstado, setMlEstado] = useState();
+  const mlBanner = (statusForBanner !== undefined && mlEstado !== undefined)
+    ? { st: statusForBanner, ml: mlEstado }
+    : null;
+
   const stopGpuPolling = useCallback(() => {
     if (gpuPollingRef.current) { clearInterval(gpuPollingRef.current); gpuPollingRef.current = null; }
   }, []);
@@ -631,6 +643,7 @@ export default function AppLayout() {
     }
     const statusPromise = hasHandedStatus ? Promise.resolve(location.state.status) : readStatus();
     statusPromise.then(st => {
+      setStatusForBanner(st ?? null);
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
         loadFirstPage();
@@ -638,14 +651,16 @@ export default function AppLayout() {
         loadFavoritos();
       }
     });
-    // Recover an in-progress GPU training across page refreshes — don't lose it
+    // Recover an in-progress GPU training across page refreshes — don't lose
+    // it. This is also the one /api/ml/estado read the mlBanner above needs.
     fetchMlEstado().then(e => {
+      setMlEstado(e ?? null);
       if (e?.training?.running) {
         const ts = e.training;
         setGpuTraining({ running:true, phase:ts.phase, pct:ts.pct, msg:ts.msg, startedAt:ts.startedAt, error:null, success:false });
         startGpuPolling();
       }
-    }).catch(() => {});
+    }).catch(() => setMlEstado(null));
   }, []);
 
   // Load facets once on mount
@@ -672,8 +687,20 @@ export default function AppLayout() {
   // Category unit-price stats (medianas por categoría, keyed normalized) that
   // power the price bar and the pack savings % badge. Sourced from
   // /api/tendencias.distribucionCategorias (ML pipeline, computed on unit price).
-  // Refetched when a scrape finishes so the medians track the latest catalog.
+  //
+  // Fetched once on mount, then refetched only on a genuine RUNNING -> finished
+  // transition (DONE/ERROR, the same terminal check startPolling makes above)
+  // — NOT on the initial status read. `S.scrapeStatus` seeds at 'IDLE' and the
+  // mount effect above sets it to whatever the backend actually reports the
+  // instant that read resolves; keying this effect on [S.scrapeStatus] alone
+  // made that arrival look like a second transition and fired this twice on
+  // every cold load (perf/dedupe-load-requests).
+  const prevScrapeStatusRef = useRef();
   useEffect(() => {
+    const prev = prevScrapeStatusRef.current;
+    prevScrapeStatusRef.current = S.scrapeStatus;
+    const justFinished = prev === 'RUNNING' && (S.scrapeStatus === 'DONE' || S.scrapeStatus === 'ERROR');
+    if (prev !== undefined && !justFinished) return;
     let cancelled = false;
     (async () => {
       const { state, data } = await fetchTendencias();
@@ -772,6 +799,7 @@ export default function AppLayout() {
         gymrat={S.gymrat}
         onGymratToggle={() => setFilter({ gymrat: !S.gymrat })}
         canScrape={isAdmin}
+        mlBanner={mlBanner}
       />
       </div>{/* topbarRef wrapper */}
       <div className="layout">
