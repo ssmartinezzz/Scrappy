@@ -85,6 +85,25 @@ class ToolRegistryTest {
     }
 
     @Test
+    @DisplayName("the tool set is CLOSED: exactly these names, none touching users, roles or cron")
+    void toolSetIsClosedAndNeverTouchesUsersRolesOrCron() {
+        ToolRegistry registry = newRegistry(mock(ScraperService.class));
+
+        // Agregar una herramienta es una decisión de seguridad deliberada: si este test se pone
+        // rojo, revisá qué puede hacer la nueva herramienta ANTES de actualizar el conjunto.
+        assertThat(registry.specs().stream().map(ToolSpec::name).collect(java.util.stream.Collectors.toSet()))
+                .isEqualTo(Set.of("search_products", "view_product", "propose_reclassify", "propose_pc"));
+
+        // "usuario" sí aparece en las descripciones (el que confirma una propuesta): lo que
+        // no puede aparecer es una capacidad sobre usuarios, roles, permisos o cron.
+        for (ToolSpec spec : registry.specs()) {
+            String text = (spec.name() + " " + spec.description()).toLowerCase();
+            assertThat(spec.name()).doesNotContain("user").doesNotContain("rol").doesNotContain("cron");
+            assertThat(text).doesNotContain("cron").doesNotContain("permiso").doesNotContain("scheduler");
+        }
+    }
+
+    @Test
     @DisplayName("execute() with an unknown tool name → is_error, no crash")
     void executeUnknownToolNameIsError() {
         ScraperService service = mock(ScraperService.class);
