@@ -94,6 +94,37 @@ class SearchProductsToolFiltersTest {
     }
 
     @Test
+    @DisplayName("categoria matches its family: 'Zapatilla' includes 'Zapatilla Running', ignoring case")
+    void categoriaIncluyeSuFamilia() throws Exception {
+        List<Product> cat = List.of(
+                producto("https://t.com/1", "Air Max", "Zapatilla", 90000, "hombre"),
+                producto("https://t.com/2", "Pegasus", "Zapatilla Running", 95000, "hombre"),
+                producto("https://t.com/3", "Old Skool", "zapatilla urbana", 80000, "hombre"),
+                producto("https://t.com/4", "Buzo con capucha", "Buzo Zapatilla", 50000, "hombre"),
+                producto("https://t.com/5", "Zapatillero", "Zapatillero", 40000, "hombre"),
+                producto("https://t.com/6", "Remera", "Remera", 20000, "hombre"));
+
+        ToolResult r = toolCon(cat).execute(MAPPER.createObjectNode().put("categoria", "ZAPATILLA"));
+
+        assertThat(urls(r))
+                .as("igual o 'Zapatilla <x>'; nunca substring en medio ni prefijo sin espacio")
+                .containsExactlyInAnyOrder("https://t.com/1", "https://t.com/2", "https://t.com/3");
+    }
+
+    @Test
+    @DisplayName("a family value does not pull in a sibling: 'Remera' excludes 'Remera' lookalikes only by word prefix")
+    void categoriaFamiliaNoEsSubstring() throws Exception {
+        List<Product> cat = List.of(
+                producto("https://t.com/1", "Remera lisa", "Remera", 20000, "hombre"),
+                producto("https://t.com/2", "Remera larga", "Remera Manga Larga", 25000, "hombre"),
+                producto("https://t.com/3", "Buzo", "Buzo Remera", 30000, "hombre"));
+
+        ToolResult r = toolCon(cat).execute(MAPPER.createObjectNode().put("categoria", "Remera"));
+
+        assertThat(urls(r)).containsExactlyInAnyOrder("https://t.com/1", "https://t.com/2");
+    }
+
+    @Test
     @DisplayName("excluir drops matches by term, accent- and case-insensitively")
     void excluyeTerminos() throws Exception {
         ObjectNode args = MAPPER.createObjectNode().put("categoria", "Musculosa");
