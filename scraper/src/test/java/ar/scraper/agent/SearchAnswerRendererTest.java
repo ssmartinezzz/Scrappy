@@ -1,5 +1,7 @@
 package ar.scraper.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -65,5 +67,61 @@ class SearchAnswerRendererTest {
         assertThat(SearchAnswerRenderer.render("[]")).isNull();
         assertThat(SearchAnswerRenderer.render("not json")).isNull();
         assertThat(SearchAnswerRenderer.render(null)).isNull();
+    }
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String ONE_ROW = "[{\"url\":\"u\",\"nombre\":\"X\",\"sitio\":\"S\",\"precio\":1000}]";
+
+    private static JsonNode args(String json) throws Exception {
+        return MAPPER.readTree(json);
+    }
+
+    @Test
+    @DisplayName("every applied filter is stated right under the header, in a fixed order, prices es-AR")
+    void filtersLine() throws Exception {
+        String out = SearchAnswerRenderer.render(args("""
+                {"query":"tenés algún SSD SATA de 1 TB","categoria":"Almacenamiento","genero":"hombre",
+                 "precioMin":10000,"precioMax":50000.0,"enOferta":true,"excluir":["futbol","retro"],"limit":5}"""),
+                ONE_ROW);
+
+        assertThat(out.lines().toList()).containsExactly(
+                "Encontré 1 producto:",
+                "Filtré por: “ssd sata 1tb” · Almacenamiento · hombre · desde $10.000 · hasta $50.000"
+                        + " · en oferta · sin: futbol, retro",
+                "- [X](u) — S — $1.000");
+    }
+
+    @Test
+    @DisplayName("only the filters present appear; the query shows its content terms, not the filler")
+    void onlyPresentFilters() throws Exception {
+        String out = SearchAnswerRenderer.render(args("{\"precioMax\":1234567,\"enOferta\":false}"), ONE_ROW);
+        assertThat(out.lines().toList().get(1)).isEqualTo("Filtré por: hasta $1.234.567");
+
+        String q = SearchAnswerRenderer.render(args("{\"query\":\"zapatillas de nike\"}"), ONE_ROW);
+        assertThat(q.lines().toList().get(1)).isEqualTo("Filtré por: “zapatillas nike”");
+    }
+
+    @Test
+    @DisplayName("with enOferta the offer words are not shown as query terms (the tool drops them too)")
+    void offerWordsDroppedFromQuery() throws Exception {
+        String out = SearchAnswerRenderer.render(args("{\"query\":\"ssd en descuento\",\"enOferta\":true}"), ONE_ROW);
+        assertThat(out.lines().toList().get(1)).isEqualTo("Filtré por: “ssd” · en oferta");
+    }
+
+    @Test
+    @DisplayName("partial header keeps its own line first; the filters line follows it")
+    void filtersUnderPartialHeader() throws Exception {
+        String out = SearchAnswerRenderer.render(args("{\"query\":\"rtx 5090\"}"), """
+                [{"url":"u1","nombre":"A","sitio":"S","precio":1000,"coincidencia":"parcial","terminosFaltantes":["5090"]}]""");
+        assertThat(out.lines().toList()).startsWith(
+                "No encontré exactamente eso. Lo más parecido (faltan: 5090):",
+                "Filtré por: “rtx 5090”");
+    }
+
+    @Test
+    @DisplayName("no args: no filters line (the rows-only overload)")
+    void noArgsNoLine() throws Exception {
+        assertThat(SearchAnswerRenderer.render(null, ONE_ROW).lines().count()).isEqualTo(2);
+        assertThat(SearchAnswerRenderer.render(args("{\"limit\":3}"), ONE_ROW).lines().count()).isEqualTo(2);
     }
 }

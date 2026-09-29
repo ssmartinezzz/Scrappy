@@ -1,6 +1,7 @@
 package ar.scraper.agent;
 
 import ar.scraper.classification.CategoryGroups;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -170,6 +171,7 @@ public class CatalogAgentService {
         // Content of the last non-empty search THIS turn (never replay) and whether the turn made a
         // proposal or a PC: those turns keep the model's prose, the rest get a rendered listing.
         String lastSearchRows = null;
+        JsonNode lastSearchArgs = null;
         boolean proposed = false;
 
         for (int i = 0; i < MAX_ITERATIONS; i++) {
@@ -177,7 +179,7 @@ public class CatalogAgentService {
 
             if (response.done()) {
                 if (grounded) {
-                    String rendered = proposed ? null : SearchAnswerRenderer.render(lastSearchRows);
+                    String rendered = proposed ? null : SearchAnswerRenderer.render(lastSearchArgs, lastSearchRows);
                     if (rendered != null) {
                         LOG.debug("[Agent] Prosa del modelo descartada, se entrega el listado renderizado: {}",
                                 response.assistantText());
@@ -219,7 +221,10 @@ public class CatalogAgentService {
                         confirmedNoMatches = true;
                     } else {
                         grounded = true;
-                        if (SearchProductsTool.NAME.equals(call.name())) lastSearchRows = result.content();
+                        if (SearchProductsTool.NAME.equals(call.name())) {
+                            lastSearchRows = result.content();
+                            lastSearchArgs = call.arguments();
+                        }
                     }
                     if (ProposeReclassifyTool.NAME.equals(call.name()) || ProposePcTool.NAME.equals(call.name())) {
                         proposed = true;
@@ -421,7 +426,9 @@ public class CatalogAgentService {
 
     private void collectProposal(ToolResult result, List<ReclassifyProposal> proposals) {
         try {
-            proposals.add(MAPPER.readValue(result.content(), ReclassifyProposal.class));
+            ReclassifyProposal p = MAPPER.readValue(result.content(), ReclassifyProposal.class);
+            // A model that repeats itself must not show the user the same card twice (records: value equality).
+            if (!proposals.contains(p)) proposals.add(p);
         } catch (Exception e) {
             LOG.warn("[Agent] No se pudo parsear la propuesta de reclasificación: {}", e.getMessage());
         }

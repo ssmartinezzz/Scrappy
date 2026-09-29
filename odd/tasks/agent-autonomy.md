@@ -241,3 +241,44 @@ belongs to a test added in this same feature (no committed test line removed).
 Proposed (pending user): F) `propose_reclassify` rejects a no-op diff and the service dedupes identical
 proposals per turn; G) the rendered header states the filters applied (categoria, género, precio,
 enOferta, excluir) so an invented constraint is visible.
+
+### Round 5 — F and G (authorized 2026-09-29, after committing Rounds 1–4 on `feat/agent-autonomous-search`)
+
+Rounds 1–4 committed as 4eafccb (tokenizer + BM25F), 1d61006 (guardrail tests), 8ffc94d (agent behaviour);
+HEAD~2 and HEAD~1 verified standalone (agent+arch tests 158/160 green).
+
+- [x] **T15 (F) — No-op and duplicate proposals.** `propose_reclassify` returns an error when the
+  proposed categoria/subCategoria/marca/genero all equal the current values ("nada que cambiar");
+  the service keeps only the first of identical proposals (same url + same proposed values) per turn.
+- [x] **T16 (G) — Show applied filters.** The server-rendered search header states the filters the
+  search applied (query terms, categoria, género, precio min/max in es-AR, enOferta, excluir), e.g.
+  "Filtré por: Almacenamiento · hasta $50.000 · en oferta", so an invented constraint is visible.
+
+### Round 5 evidence (2026-09-29, uncommitted)
+
+- T15: `ProposeReclassifyTool` returns an error ("ya tiene esa clasificación…") when the resolved proposal equals the current
+  categoria/subCategoria/marca/genero (null-safe, null == ""); `CatalogAgentService.collectProposal` keeps the first of equal
+  proposals (record equality; different proposals for the same url both kept). An errored call neither grounds nor traces, so a
+  search + no-op proposals turn stays grounded by the search and delivers the rendered listing (test proves it: proposals empty,
+  trace = the search only). RED: `ProposeReclassifyToolTest` 2/6 (no-op returned ok), `CatalogAgentSearchAnswerTest` 2/9
+  (no-op card + duplicate cards); the "any single field change is still a proposal" test is a characterization (green by design).
+  GREEN: 60/60 across ProposeReclassifyTool*/CatalogAgent*.
+- T16: `SearchAnswerRenderer.render(JsonNode args, String rows)` adds, right under the header, `Filtré por: “ssd sata 1tb” · <categoria> ·
+  <genero> · desde $x · hasta $y · en oferta · sin: a, b` (only present filters). Query = the content terms the tool searched
+  (stopwords out, offer words out under enOferta, same 16-term cap; `PALABRAS_OFERTA`/`MAX_TERMINOS` now package-private, shared).
+  The service keeps the ARGUMENTS of the last non-empty search and renders those. One-arg `render(rows)` kept as an overload with no
+  filters line. RED: renderer 4/11 + service 1/10 (stub overload with no behaviour); GREEN 49/49 with CatalogAgentServiceTest.
+- Deviations: none; no existing test edited (header text still starts the answer; the filters line is a second line).
+- Full suite (`clean test`): 3089 run, 0 failures, 0 errors, 7 skipped, BUILD SUCCESS (+11).
+- Pending: not re-probed with Qwen; `docs/LLM_EMBED.md` not updated.
+
+### Qwen re-probe after Round 5 (2026-09-29)
+
+Orchestrator: full suite 3089 run, 0 failures, 0 errors, 7 skipped; test diff is additions only.
+- qwen3:14b: 3/3 correct — SSD (8 discounted SATA 1TB, filters line shown), Nike (2 real), RAM review
+  (10 rows, no no-op proposals).
+- qwen2.5:7b: SSD correct; Nike came back UNGROUNDED (model issued no tool call, even after the nudge);
+  RAM: invented `precioMin:0, precioMax:100000` is now visible in "Filtré por", which explains the 8GB rows.
+- Minor: the partial header's "faltan:" is the union over all rows, so it can name a term that the
+  first rows do contain.
+Recommendation: qwen3:14b as the agent model; qwen2.5:7b is unreliable at tool calling.

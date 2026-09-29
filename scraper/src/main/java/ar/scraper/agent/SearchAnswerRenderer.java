@@ -24,6 +24,10 @@ final class SearchAnswerRenderer {
 
     /** The answer, or {@code null} when there is nothing to list (empty, malformed or not an array). */
     static String render(String searchJson) {
+        return render(null, searchJson);
+    }
+
+    static String render(JsonNode args, String searchJson) {
         if (searchJson == null) return null;
         JsonNode rows;
         try {
@@ -46,8 +50,39 @@ final class SearchAnswerRenderer {
         lines.add(allPartial
                 ? "No encontré exactamente eso. Lo más parecido (faltan: " + String.join(", ", faltan) + "):"
                 : "Encontré " + rows.size() + (rows.size() == 1 ? " producto:" : " productos:"));
+        String filtros = filters(args);
+        if (!filtros.isEmpty()) lines.add("Filtré por: " + filtros);
         for (JsonNode r : rows) lines.add(line(r, !allPartial && isPartial(r)));
         return String.join("\n", lines);
+    }
+
+    /**
+     * The criteria the search applied, read from its ARGUMENTS (never from the model's prose), so an
+     * invented constraint is visible. The query is shown as the content terms the tool searched
+     * (after stopwords, offer words dropped under enOferta, same cap), not the raw text.
+     */
+    private static String filters(JsonNode args) {
+        if (args == null) return "";
+        List<String> parts = new ArrayList<>();
+        boolean enOferta = args.path("enOferta").asBoolean(false);
+        List<String> terms = new ArrayList<>();
+        for (QueryTokenizer.Token t : QueryTokenizer.contentTokens(args.path("query").asText(""))) {
+            if (!(enOferta && SearchProductsTool.PALABRAS_OFERTA.contains(t.stem()))) terms.add(t.word());
+        }
+        if (!terms.isEmpty()) {
+            parts.add("“" + String.join(" ", terms.subList(0, Math.min(terms.size(), SearchProductsTool.MAX_TERMINOS))) + "”");
+        }
+        String categoria = args.path("categoria").asText("").trim();
+        if (!categoria.isEmpty()) parts.add(categoria);
+        String genero = args.path("genero").asText("").trim();
+        if (!genero.isEmpty()) parts.add(genero);
+        if (args.path("precioMin").isNumber()) parts.add("desde " + pesos(args.path("precioMin").asDouble()));
+        if (args.path("precioMax").isNumber()) parts.add("hasta " + pesos(args.path("precioMax").asDouble()));
+        if (enOferta) parts.add("en oferta");
+        List<String> excluir = new ArrayList<>();
+        args.path("excluir").forEach(e -> { if (!e.asText("").isBlank()) excluir.add(e.asText().trim()); });
+        if (!excluir.isEmpty()) parts.add("sin: " + String.join(", ", excluir));
+        return String.join(" · ", parts);
     }
 
     private static boolean isPartial(JsonNode r) {

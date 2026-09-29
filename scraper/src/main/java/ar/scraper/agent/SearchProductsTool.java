@@ -52,11 +52,11 @@ public class SearchProductsTool implements CatalogTool {
     private static final Pattern NUMERO_UNIDAD = Pattern.compile("(\\d) +(?=[a-z])");
 
     /** Tope de términos de contenido por consulta (la máscara de coincidencia es un int). */
-    private static final int MAX_TERMINOS = 16;
+    static final int MAX_TERMINOS = 16;
     /** Con al menos esta fracción de los términos, una fila entra en el modo relajado. */
     private static final double COBERTURA_MINIMA = 0.5;
     /** Con enOferta=true estas palabras ya están expresadas por el parámetro: no son términos de búsqueda. */
-    private static final Set<String> PALABRAS_OFERTA = Set.of(
+    static final Set<String> PALABRAS_OFERTA = Set.of(
             "descuento", "oferta", "rebaja", "rebajado", "promo", "promocion");
 
     /** Las claves que declara {@link #spec()}; cualquier otra es un error. */

@@ -94,6 +94,55 @@ class ProposeReclassifyToolTest {
         verifyNoInteractions(db);
     }
 
+    @Test
+    @DisplayName("proposal equal to the current classification (optional fields fall back) → is_error, nothing to change")
+    void noOpProposalIsError() {
+        ScraperService service = mock(ScraperService.class);
+        Product current = producto("https://a.com/1", "Buzo Adidas", "Buzo", "Adidas");
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        ProposeReclassifyTool tool = new ProposeReclassifyTool(service);
+
+        ToolResult sameCategoriaOnly = tool.execute(MAPPER.createObjectNode()
+                .put("url", "https://a.com/1").put("categoria", "Buzo"));
+        ToolResult everythingRestated = tool.execute(MAPPER.createObjectNode()
+                .put("url", "https://a.com/1").put("categoria", "Buzo")
+                .put("marca", "Adidas").put("genero", "unisex"));
+
+        assertThat(sameCategoriaOnly.isError()).isTrue();
+        assertThat(sameCategoriaOnly.content()).contains("ya tiene esa clasificación").contains("no propongas");
+        assertThat(everythingRestated.isError()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a change in any one of subCategoria, marca or genero is still a real proposal")
+    void anySingleFieldChangeIsAProposal() {
+        ScraperService service = mock(ScraperService.class);
+        Product current = producto("https://a.com/1", "Buzo Adidas", "Buzo", "Adidas");
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        ProposeReclassifyTool tool = new ProposeReclassifyTool(service);
+
+        for (var extra : List.of(Map.of("subCategoria", "Running"), Map.of("marca", "Nike"),
+                Map.of("genero", "mujer"))) {
+            var args = MAPPER.createObjectNode().put("url", "https://a.com/1").put("categoria", "Buzo");
+            extra.forEach(args::put);
+            assertThat(tool.execute(args).isError()).as(extra.toString()).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("null and empty current values compare equal (no change from '' to omitted)")
+    void nullAndEmptyAreEqual() {
+        ScraperService service = mock(ScraperService.class);
+        Product current = producto("https://a.com/1", "Buzo", "Buzo", null);
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        ProposeReclassifyTool tool = new ProposeReclassifyTool(service);
+
+        ToolResult r = tool.execute(MAPPER.createObjectNode()
+                .put("url", "https://a.com/1").put("categoria", "Buzo").put("subCategoria", "  "));
+
+        assertThat(r.isError()).isTrue();
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────
 
     private AggregatedResult mockResult(List<Product> products) {

@@ -119,6 +119,14 @@ public class ProposeReclassifyTool implements CatalogTool {
                             + String.join(", ", VALID_GENEROS.stream().sorted().toList()) + ".");
         }
 
+        // A diff that changes nothing is noise for the user (a card whose "confirm" is a no-op) and
+        // a loop for the model: it is an error so the model stops instead of restating the same thing.
+        if (same(categoriaPropuesta, current.categoria()) && same(subCategoria, current.subCategoria())
+                && same(marca, current.marca()) && same(genero, current.genero())) {
+            return ToolResult.error("",
+                    "El producto ya tiene esa clasificación: no hay nada que cambiar, no propongas este cambio.");
+        }
+
         ReclassifyProposal proposal = new ReclassifyProposal(
                 url, current.nombre(), current.categoria(), categoriaPropuesta,
                 subCategoria, marca, genero);
@@ -127,6 +135,11 @@ public class ProposeReclassifyTool implements CatalogTool {
         } catch (Exception e) {
             return ToolResult.error("", "Error interno generando la propuesta de reclasificación.");
         }
+    }
+
+    /** Null-safe; null and "" are the same "no value" (see the genero abstention sentinel). */
+    private static boolean same(String a, String b) {
+        return (a == null ? "" : a).equals(b == null ? "" : b);
     }
 
     private static String optionalText(JsonNode args, String field, String fallback) {

@@ -125,6 +125,52 @@ class CatalogAgentSearchAnswerTest {
         assertThat(resp.assistantText()).isEqualTo(PROSE);
     }
 
+    @Test
+    @DisplayName("the filters line comes from the arguments of the search whose rows are rendered, not from the prose")
+    void filtersComeFromTheRenderedSearchArguments() {
+        Script s = new Script().call(SearchProductsTool.NAME, Map.of("query", "marca-inexistente-xyz", "precioMax", 1))
+                .call(SearchProductsTool.NAME, Map.of("query", "zapatilla", "precioMax", 400000, "enOferta", true))
+                .say("filtré por precio menos de 5");
+
+        String text = run(s).assistantText();
+
+        assertThat(text.lines().toList().get(1)).isEqualTo("Filtré por: “zapatilla” · hasta $400.000 · en oferta");
+    }
+
+    @Test
+    @DisplayName("a search plus only no-op proposals: the search grounds the turn and the rendered listing is delivered")
+    void noOpProposalsLeaveTheSearchAnswer() {
+        Script s = new Script().call(SearchProductsTool.NAME, Map.of("query", "zapatilla"))
+                .call(ProposeReclassifyTool.NAME, Map.of("url", "https://a.com/1", "categoria", "Zapatilla Running"))
+                .call(ProposeReclassifyTool.NAME, Map.of("url", "https://a.com/1", "categoria", "Zapatilla Running"))
+                .say(PROSE);
+
+        AgentChatResponse resp = run(s);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.assistantText()).startsWith("Encontré 1 producto:").doesNotContain("PROSA");
+        assertThat(resp.proposals()).isEmpty();
+        assertThat(resp.trace()).hasSize(1); // only the search; errored calls are not traced
+    }
+
+    @Test
+    @DisplayName("identical proposals in one turn are kept once; different ones for the same url are both kept")
+    void identicalProposalsAreDeduplicated() {
+        Map<String, Object> buzo = Map.of("url", "https://a.com/1", "categoria", "Buzo");
+        Map<String, Object> buzoNike = Map.of("url", "https://a.com/1", "categoria", "Buzo", "marca", "Nike");
+        Script s = new Script().call(SearchProductsTool.NAME, Map.of("query", "zapatilla"))
+                .call(ProposeReclassifyTool.NAME, buzo)
+                .call(ProposeReclassifyTool.NAME, buzo)
+                .call(ProposeReclassifyTool.NAME, buzoNike)
+                .call(ProposeReclassifyTool.NAME, buzoNike)
+                .say(PROSE);
+
+        AgentChatResponse resp = run(s);
+
+        assertThat(resp.proposals()).extracting(ReclassifyProposal::marcaPropuesta)
+                .containsExactly("Adidas", "Nike");
+    }
+
     private static final class Script implements ChatProvider {
         private final Deque<ChatResponse> script = new ArrayDeque<>();
 
