@@ -22,6 +22,7 @@ const BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const CHANNEL_NAME = 'scrappy-auth';
 const LOCK_NAME = 'scrappy-auth-refresh';
+const SESSION_LOCK_PREFIX = 'scrappy-auth-session:';
 const SIBLING_PROBE_TIMEOUT_MS = 150;
 const WAKE_REFRESH_THRESHOLD_MS = 60_000;
 
@@ -30,6 +31,7 @@ const hasBroadcastChannel = typeof BroadcastChannel !== 'undefined';
 const hasLocks = typeof navigator !== 'undefined'
   && navigator.locks
   && typeof navigator.locks.request === 'function';
+const hasLocksQuery = hasLocks && typeof navigator.locks.query === 'function';
 
 let channel = null;
 if (hasBroadcastChannel) {
@@ -42,6 +44,11 @@ if (hasBroadcastChannel) {
 }
 
 const tabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+// This tab's own advertisement, held for as long as it has a session. The
+// name carries only tabId — never token data — so query() can tell "someone
+// holds a session" from the name alone, without reading lock contents (Web
+// Locks does not expose any).
+const sessionLockName = `${SESSION_LOCK_PREFIX}${tabId}`;
 
 // ─── Module state ────────────────────────────────────────────────────────
 let session = { accessToken: null, nonce: null, receivedAt: 0, expiresAt: 0 };
@@ -49,7 +56,30 @@ let identity = null;           // { username, roles: [...] }
 let refreshPromise = null;     // in-tab single flight
 let ended = false;             // true after logout / a terminal rejection
 let lastFailureReason = null;  // 'network_error' | 'refresh_invalido' | 'sesion_invalidada' | 'csrf_invalido' | ...
+let releaseSessionLock = null; // set once the Web Lock below is granted
+let sessionLockRequested = false; // guards against requesting it twice before it is granted
 const listeners = new Set();
+
+// ─── Session-holding advertisement (Web Locks) ──────────────────────────
+// Acquired when this tab adopts a session (its own refresh/login, or a
+// sibling's broadcast) and released the moment the session ends. Idempotent:
+// never holds two, and a missing/throwing Locks API just means bootstrap()
+// falls back to the timed probe below — this never blocks session logic.
+function holdSessionLock() {
+  if (!hasLocks || releaseSessionLock || sessionLockRequested) return;
+  sessionLockRequested = true;
+  navigator.locks.request(sessionLockName, () => new Promise(release => {
+    releaseSessionLock = release;
+  })).catch(() => { /* best-effort advertisement, never fatal */ })
+    .finally(() => { sessionLockRequested = false; });
+}
+
+function releaseSessionLockIfHeld() {
+  if (releaseSessionLock) {
+    releaseSessionLock();
+    releaseSessionLock = null;
+  }
+}
 
 function notify() {
   const snapshot = getSnapshot();
@@ -87,6 +117,7 @@ export function resetSession() {
   refreshPromise = null;
   ended = false;
   lastFailureReason = null;
+  releaseSessionLockIfHeld();
   notify();
 }
 
@@ -112,6 +143,7 @@ function adoptBroadcastSession(msg) {
   if (msg.identity !== undefined) identity = msg.identity;
   ended = false;
   lastFailureReason = null;
+  holdSessionLock();
   notify();
 }
 
@@ -124,6 +156,7 @@ function handleBroadcastMessage(msg) {
     identity = null;
     ended = true;
     lastFailureReason = msg.reason || 'ended';
+    releaseSessionLockIfHeld();
     notify();
   } else if (msg.type === 'who-has-current') {
     if (session.accessToken && msg.id !== tabId) {
@@ -192,6 +225,7 @@ function adoptSession(data) {
     // is belt-and-braces — see adoptIdentityIfMissing().
     identity,
   });
+  holdSessionLock();
   notify();
 }
 
@@ -200,6 +234,7 @@ function endSession(reason) {
   identity = null;
   ended = true;
   lastFailureReason = reason;
+  releaseSessionLockIfHeld();
   broadcast({ type: 'ended', reason });
   notify();
 }
@@ -341,8 +376,35 @@ async function adoptIdentityIfMissing() {
   if (session.accessToken && !identity) await fetchIdentity();
 }
 
-/** Probe siblings first; only refresh over the network if none answers. */
+/**
+ * true: a lock proves another tab holds a session — probe as before.
+ * false: a lock proves NO other tab holds one — skip the probe, it cannot
+ *   possibly be answered.
+ * null: the Locks API (or query()) is unavailable, or it threw — unknown,
+ *   fall back to today's behavior rather than assume either way.
+ */
+async function siblingSessionLockKnown() {
+  if (!hasLocksQuery) return null;
+  try {
+    const { held = [] } = await navigator.locks.query();
+    return held.some(lock => lock.name.startsWith(SESSION_LOCK_PREFIX) && lock.name !== sessionLockName);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Skip the fixed SIBLING_PROBE_TIMEOUT_MS wait when a Web Lock already
+ * proves nobody could possibly answer it (the common single-tab case).
+ * Probe as before whenever a sibling's lock says otherwise, or whenever the
+ * lock check itself is unavailable — never worse than the old behavior.
+ */
 export async function bootstrap() {
+  const siblingExists = await siblingSessionLockKnown();
+  if (siblingExists === false) {
+    return ensureFreshSession({ reason: 'bootstrap' });
+  }
+
   const adopted = await probeSiblings();
   if (adopted) {
     await adoptIdentityIfMissing();
