@@ -93,6 +93,17 @@ public class CatalogAgentService {
             (search_products, view_product, propose_reclassify o propose_pc), incluso si creés que ya tenés \
             el dato más arriba en la conversación.""";
 
+    /**
+     * Sent once per turn when a search came back empty and the model is about to
+     * give up. Un solo intento de búsqueda casi nunca agota las formas de pedir lo
+     * mismo: el mensaje canónico de "no hay" se entrega recién después de este reintento.
+     */
+    private static final String RELAX_RETRY_NUDGE = """
+            La búsqueda no devolvió resultados, así que todavía no podés concluir que no hay. Antes de \
+            rendirte, volvé a buscar relajando los criterios: menos palabras o más cortas en 'query', \
+            mové el tipo de producto a 'categoria', y sacá los límites de precio. Si con eso tampoco \
+            aparece nada, recién ahí respondé que no hay.""";
+
     private final ChatProvider provider;
     private final ToolRegistry registry;
 
@@ -115,6 +126,10 @@ public class CatalogAgentService {
      */
     public AgentChatResponse run(List<ConversationTurn> conversation, String model) {
         String lastUserText = lastUserText(conversation);
+        // Before MetaIntents and the provider: a refusal must not depend on the model or the grounding gate.
+        if (RestrictedIntents.matches(lastUserText)) {
+            return AgentChatResponse.withoutTrace(restrictedRefusal(), TurnOutcome.CAPABILITY);
+        }
         if (MetaIntents.matches(lastUserText)) {
             return AgentChatResponse.withoutTrace(cannedHelpText(), TurnOutcome.CAPABILITY);
         }
@@ -149,14 +164,32 @@ public class CatalogAgentService {
         boolean confirmedNoMatches = false;
         // The corrective nudge fires at most once per turn — see GROUNDING_NUDGE.
         boolean nudged = false;
+        // Independent from `nudged`: the relax retry answers an EMPTY search, the grounding
+        // nudge answers a turn with no tool at all. Also at most once per turn.
+        boolean relaxed = false;
+        // Content of the last non-empty search THIS turn (never replay) and whether the turn made a
+        // proposal or a PC: those turns keep the model's prose, the rest get a rendered listing.
+        String lastSearchRows = null;
+        boolean proposed = false;
 
         for (int i = 0; i < MAX_ITERATIONS; i++) {
             ChatResponse response = provider.next(history, tools, model);
 
             if (response.done()) {
                 if (grounded) {
-                    return new AgentChatResponse(response.assistantText(), proposals,
-                            TurnOutcome.COMPLETE, trace);
+                    String rendered = proposed ? null : SearchAnswerRenderer.render(lastSearchRows);
+                    if (rendered != null) {
+                        LOG.debug("[Agent] Prosa del modelo descartada, se entrega el listado renderizado: {}",
+                                response.assistantText());
+                    }
+                    return new AgentChatResponse(rendered != null ? rendered : response.assistantText(),
+                            proposals, TurnOutcome.COMPLETE, trace);
+                }
+                if (confirmedNoMatches && !relaxed && i < MAX_ITERATIONS - 1) {
+                    relaxed = true;
+                    history.add(ChatMessage.assistant(response.assistantText(), List.of()));
+                    history.add(ChatMessage.system(RELAX_RETRY_NUDGE));
+                    continue;
                 }
                 if (confirmedNoMatches) {
                     // The model's own prose is still discarded here (it is
@@ -186,6 +219,10 @@ public class CatalogAgentService {
                         confirmedNoMatches = true;
                     } else {
                         grounded = true;
+                        if (SearchProductsTool.NAME.equals(call.name())) lastSearchRows = result.content();
+                    }
+                    if (ProposeReclassifyTool.NAME.equals(call.name()) || ProposePcTool.NAME.equals(call.name())) {
+                        proposed = true;
                     }
                     if (ProposeReclassifyTool.NAME.equals(call.name())) {
                         collectProposal(result, proposals);
@@ -365,6 +402,12 @@ public class CatalogAgentService {
                 + "Probá con otro término, otra marca o una categoría distinta.";
     }
 
+    private String restrictedRefusal() {
+        return "No puedo crear, modificar ni borrar usuarios, roles o permisos, ni programar o lanzar "
+                + "cronjobs o scrapes: no tengo acceso a eso. Eso se hace desde la administración de la app. "
+                + "Sí puedo buscar productos, revisar su clasificación y proponer correcciones, o armar una PC.";
+    }
+
     private String cannedHelpText() {
         return "¡Hola! Puedo ayudarte a revisar y corregir la clasificación (categoría, subcategoría, "
                 + "marca, género) de productos reales del catálogo. Pedime, por ejemplo, que busque un "
@@ -384,7 +427,7 @@ public class CatalogAgentService {
         }
     }
 
-    private String systemPrompt() {
+    String systemPrompt() {
         String categorias = String.join(", ",
                 CategoryGroups.canonicalCategories().stream().sorted().toList());
         return """
@@ -401,16 +444,45 @@ public class CatalogAgentService {
                 menos de $50.000" la llamada correcta es una sola: \
                 categoria="Musculosa", excluir=["futbol"], precioMax=50000.
 
-                Ojo con una cosa: 'categoria' es la categoría CLASIFICADA del producto, y el nombre puede no \
-                contener esa palabra — una "Remera sin mangas Dry Fit" puede estar clasificada como Musculosa. \
+                Ojo con una cosa: 'categoria' es la categoría CLASIFICADA del producto y abarca su familia \
+                ('Zapatilla' incluye 'Zapatilla Running'), y el nombre puede no contener esa palabra — una "Remera sin mangas Dry Fit" puede estar clasificada como Musculosa. \
                 Si el usuario nombra un tipo de prenda, va en 'categoria', no en 'query'. Usá 'query' para \
                 texto libre: un modelo, una marca, una palabra suelta.
 
-                Flujo esperado para corregir una clasificación: primero buscá el producto (search_products), \
-                después mirá su clasificación actual (view_product), y recién ahí proponé el cambio \
-                (propose_reclassify). Esa última herramienta NUNCA escribe en la base de datos — solo genera \
-                una propuesta (valor actual → valor propuesto) que el usuario debe confirmar explícitamente en \
-                la interfaz antes de que se aplique ningún cambio real.
+                Para preguntas de existencia ("¿tenés algún SSD SATA de 1 TB en descuento?") combiná varios \
+                criterios: palabras sueltas en 'query' (se buscan todas, en cualquier orden), el tipo de \
+                producto en 'categoria', y enOferta=true cuando el usuario pida descuento, oferta o rebaja \
+                (devuelve precioOrig y descuentoPct, del mayor descuento al menor). Si una búsqueda no \
+                devuelve nada, reintentá con criterios más flojos (menos palabras, sin límites de precio) \
+                antes de concluir que no hay. Las palabras vacías ("tenés", "algún", "de") se ignoran y \
+                se toleran plurales y errores de tipeo leves; los resultados vienen ordenados por relevancia.
+
+                Si ningún producto cumple TODAS las palabras, search_products devuelve los que cumplen al \
+                menos la mitad, cada uno con coincidencia="parcial" y terminosFaltantes (lo que no se \
+                encontró). Esas filas NO son la respuesta exacta: presentalas como "no encontré exactamente \
+                X, lo más parecido es…" y nombrá qué falta, nunca las des por coincidencias exactas. Las filas \
+                sin la marca "coincidencia" cumplen todo lo pedido.
+
+                Después de una búsqueda, respondé listando los productos devueltos, uno por línea, con \
+                nombre, sitio y precio, y el descuento (descuentoPct) cuando la fila lo trae. Si una fila \
+                viene con coincidencia="parcial", decí que es lo más cercano y no lo exacto. No agregues \
+                consejos no pedidos (compatibilidad, recomendaciones de compra, comparaciones) salvo que el \
+                usuario los pida. Si en el turno solo buscaste (sin proponer nada), el sistema le muestra al \
+                usuario el listado de resultados automáticamente: no lo repitas ni lo reescribas.
+
+                Para corregir una clasificación: search_products ya devuelve categoria, subCategoria, marca \
+                y genero actuales de cada producto, así que podés llamar a propose_reclassify directamente, \
+                sin necesidad de view_product, cuando ya tenés la url y los valores actuales. Usá view_product \
+                solo si te falta algún dato. Podés proponer varios productos en un mismo turno, una llamada \
+                a propose_reclassify por producto. Esa herramienta NUNCA escribe en la base de datos — solo \
+                genera una propuesta (valor actual → valor propuesto) que el usuario debe confirmar \
+                explícitamente, tarjeta por tarjeta, en la interfaz antes de que se aplique ningún cambio real.
+                Cuando el usuario pida revisar o reclasificar, decí cuántos productos revisaste y, si \
+                ninguno necesita cambios, decilo explícitamente en vez de dar consejos.
+
+                Límite duro: nunca podés crear, modificar ni borrar usuarios, roles o permisos, ni crear, \
+                lanzar o modificar tareas cron ni scrapes. Si el usuario lo pide, rechazalo y decile que no \
+                tenés acceso a eso.
 
                 Para armar una PC, cuando el usuario pida una PC/computadora con un presupuesto y/o placa de video, \
                 usá propose_pc pasando presupuesto en pesos, conGpu, y excluir con las urls de los picks que el \
