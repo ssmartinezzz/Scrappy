@@ -703,8 +703,8 @@ Gateado por scraping igual que el resto de `/db/*`: **409** mientras
 Agente de chat con tool-use, provider-pluggable (env `LLM_PROVIDER`/`LLM_MODEL`/
 `LLM_BASE_URL`/`LLM_API_KEY`, ver `.env.example` — todas opcionales, con
 defaults locales para Ollama). El agente SOLO tiene herramientas de lectura
-(`search_products`, `view_product`, `propose_reclassify`); `propose_reclassify`
-NUNCA escribe — valida y devuelve un diff. El único endpoint que escribe es
+(`search_products`, `view_product`, `propose_reclassify`, `propose_pc`);
+`propose_reclassify` NUNCA escribe — valida y devuelve un diff. El único endpoint que escribe es
 `POST /agent/apply`, fuera del loop del agente y solo tras confirmación
 explícita del usuario en la UI.
 
@@ -754,6 +754,15 @@ tiene que ejecutar una herramienta con resultado válido *en ese turno*. Si
 responde sin herramientas, recibe **un** empujón correctivo pidiéndole que la
 use y, si insiste, el turno se rechaza (`outcome: ungrounded`) y su texto se
 descarta.
+
+**Qué texto llega en `assistantText`.**
+
+| Caso | `outcome` | Texto |
+|---|---|---|
+| El pedido toca usuarios, roles, permisos o cron | `capability` | Negativa fija; el modelo no se llama |
+| Turno solo de búsqueda con resultados | `complete` | Lista armada por el servidor desde las filas, con los filtros aplicados |
+| Turno con `propose_reclassify` o `propose_pc` | `complete` | Prosa del modelo + `proposals` |
+| Búsqueda vacía tras un reintento relajado | `complete` | "No encontré productos…" fijo |
 
 `trace` en la respuesta solo viene poblado en `outcome: complete` — las demás
 outcomes no dejan mensaje durable en la conversación, así que no exportan traza.

@@ -83,15 +83,19 @@ Los tres timeouts son distintos a propósito: listar modelos debe fallar rápido
 `CatalogAgentService.run(userHistory, model)` es el corazón. En pseudocódigo:
 
 ```
+si el pedido toca usuarios/roles/permisos/cron → negativa fija, sin llamar al modelo
 history = [system(systemPrompt())] + userHistory
 repetir hasta MAX_ITERATIONS (6):
     response = provider.next(history, tools, model)
-    si response.done()          → devolver texto final + propuestas juntadas
+    si response.done():
+        si hubo búsqueda vacía y todavía no se reintentó → un aviso de relajar criterios, seguir
+        si el turno fue solo de búsqueda → respuesta armada en el servidor con las filas
+        si no → texto final del modelo + propuestas juntadas
     history += assistant(texto, toolCalls)
     para cada toolCall:
         result = registry.execute(toolCall)
         history += toolResult(result)
-        si la tool fue propose_reclassify y no dio error → juntar la propuesta
+        si la tool fue propose_reclassify y no dio error → juntar la propuesta (sin repetidas)
 si se agotan las iteraciones → devolver un mensaje claro al usuario, no una excepción
 ```
 
@@ -113,18 +117,45 @@ Tres propiedades que no son accidentales:
 
 ## 4. Las herramientas
 
-Son **exactamente tres, todas de solo lectura**. Están declaradas en
+Son **exactamente cuatro, todas de solo lectura**. Están declaradas en
 `ToolRegistry` y cada una implementa `CatalogTool` (`spec()` + `execute(args)`).
+`ToolRegistryTest` fija ese conjunto: agregar una quinta rompe el build a propósito.
 
 | Tool | Qué hace | Escribe |
 |---|---|---|
-| `search_products` | Busca en el catálogo en memoria con filtros combinables: `query`, `categoria` (enum del canon), `genero`, `excluir`, `precioMin`/`precioMax` | No |
+| `search_products` | Busca en el catálogo en memoria, rankeado por relevancia, con filtros combinables: `query`, `categoria` (familia del canon), `genero`, `excluir`, `precioMin`/`precioMax`, `enOferta`. Rechaza cualquier otro argumento | No |
 | `view_product` | Devuelve la clasificación actual de un producto por URL | No |
-| `propose_reclassify` | Valida un cambio y devuelve un diff *actual → propuesto* | **No** |
+| `propose_reclassify` | Valida un cambio y devuelve un diff *actual → propuesto*; rechaza un diff que no cambia nada | **No** |
 | `propose_pc` | Arma una PC con `PcBuilder` sobre el snapshot (`presupuesto`, `conGpu`, `excluir` urls); mismo JSON que `GET /api/pcs/builder` | No |
 
 Que `propose_reclassify` no escriba es el punto central del diseño, no un
 detalle de implementación. Ver la sección siguiente.
+
+### Cómo busca `search_products`
+
+| Paso | Qué hace | Dónde |
+|---|---|---|
+| Tokenizar | Minúsculas y sin acentos; pega número y unidad (`1 tb` → `1tb`); saca palabras vacías y muletillas ("de", "tenés", "algún", "busco"); plural → singular en la consulta **y** en el producto | `QueryTokenizer` |
+| Puntuar | BM25F sobre `marca` (×2.0), `categoria`+`subCategoria` (×1.5) y `nombre` (×1.0). Por término: exacto 1.0, prefijo 0.8, unidad tras dígitos (`tb` ↔ `1tb`) 0.8, typo 0.5. **Nunca** substring suelto | `RelevanceRanker` |
+| Seleccionar | Estricto: todos los términos. Si no hay nada, relajado: al menos la mitad, cada fila marcada `coincidencia: "parcial"` con `terminosFaltantes` | `SearchProductsTool` |
+| Ordenar | Por relevancia; con `enOferta`, por el % de descuento redondeado y después por relevancia | `SearchProductsTool` |
+
+Tres decisiones que no son obvias:
+
+- **La lista de palabras vacías es propia de la búsqueda.** `aggregator/grouping/StopWords`
+  no sirve: está hecha para identidad de producto y descarta colores, talles y
+  género, que en una búsqueda son criterios. "sin" tampoco se descarta ("sin mangas").
+- **`categoria` es una familia, no igualdad exacta.** `"Zapatilla"` trae también
+  "Zapatilla Running" y "Zapatilla Urbana" (igual, o empieza con el valor + espacio).
+  Con igualdad exacta, "zapatillas Nike de hombre" respondía "no encontré" teniendo 2.
+- **El descuento se compara redondeado.** Con la fracción cruda, el ruido de
+  redondeo de cada sitio (9,0907 % contra 9,0912 %) le ganaba a la relevancia y
+  sacaba del top los mejores resultados.
+
+Cada fila trae `url`, `nombre`, `sitio`, `categoria`, `subCategoria`, `marca`,
+`genero`, `precio`, `relevancia`, y `precioOrig` + `descuentoPct` cuando hay
+descuento real. El índice se arma una vez por snapshot del catálogo (~0,4 s sobre
+22.000 productos) y las consultas siguientes tardan 10–30 ms.
 
 ---
 
@@ -217,6 +248,35 @@ que emita el modelo se ve como caracteres, no se ejecuta. Los `href` se
 restringen a `http`/`https`, de modo que un `javascript:` o `data:` degrada a
 texto plano. Ver `frontend/src/lib/richText.jsx`.
 
+### Regla 9 — el agente nunca toca usuarios, roles ni cron
+
+No es una convención de las herramientas actuales: es estructural.
+
+- **ArchUnit** (`agentNoTocaUsuariosRolesNiCron`): `ar.scraper.agent` no puede
+  depender de `security`, `identity`, `scheduling` ni `db`.
+- **Conjunto cerrado de herramientas**: `ToolRegistryTest` fija las cuatro.
+- **Negativa determinista**: `RestrictedIntents` detecta pedidos de crear,
+  modificar o borrar usuarios, roles o permisos, o de programar o lanzar
+  cronjobs o scrapes, y responde una negativa fija **antes** de llamar al modelo
+  (`outcome: capability`). Exige un verbo de acción con un objeto restringido a pocas palabras, o un verbo de scrapeo, así
+  que "juegos de rol" o "mouse para usuario zurdo" siguen siendo búsquedas.
+
+Antes de la negativa determinista, el modelo se negaba bien pero la barrera de
+grounding descartaba su respuesta (no había usado herramientas) y el usuario
+veía un "no pude responder" genérico.
+
+### Regla 10 — una lista de productos la escribe el servidor, no el modelo
+
+Si en el turno no hubo `propose_reclassify` ni `propose_pc`, la respuesta sale de
+`SearchAnswerRenderer` a partir de las filas de la última búsqueda con
+resultados: cantidad, los filtros aplicados ("Filtré por: …") y una línea por
+producto con link, sitio, precio y descuento. La prosa del modelo se descarta.
+
+Corolario de la Regla 0: se probó primero pedirlo en el prompt, y ni
+`qwen3:14b` (respondía preguntas o consejos ignorando las filas) ni `qwen2.5:7b`
+lo cumplieron. La línea de filtros existe porque los modelos chicos inventan
+**valores** (un `precioMax` que nadie pidió) y así quedan a la vista.
+
 ---
 
 ## 6. Configuración
@@ -246,7 +306,11 @@ Detalle de instalación y ejemplos: [`LLM_AGENT_SETUP.md`](LLM_AGENT_SETUP.md).
 |---|---|
 | Agregar otro proveedor (Anthropic, OpenAI real) | Nueva clase que implemente `ChatProvider` |
 | Cambiar el límite de pasos | `CatalogAgentService.MAX_ITERATIONS` |
-| Cambiar qué puede hacer el agente | `ToolRegistry` + una clase `CatalogTool` |
+| Cambiar qué puede hacer el agente | `ToolRegistry` + una clase `CatalogTool` — y `ToolRegistryTest`, a conciencia (Regla 9) |
+| Ajustar palabras vacías o plurales | `QueryTokenizer` |
+| Ajustar pesos o niveles de match | `RelevanceRanker` |
+| Cambiar cómo se ve una lista de productos | `SearchAnswerRenderer` |
+| Ampliar lo que el agente se niega a hacer | `RestrictedIntents` + `RestrictedIntentsTest` (casos a favor **y** en contra) |
 | Ajustar la guía del modelo | `CatalogAgentService.systemPrompt()` — recordá la Regla 0 |
 | Endurecer una validación | `ApiController.agentApply` **y** `ProposeReclassifyTool` |
 | Cambiar el write path | `DatabaseService.aplicarReclasificacionAuditada` |
@@ -259,11 +323,15 @@ Detalle de instalación y ejemplos: [`LLM_AGENT_SETUP.md`](LLM_AGENT_SETUP.md).
 - **El catálogo que ve el agente es el snapshot en memoria**, no la base. Las
   tools leen de `ScraperService.getLastResult()`. Solo el guard de desfasaje y
   el write path van a PostgreSQL.
-- **La calidad de las respuestas depende del modelo local.** El system prompt
-  *sugiere* el orden search → view → propose en prosa, no lo impone; y
-  `subCategoria`/`marca`/`genero` viajan como texto libre sin validarse contra
-  una taxonomía, a diferencia de `categoria`. Son mejoras identificadas y
-  diferidas, no defectos activos.
+- **La calidad de las respuestas depende del modelo local.** Medido el
+  2026-09-29 sobre el catálogo real: `qwen3:14b` resolvió bien las tres
+  consultas de prueba (40–100 s cada una); `qwen2.5:7b` es más rápido pero a
+  veces no llama a ninguna herramienta e inventa valores de filtro. Para el
+  agente, `qwen3:14b`.
+- `subCategoria`/`marca`/`genero` viajan como texto libre sin validarse contra
+  una taxonomía, a diferencia de `categoria`. Mejora identificada y diferida.
+- En un resultado parcial, "faltan: …" es la unión sobre todas las filas: puede
+  nombrar un término que las primeras filas sí tienen.
 - **`MAX_ITERATIONS = 6`** deja unos dos pasos de margen para que el modelo se
   auto-corrija más allá del flujo canónico de cuatro.
 
@@ -285,7 +353,7 @@ para los dos. El agente narra los picks; guardar sigue siendo cosa de `/pcs`.
 `PcBuilder` no es bean (lo instancia `ApiController` a mano) y `agent/` no
 puede nombrar `web/`, así que la tool construye el suyo con `RecommendationService`.
 
-**`search_products` filtra en el catálogo, no en la prosa del modelo.** Acepta `query` (texto libre sobre nombre/marca), `categoria` (enum cerrado contra el canon), `genero`, `excluir` (lista de términos vetados en el nombre) y `precioMin`/`precioMax`; todos se aplican en conjunción y hace falta al menos uno además de `excluir`. Dos razones para que sean parámetros y no texto: (1) **la categoría no es una palabra del nombre** — una "Remera sin mangas Dry Fit" clasificada `Musculosa` era invisible a `query=musculosa`, y un producto cuyo nombre no coincide con su categoría es justo el que hay que revisar, así que el punto ciego se superponía con el propósito del tool; y (2) si el modelo filtra en su respuesta en vez de en la llamada, **la barrera de grounding no lo puede ver**: hubo una tool call real con filas reales, así que el turno pasa igual. Una llamada vacía es error, no el catálogo entero cortado a 10.
+**`search_products` filtra en el catálogo, no en la prosa del modelo.** Acepta `query` (texto libre, tokenizado y rankeado con BM25F — ver §4), `categoria` (enum cerrado contra el canon, matchea su familia), `genero`, `excluir` (lista de términos vetados en el nombre), `precioMin`/`precioMax` y `enOferta`; todos se aplican en conjunción, hace falta al menos uno además de `excluir`/`enOferta`, y cualquier otro argumento es error. Dos razones para que sean parámetros y no texto: (1) **la categoría no es una palabra del nombre** — una "Remera sin mangas Dry Fit" clasificada `Musculosa` era invisible a `query=musculosa`, y un producto cuyo nombre no coincide con su categoría es justo el que hay que revisar, así que el punto ciego se superponía con el propósito del tool; y (2) si el modelo filtra en su respuesta en vez de en la llamada, **la barrera de grounding no lo puede ver**: hubo una tool call real con filas reales, así que el turno pasa igual. Una llamada vacía es error, no el catálogo entero cortado a 10.
 La reclasificación es **two-phase propose/confirm** — `propose_reclassify` valida
 y devuelve un diff, nunca escribe. El único write real es `POST /api/agent/apply`,
 fuera del loop, tras confirmación humana explícita y re-validando server-side.
