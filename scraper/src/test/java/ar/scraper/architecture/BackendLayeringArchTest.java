@@ -94,6 +94,14 @@ class BackendLayeringArchTest {
         .that().resideInAPackage("ar.scraper.agent..")
         .should().dependOnClassesThat().resideInAnyPackage("ar.scraper.web..");
 
+    // El agente LLM solo lee catalogo y propone: nunca toca usuarios, roles ni cron/scrapes.
+    // Es una garantia estructural, no una convencion de las herramientas actuales.
+    @ArchTest
+    static final ArchRule agentNoTocaUsuariosRolesNiCron = noClasses()
+        .that().resideInAPackage("ar.scraper.agent..")
+        .should().dependOnClassesThat().resideInAnyPackage(
+            "ar.scraper.security..", "ar.scraper.identity..", "ar.scraper.scheduling..", "ar.scraper.db..");
+
     // `cron/` se absorbe en `scheduling/`, que es el nombre final del area. Una
     // vez vacio el paquete, quien impide que el runner vuelva a nombrar `web`,
     // `ml` o `config` desde su casa nueva es `areasSonSumideros`, no una regla
