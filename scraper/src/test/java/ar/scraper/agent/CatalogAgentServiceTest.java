@@ -541,6 +541,90 @@ class CatalogAgentServiceTest {
         assertThat(resp.trace()).isEmpty();
     }
 
+    // ── agent-autonomy: retry before "no hay" ───────────────────────────
+
+    @Test
+    @DisplayName("first empty search + done → ONE system retry hint, loop continues; a later grounded "
+            + "search lets the turn complete with the model's own answer")
+    void emptySearchGetsOneRelaxRetryAndCanRecover() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "marca-inexistente-xyz"));
+        provider.enqueueFinalAnswer("No hay nada.");
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "zapatilla"));
+        provider.enqueueFinalAnswer("Encontré la Zapatilla SAD Adidas.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("¿tenés zapatillas?")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.assistantText()).startsWith("Encontré 1 producto:");
+        List<ChatMessage> beforeThird = provider.histories.get(2);
+        assertThat(beforeThird.stream().filter(m -> m.role() == Role.SYSTEM
+                && m.text().contains("relajando")).count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("the relax retry fires at most ONCE per turn: a second empty outcome delivers the "
+            + "system-authored no-matches message")
+    void relaxRetryFiresAtMostOncePerTurn() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "marca-inexistente-xyz"));
+        provider.enqueueFinalAnswer("No hay nada.");
+        provider.enqueueToolCall(SearchProductsTool.NAME, Map.of("query", "otra-inexistente-abc"));
+        provider.enqueueFinalAnswer("Sigue sin haber nada.");
+
+        CatalogAgentService service = new CatalogAgentService(provider, registry);
+        AgentChatResponse resp = service.run(conversation(ConversationTurn.user("¿tenés algo?")), null);
+
+        assertThat(resp.outcome()).isEqualTo(TurnOutcome.COMPLETE);
+        assertThat(resp.assistantText()).containsIgnoringCase("no encontr");
+        assertThat(provider.callCount()).isEqualTo(4);
+    }
+
+    // ── agent-autonomy: system prompt contract ──────────────────────────
+
+    private String systemPromptSent() {
+        FakeChatProvider provider = new FakeChatProvider();
+        provider.enqueueFinalAnswer("ok");
+        provider.enqueueFinalAnswer("ok");
+        new CatalogAgentService(provider, registry)
+                .run(conversation(ConversationTurn.user("buscame una remera")), null);
+        return provider.firstHistory().get(0).text();
+    }
+
+    @Test
+    @DisplayName("prompt: reclassify may go straight from search results, several products per turn, "
+            + "and still never writes")
+    void promptAllowsDirectAndMultipleProposals() {
+        String prompt = systemPromptSent();
+
+        assertThat(prompt).contains("directamente");
+        assertThat(prompt).contains("sin necesidad de view_product");
+        assertThat(prompt).contains("varios productos en un mismo turno");
+        assertThat(prompt).contains("NUNCA escribe");
+        assertThat(prompt).doesNotContain("recién ahí proponé");
+    }
+
+    @Test
+    @DisplayName("prompt: existence questions use several criteria, enOferta for discounts, and retry relaxed")
+    void promptCoversExistenceQuestions() {
+        String prompt = systemPromptSent();
+
+        assertThat(prompt).contains("enOferta");
+        assertThat(prompt).contains("descuento");
+        assertThat(prompt).contains("antes de concluir que no hay");
+    }
+
+    @Test
+    @DisplayName("prompt: the agent refuses to touch users, roles, permissions, cron jobs or scrapes")
+    void promptStatesTheHardGuardrail() {
+        String prompt = systemPromptSent();
+
+        assertThat(prompt).contains("usuarios, roles o permisos");
+        assertThat(prompt).contains("cron");
+        assertThat(prompt).contains("no tenés acceso");
+    }
+
     // ── Fake ChatProvider test double ──────────────────────────────────
 
     private static class FakeChatProvider implements ChatProvider {

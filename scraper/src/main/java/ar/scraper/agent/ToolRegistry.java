@@ -1,6 +1,8 @@
 package ar.scraper.agent;
 
 import com.fasterxml.jackson.databind.node.NullNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -19,6 +21,8 @@ import java.util.Map;
  */
 @Component
 public class ToolRegistry {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ToolRegistry.class);
 
     private final Map<String, CatalogTool> tools = new LinkedHashMap<>();
 
@@ -53,6 +57,7 @@ public class ToolRegistry {
                     "Herramienta desconocida: '" + call.name() + "'. Herramientas disponibles: "
                             + String.join(", ", tools.keySet()));
         }
+        LOG.debug("[Agent] tool={} args={}", call.name(), call.arguments());
         try {
             var args = call.arguments() != null ? call.arguments() : NullNode.instance;
             ToolResult result = tool.execute(args);
