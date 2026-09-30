@@ -74,6 +74,23 @@ describe('EventStreamProvider — one connection for the whole app', () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps its one connection when the identity arrives after the session, as it does right after login', async () => {
+    // The session is adopted (authenticated) before /api/auth/me answers. Keying the connection
+    // on the username too closed the first stream and opened a second, at every login.
+    const s = fakeStream();
+    const { open, wrapper } = harness(s);
+    useAuth.mockReturnValue({ authenticated: true, identity: null });
+    const { rerender } = renderHook(probe, { wrapper });
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+
+    useAuth.mockReturnValue({ authenticated: true, identity: { username: 'santi' } });
+    rerender();
+    await act(async () => { await Promise.resolve(); });
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].signal.aborted).toBe(false);
+  });
+
   it('closes the stream and forgets its state on logout', async () => {
     const s = fakeStream();
     const { open, wrapper } = harness(s);
