@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.security.ActorResolver;
@@ -47,7 +48,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        usuarios = new UsuarioRepository(dataSource());
+        usuarios = TestRepositories.usuarios(dataSource());
         hasher = new PasswordHasher();
         endpoints = new UsuarioAdminEndpoints(usuarios, hasher, new ActorResolver());
         SujetoDePrueba.entrar(dataSource(), "ADMIN");

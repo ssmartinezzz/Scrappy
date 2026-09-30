@@ -1,6 +1,7 @@
 package ar.scraper.security;
 
 import ar.scraper.db.RefreshTokenRepository;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
@@ -65,8 +66,8 @@ class RefreshTokenRotationTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        usuarios = new UsuarioRepository(dataSource());
-        refrescos = new RefreshTokenRepository(dataSource());
+        usuarios = TestRepositories.usuarios(dataSource());
+        refrescos = TestRepositories.refreshTokens(dataSource());
         service = new RefreshTokenService(refrescos, new TokenService(SECRETO, reloj), reloj);
 
         usuarios.crear("usuario", null, "$argon2id$x", false);

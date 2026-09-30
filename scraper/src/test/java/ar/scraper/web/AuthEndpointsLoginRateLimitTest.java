@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -45,13 +46,13 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        UsuarioRepository repo = new UsuarioRepository(dataSource());
+        UsuarioRepository repo = TestRepositories.usuarios(dataSource());
         PasswordHasher hasher = new PasswordHasher();
         Clock reloj = Clock.systemUTC();
         TokenService tokens = new TokenService(SECRETO, reloj);
 
         endpoints = new AuthEndpoints(repo, hasher, tokens,
-                new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj),
+                new RefreshTokenService(TestRepositories.refreshTokens(dataSource()), tokens, reloj),
                 null,
                 proveedorVacio(),
                 proveedorDe(new LoginRateLimiter(reloj)));
@@ -101,7 +102,7 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
     @Test
     @DisplayName("Frenar una cuenta no frena a otra")
     void frenarUnaCuentaNoFrenaAOtra() {
-        UsuarioRepository repo = new UsuarioRepository(dataSource());
+        UsuarioRepository repo = TestRepositories.usuarios(dataSource());
         PasswordHasher hasher = new PasswordHasher();
         repo.crear("beto", "beto@example.com", hasher.hash(PASSWORD), false);
         repo.asignarRol("beto", "VIEWER");
@@ -133,12 +134,12 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
     @Test
     @DisplayName("Sin limiter registrado el endpoint se comporta como antes")
     void sinLimiterElEndpointNoCambia() {
-        UsuarioRepository repo = new UsuarioRepository(dataSource());
+        UsuarioRepository repo = TestRepositories.usuarios(dataSource());
         PasswordHasher hasher = new PasswordHasher();
         Clock reloj = Clock.systemUTC();
         TokenService tokens = new TokenService(SECRETO, reloj);
         AuthEndpoints sinLimiter = new AuthEndpoints(repo, hasher, tokens,
-                new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj), null);
+                new RefreshTokenService(TestRepositories.refreshTokens(dataSource()), tokens, reloj), null);
 
         for (int i = 0; i < LoginRateLimiter.FALLOS_POR_CUENTA + 3; i++) {
             assertThat(Wire.answer(() -> sinLimiter.login(cuerpo("ana", "mal"))).getStatusCode().value()).isEqualTo(401);

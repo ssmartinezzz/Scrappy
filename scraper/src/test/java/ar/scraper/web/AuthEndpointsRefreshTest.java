@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -69,11 +70,11 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        usuarios = new UsuarioRepository(dataSource());
+        usuarios = TestRepositories.usuarios(dataSource());
         PasswordHasher hasher = new PasswordHasher();
         tokens = new TokenService(SECRETO, Clock.systemUTC());
         sesiones = new RefreshTokenService(
-                new RefreshTokenRepository(dataSource()), tokens, Clock.systemUTC());
+                TestRepositories.refreshTokens(dataSource()), tokens, Clock.systemUTC());
         endpoints = new AuthEndpoints(usuarios, hasher, tokens, sesiones, null);
 
         usuarios.crear("ana", null, hasher.hash(PASSWORD), false);
@@ -225,7 +226,7 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
         // The replay cache is in-memory and keyed by the spent token, so a new
         // service instance is what "the window has closed" looks like from here.
         sesiones = new RefreshTokenService(
-                new RefreshTokenRepository(dataSource()), tokens, Clock.systemUTC());
+                TestRepositories.refreshTokens(dataSource()), tokens, Clock.systemUTC());
         endpoints = new AuthEndpoints(usuarios, new PasswordHasher(), tokens, sesiones, null);
     }
 }

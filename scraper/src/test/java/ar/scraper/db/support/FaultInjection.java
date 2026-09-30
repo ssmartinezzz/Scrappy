@@ -36,6 +36,20 @@ public final class FaultInjection implements AutoCloseable {
         return new FaultInjection(dataSource, table);
     }
 
+    /** Cancels the statement's effect on matching rows without raising, so it reports 0 rows. */
+    public static FaultInjection skipOn(DataSource dataSource, String table, String event, String when)
+            throws SQLException {
+        try (Connection c = dataSource.getConnection(); Statement st = c.createStatement()) {
+            st.execute("""
+                    CREATE OR REPLACE FUNCTION test_skipped_write() RETURNS trigger AS $$
+                    BEGIN RETURN NULL; END $$ LANGUAGE plpgsql""");
+            st.execute("CREATE TRIGGER test_injected_fault BEFORE " + event + " ON " + table
+                    + " FOR EACH ROW " + (when == null ? "" : "WHEN (" + when + ") ")
+                    + "EXECUTE FUNCTION test_skipped_write()");
+        }
+        return new FaultInjection(dataSource, table);
+    }
+
     @Override
     public void close() throws SQLException {
         try (Connection c = dataSource.getConnection(); Statement st = c.createStatement()) {

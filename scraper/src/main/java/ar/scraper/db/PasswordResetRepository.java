@@ -58,19 +58,16 @@ public class PasswordResetRepository {
     }
 
     /**
-     * Atomically marks the token consumed and reports whose it was.
-     *
-     * <p>Runs on the caller's connection so it can join the same transaction as
-     * the password change — a consumed token whose password change then rolled
-     * back would be a reset link burnt for nothing, and the user would be told
-     * to request another one for a reason nobody could explain.</p>
+     * Atomically marks the token consumed and reports whose it was. Joins the caller's
+     * transaction, so the password change that follows can roll the consumption back.
      *
      * @return the owner's id, or empty when the token is unknown, already
      *         consumed, or expired. The three are not distinguished: a caller
      *         holding a bad token has no use for knowing which kind of bad.
      */
-    public Optional<UUID> consumir(Connection c, String rawToken, Instant ahora) {
-        try (PreparedStatement ps = c.prepareStatement("""
+    public Optional<UUID> consumir(String rawToken, Instant ahora) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                 UPDATE password_reset_token
                    SET consumed_at = ?
                  WHERE token_hash = ?
@@ -96,8 +93,9 @@ public class PasswordResetRepository {
      * two live ones. It also limits the damage of a link that leaked into a log
      * or a browser history: a completed reset invalidates it.</p>
      */
-    public int anularPendientesDe(Connection c, UUID usuarioId, Instant ahora) {
-        try (PreparedStatement ps = c.prepareStatement("""
+    public int anularPendientesDe(UUID usuarioId, Instant ahora) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement("""
                 UPDATE password_reset_token
                    SET consumed_at = ?
                  WHERE usuario_id = ? AND consumed_at IS NULL
@@ -107,15 +105,6 @@ public class PasswordResetRepository {
             return ps.executeUpdate();
         } catch (Exception e) {
             throw new UsuarioRepository.DatabaseException("no se pudieron anular los tokens pendientes", e);
-        }
-    }
-
-    /** Convenience for callers with no transaction of their own (tests, diagnostics). */
-    public Optional<UUID> consumir(String rawToken, Instant ahora) {
-        try (Connection c = dataSource.getConnection()) {
-            return consumir(c, rawToken, ahora);
-        } catch (java.sql.SQLException e) {
-            throw new UsuarioRepository.DatabaseException("no se pudo consumir el token de reseteo", e);
         }
     }
 }
