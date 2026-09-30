@@ -10,14 +10,11 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Reads DDR + total capacity + module type + speed off a RAM's name. */
 public final class RamSpecsReader implements LectorDeSpecs {
 
-    // DDR2 entra en el vocabulario aunque ninguna mother del catálogo la
-    // acepte, y justamente por eso: sin leerla el reader abstiene, ReglaDdr no
-    // veta, y la única DDR2 activa (una Kimota 2GB) ganaba el slot ram de un
-    // armado con mother DDR5 por ser lo más barato del pool.
-    // "dd+r": una fila real dice "Dddr4" y sin leerla ReglaDdr no la veta.
+    // DDR2 entra en el vocabulario aunque ninguna mother del catálogo la acepte, y justamente por
+    // eso: sin leerla el reader abstiene, ReglaDdr no veta, y la única DDR2 activa (una Kimota 2GB)
+    // ganaba el slot ram de un armado con mother DDR5 por ser lo más barato del pool.
     private static final Pattern DDR = Pattern.compile(" dd+r([2345]) ");
     private static final Pattern GB_STANDALONE = Pattern.compile("^(\\d+)gb$");
     private static final Pattern GB_MULTIPLIER = Pattern.compile("^(\\d+)x(\\d+)gb$");
@@ -26,10 +23,9 @@ public final class RamSpecsReader implements LectorDeSpecs {
     private static final Pattern DIGITS_3_5 = Pattern.compile("^\\d{3,5}$");
     private static final Pattern DIGITS_ONLY = Pattern.compile("^\\d+$");
 
-    // Whitelist de velocidades DDR reales (medida, pc-builder-gama T3b). Un
-    // número pelado de 3-5 dígitos sin "mhz" en ningún lado ("MEMORIA 8GB
-    // DDR5 6000 KINGSTON") es indistinguible de un número de modelo — sólo
-    // se acepta si además cae en esta whitelist Y el nombre declara DDRn.
+    // Un número pelado de 3-5 dígitos sin "mhz" en ningún lado ("MEMORIA 8GB DDR5 6000 KINGSTON")
+    // es indistinguible de un número de modelo — sólo se acepta si además cae en esta whitelist Y
+    // el nombre declara DDRn.
     private static final Set<Integer> VELOCIDADES_DDR = Set.of(
             1600, 1866, 2133, 2400, 2666, 2800, 3000, 3200, 3600, 4000, 4266, 4400,
             4800, 5200, 5600, 6000, 6400, 6800, 7200, 7600, 8000);
@@ -51,11 +47,6 @@ public final class RamSpecsReader implements LectorDeSpecs {
         return m.find() ? "DDR" + m.group(1) : "";
     }
 
-    /**
-     * "64GB (2x32GB)" states the total explicitly — take that. Only when no
-     * standalone total is stated does the pack multiplier ("2x16GB" alone)
-     * get multiplied out.
-     */
     private static int capacidadGb(Tokens tokens) {
         for (String t : tokens.array()) {
             Matcher m = GB_STANDALONE.matcher(t);
@@ -72,7 +63,10 @@ public final class RamSpecsReader implements LectorDeSpecs {
         return tokens.has("sodimm") ? "SODIMM" : "DIMM";
     }
 
-    /** Solo el kit con multiplicador afirma el numero de modulos — un "NGB" standalone no dice si es un stick o un kit. */
+    /**
+     * Solo el kit con multiplicador afirma el numero de modulos — un "NGB" standalone no dice si es
+     * un stick o un kit.
+     */
     private static int modulos(Tokens tokens) {
         for (String t : tokens.array()) {
             Matcher m = GB_MULTIPLIER.matcher(t);
@@ -82,13 +76,9 @@ public final class RamSpecsReader implements LectorDeSpecs {
     }
 
     /**
-     * Tres formas reales medidas: "6000MHz" tokeniza junto (un token),
-     * "3200 Mhz" tokeniza separado (dos tokens contiguos), y algunos nombres
-     * no dicen "mhz" en ningún lado ("MEMORIA 8GB DDR5 6000 KINGSTON"). Las
-     * dos primeras formas afirman la velocidad sin ambigüedad porque el
-     * propio nombre la etiqueta; la tercera pasa por la whitelist (ver
-     * arriba) y exige DDRn declarado, porque un número pelado solo no
-     * alcanza para afirmar nada.
+     * Las dos primeras formas afirman la velocidad sin ambigüedad porque el propio nombre la
+     * etiqueta; la tercera pasa por la whitelist (ver arriba) y exige DDRn declarado, porque un
+     * número pelado solo no alcanza para afirmar nada.
      */
     private static int velocidadMhz(Tokens tokens) {
         String[] arr = tokens.array();

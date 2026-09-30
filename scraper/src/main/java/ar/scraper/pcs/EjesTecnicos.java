@@ -3,68 +3,26 @@ package ar.scraper.pcs;
 import java.util.Comparator;
 
 /**
- * Named technical-quality comparators, one per slot's non-price axis.
- * Wired into {@link CriterioPorEjesTecnicos}, which always appends precio
- * asc then url asc after whichever of these runs — price is a tiebreak
- * here, never the objective (pc-builder-gama T3b; replaces the ranking by
- * {@code baseMlScore}, a PRICE percentile, that picked the cheapest
- * candidate of any slot).
- *
- * <p>Every rank below puts the axis's abstention LAST, never first: a
- * candidate whose gama/tipo/DDR could not be read must never outrank one
- * that declares its technology. {@link Gama#DESCONOCIDA} and {@link
- * TipoAlmacenamiento#DESCONOCIDO} are mapped explicitly — never by their
- * enum ordinal, same reasoning as {@link Gama}'s own javadoc. {@code 0} in
- * {@code velocidadMhz}/{@code capacidadGb} and {@code ""} in {@code ddr}
- * are that same abstention sentinel for their axes.</p>
- *
- * <p>{@code nivel} (D1, pc-builder-top-tier) va entre {@code gama} y {@code
- * generacion} en CPU y GPU, y es el único eje de potencia comparable ENTRE
- * marcas: {@code gama} mete a un i7 y a un i9 en la misma bolsa, y {@code
- * generacion} es la generación real en Intel pero el dígito de los miles del
- * modelo en AMD y Nvidia — {@code 14 > 9 > 5} hacía ganar al i7 sobre un
- * Ryzen 9 y a una RX 9070 sobre una RTX 5080, por aritmética y no por
- * potencia.</p>
+ * Wired into {@link CriterioPorEjesTecnicos}, which always appends precio asc then url asc after
+ * whichever of these runs — price is a tiebreak here, never the objective.
  */
 public final class EjesTecnicos {
 
     private EjesTecnicos() {
     }
 
-    /**
-     * DDR desc → tier de chipset, en el orden absoluto de T3 (X/Z=1 < B=2 <
-     * A/H=3, 0 última) — equivalente a {@link #mother(Gama)} sin gama
-     * pedida. Ver {@link #mother(Gama)} para el ranking RELATIVO a la gama
-     * (D9, pc-builder-deep-taxonomy T4c).
-     */
     public static final Comparator<TechSpecs> MOTHER = mother(null);
 
-    /**
-     * DDR desc → tier de chipset relativo a {@code gamaPedida} — D9. Sin
-     * gama pedida ({@code null}) o con {@link Gama#DESCONOCIDA}, no hay
-     * target y se mantiene el orden absoluto de T3 (X/Z < B < A/H). Con una
-     * gama pedible, el target es ALTA→X/Z, MEDIA→B, BAJA→A/H y el rank es la
-     * distancia |tier - target| — 0 (abstención) sigue siempre última.
-     */
     public static Comparator<TechSpecs> mother(Gama gamaPedida) {
         return Comparator.<TechSpecs>comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
                 .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida));
     }
 
-    /**
-     * Gama → nivel de familia desc → recencia desc — D1/D2.
-     *
-     * <p>En CPU el nivel va ANTES que el año, al revés que en {@link #GPU}:
-     * el dígito de familia es un escalón estable y de vida larga (un i9 es el
-     * tope de su generación, siempre), así que un i9 de 2023 vale más que un
-     * Ryzen 7 de 2024.</p>
-     */
     public static final Comparator<TechSpecs> CPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(anioCpu(specs.marcaChip(), specs.generacion())));
 
-    /** DDR desc → módulos (kit) desc → MHz desc → GB desc — D4: el kit va ANTES que la velocidad. */
     public static final Comparator<TechSpecs> RAM =
             Comparator.<TechSpecs>comparingInt(specs -> ddrRank(specs.ddr()))
                     .thenComparingInt(specs -> masEsMejor(specs.modulos()))
@@ -74,57 +32,20 @@ public final class EjesTecnicos {
     /** Sin ejes: un gabinete más grande no es "mejor" — sólo precio decide. */
     public static final Comparator<TechSpecs> GABINETE = (a, b) -> 0;
 
-    /**
-     * LIQUIDO desc sobre AIRE — DESCONOCIDO siempre última (T4d-2,
-     * pc-builder-deep-taxonomy). Antes de esto el slot no tenía eje (AIO vs
-     * aire, altura, TDP siguen sin parsearse) y el precio más bajo de una
-     * categoría con ruido de clasificación ganaba: build (4) de T4 eligió un
-     * paño de limpieza para pasta térmica ($1.800) para el slot cooler.
-     *
-     * <p>La fase 9 (D6) le agrega el radiador como SEGUNDO eje: entre dos
-     * AIO gana la de 360mm sobre la de 240mm. 84 de los 171 líquidos del
-     * catálogo lo declaran; los otros 87 abstienen (0) y, por D7, quedan
-     * detrás dentro de su propio escalón — nunca delante.</p>
-     *
-     * <p>T16 (pc-builder-homelab) le agrega clase de disipador y heatpipes
-     * como TERCER y CUARTO eje — el radiador es exclusivo de líquidos
-     * (siempre 0 en AIRE), así que hasta acá las 85 filas AIRE del catálogo
-     * empataban en TODO y el precio más bajo ganaba siempre ("no importa qué
-     * gama, en los cooler siempre estaba ganando uno medio pedorro" — pedido
-     * del usuario, 2026-09-25). Entre dos líquidos el radiador ya las separó,
-     * así que estos dos ejes son un no-op ahí (abstención uniforme, D7); son
-     * los que de verdad ordenan el escalón AIRE.</p>
-     */
     public static final Comparator<TechSpecs> COOLER =
             Comparator.<TechSpecs>comparingInt(specs -> tipoCoolerRank(specs.tipoCooler()))
                     .thenComparingInt(specs -> masEsMejor(specs.radiadorMm()))
                     .thenComparingInt(specs -> claseDisipadorRank(specs.claseDisipador()))
                     .thenComparingInt(specs -> masEsMejor(specs.heatpipes()));
 
-    /**
-     * Certificación desc → watts desc — D6, fase 9.
-     *
-     * <p>Hasta la fase 8 el eje era la certificación SOLA, así que entre dos
-     * GOLD desempataba el precio y ganaba siempre la más chica: la fuente
-     * quedaba apenas por encima del piso de watts que {@link
-     * EstimadorDeConsumo} pide, sin margen para nada. La certificación sigue
-     * mandando —una GOLD de 650 W le gana a una sin certificar de 1200 W— y
-     * el reparto por cuotas de la fase 8 impide que este eje le vacíe la caja
-     * a los slots que vienen después.</p>
-     */
     public static final Comparator<TechSpecs> FUENTE =
             Comparator.<TechSpecs>comparingInt(specs -> -specs.certificacion().ordinal())
                     .thenComparingInt(specs -> masEsMejor(specs.watts()));
 
     /**
-     * Gama → recencia desc → nivel de modelo desc → VRAM desc — D1/D2.
-     *
-     * <p>En GPU el año va ANTES que el nivel, al revés que en {@link #CPU}:
-     * el escalón de modelo no sobrevive a cinco años de proceso — una RX 6900
-     * XT (x90 de 2020) no es comparable con una RTX 5080 (x80 de 2025), y con
-     * el nivel primero le ganaba. Dentro del año el escalón sí decide.
-     * {@code gama} corre antes que los dos, así que una x50 nueva nunca le
-     * gana a una x90 vieja: están en gamas distintas.</p>
+     * En GPU el año va ANTES que el nivel, al revés que en {@link #CPU}: el escalón de modelo no
+     * sobrevive a cinco años de proceso — una RX 6900 XT (x90 de 2020) no es comparable con una RTX
+     * 5080 (x80 de 2025), y con el nivel primero le ganaba.
      */
     public static final Comparator<TechSpecs> GPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
@@ -136,33 +57,13 @@ public final class EjesTecnicos {
             Comparator.<TechSpecs>comparingInt(specs -> tipoAlmacenamientoRank(specs.tipoAlmacenamiento()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 
-    /**
-     * Capacidad desc → DDR desc → módulos → MHz — D4, pc-builder-homelab.
-     * Un host de VMs/containers compra GB, no MHz: la capacidad manda antes
-     * que el resto del eje {@link #RAM}, que sigue decidiendo el empate.
-     */
     public static final Comparator<TechSpecs> RAM_HOMELAB =
             Comparator.<TechSpecs>comparingInt(specs -> masEsMejor(specs.capacidadGb()))
                     .thenComparing(RAM);
 
     /**
-     * Tecnología conocida primero → capacidad desc → HDD antes que SSD
-     * antes que NVMe — D4, pc-builder-homelab; el orden de tecnología
-     * corregido por D13 en T11. El slot {@code datos} no es el disco de
-     * sistema: es el volumen a granel, y ahí GB/$ gana — al revés que
-     * {@link #ALMACENAMIENTO}, que prioriza tecnología porque arma el disco
-     * de arranque.
-     *
-     * <p>Hasta T11 la capacidad corría PRIMERO, así que un disco externo
-     * (tecnología abstenida — {@link TipoAlmacenamiento#DESCONOCIDO}, ver
-     * {@link ar.scraper.pcs.specs.AlmacenamientoSpecsReader}) con más GB le
-     * ganaba el slot a un disco interno conocido más chico: medido en T8,
-     * un "Disco Duro Externo 1Tb Seagate Portable" salía elegido como
-     * {@code datos}. D13 es la misma regla que en todo eje: la abstención
-     * va última, ANTES de mirar cualquier otra magnitud — nunca "a igual
-     * capacidad". El conocido/desconocido corre como primer key y la
-     * capacidad queda como segundo key, sólo entre los que sí declaran
-     * tecnología.</p>
+     * El slot {@code datos} no es el disco de sistema: es el volumen a granel, y ahí GB/$ gana — al
+     * revés que {@link #ALMACENAMIENTO}, que prioriza tecnología porque arma el disco de arranque.
      */
     public static final Comparator<TechSpecs> ALMACENAMIENTO_DATOS =
             Comparator.<TechSpecs>comparingInt(specs -> tecnologiaConocidaRank(specs.tipoAlmacenamiento()))
@@ -170,17 +71,14 @@ public final class EjesTecnicos {
                     .thenComparingInt(specs -> tipoAlmacenamientoRankDatos(specs.tipoAlmacenamiento()));
 
     /**
-     * Gama → nivel de familia desc → RAM (GB) desc — D6, pc-builder-homelab.
-     * Mismo molde que {@link #CPU} pero sin año/generación: un mini PC
-     * barebone no siempre declara el año del chip, y lo que de verdad
-     * distingue dos mini PCs del mismo nivel es cuánta RAM trae.
+     * Mismo molde que {@link #CPU} pero sin año/generación: un mini PC barebone no siempre declara
+     * el año del chip, y lo que de verdad distingue dos mini PCs del mismo nivel es cuánta RAM
+     * trae.
      */
     public static final Comparator<TechSpecs> MINI_PC =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
-
-    // ── ranks: menor es mejor, la abstención siempre al final ───────────
 
     private static int ddrRank(String ddr) {
         return switch (ddr) {
@@ -188,7 +86,7 @@ public final class EjesTecnicos {
             case "DDR4" -> 1;
             case "DDR3" -> 2;
             case "DDR2" -> 3;
-            default -> Integer.MAX_VALUE; // "" — no parseó, ni siquiera derivada
+            default -> Integer.MAX_VALUE;
         };
     }
 
@@ -198,7 +96,7 @@ public final class EjesTecnicos {
             case ALTA -> 0;
             case MEDIA -> 1;
             case BAJA -> 2;
-            case DESCONOCIDA -> Integer.MAX_VALUE; // inalcanzable: esConocida() ya lo filtró arriba
+            case DESCONOCIDA -> Integer.MAX_VALUE;
         };
     }
 
@@ -208,29 +106,21 @@ public final class EjesTecnicos {
             case NVME -> 0;
             case SSD -> 1;
             case HDD -> 2;
-            case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+            case DESCONOCIDO -> Integer.MAX_VALUE;
         };
     }
 
-    /**
-     * @see #ALMACENAMIENTO_DATOS — D13, T11: sólo "¿se pudo leer la
-     * tecnología?", 0 conocida / 1 abstenida. Separado de {@link
-     * #tipoAlmacenamientoRankDatos}, que ordena HDD/SSD/NVME entre sí, para
-     * que la abstención salga ANTES que la capacidad en el comparator y no
-     * pueda ganar por GB.
-     */
     private static int tecnologiaConocidaRank(TipoAlmacenamiento tipo) {
         return tipo.esConocido() ? 0 : 1;
     }
 
-    /** @see #ALMACENAMIENTO_DATOS — el orden inverso de {@link #tipoAlmacenamientoRank}: HDD primero. */
     private static int tipoAlmacenamientoRankDatos(TipoAlmacenamiento tipo) {
         if (!tipo.esConocido()) return Integer.MAX_VALUE;
         return switch (tipo) {
             case HDD -> 0;
             case SSD -> 1;
             case NVME -> 2;
-            case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+            case DESCONOCIDO -> Integer.MAX_VALUE;
         };
     }
 
@@ -239,42 +129,33 @@ public final class EjesTecnicos {
         return switch (tipo) {
             case LIQUIDO -> 0;
             case AIRE -> 1;
-            case DESCONOCIDO -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+            case DESCONOCIDO -> Integer.MAX_VALUE;
         };
     }
 
-    /** @see #COOLER — T16: doble torre gana a torre simple; DESCONOCIDA (D13) siempre última. */
     private static int claseDisipadorRank(ClaseDisipador clase) {
         if (!clase.esConocida()) return Integer.MAX_VALUE;
         return switch (clase) {
             case DOBLE_TORRE -> 0;
             case TORRE -> 1;
-            case DESCONOCIDA -> Integer.MAX_VALUE; // inalcanzable, ver arriba
+            case DESCONOCIDA -> Integer.MAX_VALUE;
         };
     }
 
     /**
-     * D2: {@code generacion} normalizada a año de lanzamiento, ramificando por
-     * marca — sin eso no es una magnitud, son dos. En Intel es la generación
-     * real ({@code 14} = Raptor Lake Refresh); en AMD es el dígito de los
-     * miles del modelo ({@code 9} = serie 9000). Sin marca legible, o fuera de
-     * tabla, abstiene ({@code 0}) y el eje lo manda al final (D13): un número
-     * sin escala no puede rankear contra uno que sí la tiene.
-     *
-     * <p>La tabla es por SLOT, no global: {@code AMD} + {@code 9} es la serie
-     * Ryzen 9000 (2024) en CPU y la RX 9000 (2025) en GPU. Un mapa único diría
-     * que son lo mismo.</p>
+     * {@code generacion} normalizada a año de lanzamiento, ramificando por marca — sin eso no es
+     * una magnitud, son dos.
      */
     private static int anioCpu(String marcaChip, int generacion) {
         if ("AMD".equals(marcaChip)) {
-            return switch (generacion) { // el dígito de los miles del modelo Ryzen
+            return switch (generacion) {
                 case 1 -> 2017; case 2 -> 2018; case 3 -> 2019;
                 case 5 -> 2020; case 7 -> 2022; case 9 -> 2024;
                 default -> 0;
             };
         }
         if ("INTEL".equals(marcaChip)) {
-            return switch (generacion) { // la generación Core, con Ultra 200 mapeada a 15 por el reader
+            return switch (generacion) {
                 case 8 -> 2017; case 9 -> 2018; case 10 -> 2020; case 11 -> 2021;
                 case 12 -> 2021; case 13 -> 2022; case 14 -> 2023; case 15 -> 2024;
                 default -> 0;
@@ -283,16 +164,15 @@ public final class EjesTecnicos {
         return 0;
     }
 
-    /** @see #anioCpu — misma idea, tabla propia: acá {@code AMD 9} es la RX 9000. */
     private static int anioGpu(String marcaChip, int generacion) {
         if ("NVIDIA".equals(marcaChip)) {
-            return switch (generacion) { // 1 = GTX 10xx/16xx (el reader lee los miles)
+            return switch (generacion) {
                 case 1 -> 2016; case 2 -> 2018; case 3 -> 2020; case 4 -> 2022; case 5 -> 2025;
                 default -> 0;
             };
         }
         if ("AMD".equals(marcaChip)) {
-            return switch (generacion) { // el dígito de los miles del modelo Radeon
+            return switch (generacion) {
                 case 5 -> 2019; case 6 -> 2020; case 7 -> 2022; case 9 -> 2025;
                 default -> 0;
             };
@@ -305,13 +185,6 @@ public final class EjesTecnicos {
         return valor == 0 ? Integer.MAX_VALUE : -valor;
     }
 
-    /**
-     * D9: sin target (gamaPedida null o DESCONOCIDA) usa el tier tal cual
-     * (ya es "menor es mejor": 1=X/Z, 2=B, 3=A/H, T3's absolute order). Con
-     * target, el rank es la distancia |tier - target| — el chipset que más
-     * se acerca a lo pedido gana, no el más alto en la escala absoluta. 0
-     * (abstención) siempre último, en cualquiera de los dos modos.
-     */
     private static int tierChipsetRank(int tier, Gama gamaPedida) {
         if (tier == 0) return Integer.MAX_VALUE;
         Integer target = targetTierChipset(gamaPedida);
@@ -324,7 +197,7 @@ public final class EjesTecnicos {
             case ALTA -> 1;
             case MEDIA -> 2;
             case BAJA -> 3;
-            case DESCONOCIDA -> null; // gama pedida ilegible: sin target, orden absoluto de T3
+            case DESCONOCIDA -> null;
         };
     }
 }

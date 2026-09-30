@@ -18,16 +18,8 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Reads socket / DDR generation / form factor / watts / RAM capacity+speed /
- * power tier / PSU certification / storage technology+capacity off a PC
- * part's name. Pure and abstention-first — a field is only ever filled when
- * its category's {@link LectorDeSpecs} actually matched something.
- *
- * <p>Dispatches to one {@link LectorDeSpecs} per category via a registry —
- * see {@code ar.scraper.pcs.specs} for the readers and {@code Tokens} for the
- * shared tokenization. Kept in this package under its original name and
- * static signature: {@code PcBuilder} and the phase-1 tests call it this
- * way (refactor contract, CONTRIBUTING.md CODE-2).</p>
+ * Pure and abstention-first — a field is only ever filled when its category's {@link LectorDeSpecs}
+ * actually matched something.
  */
 public final class TechSpecsParser {
 
@@ -49,7 +41,7 @@ public final class TechSpecsParser {
         if (StringUtils.isBlank(nombre) || categoria == null) return TechSpecs.EMPTY;
 
         LectorDeSpecs lector = LECTORES.get(categoria);
-        if (lector == null) return TechSpecs.EMPTY; // Monitor/etc.: no registered reader, abstain entirely
+        if (lector == null) return TechSpecs.EMPTY;
 
         return lector.leer(Tokens.de(nombre));
     }

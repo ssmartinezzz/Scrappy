@@ -8,40 +8,19 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Reads the package size out of a supplement's name, so two listings of the same
- * subtype can be compared per unit of measure instead of by sticker price.
- *
- * <p>This exists because absolute price is the wrong ranking key for supplements:
- * the cheapest whey on the shelf is simply the smallest tub. A 2kg tub at $16.000
- * beats a 1kg tub at $10.000 and no amount of sorting by {@code precio} will ever
- * say so.</p>
- *
- * <p><b>Magnitudes are normalized to a base unit per family</b> — grams for
- * {@code MASA}, millilitres for {@code VOLUMEN}, items for {@code CONTEO} — so
- * "908 gr" and "1 kg" are directly comparable. Families are NOT comparable with
- * each other: $/gram against $/capsule is a meaningless number, and it is the
- * caller's job to only divide within one family.</p>
- *
- * <p>Deliberately ignores {@code Product.cantidadUnidades()}: the pack detector
- * has its own "x N" patterns, so multiplying the parsed size by it would
- * double-count a name like "Barritas x 6" that both of them read. Reconciling the
- * two is worth doing, but not silently inside a ranking change.</p>
- *
- * <p>Lives in {@code web} next to its only caller. If price-per-unit ever surfaces
- * in the catalog or the ML pipeline it belongs in {@code aggregator.normalize}
- * instead, alongside {@code PackQuantityDetector}.</p>
+ * Reads the package size out of a supplement's name, so two listings of the same subtype can be
+ * compared per unit of measure instead of by sticker price.
  */
 final class SupplementSizeParser {
 
     private SupplementSizeParser() {}
 
-    /** Unit family. Magnitudes are only comparable within the same family. */
+    /** Magnitudes are only comparable within the same family. */
     enum Familia { MASA, VOLUMEN, CONTEO, DESCONOCIDA }
 
     /**
-     * A parsed package size. {@code magnitud} is in the family's base unit
-     * (grams / millilitres / items), and is 0 exactly when the family is
-     * {@code DESCONOCIDA}.
+     * {@code magnitud} is in the family's base unit (grams / millilitres / items), and is 0 exactly
+     * when the family is {@code DESCONOCIDA}.
      */
     record Tamano(Familia familia, double magnitud) {
         static final Tamano DESCONOCIDO = new Tamano(Familia.DESCONOCIDA, 0.0);
@@ -60,20 +39,8 @@ final class SupplementSizeParser {
             Map.entry("onzas", 28.3495), Map.entry("onza", 28.3495), Map.entry("oz", 28.3495));
 
     /**
-     * Units that state a DOSE, never a package size — matched so they are consumed and
-     * visibly ignored, rather than silently failing to match.
-     *
-     * <p>Nothing is sold by the milligram. "Vitamina C 1000mg" is the amount in each
-     * capsule, and reading it as the package size turned a vitamin jar into a 1-gram
-     * product whose price per gram then got compared against other products' real
-     * package sizes.</p>
-     *
-     * <p>Residual gap, left deliberately: a capsule product stating its dose in GRAMS
-     * ("Colágeno 10 g en cápsulas") still parses as a 10-gram package. The obvious rule
-     * — "a count noun with no number means the mass is a dose" — cannot be used, because
-     * "30g de proteína por porción, pote 1kg" matches it exactly and that name does
-     * state a real package size. Fixing it needs a size threshold, which needs real
-     * catalog data to calibrate rather than a guessed constant.</p>
+     * Units that state a DOSE, never a package size — matched so they are consumed and visibly
+     * ignored, rather than silently failing to match.
      */
     private static final java.util.Set<String> UNIDADES_DOSIS = java.util.Set.of("mg");
 
@@ -92,8 +59,8 @@ final class SupplementSizeParser {
             "unidades", "unidad", "barras", "barra");
 
     /**
-     * A number followed by a unit. Longest alternatives first for readability; the
-     * trailing {@code \b} is what actually prevents "gr" from being read as "g".
+     * A number followed by a unit. Longest alternatives first for readability; the trailing
+     * {@code \b} is what actually prevents "gr" from being read as "g".
      */
     private static final Pattern MEDIDA = Pattern.compile(
             "(\\d+(?:[.,]\\d+)?)\\s*("
@@ -107,16 +74,9 @@ final class SupplementSizeParser {
             + ")\\b");
 
     /**
-     * Parses the package size, or {@link Tamano#DESCONOCIDO} when the name states none.
-     *
-     * <p>Within a family the LARGEST match wins: a title that mentions both a serving
-     * and the tub ("30g de proteína por porción - pote 1kg") is describing a 1kg tub.</p>
-     *
-     * <p>A count beats a mass outright, because in a capsule or sachet product the
-     * mass in the title is the dose per unit — "Vitamina C 1000mg x 60 cápsulas" is a
-     * 60-item jar, not a 1-gram product. The residual gap: a capsule product that
-     * states only its dose still parses as a tiny mass. It then only competes against
-     * others written the same way, so the relative order survives.</p>
+     * A count beats a mass outright, because in a capsule or sachet product the mass in the title
+     * is the dose per unit — "Vitamina C 1000mg x 60 cápsulas" is a 60-item jar, not a 1-gram
+     * product.
      */
     static Tamano parse(String nombre) {
         if (StringUtils.isBlank(nombre)) return Tamano.DESCONOCIDO;
@@ -153,10 +113,8 @@ final class SupplementSizeParser {
     }
 
     /**
-     * es-AR writes a thousand grams as "1.000 g" and one and a half kilos as "1,5 kg" —
-     * the same two separators mean opposite things. Heuristic: a separator followed by
-     * exactly three digits is a thousands separator, UNLESS the integer part is a bare
-     * "0" ("0.500 kg" is half a kilo, not five hundred). Everything else is a decimal.
+     * Heuristic: a separator followed by exactly three digits is a thousands separator, UNLESS the
+     * integer part is a bare "0" ("0.500 kg" is half a kilo, not five hundred).
      */
     private static Double parseNumero(String raw) {
         String s = raw.replace(',', '.');
@@ -171,7 +129,7 @@ final class SupplementSizeParser {
         try {
             return Double.valueOf(s);
         } catch (NumberFormatException e) {
-            return null; // no debería ocurrir: el grupo viene del propio patrón
+            return null;
         }
     }
 }

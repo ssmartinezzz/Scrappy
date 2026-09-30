@@ -9,11 +9,6 @@ import ar.scraper.pcs.TipoCooler;
 
 import java.util.List;
 
-/**
- * Reads form factor (fase 1, unchanged) and tower size (fase 9, D1) off a
- * Gabinete's name. The two are independent axes and a name can declare
- * either, both, or neither — "MID-TOWER EATX" carries both.
- */
 public final class GabineteSpecsReader implements LectorDeSpecs {
 
     @Override
@@ -39,15 +34,6 @@ public final class GabineteSpecsReader implements LectorDeSpecs {
         return "";
     }
 
-    /**
-     * El PAR de tokens adyacentes {@code <tamaño> tower} es la única lectura
-     * segura, igual que el {@code "m"+"2"} de {@link
-     * AlmacenamientoSpecsReader}: "Mid-tower Tg Full Modular" dice FULL
-     * pegado a la fuente, no al gabinete, y un {@code has("full")} pelado lo
-     * leería como full tower. Medido: el catálogo escribe el tamaño SIEMPRE
-     * como "X-tower"/"X tower" — cero filas con la forma pegada
-     * ("midtower") y cero con "torre" (2026-09-22).
-     */
     private static TamanioGabinete tamanio(Tokens tokens) {
         String[] arr = tokens.array();
         for (int i = 0; i < arr.length - 1; i++) {
