@@ -404,6 +404,8 @@ entre los paquetes prohibidos. `dbNoDependeDeCron` **no se puede reapuntar** a
 arista es legítima y deseada. Reapuntarla habría prohibido justo el patrón que
 F2 construyó.
 
+**El dominio no importa herramientas (backlog `backend-hardening`, T8).** `dominioSinHerramientas` prohíbe a las áreas, a `model` y a `health` nombrar Spring, Jackson, `java.sql`/`javax.sql`, Playwright o servlet. Lo que había: `SiteRegistry` leía JDBC, cuatro puertos lanzaban `SQLException`, el JSON de borde vivía en `catalog`/`pcs` y los servicios de dominio llevaban `@Component`/`@Scheduled`. Hoy: los adaptadores traducen `SQLException` a `model.PersistenciaException` (`FavoritosProtegidosException` la extiende), `SiteRegistry` lee por `classification.SiteSource` (`db.JdbcSiteSource`), los serializadores están en `ar.scraper.json` y los puertos con `JsonNode` en `ar.scraper.ml`, cada servicio de dominio se arma con `@Bean` en `config/*Config`, y lo que necesita Spring en runtime (`@Scheduled`, `ApplicationRunner`, `CronExpression`) es un adaptador en `config` (`CronTicker`, `IndiceRefreshRunner`, `SpringCronSchedule` detrás de `scheduling.CronSchedule`). `SpringWiringTest` reconoce como resolubles los tipos que devuelve un `@Bean`.
+
 ---
 
 ### ¿Por qué el vocabulario de categorías creció de 88 a 103, y por qué el orden del clasificador es dato y no estilo?
