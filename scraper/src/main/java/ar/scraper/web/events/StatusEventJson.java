@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
-/** The wire form of each {@link StatusEvent}: an SSE event name and a compact JSON body. */
 final class StatusEventJson {
 
     static final String SNAPSHOT = "snapshot";

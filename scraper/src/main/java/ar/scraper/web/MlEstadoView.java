@@ -5,7 +5,6 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.web.dto.MlDtos;
 import org.springframework.stereotype.Component;
 
-/** What {@code /api/ml/estado} puts inside {@code data}; the event stream's snapshot reuses it. */
 @Component
 public class MlEstadoView {
 

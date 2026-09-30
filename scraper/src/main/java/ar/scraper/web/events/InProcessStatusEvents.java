@@ -18,10 +18,8 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
- * Progress events arrive once per finished site but a burst can be dense; they are coalesced to
- * at most one per {@link #PROGRESS_GAP_MS}, always keeping the latest. Every other event is
- * delivered immediately and, when progress is pending, AFTER flushing it, so a listener never
- * sees a terminal status before the last progress that preceded it.
+ * Every other event is delivered immediately and, when progress is pending, AFTER flushing it, so a
+ * listener never sees a terminal status before the last progress that preceded it.
  */
 @Component
 public class InProcessStatusEvents implements StatusEvents {
@@ -55,7 +53,6 @@ public class InProcessStatusEvents implements StatusEvents {
         this(gapMs, nowMs, (delay, task) -> scheduler.schedule(task, delay, TimeUnit.MILLISECONDS), scheduler);
     }
 
-    /** Test seam: a manual clock and a manual delayer make coalescing deterministic. */
     InProcessStatusEvents(long gapMs, LongSupplier nowMs, BiConsumer<Long, Runnable> delayer) {
         this(gapMs, nowMs, delayer, null);
     }

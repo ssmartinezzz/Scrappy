@@ -8,46 +8,15 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-/**
- * Creates the bootstrap admin and the CLI service account at startup, then
- * adopts every personal row that has no owner yet.
- *
- * <p><b>Why an {@link ApplicationRunner} and not a migration.</b> Flyway runs
- * {@code V26} during startup, and a migration is byte-frozen the moment it is
- * applied — a password written there could never be removed, in a public
- * repository. The account therefore has to be created by code that reads the
- * environment, and an {@code ApplicationRunner} is the only hook guaranteed to
- * run after both the migration and a full context refresh. {@code MarcaSeeder}
- * already establishes the pattern in this codebase.</p>
- *
- * <p><b>Why seeding and adoption share one transaction.</b> Adoption points
- * every ownerless row at the admin's id. If the seed were rolled back
- * afterwards, those rows would reference a user that does not exist — a
- * dangling owner, which is strictly worse than no owner, because the rows
- * become unreachable instead of merely unclaimed.</p>
- *
- * <p><b>Both operations are idempotent</b>, which is what makes restarting and
- * running two instances at once safe: the insert is
- * {@code ON CONFLICT DO NOTHING} and adoption is scoped to
- * {@code usuario_id IS NULL}, so the second runner finds nothing to do rather
- * than fighting the first.</p>
- *
- * <p><b>An existing password hash is never overwritten.</b> This runs on every
- * boot, so overwriting would quietly reset the admin password to the
- * environment value each restart — turning the variable into a permanent back
- * door instead of an initial value. The consequence is worth stating plainly:
- * <b>changing {@code ADMIN_BOOTSTRAP_PASSWORD} and restarting does not change
- * the password of an account that already exists.</b> Recovery is direct SQL.</p>
- */
+/** Why an {@link ApplicationRunner} and not a migration. */
 @Component
 public class AdminSeeder implements ApplicationRunner {
 
     private static final Logger LOG = LoggerFactory.getLogger(AdminSeeder.class);
 
     /**
-     * The literal value shipped in {@code .env.example}. Refusing it closes the
-     * likeliest path to a world-known admin password: copying the example file
-     * and never editing it.
+     * Refusing it closes the likeliest path to a world-known admin password: copying the example
+     * file and never editing it.
      */
     public static final String PLACEHOLDER = "cambiame-por-una-password-real";
 
@@ -76,8 +45,8 @@ public class AdminSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        // Both passwords are checked before anything is written, so a refused
-        // configuration cannot leave one account seeded and the other not.
+        // Both passwords are checked before anything is written, so a refused configuration cannot
+        // leave one account seeded and the other not.
         rechazarPlaceholder(adminPassword, "ADMIN_BOOTSTRAP_PASSWORD", adminUsername);
         rechazarPlaceholder(servicioPassword, "CLI_SERVICE_ACCOUNT_PASSWORD", servicioUsername);
 

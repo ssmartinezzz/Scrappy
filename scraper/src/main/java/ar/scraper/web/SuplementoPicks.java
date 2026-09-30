@@ -6,7 +6,6 @@ import ar.scraper.web.dto.OutfitsDtos;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Wire shape of a supplement pick, shared by the outfit and the supplement builders. */
 final class SuplementoPicks {
 
     private SuplementoPicks() {}

@@ -34,17 +34,18 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 
-/** LLM Catalog Agent: chat / apply / models. */
 @RestController
 @RequestMapping("/api")
 public class AgentController {
 
-    /** Enforced transport caps on a client-supplied tool trace ({@link #parseAgentTrace}); the frontend copy is a convenience. */
     private static final int AGENT_MAX_TRACE_STEPS = 8;
     private static final int AGENT_MAX_TRACE_CALLS_PER_STEP = 6;
     private static final int AGENT_MAX_TRACE_ARG_KEYS = 8;
     private static final int AGENT_MAX_TRACE_ARG_LEN = 500;
-    /** Raw entries the parser will look at; the caps above only count ACCEPTED ones, so junk would otherwise be walked whole. */
+    /**
+     * Raw entries the parser will look at; the caps above only count ACCEPTED ones, so junk would
+     * otherwise be walked whole.
+     */
     private static final int AGENT_MAX_TRACE_SCAN = 64;
     private static final ObjectMapper AGENT_MAPPER = new ObjectMapper();
 
@@ -88,7 +89,8 @@ public class AgentController {
                 String text = textRaw == null ? "" : textRaw.toString();
                 if (text.isBlank()) continue;
                 Role role = parseAgentRole(mm.get("role"));
-                // Only an assistant turn carries tool activity, and only the calls: results are re-executed server-side.
+                // Only an assistant turn carries tool activity, and only the calls: results are
+                // re-executed server-side.
                 List<ToolStep> trace = role == Role.ASSISTANT
                         ? parseAgentTrace(mm.get("trace"))
                         : List.of();
@@ -140,8 +142,8 @@ public class AgentController {
                     "Hay un scraping en curso. Esperá a que termine.");
         }
 
-        // Typed body: reads the same field names ReclassifyProposal carries (categoriaPropuesta, not
-        // "categoria"). The per-field check names only what is actually missing.
+        // Typed body: reads the same field names ReclassifyProposal carries (categoriaPropuesta,
+        // not "categoria"). The per-field check names only what is actually missing.
         List<String> faltantes = new ArrayList<>();
         if (StringUtils.isBlank(body.url())) faltantes.add("url");
         if (StringUtils.isBlank(body.categoriaPropuesta())) faltantes.add("categoriaPropuesta");
@@ -154,8 +156,8 @@ public class AgentController {
                     "Categoría inválida: '" + body.categoriaPropuesta() + "'.");
         }
         // genero is validated like categoria because THIS is the write path (reachable without
-        // ProposeReclassifyTool). Blank is skipped on purpose: it means "keep previo.genero()", not a
-        // value being written. Without this an out-of-domain value hits V6's CHECK and surfaces as a 500.
+        // ProposeReclassifyTool). Blank is skipped on purpose: it means "keep previo.genero()", not
+        // a value being written.
         String generoPropuesto = body.generoPropuesto();
         if (StringUtils.isNotBlank(generoPropuesto)
                 && !ProposeReclassifyTool.VALID_GENEROS.contains(generoPropuesto)) {
@@ -163,7 +165,8 @@ public class AgentController {
                     "Género inválido: '" + generoPropuesto + "'.");
         }
 
-        // The client is never trusted to have validated: confirm the url exists in the catalog snapshot.
+        // The client is never trusted to have validated: confirm the url exists in the catalog
+        // snapshot.
         Product current = ViewProductTool.find(service.getLastResult(), body.url());
         if (current == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
@@ -171,8 +174,8 @@ public class AgentController {
         }
 
         // Staleness guard: reads the DATABASE, never `current` — `current` and the proposal's
-        // categoriaActual both derive from the same in-memory snapshot, so comparing them would never
-        // detect drift. Fails closed: obtenerProducto returns empty for both "not found" and a read error.
+        // categoriaActual both derive from the same in-memory snapshot, so comparing them would
+        // never detect drift.
         Optional<Product> dbProducto = productos.obtenerProducto(body.url());
         String categoriaEnDb = dbProducto.map(Product::categoria).map(String::trim).orElse(null);
         String categoriaActualPropuesta = body.categoriaActual() != null ? body.categoriaActual().trim() : "";
@@ -185,9 +188,9 @@ public class AgentController {
         String marca = body.marcaPropuesta();
         String genero = body.generoPropuesto();
 
-        // aplicarReclasificacionAuditada is the truthful write path: its boolean is always checked so a
-        // failed write is never reported as applied. Blank-field fallbacks come from `previo` (the DB read).
-        // The acting identity goes through the ONE ActorResolver seam; it is recorded, not verified.
+        // aplicarReclasificacionAuditada is the truthful write path: its boolean is always checked
+        // so a failed write is never reported as applied. Blank-field fallbacks come from `previo`
+        // (the DB read).
         String actor = actorResolver.current();
         boolean applied = productos.aplicarReclasificacionAuditada(
                 body.url(),
@@ -204,10 +207,8 @@ public class AgentController {
                     "No se pudo aplicar la reclasificación.");
         }
 
-        // The catalog is served from lastResult, so without this patch the reclassification would not show
-        // in /api/data or /api/mejores until the next scrape. AFTER the `applied` check: never patch memory
-        // for a write that did not happen. rubro is derived via RubroResolver, the same pure computation
-        // aplicarReclasificacionAuditada persisted.
+        // The catalog is served from lastResult, so without this patch the reclassification would
+        // not show in /api/data or /api/mejores until the next scrape.
         String sitioKey = SiteClassification.sitioKey(previo.sitio());
         String rubro = rubroResolver.resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
         service.actualizarProductoEnMemoria(
@@ -221,7 +222,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.ok(new AgentDtos.Applied(true, 1, "Reclasificación aplicada.")));
     }
 
-    /** 422 for the staleness guard; {@code details} carries what the DB holds now so the UI needs no second round-trip. */
+    /** 422 for the staleness guard; */
     private ApiException conflictoStale(Optional<Product> dbProducto) {
         Map<String, Object> actual = new LinkedHashMap<>();
         dbProducto.ifPresent(p -> {
@@ -235,7 +236,7 @@ public class AgentController {
                 Map.of("actual", actual));
     }
 
-    /** A client may only author USER/ASSISTANT; "system"/"tool" degrade to USER since those are server-authored. */
+    /** A client may only author USER/ASSISTANT; */
     private static Role parseAgentRole(Object roleRaw) {
         return roleRaw != null && "assistant".equalsIgnoreCase(roleRaw.toString())
                 ? Role.ASSISTANT
@@ -243,9 +244,8 @@ public class AgentController {
     }
 
     /**
-     * Rebuilds a past assistant turn's tool trace field by field from the untrusted body. Shape
-     * validation only: unknown tool names are dropped later by CatalogAgentService, which owns the
-     * registry. The caps bound scanned entries, accepted entries and payload size per call.
+     * Shape validation only: unknown tool names are dropped later by CatalogAgentService, which
+     * owns the registry.
      */
     private static List<ToolStep> parseAgentTrace(Object traceRaw) {
         if (!(traceRaw instanceof List<?> steps)) return List.of();
@@ -274,9 +274,8 @@ public class AgentController {
     }
 
     /**
-     * Flat object of scalars, dropping nested/null/over-long values: MAX_REPLAY_CALLS bounds how many
-     * calls are replayed, not how big each is, and arguments are re-serialised into the model context
-     * on every later turn.
+     * MAX_REPLAY_CALLS bounds how many calls are replayed, not how big each is, and arguments are
+     * re-serialised into the model context on every later turn.
      */
     private static JsonNode sanitizeAgentArgs(Map<?, ?> raw) {
         ObjectNode clean = AGENT_MAPPER.createObjectNode();
@@ -285,7 +284,6 @@ public class AgentController {
             // Both bounds are needed: a non-scalar value is accepted by no branch below, so without
             // the scan bound a map of nested junk is walked whole.
             if (clean.size() >= AGENT_MAX_TRACE_ARG_KEYS || ++scanned > AGENT_MAX_TRACE_SCAN) break;
-            // The key is bounded too: it is re-serialised into the model context like the value.
             String key = truncateAgentArg(String.valueOf(entry.getKey()));
             if (key.isBlank()) continue;
             Object value = entry.getValue();

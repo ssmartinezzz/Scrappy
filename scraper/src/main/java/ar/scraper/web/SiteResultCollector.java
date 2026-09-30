@@ -13,10 +13,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
- * Collects one {@link ScrapeResult} per site. The exit condition is "every site
- * answered", never "N waits elapsed": a per-site timeout retries the same wait.
- * The old {@code for (i < totalSitios)} loop let a timeout consume a slot, so a
- * site slower than everyone else (Harvey) was abandoned still RUNNING.
+ * The exit condition is "every site answered", never "N waits elapsed": a per-site timeout retries
+ * the same wait.
  */
 final class SiteResultCollector {
 
@@ -24,10 +22,6 @@ final class SiteResultCollector {
 
     private SiteResultCollector() { }
 
-    /**
-     * @return the collected results; fewer than {@code totalSitios} means the global
-     *         deadline hit, the run was cancelled, or the thread was interrupted
-     */
     static List<ScrapeResult> recolectar(
             ExecutorCompletionService<ScrapeResult> ecs, int totalSitios,
             long deadlineGlobalMs, long timeoutPorSitioS, long granularidadMs, long graceMs,
@@ -52,7 +46,6 @@ final class SiteResultCollector {
                     break;
                 }
                 if (f == null) {
-                    // Gracia: un sitio puede terminar justo sobre el vencimiento.
                     f = ecs.poll(graceMs, TimeUnit.MILLISECONDS);
                     if (f == null) {
                         RUN_LOG.warn("[ESPERA]  Sin respuesta en {}s, reintentando...", wait);

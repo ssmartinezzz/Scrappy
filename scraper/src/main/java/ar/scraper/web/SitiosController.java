@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Site registry and price-range config. */
 @RestController
 @RequestMapping("/api")
 public class SitiosController {

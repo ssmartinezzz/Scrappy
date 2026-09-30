@@ -16,10 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST endpoints of the cron job engine. A sibling of {@link ApiController} on purpose: adding
- * collaborators to that constructor would break ~20 tests that build it with positional mocks.
- * Scheduling dates are computed only in {@link CronJobService}; this controller validates shape
- * and delegates.
+ * A sibling of {@link ApiController} on purpose: adding collaborators to that constructor would
+ * break ~20 tests that build it with positional mocks.
  */
 @RestController
 @RequestMapping("/api/cron")
@@ -90,8 +88,8 @@ public class CronApiController {
     }
 
     /**
-     * Manual trigger. NON-BLOCKING: {@link CronJobService#triggerNow(long)} dispatches the run on a
-     * virtual thread and returns at once (an HTTP thread cannot wait up to 2h for a scrape).
+     * {@link CronJobService#triggerNow(long)} dispatches the run on a virtual thread and returns at
+     * once (an HTTP thread cannot wait up to 2h for a scrape).
      */
     @PostMapping("/{id}/run-now")
     public ResponseEntity<ApiResponse<OpResult>> runNow(@PathVariable long id) {
@@ -114,7 +112,6 @@ public class CronApiController {
                 "El cron job se guardó pero no se pudo leer.");
     }
 
-    /** Body shared by create and update. */
     private static final class JobForm {
         String name;
         Double precioMin;

@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Multi-site price comparison and the external MercadoLibre lookup. */
 @RestController
 @RequestMapping("/api")
 public class ComparadorController {
@@ -21,7 +20,10 @@ public class ComparadorController {
     private static final org.slf4j.Logger LOG =
         org.slf4j.LoggerFactory.getLogger(ComparadorController.class);
 
-    /** One shared client: a per-request one cost 5.2 ms and a live thread each, and discarded the connection pool. */
+    /**
+     * One shared client: a per-request one cost 5.2 ms and a live thread each, and discarded the
+     * connection pool.
+     */
     private static final java.net.http.HttpClient HTTP = java.net.http.HttpClient.newBuilder()
         .connectTimeout(java.time.Duration.ofSeconds(8))
         .build();
@@ -62,8 +64,8 @@ public class ComparadorController {
         var grupos = derivados.grupos(GruposKey.de(service.snapshotVersion(), q, categoria, rubro, minSitios >= 2));
 
         // Site filter runs AFTER grouping, unlike q/categoria/rubro: this endpoint compares one
-        // article across sites (minSitios=2), so trimming to one site first would empty every group.
-        // Before paging so `total` counts the filtered set.
+        // article across sites (minSitios=2), so trimming to one site first would empty every
+        // group. Before paging so `total` counts the filtered set.
         if (StringUtils.isNotBlank(sitio)) {
             grupos = grupos.stream()
                 .filter(g -> g.getProductos().stream()
@@ -96,7 +98,6 @@ public class ComparadorController {
             @RequestParam(required = false) String url,
             @RequestParam(defaultValue = "mercadolibre") String sitio) {
         try {
-            // Strip size/colour/gender/SKU codes: keep brand + model.
             String cleanQ = limpiarQueryBusqueda(q);
             LOG.info("[API] buscarExterno q='{}' → limpia='{}'", q, cleanQ);
 
@@ -158,8 +159,8 @@ public class ComparadorController {
 
     /**
      * UNICODE_CHARACTER_CLASS fixes a real bug: Java's default {@code \b} treats accented vowels as
-     * non-word characters, so in "Móvil" the "M" became a stray size token and was stripped ("Azulón"
-     * left "ón"). These patterns run over the RAW product name, so word boundaries must be Unicode-aware.
+     * non-word characters, so in "Móvil" the "M" became a stray size token and was stripped
+     * ("Azulón" left "ón").
      */
     private static final int FLAGS_LIMPIEZA =
         java.util.regex.Pattern.CASE_INSENSITIVE

@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
-/** The catalog listing, facets, CSV export and product soft-delete. */
 @RestController
 @RequestMapping("/api")
 public class CatalogoController {
@@ -90,12 +89,11 @@ public class CatalogoController {
                 gymrat, pack, precioMin, precioMax, subCategoria,
                 fit, estampado, escote, colorDominante);
 
-        // Summary and page share one bound: an unbounded summary next to a bounded page
-        // would offer facets the page cannot satisfy.
+        // Summary and page share one bound: an unbounded summary next to a bounded page would offer
+        // facets the page cannot satisfy.
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
         CatalogResumen resumen = catalogQuery.resumen(cota);
-        // The 1-based port below adds one: keep Integer.MAX_VALUE from wrapping to a negative page.
         int numero = Math.min(Math.max(page, 0), Integer.MAX_VALUE - 1);
         if (resumen.total() == 0) {
             var vacio = new CatalogoDtos.Meta(
@@ -106,7 +104,6 @@ public class CatalogoController {
                     PageMeta.of(numero, size, 0)));
         }
 
-        // The port is 1-based; the API is 0-based.
         CatalogPage paginaSql = catalogQuery.buscar(filtro, orden, numero + 1, size, cota);
 
         // senal/finan are computed, not persisted: only for this page's products.
@@ -136,14 +133,10 @@ public class CatalogoController {
                 PageMeta.of(numero, size, paginaSql.total())));
     }
 
-    // ---------------------------------------------------------------
-    // Detalle de un producto + su historial de precios
-    // ---------------------------------------------------------------
-
     /**
-     * Product plus price series for the history view. Reads the DB, not the in-memory snapshot:
-     * the page is deep-linkable and a soft-deleted product must stay inspectable. Unlike
-     * {@code /api/historial} a product with no points is still a 200; 404 means it does not exist.
+     * Reads the DB, not the in-memory snapshot: the page is deep-linkable and a soft-deleted
+     * product must stay inspectable. Unlike {@code /api/historial} a product with no points is
+     * still a 200; 404 means it does not exist.
      */
     @GetMapping("/producto/{key}")
     public ResponseEntity<ApiResponse<CatalogoDtos.ProductoDetalle>> productoDetalle(@PathVariable String key) {
@@ -161,9 +154,8 @@ public class CatalogoController {
                 prod, HistorialJson.construir(historial.cargarHistorial(url)))));
     }
 
-    // ---------------------------------------------------------------
-    // Facets sueltos (para cargar filtros sin productos)
-    // ---------------------------------------------------------------
+    // --------------------------------------------------------------- Facets sueltos (para cargar
+    // filtros sin productos) ---------------------------------------------------------------
     @GetMapping("/facets")
     public ResponseEntity<ApiResponse<CatalogoDtos.FacetsDto>> facets() {
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
@@ -171,14 +163,12 @@ public class CatalogoController {
         CatalogResumen resumen = catalogQuery.resumen(cota);
         if (resumen.total() == 0) return ResponseEntity.ok(ApiResponse.ok(CatalogoDtos.FacetsDto.vacio()));
 
-        // rubros is exclusive to /api/data; a test pins that.
         return ResponseEntity.ok(ApiResponse.ok(CatalogoDtos.FacetsDto.of(
                 catalogQuery.facetas(cota), null, resumen.gymrat(), resumen.packs())));
     }
 
-    // ---------------------------------------------------------------
-    // CSV — descarga todo sin filtrar
-    // ---------------------------------------------------------------
+    // --------------------------------------------------------------- CSV — descarga todo sin
+    // filtrar ---------------------------------------------------------------
     @GetMapping("/csv")
     public ResponseEntity<String> csv() throws Exception {
         String content = service.generarCsv();

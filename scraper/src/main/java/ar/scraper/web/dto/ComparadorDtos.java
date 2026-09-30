@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the comparator endpoints. */
 public final class ComparadorDtos {
 
     private ComparadorDtos() {}

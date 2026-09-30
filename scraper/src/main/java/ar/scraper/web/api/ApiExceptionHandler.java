@@ -20,12 +20,6 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import java.util.stream.Collectors;
 
-/**
- * Every error leaves the API as {@link ApiError}. Extending {@link ResponseEntityExceptionHandler}
- * covers the framework's own 4xx (missing parameter, type mismatch, unreadable body, 404/405/415...)
- * with their status and headers (e.g. {@code Allow}); {@link #handleExceptionInternal} swaps its
- * ProblemDetail body for the envelope.
- */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -38,9 +32,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * An owner-scoped route reached with no authenticated subject. Answered 401 rather than an empty
-     * list (looks like data loss) or everybody's rows (the leak). The filter chain already guarantees a
-     * subject on these routes; this catches a future route added to the wrong band.
+     * Answered 401 rather than an empty list (looks like data loss) or everybody's rows (the leak).
+     * The filter chain already guarantees a subject on these routes; this catches a future route
+     * added to the wrong band.
      */
     @ExceptionHandler(Sujeto.SinSujeto.class)
     public ResponseEntity<ApiError> sinSujeto(Sujeto.SinSujeto e) {
@@ -48,7 +42,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiError.of("no_autenticado", "Esta operación es personal y necesita una sesión."));
     }
 
-    /** Security exceptions must reach the filter chain (401/403 handlers), not be swallowed as a 500. */
+    /**
+     * Security exceptions must reach the filter chain (401/403 handlers), not be swallowed as a
+     * 500.
+     */
     @ExceptionHandler({AccessDeniedException.class, AuthenticationException.class})
     public void seguridad(RuntimeException e) {
         throw e;
@@ -86,7 +83,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         };
     }
 
-    /** Never leaks parser internals or stack traces: only the framework's own short reason, or a fixed text. */
+    /**
+     * Never leaks parser internals or stack traces: only the framework's own short reason, or a
+     * fixed text.
+     */
     private static String mensajePara(Exception ex, HttpStatusCode code, HttpStatus status) {
         if (code.is5xxServerError()) {
             return "Error interno del servidor.";

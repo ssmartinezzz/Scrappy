@@ -13,7 +13,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Server-sent stream of status changes; replaces the UI's status polling. See docs/API_REFERENCE.md. */
 @RestController
 @RequestMapping("/api")
 public class EventsController {

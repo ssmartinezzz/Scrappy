@@ -26,18 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Account administration: list, create, change role, deactivate, reactivate.
- *
- * <p>Born gated: these routes ship AFTER enforcement. The {@code /api/usuarios/**} ADMIN rule sat in
- * {@code ApiRoutePolicy.TABLE} matching nothing, so an ungated {@code POST /api/usuarios} (anyone
- * minting themselves an ADMIN) never existed, even under a partial revert. Backend only: no UI.</p>
- *
- * <p>Deactivate, never delete: a DELETE would cascade away role grants, refresh/reset tokens and the
- * audit trail, plus the account's personal rows. Deactivation reuses the existing revocation: the next
- * request with a still-valid token is refused. The last active ADMIN cannot be removed or demoted: that
- * state is silent, one click and recoverable only by SQL.</p>
- */
+/** Born gated: these routes ship AFTER enforcement. */
 @RestController
 @RequestMapping("/api/usuarios")
 public class UsuarioAdminEndpoints {
@@ -93,7 +82,8 @@ public class UsuarioAdminEndpoints {
         try {
             creada = usuarios.crearConRol(username, normalizar(email), hasher.hash(password), rol);
         } catch (IllegalArgumentException e) {
-            // The repository re-checks the vocabulary; reaching here means the two checks disagree (a bug).
+            // The repository re-checks the vocabulary; reaching here means the two checks disagree
+            // (a bug).
             LOG.warn("[ADMIN] rol rechazado por el repositorio: {}", e.getMessage());
             throw error(400, "rol_invalido", "Rol inválido.");
         }
@@ -169,7 +159,6 @@ public class UsuarioAdminEndpoints {
         return StringUtils.isBlank(v) ? null : v.trim();
     }
 
-    /** {@code email} is optional, and the schema requires it lowercase. */
     private static String normalizar(String email) {
         return email == null ? null : email.toLowerCase();
     }
