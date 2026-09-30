@@ -124,15 +124,24 @@ no lo es.
 
 ---
 
+## Forma de las respuestas
+
+Éxito: `{ "data": T }`. Error: `{ "error": { "code", "message", "details?" } }`,
+siempre — también el 401/403 de Spring Security y los errores del framework. El
+cliente ramifica por `error.code`, nunca por `message`. Abajo, `→ 200 { … }`
+describe el contenido de `data`, y `{ error: "x" }` abrevia
+`{ error: { code: "x", message } }`. Los `Set-Cookie` y `Retry-After` son
+headers y no cambian. Detalle en [`API_REFERENCE.md`](./API_REFERENCE.md#envelope-de-respuestas).
+
 ## Flujos, en el orden en que los vas a escribir
 
 ### Login
 
 ```
 POST /api/auth/login   { username, password }
-→ 200 { accessToken, tokenType: "Bearer", expiresIn: 900, csrfNonce }
+→ 200 { data: { accessToken, tokenType: "Bearer", expiresIn: 900, csrfNonce } }
        Set-Cookie: refresh=…; HttpOnly; Secure; SameSite=Strict; Path=/api/auth/refresh
-→ 401 { error: "credenciales_invalidas", … }
+→ 401 { error: { code: "credenciales_invalidas", message } }
 ```
 
 Guardá `accessToken` y `csrfNonce` en memoria. La cookie ya está puesta.
@@ -206,10 +215,10 @@ otro `403` de la app sigue siendo terminal y nunca dispara un refresh.
 POST /api/auth/refresh
   Cookie: refresh=…            (la manda el browser; usá credentials:'include')
   X-Refresh-CSRF: <nonce>
-→ 200 { accessToken, expiresIn, csrfNonce }  + Set-Cookie con el sucesor
-→ 403 { error: "csrf_invalido" }             el token queda INTACTO
-→ 401 { error: "refresh_invalido" }          desconocido/vencido/revocado
-→ 401 { error: "sesion_invalidada" }         reuso detectado — familia revocada
+→ 200 { data: { accessToken, expiresIn, csrfNonce } }  + Set-Cookie con el sucesor
+→ 403 { error: { code: "csrf_invalido" } }             el token queda INTACTO
+→ 401 { error: { code: "refresh_invalido" } }          desconocido/vencido/revocado
+→ 401 { error: { code: "sesion_invalidada" } }         reuso detectado — familia revocada
 ```
 
 Ante `sesion_invalidada`, no reintentes: mandá al login.
