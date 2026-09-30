@@ -92,7 +92,8 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T8 Domain free of tooling + ArchUnit rule
 - [x] T4 ACID: `TransactionAwareDataSourceProxy` + `@Transactional` replace manual commit/rollback (12 files)
 - [x] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
-- [ ] T3 Push instead of poll: V41 triggers, LISTEN listener + Resilience4j backoff, status bus, SSE, frontend stream reader, remove hand-rolled sleeps, Hikari boot timeout
+- [x] T3a Push instead of poll, backend: Hikari/Flyway boot retries, V41 `pg_notify` triggers, status bus, cron wait on the bus, Resilience4j `withRetry`, LISTEN listener with backoff, `GET /api/events` SSE
+- [ ] T3b Push instead of poll, frontend: fetch-stream reader through `authedFetch` replaces the 1.8 s / 2 s / 4 s polls; unit tests + `tests/e2e` (see "T3b handoff")
 - [ ] T7 SOLID: split `ApiController` (65 handlers) by resource
 - [ ] T1 Final comment sweep across `ar.scraper`
 - [x] ~~T2 Remove unused Lombok dependency~~ — dropped: user wants Lombok DTOs
@@ -302,9 +303,70 @@ Baseline 3151 / 0 / 0 / 7 (HEAD c637b6e). Full `mvn clean test` before each comm
 - Eviction log line not observed at runtime (see boot check).
 - New test `CacheUsageArchTest` (web.cache) forbids `GroupingService.agrupar` outside the bean, cache annotations outside it, and the bean depending on `ActorResolver`.
 
+### T3a evidence
+
+Baseline 3201 / 0 / 0 / 7 (HEAD 89e2a7d). Full `mvn clean test` before each commit, BUILD SUCCESS, 0 `ERROR]` lines.
+
+| Commit | Hash | Tests |
+|---|---|---|
+| 1 `feat(boot): wait for the database with bounded retries` | ce0ca55 | 3203 / 0 / 0 / 7 (+2 `DatabaseBootRetryConfigTest`) |
+| 2 `feat(db): notify status changes from the database` | 1d9124f | 3211 / 0 / 0 / 7 (+6 `V41StatusNotifyTest`, +2 `V41RollbackRoundTripTest`) |
+| 3 `feat(status): publish scrape and ML status on an in-process bus` | abf7c33 | 3221 / 0 / 0 / 7 (+6 `InProcessStatusEventsTest`, +3 `ScraperServiceStatusEventsTest`, +1 `PythonRunnerStatusEventsTest`) |
+| 4 `refactor(scheduling): wait for scrape completion on the status bus` | 443a00a | 3231 / 0 / 0 / 7 (+7 `CronJobRunnerStatusBusTest`, +3 `ScraperServiceRetryBackoffTest`) |
+| 5 `feat(db): listen for database status notifications with backoff` | f279e8e | 3237 / 0 / 0 / 7 (+6 `DbNotificationListenerTest`) |
+| 6 `feat(api): stream status events over SSE` | 89f3844 | 3258 / 0 / 0 / 7 (+6 `ClientQueueTest`, +5 `StatusEventJsonTest`, +4 `EventsControllerTest`, +6 `SseRealPortTest`) |
+
+No existing assertion was deleted, weakened or `@Disabled`; `CronJobRunnerTest`, `ScraperServiceRetryTest`, `ScraperServiceCancelRetryTest` pass untouched.
+
+**Negative controls** (break, run, restore): V41 trigger without its `status IS NOT DISTINCT FROM OLD.status` early return -> `onlyStatusChangesAreAnnounced` red. `DispatcherType.ASYNC` removed from `SecurityConfig` -> `timeoutEndsTheStreamCleanly` red, log shows `AccessDeniedException: Access Denied` on the emitter's re-dispatch. Completing the emitter from a virtual thread in `onTimeout` -> the same test red (`IOException: closed`): Spring saw the callback return without a result and dispatched `AsyncRequestTimeoutException`; reverted to a synchronous `complete()`.
+
+**Boot check** (`clean package -DskipTests`, `java -jar` on JRE 21, profile `dev`, dev DB, env from the gitignored `tests/e2e/.e2e-secrets.env`, existing `e2e-admin` account; cron jobs 3 and 4 disabled for the boot and back to `enabled=true` after, `last_run_at`/`next_run_at` unchanged):
+- `flyway_schema_history`: latest `41|t` (V41 applied to the dev DB by this boot; it was `40` before).
+- `Started App in 5.121 seconds`; only WARN is `UserDetailsServiceAutoConfiguration`; no ERROR.
+- `17:21:11 ... a.s.d.DbNotificationListener [DB-LISTEN] listening on 'status_events'`; `pg_stat_activity` shows one backend with `application_name='scrappy-listen'`.
+- `HikariConfig` (second boot with `--logging.level.com.zaxxer.hikari=DEBUG`): `connectionTimeout...............30000`, `initializationFailTimeout.......60000`, `maximumPoolSize.................10`: the explicit `TransactionConfig` pool binds the new properties.
+- `curl -N GET /api/events` with the `e2e-admin` token: `HTTP/1.1 200`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`, `Content-Type: text/event-stream`; first event `event:snapshot` with `data:{"status":{"status":"DONE","mensaje":"Datos restaurados: 22141 productos",...},"ml":{...}}`; `: ping` arrived after 15 s of quiet.
+- `UPDATE scrape_run SET status=status WHERE id=34` (run 34, already CANCELLED): zero `db.changed`. `CANCELLED -> ERROR -> CANCELLED` on run 34: `data:{"table":"scrape_run","op":"UPDATE","id":34,"status":"ERROR"}` then `...,"status":"CANCELLED"}`. Run 34 is `CANCELLED` again.
+- `pg_terminate_backend` on `application_name='scrappy-listen'`: `17:21:33 WARN [DB-LISTEN] connection lost, reconnecting` then `17:21:33 INFO [DB-LISTEN] listening on 'status_events'`; the open stream received `event:resync` / `data:{}`.
+- After `kill`: 0 `scrappy-listen` backends (clean close). `usuario` 222 before and after; `scrape_run` 34 rows before and after, none RUNNING/INTERRUPTED; no scrape was started.
+
+**Deviations from the plan**
+- `StatusEvent.DbChanged` has an extra `job` field (`DbChanged(table, op, id, run, site, job, status)`): `cron_execution` payloads carry the job id and the UI needs it to refetch the right executions.
+- `PythonRunner` gained a no-arg constructor (kept: six tests build it with `new`) plus an `@Autowired` `PythonRunner(StatusEvents)`. `ScraperService` kept its 8- and 9-arg constructors; the new `@Autowired` one has 10 args.
+- Every `status`/`statusMsg` write in `ScraperService` goes through `transition(status, msg)` or `anunciar(msg)`; progress through `progreso(...)`, which is also called once after the global-deadline loop (a fourth publish point the plan did not list). `tomarElTurno` publishes nothing: each caller announces right after (RUNNING + its message).
+- `CronJobRunner.awaitTerminal` returns the status carried by the event, not a re-read of `scrape.estado()`: a new run started between the event and the read would otherwise report `success` for the wrong run. A package-private constructor takes the re-check interval (60 s in production) so tests use 20-30 ms.
+- `withRetry`: the interrupt during the backoff is not surfaced by Resilience4j, so the method checks `Thread.interrupted()` after a failed `executeCallable` and rethrows `InterruptedException`. Covered by `anInterruptDuringTheBackoffEndsTheRetriesAndIsNotSwallowed`.
+- Extra optional env var `DB_CONNECT_RETRY_INTERVAL` (Flyway retry interval, default `10s`). `spring.mvc.async.request-timeout=660000` backstop added.
+- Comments: the heartbeat is `: ping` (Spring renders `comment("ping")` as `:ping`; the code passes `" ping"`), sent after 15 s WITHOUT traffic (the pump waits on the queue, so any event resets the timer). Wire format is `event:name` / `data:json` (no space after the colon; valid SSE).
+- SSE is a new `EventsController` (not a method of `ApiController`, which T7 will split); it gets the snapshot DTOs through two new public accessors on `ApiController` (`statusSnapshot()`, `mlEstadoSnapshot()`) backed by `ScrapeControlEndpoints.statusDto()` / `MlEndpoints.estadoDto()`, which the existing handlers now also use. `ScrapeDtos.SitioProgreso.desde(...)` is the single copy of the lower-case-state / 60-char-error rule.
+- `docs/DATABASE.md` migration table was missing `V40`; added with `V41`. `CLAUDE.md` still says `V1..V40` (user-only file, not touched).
+- Comment cleanup was NOT swept in the touched hunks of `ScraperService`, `PythonRunner`, `App` (left to T1); new files carry only why-comments.
+
+**Not observed / caveats**
+- No scrape ran during the boot check, so `scrape.progress` and `ml.status` events were verified by unit tests only (`InProcessStatusEventsTest`, `ScraperServiceStatusEventsTest`, `PythonRunnerStatusEventsTest`); `progreso(...)` and the backfill `MlStatus` are not exercised end to end (need a real scrape / a Python subprocess).
+- Hikari waiting for a database that is down at boot, and Flyway `connect-retries`, are covered by the binding test only (`DatabaseBootRetryConfigTest`); not exercised against a stopped database.
+- `ScrapeRunIndexBenchmarkTest` (wall-clock benchmark, threshold +10%) failed once in the commit-2 run (+12.5% with four forks competing); green alone and on the rerun. Pre-existing and unrelated to V41.
+- `SseRealPortTest.slowClientGetsDropOldestAndAResync` takes ~10 s (it waits for the emitter timeout). A reader that stops reading ties up only its own write thread, but the timeout callback of that client waits on the emitter monitor until Tomcat cuts the write (`server.tomcat.connection-timeout`, 20 s). Documented in `docs/GOTCHAS.md`.
+
+### T3b handoff
+
+For the frontend writer. Contract source of truth: `docs/openapi.yaml` (`/api/events`) and `docs/API_REFERENCE.md` (`GET /events`).
+
+- **Endpoint**: `GET /api/events`, `text/event-stream`. Any authenticated role. The token is a Bearer header held in memory, so `EventSource` cannot be used: read it with `authedFetch` and a `response.body.getReader()` stream parser (split on blank lines; a line starting with `:` is a comment/heartbeat; `event:` names the event, `data:` is one line of JSON; there is no space after the colon, parsers must accept both forms).
+- **Order**: the first event is always `snapshot`. `data` = `{ "status": <data of GET /api/status>, "ml": <data of GET /api/ml/estado> }`; replace the local state with it.
+- **Events** (names exact):
+  - `scrape.status`: `{ status: "IDLE"|"RUNNING"|"DONE"|"ERROR", mensaje }`.
+  - `scrape.progress`: `{ total, completados, productos, sitios: [{ nombre, estado: "esperando"|"en_curso"|"done"|"error", count, durMs, error? }] }` (same as `status.progreso`; at most 4 per second).
+  - `ml.status`: `{ kind: "training"|"backfill", running, phase, pct, msg, startedAt }` (`startedAt` is `""` when unset; for `training` it is the `ml.training` object of `/api/ml/estado`).
+  - `db.changed`: `{ table: "scrape_run"|"scrape_run_site"|"cron_execution", op: "INSERT"|"UPDATE", id?, run?, site?, job?, status }` (only present fields are sent). `cron_execution` is sent to ADMIN only. Use it as a cue to refetch (runs list, `/api/cron` executions), not as the data itself.
+  - `resync`: `{}`. Events may have been lost (the app reconnected to the database, or this client fell behind and the oldest events were dropped): refetch `/api/status`, `/api/ml/estado` and whatever cron/run data the screen shows.
+- **Lifetime and reconnect**: the server closes the stream after 10 minutes (access token lives 15) and a `: ping` comment arrives every 15 s of quiet. The reader must reconnect on any end or error, through `authedFetch` so an expired token is refreshed first; each connection starts with a fresh `snapshot`. Use a short backoff with jitter on repeated failures and stop on 401 after a failed refresh (session over). A 401 before the stream starts has the standard `{ error: { code: "no_autenticado" } }` envelope.
+- **Replace**: the 1.8 s `/api/status` poll (`useScrapeStatusPolling`, `readStatus`), the 2 s and 4 s ML polls (`MlStatusPanel`, Topbar/splash), keeping a one-shot fetch on mount and on `resync` as fallback. The CLI keeps polling `/api/status` (contract unchanged).
+- **Tests**: unit-test the parser with split chunks, comments, multi-event chunks and CRLF; e2e (`tests/e2e/run-e2e.sh`, never `vite dev`) must assert the banner/progress update without a poll and that the stream survives a forced token refresh. `scrape-poller.spec.js` stubs `/api/status`; it needs a stub for `/api/events` or the reader falls back to polling.
+
 ## Next step
 
-T3: push instead of poll (V41 triggers, LISTEN listener, status bus, SSE).
+T3b (frontend stream reader), then T7, T1.
 
 ### Upsert sentinel decision APPLIED (user, 2026-09-30) in 6f15a11
 
@@ -315,4 +377,4 @@ outside the `@Transactional` boundary, plus a test with an unreachable DataSourc
 
 Applied in 6f15a11: `ProductRepository` opens the transaction with a `TransactionTemplate` (extra ctor arg `PlatformTransactionManager`), catching open failures outside it. Test: `ProductRepositoryNoTransactionTest` (negative control red/green). Suite 3201 / 0 / 0 / 7.
 
-Next: T3 (plan in Engram `odd/backend-hardening/t3-plan`), T7, T1.
+Next: T3 (plan in Engram `odd/backend-hardening/t3-plan`), T7, T1. (T3a done below.)
