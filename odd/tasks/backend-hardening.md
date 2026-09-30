@@ -305,3 +305,12 @@ Baseline 3151 / 0 / 0 / 7 (HEAD c637b6e). Full `mvn clean test` before each comm
 ## Next step
 
 T3: push instead of poll (V41 triggers, LISTEN listener, status bus, SSE).
+
+### Pending decision applied next (user, 2026-09-30)
+
+User chose "0 nuevos": when a transaction cannot even be opened (DB down), `upsertProductos` /
+`upsertParcial` must return the sentinel (`UpsertStats(0,0,0,0)`) again instead of propagating
+(T4 changed this; caller `ResultAggregator.java:143`). Fix before T3: catch at the port wrapper
+outside the `@Transactional` boundary, plus a test with an unreachable DataSource.
+
+Next: that fix, then T3 (plan in Engram `odd/backend-hardening/t3-plan`), T7, T1.
