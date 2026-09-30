@@ -9,7 +9,7 @@ package ar.scraper.agent;
  * this instead of manufacturing a {@link ChatResponse} carrying error prose.
  *
  * <p>{@link #reason()} is logged only — it never crosses the wire.
- * {@code ApiController} maps every reason to the same stable
+ * {@code AgentController} maps every reason to the same stable
  * {@code codigo: "proveedor_no_disponible"} discriminator via a local
  * {@code try/catch}, not a global {@code @ExceptionHandler}.</p>
  */

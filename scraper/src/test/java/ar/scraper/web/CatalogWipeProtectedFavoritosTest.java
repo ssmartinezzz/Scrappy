@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
  * {@link DbAdminController}/{@link DatabaseService} write path against a real
  * Postgres via {@link PostgresTestBase} — only {@link ScraperService} and
  * {@link ResultAggregator} are mocked (same seam as
- * {@code ApiControllerStatusScrapeTest}), so the FK RESTRICT surfaces exactly
+ * {@code ScrapeControllerTest}), so the FK RESTRICT surfaces exactly
  * as it would in production.</p>
  */
 @Epic("REST API")

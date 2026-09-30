@@ -37,7 +37,7 @@ public class ProposeReclassifyTool implements CatalogTool {
      * (obs #839).
      *
      * <p>Public because this tool is NOT the write path — it only returns a
-     * proposal diff. {@code AgentEndpoints.agentApply} is what actually
+     * proposal diff. {@code AgentController.agentApply} is what actually
      * writes, is reachable without ever calling this tool, and validates
      * against this same set. One domain, one definition: a second copy would
      * drift from V6 the first time the domain changes.

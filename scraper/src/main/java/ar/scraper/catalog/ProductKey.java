@@ -28,7 +28,7 @@ import org.apache.commons.lang3.StringUtils;
  * cast de {@code text} a {@code bytea} que no lo es.</p>
  *
  * <p><b>Es pública por una duplicación, no por diseño.</b> Sus consumidores
- * fuera de este paquete son {@code CatalogoEndpoints} y
+ * fuera de este paquete son {@code CatalogoController} y
  * {@code ar.scraper.json.ProductJson#escribir}: esa línea de endpoint es una
  * copia. Unificadas las dos copias del shape de fila, queda solo el serializador.</p>
  */

@@ -15,8 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pure unit tests for {@link SenalCalculator}. Replicates the classification
- * logic that previously lived inline in ApiController.recomendacion (lines
- * 588-652), now extracted as a dependency-free, testable function.
+ * logic that previously lived inline in FinanciacionController.recomendacion,
+ * now extracted as a dependency-free, testable function.
  */
 @Epic("ML Pipeline")
 @Feature("Señales de Compra")

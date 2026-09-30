@@ -24,7 +24,9 @@ public class MarcasPicksController {
     }
 
     @GetMapping("/marcas-browser")
-    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.Marca>>> marcasBrowser(@RequestParam(required = false) String rubro, @RequestParam(required = false) String q, @RequestParam(defaultValue = "count") String sort) {
+    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.Marca>>> marcasBrowser(@RequestParam(required = false) String rubro,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "count") String sort) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(ApiResponse.ok(
                 derivados.marcas(MarcasKey.de(service.snapshotVersion(), rubro, q, sort))));

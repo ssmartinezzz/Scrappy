@@ -90,5 +90,4 @@ public class ScrapeController {
         return ResponseEntity.ok(ApiResponse.ok(new ScrapeDtos.Iniciar(ok,
                 ok ? "Scraping iniciado" : "Ya hay un scraping en curso")));
     }
-
 }

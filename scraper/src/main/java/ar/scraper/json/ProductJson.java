@@ -25,9 +25,6 @@ public final class ProductJson {
      * catálogo) para que catálogo, ML y mejores picks compartan una única fuente
      * de verdad. Guard contra división por cero: {@code cantidadUnidades <= 0}
      * cae al precio de estantería.
-     *
-     * <p>{@code ApiController.precioUnitario} stays as a static delegate to this
-     * method: it is part of the surface a test calls directly.</p>
      */
     public static double precioUnitario(Product p) {
         return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();

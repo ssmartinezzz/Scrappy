@@ -49,7 +49,9 @@ public class SuplementosController {
      * "Regenerar" offers the next candidate. 204 when no scrape data exists, 400 when tipos is blank.
      */
     @GetMapping("/suplementos/builder")
-    public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(@RequestParam(required = false) String tipos, @RequestParam(defaultValue = "0") double presupuesto, @RequestParam(defaultValue = "") String excluir) {
+    public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(@RequestParam(required = false) String tipos,
+            @RequestParam(defaultValue = "0") double presupuesto,
+            @RequestParam(defaultValue = "") String excluir) {
         if (StringUtils.isBlank(tipos)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "tipos is required");
         }
@@ -86,5 +88,4 @@ public class SuplementosController {
 
         return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.SuplementosBuilder(SuplementoPicks.desde(picks), sinStock)));
     }
-
 }

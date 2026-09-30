@@ -30,10 +30,8 @@ import java.util.Set;
  * anything — saving a build stays in the {@code /pcs} page ({@code
  * POST /api/pcs/save}).
  *
- * <p>{@link PcBuilder} is not a Spring bean ({@code ApiController} builds
- * its own), and {@code agent/} may not depend on {@code web/} (ArchUnit
- * {@code agentNoDependeDeWeb}) — so this tool builds its own {@link
- * PcBuilder} from the injected {@link RecommendationService}.
+ * <p>{@link PcBuilder} is stateless, so this tool builds its own instead of
+ * sharing the bean {@code PcsController} gets.
  */
 @Component
 public class ProposePcTool implements CatalogTool {

@@ -340,7 +340,7 @@ class PythonRunnerSequencingTest {
     // ── T6.2b: re-entrancy guard for construirIndiceVisualEnBackground ──────
     // (deferred WARNING from PR5's 4R review, obs #369 — "reentrancy guard for
     // construirIndiceVisualEnBackground, do in PR6 when wiring /api/ml/entrenar,
-    // mirror ApiController isTrainingRunning() guard"). ApiController already
+    // mirror MlController isTrainingRunning() guard"). MlController already
     // rejects a second HTTP request when isTrainingRunning() is true, but that
     // check happens on the HTTP thread BEFORE the virtual thread that actually
     // flips trainingStatus to running=true ever starts running — a burst of
@@ -397,7 +397,7 @@ class PythonRunnerSequencingTest {
 
     // ── RESI-002 ≡ RELY-001 (4R PR6 follow-up): the CAS result must be ──────
     // observable by the caller. Before this fix the guard was void inside the
-    // entrypoint, so ApiController could not distinguish "sequence launched"
+    // entrypoint, so MlController could not distinguish "sequence launched"
     // from "silently dropped" — a near-simultaneous double POST /api/ml/entrenar
     // gave the loser a 200 "started" for a request that never ran.
 

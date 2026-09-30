@@ -30,7 +30,7 @@ import static org.mockito.Mockito.*;
  * POJO — like every other controller test in this codebase, it is
  * instantiated directly with Mockito-mocked collaborators rather than via a
  * Spring MVC test slice (no {@code @WebMvcTest} convention exists in this
- * project — see {@code ApiControllerFinanciacionTest}).
+ * project — see {@code FinanciacionControllerTest}).
  */
 @Epic("Cron Scheduling")
 @Feature("REST API")

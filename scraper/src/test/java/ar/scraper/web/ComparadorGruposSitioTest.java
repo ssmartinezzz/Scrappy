@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 /**
  * The {@code sitio} filter on {@code GET /api/grupos}.
  *
- * <p>The parameter was declared in {@code ApiController}, threaded all the way
+ * <p>The parameter was declared in the old monolithic controller, threaded all the way
  * down to {@code ComparadorController.grupos}, and then never used — a request
  * with {@code ?sitio=freres} was silently answered as if no filter had been
  * sent at all.</p>

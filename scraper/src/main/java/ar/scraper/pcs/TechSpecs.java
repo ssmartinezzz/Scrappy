@@ -48,7 +48,7 @@ public record TechSpecs(
 
     /**
      * Pre-{@code pc-builder-gama} shape, kept so callers that only ever read
-     * socket/ddr/formFactor/watts/capacidadGb/tipoMemoria (PcsEndpoints,
+     * socket/ddr/formFactor/watts/capacidadGb/tipoMemoria (PcsController,
      * PcBuildJsonTest, DatabaseServiceSavedPcsTest) keep compiling untouched
      * — refactor contract, CODE-2. The four new fields default to their
      * abstention values, same as EMPTY.
