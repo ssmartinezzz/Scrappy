@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
  * Unit tests for {@link CronJobRunner} — replicates the {@code /api/scrape}
  * recipe for a single {@link CronJob}: RUNNING guard (skip), price/GPU-flag
  * restore in {@code finally} even on failure, and the happy path. Mockito
- * only, no Spring context (matches {@code ApiControllerFinanciacionTest}
+ * only, no Spring context (matches {@code FinanciacionControllerTest}
  * style).
  */
 @Epic("Cron Scheduling")

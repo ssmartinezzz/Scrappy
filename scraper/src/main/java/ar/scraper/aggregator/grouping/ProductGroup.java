@@ -12,7 +12,7 @@ import org.apache.commons.lang3.StringUtils;
  *
  * <p>Promoted to top-level from its former home as a nested class inside
  * {@code GroupingService} (Work Unit 2 of the aggregator SOLID
- * modularization). Getter signatures are FROZEN — {@code ApiController}
+ * modularization). Getter signatures are FROZEN — {@code ComparadorController}
  * JSON-maps them directly ({@code getNombre}, {@code getCategoria},
  * {@code getImg}, {@code getProductos}, {@code sitiosDistintos},
  * {@code precioMinimo}, {@code precioMaximo}, {@code ahorroPct}).</p>

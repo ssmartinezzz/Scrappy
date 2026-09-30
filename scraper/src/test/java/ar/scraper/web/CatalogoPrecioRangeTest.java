@@ -1,0 +1,231 @@
+package ar.scraper.web;
+
+import ar.scraper.db.TestDatabaseServices;
+import ar.scraper.web.support.Wire;
+
+import ar.scraper.indices.IndiceService;
+
+import ar.scraper.aggregator.ResultAggregator;
+import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.config.ScraperConfig;
+import ar.scraper.db.DatabaseService;
+import ar.scraper.model.Product;
+import ar.scraper.model.Product.SenalFinanciacion;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Allure;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Unit tests for the additive {@code precioMin}/{@code precioMax} optional
+ * query params on {@code GET /api/data} (frontend-redesign-responsive PR1,
+ * Phase 2). Mirrors {@code FinanciacionControllerTest}'s convention:
+ * {@code CatalogoController} is a plain {@code @RestController} POJO instantiated
+ * directly with Mockito-mocked collaborators.
+ *
+ * <p>Regression guard: omitting both params must preserve {@code /api/data}
+ * behavior exactly as it was before this change — verified by
+ * {@link #omittingBothParamsPreservesPriorBehaviorExactly()}.</p>
+ */
+@Epic("REST API")
+@Feature("Filtros / Facets")
+@Story("Precio range")
+@DisplayName("CatalogoController — Precio range filter")
+class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
+
+    private ScraperService service;
+    private IndiceService indiceService;
+    private ScraperConfig config;
+    private DatabaseService db;
+    private CatalogoController controller;
+
+    @BeforeEach
+    void setUp() {
+        wireController();
+
+        when(config.getMoneda()).thenReturn("ARS");
+    }
+
+    @Step("Wire CatalogoController with mocked collaborators")
+    private void wireController() {
+        service          = mock(ScraperService.class);
+        indiceService = mock(IndiceService.class);
+        when(indiceService.deflactorParaRubro(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
+        config            = mock(ScraperConfig.class);
+        db                = TestDatabaseServices.create(dataSource());
+        controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
+    }
+
+    /**
+     * `/api/data` lee de la BASE desde `sql-catalog-filtering`, no del snapshot
+     * en memoria: sembrar es un upsert real. Stubbear el mock en vez de esto
+     * dejaría estos tests verificando que Mockito devuelve lo que se le dijo.
+     */
+    private final java.util.List<Product> sembrados = new java.util.ArrayList<>();
+
+    private void sembrar(Product... productos) {
+        // Acumulativo a propósito: upsertProductos hace soft-delete de todo lo
+        // que NO viene en el batch, así que sembrar dos veces desactivaría lo
+        // sembrado antes. PostgresTestBase trunca entre tests, no hace falta
+        // limpiar la lista a mano.
+        sembrados.addAll(java.util.List.of(productos));
+        db.upsertProductos(java.util.List.copyOf(sembrados));
+    }
+
+    private Product producto(String url, double precio) {
+        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+    }
+
+    /** Pack/combo product — {@code precioTotal} is the bundle price, not the per-unit price. */
+    private Product productoPack(String url, double precioTotal, int cantidadUnidades) {
+        return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
+                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
+                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, cantidadUnidades);
+    }
+
+    private AggregatedResult resultFor(Product... productos) {
+        List<Product> lista = List.of(productos);
+        double min = lista.stream().mapToDouble(Product::precio).min().orElse(0);
+        double max = lista.stream().mapToDouble(Product::precio).max().orElse(0);
+        return new AggregatedResult(lista, Map.of("Sitio", lista.size()), Map.of(),
+                ResultAggregator.calcularFacets(lista), min, max);
+    }
+
+    // ── precioMin/precioMax filter products within range ───────────────────
+
+    @Test
+    void precioMinAndPrecioMaxFilterProductsWithinRangeInclusive() {
+        Product barato = producto("https://site.com/barato", 5000);
+        Product medio  = producto("https://site.com/medio", 15000);
+        Product caro   = producto("https://site.com/caro", 50000);
+        sembrar(barato, medio, caro);
+
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null,
+                null, null, null, null);
+
+        JsonNode body = Wire.data(resp);
+        JsonNode productos = body.path("productos");
+        assertThat(productos).hasSize(1);
+        assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/medio");
+        assertThat(Wire.page(resp).path("total").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void precioMinAloneFiltersOutCheaperProducts() {
+        Product barato = producto("https://site.com/barato2", 1000);
+        Product caro   = producto("https://site.com/caro2", 90000);
+        sembrar(barato, caro);
+
+        Allure.parameter("precioMin", 5000.0);
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 5000.0, null, null,
+                null, null, null, null);
+
+        JsonNode productos = Wire.data(resp).path("productos");
+        assertThat(productos).hasSize(1);
+        assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/caro2");
+    }
+
+    @Test
+    void precioMaxAloneFiltersOutMoreExpensiveProducts() {
+        Product barato = producto("https://site.com/barato3", 1000);
+        Product caro   = producto("https://site.com/caro3", 90000);
+        sembrar(barato, caro);
+
+        Allure.parameter("precioMax", 5000.0);
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, null, 5000.0, null,
+                null, null, null, null);
+
+        JsonNode productos = Wire.data(resp).path("productos");
+        assertThat(productos).hasSize(1);
+        assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/barato3");
+    }
+
+    @Test
+    void boundaryPricesEqualToMinOrMaxAreIncluded() {
+        Product atMin = producto("https://site.com/atmin", 10000);
+        Product atMax = producto("https://site.com/atmax", 20000);
+        Product outside = producto("https://site.com/outside", 25000);
+        sembrar(atMin, atMax, outside);
+
+        Allure.parameter("precioMin", 10000.0);
+        Allure.parameter("precioMax", 20000.0);
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null,
+                null, null, null, null);
+
+        JsonNode productos = Wire.data(resp).path("productos");
+        assertThat(productos).hasSize(2);
+    }
+
+    // ── Pack/combo products are filtered by unit price, not total price ────
+
+    @Test
+    void packProductIsFilteredByUnitPriceNotTotalPrice() {
+        // 3-pack at $36000 total => $12000/unit, falls inside [10000, 15000]
+        Product packDentroDelRango = productoPack("https://site.com/pack-in", 36000, 3);
+        // single unit at $36000, falls outside [10000, 15000]
+        Product unidadFueraDelRango = producto("https://site.com/unidad-out", 36000);
+        sembrar(packDentroDelRango, unidadFueraDelRango);
+
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null,
+                null, null, null, null);
+
+        JsonNode productos = Wire.data(resp).path("productos");
+        assertThat(productos).hasSize(1);
+        assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/pack-in");
+    }
+
+    @Test
+    void packProductOutsideUnitPriceRangeIsExcludedEvenIfTotalPriceWouldMatch() {
+        // 5-pack at $12000 total => $2400/unit, total $12000 would match [10000, 15000]
+        // but the real per-unit price ($2400) does not — must be excluded.
+        Product pack = productoPack("https://site.com/pack-cheap-unit", 12000, 5);
+        sembrar(pack);
+
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null,
+                null, null, null, null);
+
+        JsonNode productos = Wire.data(resp).path("productos");
+        assertThat(productos).isEmpty();
+    }
+
+    // ── Backward compatibility: omitting both params ────────────────────────
+
+    @Test
+    void omittingBothParamsPreservesPriorBehaviorExactly() {
+        Product a = producto("https://site.com/a", 1000);
+        Product b = producto("https://site.com/b", 90000);
+        sembrar(a, b);
+
+        ResponseEntity<?> respWithoutNewParams = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
+
+        JsonNode body = Wire.data(respWithoutNewParams);
+        assertThat(body.path("productos")).hasSize(2);
+        assertThat(Wire.page(respWithoutNewParams).path("total").asInt()).isEqualTo(2);
+        assertThat(Wire.page(respWithoutNewParams).path("totalPages").asInt()).isEqualTo(1);
+    }
+}

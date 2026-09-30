@@ -98,7 +98,8 @@ public class MlController {
     }
 
     @PostMapping("/ml/entrenar")
-    public ResponseEntity<ApiResponse<MlDtos.Started>> mlEntrenar(@RequestParam(defaultValue = "false") boolean images, @RequestParam(defaultValue = "8") int epochs) {
+    public ResponseEntity<ApiResponse<MlDtos.Started>> mlEntrenar(@RequestParam(defaultValue = "false") boolean images,
+            @RequestParam(defaultValue = "8") int epochs) {
         if (pythonRunner.isTrainingRunning()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ml_en_curso", "Entrenamiento ya en curso");
         }

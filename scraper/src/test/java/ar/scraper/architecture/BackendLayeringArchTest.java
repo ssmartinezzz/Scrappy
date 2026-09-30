@@ -271,11 +271,8 @@ class BackendLayeringArchTest {
         });
 
     // The sitio aggregate's 3 methods. NOT siteRegistry(): that accessor returns
-    // a Spring @Component, and reading a port or bean off the facade is the
-    // route ApiController already uses for every hand-built endpoint
-    // (db.productos(), db.presets(), db.favoritos()). Retiring those accessors
-    // is F4 work, when the endpoints become beans; banning it here would widen
-    // ApiController's constructor without retiring a single repository.
+    // a Spring @Component, like db.productos() or db.presets(); the controllers
+    // get those by injection now, so banning it would catch nothing.
     private static final Set<String> METODOS_SITIOS =
         Set.of("guardarSitio", "eliminarSitio", "cargarSitiosDinamicos");
 

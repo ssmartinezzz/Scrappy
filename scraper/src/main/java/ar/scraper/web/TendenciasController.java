@@ -80,5 +80,4 @@ public class TendenciasController {
         if (hist.isEmpty()) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(ApiResponse.ok(HistorialJson.construir(hist)));
     }
-
 }

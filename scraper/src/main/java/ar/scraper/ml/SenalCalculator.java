@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * Pure, dependency-free buy-signal classifier. Lifted from the inline logic
- * that previously lived in {@code ApiController.recomendacion} (lines
+ * that previously lived in {@code FinanciacionController.recomendacion} (lines
  * 588-652), so it can be precomputed once per scrape run (mirroring the
  * {@code MlEnricher}/{@code MlScore} pattern) instead of being recalculated
  * on every live request.

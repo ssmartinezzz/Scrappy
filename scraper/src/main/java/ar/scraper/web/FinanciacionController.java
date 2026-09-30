@@ -91,7 +91,8 @@ public class FinanciacionController {
     }
 
     @PutMapping("/financiacion/presets/{id}")
-    public ResponseEntity<ApiResponse<OpResult>> editarPreset(@PathVariable int id, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> editarPreset(@PathVariable int id,
+            @RequestBody Map<String, Object> body) {
         rechazarSiHayScraping();
         String label = String.valueOf(body.getOrDefault("label", "")).trim();
         Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));

@@ -92,7 +92,9 @@ public class ComparadorController {
     }
 
     @GetMapping("/buscar-externo")
-    public ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(@RequestParam String q, @RequestParam(required = false) String url, @RequestParam(defaultValue = "mercadolibre") String sitio) {
+    public ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(@RequestParam String q,
+            @RequestParam(required = false) String url,
+            @RequestParam(defaultValue = "mercadolibre") String sitio) {
         try {
             // Strip size/colour/gender/SKU codes: keep brand + model.
             String cleanQ = limpiarQueryBusqueda(q);

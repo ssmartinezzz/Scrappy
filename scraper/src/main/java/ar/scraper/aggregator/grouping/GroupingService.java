@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * {@link JaccardSimilarity}, map to {@link ProductGroup}, filter
  * {@code soloMultiSitio}, sort by minimum price. Public
  * {@code agrupar(List, boolean)} signature is unchanged from the
- * pre-extraction class — {@code ApiController} call site unaffected.</p>
+ * pre-extraction class — callers unaffected.</p>
  */
 @Component
 public class GroupingService {

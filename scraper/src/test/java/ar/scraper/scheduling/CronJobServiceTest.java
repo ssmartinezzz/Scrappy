@@ -31,7 +31,7 @@ import static org.mockito.Mockito.*;
  * {@link org.springframework.scheduling.support.CronExpression}), the
  * create/update CRUD facade, and the {@code tick()} poller dispatch logic.
  * No Spring context — plain Mockito, matching the rest of the codebase's test
- * style (see {@code ApiControllerFinanciacionTest}).
+ * style (see {@code FinanciacionControllerTest}).
  */
 @Epic("Cron Scheduling")
 @Feature("Job Service")

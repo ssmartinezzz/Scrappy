@@ -317,7 +317,7 @@ endpoint, y Mockito devuelve colección vacía para un método que devuelve
 `List`/`Set` — así que `db.obtenerOutfitFeedback(...)` "andaba" sin stub. En
 cuanto el endpoint recibe un puerto, ese mismo mock devuelve **null** para
 `db.feedback()` y el fixture muere con un NPE que no nombra ningún cambio de
-comportamiento. La ruta ya estaba escrita por `ApiControllerFavoritosTest`:
+comportamiento. La ruta ya estaba escrita por `FavoritosControllerTest`:
 mockear el puerto y stubear el accessor. Y `SiteRegistrySingletonWiringTest` arma
 su contexto Spring **a mano**, clase por clase: un `@Repository` nuevo no aparece
 ahí solo.
@@ -405,6 +405,8 @@ arista es legítima y deseada. Reapuntarla habría prohibido justo el patrón qu
 F2 construyó.
 
 **El dominio no importa herramientas (backlog `backend-hardening`, T8).** `dominioSinHerramientas` prohíbe a las áreas, a `model` y a `health` nombrar Spring, Jackson, `java.sql`/`javax.sql`, Playwright, servlet o logback. Lo que había: `SiteRegistry` leía JDBC, cuatro puertos lanzaban `SQLException`, el JSON de borde vivía en `catalog`/`pcs` y los servicios de dominio llevaban `@Component`/`@Scheduled`. Hoy: los adaptadores traducen `SQLException` a `model.PersistenciaException` (`FavoritosProtegidosException` la extiende), `SiteRegistry` lee por `classification.SiteSource` (`db.JdbcSiteSource`), los serializadores están en `ar.scraper.json` y los puertos con `JsonNode` en `ar.scraper.ml`, cada servicio de dominio se arma con `@Bean` en `config/*Config`, y lo que necesita Spring en runtime (`@Scheduled`, `ApplicationRunner`, `CronExpression`) es un adaptador en `config` (`CronTicker`, `IndiceRefreshRunner`, `SpringCronSchedule` detrás de `scheduling.CronSchedule`, `LogbackRunLogCapture` detrás de `scheduling.RunLogCapture`). `SpringWiringTest` reconoce como resolubles los tipos que devuelve un `@Bean`.
+
+**Un `@RestController` por recurso (backlog `backend-hardening`, T7).** `ApiController` (65 handlers) y los `*Endpoints` que armaba con `new` pasaron a ser un controller por recurso, cada uno un bean con los puertos inyectados: `Catalogo`, `Comparador`, `MarcasPicks`, `Recomendados`, `Favoritos`, `Outfits`, `Suplementos`, `Pcs`, `Ml`, `Tendencias`, `Agent`, `Financiacion`, `DbAdmin`, `Scrape` y `Sitios`. Con eso los accessors de `DatabaseService` que sólo existían para ese armado a mano (`favoritos()`, `presets()`…) quedaron como asa de tests, y los descriptos arriba como "desviación hasta que los endpoints sean beans" dejaron de serlo. El snapshot que lee `EventsController` salió a dos vistas chicas (`ScrapeStatusView`, `MlEstadoView`) para que no dependa de un controller. `PcBuilder` es bean en `PcsConfig`. Las rutas no cambian: `LiveRouteSetTest` fija el conjunto (método, path) contra `rutas-vivas.txt`.
 
 ---
 
@@ -1130,7 +1132,7 @@ Capas internas del backend (sin cambios de forma, solo el datasource):
 
 ```
 ┌───────────────────▼─────────────────────┐
-│         ApiController.java              │  Spring MVC (+ CorsConfig)
+│         *Controller.java (web/)         │  Spring MVC (+ CorsConfig)
 ├─────────────────────────────────────────┤
 │         ScraperService.java             │  Orquestación async
 ├──────────────┬──────────────────────────┤
@@ -1409,8 +1411,7 @@ caches (SQL y snapshot) conviven: cada una es válida para el dato que versiona.
 **Sólo vistas anónimas del catálogo.** Recomendados, outfits, PCs, suplementos
 y favoritos leen al usuario autenticado y no se cachean: `CacheUsageArchTest`
 prohíbe que el bean dependa de `ActorResolver`. Las anotaciones de cache viven
-en un único bean porque los `*Endpoints` se construyen con `new` y ahí serían
-inertes. Las claves normalizan a minúsculas (los filtros ya comparan sin
+en un único bean, `CatalogoDerivadoCache`, que los controllers reciben por inyección. Las claves normalizan a minúsculas (los filtros ya comparan sin
 mayúsculas) pero no hacen `trim`: los endpoints tampoco.
 
 ---

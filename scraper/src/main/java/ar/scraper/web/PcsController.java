@@ -269,7 +269,8 @@ public class PcsController {
     }
 
     @PatchMapping("/pcs/saved/{id}/nombre")
-    public ResponseEntity<ApiResponse<OpResult>> renameSavedPc(@PathVariable int id, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> renameSavedPc(@PathVariable int id,
+            @RequestBody Map<String, Object> body) {
         String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
         if (nombre.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");
