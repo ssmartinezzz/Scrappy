@@ -22,7 +22,7 @@ import java.time.Duration;
  */
 @Configuration
 @EnableCaching(proxyTargetClass = true)
-class CacheConfig {
+public class CacheConfig {
 
     @Bean
     CacheManager cacheManager(
