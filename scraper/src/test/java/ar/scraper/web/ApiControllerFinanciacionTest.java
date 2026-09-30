@@ -1,26 +1,18 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.scrape.ScraperStatus;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
-import ar.scraper.ml.FinanciacionEnricher;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -58,15 +50,10 @@ class ApiControllerFinanciacionTest {
 
     private ScraperService service;
     private IndiceService indiceService;
-    private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
     private PresetPort presets;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private FinanciacionController controller;
 
     @BeforeEach
     void setUp() {
@@ -77,17 +64,11 @@ class ApiControllerFinanciacionTest {
     private void wireController() {
         service               = mock(ScraperService.class);
         indiceService      = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         presets               = mock(PresetPort.class);
         when(db.presets()).thenReturn(presets);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new FinanciacionController(service, indiceService, db.presets(), db.historial(), db.productos(), aggregator);
     }
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {

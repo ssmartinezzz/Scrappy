@@ -2,17 +2,10 @@ package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
@@ -36,15 +29,8 @@ import static org.mockito.Mockito.*;
 class ApiControllerSuplementosBuilderTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
-    private ScraperConfig config;
-    private ResultAggregator aggregator;
-    private DatabaseService db;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
     private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private SuplementosController controller;
 
     @BeforeEach
     void setUp() {
@@ -54,16 +40,8 @@ class ApiControllerSuplementosBuilderTest {
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
-        aggregator            = mock(ResultAggregator.class);
-        db                    = mock(DatabaseService.class);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new SuplementosController(service, outfitService);
     }
 
     // ── GET /suplementos/tipos ────────────────────────────────────────────
@@ -118,7 +96,7 @@ class ApiControllerSuplementosBuilderTest {
     void suplementosBuilder_returns204WhenNoCatalog() {
         when(service.getLastResult()).thenReturn(null);
 
-        var resp = controller.suplementosBuilder("Proteína", 0);
+        var resp = controller.suplementosBuilder("Proteína", 0, "");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
         verifyNoInteractions(outfitService);
@@ -127,7 +105,7 @@ class ApiControllerSuplementosBuilderTest {
     @Test
     void suplementosBuilder_returns400WhenTiposIsBlank() {
         Allure.parameter("tipos", "");
-        var resp = Wire.answer(() -> controller.suplementosBuilder("", 0));
+        var resp = Wire.answer(() -> controller.suplementosBuilder("", 0, ""));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(outfitService);
@@ -135,7 +113,7 @@ class ApiControllerSuplementosBuilderTest {
 
     @Test
     void suplementosBuilder_returns400WhenTiposIsNull() {
-        var resp = Wire.answer(() -> controller.suplementosBuilder(null, 0));
+        var resp = Wire.answer(() -> controller.suplementosBuilder(null, 0, ""));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(outfitService);
@@ -146,7 +124,7 @@ class ApiControllerSuplementosBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
-        var resp = controller.suplementosBuilder("Proteína", 0);
+        var resp = controller.suplementosBuilder("Proteína", 0, "");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -165,7 +143,7 @@ class ApiControllerSuplementosBuilderTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any()))
                 .thenReturn(List.of(pick1, pick2));
 
-        var resp = controller.suplementosBuilder("Proteína en Polvo,Creatina", 0);
+        var resp = controller.suplementosBuilder("Proteína en Polvo,Creatina", 0, "");
         JsonNode picks = Wire.data(resp).get("picks");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -183,7 +161,7 @@ class ApiControllerSuplementosBuilderTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
         Allure.parameter("presupuesto", 50000);
-        controller.suplementosBuilder("Proteína", 50000);
+        controller.suplementosBuilder("Proteína", 50000, "");
 
         verify(outfitService).armarComboSuplementos(any(), eq(50000.0), any(), any());
     }
@@ -193,7 +171,7 @@ class ApiControllerSuplementosBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
-        controller.suplementosBuilder("Proteína,Creatina", 0);
+        controller.suplementosBuilder("Proteína,Creatina", 0, "");
 
         verify(outfitService).armarComboSuplementos(any(), anyDouble(), eq(Set.of("Proteína", "Creatina")), any());
     }

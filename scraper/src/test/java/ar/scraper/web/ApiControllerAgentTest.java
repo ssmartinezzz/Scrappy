@@ -2,12 +2,9 @@ package ar.scraper.web;
 
 import ar.scraper.web.api.ApiExceptionHandler;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.scrape.ScraperStatus;
 
-import ar.scraper.indices.IndiceService;
 
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
@@ -18,16 +15,13 @@ import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
 import ar.scraper.agent.ToolStep;
 import ar.scraper.agent.TurnOutcome;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -65,25 +59,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Epic("REST API")
 @Feature("LLM Catalog Agent")
 @Story("chat / apply / models")
-@DisplayName("ApiController — Agent endpoints")
+@DisplayName("AgentController — Agent endpoints")
 class ApiControllerAgentTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
     private ScraperConfig config;
-    private ResultAggregator aggregator;
     private DatabaseService db;
     private ProductPort productos;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
     private CatalogAgentService catalogAgentService;
     private AgentConfig agentConfig;
-    private ApiController controller;
+    private AgentController controller;
 
-    // T4.1-T4.3: real MockMvc dispatch (standalone, NOT @WebMvcTest — ApiController
-    // has 11 constructor deps) is the only way to prove the @RequestBody JSON
+    // T4.1-T4.3: real MockMvc dispatch (standalone, NOT @WebMvcTest) is the only way to prove the @RequestBody JSON
     // binding contract itself, as opposed to a direct Java method call which
     // never exercises Jackson deserialization at all. The plain ObjectMapper here
     // (no Boot auto-config) keeps FAIL_ON_UNKNOWN_PROPERTIES at its Jackson
@@ -96,24 +83,15 @@ class ApiControllerAgentTest {
     @BeforeEach
     void setUp() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
-        aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         when(db.rubroResolver()).thenReturn(new RubroResolver(SiteRegistry.forTesting(Map.of())));
         productos             = mock(ProductPort.class);
         when(db.productos()).thenReturn(productos);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
         catalogAgentService   = mock(CatalogAgentService.class);
         agentConfig           = mock(AgentConfig.class);
-        controller = new ApiController(service, indiceService, config, aggregator, db, grouping,
-                pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig);
-        // The controller reads db.favoritos() while wiring its endpoints; forget that
-        // so verifyNoInteractions(db) below keeps asserting what each route does.
-        clearInvocations(db);
+        controller = new AgentController(service, db.rubroResolver(), productos, catalogAgentService, agentConfig,
+                new ar.scraper.security.ActorResolver());
 
         objectMapper = new ObjectMapper();
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -472,7 +450,7 @@ class ApiControllerAgentTest {
         var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        verifyNoInteractions(db);
+        verifyNoInteractions(productos);
     }
 
     @Test
@@ -486,7 +464,7 @@ class ApiControllerAgentTest {
         var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        verifyNoInteractions(db);
+        verifyNoInteractions(productos);
     }
 
     // ── normalize-db-schema-fks-1nf A.3: genero domain on the WRITE path ──
@@ -510,7 +488,7 @@ class ApiControllerAgentTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(Wire.body(resp).toString()).contains("Mujer");
-        verifyNoInteractions(db);
+        verifyNoInteractions(productos);
     }
 
     @Test
@@ -596,10 +574,8 @@ class ApiControllerAgentTest {
     void applyPassesTheActorResolverCurrentValueToTheWritePath() {
         ar.scraper.security.ActorResolver actorResolver = mock(ar.scraper.security.ActorResolver.class);
         when(actorResolver.current()).thenReturn("santi-desde-sesion");
-        ApiController controllerConActor = new ApiController(service, indiceService, config, aggregator, db,
-                grouping, pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig,
-                actorResolver);
-        clearInvocations(db);
+        AgentController controllerConActor = new AgentController(service, db.rubroResolver(), productos,
+                catalogAgentService, agentConfig, actorResolver);
 
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         Product current = producto("https://a.com/1", "Zapatilla Running", "Adidas", "hombre", List.of("42", "43"));
@@ -642,7 +618,7 @@ class ApiControllerAgentTest {
         var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        verifyNoInteractions(db);
+        verifyNoInteractions(productos);
     }
 
     // ── T5.1-T5.3: staleness guard (reads the DATABASE, never getLastResult) ──
@@ -694,7 +670,7 @@ class ApiControllerAgentTest {
         var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        verifyNoInteractions(db);
+        verifyNoInteractions(productos);
     }
 
     // ── T4.1-T4.3: real JSON binding via MockMvc (the actual contract fix) ──

@@ -2,15 +2,9 @@ package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
@@ -37,17 +31,11 @@ import static org.mockito.Mockito.*;
 class ApiControllerSavedOutfitsTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
-    private ScraperConfig config;
-    private ResultAggregator aggregator;
     private DatabaseService db;
     private ar.scraper.feedback.FeedbackPort feedback;
     private ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
     private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private OutfitsController controller;
 
     @AfterEach
     void limpiarContexto() {
@@ -62,21 +50,14 @@ class ApiControllerSavedOutfitsTest {
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
-        aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
         when(db.feedback()).thenReturn(feedback);
         outfitsGuardados      = mock(ar.scraper.outfits.SavedOutfitsPort.class);
         when(db.outfitsGuardados()).thenReturn(outfitsGuardados);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
         outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
         SujetoDePrueba.entrar("ADMIN");
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new OutfitsController(service, db.feedback(), db.outfitsGuardados(), outfitService, new ar.scraper.security.ActorResolver());
     }
 
     // ── POST /api/outfits/save ─────────────────────────────────────────────

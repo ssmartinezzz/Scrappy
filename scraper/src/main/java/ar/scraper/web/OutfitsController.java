@@ -12,6 +12,7 @@ import ar.scraper.web.dto.OpResult;
 import ar.scraper.web.dto.OutfitsDtos;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,15 +24,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/** Outfit builders (gym + budget-aware), supplement builder, feedback writes and saved outfits. Mappings live in {@link ApiController}. */
-class OutfitsEndpoints {
+/** Outfit builders (gym + budget-aware), their feedback writes and saved outfits. */
+@RestController
+@RequestMapping("/api")
+public class OutfitsController {
 
     private final ScraperService service;
     private final ar.scraper.feedback.FeedbackPort feedback;
     private final ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private final OutfitService outfitService;
+    private final ar.scraper.security.ActorResolver actorResolver;
 
-    OutfitsEndpoints(ScraperService service,
+    public OutfitsController(ScraperService service,
                      ar.scraper.feedback.FeedbackPort feedback,
                      ar.scraper.outfits.SavedOutfitsPort outfitsGuardados,
                      OutfitService outfitService,
@@ -43,14 +47,13 @@ class OutfitsEndpoints {
         this.actorResolver = actorResolver;
     }
 
-    private final ar.scraper.security.ActorResolver actorResolver;
-
     private String safe(String s) { return s != null ? s : ""; }
 
-    ResponseEntity<ApiResponse<OutfitsDtos.Outfit>> outfits(String genero,
-                                                            double presupuesto,
-                                                            String excluir,
-                                                            double presupuestoSuplementos) {
+    @GetMapping("/outfits")
+    public ResponseEntity<ApiResponse<OutfitsDtos.Outfit>> outfits(@RequestParam(required = false) String genero,
+            @RequestParam(required = false, defaultValue = "0") double presupuesto,
+            @RequestParam(required = false, defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "0") double presupuestoSuplementos) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
@@ -84,21 +87,12 @@ class OutfitsEndpoints {
 
         return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.Outfit(
                 outfit.genero(), outfit.partial(), outfit.totalEstimado(), outfit.presupuestoExcedido(),
-                slots, totalSuplementos, suplementos(suplementosList))));
+                slots, totalSuplementos, SuplementoPicks.desde(suplementosList))));
     }
 
     private OutfitsDtos.SlotPick slotPick(OutfitService.SlotPick pick) {
         return new OutfitsDtos.SlotPick(pick.slot(), safe(pick.sitio()), safe(pick.nombre()),
                 pick.precio(), safe(pick.url()), safe(pick.img()), safe(pick.categoria()), safe(pick.marca()));
-    }
-
-    private List<OutfitsDtos.SuplementoPick> suplementos(List<OutfitService.SupplementPick> picks) {
-        List<OutfitsDtos.SuplementoPick> out = new ArrayList<>();
-        for (var pick : picks) {
-            out.add(new OutfitsDtos.SuplementoPick(pick.tipo(), safe(pick.sitio()), safe(pick.nombre()),
-                    pick.precio(), safe(pick.url()), safe(pick.img()), safe(pick.marca())));
-        }
-        return out;
     }
 
     /**
@@ -107,13 +101,14 @@ class OutfitsEndpoints {
      * known category left, or more than 20 categories. No-fit is NOT an error: 200 with
      * {@code noCumplePresupuesto:true} and empty slots.
      */
-    ResponseEntity<ApiResponse<OutfitsDtos.Builder>> outfitsBuilder(String categorias,
-                                                                    double presupuesto,
-                                                                    String genero,
-                                                                    String excluir,
-                                                                    String pin,
-                                                                    boolean greedy,
-                                                                    String estilo) {
+    @GetMapping("/outfits/builder")
+    public ResponseEntity<ApiResponse<OutfitsDtos.Builder>> outfitsBuilder(@RequestParam(required = false) String categorias,
+            @RequestParam(required = false, defaultValue = "0") double presupuesto,
+            @RequestParam(required = false) String genero,
+            @RequestParam(required = false, defaultValue = "") String excluir,
+            @RequestParam(required = false, defaultValue = "") String pin,
+            @RequestParam(defaultValue = "false") boolean greedy,
+            @RequestParam(required = false, defaultValue = "gym") String estilo) {
         // Only {gym, casual} are builder surfaces; anything else (blank, "null", the reserved
         // feed bucket "catalog") falls back to "gym". Also keeps FeedbackModels.build's
         // Set.of(estilo, "catalog") from throwing on duplicate elements.
@@ -208,63 +203,8 @@ class OutfitsEndpoints {
                 noFit ? result.minimoBudgetNecesario() : null)));
     }
 
-    /**
-     * Supplement subtypes in combo-assembly order. Pure taxonomy, so it answers before the first
-     * scrape and the frontend selector no longer hard-codes the list. Goes straight to
-     * {@link SupplementCombo}: it needs no instance state.
-     */
-    ResponseEntity<ApiResponse<OutfitsDtos.SuplementoTipos>> suplementosTipos() {
-        List<OutfitsDtos.Tipo> tipos = new ArrayList<>();
-        for (var t : SupplementCombo.tiposDisponibles()) {
-            tipos.add(new OutfitsDtos.Tipo(t.tipo(), t.grupo()));
-        }
-        return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.SuplementoTipos(tipos)));
-    }
-
-    /**
-     * One product per requested supplement type. {@code excluir} holds URLs already shown, so
-     * "Regenerar" offers the next candidate. 204 when no scrape data exists, 400 when tipos is blank.
-     */
-    ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(String tipos, double presupuesto,
-                                                                                    String excluir) {
-        if (StringUtils.isBlank(tipos)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "tipos is required");
-        }
-
-        AggregatedResult r = service.getLastResult();
-        if (r == null) return ResponseEntity.noContent().build();
-
-        Set<String> tiposSet = Arrays.stream(tipos.split(","))
-                .map(String::strip)
-                .filter(s -> !s.isBlank())
-                .collect(Collectors.toSet());
-
-        if (tiposSet.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "tipos is required");
-        }
-
-        Set<String> excluirUrls = StringUtils.isBlank(excluir)
-                ? Set.of()
-                : Arrays.stream(excluir.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toSet());
-
-        List<OutfitService.SupplementPick> picks =
-                outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet, excluirUrls);
-
-        Set<String> foundTipos = picks.stream()
-                .map(OutfitService.SupplementPick::tipo)
-                .collect(Collectors.toSet());
-        List<String> sinStock = tiposSet.stream()
-                .filter(t -> !foundTipos.contains(t))
-                .sorted()
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.SuplementosBuilder(suplementos(picks), sinStock)));
-    }
-
-    ResponseEntity<ApiResponse<OpResult>> outfitFeedback(Map<String, Object> body) {
+    @PostMapping("/outfits/feedback")
+    public ResponseEntity<ApiResponse<OpResult>> outfitFeedback(@RequestBody Map<String, Object> body) {
         String genero = String.valueOf(body.getOrDefault("genero", ""));
         // estilo splits the signal per surface (gym | casual); defaults to "gym" for older clients.
         String estilo = String.valueOf(body.getOrDefault("estilo", "gym"));
@@ -288,7 +228,8 @@ class OutfitsEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ApiResponse<OutfitsDtos.Guardado>> saveOutfit(Map<String, Object> body) {
+    @PostMapping("/outfits/save")
+    public ResponseEntity<ApiResponse<OutfitsDtos.Guardado>> saveOutfit(@RequestBody Map<String, Object> body) {
         String nombre = String.valueOf(body.getOrDefault("nombre", "Outfit")).trim();
         Object slotsObj = body.get("slots");
         Object suplObj  = body.get("suplementos");
@@ -316,11 +257,13 @@ class OutfitsEndpoints {
     }
 
     // Rows come from SavedOutfitsPort as maps; typing them is a persistence-layer change.
-    ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedOutfits() {
+    @GetMapping("/outfits/saved")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedOutfits() {
         return ResponseEntity.ok(ApiResponse.ok(outfitsGuardados.obtenerOutfitsGuardados(Sujeto.de(actorResolver))));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> deleteSavedOutfit(int id) {
+    @DeleteMapping("/outfits/saved/{id}")
+    public ResponseEntity<ApiResponse<OpResult>> deleteSavedOutfit(@PathVariable int id) {
         // 404 covers "does not exist" AND "belongs to somebody else": telling them apart
         // would confirm another user's row exists.
         if (!outfitsGuardados.eliminarOutfitGuardado(Sujeto.de(actorResolver), id)) {
@@ -329,7 +272,8 @@ class OutfitsEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Outfit eliminado")));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> renameSavedOutfit(int id, Map<String, Object> body) {
+    @PatchMapping("/outfits/saved/{id}/nombre")
+    public ResponseEntity<ApiResponse<OpResult>> renameSavedOutfit(@PathVariable int id, @RequestBody Map<String, Object> body) {
         String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
         if (nombre.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");
@@ -340,7 +284,8 @@ class OutfitsEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Outfit renombrado")));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> resetOutfitFeedback(String estilo) {
+    @DeleteMapping("/outfits/feedback")
+    public ResponseEntity<ApiResponse<OpResult>> resetOutfitFeedback(@RequestParam(required = false, defaultValue = "gym") String estilo) {
         // Scoped by estilo: resetting gym leaves casual and the shared feed ("catalog") alone.
         feedback.limpiarOutfitFeedback(Sujeto.de(actorResolver), StringUtils.isBlank(estilo) ? "gym" : estilo);
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Historial de feedback reseteado")));

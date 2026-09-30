@@ -3,20 +3,13 @@ package ar.scraper.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import ar.scraper.api.ApiException;
 import ar.scraper.web.support.Wire;
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.catalog.Facets;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.support.SujetoDePrueba;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import org.junit.jupiter.api.AfterEach;
@@ -37,7 +30,7 @@ import static org.mockito.Mockito.when;
 class ApiControllerPcsBuilderTest {
 
     private ScraperService service;
-    private ApiController controller;
+    private PcsController controller;
 
     @AfterEach
     void limpiarContexto() {
@@ -48,19 +41,12 @@ class ApiControllerPcsBuilderTest {
     void setUp() {
         SujetoDePrueba.entrar("ADMIN");
         service = mock(ScraperService.class);
-        IndiceService indiceService = mock(IndiceService.class);
-        ScraperConfig config = mock(ScraperConfig.class);
-        ResultAggregator aggregator = mock(ResultAggregator.class);
         DatabaseService db = mock(DatabaseService.class);
-        GroupingService grouping = mock(GroupingService.class);
-        PythonRunner pythonRunner = mock(PythonRunner.class);
-        OutfitService outfitService = mock(OutfitService.class);
         // Real RecommendationService: PcBuilder is built inline from it in ApiController,
         // so a mock here would make baseMlScore always 0.0 — harmless for these fixtures,
         // which don't rely on ML tiebreaks, but real is closer to production wiring.
         RecommendationService recommendationService = new RecommendationService();
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new PcsController(service, new ar.scraper.pcs.PcBuilder(), db.pcsGuardadas(), db.preferenciaArmador(), new ar.scraper.security.ActorResolver());
     }
 
     private AggregatedResult mockResult(List<Product> products) {
@@ -77,7 +63,7 @@ class ApiControllerPcsBuilderTest {
     void returns204WhenNoCatalog() {
         when(service.getLastResult()).thenReturn(null);
 
-        var resp = controller.pcsBuilder(0, false, "");
+        var resp = controller.builder(0, false, "", "");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -88,7 +74,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Motherboard ASUS TUF Gaming B850M-E WiFi AM5 DDR5", 250_000, "Motherboard", "https://t/mb"),
                 producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/cpu"))));
 
-        var resp = controller.pcsBuilder(0, false, "");
+        var resp = controller.builder(0, false, "", "");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -108,7 +94,7 @@ class ApiControllerPcsBuilderTest {
     void returns200WithEmptyPicksWhenCatalogHasNoTechParts() {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
 
-        var resp = controller.pcsBuilder(0, false, "");
+        var resp = controller.builder(0, false, "", "");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -121,7 +107,7 @@ class ApiControllerPcsBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(
                 producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/gpu"))));
 
-        var resp = controller.pcsBuilder(0, true, "");
+        var resp = controller.builder(0, true, "", "");
         JsonNode body = Wire.data(resp);
 
         boolean tieneGpu = false;
@@ -136,7 +122,7 @@ class ApiControllerPcsBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(
                 producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/gpu"))));
 
-        var resp = controller.pcsBuilder(0, false, "");
+        var resp = controller.builder(0, false, "", "");
         JsonNode body = Wire.data(resp);
 
         for (var pick : body.get("picks")) {
@@ -155,7 +141,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"),
                 producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/r9"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "alta");
+        var resp = controller.builder(0, false, "", "alta");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -168,7 +154,7 @@ class ApiControllerPcsBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(
                 producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/r9"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "ECONÓMICA");
+        var resp = controller.builder(0, false, "", "ECONÓMICA");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -180,7 +166,7 @@ class ApiControllerPcsBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(
                 producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "");
+        var resp = controller.builder(0, false, "", "");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -190,7 +176,7 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void gamaInvalidReturns400WithOkFalse() {
-        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "ultra"));
+        ApiException e = Wire.apiError(() -> controller.builder(0, false, "", "ultra"));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -204,7 +190,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Motherboard ASUS PRIME B650M DDR5 AM5", 200_000, "Motherboard", "https://t/ddr5"),
                 producto("Motherboard ASUS PRIME B450M DDR4 AM4", 150_000, "Motherboard", "https://t/ddr4"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "ddr4", "", "", "", null, null);
+        var resp = controller.builder(0, false, "", "", "ddr4", "", "", "", null, null);
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -213,7 +199,7 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void ddrInvalidReturns400WithOkFalse() {
-        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "ddr3", "", "", "", null, null));
+        ApiException e = Wire.apiError(() -> controller.builder(0, false, "", "", "ddr3", "", "", "", null, null));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -226,7 +212,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador Intel Core i5 12400F", 150_000, "CPU", "https://t/intel"),
                 producto("Procesador AMD Ryzen 5 5600X AM4", 140_000, "CPU", "https://t/amd"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "", "amd", "", "", null, null);
+        var resp = controller.builder(0, false, "", "", "", "amd", "", "", null, null);
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -235,7 +221,7 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void marcaCpuInvalidReturns400WithOkFalse() {
-        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "", "nvidia", "", "", null, null));
+        ApiException e = Wire.apiError(() -> controller.builder(0, false, "", "", "", "nvidia", "", "", null, null));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -248,7 +234,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/nvidia"),
                 producto("Placa de Video Radeon RX 7800 XT", 800_000, "GPU", "https://t/amd"))));
 
-        var resp = controller.pcsBuilder(0, true, "", "", "", "", "amd", "", null, null);
+        var resp = controller.builder(0, true, "", "", "", "", "amd", "", null, null);
         JsonNode body = Wire.data(resp);
 
         String gpuUrl = null;
@@ -260,7 +246,7 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void marcaGpuInvalidReturns400WithOkFalse() {
-        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, true, "", "", "", "", "intel", "", null, null));
+        ApiException e = Wire.apiError(() -> controller.builder(0, true, "", "", "", "", "intel", "", null, null));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -273,7 +259,7 @@ class ApiControllerPcsBuilderTest {
                 producto("SSD Kingston NV2 1TB M.2 NVMe", 60_000, "Almacenamiento", "https://t/nvme"),
                 producto("Disco Rigido Seagate 1TB HDD", 40_000, "Almacenamiento", "https://t/hdd"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "hdd", null, null);
+        var resp = controller.builder(0, false, "", "", "", "", "", "hdd", null, null);
         JsonNode body = Wire.data(resp);
 
         String almacenamientoUrl = null;
@@ -285,7 +271,7 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void tipoAlmacenamientoInvalidReturns400WithOkFalse() {
-        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "", "", "", "ssd", null, null));
+        ApiException e = Wire.apiError(() -> controller.builder(0, false, "", "", "", "", "", "ssd", null, null));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -298,7 +284,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Memoria Corsair DDR5 32GB (2x16GB) 6000MHz", 180_000, "RAM", "https://t/kit"),
                 producto("Memoria Corsair DDR5 32GB 6000MHz", 170_000, "RAM", "https://t/single"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", true, null);
+        var resp = controller.builder(0, false, "", "", "", "", "", "", true, null);
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -311,7 +297,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Motherboard ASUS TUF Gaming B650M-E WiFi AM5", 200_000, "Motherboard", "https://t/wifi"),
                 producto("Motherboard ASUS TUF Gaming B650M-E AM5", 190_000, "Motherboard", "https://t/nowifi"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, true);
+        var resp = controller.builder(0, false, "", "", "", "", "", "", null, true);
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -331,7 +317,7 @@ class ApiControllerPcsBuilderTest {
                 producto("SSD Kingston NV2 1TB", 60_000, "Almacenamiento", "https://t/nvme"),
                 producto("HDD Seagate Ironwolf 4TB NAS", 200_000, "Almacenamiento", "https://t/hdd"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+        var resp = controller.builder(0, false, "", "", "", "", "", "", null, null,
                 null, "", "", null, "homelab");
         JsonNode body = Wire.data(resp);
 
@@ -346,7 +332,7 @@ class ApiControllerPcsBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(
                 producto("SSD Kingston NV2 1TB", 60_000, "Almacenamiento", "https://t/nvme"))));
 
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+        var resp = controller.builder(0, false, "", "", "", "", "", "", null, null,
                 null, "", "", null, "");
         JsonNode body = Wire.data(resp);
 
@@ -357,7 +343,7 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void usoInvalidoReturns400WithOkFalse() {
-        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+        ApiException e = Wire.apiError(() -> controller.builder(0, false, "", "", "", "", "", "", null, null,
                 null, "", "", null, "servidor"));
 
         assertThat(e.status().value()).isEqualTo(400);

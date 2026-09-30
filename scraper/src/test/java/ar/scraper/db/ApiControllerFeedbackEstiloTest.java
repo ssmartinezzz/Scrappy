@@ -2,19 +2,13 @@ package ar.scraper.db;
 
 import ar.scraper.web.support.Wire;
 import ar.scraper.db.support.PostgresTestBase;
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.web.ApiController;
-import ar.scraper.indices.IndiceService;
+import ar.scraper.web.OutfitsController;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.ScraperService;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -51,7 +45,7 @@ import static org.mockito.Mockito.when;
 class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
 
     private DatabaseService db;
-    private ApiController controller;
+    private OutfitsController controller;
     private ScraperService service;
 
     private Product buzo(String url, String marca, boolean gymrat) {
@@ -74,18 +68,12 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
         db = TestDatabaseServices.create(dataSource());
 
         service                                     = mock(ScraperService.class);
-        IndiceService indiceService           = mock(IndiceService.class);
-        ScraperConfig config                        = mock(ScraperConfig.class);
-        ResultAggregator aggregator                 = mock(ResultAggregator.class);
-        GroupingService grouping                    = mock(GroupingService.class);
-        PythonRunner pythonRunner                   = mock(PythonRunner.class);
         RecommendationService recommendationService = new RecommendationService();
         OutfitService outfitService                 = new OutfitService(recommendationService);
 
         SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new OutfitsController(service, db.feedback(), db.outfitsGuardados(), outfitService, new ar.scraper.security.ActorResolver());
     }
 
 
