@@ -20,20 +20,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Persistence for the {@code categoria_stats} aggregate (per-category price
- * stats backing the trends panel).
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). Flattened
- * from a {@code payload TEXT} JSON blob to 12 typed columns with a real FK to
- * {@code categoria(nombre)} by V16 (close-1nf-and-3nf-foundation, design
- * DD6).</p>
- *
- * <p>Keys not in {@link CategoryGroups#canonicalCategories()} are filtered
- * out <b>before</b> binding — never sent to the database at all — so one
- * stray key from the pipeline cannot trip the FK and roll back the whole
- * run's stats. That is the project's known swallowed-SQL-error failure mode
- * (the upsert, one table over) turned into a named, per-key {@code WARN}
- * instead of a silent total loss.</p>
+ * Keys not in {@link CategoryGroups#canonicalCategories()} are filtered out before binding — never
+ * sent to the database at all — so one stray key from the pipeline cannot trip the FK and roll back
+ * the whole run's stats.
  */
 @Repository
 class CategoriaStatsRepository implements CategoriaStatsPort {

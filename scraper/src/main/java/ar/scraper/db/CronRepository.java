@@ -22,16 +22,6 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Persistence for the {@code cron_jobs} / {@code cron_executions} aggregate.
- * Implements {@link CronPort} (extract-database-ports F2) so {@code ar.scraper.cron}
- * depends on that port, not on {@code ar.scraper.db} directly. DatabaseService keeps
- * delegating here for its own ~55 test call sites.
- *
- * <p>Ya no hay writeLock global: cada método toma su propia conexión pooled;
- * la correctitud concurrente la da Postgres MVCC (design D1), no un lock
- * de aplicación.</p>
- */
 @Repository
 class CronRepository implements CronPort {
 
@@ -44,9 +34,9 @@ class CronRepository implements CronPort {
         this.dataSource = dataSource;
     }
 
-    // ─── Cron Jobs ───────────────────────────────────────────────────────────
-
-    /** Job y lista de sitios se escriben juntos: un job sin sus sitios scrapearía todo el catálogo. */
+    /**
+     * Job y lista de sitios se escriben juntos: un job sin sus sitios scrapearía todo el catálogo.
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
@@ -83,7 +73,6 @@ class CronRepository implements CronPort {
         }
     }
 
-    /** Retorna {@code false} sin persistir si {@code id} no existe. */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
@@ -114,7 +103,6 @@ class CronRepository implements CronPort {
         }
     }
 
-    /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteCronJob(long id) {
@@ -137,9 +125,6 @@ class CronRepository implements CronPort {
     public List<CronJob> listCronJobs() {
         List<CronJob> result = new ArrayList<>();
         try (Connection c = dataSource.getConnection()) {
-            // Los sitios de TODOS los jobs en una sola query plana y ordenada,
-            // mergeada por job_id — nunca una consulta por job (V9, mismo
-            // criterio que cargarProductos con producto_talle).
             java.util.Map<Long, List<String>> sitiosPorJob = new java.util.HashMap<>();
             try (Statement st = c.createStatement();
                  ResultSet rs = st.executeQuery(
@@ -192,11 +177,6 @@ class CronRepository implements CronPort {
         return sitios;
     }
 
-    /**
-     * DELETE + INSERT, nunca ON CONFLICT: una lista de sitios que se ACHICA no
-     * puede dejar sitios viejos que el job siga scrapeando (mismo criterio que
-     * producto_talle en V7). Las posiciones arrancan en 1 y son contiguas.
-     */
     private void reemplazarSitios(Connection c, long jobId, List<String> sitios) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("DELETE FROM cron_job_sitio WHERE job_id=?")) {
             ps.setLong(1, jobId);
@@ -227,7 +207,10 @@ class CronRepository implements CronPort {
                 Timestamps.iso(rs, "last_run_at"), Timestamps.iso(rs, "next_run_at"));
     }
 
-    /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
+    /**
+     * Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un
+     * run.
+     */
     @Override
     public boolean touchLastRunAt(long jobId, String lastRunAt) {
         try (Connection c = dataSource.getConnection();
@@ -242,7 +225,9 @@ class CronRepository implements CronPort {
         }
     }
 
-    /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
+    /**
+     * Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll.
+     */
     @Override
     public boolean updateNextRunAt(long jobId, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
@@ -256,8 +241,6 @@ class CronRepository implements CronPort {
             return false;
         }
     }
-
-    // ─── Cron Executions ────────────────────────────────────────────────────
 
     @Override
     public long insertCronExecution(long jobId, String startedAt, String status, String skippedReason) {

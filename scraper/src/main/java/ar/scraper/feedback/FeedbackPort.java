@@ -5,18 +5,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Capacidad de persistencia del agregado de señal de gusto:
- * {@code outfit_feedback_item} (likes y dislikes per-item, con estilo) y
- * {@code categoria_dismiss} ("no me interesa", feed-wide).
- *
- * <p>Son dos tablas y una sola señal: lo que el usuario aceptó y lo que
- * descartó. Las dos superficies que la leen —el armador de outfits y el feed
- * "Para ti"— la consultan juntas en cada request, así que partirla en dos
- * puertos habría duplicado el consumidor sin separar ningún ciclo de vida.</p>
- *
- * <p>La implementa un {@code @Repository} package-private de
- * {@code ar.scraper.db}: es {@code javac}, no ArchUnit, quien impide nombrar el
- * tipo concreto fuera de ese paquete.</p>
+ * Las dos superficies que la leen —el armador de outfits y el feed "Para ti"— la consultan juntas
+ * en cada request, así que partirla en dos puertos habría duplicado el consumidor sin separar
+ * ningún ciclo de vida.
  */
 public interface FeedbackPort {
 

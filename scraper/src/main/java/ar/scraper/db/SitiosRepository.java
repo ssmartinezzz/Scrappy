@@ -24,25 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Persistence for the {@code sitios_dinamicos} aggregate (sites added from the
- * dashboard, on top of the ones declared in {@code config.properties}).
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
- *
- * <p>close-1nf-and-3nf-foundation extension (design E1/E7): {@code sitio} is
- * DD4's deferred write path — {@link #guardarSitio} upserts both tables so
- * the FK {@code productos.sitio_key -> sitio(sitio_key)} added by {@code V23}
- * can never fail for a name reachable through here. That FK targets the
- * normalized KEY, not the display name: {@code 'VCP'}, {@code 'vcp'} and
- * {@code 'Vcp'} are the same site, and {@code productos.sitio_key} is a
- * generated column carrying {@code sitioKey()}'s normalization. Its other half
- * is the get-or-create inside {@code sp_upsert_run}, which covers names that
- * arrive from a scrape without passing through this repository;
- * {@link #eliminarSitio} deletes the {@code sitios_dinamicos} row and flips
- * {@code sitio.origen} to {@code 'historico'} — the state {@code V18}
- * invented {@code origen} for. Every write calls
- * {@link SiteRegistry#reload()} so the cached copy never lags the table it
- * mirrors.</p>
+ * {@code 'VCP'}, {@code 'vcp'} and {@code 'Vcp'} are the same site, and {@code productos.sitio_key}
+ * is a generated column carrying {@code sitioKey()}'s normalization.
  */
 @Repository
 class SitiosRepository implements SitiosPort {
@@ -50,10 +33,8 @@ class SitiosRepository implements SitiosPort {
     private static final Logger LOG = LoggerFactory.getLogger(SitiosRepository.class);
 
     /**
-     * Mirrors the CHECK domain on {@code sitio.plataforma} — an untrusted
-     * client value must not abort the write. Package-private (not
-     * {@code private}) so {@code PlatformVocabularySyncTest} can assert it
-     * stays in sync with the CHECK, classpath-only, no DB.
+     * Mirrors the CHECK domain on {@code sitio.plataforma} — an untrusted client value must not
+     * abort the write.
      */
     static final Set<String> PLATAFORMAS_VALIDAS = Set.of(
             "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
@@ -68,19 +49,12 @@ class SitiosRepository implements SitiosPort {
         this.siteRegistry = siteRegistry;
     }
 
-    /**
-     * Both tables change together; the registry reloads only after the commit, otherwise it
-     * would read the table before the new rows are visible and keep serving the old ones.
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void guardarSitio(String nombre, String url, String plataforma) {
         Objects.requireNonNull(nombre, "nombre must not be null");
         String plataformaValida = PLATAFORMAS_VALIDAS.contains(plataforma) ? plataforma : "tiendanube";
         try (Connection c = dataSource.getConnection()) {
-            // sitios_dinamicos.plataforma was dropped by V20 — sitio.plataforma
-            // is the only copy now (design E1). sitios_dinamicos keeps
-            // (nombre, url, created_at): its remaining job is "the URL to scrape".
             try (PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO sitios_dinamicos (nombre, url, created_at)
                     VALUES (?, ?, ?)
@@ -144,10 +118,6 @@ class SitiosRepository implements SitiosPort {
     @Override
     public List<Map<String, String>> cargarSitiosDinamicos() {
         List<Map<String, String>> result = new ArrayList<>();
-        // plataforma reads through sitio now (V20) — LEFT JOIN + COALESCE so a
-        // dinamico row somehow missing its sitio counterpart still abstains to
-        // the same default an unmatched name always got, rather than dropping
-        // the row from the response.
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("""

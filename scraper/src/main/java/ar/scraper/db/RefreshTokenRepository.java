@@ -15,19 +15,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Persistence for {@code refresh_token}.
- *
- * <p><b>SHA-256, not Argon2id</b> — the opposite choice from passwords, for the
- * opposite reason. Argon2id is slow on purpose because a password is a short,
- * guessable, human-chosen string and the defence is to make each guess
- * expensive. A refresh token is 256 bits from a CSPRNG: there is no dictionary
- * to walk and no guess worth slowing down. What hashing buys here is that a
- * stolen database dump is not a stack of working sessions, and a fast digest
- * buys exactly that. Making it slow would only tax the legitimate lookup that
- * happens on every refresh.</p>
- *
- * <p>The column is {@code token_hash}, never {@code token}: a column called
- * {@code token} eventually gets a token written into it.</p>
+ * SHA-256, not Argon2id — the opposite choice from passwords, for the opposite reason. Argon2id is
+ * slow on purpose because a password is a short, guessable, human-chosen string and the defence is
+ * to make each guess expensive.
  */
 @Repository
 public class RefreshTokenRepository {
@@ -38,7 +28,6 @@ public class RefreshTokenRepository {
         this.dataSource = dataSource;
     }
 
-    /** A stored token, as the state machine needs to see it. */
     public record Fila(long id,
                        UUID usuarioId,
                        UUID familyId,
@@ -107,14 +96,7 @@ public class RefreshTokenRepository {
         }
     }
 
-    /**
-     * Marks the row rotated, but only if it was not already.
-     *
-     * @return {@code true} when this call did the rotating. Two concurrent
-     *         refreshes with the same token therefore produce exactly one
-     *         winner, and the loser is a genuine reuse rather than a race the
-     *         state machine has to guess about.
-     */
+    /** Marks the row rotated, but only if it was not already.. */
     public boolean marcarRotado(long id, Instant cuando) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -127,7 +109,7 @@ public class RefreshTokenRepository {
         }
     }
 
-    /** Revokes every token in the family. Idempotent: already-revoked rows stay as they were. */
+    /** Idempotent: already-revoked rows stay as they were. */
     public int revocarFamilia(UUID familyId, Instant cuando) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -141,11 +123,9 @@ public class RefreshTokenRepository {
     }
 
     /**
-     * Revokes every session the user has anywhere.
-     *
-     * <p>Used by the password-reset flow: a reset that left other devices signed
-     * in would be useless as a remedy for the case people actually reset a
-     * password in — somebody else is already inside.</p>
+     * Used by the password-reset flow: a reset that left other devices signed in would be useless
+     * as a remedy for the case people actually reset a password in — somebody else is already
+     * inside.
      */
     public int revocarTodasLasDe(UUID usuarioId, Instant cuando) {
         try (Connection c = dataSource.getConnection();

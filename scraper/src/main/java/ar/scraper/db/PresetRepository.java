@@ -18,16 +18,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence for the {@code financiacion_presets} aggregate.
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). The
- * {@code Preset} record lives in {@code ar.scraper.financiacion}
- * (extract-preset-historial-ports) — this class returns that type.</p>
- *
- * <p>Implements {@link PresetPort} (extract-preset-historial-ports) so
- * {@code ar.scraper.web} and {@code ar.scraper.ml} depend on that port, not on
- * {@code DatabaseService} directly. {@code crearPresetInterno} stays private —
- * it is a helper shared by two port methods, not part of the port surface.</p>
+ * {@code crearPresetInterno} stays private — it is a helper shared by two port methods, not part of
+ * the port surface.
  */
 @Repository
 class PresetRepository implements PresetPort {
@@ -46,10 +38,9 @@ class PresetRepository implements PresetPort {
     }
 
     /**
-     * En el primer arranque (tabla vacía), crea un preset ilustrativo marcado
-     * explícitamente como ejemplo y lo deja activo, para que la señal de
-     * financiación tenga un valor de referencia desde el día uno sin requerir
-     * que el usuario configure nada manualmente.
+     * En el primer arranque (tabla vacía), crea un preset ilustrativo marcado explícitamente como
+     * ejemplo y lo deja activo, para que la señal de financiación tenga un valor de referencia
+     * desde el día uno sin requerir que el usuario configure nada manualmente.
      */
     @Override
     public void seedPresetIlustrativoSiVacio() {
@@ -122,11 +113,6 @@ class PresetRepository implements PresetPort {
         return Optional.empty();
     }
 
-    /**
-     * Crea un preset nuevo, inactivo por defecto. Retorna el id generado, o -1 en
-     * error o si {@code cuotas}/{@code recargoPct} son inválidos (mismo criterio
-     * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
-     */
     @Override
     public int crearPreset(String label, double recargoPct, int cuotas) {
         if (cuotas <= 0 || recargoPct <= -100) {
@@ -141,12 +127,6 @@ class PresetRepository implements PresetPort {
         }
     }
 
-    /**
-     * Edita label/recargoPct/cuotas de un preset existente. No altera su estado activo.
-     * Retorna {@code false} sin persistir si {@code cuotas}/{@code recargoPct} son
-     * inválidos (mismo criterio que {@code FinanciacionCalculator.compute}: cuotas&gt;0
-     * y recargoPct&gt;-100), o si ocurre un error.
-     */
     @Override
     public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
         if (cuotas <= 0 || recargoPct <= -100) {
@@ -173,11 +153,7 @@ class PresetRepository implements PresetPort {
         }
     }
 
-    /**
-     * Activa el preset {@code id} y desactiva todos los demás, de forma transaccional.
-     * Retorna {@code false} (y revierte la desactivación) si {@code id} no existe —
-     * evita quedar sin ningún preset activo por un id inválido/obsoleto.
-     */
+    /** Activa el preset {@code id} y desactiva todos los demás, de forma transaccional. */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean activarPreset(int id) {
@@ -202,19 +178,8 @@ class PresetRepository implements PresetPort {
     }
 
     /**
-     * Elimina un preset. Comportamiento resuelto en el diseño para el caso
-     * "borrar el preset activo":
-     * <ul>
-     *   <li>Si es el ÚNICO preset restante (activo o no) → se borra y se
-     *       recrea el preset ilustrativo por defecto, activo (evita un estado
-     *       de tabla vacía sin recuperación automática).</li>
-     *   <li>Si quedan OTROS presets → se borra y NINGUNO se auto-activa; el
-     *       catálogo cae a {@code sin_preset_activo} hasta que el usuario
-     *       active uno explícitamente.</li>
-     * </ul>
-     *
-     * @return {@code true} si el {@code id} pedido efectivamente existía y fue
-     *         borrado; {@code false} si no existía (no-op) o si ocurrió un error.
+     * Si es el ÚNICO preset restante (activo o no) → se borra y se recrea el preset ilustrativo por
+     * defecto, activo (evita un estado de tabla vacía sin recuperación automática).
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

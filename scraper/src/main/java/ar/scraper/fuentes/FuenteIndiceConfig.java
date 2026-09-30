@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 import java.util.Map;
 
-/** Builds the source chain per {@link Indice} — argentinadatos first, INDEC as fallback for IPC. */
 @Configuration
 class FuenteIndiceConfig {
 

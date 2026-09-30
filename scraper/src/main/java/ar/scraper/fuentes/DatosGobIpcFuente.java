@@ -12,14 +12,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Fallback IPC source (INDEC, official series). Unlike
- * {@link ArgentinaDatosIpcFuente}, {@code valor} here already is a level —
- * no rate-to-level conversion. The hardcoded series id is stale as of
- * 2026-09-18 ({@code {"errors": [...]}}), which this parser turns into an
- * ordinary {@link FuenteIndiceException} (so the chain falls through) rather
- * than an NPE on a missing {@code data} field.
- */
+/** Fallback IPC source (INDEC, official series). */
 @Component
 class DatosGobIpcFuente implements FuenteIndicePort {
 

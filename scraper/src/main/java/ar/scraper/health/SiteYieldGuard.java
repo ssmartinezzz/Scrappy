@@ -6,33 +6,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Compares each site's product yield against its own previous run.
- *
- * <p>A scraper whose selectors stop matching does not throw. {@code
- * BaseScraper.ejecutar} returns {@code new ScrapeResult(sitio, prods, null,
- * ms)} whether {@code prods} holds 800 products or none, so a site can die and
- * the run still reports success. The pre-existing check in {@code
- * ScraperService} lists sites that returned exactly zero, at INFO level, which
- * misses the more common failure: a partial break that still returns a
- * plausible-looking handful.
- *
- * <p>Deliberately pure and history-free — the baseline is the previous
- * {@code conteoPorSitio}, which the catalogue already holds in memory and
- * rebuilds from the database on startup. No new table, no new query.
- */
+/** A scraper whose selectors stop matching does not throw. */
 public final class SiteYieldGuard {
 
-    /**
-     * Below this previous count a site is too small for a ratio to mean
-     * anything: dropping from 4 products to 1 is noise.
-     */
     static final int BASELINE_MINIMO = 20;
 
     /**
-     * A site keeping less than this share of its previous yield is treated as
-     * broken rather than quiet. Deliberately generous — real catalogues swing
-     * with stock and seasonality, and an alert nobody trusts gets muted.
+     * A site keeping less than this share of its previous yield is treated as broken rather than
+     * quiet. Deliberately generous — real catalogues swing with stock and seasonality, and an alert
+     * nobody trusts gets muted.
      */
     static final double UMBRAL_CAIDA = 0.5;
 
@@ -50,13 +32,6 @@ public final class SiteYieldGuard {
 
     private SiteYieldGuard() { }
 
-    /**
-     * @param previo    per-site counts from before this run
-     * @param actual    per-site counts produced by this run
-     * @param scrapeados sites this run actually visited; sites outside this set
-     *                   are skipped, so a run limited to a subset never reports
-     *                   the untouched ones as collapsed
-     */
     public static List<Alerta> evaluar(Map<String, Integer> previo,
                                        Map<String, Integer> actual,
                                        Set<String> scrapeados) {
@@ -78,15 +53,7 @@ public final class SiteYieldGuard {
         return alertas;
     }
 
-    /**
-     * Folds yield alerts into the per-site error map so they travel the path
-     * that already exists — {@code AggregatedResult.erroresPorSitio} reaches
-     * {@code /api/data}'s {@code meta.errores} and is rendered by the UI. A log
-     * line nobody opens is not detection.
-     *
-     * <p>An existing error always wins: if the site threw, that exception
-     * explains the collapse better than the ratio does.
-     */
+    /** A log line nobody opens is not detection. */
     public static Map<String, String> fusionarEnErrores(Map<String, String> errores,
                                                         List<Alerta> alertas) {
         Map<String, String> salida = new java.util.LinkedHashMap<>();

@@ -12,7 +12,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/** USD oficial (BNA), D2: a single series, no brecha opinion. Uses {@code venta}. */
 @Component
 class ArgentinaDatosDolarFuente implements FuenteIndicePort {
 
