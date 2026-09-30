@@ -68,7 +68,8 @@ Scrappy/
         │   ├── scrape/                     ← área: CorridaInterrumpida, ScraperStatus, ScrapeRunPort
         │   │                                  (lo implementa un @Repository package-private en db/) +
         │   │                                  ScrapeControlPort (lo implementa ScrapeControlAdapter,
-        │   │                                  package-private en web/)
+        │   │                                  package-private en web/) + StatusEvents/StatusEvent
+        │   │                                  (bus de estado; lo implementa web/events)
         │   ├── scheduling/                 ← área: CronJob, CronExecution, CronPort (lo implementa
         │   │                                  un @Repository package-private en db/) + CronJobRunner
         │   │                                  y CronJobService, absorbidos de cron/ en F3a
@@ -124,8 +125,9 @@ Scrappy/
         │   │                                  FuenteIndicePort) + HttpJson + FuenteIndiceConfig
         │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
         │   └── web/                        ← ApiController + *Endpoints (20 clases, transporte)
-        │       └── cache/                  ← CatalogoDerivadoCache (@Cacheable: grupos, marcas, mejores),
-        │                                      CatalogCacheEvictor (vacía al publicarse CatalogoActualizado)
+        │       ├── cache/                  ← CatalogoDerivadoCache (@Cacheable: grupos, marcas, mejores),
+        │       │                                  CatalogCacheEvictor (vacía al publicarse CatalogoActualizado)
+        │       └── events/                 ← InProcessStatusEvents (bus en memoria de estado de scrape/ML)
         └── resources/
             ├── application.properties, logback-spring.xml, config.properties
             ├── db/migration/               ← Flyway

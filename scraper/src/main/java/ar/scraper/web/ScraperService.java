@@ -9,6 +9,8 @@ import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SitiosPort;
 import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.scrape.ScraperStatus;
+import ar.scraper.scrape.StatusEvent;
+import ar.scraper.scrape.StatusEvents;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.health.SiteYieldGuard;
@@ -137,6 +139,7 @@ public class ScraperService implements CatalogSnapshotPort {
     public RunState getRunState() { return runState.get(); }
 
     private final ApplicationEventPublisher eventos;
+    private final StatusEvents bus;
     private final AtomicLong snapshotVersion = new AtomicLong();
     private final AtomicReference<AggregatedResult> vistaPublicada = new AtomicReference<>();
 
@@ -148,12 +151,22 @@ public class ScraperService implements CatalogSnapshotPort {
              techSpecsIndexer, evento -> { });
     }
 
-    @Autowired
     public ScraperService(ScraperConfig config, ResultAggregator aggregator,
                           ScrapeRunPort scrapeRun, SitiosPort sitios, MlOutputPort mlOutput,
                           SiteRegistry siteRegistry, ProductPort productos,
                           TechSpecsIndexer techSpecsIndexer, ApplicationEventPublisher eventos) {
+        this(config, aggregator, scrapeRun, sitios, mlOutput, siteRegistry, productos,
+             techSpecsIndexer, eventos, StatusEvents.NONE);
+    }
+
+    @Autowired
+    public ScraperService(ScraperConfig config, ResultAggregator aggregator,
+                          ScrapeRunPort scrapeRun, SitiosPort sitios, MlOutputPort mlOutput,
+                          SiteRegistry siteRegistry, ProductPort productos,
+                          TechSpecsIndexer techSpecsIndexer, ApplicationEventPublisher eventos,
+                          StatusEvents bus) {
         this.eventos      = eventos;
+        this.bus          = bus;
         this.config       = config;
         this.aggregator   = aggregator;
         this.scrapeRun    = scrapeRun;
@@ -208,8 +221,7 @@ public class ScraperService implements CatalogSnapshotPort {
                 // Restaurar ML output
                 com.fasterxml.jackson.databind.JsonNode mlOut = mlOutput.cargarMlOutput();
                 if (mlOut != null) aggregator.setLastMlOutput(mlOut);
-                status.set(ScraperStatus.DONE);
-                statusMsg.set("Datos restaurados: " + prods.size() + " productos");
+                transition(ScraperStatus.DONE, "Datos restaurados: " + prods.size() + " productos");
                 LOG.info("[DB] Datos restaurados: {} productos", prods.size());
             }
         } catch (Exception e) {
@@ -246,6 +258,26 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public ScraperStatus    getStatus()       { return status.get(); }
     public String           getStatusMsg()    { return statusMsg.get(); }
+
+    private void transition(ScraperStatus nuevo, String msg) {
+        status.set(nuevo);
+        statusMsg.set(msg);
+        bus.publish(new StatusEvent.ScrapeStatus(nuevo, msg));
+    }
+
+    private void anunciar(String msg) {
+        statusMsg.set(msg);
+        bus.publish(new StatusEvent.ScrapeStatus(status.get(), msg));
+    }
+
+    private void progreso(ProgressData p) {
+        progressData = p;
+        bus.publish(new StatusEvent.ScrapeProgress(p.total(), p.completados(), p.productosAcumulados(),
+                p.sitios().stream()
+                        .map(x -> new StatusEvent.SiteProgress(
+                                x.nombre(), x.estado().name(), x.productos(), x.error(), x.duracionMs()))
+                        .toList()));
+    }
     /**
      * El catálogo que se le sirve a un lector.
      *
@@ -421,14 +453,13 @@ public class ScraperService implements CatalogSnapshotPort {
         // que la 21 quedó RUNNING para siempre.
         if (!tomarElTurno()) return false;
         this.forceRetrain = forceRetrain;
-        statusMsg.set("Iniciando scrapers...");
+        anunciar("Iniciando scrapers...");
         Thread.ofVirtual().start(() -> {
             try { ejecutarScraping(sitiosSeleccionados); }
             catch (Exception e) {
                 RUN_LOG.error("[ERROR FATAL] {}", e.getMessage());
                 cerrarRun("ERROR", 0);
-                status.set(ScraperStatus.ERROR);
-                statusMsg.set("Error: " + e.getMessage());
+                transition(ScraperStatus.ERROR, "Error: " + e.getMessage());
             }
         });
         return true;
@@ -475,8 +506,7 @@ public class ScraperService implements CatalogSnapshotPort {
                             : "ninguno de " + sitiosSeleccionados + " está en el registro");
             if (adoptada != null) adoptarCorrida(adoptada);
             cerrarRun("CANCELLED", lastResult != null ? lastResult.productos().size() : 0);
-            status.set(ScraperStatus.DONE);
-            statusMsg.set("No había sitios que scrapear");
+            transition(ScraperStatus.DONE, "No había sitios que scrapear");
             return;
         }
 
@@ -495,7 +525,7 @@ public class ScraperService implements CatalogSnapshotPort {
         for (var site : todos) {
             progSitios.add(new SitioProgress(site.nombre(), SitioEstado.ESPERANDO, 0, null, 0));
         }
-        progressData = new ProgressData(totalSitios, 0, 0, progSitios);
+        progreso(new ProgressData(totalSitios, 0, 0, progSitios));
 
         RUN_LOG.info("════════════════════════════════════════════════════════");
         RUN_LOG.info("[INICIO] {} | Sitios: {} | Precio: ${} - ${}",
@@ -515,7 +545,7 @@ public class ScraperService implements CatalogSnapshotPort {
             // Marcar como EN_CURSO al lanzar
             actualizarProgreso(progSitios, i, SitioEstado.EN_CURSO, 0, null, 0);
             registrarSitioEnCurso(nombre);
-            progressData = new ProgressData(totalSitios, 0, 0, List.copyOf(progSitios));
+            progreso(new ProgressData(totalSitios, 0, 0, List.copyOf(progSitios)));
 
             final var site = todos.get(i);
             RUN_LOG.info("[INICIO]  {} scrapeando...", String.format("%-15s", site.nombre()));
@@ -560,8 +590,8 @@ public class ScraperService implements CatalogSnapshotPort {
 
                     int comp = completados.incrementAndGet();
                     int prods = productosAcumulados.addAndGet(n);
-                    progressData = new ProgressData(totalSitios, comp, prods, List.copyOf(progSitios));
-                    statusMsg.set(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
+                    progreso(new ProgressData(totalSitios, comp, prods, List.copyOf(progSitios)));
+                    anunciar(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
                     logSitioResult(r);
 
                     // ── Actualización progresiva ──────────────────────────────
@@ -607,6 +637,8 @@ public class ScraperService implements CatalogSnapshotPort {
                             String.format("%-15s", sp.nombre()));
                 }
             }
+            progreso(new ProgressData(totalSitios, completados.get(), productosAcumulados.get(),
+                    List.copyOf(progSitios)));
         }
 
         if (cancelado.get()) {
@@ -618,15 +650,14 @@ public class ScraperService implements CatalogSnapshotPort {
             // exactamente como estaba, que es lo que alguien espera al cancelar.
             cerrarPlaywrightsHuerfanos();
             cerrarRun("CANCELLED", 0);
-            status.set(ScraperStatus.DONE);
-            statusMsg.set("Cancelado — el catálogo quedó como estaba");
+            transition(ScraperStatus.DONE, "Cancelado — el catálogo quedó como estaba");
             RUN_LOG.warn("[CANCEL]  Corrida cancelada: no se agregó ni se hizo soft-delete.");
             RUN_LOG.info("════════════════════════════════════════════════════════");
             return;
         }
 
         // ── Agregación ───────────────────────────────────────────────────────
-        statusMsg.set("Procesando y agregando resultados...");
+        anunciar("Procesando y agregando resultados...");
         // Baseline for the yield guard, captured before aggregation overwrites
         // it. No query needed: cargarDesdeBD() rebuilds this from the database
         // on startup, so it survives restarts.
@@ -679,7 +710,7 @@ public class ScraperService implements CatalogSnapshotPort {
         }
         cerrarRun("COMPLETED", lastResult != null ? lastResult.productos().size() : 0);
 
-        statusMsg.set("Entrenando modelo ML en background...");
+        anunciar("Entrenando modelo ML en background...");
         ultimasCategoriasRefinadas = aggregator.getLastCatRefinadas();
         long durMs = System.currentTimeMillis() - runStart;
 
@@ -705,8 +736,7 @@ public class ScraperService implements CatalogSnapshotPort {
 
         RUN_LOG.info("════════════════════════════════════════════════════════");
 
-        status.set(ScraperStatus.DONE);
-        statusMsg.set("Completado: " + lastResult.productos().size() + " productos");
+        transition(ScraperStatus.DONE, "Completado: " + lastResult.productos().size() + " productos");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -795,26 +825,24 @@ public class ScraperService implements CatalogSnapshotPort {
             playwrightsVivos.clear();
 
             if (actualizada.pendientes().isEmpty()) {
-                statusMsg.set("Retomando: sólo la pasada final");
+                anunciar("Retomando: sólo la pasada final");
                 Thread.ofVirtual().start(() -> soloPasadaFinal(adoptada));
             } else {
-                statusMsg.set("Retomando " + actualizada.pendientes().size() + " sitio(s)...");
+                anunciar("Retomando " + actualizada.pendientes().size() + " sitio(s)...");
                 Set<String> pendientes = new HashSet<>(actualizada.pendientes());
                 Thread.ofVirtual().start(() -> {
                     try { ejecutarScraping(pendientes, adoptada); }
                     catch (Exception e) {
                         RUN_LOG.error("[ERROR FATAL] al retomar: {}", e.getMessage());
                         cerrarRun("ERROR", 0);
-                        status.set(ScraperStatus.ERROR);
-                        statusMsg.set("Error al retomar: " + e.getMessage());
+                        transition(ScraperStatus.ERROR, "Error al retomar: " + e.getMessage());
                     }
                 });
             }
             return true;
         } catch (Exception e) {
             LOG.warn("[RUN] no se pudo retomar la corrida {}: {}", det.runId(), e.getMessage());
-            status.set(ScraperStatus.ERROR);
-            statusMsg.set("No se pudo retomar: " + e.getMessage());
+            transition(ScraperStatus.ERROR, "No se pudo retomar: " + e.getMessage());
             return false;
         }
     }
@@ -859,7 +887,7 @@ public class ScraperService implements CatalogSnapshotPort {
     private void soloPasadaFinal(RunState corrida) {
         try {
             adoptarCorrida(corrida);
-            statusMsg.set("Barrido final de la corrida retomada...");
+            anunciar("Barrido final de la corrida retomada...");
             productos.upsertProductos(List.of(),
                     new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt()));
 
@@ -868,14 +896,12 @@ public class ScraperService implements CatalogSnapshotPort {
             publicarCambio();
 
             cerrarRun("COMPLETED", prods.size());
-            status.set(ScraperStatus.DONE);
-            statusMsg.set("Corrida retomada y cerrada: " + prods.size() + " productos");
+            transition(ScraperStatus.DONE, "Corrida retomada y cerrada: " + prods.size() + " productos");
             RUN_LOG.info("[RETOMA]  pasada final completada, {} productos", prods.size());
         } catch (Exception e) {
             RUN_LOG.error("[ERROR FATAL] en la pasada final: {}", e.getMessage());
             cerrarRun("ERROR", 0);
-            status.set(ScraperStatus.ERROR);
-            statusMsg.set("Error en la pasada final: " + e.getMessage());
+            transition(ScraperStatus.ERROR, "Error en la pasada final: " + e.getMessage());
         }
     }
 
@@ -887,7 +913,7 @@ public class ScraperService implements CatalogSnapshotPort {
     public boolean cancelar() {
         if (status.get() != ScraperStatus.RUNNING) return false;
         cancelado.set(true);
-        statusMsg.set("Cancelando...");
+        anunciar("Cancelando...");
         RUN_LOG.warn("[CANCEL]  Cancelación pedida por el usuario");
         return true;
     }
