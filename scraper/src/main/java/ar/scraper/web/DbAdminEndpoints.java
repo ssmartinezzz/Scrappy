@@ -38,18 +38,12 @@ class DbAdminEndpoints {
             throw new ApiException(HttpStatus.CONFLICT, "conflicto",
                     "No se puede vaciar el catálogo: " + e.getFavoritosBloqueantes()
                             + " producto(s) favorito(s) todavía existen.");
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException("No se pudo limpiar el catálogo", e);
         }
     }
 
     ResponseEntity<ApiResponse<MensajeDto>> limpiarMl() {
         rechazarSiHayScraping();
-        try {
-            mlOutput.limpiarMlOutput();
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException("No se pudo limpiar los datos ML", e);
-        }
+        mlOutput.limpiarMlOutput();
         aggregator.clearMlOutput();
         return ResponseEntity.ok(ApiResponse.ok(new MensajeDto("Datos ML eliminados.")));
     }

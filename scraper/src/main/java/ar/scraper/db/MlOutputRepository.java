@@ -96,7 +96,11 @@ class MlOutputRepository implements MlOutputPort {
     }
 
     @Override
-    public void limpiarMlOutput() throws SQLException {
+    public void limpiarMlOutput() {
+        Sql.traducir(() -> limpiarMlOutputSql());
+    }
+
+    private void limpiarMlOutputSql() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {

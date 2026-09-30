@@ -782,7 +782,11 @@ class ProductRepository implements ProductPort {
      * CASCADE} on {@code precio_historico.url} covers it.
      */
     @Override
-    public void limpiarProductos() throws SQLException {
+    public void limpiarProductos() {
+        Sql.traducir(() -> limpiarProductosSql());
+    }
+
+    private void limpiarProductosSql() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {
@@ -798,7 +802,7 @@ class ProductRepository implements ProductPort {
                 st.execute("DELETE FROM categoria_stats");
                 c.commit();
                 LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
-            } catch (SQLException e) {
+            } catch (SQLException | RuntimeException e) {
                 c.rollback();
                 throw e;
             }

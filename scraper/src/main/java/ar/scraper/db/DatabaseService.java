@@ -40,7 +40,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
-import java.sql.SQLException;
 import java.util.*;
 
 /**
@@ -383,54 +382,52 @@ public class DatabaseService {
     /** Opens a run and enrolls its sites as PENDING, in one transaction. */
     public long crearScrapeRun(java.util.UUID scrapeUuid, java.time.Instant startedAt,
                                java.util.UUID triggeredBy, Long cronJobId,
-                               java.util.Collection<String> sitios) throws SQLException {
+                               java.util.Collection<String> sitios) {
         return scrapeRunPort.crear(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios);
     }
 
-    public void marcarSitioEnCurso(long runId, String sitio, java.time.Instant cuando)
-            throws SQLException {
+    public void marcarSitioEnCurso(long runId, String sitio, java.time.Instant cuando) {
         scrapeRunPort.marcarSitioEnCurso(runId, sitio, cuando);
     }
 
     public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
-                                     String error, java.time.Instant cuando) throws SQLException {
+                                     String error, java.time.Instant cuando) {
         scrapeRunPort.marcarSitioTerminado(runId, sitio, status, productosCount, error, cuando);
     }
 
     public void finalizarScrapeRun(long runId, String status, int productosCount,
-                                   java.time.Instant finishedAt) throws SQLException {
+                                   java.time.Instant finishedAt) {
         scrapeRunPort.finalizar(runId, status, productosCount, finishedAt);
     }
 
     /** Marks whatever the previous process left open. Only marks — never starts a scrape. */
-    public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) throws SQLException {
+    public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) {
         return scrapeRunPort.marcarInterrumpidosAlArrancar(cuando);
     }
 
     /** La corrida que dejó abierta un proceso muerto, con sus sitios ya separados. */
-    public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida()
-            throws SQLException {
+    public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida() {
         return scrapeRunPort.ultimaInterrumpida();
     }
 
     /** Reabre una corrida interrumpida EN SU LUGAR, conservando su started_at. */
-    public void reabrirScrapeRun(long runId) throws SQLException {
+    public void reabrirScrapeRun(long runId) {
         scrapeRunPort.reabrir(runId);
     }
 
     /** Marca SKIPPED los sitios pendientes que ya no están en el registro y los devuelve. */
     public java.util.List<String> marcarSitiosAusentesDelRegistro(
-            long runId, java.util.Collection<String> nombresActuales) throws SQLException {
+            long runId, java.util.Collection<String> nombresActuales) {
         return scrapeRunPort.marcarAusentesDelRegistro(runId, nombresActuales);
     }
 
     /** The reader-isolation bound for a run. Truncated to the second — see the repository. */
-    public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) throws SQLException {
+    public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) {
         return scrapeRunPort.startedAtDe(runId);
     }
 
     /** Whether the reader bound may apply at all — see the repository for why COMPLETED. */
-    public boolean existeCorridaCompletada() throws SQLException {
+    public boolean existeCorridaCompletada() {
         return scrapeRunPort.existeCorridaCompletada();
     }
 
@@ -691,11 +688,11 @@ public class DatabaseService {
 
     // ─── Clear methods ───────────────────────────────────────────────────────
 
-    public void limpiarProductos() throws SQLException {
+    public void limpiarProductos() {
         productPort.limpiarProductos();
     }
 
-    public void limpiarMlOutput() throws SQLException {
+    public void limpiarMlOutput() {
         mlOutputPort.limpiarMlOutput();
     }
 

@@ -1,19 +1,14 @@
 package ar.scraper.catalog;
 
-import java.sql.SQLException;
+import ar.scraper.model.PersistenciaException;
 
 /**
- * normalize-db-schema-fks-1nf, slice A.1 (design D9).
- *
- * <p>Thrown by {@link ProductRepository#limpiarProductos()} when one or more
- * {@code favoritos} rows still reference a live product. Mirrors the FK
- * {@code RESTRICT} policy on {@code favoritos.url} (V4, design D8) at the
- * application layer so the caller gets an actionable count instead of a raw
- * FK-violation {@link SQLException} surfacing as an opaque 500. There is
- * deliberately no {@code ?force=} override for this (spec "Catalog-wipe
- * contract").</p>
+ * Thrown by {@link ProductPort#limpiarProductos()} when one or more {@code favoritos} rows still
+ * reference a live product. Mirrors the {@code RESTRICT} FK on {@code favoritos.url} so the
+ * caller gets an actionable count instead of an opaque 500. There is deliberately no
+ * {@code ?force=} override.
  */
-public class FavoritosProtegidosException extends SQLException {
+public class FavoritosProtegidosException extends PersistenciaException {
 
     private final long favoritosBloqueantes;
 

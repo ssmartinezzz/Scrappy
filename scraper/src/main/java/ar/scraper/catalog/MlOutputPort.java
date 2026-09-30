@@ -2,7 +2,6 @@ package ar.scraper.catalog;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-import java.sql.SQLException;
 
 /**
  * Capability port for the {@code ml_output} aggregate: the whole JSON payload
@@ -25,5 +24,5 @@ public interface MlOutputPort {
     JsonNode cargarMlOutput();
 
     /** Drops the stored run. Used by the destructive admin surface. */
-    void limpiarMlOutput() throws SQLException;
+    void limpiarMlOutput();
 }
