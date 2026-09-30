@@ -15,7 +15,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.sql.Array;
@@ -54,8 +57,11 @@ class ProductRepository implements ProductPort {
     private final DataSource dataSource;
     private final RubroResolver rubroResolver;
     private final SiteRegistry siteRegistry;
+    private final TransactionTemplate tx;
 
-    ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver) {
+    ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
+                      PlatformTransactionManager txManager) {
+        this.tx = new TransactionTemplate(txManager);
         this.dataSource = dataSource;
         this.rubroResolver = rubroResolver;
         this.siteRegistry = siteRegistry;
@@ -72,7 +78,6 @@ class ProductRepository implements ProductPort {
      * sinCambios, desactivados}.
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public UpsertStats upsertProductos(List<Product> productos) {
         return upsertProductos(productos, (ar.scraper.scrape.CorridaEnCurso) null);
     }
@@ -122,9 +127,23 @@ class ProductRepository implements ProductPort {
      *                behaving exactly as it did before this change.
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public UpsertStats upsertProductos(List<Product> productos,
                                        ar.scraper.scrape.CorridaEnCurso corrida) {
+        // The transaction is opened here, programmatically, so a failure to open (or
+        // close) one is caught by this try. A @Transactional proxy would throw before
+        // the method body ran, past every catch inside it: the run would abort instead
+        // of getting the "0 nuevos" sentinel it always got (user decision, 2026-09-30).
+        try {
+            return tx.execute(status -> upsertEnTransaccion(productos, corrida, status));
+        } catch (RuntimeException e) {
+            LOG.warn("[DB] Upsert sin transacción: {}", e.getMessage());
+            return new UpsertStats(0, 0, 0, 0);
+        }
+    }
+
+    private UpsertStats upsertEnTransaccion(List<Product> productos,
+                                            ar.scraper.scrape.CorridaEnCurso corrida,
+                                            TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
@@ -162,7 +181,7 @@ class ProductRepository implements ProductPort {
             return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
         } catch (Exception e) {
             LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
-            Sql.marcarRollback();
+            status.setRollbackOnly();
             return new UpsertStats(0, 0, 0, 0);
         }
     }
@@ -314,9 +333,16 @@ class ProductRepository implements ProductPort {
      * esta etapa del pipeline VisualAttrs todavía no está poblado).
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void upsertParcial(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return;
+        try {
+            tx.executeWithoutResult(status -> upsertParcialEnTransaccion(productos, status));
+        } catch (RuntimeException e) {
+            LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
+        }
+    }
+
+    private void upsertParcialEnTransaccion(List<Product> productos, TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
         try (Connection c = dataSource.getConnection()) {
@@ -328,7 +354,7 @@ class ProductRepository implements ProductPort {
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
-            Sql.marcarRollback();
+            status.setRollbackOnly();
         }
     }
 
