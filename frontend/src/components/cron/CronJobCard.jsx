@@ -75,7 +75,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
 
   useEffect(() => {
     if (isNew) { setExecutions([]); return; }
-    fetchCronExecutions(job.id).then(data => setExecutions(data?.executions || []));
+    fetchCronExecutions(job.id).then(data => setExecutions(data || []));
   }, [job, isNew]);
 
   const byRubro = allSitios.reduce((acc, s) => {

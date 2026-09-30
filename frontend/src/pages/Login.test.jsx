@@ -11,7 +11,7 @@ function jsonResponse(body, init = {}) {
 }
 
 function refreshRejected() {
-  return { ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }) };
+  return { ok: false, status: 401, json: async () => ({ error: { code: 'refresh_invalido', message: '' } }) };
 }
 
 function renderLogin(initialEntries = [{ pathname: '/login' }]) {
@@ -72,9 +72,9 @@ describe('Login — no OAuth affordance (spec: no functional OAuth affordance)',
 
 describe('Login — every failure is indistinguishable', () => {
   it.each([
-    ['wrong password', { ok: false, status: 401, json: async () => ({ error: 'credenciales_invalidas' }) }],
-    ['unknown username', { ok: false, status: 401, json: async () => ({ error: 'credenciales_invalidas' }) }],
-    ['deactivated account', { ok: false, status: 401, json: async () => ({ error: 'credenciales_invalidas' }) }],
+    ['wrong password', { ok: false, status: 401, json: async () => ({ error: { code: 'credenciales_invalidas', message: '' } }) }],
+    ['unknown username', { ok: false, status: 401, json: async () => ({ error: { code: 'credenciales_invalidas', message: '' } }) }],
+    ['deactivated account', { ok: false, status: 401, json: async () => ({ error: { code: 'credenciales_invalidas', message: '' } }) }],
   ])('shows the exact same message for %s', async (_label, loginResponse) => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
@@ -97,9 +97,9 @@ describe('Login — successful login navigates past the login route', () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/api/auth/login')) {
-        return jsonResponse({ accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' });
+        return jsonResponse({ data: { accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' } });
       }
-      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (u.includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       return refreshRejected();
     });
     renderLogin([{ pathname: '/login', state: { from: { pathname: '/catalogo' } } }]);
@@ -116,9 +116,9 @@ describe('Login — successful login navigates past the login route', () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/api/auth/login')) {
-        return jsonResponse({ accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' });
+        return jsonResponse({ data: { accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' } });
       }
-      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['ADMIN'] });
+      if (u.includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['ADMIN'] } });
       return refreshRejected();
     });
     renderLogin([{ pathname: '/login', state: { from: { pathname: '/cronjobs' } } }]);

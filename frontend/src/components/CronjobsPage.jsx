@@ -68,7 +68,7 @@ export default function CronjobsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const data = await listCronJobs();
-    setJobs(data?.jobs || []);
+    setJobs(data || []);
     setLoading(false);
   }, []);
 

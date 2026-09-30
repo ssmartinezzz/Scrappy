@@ -6,7 +6,7 @@ import App from './App';
 import { resetSession } from './lib/authSession';
 
 function refreshRejected() {
-  return { ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }) };
+  return { ok: false, status: 401, json: async () => ({ error: { code: 'refresh_invalido', message: '' } }) };
 }
 
 function renderApp(initialPath = '/catalogo') {
@@ -29,12 +29,17 @@ function jsonResponse(body, init = {}) {
   return { ok: true, status: 200, json: async () => body, ...init };
 }
 
+/** A success response in the API envelope: `{ data, page? }`. */
+function ok(data, page) {
+  return jsonResponse(page ? { data, page } : { data });
+}
+
 function refreshOk() {
-  return jsonResponse({ accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' });
+  return jsonResponse({ data: { accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' } });
 }
 
 function meWithRoles(roles) {
-  return jsonResponse({ username: roles.includes('ADMIN') ? 'admin' : 'viewer', roles });
+  return ok({ username: roles.includes('ADMIN') ? 'admin' : 'viewer', roles });
 }
 
 /** Router mock covering everything AppLayout/CronjobsPage/AgentChatPanel touch on mount. */
@@ -63,19 +68,19 @@ function authedRouter({
     const u = String(url);
     if (u.includes('/api/auth/refresh')) return Promise.resolve(refreshOk());
     if (u.includes('/api/auth/me')) return Promise.resolve(meWithRoles(roles));
-    if (u.includes('/api/status')) return Promise.resolve(jsonResponse({ tieneData, status, mensaje: '' }));
-    if (u.includes('/api/scrape/interrupted')) return Promise.resolve(jsonResponse(interrumpida));
-    if (u.includes('/api/sitios')) return Promise.resolve(jsonResponse({ base: [], extras: [] }));
-    if (u.includes('/api/outfits/saved')) return Promise.resolve(jsonResponse([]));
-    if (u.includes('/api/pcs/saved')) return Promise.resolve(jsonResponse([]));
-    if (u.includes('/api/ml/estado')) return Promise.resolve(jsonResponse({ training: { running: false } }));
-    if (u.includes('/api/ml/resultado')) return Promise.resolve(jsonResponse({ running: false, done: false }));
-    if (u.includes('/api/indices')) return Promise.resolve(jsonResponse({ ipc: {}, usd: {}, actualizado: null }));
-    if (u.includes('/api/agent/models')) return Promise.resolve(jsonResponse({ models: [] }));
-    if (u.includes('/api/tendencias')) return Promise.resolve(jsonResponse({}));
-    if (u.includes('/api/favoritos')) return Promise.resolve(jsonResponse([]));
-    if (u.includes('/api/facets')) return Promise.resolve(jsonResponse({}));
-    if (u.includes('/api/data')) return Promise.resolve(jsonResponse({ productos: [], meta: {} }));
+    if (u.includes('/api/status')) return Promise.resolve(ok({ tieneData, status, mensaje: '' }));
+    if (u.includes('/api/scrape/interrupted')) return Promise.resolve(ok(interrumpida));
+    if (u.includes('/api/sitios')) return Promise.resolve(ok({ base: [], extras: [] }));
+    if (u.includes('/api/outfits/saved')) return Promise.resolve(ok([]));
+    if (u.includes('/api/pcs/saved')) return Promise.resolve(ok([]));
+    if (u.includes('/api/ml/estado')) return Promise.resolve(ok({ training: { running: false } }));
+    if (u.includes('/api/ml/resultado')) return Promise.resolve(ok({ running: false, done: false }));
+    if (u.includes('/api/indices')) return Promise.resolve(ok({ ipc: {}, usd: {}, actualizado: null }));
+    if (u.includes('/api/agent/models')) return Promise.resolve(ok({ models: [] }));
+    if (u.includes('/api/tendencias')) return Promise.resolve(ok({}));
+    if (u.includes('/api/favoritos')) return Promise.resolve(ok([]));
+    if (u.includes('/api/facets')) return Promise.resolve(ok({}));
+    if (u.includes('/api/data')) return Promise.resolve(ok({ productos: [], meta: {} }, { number: 0, size: 24, total: 0, totalPages: 0 }));
     throw new Error(`unexpected fetch in role-awareness test: ${u}`);
   });
 }
@@ -119,7 +124,7 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
   it('an ADMIN deep-linking to /cronjobs sees the real page, not AccessDenied', async () => {
     global.fetch = vi.fn().mockImplementation((url) => {
       const u = String(url);
-      if (u.includes('/api/cron')) return Promise.resolve(jsonResponse([]));
+      if (u.includes('/api/cron')) return Promise.resolve(ok([]));
       return authedRouter({ roles: ['ADMIN'] })(url);
     });
 
@@ -190,8 +195,8 @@ describe('App — RootGate survives a backend that is not listening', () => {
       if (u.includes('/api/auth/refresh')) return Promise.resolve(refreshOk());
       if (u.includes('/api/auth/me')) return Promise.resolve(meWithRoles(['VIEWER']));
       if (u.includes('/api/status')) return Promise.reject(new TypeError('Failed to fetch'));
-      if (u.includes('/api/scrape/interrupted')) return Promise.resolve(jsonResponse(SIN_INTERRUMPIDA));
-      return Promise.resolve(jsonResponse({}));
+      if (u.includes('/api/scrape/interrupted')) return Promise.resolve(ok(SIN_INTERRUMPIDA));
+      return Promise.resolve(ok({}));
     });
 
     renderApp('/');

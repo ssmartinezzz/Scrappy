@@ -25,6 +25,20 @@ function jsonResponse(body, init = {}) {
   return { ok: true, status: 200, json: async () => body, ...init };
 }
 
+/** A success response in the API envelope: `{ data, page? }`. */
+function envelope(data, page) {
+  return jsonResponse(page ? { data, page } : { data });
+}
+
+/** An error response in the API envelope: `{ error: { code, message } }`. */
+function errorResponse(status, code, message = '', details) {
+  return {
+    ok: false,
+    status,
+    json: async () => ({ error: { code, message, ...(details ? { details } : {}) } }),
+  };
+}
+
 beforeEach(() => {
   global.fetch = vi.fn().mockResolvedValue(jsonResponse({}));
 });
@@ -121,7 +135,7 @@ describe('fetchData query serialisation', () => {
 describe('fetchSuplementosTipos', () => {
   it('returns the server list', async () => {
     global.fetch = vi.fn().mockResolvedValue(
-      jsonResponse({ tipos: [{ tipo: 'Proteína en Polvo', grupo: 'Proteína' }] }),
+      envelope({ tipos: [{ tipo: 'Proteína en Polvo', grupo: 'Proteína' }] }),
     );
 
     await expect(fetchSuplementosTipos()).resolves.toEqual([
@@ -132,8 +146,8 @@ describe('fetchSuplementosTipos', () => {
 
   it.each([
     ['a non-ok response', { ok: false, status: 500, json: async () => ({}) }],
-    ['a body with no tipos array', jsonResponse({})],
-    ['a tipos field that is not an array', jsonResponse({ tipos: 'Proteína' })],
+    ['a body with no tipos array', envelope({})],
+    ['a tipos field that is not an array', envelope({ tipos: 'Proteína' })],
   ])('returns [] for %s rather than throwing', async (_label, response) => {
     // The selector renders from this list, so a malformed body must degrade to an empty
     // selector instead of taking the whole panel down.
@@ -257,7 +271,7 @@ describe('fetchPcsBuilder', () => {
 
 describe('PC builder preference', () => {
   it('fetchPcPreferencia GETs /api/pcs/preferencia and returns the parsed body', async () => {
-    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ gama: 'alta', presupuesto: 900000, conGpu: true }));
+    global.fetch = vi.fn().mockResolvedValue(envelope({ gama: 'alta', presupuesto: 900000, conGpu: true }));
 
     await expect(fetchPcPreferencia()).resolves.toEqual({ gama: 'alta', presupuesto: 900000, conGpu: true });
     expect(calledUrl().pathname).toBe('/api/pcs/preferencia');
@@ -272,7 +286,7 @@ describe('PC builder preference', () => {
   });
 
   it('savePcPreferencia PUTs the body and returns the parsed response', async () => {
-    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ gama: 'media', presupuesto: null, conGpu: false }));
+    global.fetch = vi.fn().mockResolvedValue(envelope({ gama: 'media', presupuesto: null, conGpu: false }));
     const body = { gama: 'media', presupuesto: null, conGpu: false };
 
     await expect(savePcPreferencia(body)).resolves.toEqual(body);
@@ -291,7 +305,7 @@ describe('PC builder preference', () => {
 
 describe('Saved PCs', () => {
   it('savePc POSTs to /api/pcs/save with the body and returns the parsed response', async () => {
-    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true, id: 3, nombre: 'PC $100.000', totalEstimado: 100000 }));
+    global.fetch = vi.fn().mockResolvedValue(envelope({ ok: true, id: 3, nombre: 'PC $100.000', totalEstimado: 100000 }));
     const body = { nombre: 'PC $100.000', picks: [], presupuesto: 0, conGpu: false, totalEstimado: 100000 };
 
     const result = await savePc(body);
@@ -310,7 +324,7 @@ describe('Saved PCs', () => {
   });
 
   it('fetchSavedPcs hits /api/pcs/saved and returns the parsed list', async () => {
-    global.fetch = vi.fn().mockResolvedValue(jsonResponse([{ id: 1 }]));
+    global.fetch = vi.fn().mockResolvedValue(envelope([{ id: 1 }]));
 
     await expect(fetchSavedPcs()).resolves.toEqual([{ id: 1 }]);
     expect(calledUrl().pathname).toBe('/api/pcs/saved');
@@ -402,7 +416,7 @@ describe('startScrape', () => {
 describe('interrupted run: reading the offer and taking it (slice 6)', () => {
   it('reads the interrupted run from GET /api/scrape/interrupted', async () => {
     const { fetchInterrumpida } = await import('@/api');
-    global.fetch.mockResolvedValue(jsonResponse({
+    global.fetch.mockResolvedValue(envelope({
       hayInterrumpida: true, atendidos: ['freres'], pendientes: ['vcp'], salteados: [],
     }));
 
@@ -425,7 +439,7 @@ describe('interrupted run: reading the offer and taking it (slice 6)', () => {
 
   it('takes the offer with POST /api/scrape/resume', async () => {
     const { retomarScrape } = await import('@/api');
-    global.fetch.mockResolvedValue(jsonResponse({ retomando: true, mensaje: 'Retomando…' }));
+    global.fetch.mockResolvedValue(envelope({ retomando: true, mensaje: 'Retomando…' }));
 
     const r = await retomarScrape();
 
@@ -439,7 +453,7 @@ describe('interrupted run: reading the offer and taking it (slice 6)', () => {
     // in first. Reading only r.ok would navigate to a progress screen for a
     // run that was never started.
     const { retomarScrape } = await import('@/api');
-    global.fetch.mockResolvedValue(jsonResponse({ retomando: false, mensaje: 'ya hay un scraping en curso' }));
+    global.fetch.mockResolvedValue(envelope({ retomando: false, mensaje: 'ya hay un scraping en curso' }));
 
     await expect(retomarScrape()).resolves.toMatchObject({ retomando: false });
   });

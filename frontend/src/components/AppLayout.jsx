@@ -72,7 +72,7 @@ const init = {
   precioMax:    undefined,
   orden:        'precio_desc',
   // Pagination / infinite scroll
-  pag:          1,
+  pag:          0,
   hasMore:      true,
   // Data
   prods:        [],
@@ -98,7 +98,7 @@ function reducer(state, action) {
   switch (action.type) {
     case 'SET':          return { ...state, ...action.payload };
     // SET_FILTER resets page and clears the accumulated prods list
-    case 'SET_FILTER':   return { ...state, ...action.payload, pag: 1, prods: [], hasMore: true };
+    case 'SET_FILTER':   return { ...state, ...action.payload, pag: 0, prods: [], hasMore: true };
     case 'RESET_FILTERS': return {
       ...state,
       busq:'', sitioFiltro:'', rubroFiltro:'', marca:[], badge:'',
@@ -106,23 +106,23 @@ function reducer(state, action) {
       gymSubcats:{}, gymSubcatFiltro:null, pack:false, subCategoria:[],
       precioMin:undefined, precioMax:undefined,
       fit:'', estampado:'', escote:'', colorDominante:'',
-      pag:1, prods:[], hasMore:true,
+      pag:0, prods:[], hasMore:true,
     };
     case 'TOGGLE_TALLE': {
       const t = state.talles;
-      return { ...state, talles: t.includes(action.v)?t.filter(x=>x!==action.v):[...t,action.v], pag:1, prods:[], hasMore:true };
+      return { ...state, talles: t.includes(action.v)?t.filter(x=>x!==action.v):[...t,action.v], pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_CAT': {
       const c = state.categorias;
-      return { ...state, categorias: c.includes(action.v)?c.filter(x=>x!==action.v):[...c,action.v], pag:1, prods:[], hasMore:true };
+      return { ...state, categorias: c.includes(action.v)?c.filter(x=>x!==action.v):[...c,action.v], pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_MARCA': {
       const m = state.marca;
-      return { ...state, marca: m.includes(action.v)?m.filter(x=>x!==action.v):[...m,action.v], pag:1, prods:[], hasMore:true };
+      return { ...state, marca: m.includes(action.v)?m.filter(x=>x!==action.v):[...m,action.v], pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_SUBCAT': {
       const sc = state.subCategoria;
-      return { ...state, subCategoria: sc.includes(action.v)?sc.filter(x=>x!==action.v):[...sc,action.v], pag:1, prods:[], hasMore:true };
+      return { ...state, subCategoria: sc.includes(action.v)?sc.filter(x=>x!==action.v):[...sc,action.v], pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_COMPARAR': {
       const exists = state.comparar.find(p => p.url === action.prod.url);
@@ -677,7 +677,7 @@ export default function AppLayout() {
 
   // Load first page whenever filters change (prods already reset by SET_FILTER)
   useEffect(() => {
-    if (S.pag !== 1) return; // only on reset
+    if (S.pag !== 0) return; // only on reset
     loadFirstPage();
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
       S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
@@ -739,7 +739,7 @@ export default function AppLayout() {
   const loadFirstPage = useCallback(async () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    const data = await fetchData(buildParams(1));
+    const data = await fetchData(buildParams(0));
     loadingRef.current = false;
     if (data) {
       dispatch({ type:'APPEND_PRODS', payload:{

@@ -42,14 +42,19 @@ test('the splash leaves RUNNING within one poll when the backend stops answering
   // GET /api/status is stubbed so the run reaches RUNNING deterministically
   // instead of depending on how fast a real crawl gets going.
   let status = IDLE;
-  await context.route('**/api/status*', route => route.fulfill({ json: status }));
-  await context.route('**/api/scrape*', route => route.fulfill({ json: { ok: true } }));
+  await context.route('**/api/status*', route => route.fulfill({ json: { data: status } }));
+  await context.route('**/api/scrape*', route => route.fulfill({ json: { data: { ok: true } } }));
 
   await login(page, admin);
   await navegarEnLaApp(page, '/splash');
 
+  // Flip to RUNNING only once the splash has mounted and read IDLE. Flipping right after the
+  // in-app navigation raced the mount-time status read: whichever landed second decided whether
+  // the launch button was still there to click.
+  const iniciar = page.getByRole('button', { name: /Iniciar scraping/ });
+  await expect(iniciar).toBeEnabled();
   status = RUNNING;
-  await page.getByRole('button', { name: /Iniciar scraping/ }).click();
+  await iniciar.click();
   await expect(
     page.getByText(MENSAJE_PROGRESO),
     'the run never reached RUNNING, so the rest of this test would prove nothing'
