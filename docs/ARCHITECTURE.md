@@ -1078,6 +1078,10 @@ que la base avise hacia afuera y nosotros no le preguntemos.
   `DB_CONNECT_RETRIES` (10) y `DB_CONNECT_RETRY_INTERVAL` (10s) para Flyway,
   `DB_LISTEN_RETRY_INITIAL_MS` (1000) y `DB_LISTEN_RETRY_MAX_MS` (60000) para el listener.
   El arranque espera a la base en vez de morir en la primera conexión rechazada.
+- **Hacia el cliente**: `GET /api/events` (SSE, [contrato](./API_REFERENCE.md)). Cada
+  cliente tiene su cola acotada y un hilo virtual que hace las escrituras bloqueantes, así
+  que uno lento no frena al bus. El token viaja en un header, por eso el cliente usa
+  `fetch` y no `EventSource`; el stream dura 10 min, menos que los 15 del access token.
 - **Falla la espera, no el dato**: un evento perdido no deja a nadie con un estado
   equivocado; el bus emite `Resync` y el cliente relee. Por eso el aviso es una pista,
   y la fuente de verdad sigue siendo `/api/status` y `/api/ml/estado`.
