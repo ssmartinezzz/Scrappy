@@ -68,6 +68,7 @@ function authedRouter({
     const u = String(url);
     if (u.includes('/api/auth/refresh')) return Promise.resolve(refreshOk());
     if (u.includes('/api/auth/me')) return Promise.resolve(meWithRoles(roles));
+    if (u.includes('/api/events')) return new Promise(() => {});
     if (u.includes('/api/status')) return Promise.resolve(ok({ tieneData, status, mensaje: '' }));
     if (u.includes('/api/scrape/interrupted')) return Promise.resolve(ok(interrumpida));
     if (u.includes('/api/sitios')) return Promise.resolve(ok({ base: [], extras: [] }));
@@ -376,5 +377,31 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
     const tendenciasCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/tendencias'));
     expect(mlEstadoCalls).toHaveLength(1);
     expect(tendenciasCalls).toHaveLength(1);
+  });
+});
+
+describe('App — one status stream for the whole session', () => {
+  const eventCalls = () => global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/events'));
+
+  it('opens /api/events once, with the Bearer token and Accept: text/event-stream, however many screens read it', async () => {
+    global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
+
+    renderApp('/catalogo');
+
+    await waitFor(() => expect(screen.getByText('Catálogo')).toBeInTheDocument());
+    await waitFor(() => expect(eventCalls()).toHaveLength(1));
+    const headers = new Headers(eventCalls()[0][1].headers);
+    expect(headers.get('Authorization')).toBe('Bearer tok');
+    expect(headers.get('Accept')).toBe('text/event-stream');
+    expect(eventCalls()[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('opens none for an anonymous visitor: there is no token to send', async () => {
+    global.fetch = vi.fn().mockResolvedValue(refreshRejected());
+
+    renderApp('/login');
+
+    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    expect(eventCalls()).toHaveLength(0);
   });
 });

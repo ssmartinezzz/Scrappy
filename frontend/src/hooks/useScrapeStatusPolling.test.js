@@ -1,195 +1,284 @@
-import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { POLL_INTERVAL_MS, useScrapeStatusPolling } from './useScrapeStatusPolling';
+import { EventStreamProvider } from './EventStreamProvider';
+import { useScrapeStatusPolling } from './useScrapeStatusPolling';
 import { fetchStatus } from '../api';
+import { useAuth } from '../auth/AuthProvider';
+import { fakeStream, httpResponse } from '../test/fakeEventStream';
 
-vi.mock('../api', () => ({ fetchStatus: vi.fn() }));
+vi.mock('../api', () => ({ fetchStatus: vi.fn(), fetchMlEstado: vi.fn(), openEventStream: vi.fn() }));
+vi.mock('../auth/AuthProvider', () => ({ useAuth: vi.fn() }));
 
 const RUNNING = { status: 'RUNNING', mensaje: 'Scrapeando…', progreso: { total: 3, completados: 1 }, tieneData: false };
 const DONE    = { status: 'DONE',    mensaje: 'Listo',       progreso: { total: 3, completados: 3 }, tieneData: true  };
 
-/** Advances exactly `times` poll intervals and flushes the async callback each time. */
-async function tick(times = 1) {
-  await act(async () => { await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * times); });
-}
+const ml = { training: { running: false, phase: 'idle', pct: 0, msg: '', startedAt: '' } };
+const snapshot = status => ({ status, ml });
 
-/** Mounts the hook and settles the status read it fires on mount. */
-async function mountHook() {
-  const view = renderHook(() => useScrapeStatusPolling());
+let sleeps;
+let options;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  fetchStatus.mockReset();
+  useAuth.mockReturnValue({ authenticated: true, identity: { username: 'santi' } });
+  sleeps = [];
+  options = { sleep: (ms, signal) => new Promise(resolve => { sleeps.push(resolve); signal?.addEventListener('abort', resolve, { once: true }); }), random: () => 0 };
+});
+
+/** Mounts the hook under a provider fed by `open`, and settles the status read it fires on mount. */
+async function mountHook(open) {
+  const wrapper = ({ children }) => createElement(EventStreamProvider, { open, connectOptions: options }, children);
+  const view = renderHook(() => useScrapeStatusPolling(), { wrapper });
   await act(async () => { await Promise.resolve(); });
   return view;
 }
 
-beforeEach(() => {
-  vi.useFakeTimers();
-  fetchStatus.mockReset();
-});
+function silentStream() {
+  const s = fakeStream();
+  return { s, open: vi.fn().mockResolvedValue(s.response) };
+}
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe('useScrapeStatusPolling — interval lifecycle (slice 0, task 0.1/0.3/0.4)', () => {
-  it('re-arming after a poll-driven re-render replaces the interval instead of leaking a second one', async () => {
+describe('useScrapeStatusPolling — one callback per run, nothing left running (slice 0, task 0.1/0.3/0.4)', () => {
+  it('watching a run a second time replaces the first callback instead of leaving two to fire', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
-    const { result } = await mountHook();
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+    const first = vi.fn();
+    const second = vi.fn();
 
-    act(() => { result.current.startPolling(); });
-    await tick(); // one poll writes state, so the next startPolling comes from a NEW render's closure
-    act(() => { result.current.startPolling(); });
+    act(() => { result.current.watchRun(first); });
+    act(() => { result.current.watchRun(second); });
+    await act(async () => { s.frame('snapshot', snapshot(DONE)); });
 
-    fetchStatus.mockClear();
-    await tick();
-
-    // The per-render `pollingRef = {current:null}` this replaces read a fresh
-    // null here, failed to clear the first interval, and left two running.
-    expect(fetchStatus).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
   });
 
-  it('clears the interval on unmount — no poll outlives the component', async () => {
+  it('makes no status read and leaves the stream aborted once unmounted — nothing outlives the component', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
-    const { result, unmount } = await mountHook();
-
-    act(() => { result.current.startPolling(); });
-    await tick();
+    const { s, open } = silentStream();
+    const { result, unmount } = await mountHook(open);
+    act(() => { result.current.watchRun(vi.fn()); });
+    await act(async () => { s.frame('snapshot', snapshot(RUNNING)); });
 
     fetchStatus.mockClear();
     unmount();
-    await tick(3);
+    await act(async () => { await new Promise(r => setTimeout(r, 50)); });
 
+    expect(open.mock.calls[0][0].signal.aborted).toBe(true);
     expect(fetchStatus).not.toHaveBeenCalled();
   });
 
-  it('stops polling and calls onDone exactly once when the run reaches DONE', async () => {
+  it('calls onDone exactly once when the run reaches DONE, and reads /api/status at most for the closing extras', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
-    const { result } = await mountHook();
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
     const onDone = vi.fn();
 
-    act(() => { result.current.startPolling(onDone); });
-    fetchStatus.mockResolvedValueOnce(DONE);
-    await tick();
-
-    expect(onDone).toHaveBeenCalledTimes(1);
+    act(() => { result.current.watchRun(onDone); });
+    await act(async () => { s.frame('snapshot', snapshot(RUNNING)); });
+    fetchStatus.mockClear();
+    await act(async () => { s.frame('scrape.status', { status: 'DONE', mensaje: 'Listo' }); });
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
     expect(result.current.status).toBe('DONE');
 
-    fetchStatus.mockClear();
-    await tick(2);
-    expect(fetchStatus).not.toHaveBeenCalled();
+    await act(async () => { s.frame('scrape.status', { status: 'DONE', mensaje: 'otra vez' }); });
+    await act(async () => { await new Promise(r => setTimeout(r, 30)); });
+
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(fetchStatus.mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it('follows progress events into `progreso` as they arrive, with no timer involved', async () => {
+    fetchStatus.mockResolvedValue(RUNNING);
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+    await act(async () => { s.frame('snapshot', snapshot(RUNNING)); });
+
+    await act(async () => { s.frame('scrape.progress', { total: 3, completados: 2, productos: 40, sitios: [] }); });
+
+    await waitFor(() => expect(result.current.progreso.completados).toBe(2));
   });
 });
 
 describe('useScrapeStatusPolling — an unreachable backend is a state, not silence (task 0.2/0.5)', () => {
-  it('reports the backend unreachable when the fetch itself rejects, instead of freezing on the last RUNNING', async () => {
+  it('reports the backend unreachable when the stream breaks, instead of freezing on the last RUNNING', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
-    const { result } = await mountHook();
-
-    act(() => { result.current.startPolling(); });
-    await tick();
-    expect(result.current.status).toBe('RUNNING');
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+    await act(async () => { s.frame('snapshot', snapshot(RUNNING)); });
+    await waitFor(() => expect(result.current.status).toBe('RUNNING'));
     expect(result.current.backendUnreachable).toBe(false);
 
-    // The backend dies: `fetch` rejects, it does not resolve to a non-ok response.
-    fetchStatus.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    await tick();
+    // The backend dies: the read REJECTS, it does not resolve to a non-ok response.
+    await act(async () => { s.fail(); });
 
-    expect(result.current.backendUnreachable).toBe(true);
+    await waitFor(() => expect(result.current.backendUnreachable).toBe(true));
   });
 
-  it('reports the backend unreachable when the status response is not ok (fetchStatus resolves null)', async () => {
+  it('reports the backend unreachable when the stream answers with a non-ok status', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
-    const { result } = await mountHook();
+    const open = vi.fn().mockResolvedValue(httpResponse(503));
 
-    act(() => { result.current.startPolling(); });
-    await tick();
+    const { result } = await mountHook(open);
+
+    await waitFor(() => expect(result.current.backendUnreachable).toBe(true));
+  });
+
+  it('reports it when the status read after a launch resolves null (a non-ok response)', async () => {
+    fetchStatus.mockResolvedValueOnce({ status: 'IDLE', mensaje: '', tieneData: true });
+    const { open } = silentStream();
+    const { result } = await mountHook(open);
+    expect(result.current.backendUnreachable).toBe(false);
 
     fetchStatus.mockResolvedValueOnce(null);
-    await tick();
+    await act(async () => { result.current.watchRun(vi.fn(), { reconcile: true }); });
 
-    expect(result.current.backendUnreachable).toBe(true);
+    await waitFor(() => expect(result.current.backendUnreachable).toBe(true));
   });
 
-  it('keeps polling after a failure and clears the flag as soon as the backend answers again', async () => {
+  it('keeps reconnecting after a failure and clears the flag as soon as the backend answers again', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
-    const { result } = await mountHook();
+    const first = fakeStream();
+    const second = fakeStream();
+    const open = vi.fn().mockResolvedValueOnce(first.response).mockResolvedValueOnce(second.response);
+    const { result } = await mountHook(open);
+    await act(async () => { first.frame('snapshot', snapshot(RUNNING)); });
 
-    act(() => { result.current.startPolling(); });
-    fetchStatus.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    await tick();
-    expect(result.current.backendUnreachable).toBe(true);
+    await act(async () => { first.fail(); });
+    await waitFor(() => expect(result.current.backendUnreachable).toBe(true));
 
-    fetchStatus.mockResolvedValueOnce(RUNNING);
-    await tick();
+    await act(async () => { sleeps[0](); });
+    await act(async () => { second.frame('snapshot', snapshot(RUNNING)); });
 
-    expect(result.current.backendUnreachable).toBe(false);
+    await waitFor(() => expect(result.current.backendUnreachable).toBe(false));
     expect(result.current.status).toBe('RUNNING');
+    expect(open).toHaveBeenCalledTimes(2);
   });
 
   it('reports the backend unreachable when the status read on mount fails', async () => {
     fetchStatus.mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
     expect(result.current.backendUnreachable).toBe(true);
     expect(result.current.status).toBe('IDLE');
   });
 });
 
-describe('useScrapeStatusPolling — a run already live at mount asks to be polled (slice 6, task 6.3)', () => {
-  it('flags that polling is needed when the mount read finds a run already RUNNING', async () => {
-    // Landing on /splash after a resume — or after a reload mid-run — finds a
-    // live run nobody in this tab started. Without this the mount read wrote
-    // RUNNING to the screen and stopped there: a frozen status, no progress,
-    // no completion, for as long as the tab stayed open.
+describe('useScrapeStatusPolling — a run already live at mount is joined (slice 6, task 6.3)', () => {
+  it('flags that a run is in flight when the mount read finds one already RUNNING', async () => {
+    // Landing on /splash after a resume — or after a reload mid-run — finds a live run nobody
+    // in this tab started. Without the flag the screen showed RUNNING and nothing ever
+    // navigated away when it finished.
     fetchStatus.mockResolvedValue(RUNNING);
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
-    expect(result.current.pollingNeeded).toBe(true);
+    expect(result.current.runInFlightAtMount).toBe(true);
   });
 
-  it('carries that run\'s progress in from the mount read, not one poll later', async () => {
-    // The bar is drawn from `progreso`. Without this the screen showed a live
-    // run with an empty bar until the first poll landed a full interval later.
+  it('carries that run\'s progress in from the mount read, not one event later', async () => {
+    // The bar is drawn from `progreso`. Without this the screen showed a live run with an empty
+    // bar until the first push landed.
     fetchStatus.mockResolvedValue(RUNNING);
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
     expect(result.current.progreso).toEqual(RUNNING.progreso);
+  });
+
+  it('joins a run that the first snapshot reports, when the mount read has not answered', async () => {
+    fetchStatus.mockReturnValue(new Promise(() => {}));
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+
+    await act(async () => { s.frame('snapshot', snapshot(RUNNING)); });
+
+    await waitFor(() => expect(result.current.runInFlightAtMount).toBe(true));
   });
 
   it('does not flag it when the mount read finds no run in flight', async () => {
     fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
-    expect(result.current.pollingNeeded).toBe(false);
+    expect(result.current.runInFlightAtMount).toBe(false);
   });
 
   it('does not flag it when the backend could not be reached at mount', async () => {
-    // Unreachable is not "running": the flag would start an interval on a
-    // guess, and `backendUnreachable` already says what actually happened.
+    // Unreachable is not "running": `backendUnreachable` already says what actually happened.
     fetchStatus.mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
-    expect(result.current.pollingNeeded).toBe(false);
+    expect(result.current.runInFlightAtMount).toBe(false);
   });
 
-  it('is a one-shot start signal — a poll that reports RUNNING never re-raises it', async () => {
+  it('is a one-shot start signal — an event that reports RUNNING never re-raises it', async () => {
     fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
-    const { result } = await mountHook();
-    expect(result.current.pollingNeeded).toBe(false);
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+    expect(result.current.runInFlightAtMount).toBe(false);
 
-    // A scrape launched from this very tab: the poller drives RUNNING through
-    // the interval, and the flag must stay down or the effect watching it
-    // would re-arm the interval on every render that sees a live run.
-    fetchStatus.mockResolvedValue(RUNNING);
-    act(() => { result.current.startPolling(); });
-    await tick(2);
+    // A scrape launched from this very tab arrives as a RUNNING event; the flag must stay down.
+    await act(async () => { s.frame('snapshot', snapshot({ status: 'IDLE', mensaje: '', tieneData: true })); });
+    await act(async () => { s.frame('scrape.status', { status: 'RUNNING', mensaje: 'go' }); });
+
+    await waitFor(() => expect(result.current.status).toBe('RUNNING'));
+    expect(result.current.runInFlightAtMount).toBe(false);
+  });
+
+  it('keeps a snapshot that beat the mount read: the older read does not overwrite it', async () => {
+    let release;
+    fetchStatus.mockReturnValue(new Promise(r => { release = r; }));
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+    await act(async () => { s.frame('snapshot', snapshot(RUNNING)); });
+    await waitFor(() => expect(result.current.status).toBe('RUNNING'));
+
+    await act(async () => { release({ status: 'IDLE', mensaje: '', tieneData: false }); });
 
     expect(result.current.status).toBe('RUNNING');
-    expect(result.current.pollingNeeded).toBe(false);
+  });
+});
+
+describe('useScrapeStatusPolling — launching a run from this tab', () => {
+  it('shows RUNNING at once on markRunning, before any event', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
+    const { open } = silentStream();
+    const { result } = await mountHook(open);
+
+    act(() => { result.current.markRunning(); });
+
+    expect(result.current.status).toBe('RUNNING');
+  });
+
+  it('a rejected launch is corrected by the reconcile read, since no event will ever say so', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
+    const { open } = silentStream();
+    const { result } = await mountHook(open);
+    act(() => { result.current.markRunning(); });
+
+    await act(async () => { result.current.watchRun(vi.fn(), { reconcile: true }); });
+
+    await waitFor(() => expect(result.current.status).toBe('IDLE'));
+  });
+
+  it('a launch that already finished by the reconcile read calls onDone', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
+    const { open } = silentStream();
+    const { result } = await mountHook(open);
+    act(() => { result.current.markRunning(); });
+    const onDone = vi.fn();
+    fetchStatus.mockResolvedValue(DONE);
+
+    await act(async () => { result.current.watchRun(onDone, { reconcile: true }); });
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
   });
 });
 
@@ -203,10 +292,22 @@ describe('useScrapeStatusPolling — totalProds es el CATÁLOGO, no la cantidad 
       total: 8000, progreso: { total: 3, completados: 3 },
     });
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
     expect(result.current.totalProds).toBe(8000);
     expect(result.current.tieneData).toBe(true);
+  });
+
+  it('lo toma también del snapshot del stream', async () => {
+    fetchStatus.mockReturnValue(new Promise(() => {}));
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+
+    await act(async () => {
+      s.frame('snapshot', snapshot({ status: 'DONE', mensaje: '', tieneData: true, total: 8000, progreso: { total: 3, completados: 3 } }));
+    });
+
+    await waitFor(() => expect(result.current.totalProds).toBe(8000));
   });
 
   // Estaba gateado en RUNNING, así que en reposo quedaba 0 y la salida al
@@ -214,7 +315,7 @@ describe('useScrapeStatusPolling — totalProds es el CATÁLOGO, no la cantidad 
   it('lo levanta en la lectura de montaje, sin corrida en curso', async () => {
     fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true, total: 1234 });
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
     expect(result.current.totalProds).toBe(1234);
   });
@@ -222,7 +323,7 @@ describe('useScrapeStatusPolling — totalProds es el CATÁLOGO, no la cantidad 
   it('sin catálogo, tieneData es false y no inventa un total', async () => {
     fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: false });
 
-    const { result } = await mountHook();
+    const { result } = await mountHook(vi.fn(() => new Promise(() => {})));
 
     expect(result.current.tieneData).toBe(false);
     expect(result.current.totalProds).toBe(0);

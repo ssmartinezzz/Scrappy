@@ -1,19 +1,22 @@
 import { act, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SplashRoute } from './App';
+import { EventStreamProvider } from './hooks/EventStreamProvider';
 import { fetchStatus, fetchSitios } from './api';
-import { POLL_INTERVAL_MS } from './hooks/useScrapeStatusPolling';
+import { fakeStream } from './test/fakeEventStream';
 
-// Isolated from App.test.jsx on purpose: this one measures the POLL INTERVAL,
-// which needs fake timers, and the auth bootstrap chain does not drain under
-// them — the baseline read zero and the assertion passed on the mount read
-// alone, measuring nothing.
-vi.mock('./auth/AuthProvider', () => ({ useAuth: () => ({ isAdmin: true }) }));
+// Isolated from App.test.jsx on purpose: this one asserts that NO status read repeats, which
+// needs fake timers, and the auth bootstrap chain does not drain under them.
+vi.mock('./auth/AuthProvider', () => ({
+  useAuth: () => ({ isAdmin: true, authenticated: true, identity: { username: 'admin' } }),
+}));
 vi.mock('./api', () => ({
   fetchStatus: vi.fn(),
   fetchSitios: vi.fn(),
+  fetchMlEstado: vi.fn(() => Promise.resolve(null)),
+  openEventStream: vi.fn(),
   startScrape: vi.fn(),
   limpiarCatalogo: vi.fn(),
   limpiarMl: vi.fn(),
@@ -27,13 +30,27 @@ const RUNNING = {
   progreso: { total: 3, completados: 1, sitios: [] },
 };
 const IDLE = { status: 'IDLE', mensaje: '', tieneData: true };
+const ML = { training: { running: false, phase: 'idle', pct: 0, msg: '', startedAt: '' } };
 
 async function flush(ms) {
   await act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 }
 
+let stream;
+
 function renderSplash() {
-  return render(<MemoryRouter initialEntries={['/splash']}><SplashRoute/></MemoryRouter>);
+  stream = fakeStream();
+  const open = vi.fn().mockResolvedValue(stream.response);
+  return render(
+    <MemoryRouter initialEntries={['/splash']}>
+      <EventStreamProvider open={open}>
+        <Routes>
+          <Route path="/splash" element={<SplashRoute/>}/>
+          <Route path="/catalogo" element={<div>catalogo abierto</div>}/>
+        </Routes>
+      </EventStreamProvider>
+    </MemoryRouter>,
+  );
 }
 
 beforeEach(() => {
@@ -44,42 +61,53 @@ beforeEach(() => {
 
 afterEach(() => { vi.useRealTimers(); });
 
-describe('SplashRoute — polls a run it did not start (slice 6, task 6.3)', () => {
-  it('keeps polling when it lands on a run already RUNNING', async () => {
-    // Landing here after a resume: the run is live and this tab never launched
-    // it. Only handleScrape used to arm the poller, so the mount read wrote
-    // RUNNING to the screen and stopped — a frozen status with no progress and
-    // no completion, for as long as the tab stayed open.
+describe('SplashRoute — follows a run it did not start (slice 6, task 6.3)', () => {
+  it('keeps following it when it lands on a run already RUNNING: the stream says it finished and it leaves', async () => {
+    // Landing here after a resume: the run is live and this tab never launched it. The mount
+    // read wrote RUNNING to the screen and nothing ever told it the run had ended.
     fetchStatus.mockResolvedValue(RUNNING);
 
     renderSplash();
     await flush(0);
-    const afterMount = fetchStatus.mock.calls.length;
-    expect(afterMount).toBe(1); // the mount read happened; the baseline is real
+    expect(fetchStatus.mock.calls.length).toBe(1); // the mount read happened; the baseline is real
+    expect(screen.queryByText('catalogo abierto')).toBeNull();
 
-    await flush(POLL_INTERVAL_MS * 3);
+    stream.frame('snapshot', { status: RUNNING, ml: ML });
+    await flush(0);
+    stream.frame('scrape.status', { status: 'DONE', mensaje: 'Listo' });
+    await flush(0);
 
-    expect(fetchStatus.mock.calls.length).toBeGreaterThan(afterMount);
+    expect(screen.getByText('catalogo abierto')).toBeInTheDocument();
   });
 
-  it('does not poll when it lands with no run in flight', async () => {
+  it('does not navigate, and reads nothing again, when it lands with no run in flight', async () => {
     fetchStatus.mockResolvedValue(IDLE);
 
     renderSplash();
     await flush(0);
     expect(fetchStatus.mock.calls.length).toBe(1);
+    stream.frame('snapshot', { status: IDLE, ml: ML });
+    await flush(0);
 
-    await flush(POLL_INTERVAL_MS * 3);
+    await flush(1800 * 3);
 
     expect(fetchStatus.mock.calls.length).toBe(1);
+    expect(screen.queryByText('catalogo abierto')).toBeNull();
   });
 
-  it('shows the live progress of that run instead of a frozen status line', async () => {
+  it('shows the live progress of that run and follows it without a single further status read', async () => {
     fetchStatus.mockResolvedValue(RUNNING);
 
     renderSplash();
-    await flush(POLL_INTERVAL_MS);
-
+    await flush(0);
     expect(screen.getByText('Scrapeando entreno')).toBeInTheDocument();
+
+    stream.frame('snapshot', { status: RUNNING, ml: ML });
+    await flush(0);
+    stream.frame('scrape.status', { status: 'RUNNING', mensaje: 'Scrapeando vcp' });
+    await flush(1800 * 3);
+
+    expect(screen.getByText('Scrapeando vcp')).toBeInTheDocument();
+    expect(fetchStatus.mock.calls.length).toBe(1);
   });
 });

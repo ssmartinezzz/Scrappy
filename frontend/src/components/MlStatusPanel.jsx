@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { fetchMlEstado, startMlTraining, aplicarModeloML, fetchMlResultado } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { fetchMlEstado, startMlTraining, aplicarModeloML } from '../api';
+import { useMlStatus } from '../hooks/EventStreamProvider';
 import { SEMANTIC } from '../lib/colors';
 import { PHASE_LABELS } from '../lib/mlPhaseLabels';
 
@@ -38,34 +39,37 @@ export default function MlStatusPanel() {
 
   useEffect(() => { reload(); }, []);
 
-  // Poll every 2s while training — fetchMlEstado gives us phase/pct/msg
-  // Also poll /api/ml/resultado to detect completion and show toast (ADR-6)
+  // The stream pushes training progress and, once training ends, a fresh estado
+  // (model flags and metadata included), so nothing here asks the backend again.
+  const live = useMlStatus();
+  const runningRef = useRef(false);
+  runningRef.current = running;
+
+  useEffect(() => { if (live.estado) setEstado(live.estado); }, [live.estado]);
+
   useEffect(() => {
-    if (!running) return;
-    const iv = setInterval(async () => {
-      const [e, res] = await Promise.all([
-        fetchMlEstado().catch(() => null),
-        fetchMlResultado().catch(() => null),
-      ]);
-      if (e) { setEstado(e); setTick(t => t + 1); }
-      // A transient null (network hiccup) must not kill the polling loop while
-      // training was last known to be running — the next successful poll
-      // self-corrects. Only stop once we get a confirmed non-running state.
-      if (e && !e.training?.running) {
-        setRunning(false);
-        clearInterval(iv);
-        // Toast notification on training done (ADR-6)
-        if (res?.done) {
-          if (res.phase === 'error' || e?.training?.phase === 'error') {
-            showToast('Entrenamiento ML falló: ' + (res.msg || e?.training?.msg || ''), 'error');
-          } else {
-            const accMatch = (res.msg || '').match(/(\d+\.?\d*)\s*%/);
-            const acc = accMatch ? ' — ' + accMatch[1] + '% accuracy' : '';
-            showToast('Modelo ML actualizado' + acc);
-          }
-        }
-      }
-    }, 2000);
+    const t = live.training;
+    if (!t) return;
+    if (t.running) {
+      setRunning(true);
+      return;
+    }
+    const wasRunning = runningRef.current;
+    setRunning(false);
+    if (!wasRunning || t.phase === 'idle') return;
+    if (t.phase === 'error') {
+      showToast('Entrenamiento ML falló: ' + (t.msg || ''), 'error');
+    } else {
+      const accMatch = (t.msg || '').match(/(\d+\.?\d*)\s*%/);
+      const acc = accMatch ? ' — ' + accMatch[1] + '% accuracy' : '';
+      showToast('Modelo ML actualizado' + acc);
+    }
+  }, [live.training]);
+
+  // Only the elapsed-time label needs a clock; no request goes out.
+  useEffect(() => {
+    if (!running) return undefined;
+    const iv = setInterval(() => setTick(t => t + 1), 2000);
     return () => clearInterval(iv);
   }, [running]);
 
@@ -77,8 +81,8 @@ export default function MlStatusPanel() {
   const handleTrain = async (withImages) => {
     const started = await startMlTraining(withImages, 8);
     if (!started) {
-      // POST rejected (e.g. 400/409/500) — don't enter/keep the running state
-      // or start polling; surface the failure via the same toast used for
+      // POST rejected (e.g. 400/409/500) — don't enter/keep the running state;
+      // surface the failure via the same toast used for
       // training-done errors below.
       showToast('No se pudo iniciar el entrenamiento.', 'error');
       return;
