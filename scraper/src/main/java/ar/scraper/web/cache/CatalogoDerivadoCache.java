@@ -4,6 +4,7 @@ import ar.scraper.aggregator.CatalogSnapshotPort;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.grouping.ProductGroup;
 import ar.scraper.config.CacheNames;
+import ar.scraper.web.dto.MarcasPicksDtos;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
@@ -62,6 +63,34 @@ public class CatalogoDerivadoCache {
                 || (p.rubro() != null && p.rubro().equalsIgnoreCase(k.rubro())))
             .toList();
         return List.copyOf(grouping.agrupar(filtrados, k.soloMulti()));
+    }
+
+    public record MarcasKey(long ver, String rubro, String q, String sort) {
+        public static MarcasKey de(long ver, String rubro, String q, String sort) {
+            return new MarcasKey(ver, normalizar(rubro), normalizar(q), sort);
+        }
+    }
+
+    public record MejoresKey(long ver, String rubro) {
+        public static MejoresKey de(long ver, String rubro) {
+            return new MejoresKey(ver, normalizar(rubro));
+        }
+    }
+
+    /** Brands with at least two products, at most 100. Empty when there is no snapshot. */
+    @Cacheable(cacheNames = CacheNames.MARCAS, key = "#k", sync = true)
+    public List<MarcasPicksDtos.Marca> marcas(MarcasKey k) {
+        var r = snapshot.getLastResult();
+        if (r == null) return List.of();
+        return List.copyOf(MarcasPicksView.marcas(r, k.rubro(), k.q(), k.sort()));
+    }
+
+    /** Curated picks for the 40 largest categories. Empty when there is no snapshot. */
+    @Cacheable(cacheNames = CacheNames.MEJORES, key = "#k", sync = true)
+    public List<MarcasPicksDtos.MejoresCategoria> mejores(MejoresKey k) {
+        var r = snapshot.getLastResult();
+        if (r == null) return List.of();
+        return List.copyOf(MarcasPicksView.mejores(r, k.rubro()));
     }
 
     private static String normalizar(String s) {

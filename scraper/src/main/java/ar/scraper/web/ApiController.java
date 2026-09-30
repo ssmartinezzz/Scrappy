@@ -98,7 +98,7 @@ public class ApiController {
         this.recomendadosEndpoints = new RecomendadosEndpoints(service, db.feedback(), recommendationService, actorResolver);
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db.categoriaStats(), db.mlOutput(), db.historial(), db.productos(), aggregator, pythonRunner);
-        this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
+        this.marcasPicksEndpoints = new MarcasPicksEndpoints(service, derivados);
         this.comparadorEndpoints = new ComparadorEndpoints(service, db.preciosExternos(), derivados);
         this.dbAdminEndpoints   = new DbAdminEndpoints(service, db.mlOutput(), db.productos(), aggregator);
         this.catalogoEndpoints  = new CatalogoEndpoints(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
