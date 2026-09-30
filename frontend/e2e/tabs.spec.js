@@ -87,8 +87,13 @@ test('two tabs cold-starting at once send exactly one refresh', async ({ context
   await Promise.all([tabA.goto('about:blank'), tabB.goto('about:blank')]);
 
   const refrescos = contarRefrescos(context);
+  // Not `networkidle`: a session now holds /api/events open for as long as it lives, so the
+  // network never goes idle. The stream opens only once the session has settled, which makes
+  // its response the marker that this tab's boot, refresh included, is over.
+  const alArrancar = tab => tab.waitForResponse(r => new URL(r.url()).pathname === '/api/events');
+  const arranques = [alArrancar(tabA), alArrancar(tabB)];
   await Promise.all([tabA.goto('/catalogo'), tabB.goto('/catalogo')]);
-  await Promise.all([tabA.waitForLoadState('networkidle'), tabB.waitForLoadState('networkidle')]);
+  await Promise.all(arranques);
 
   // Counted before the session is checked, on purpose: if the lock is broken
   // AND the session is broken, the count is the cause and the session is the
