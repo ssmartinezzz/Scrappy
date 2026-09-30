@@ -8,12 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,56 +47,51 @@ class CategoriaStatsRepository implements CategoriaStatsPort {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void guardarCategoriaStats(JsonNode statsNode) {
         if (statsNode == null) return;
         Set<String> canonicas = CategoryGroups.canonicalCategories();
         java.time.OffsetDateTime now = Timestamps.now();
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                var it = statsNode.fields();
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO categoria_stats " +
-                        "(categoria, n, mean, median, mode, std, cv, q1, q3, iqr, mad, fence_low, fence_high, updated_at) " +
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
-                        "ON CONFLICT(categoria) DO UPDATE SET " +
-                        "n=excluded.n, mean=excluded.mean, median=excluded.median, mode=excluded.mode, " +
-                        "std=excluded.std, cv=excluded.cv, q1=excluded.q1, q3=excluded.q3, iqr=excluded.iqr, " +
-                        "mad=excluded.mad, fence_low=excluded.fence_low, fence_high=excluded.fence_high, " +
-                        "updated_at=excluded.updated_at")) {
-                    while (it.hasNext()) {
-                        var entry = it.next();
-                        String categoria = entry.getKey();
-                        if (!canonicas.contains(categoria)) {
-                            LOG.warn("[DB] categoria_stats: descartando clave no canónica '{}' " +
-                                    "(no está en CategoryGroups.canonicalCategories())", categoria);
-                            continue;
-                        }
-                        JsonNode v = entry.getValue();
-                        ps.setString(1, categoria);
-                        ps.setInt(2, v.path("n").asInt(0));
-                        ps.setLong(3, v.path("mean").asLong(0));
-                        ps.setLong(4, v.path("median").asLong(0));
-                        ps.setLong(5, v.path("mode").asLong(0));
-                        ps.setLong(6, v.path("std").asLong(0));
-                        ps.setDouble(7, v.path("cv").asDouble(0));
-                        ps.setLong(8, v.path("q1").asLong(0));
-                        ps.setLong(9, v.path("q3").asLong(0));
-                        ps.setLong(10, v.path("iqr").asLong(0));
-                        ps.setLong(11, v.path("mad").asLong(0));
-                        ps.setLong(12, v.path("fence_low").asLong(0));
-                        ps.setLong(13, v.path("fence_high").asLong(0));
-                        ps.setObject(14, now);
-                        ps.executeUpdate();
+            var it = statsNode.fields();
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO categoria_stats " +
+                    "(categoria, n, mean, median, mode, std, cv, q1, q3, iqr, mad, fence_low, fence_high, updated_at) " +
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+                    "ON CONFLICT(categoria) DO UPDATE SET " +
+                    "n=excluded.n, mean=excluded.mean, median=excluded.median, mode=excluded.mode, " +
+                    "std=excluded.std, cv=excluded.cv, q1=excluded.q1, q3=excluded.q3, iqr=excluded.iqr, " +
+                    "mad=excluded.mad, fence_low=excluded.fence_low, fence_high=excluded.fence_high, " +
+                    "updated_at=excluded.updated_at")) {
+                while (it.hasNext()) {
+                    var entry = it.next();
+                    String categoria = entry.getKey();
+                    if (!canonicas.contains(categoria)) {
+                        LOG.warn("[DB] categoria_stats: descartando clave no canónica '{}' " +
+                                "(no está en CategoryGroups.canonicalCategories())", categoria);
+                        continue;
                     }
+                    JsonNode v = entry.getValue();
+                    ps.setString(1, categoria);
+                    ps.setInt(2, v.path("n").asInt(0));
+                    ps.setLong(3, v.path("mean").asLong(0));
+                    ps.setLong(4, v.path("median").asLong(0));
+                    ps.setLong(5, v.path("mode").asLong(0));
+                    ps.setLong(6, v.path("std").asLong(0));
+                    ps.setDouble(7, v.path("cv").asDouble(0));
+                    ps.setLong(8, v.path("q1").asLong(0));
+                    ps.setLong(9, v.path("q3").asLong(0));
+                    ps.setLong(10, v.path("iqr").asLong(0));
+                    ps.setLong(11, v.path("mad").asLong(0));
+                    ps.setLong(12, v.path("fence_low").asLong(0));
+                    ps.setLong(13, v.path("fence_high").asLong(0));
+                    ps.setObject(14, now);
+                    ps.executeUpdate();
                 }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             LOG.warn("[DB] Error guardando categoria_stats: {}", e.getMessage());
+            Sql.marcarRollback();
         }
     }
 
