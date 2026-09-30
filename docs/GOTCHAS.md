@@ -270,6 +270,17 @@ un `.env` que ya existe no pisa nada.
 `pg_ctl status` chequea antes de re-arrancar. Para dev sin el instalador:
 `scripts/dev-db.sh`.
 
+**`@Transactional` no hace nada sobre un objeto construido con `new`, en una
+auto-invocación ni en un método privado — y no avisa.** Sólo corre si Spring
+devuelve un proxy: un test que arma el repositorio a mano escribe en autocommit, y
+`this.otroMetodo()` dentro de la misma clase no pasa por el proxy. Un método con
+centinela (`-1`, `false`) tiene además que llamar `Sql.marcarRollback()` en su
+`catch`, o la transacción commitea igual. Los tests construyen los repositorios con
+`TestDatabaseServices` / `TestRepositories` (proxy + `TransactionAwareDataSourceProxy`);
+`TransactionalBeansTest` falla si una clase transaccional no es un bean, es `final`,
+tiene un método no público o le falta `rollbackFor = Exception.class` (`SQLException`
+es checked y por defecto no revierte). Detalle en `docs/DATABASE.md` § Transacciones.
+
 **Tests contra Postgres:** `PostgresTestBase` auto-selecciona Testcontainers (si
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.
