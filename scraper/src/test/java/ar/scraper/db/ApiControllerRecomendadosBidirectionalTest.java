@@ -9,6 +9,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.web.ApiController;
+import ar.scraper.web.RecomendadosController;
 import ar.scraper.indices.IndiceService;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
@@ -49,6 +50,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
     private DatabaseService db;
     private ApiController controller;
+    private RecomendadosController recomendadosController;
     private ScraperService service;
     private ResultAggregator aggregator;
 
@@ -90,6 +92,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
         controller = new ApiController(service, indiceService, config, aggregator,
                 db, grouping, pythonRunner, outfitService, recommendationService);
+        recomendadosController = new RecomendadosController(service, db.feedback(), recommendationService, new ar.scraper.security.ActorResolver());
     }
 
 
@@ -100,7 +103,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(result.productos()).thenReturn(List.of(puma));
         when(service.getLastResult()).thenReturn(result);
 
-        controller.recomendadosFeedback(Map.of(
+        recomendadosController.recomendadosFeedback(Map.of(
                 "genero", "hombre",
                 "items", List.of(Map.of("url", "https://t/puma-buzo", "liked", false))
         ));
@@ -132,7 +135,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         ));
 
         ResponseEntity<?> recoResp =
-                controller.recomendados(0, 24, null, null);
+                recomendadosController.recomendados(0, 24, null, null);
 
         JsonNode items = Wire.data(recoResp);
         // Nike|Zapatilla boosted -> must rank first (equal base ML score otherwise).
@@ -148,7 +151,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
         Allure.parameter("genero", "mujer");
         ResponseEntity<?> resp =
-                controller.recomendados(0, 24, "mujer", "Remera");
+                recomendadosController.recomendados(0, 24, "mujer", "Remera");
 
         JsonNode items = Wire.data(resp);
         assertThat(items).hasSize(1);
@@ -166,7 +169,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(service.getLastResult()).thenReturn(result);
 
         ResponseEntity<?> resp =
-                controller.recomendados(0, 24, null, "Zapatilla");
+                recomendadosController.recomendados(0, 24, null, "Zapatilla");
 
         JsonNode items = Wire.data(resp);
         List<String> nombres = new java.util.ArrayList<>();
@@ -189,7 +192,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(service.getLastResult()).thenReturn(result);
 
         ResponseEntity<?> resp =
-                controller.recomendados(0, 24, "mujer", "Camperas");
+                recomendadosController.recomendados(0, 24, "mujer", "Camperas");
 
         JsonNode items = Wire.data(resp);
         // Step 1 and step 2 both yield zero -> step 3 fallback admits hombre stock.
@@ -210,7 +213,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(service.getLastResult()).thenReturn(result);
 
         ResponseEntity<?> resp =
-                controller.recomendados(0, 24, "mujer", "Pantalón");
+                recomendadosController.recomendados(0, 24, "mujer", "Pantalón");
 
         JsonNode items = Wire.data(resp);
         for (JsonNode n : items) {
@@ -230,7 +233,7 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
         Allure.parameter("genero", "hombre");
         ResponseEntity<?> resp =
-                controller.recomendados(0, 24, "hombre", "Zapatilla");
+                recomendadosController.recomendados(0, 24, "hombre", "Zapatilla");
 
         JsonNode items = Wire.data(resp);
         assertThat(items).isEmpty();

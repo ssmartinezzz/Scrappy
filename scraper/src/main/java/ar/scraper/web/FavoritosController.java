@@ -9,6 +9,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductPort;
@@ -18,14 +19,16 @@ import ar.scraper.security.Sujeto;
 
 import java.util.Map;
 
-/** Saved products ("favoritos"). Mappings live in {@link ApiController}. */
-class FavoritosEndpoints {
+/** Saved products ("favoritos"). */
+@RestController
+@RequestMapping("/api")
+public class FavoritosController {
 
     private final FavoritosPort favoritos;
     private final ProductPort productos;
     private final ActorResolver actorResolver;
 
-    FavoritosEndpoints(FavoritosPort favoritos, ProductPort productos,
+    public FavoritosController(FavoritosPort favoritos, ProductPort productos,
                        ActorResolver actorResolver) {
         this.favoritos = favoritos;
         this.productos = productos;
@@ -33,7 +36,8 @@ class FavoritosEndpoints {
     }
 
     // Items are ProductJson rows (dynamic shape shared with /api/data), hence ObjectNode.
-    ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {
+    @GetMapping("/favoritos")
+    public ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {
         List<ObjectNode> arr = new ArrayList<>();
         for (var f : favoritos.listarFavoritos(Sujeto.de(actorResolver))) {
             String url = f.get("url");
@@ -52,7 +56,8 @@ class FavoritosEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(arr));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> addFavorito(Map<String, String> body) {
+    @PostMapping("/favoritos")
+    public ResponseEntity<ApiResponse<OpResult>> addFavorito(@RequestBody Map<String, String> body) {
         String url    = body.getOrDefault("url", "").trim();
         String sitio  = body.getOrDefault("sitio", "").trim();
         String nombre = body.getOrDefault("nombre", "").trim();
@@ -63,7 +68,8 @@ class FavoritosEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> deleteFavorito(String url) {
+    @DeleteMapping("/favoritos")
+    public ResponseEntity<ApiResponse<OpResult>> deleteFavorito(@RequestParam String url) {
         favoritos.eliminarFavorito(Sujeto.de(actorResolver), url);
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }

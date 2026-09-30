@@ -2,20 +2,15 @@ package ar.scraper.web;
 
 import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.Indice;
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.financiacion.PresetPort;
 import ar.scraper.ml.FinanciacionCalculator;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -74,7 +69,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
     private ScraperConfig config;
     private DatabaseService db;
     private PresetPort presets;
-    private ApiController controller;
+    private CatalogoController controller;
     private final List<Product> sembrados = new ArrayList<>();
 
     @BeforeEach
@@ -91,10 +86,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
         // por db.cargarPresetActivo() directo (extract-preset-historial-ports).
         presets = mock(PresetPort.class, AdditionalAnswers.delegatesTo(db.presets()));
         doReturn(presets).when(db).presets();
-        controller = new ApiController(service, indiceService, config,
-                mock(ar.scraper.aggregator.ResultAggregator.class), db,
-                mock(GroupingService.class), mock(PythonRunner.class),
-                mock(OutfitService.class), mock(RecommendationService.class));
+        controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
 
         when(config.getMoneda()).thenReturn("ARS");
         when(indiceService.variacionMensual(Indice.IPC)).thenReturn(Optional.of(INFLACION_MENSUAL));
@@ -247,7 +239,8 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
 
     private JsonNode pedirData(Boolean pack) {
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
-                null, null, null, null, "precio_asc", pack, null, null, null);
+                null, null, null, null, "precio_asc", pack, null, null, null,
+                null, null, null, null);
         return Wire.data(resp);
     }
 

@@ -7,16 +7,19 @@ import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.MensajeDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-/** Destructive catalog/ML maintenance and the retired file export/import. Mappings live in {@link ApiController}. */
-class DbAdminEndpoints {
+/** Destructive catalog/ML maintenance and the retired file export/import. */
+@RestController
+@RequestMapping("/api")
+public class DbAdminController {
 
     private final ScraperService service;
     private final ar.scraper.ml.MlOutputPort mlOutput;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
-    DbAdminEndpoints(ScraperService service,
+    public DbAdminController(ScraperService service,
                      ar.scraper.ml.MlOutputPort mlOutput,
                      ar.scraper.catalog.ProductPort productos,
                      ar.scraper.aggregator.ResultAggregator aggregator) {
@@ -26,7 +29,8 @@ class DbAdminEndpoints {
         this.aggregator = aggregator;
     }
 
-    ResponseEntity<ApiResponse<MensajeDto>> limpiarProductos() {
+    @DeleteMapping("/db/productos")
+    public ResponseEntity<ApiResponse<MensajeDto>> limpiarProductos() {
         rechazarSiHayScraping();
         try {
             productos.limpiarProductos();
@@ -41,7 +45,8 @@ class DbAdminEndpoints {
         }
     }
 
-    ResponseEntity<ApiResponse<MensajeDto>> limpiarMl() {
+    @DeleteMapping("/db/ml")
+    public ResponseEntity<ApiResponse<MensajeDto>> limpiarMl() {
         rechazarSiHayScraping();
         mlOutput.limpiarMlOutput();
         aggregator.clearMlOutput();
@@ -56,12 +61,15 @@ class DbAdminEndpoints {
     }
 
     // Persistence is PostgreSQL, not a scraper.db file: the file export/import is retired.
-    ResponseEntity<ApiResponse<Void>> exportDb() {
+    @GetMapping("/db/export")
+    public ResponseEntity<ApiResponse<Void>> exportDb() {
         throw new ApiException(HttpStatus.GONE, "recurso_eliminado",
                 "DB export de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_dump.");
     }
 
-    ResponseEntity<ApiResponse<Void>> importDb(org.springframework.web.multipart.MultipartFile upload) {
+    @PostMapping(value = "/db/import",
+                 consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Void>> importDb(@RequestParam("file") org.springframework.web.multipart.MultipartFile upload) {
         throw new ApiException(HttpStatus.GONE, "recurso_eliminado",
                 "DB import de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_restore.");
     }

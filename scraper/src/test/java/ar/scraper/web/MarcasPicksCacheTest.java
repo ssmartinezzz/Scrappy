@@ -23,13 +23,13 @@ class MarcasPicksCacheTest {
 
     private ScraperService service;
     private CatalogoDerivadoCache derivados;
-    private MarcasPicksEndpoints endpoints;
+    private MarcasPicksController endpoints;
 
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
         derivados = mock(CatalogoDerivadoCache.class);
-        endpoints = new MarcasPicksEndpoints(service, derivados);
+        endpoints = new MarcasPicksController(service, derivados);
         Product p = new Product("Sitio", "Remera", 1000, null, "https://s/1", "img", "Remera", "unisex",
                 List.of("M"), Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);

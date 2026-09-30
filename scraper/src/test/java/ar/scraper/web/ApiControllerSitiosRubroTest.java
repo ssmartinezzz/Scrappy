@@ -1,16 +1,9 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -22,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -32,26 +24,19 @@ import static org.mockito.Mockito.when;
  * Unit tests verifying that {@code GET /api/sitios} includes a non-null
  * {@code rubro} field for every object in the {@code base[]} array.
  *
- * <p>Mirrors the {@link ApiControllerPrecioRangeTest} convention: {@code ApiController}
+ * <p>Mirrors the {@link ApiControllerPrecioRangeTest} convention: {@code SitiosController}
  * is instantiated as a plain POJO with Mockito-mocked collaborators.
  * No {@code @WebMvcTest} or full Spring context is required.</p>
  */
 @Epic("REST API")
 @Feature("Filtros / Facets")
 @Story("Sitios rubro")
-@DisplayName("ApiController — Sitios rubro field")
+@DisplayName("SitiosController — Sitios rubro field")
 class ApiControllerSitiosRubroTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
     private ScraperConfig config;
-    private ResultAggregator aggregator;
-    private DatabaseService db;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private SitiosController controller;
 
     @BeforeEach
     void setUp() {
@@ -65,23 +50,14 @@ class ApiControllerSitiosRubroTest {
         when(config.getPrecioMaximo()).thenReturn(300000.0);
         when(config.getMoneda()).thenReturn("ARS");
         when(service.getSitiosExtras()).thenReturn(List.of());
-        when(db.cargarPresetActivo()).thenReturn(Optional.empty());
     }
 
-    @Step("Wire ApiController with mocked collaborators")
+    @Step("Wire SitiosController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
-        aggregator            = mock(ResultAggregator.class);
-        db                    = mock(DatabaseService.class);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
 
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new SitiosController(service, config);
     }
 
     @Test

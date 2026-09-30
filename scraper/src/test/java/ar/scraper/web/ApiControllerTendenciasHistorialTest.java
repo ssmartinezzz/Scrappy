@@ -2,20 +2,14 @@ package ar.scraper.web;
 
 import ar.scraper.api.ApiException;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,17 +37,13 @@ import static org.mockito.Mockito.*;
 class ApiControllerTendenciasHistorialTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
-    private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
     private ar.scraper.ml.CategoriaStatsPort categoriaStats;
     private HistorialPort historial;
     private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private TendenciasController controller;
+    private ComparadorController comparador;
 
     @BeforeEach
     void setUp() {
@@ -63,8 +53,6 @@ class ApiControllerTendenciasHistorialTest {
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         categoriaStats        = mock(ar.scraper.ml.CategoriaStatsPort.class);
@@ -72,11 +60,8 @@ class ApiControllerTendenciasHistorialTest {
         historial             = mock(HistorialPort.class);
         when(db.historial()).thenReturn(historial);
         grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new TendenciasController(service, db.categoriaStats(), db.historial(), aggregator);
+        comparador = new ComparadorController(service, db.preciosExternos(), new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
     }
 
     // ── GET /api/tendencias ──────────────────────────────────────────────
@@ -180,7 +165,7 @@ class ApiControllerTendenciasHistorialTest {
     void gruposReturns204WhenNoLastResult() {
         when(service.getLastResult()).thenReturn(null);
 
-        var resp = controller.grupos(null, null, null, null, 2, 0, 20);
+        var resp = comparador.grupos(null, null, null, null, 2, 0, 20);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -190,7 +175,7 @@ class ApiControllerTendenciasHistorialTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
         when(grouping.agrupar(any(), anyBoolean())).thenReturn(List.of());
 
-        var resp = controller.grupos(null, null, null, null, 2, 0, 20);
+        var resp = comparador.grupos(null, null, null, null, 2, 0, 20);
         JsonNode body = Wire.body(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);

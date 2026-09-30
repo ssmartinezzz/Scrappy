@@ -1,16 +1,11 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -35,13 +30,9 @@ class ApiControllerSitiosConfigTest {
     private ScraperService service;
     private IndiceService indiceService;
     private ScraperConfig config;
-    private ResultAggregator aggregator;
     private DatabaseService db;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private SitiosController controller;
+    private CatalogoController catalogo;
 
     @BeforeEach
     void setUp() {
@@ -53,14 +44,9 @@ class ApiControllerSitiosConfigTest {
         service               = mock(ScraperService.class);
         indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
-        aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new SitiosController(service, config);
+        catalogo = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
     }
 
     // ── POST /api/sitios ─────────────────────────────────────────────────
@@ -167,7 +153,7 @@ class ApiControllerSitiosConfigTest {
     void csvReturns204WhenContentIsBlank() throws Exception {
         when(service.generarCsv()).thenReturn("");
 
-        var resp = controller.csv();
+        var resp = catalogo.csv();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -176,7 +162,7 @@ class ApiControllerSitiosConfigTest {
     void csvReturns200WithContentDispositionWhenContentPresent() throws Exception {
         when(service.generarCsv()).thenReturn("sitio,nombre,precio\nSporting,Zapatillas,50000");
 
-        var resp = controller.csv();
+        var resp = catalogo.csv();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(resp.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))

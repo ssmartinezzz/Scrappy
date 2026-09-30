@@ -1,22 +1,15 @@
 package ar.scraper.db;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.indices.IndiceService;
 import ar.scraper.db.support.PostgresTestBase;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalFinanciacion;
-import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
-import ar.scraper.web.ApiController;
+import ar.scraper.web.RecomendadosController;
 import ar.scraper.web.ScraperService;
 import ar.scraper.web.support.SujetoDePrueba;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Step;
@@ -70,7 +63,7 @@ import static org.mockito.Mockito.when;
 class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
 
     private ScraperService service;
-    private ApiController controller;
+    private RecomendadosController controller;
 
     private Product producto(String url) {
         return new Product("Sitio", "Producto " + url, 1000, null, url, "img",
@@ -104,10 +97,8 @@ class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
 
         SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
-        controller = new ApiController(service, mock(IndiceService.class),
-                mock(ScraperConfig.class), mock(ResultAggregator.class), db,
-                mock(GroupingService.class), mock(PythonRunner.class),
-                new OutfitService(recommendationService), recommendationService);
+        controller = new RecomendadosController(service, db.feedback(), recommendationService,
+                new ar.scraper.security.ActorResolver());
     }
 
     @Test

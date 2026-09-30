@@ -1,18 +1,13 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
@@ -38,16 +33,12 @@ import static org.mockito.Mockito.*;
 class ApiControllerDismissMarcasTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
-    private ScraperConfig config;
-    private ResultAggregator aggregator;
     private DatabaseService db;
     private ar.scraper.feedback.FeedbackPort feedback;
     private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
     private RecommendationService recommendationService;
-    private ApiController controller;
+    private RecomendadosController controller;
+    private MarcasPicksController marcas;
 
     @AfterEach
     void limpiarContexto() {
@@ -62,19 +53,14 @@ class ApiControllerDismissMarcasTest {
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
-        aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
         when(db.feedback()).thenReturn(feedback);
         grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
         recommendationService = mock(RecommendationService.class);
         SujetoDePrueba.entrar("ADMIN");
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new RecomendadosController(service, db.feedback(), recommendationService, new ar.scraper.security.ActorResolver());
+        marcas = new MarcasPicksController(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
     }
 
     // ── POST /api/recomendados/dismiss-categoria ─────────────────────────
@@ -117,7 +103,7 @@ class ApiControllerDismissMarcasTest {
     void marcasBrowserReturns204WhenNoLastResult() {
         when(service.getLastResult()).thenReturn(null);
 
-        var resp = controller.marcasBrowser(null, null, "count");
+        var resp = marcas.marcasBrowser(null, null, "count");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -132,7 +118,7 @@ class ApiControllerDismissMarcasTest {
                 producto("Adidas Stan Smith", "https://b.com/2", "Adidas"));
         when(service.getLastResult()).thenReturn(mockResult(products));
 
-        var resp = controller.marcasBrowser(null, null, "count");
+        var resp = marcas.marcasBrowser(null, null, "count");
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -148,7 +134,7 @@ class ApiControllerDismissMarcasTest {
                 productWithRubro("Nike Runner2", "https://a.com/3", "Nike", "indumentaria"));
         when(service.getLastResult()).thenReturn(mockResult(products));
 
-        var resp = controller.marcasBrowser("indumentaria", null, "count");
+        var resp = marcas.marcasBrowser("indumentaria", null, "count");
         JsonNode body = Wire.data(resp);
 
         // Only products with rubro=indumentaria are included; the suplementos product is filtered

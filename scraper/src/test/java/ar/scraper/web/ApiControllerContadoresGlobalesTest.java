@@ -2,17 +2,11 @@ package ar.scraper.web;
 
 import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
@@ -24,10 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -58,7 +49,7 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
     private ScraperService  service;
     private ScraperConfig   config;
     private DatabaseService db;
-    private ApiController   controller;
+    private CatalogoController controller;
 
     @BeforeEach
     void setUp() {
@@ -77,10 +68,7 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
         when(indiceService.deflactorParaRubro(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
-        controller = new ApiController(service, indiceService, config,
-                mock(ResultAggregator.class), db, mock(GroupingService.class),
-                mock(PythonRunner.class), mock(OutfitService.class),
-                mock(RecommendationService.class));
+        controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
     }
 
     /** @param unidades >1 makes it a pack. */

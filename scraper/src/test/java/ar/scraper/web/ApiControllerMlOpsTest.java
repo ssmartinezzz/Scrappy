@@ -1,17 +1,12 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.PythonRunner.TrainingStatus;
@@ -35,44 +30,34 @@ import static org.mockito.Mockito.*;
 @Epic("REST API")
 @Feature("Tendencias / ML Ops")
 @Story("ML ops")
-@DisplayName("ApiController — ML ops endpoints")
+@DisplayName("MlController — ML ops endpoints")
 class ApiControllerMlOpsTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
-    private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
     // Named productPort (not `productos`) — the class already has a local
     // `List<Product> productos` variable in a test method; reusing the name
     // for the field would shadow it there.
     private ProductPort productPort;
-    private GroupingService grouping;
     private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private MlController controller;
 
     @BeforeEach
     void setUp() {
         wireController();
     }
 
-    @Step("Wire ApiController with mocked collaborators")
+    @Step("Wire MlController with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         productPort           = mock(ProductPort.class);
         when(db.productos()).thenReturn(productPort);
-        grouping              = mock(GroupingService.class);
         pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new MlController(service, db.mlOutput(), db.productos(), aggregator, pythonRunner,
+                new MlEstadoView(service, db.productos(), pythonRunner));
     }
 
     // ── GET /api/ml/estado ───────────────────────────────────────────────

@@ -2,19 +2,13 @@ package ar.scraper.web;
 
 import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -56,7 +50,7 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
 
     private ScraperService service;
     private DatabaseService db;
-    private ApiController controller;
+    private CatalogoController controller;
     private Instant runStart;
 
     @BeforeEach
@@ -71,10 +65,7 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
         when(indiceService.deflactorParaRubro(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
-        controller = new ApiController(service, indiceService, config,
-                mock(ResultAggregator.class), db, mock(GroupingService.class),
-                mock(PythonRunner.class), mock(OutfitService.class),
-                mock(RecommendationService.class));
+        controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
 
         runStart = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         db.upsertProductos(List.of(
