@@ -31,7 +31,6 @@ public class ApiController {
 
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final ar.scraper.db.DatabaseService db;
-    private final ar.scraper.aggregator.grouping.GroupingService grouping;
     private final ar.scraper.ml.PythonRunner pythonRunner;
     private final OutfitService outfitService;
     private final RecommendationService recommendationService;
@@ -76,13 +75,13 @@ public class ApiController {
                          RecommendationService recommendationService,
                          CatalogAgentService catalogAgentService,
                          AgentConfig agentConfig,
-                         ActorResolver actorResolver) {
+                         ActorResolver actorResolver,
+                         ar.scraper.web.cache.CatalogoDerivadoCache derivados) {
         this.service           = service;
         this.indiceService  = indiceService;
         this.config            = config;
         this.aggregator        = aggregator;
         this.db                = db;
-        this.grouping          = grouping;
         this.pythonRunner      = pythonRunner;
         this.outfitService     = outfitService;
         this.recommendationService = recommendationService;
@@ -100,10 +99,26 @@ public class ApiController {
         this.favoritosEndpoints = new FavoritosEndpoints(db.favoritos(), db.productos(), actorResolver);
         this.mlEndpoints        = new MlEndpoints(service, db.categoriaStats(), db.mlOutput(), db.historial(), db.productos(), aggregator, pythonRunner);
         this.marcasPicksEndpoints = new MarcasPicksEndpoints(service);
-        this.comparadorEndpoints = new ComparadorEndpoints(service, db.preciosExternos(), grouping);
+        this.comparadorEndpoints = new ComparadorEndpoints(service, db.preciosExternos(), derivados);
         this.dbAdminEndpoints   = new DbAdminEndpoints(service, db.mlOutput(), db.productos(), aggregator);
         this.catalogoEndpoints  = new CatalogoEndpoints(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
         this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
+    }
+
+    public ApiController(ScraperService service,
+                         IndiceService indiceService, ScraperConfig config,
+                         ar.scraper.aggregator.ResultAggregator aggregator,
+                         ar.scraper.db.DatabaseService db,
+                         ar.scraper.aggregator.grouping.GroupingService grouping,
+                         ar.scraper.ml.PythonRunner pythonRunner,
+                         OutfitService outfitService,
+                         RecommendationService recommendationService,
+                         CatalogAgentService catalogAgentService,
+                         AgentConfig agentConfig,
+                         ActorResolver actorResolver) {
+        this(service, indiceService, config, aggregator, db, grouping, pythonRunner,
+             outfitService, recommendationService, catalogAgentService, agentConfig, actorResolver,
+             new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
     }
 
     public ApiController(ScraperService service,
