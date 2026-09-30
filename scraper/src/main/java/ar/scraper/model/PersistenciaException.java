@@ -1,6 +1,8 @@
 package ar.scraper.model;
 
-/** A persistence failure, translated by the adapter so the domain never sees {@code SQLException}. */
+/**
+ * A persistence failure, translated by the adapter so the domain never sees {@code SQLException}.
+ */
 public class PersistenciaException extends RuntimeException {
 
     public PersistenciaException(String mensaje) {

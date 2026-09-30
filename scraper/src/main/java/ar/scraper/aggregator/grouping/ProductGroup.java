@@ -7,16 +7,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Value object representing a group of comparable products across sites.
- *
- * <p>Promoted to top-level from its former home as a nested class inside
- * {@code GroupingService} (Work Unit 2 of the aggregator SOLID
- * modularization). Getter signatures are FROZEN — {@code ComparadorController}
- * JSON-maps them directly ({@code getNombre}, {@code getCategoria},
- * {@code getImg}, {@code getProductos}, {@code sitiosDistintos},
- * {@code precioMinimo}, {@code precioMaximo}, {@code ahorroPct}).</p>
- */
 public class ProductGroup {
     private final List<Product> productos;
     private final String nombre;
@@ -24,21 +14,17 @@ public class ProductGroup {
     private final String img;
 
     public ProductGroup(List<Product> items) {
-        // Ordenar de más barato a más caro
         this.productos = items.stream()
                 .sorted(Comparator.comparingDouble(Product::precio))
                 .collect(Collectors.toList());
 
-        // Nombre canónico: el más corto (menos descriptores extra)
         this.nombre = productos.stream()
                 .min(Comparator.comparingInt(p -> p.nombre().length()))
                 .map(Product::nombre).orElse("");
 
-        // Categoría del primer producto
         this.categoria = productos.isEmpty() ? "" :
                 (productos.get(0).categoria() != null ? productos.get(0).categoria() : "");
 
-        // Imagen: preferir la del producto más barato con imagen disponible
         this.img = productos.stream()
                 .filter(p -> StringUtils.isNotBlank(p.imagenUrl()))
                 .findFirst()
@@ -66,7 +52,6 @@ public class ProductGroup {
                 productos.get(productos.size()-1).precio();
     }
 
-    /** % de ahorro entre el más caro y el más barato */
     public double ahorroPct() {
         if (precioMaximo() <= 0) return 0;
         return (precioMaximo() - precioMinimo()) / precioMaximo() * 100;

@@ -10,17 +10,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Pure, stateless computation of catalog facets (talles, generos, categorias,
- * marcas, badges, subCategorias) from a product list.
- *
- * <p>Extracted verbatim from {@code ResultAggregator.calcularFacets}/
- * {@code sortTalles} (Work Unit 9 of the aggregator SOLID modularization) —
- * pure relocation, no behavior change. {@link ResultAggregator#calcularFacets}
- * keeps its public signature as a thin delegate to this class (see the
- * migration tracker for the rationale: it preserves the ~10 external test
- * call sites in {@code ar.scraper.web} that build fixtures against it).</p>
- */
 public final class FacetCalculator {
 
     private FacetCalculator() {}
@@ -64,9 +53,6 @@ public final class FacetCalculator {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                         (a, b) -> a, LinkedHashMap::new));
 
-        // Multi-badge (badges-oportunidades-revamp): a product counts once per
-        // badge it holds, not once total (spec "/api/facets Badge Counts Under
-        // Multi-Badge").
         Map<String, Long> badges = new LinkedHashMap<>();
         for (Product p : productos) {
             if (p.ml() == null || p.ml().badges() == null) continue;
@@ -86,9 +72,6 @@ public final class FacetCalculator {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                         (a, b) -> a, LinkedHashMap::new));
 
-        // T6.5/T6.6 (fashion-image-classification PR6): image-derived visual
-        // attribute facets — additive, mirror the badges/subCategorias pattern
-        // (blank values excluded from the count).
         Map<String, Long> fits             = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().fit() : "");
         Map<String, Long> estampados       = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().estampado() : "");
         Map<String, Long> escotes          = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().escote() : "");
@@ -98,7 +81,10 @@ public final class FacetCalculator {
                 fits, estampados, escotes, colorDominantes);
     }
 
-    /** Counts non-blank values extracted by {@code valor} from each product, preserving first-seen order. */
+    /**
+     * Counts non-blank values extracted by {@code valor} from each product, preserving first-seen
+     * order.
+     */
     private static Map<String, Long> contarNoBlanco(List<Product> productos,
             java.util.function.Function<Product, String> valor) {
         Map<String, Long> conteo = new LinkedHashMap<>();

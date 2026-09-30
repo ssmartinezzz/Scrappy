@@ -6,12 +6,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Serialises a {@link Product} into the JSON row shape the frontend consumes.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). Like
- * {@link FeedbackModels}, it lives on its own because several bounded contexts
- * share it — {@code /api/recomendados} and {@code /api/favoritos} both write the
- * full row, and {@code safe} is used by nearly every endpoint that builds JSON.</p>
+ * Like {@link FeedbackModels}, it lives on its own because several bounded contexts share it —
+ * {@code /api/recomendados} and {@code /api/favoritos} both write the full row, and {@code safe} is
+ * used by nearly every endpoint that builds JSON.
  */
 public final class ProductJson {
 
@@ -20,22 +17,15 @@ public final class ProductJson {
     public static String safe(String s) { return s != null ? s : ""; }
 
     /**
-     * Precio por unidad — precio de góndola dividido por {@code cantidadUnidades}
-     * cuando es un pack. Espeja la fórmula usada en {@code /api/data} (fila del
-     * catálogo) para que catálogo, ML y mejores picks compartan una única fuente
-     * de verdad. Guard contra división por cero: {@code cantidadUnidades <= 0}
-     * cae al precio de estantería.
+     * Espeja la fórmula usada en {@code /api/data} (fila del catálogo) para que catálogo, ML y
+     * mejores picks compartan una única fuente de verdad. Guard contra división por cero:
      */
     public static double precioUnitario(Product p) {
         return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
     }
 
-    /** Mismo formato que la lista de /api/data, para reuso en DetailPanel. */
     public static void escribir(ObjectNode n, Product p) {
-        // Handle corto para las rutas del frontend (/historial/{key}). Se manda
-        // en cada fila para que un link no tenga que ir a la base a buscarlo.
-        // Gemelo de la columna generada productos.producto_key (V25) — la
-        // paridad la fija ProductKeyParityTest.
+        // Se manda en cada fila para que un link no tenga que ir a la base a buscarlo.
         n.put("key",        ProductKey.of(p.url()));
         n.put("sitio",      safe(p.sitio()));
         n.put("nombre",     safe(p.nombre()));

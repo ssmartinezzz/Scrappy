@@ -5,39 +5,16 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Single source of truth for every garment/category {@code KW_*} keyword
- * array and the derived {@code TORSO_KEYWORDS_FLAT}/{@code PIERNAS_KEYWORDS_FLAT}
- * taxonomy views (ADR-1).
- *
- * <p>Extracted verbatim from {@code NormalizerService} (Work Unit 3 of the
- * aggregator SOLID modularization) — pure relocation of constants, no
- * behavior change. {@code NormalizerService}'s classifier, context guards,
- * and pack-quantity detector (still living in {@code NormalizerService}
- * until later work units) reference these arrays via static import.</p>
- *
- * <p>Before this extraction, adding a garment keyword to the classifier
- * did NOT propagate to the pack-quantity detector — two independently
- * duplicated arrays could silently drift apart. Centralizing them here is
- * the one real DRY win of the whole refactor: both
- * {@code CategoryClassifier} (Work Unit 5) and {@code PackQuantityDetector}
- * (Work Unit 4) will read the SAME {@code TORSO_KEYWORDS_FLAT}/
- * {@code PIERNAS_KEYWORDS_FLAT} arrays exposed here.</p>
+ * {@code NormalizerService}'s classifier, context guards, and pack-quantity detector (still living
+ * in {@code NormalizerService} until later work units) reference these arrays via static import.
  */
 public final class GarmentTaxonomy {
 
     private GarmentTaxonomy() {}
 
-    // ══════════════════════════════════════════════════════════════════
-    // CALZADO — keywords ordenados de más específico a más genérico
-    // ══════════════════════════════════════════════════════════════════
-
-    // KW_*_MODELO: standalone, unambiguous shoe-model/proper names — match
-    // WITHOUT requiring esZapatilla co-occurrence (the name itself is the
-    // shoe signal, e.g. "ultraboost", "pegasus", "old skool").
-    // KW_*_GENERICO: bare/generic words reused across apparel/accessories by
-    // the same brands — require esZapatilla co-occurrence in clasificar()
-    // (e.g. "running"/"training" alone must NOT classify "Running Sleeves"
-    // or "Training Gloves" as a shoe). See NormalizerService.clasificar().
+    // KW_*_MODELO: standalone, unambiguous shoe-model/proper names — match WITHOUT requiring
+    // esZapatilla co-occurrence (the name itself is the shoe signal, e.g. "ultraboost", "pegasus",
+    // "old skool").
     public static final String[] KW_RUNNING_MODELO = {
         "ultraboost","adizero","solarboost","duramo",
         "pegasus","vomero","air zoom","free run","air max",
@@ -72,11 +49,9 @@ public final class GarmentTaxonomy {
         "half cab","full cab"
     };
 
-    // "patinaje" es GENERICO, no MODELO, y la distinción importa: dcshoes lo
-    // usa como prefijo de catálogo en gorras ("Patinaje Dc Shoes University
-    // Cap"), gorros y baggies, no sólo en calzado. Como GENERICO sólo cuenta
-    // junto a esZapatilla, y el fallback de calzado corre último, esos tres
-    // siguen resolviendo a Gorra/Gorro/Baggy.
+    // "patinaje" es GENERICO, no MODELO, y la distinción importa: dcshoes lo usa como prefijo de
+    // catálogo en gorras ("Patinaje Dc Shoes University Cap"), gorros y baggies, no sólo en
+    // calzado.
     public static final String[] KW_SKATE_GENERICO = {
         "skate","skateboarding","patinaje"
     };
@@ -111,19 +86,14 @@ public final class GarmentTaxonomy {
         "hype","retro"," og ","collab","limited","drop","release","sneaker"
     };
 
-    // Tier A — unambiguous, distinctive football-boot tokens. Plain contains()
-    // is safe: these strings appear nowhere else in the file and are not
-    // common word fragments.
+    // Plain contains() is safe: these strings appear nowhere else in the file and are not common
+    // word fragments.
     public static final String[] KW_BOTIN = {
         "botin","cleats","tachon","tachos","chimpun",
         "bota futbol","bota de futbol","predator","mercurial",
         "phantom","nemeziz"
     };
 
-    // Tier B — ambiguous dictionary-like tokens reused inside unrelated words
-    // ("ace"⊂Embrace, "copa"⊂Copacabana, "tiempo"⊂entretiempo, "future" is a
-    // common English word). Only classify as Botines when esContextoBotin()
-    // also matches — mirrors the KW_*_GENERICO + esZapatilla guard pattern.
     public static final String[] KW_BOTIN_GENERICO = {
         "ace","copa","tiempo","future"
     };
@@ -139,8 +109,7 @@ public final class GarmentTaxonomy {
         "plataforma alta","lug sole","bota alta","boot alta"
     };
 
-    // Tier B — marcas que venden TAMBIÉN ropa/camperas (timberland). Solo
-    // clasificar como Borcego si hay contexto de calzado en el mismo nombre.
+    // Solo clasificar como Borcego si hay contexto de calzado en el mismo nombre.
     public static final String[] KW_BORCEGO_MARCA = {
         "timberland"
     };
@@ -159,10 +128,8 @@ public final class GarmentTaxonomy {
         "sandalia","sandal","diapositiva","slide"
     };
 
-    // Tier B — "Reef" es marca de indumentaria/accesorios de playa que también
-    // vende mochilas, gorras, buzos y billeteras, no solo ojotas/sandalias.
-    // Solo clasificar como Ojotas vía este keyword si hay contexto de calzado
-    // en el mismo título — mirrors el patrón KW_BORCEGO_MARCA/esContextoBorcego.
+    // Tier B — "Reef" es marca de indumentaria/accesorios de playa que también vende mochilas,
+    // gorras, buzos y billeteras, no solo ojotas/sandalias.
     public static final String[] KW_OJOTA_MARCA = {
         "reef "
     };
@@ -184,10 +151,6 @@ public final class GarmentTaxonomy {
         "zapatilla de casa","zapatilla casa"
     };
 
-    // ══════════════════════════════════════════════════════════════════
-    // INDUMENTARIA SUPERIOR
-    // ══════════════════════════════════════════════════════════════════
-
     public static final String[] KW_SWEATER = {
         "sweater","pulover","pullover","jersey","knit","tejido",
         "tricot","cardigan","lana","merino","crochet"
@@ -198,12 +161,12 @@ public final class GarmentTaxonomy {
         "fleece","polar","zip hoodie","full zip","half zip","canguro"
     };
 
-    // Combo/multi-pieza — ver ADR-4. Variantes con espacio/"de" en set/kit/pack
-    // evitan falsos positivos por substring ("settler", "kitsch", "package").
+    // Variantes con espacio/"de" en set/kit/pack evitan falsos positivos por substring ("settler",
+    // "kitsch", "package").
     public static final String[] KW_CONJUNTO = {
-        // Los tres padeados: "set "/"kit "/"pack " sin espacio adelante se comían
-        // "Sun(set)", "Mind(set)", "Wind(kit)", "Triple(kit)" y "Doy(pack)" — un
-        // doypack de creatina y una campera rompeviento entraban como Conjunto.
+        // "set "/"kit "/"pack " sin espacio adelante se comían "Sun(set)", "Mind(set)",
+        // "Wind(kit)", "Triple(kit)" y "Doy(pack)" — un doypack de creatina y una campera
+        // rompeviento entraban como Conjunto.
         "conjunto","combo"," set ","set de"," kit "," pack ","dos piezas","2 piezas"
     };
 
@@ -237,8 +200,8 @@ public final class GarmentTaxonomy {
         "saco tweed","saco sastre"
     };
 
-    // Intencionalmente excluido de la detección de combos — los trajes siempre
-    // resuelven a "Traje", ver ADR-4 / tasks.md 0.1 (confirmado por el product owner).
+    // Intencionalmente excluido de la detección de combos — los trajes siempre resuelven a "Traje",
+    // ver ADR-4 / tasks.md 0.1 (confirmado por el product owner).
     public static final String[] KW_TRAJE = {
         "traje","suit ","terno","smoking","smocking"
     };
@@ -248,11 +211,8 @@ public final class GarmentTaxonomy {
         "pique polo","lacoste polo","fred perry polo"
     };
 
-    // Tier B — "polo" suelto también es nombre de marca/línea en accesorios que
-    // no son indumentaria superior ("Medias Polo Green", "Gorra US Polo Assn",
-    // "Mochila Polo Club"). Solo clasificar como Chomba vía este keyword si no
-    // hay un sustantivo de accesorio explícito en el mismo título — mirrors el
-    // patrón KW_BORCEGO_MARCA/esContextoBorcego.
+    // Solo clasificar como Chomba vía este keyword si no hay un sustantivo de accesorio explícito
+    // en el mismo título — mirrors el patrón KW_BORCEGO_MARCA/esContextoBorcego.
     public static final String[] KW_CHOMBA_MARCA = {
         "polo "
     };
@@ -270,41 +230,23 @@ public final class GarmentTaxonomy {
         " top " // "Top" suelto (sin "deportivo"/"interior"/"cuello") — palabra completa
     };
 
-    // Palabras 100% culinarias — corren al inicio de clasificar() para que
-    // keywords genéricos de ropa (" top ", "knit", "fleece") no clasifiquen
-    // salsas, condimentos o alimentos como indumentaria. Se agregan aquí y no
-    // a KW_COMIDA porque KW_COMIDA se evalúa DESPUÉS del bloque de indumentaria.
-    //
-    // IMPORTANTE: solo tokens INEQUÍVOCOS (no colisionan con vocabulario de
-    // ropa vía substring). No mover acá tokens amplios de KW_COMIDA como
-    // "fruta" (⊂ "frutal") — esos deben seguir
-    // corriendo DESPUÉS del bloque de indumentaria.
+    // Palabras 100% culinarias — corren al inicio de clasificar() para que keywords genéricos de
+    // ropa (" top ", "knit", "fleece") no clasifiquen salsas, condimentos o alimentos como
+    // indumentaria.
     public static final String[] KW_ALIMENTO_TEMPRANO = {
         "salsa ","ketchup","mostaza ","mayonesa","vinagre ","mermelada ","pudding","chia ",
-        // Sustantivos culinarios inequívocos — para que comidas sin marca
-        // conocida tampoco las robe el bloque de indumentaria (ej. "Pancake
-        // Protein Top" → Pancake Proteico, no Musculosa).
-        // NOTE: bare "waffle" is deliberately NOT here — it is a knit-fabric term
-        // on garments (waffle-knit polo/tee) and would steal them into food. Real
-        // protein waffles disambiguate via "waffle proteico"/"waffle protein" in
-        // KW_PROTEINA_PANCAKE, or via a known food brand (KW_MARCA_ALIMENTO).
+        // Sustantivos culinarios inequívocos — para que comidas sin marca conocida tampoco las robe
+        // el bloque de indumentaria (ej. "Pancake Protein Top" → Pancake Proteico, no Musculosa).
         "pancake","panqueque","cookie","brownie","galleta","muffin",
         "cereal","granola","avena","palmito","palmitos","pure de ",
         "syrup","sirope","maple","barrita"," mani ","peanut","topping"
     };
 
-    // Marcas de alimento/suplemento — el nombre de la marca ES señal de
-    // nutrición aunque el título no traiga sustantivo de comida (ej.
-    // "SmartDIET Puré de Palmitos", "NUTREMAX Hydromax", "LA GANEXA",
-    // "Diabla Cookie"). Gatean el portón de nutrición en CategoryClassifier.
-    // Lista curada y conservadora (confirmada por el product owner): solo
-    // marcas cuyo nombre no colisiona con vocabulario de indumentaria.
-    // Comparadas sobre el texto normalizado (lowercase, sin acentos).
+    // Marcas de alimento/suplemento — el nombre de la marca ES señal de nutrición aunque el título
+    // no traiga sustantivo de comida (ej. "SmartDIET Puré de Palmitos", "NUTREMAX Hydromax", "LA
+    // GANEXA", "Diabla Cookie").
     public static final String[] KW_MARCA_ALIMENTO = {
         "mr taste","mrs taste","smartdiet","smart diet",
-        // CANDIDATA A REVISAR: "diabla" es la marca más ambigua del set —
-        // podría aparecer en lencería/merch de ropa. Si algún scrape muestra
-        // indumentaria mal taggeada como Alimentos por esta palabra, quitarla.
         "diabla",
         "ganexa","nutremax","granger"
     };
@@ -315,13 +257,8 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Camisa se NOMBRA. "shirt" pelado ya no vive acá: este bloque corre antes
-     * que {@code KW_REMERA}, así que se llevaba toda remera en inglés a camisa
-     * formal — 23 filas reales, 20 de ellas remeras de gym de Monkyforce
-     * ("MKF Compression Shirt", "Over Gym Shirt", "Gash Shirt") y una que
-     * literalmente decía "Remera Fila Round Neck T Shirt". El " shirt " sin
-     * calificador se mudó a {@code KW_REMERA}, que es el default honesto: si
-     * nada en el nombre dice camisa, no hay razón para archivarla como camisa.
+     * El " shirt " sin calificador se mudó a {@code KW_REMERA}, que es el default honesto: si nada
+     * en el nombre dice camisa, no hay razón para archivarla como camisa.
      */
     public static final String[] KW_CAMISA = {
         "camisa","camisaco","oxford","flannel","chambray","denim shirt",
@@ -340,18 +277,12 @@ public final class GarmentTaxonomy {
         "underwear","jockstrap","cueca"
     };
 
-    // " malla "/"mallas " padeado: "malla" pelado se comía "Mallado" — "Cable
-    // Splitter PWM Mallado para Fan Cooler" entraba al catálogo como traje de baño.
     public static final String[] KW_MALLA = {
         " malla ","mallas ","malla de bano","malla enteriza",
         "bikini","traje de bano"," bano ","banos ",
         "one piece","swimsuit","swimwear","beachwear","tankini",
         "ropa de playa","pileta"
     };
-
-    // ══════════════════════════════════════════════════════════════════
-    // INDUMENTARIA INFERIOR
-    // ══════════════════════════════════════════════════════════════════
 
     public static final String[] KW_BAGGY = {
         "baggy","wide leg","pierna ancha","balloon","paperbag",
@@ -402,10 +333,6 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PANTALON = {
         "pantalon","pant ","trouser","cargo ","chino ","formal pant"
     };
-
-    // ══════════════════════════════════════════════════════════════════
-    // ACCESORIOS — separados en categorías específicas
-    // ══════════════════════════════════════════════════════════════════
 
     public static final String[] KW_BOLSO = {
         "bolso","cartera","handbag","tote bag","clutch","minibag",
@@ -468,46 +395,26 @@ public final class GarmentTaxonomy {
         "shaker","bidon","bidón","botella deportiva","botella termica","termo deportivo"
     };
 
-    // ══════════════════════════════════════════════════════════════════
-    // TECH
-    // ══════════════════════════════════════════════════════════════════
-
     public static final String[] KW_NOTEBOOK = {
         "notebook","laptop","netbook","macbook","chromebook",
         "portatil","computadora portatil"
     };
 
-    // ══════════════════════════════════════════════════════════════════
-    // OFICINA (add-inpro-office-store)
-    //
-    // Keywords derivadas del catálogo real de INPRO (100 productos leídos en
-    // vivo el 2026-08-19), no imaginadas. Van padded con espacios porque
-    // anyMatch es un contains() pelado sobre un texto que clasificar() ya
-    // padeó: el espacio ES el word boundary. Sacarlo hace que " mat " se
-    // coma "material" y " silla " se coma cualquier cosa que la contenga.
-    // ══════════════════════════════════════════════════════════════════
+    // Van padded con espacios porque anyMatch es un contains() pelado sobre un texto que
+    // clasificar() ya padeó: el espacio ES el word boundary.
 
     public static final String[] KW_SILLA = {
         " silla ","sillas ","silla ergonomica","sillon ergonomico"," stool ","banqueta "
     };
 
     /**
-     * OJO: "escritorio" PELADO no puede entrar acá. {@code KW_PC} usa
-     * "computadora de escritorio" y "equipo de escritorio" — un keyword
-     * genérico le robaría al bloque TECH todas las PCs de escritorio del
-     * catálogo. Sólo formas que nombran el mueble sin ambigüedad.
+     * "escritorio" PELADO no puede entrar acá. Sólo formas que nombran el mueble sin ambigüedad.
      */
     public static final String[] KW_ESCRITORIO = {
         "standing desk","escritorio elevable","escritorio regulable","escritorio ajustable"
     };
 
-    /**
-     * Una PARTE o un SERVICIO de escritorio no es un escritorio. Sin esto,
-     * "Servicio de instalación de Standing Desk", "Tapa Premium Standing Desk"
-     * y "Ruedas Standing Desk" —tres productos reales— entrarían al catálogo
-     * como escritorios de 60k, 167k y 50k y ensuciarían toda la distribución
-     * de precios de la categoría, que es de lo que vive el pipeline ML.
-     */
+    /** Una PARTE o un SERVICIO de escritorio no es un escritorio. */
     public static final String[] KW_ESCRITORIO_PARTE = {
         "servicio de ","servicio ","tapa "," ruedas ","ruedas "
     };
@@ -543,8 +450,8 @@ public final class GarmentTaxonomy {
         "monitor 4k","monitor curvo","monitor 144hz","monitor 27","monitor 24"
     };
 
-    // " teclado " pelado FALTABA: 453 teclados vivían en `Otros` porque
-    // "Teclado Logitech K120 USB" no matcheaba ninguna de las formas compuestas.
+    // " teclado " pelado FALTABA: 453 teclados vivían en `Otros` porque "Teclado Logitech K120 USB"
+    // no matcheaba ninguna de las formas compuestas.
     public static final String[] KW_TECLADO = {
         " teclado ","teclados ","teclado mecanico","teclado gamer","keyboard",
         "mechanical keyboard","teclado rgb","teclado inalambrico","teclado bluetooth"
@@ -557,12 +464,9 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Tier B: " mouse " pelado FALTABA (302 filas en {@code Otros}), pero pelado
-     * también se lleva puesto un ratón que no es un periférico. Los tres casos
-     * reales del catálogo: "Zapatillas Footy Mickey Mouse", "Mochila Adidas
-     * Disney Minnie Mouse" y un "GAINER WHEY PROTEIN MOUSE DE CHOCOLATE" que
-     * quiso escribir mousse. El bloque TECH corre antes que el de ropa, así que
-     * sin guard esas tres se archivaban como periférico.
+     * " mouse " pelado FALTABA (302 filas en {@code Otros}), pero pelado también se lleva puesto un
+     * ratón que no es un periférico. El bloque TECH corre antes que el de ropa, así que sin guard
+     * esas tres se archivaban como periférico.
      */
     public static final String[] KW_MOUSE_GENERICO = { " mouse " };
 
@@ -582,27 +486,17 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_GPU = {
         "gpu","tarjeta de video","video card","graphics card",
-        // Padeados: "rx " se comía "Me(rx)" y "A(rx)" y archivaba como GPU un
-        // teclado, una memoria RAM y un gabinete.
         " rtx "," gtx "," rx ","radeon","geforce"," arc ",
         "placa de video","placa video"
     };
 
-    // " ram " padeado, no "ram " pelado: `anyMatch` es un contains crudo sobre
-    // el título ya padeado, así que la forma abierta matcheaba DENTRO de
-    // cualquier palabra terminada en "ram" — "Camisa Lino (D)ram", "Pastillas
-    // De Freno (S)ram", "Calza (In)gram", "Bikini Mono(gram)". Misma convención
-    // que ya usa " mani " en KW_COMIDA.
     public static final String[] KW_RAM = {
         " ram ","memoria ram","dimm","ddr4","ddr5","sodimm",
         "memoria ddr","modulo ram"
     };
 
-    // Corre DESPUÉS de KW_COOLER: un cooler de CPU no es un CPU. Ver KW_COOLER.
+    // Corre DESPUÉS de KW_COOLER: un cooler de CPU no es un CPU.
     public static final String[] KW_CPU = {
-        // "core i" abierto se comía "Cloud Stinger (Core I)nalámbrico" y los
-        // "Master Liquid 360 (Core I)I" — un auricular y un water cooler como
-        // procesadores. Los cinco sufijos reales, explícitos.
         "procesador"," cpu ","core i3","core i5","core i7","core i9","core ultra",
         " ryzen "," intel "," amd ",
         " i3 "," i5 "," i7 "," i9 ","threadripper"
@@ -618,7 +512,6 @@ public final class GarmentTaxonomy {
         "pc completa","equipo de escritorio","all in one pc"
     };
 
-    // Training / Gym — ropa de gym y pesas (distinto de running)
     public static final String[] KW_TRAINING_ROPA = {
         "training","gym","workout","crossfit","weightlifting",
         "powerlifting","fuerza","pesas","calistenia",
@@ -633,8 +526,7 @@ public final class GarmentTaxonomy {
         "calza de gym","buzo de entrenamiento","top de gym"
     };
 
-    // ══════════════════════════════════════════════════════════════════
-    // SUPLEMENTOS / NUTRICIÓN
+    // ══════════════════════════════════════════════════════════════════ SUPLEMENTOS / NUTRICIÓN
     // Subcategorías de suplemento — corren ANTES de KW_SUPLEMENTO en clasificar()
     // ══════════════════════════════════════════════════════════════════
 
@@ -642,9 +534,6 @@ public final class GarmentTaxonomy {
         "creatina","creatine","monohidrato de creatina"
     };
 
-    // "barrita" y el plural son formas reales del catálogo, no variantes teóricas:
-    // MRS TASTE publica sus 13 SKUs como "Caja Barritas de Proteína" y B3ST como
-    // "Barras Proteina", y ninguna de las dos matcheaba una forma singular.
     public static final String[] KW_PROTEINA_BARRA = {
         "barra proteica","protein bar","barra de proteina","barita proteica",
         "bar proteico","barrita proteica","barrita de proteina","barritas de proteina",
@@ -663,10 +552,9 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Origen vegetal, Tier A — el token nombra la proteína, así que clasifica
-     * solo. Corre ANTES de {@link #KW_PROTEINA_ISOLADA} y de {@link #KW_PROTEINA}:
-     * un aislado de arveja es las dos cosas, y para quien compra manda el origen.
-     * La restricción alimentaria decide la compra; el grado de filtrado la matiza.
+     * Origen vegetal, Tier A — el token nombra la proteína, así que clasifica solo. Corre ANTES de
+     * {@link #KW_PROTEINA_ISOLADA} y de {@link #KW_PROTEINA}: un aislado de arveja es las dos
+     * cosas, y para quien compra manda el origen.
      */
     public static final String[] KW_PROTEINA_VEGETAL = {
         "proteina vegetal","proteina vegana","vegetal protein","plant protein",
@@ -674,15 +562,8 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Origen vegetal, Tier B — RECLAMOS DIETARIOS, no sustantivos de producto.
      * Sólo clasifican cuando co-ocurre una cabeza de proteína
      * ({@code CategoryClassifier.esContextoProteina}).
-     *
-     * <p>Sin ese guard se comen productos que sólo declaran ser aptos: un citrato
-     * de magnesio "60 Cápsulas Vegano", una galleta "Plant Based", barritas
-     * "Sin Tacc Vegan" y —el caso que lo deja claro— la <b>salsa de soja</b> de
-     * MRS TASTE. Es la misma clase de bug que el espacio ausente en
-     * {@code "protein "}: un adjetivo del envase decidiendo la categoría.</p>
      */
     public static final String[] KW_PROTEINA_VEGETAL_RECLAMO = {
         " vegana "," vegano "," vegan "," veggie ","plant based",
@@ -690,58 +571,35 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Grado de filtrado, Tier A. {@code "itholate"} no es un typo nuestro: RAW
-     * publica así sus cinco SKUs ("RAW Proteína Itholate 2lb"), y sin el token
-     * quedaban en el bucket genérico.
+     * {@code "itholate"} no es un typo nuestro: RAW publica así sus cinco SKUs ("RAW Proteína
+     * Itholate 2lb"), y sin el token quedaban en el bucket genérico.
      */
     public static final String[] KW_PROTEINA_ISOLADA = {
         "isolate","isolada","aislada","itholate","iso whey","whey iso","isoprot"
     };
 
     /**
-     * Grado de filtrado, Tier B — la hidrólisis es un PROCESO, y el colágeno se
-     * vende hidrolizado. Sólo clasifica con una cabeza de proteína presente
+     * Sólo clasifica con una cabeza de proteína presente
      * ({@code CategoryClassifier.esContextoProteina}).
-     *
-     * <p>Sin el guard esta rama le robaba 11 filas a {@code Colágeno}, que corre
-     * deliberadamente DEBAJO de {@link #KW_PROTEINA} porque hay whey fortificada
-     * con colágeno. "Colágeno Hidrolizado Puro" no nombra ninguna proteína, así
-     * que el guard lo deja pasar; "ISO Gold Protein Hidrolized" sí, y se queda.</p>
      */
     public static final String[] KW_PROTEINA_ISOLADA_PROCESO = {
         "hidroliz","hydroliz","hydro whey"
     };
 
     /**
-     * Líneas de producto cuyo NOMBRE significa "proteína aislada" sin decir
-     * "isolate". Mismo guard que {@link #KW_PROTEINA_ISOLADA_PROCESO}: sólo
-     * clasifican con una cabeza de proteína presente.
-     *
-     * <p>El guard hace falta por la misma razón de siempre — son MARCAS, y una
-     * marca vende más de una cosa: "Isopure Collagen" es colágeno y
-     * "Isopure Protein Powder Plant Based Vegan" es proteína vegetal. Ninguna de
-     * las dos nombra proteína de suero, así que ninguna dispara.</p>
-     *
-     * <p>{@code "isoprot"} NO está acá sino en el Tier A, y no es inconsistencia:
-     * "ENA Isoprot 2,05 LB" es el nombre completo del producto y no trae ninguna
-     * otra palabra de proteína, así que un guard de cabeza lo dejaría afuera. El
-     * token es inequívoco —una sola fila en el catálogo, y la línea de aislado de
-     * ENA— así que se sostiene solo.</p>
+     * Líneas de producto cuyo NOMBRE significa "proteína aislada" sin decir "isolate". Mismo guard
+     * que {@link #KW_PROTEINA_ISOLADA_PROCESO}: sólo clasifican con una cabeza de proteína
+     * presente.
      */
     public static final String[] KW_PROTEINA_ISOLADA_MARCA = {
         "isopure","iso protein","iso gold"
     };
 
     /**
-     * {@code " protein "} va padeado de los DOS lados y no es prolijidad: sin el
-     * espacio de adelante se metía adentro de "MYPROTEIN" y "The Protein Lab",
-     * y archivaba como proteína un shaker de 600 ml, un omega 3 y un zinc — 17
-     * filas medidas sobre el catálogo vivo (2026-09-02).
-     *
-     * <p>{@code "concentrate"} salió de la lista: describe una dosis, no una
-     * proteína ("Lipo6 Black Ultra Concentrate", "HMB Ultra Concentrated"). En
-     * las cuatro filas legítimas donde aparecía, {@code "whey"} ya matcheaba,
-     * así que sacarlo no cuesta ningún producto.</p>
+     * {@code " protein "} va padeado de los DOS lados y no es prolijidad: sin el espacio de
+     * adelante se metía adentro de "MYPROTEIN" y "The Protein Lab", y archivaba como proteína un
+     * shaker de 600 ml, un omega 3 y un zinc — 17 filas medidas sobre el catálogo vivo
+     * (2026-09-02).
      */
     public static final String[] KW_PROTEINA = {
         " proteina "," protein ","whey","isolate","caseina","casein",
@@ -749,15 +607,9 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Marcas cuyo NOMBRE contiene una palabra de proteína sin que el producto lo
-     * sea. Se borran del texto antes de clasificar nutrición, así que lo que
-     * decide es lo que el título dice del producto, no cómo se llama quien lo
-     * vende. "Natural Whey" es el caso extremo: 16 filas en el catálogo, cero
-     * whey — magnesio, taurina, vitamina C, colágeno, potasio, ashwagandha.
-     *
-     * <p>Borrar la marca es más seguro que vetar el producto: "MYPROTEIN Impact
-     * Whey Protein" sigue matcheando {@code "whey"} en el resto del título y
-     * sigue siendo Proteína, que es lo correcto.</p>
+     * Marcas cuyo NOMBRE contiene una palabra de proteína sin que el producto lo sea. Se borran del
+     * texto antes de clasificar nutrición, así que lo que decide es lo que el título dice del
+     * producto, no cómo se llama quien lo vende.
      */
     public static final String[] KW_MARCA_CON_PROTEINA_EN_EL_NOMBRE = {
         "natural whey","myprotein","my protein","the protein lab"
@@ -779,24 +631,16 @@ public final class GarmentTaxonomy {
         "bcaa","aminoacido","amino acid","glutamina","glutamine"
     };
 
-    // El plural es una forma que el catálogo usa y ninguna singular matchea:
-    // "MYPROTEIN Vitamins D3", "Vitaminas C y D" — 10 filas medidas (2026-09-02).
     public static final String[] KW_VITAMINAS = {
         "vitamina ","vitamin ","vitaminas ","vitamins ",
         "multivitaminico","omega 3","omega3","omega-3"
     };
 
-    // Lipo-6 (Nutrex) es una línea termogénica y ningún token genérico la nombra:
-    // 8 filas medidas (2026-09-02). El dígito es lo que la hace segura — "lipo"
-    // pelado matchearía "liposoluble", que es vocabulario de vitaminas.
     public static final String[] KW_QUEMADORES = {
         "quemador de grasa","fat burner","termogenico","l-carnitina","l carnitina",
         "carnitina","cla ","lipo6","lipo 6","lipo-6"
     };
 
-    // "gainer" pelado y "true-mass" son formas reales: DULKRE publica "GAINER WHEY
-    // PROTEIN" y BSN "True-mass 1200", y con sólo "mass gainer" los tres caían en
-    // Proteína — que es justo lo que el orden Gainer-antes-que-Proteína evita.
     public static final String[] KW_GAINERS = {
         "mass gainer","hipercalorico","gainer","true-mass","true mass"
     };
@@ -817,11 +661,6 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_COMIDA = {
         "yerba","cafe","te verde","infusion","cereal","granola",
-        // " mani " padeado, no "mani" pelado: anyMatch es un contains crudo sobre el
-        // título ya padeado, así que la forma corta matcheaba DENTRO de otras palabras
-        // — "Ale(mani)a" y "(Mani)jas" mandaban la camiseta de Alemania y una banda
-        // elástica a "Alimentos". Es la misma convención que ya usa " mani " en
-        // KW_PROTEINA_SNACK más arriba.
         "frutos secos","almendra"," mani ","cacao","chocolate proteico",
         "avena","harina de avena","pasta","arroz",
         "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
@@ -835,123 +674,58 @@ public final class GarmentTaxonomy {
         "desodorante ","antitranspirante","splash","body mist"
     };
 
-    // ══════════════════════════════════════════════════════════════════
-    // TECH — segunda tanda (richer-category-taxonomy)
-    //
-    // Medido sobre las 16.830 filas activas: `Otros` tenía 2.974 productos
-    // (14% del catálogo) y adentro había 453 teclados, 302 mouses, 285
-    // fuentes y 231 discos. No estaban mal clasificados: NINGÚN keyword los
-    // nombraba. `KW_TECLADO` no tenía la palabra "teclado" pelada — sólo
-    // "teclado gamer"/"teclado mecanico" — así que un "Teclado Logitech K120"
-    // no matcheaba nada.
-    //
-    // Los sets de acá abajo van padeados con espacios por la misma razón que
-    // los de oficina: `anyMatch` es un contains() pelado sobre un texto que
-    // `clasificar` ya padeó, así que el espacio ES el word boundary.
-    // ══════════════════════════════════════════════════════════════════
+    // `KW_TECLADO` no tenía la palabra "teclado" pelada — sólo "teclado gamer"/"teclado mecanico" —
+    // así que un "Teclado Logitech K120" no matcheaba nada.
 
     /**
-     * Cable/adaptador se reconocen por SUSTANTIVO LÍDER, no por aparición.
-     *
-     * <p>La diferencia no es estilística: "Fuente Segotep 500W ATX Cables
-     * Largos 23a Cooler 120mm" y "Cable Splitter PWM Mallado para Fan Cooler"
-     * contienen los dos la palabra cable, y sólo el segundo ES un cable. Un
-     * `contains` suelto convertiría en cable a toda fuente que publicite el
-     * largo de los suyos. Medido: 130 de los 136 productos con "cable" en
-     * `Otros` lo tienen como primera palabra.</p>
-     *
-     * <p>Lo consume {@code CategoryClassifier.esCableLider}, que compara
-     * contra el ARRANQUE del texto padeado, no contra el texto entero.</p>
+     * La diferencia no es estilística: "Fuente Segotep 500W ATX Cables Largos 23a Cooler 120mm" y
+     * "Cable Splitter PWM Mallado para Fan Cooler" contienen los dos la palabra cable, y sólo el
+     * segundo ES un cable.
      */
     public static final String[] KW_CABLE_LIDER = {
         " cable ", " cables ", " adaptador ", " adaptadores ", " ficha ",
         " patchcord ", " conversor ", " prolongador ", " extension usb "
     };
 
-    /** Líder + " para gabinete " en el mismo título ⇒ destino, no producto. */
     public static final String[] KW_GABINETE_ACCESORIO_LIDER = {
         " bracket ", " filtro ", " soporte ", " kit "
     };
 
-    /**
-     * Líder ⇒ accesorio, sin necesidad de que el título nombre su destino
-     * (pc-builder-top-tier, T4). "Bracket" está además en {@link
-     * #KW_GABINETE_ACCESORIO_LIDER}, que exige " para gabinete ": las tres
-     * filas que lideran con bracket son accesorios, y las dos que no nombran
-     * el gabinete se escapaban a Almacenamiento y a Cooler. Los otros tres de
-     * esa lista siguen siendo condicionales — "Kit de RAM" y "Soporte de
-     * Monitor" son productos de verdad.
-     *
-     * <p>"Controladora" se suma en T15 (pc-builder-homelab): un hub para
-     * controlar fans/coolers ya instalados ("Controladora Cooler Master A1
-     * Gen 2 ARGB P/Fan Coolers") no es un cooler — es el accesorio, igual que
-     * un bracket.</p>
-     */
+    /** Líder ⇒ accesorio, sin necesidad de que el título nombre su destino. */
     public static final String[] KW_ACCESORIO_LIDER = { " bracket ", " controladora " };
 
-    /**
-     * Líder ⇒ Almacenamiento, antes de {@link #KW_COOLER} (T15,
-     * pc-builder-homelab): "HD SSD 1TB WD BLACK SN850X C/DISIPADOR M.2 NVME
-     * ..."/"Disco Solido SSD Hiksemi FUTURE X LITE 2TB M.2 NVMe Con
-     * Disipador" tienen "disipador" (bare en {@code KW_COOLER}) como
-     * accesorio del disco, no como el producto. Se exige además un token de
-     * {@link #KW_ALMACENAMIENTO} real — "hd"/"ssd"/"disco" solos no bastan.
-     */
+    /** Líder ⇒ Almacenamiento, antes de {@link #KW_COOLER}: */
     public static final String[] KW_ALMACENAMIENTO_LIDER = { " hd ", " ssd ", " disco " };
 
-    /** Líder ⇒ Auricular, antes de {@link #KW_COOLER} (T15): "Auricular Cooler Master CH351 Headset". */
+    /** Líder ⇒ Auricular, antes de {@link #KW_COOLER}: */
     public static final String[] KW_AURICULAR_LIDER = { " auricular ", " auriculares " };
 
-    /** Líder ⇒ Joystick, antes de {@link #KW_COOLER} (T15): "Joystick Cooler Master Storm Controller...". */
+    /** Líder ⇒ Joystick, antes de {@link #KW_COOLER}: */
     public static final String[] KW_JOYSTICK_LIDER = { " joystick " };
 
-    /**
-     * "Armado" es mano de obra, no producto: las 10 filas que lideran con él
-     * son el SERVICIO de armado ("ARMADO DE PC ESPECIAL (No incluye
-     * instalación de sistema operativo)"). Dos se habían ido a GPU y competían
-     * por el slot gpu del armador. Una PC armada de verdad lidera con "PC",
-     * que es {@link #KW_PC_LIDER}.
-     */
     public static final String[] KW_SERVICIO_LIDER = { " service ", " servicio ", " armado " };
     public static final String[] KW_FUENTE_LIDER = { " fuente " };
     public static final String[] KW_PC_LIDER = { " pc " };
 
     /**
-     * Líder ⇒ Mini PC, antes de {@link #KW_PC_LIDER} y del bloque CPU/Monitor
-     * (pc-builder-homelab, D2). Sin esto un mini PC cae en {@code CPU} vía
-     * {@code KW_CPU}'s " intel "/" amd " — 18 de 24 filas medidas — la misma
-     * clase de bug que las PCs armadas de la fase 7. "mini pc"/"minipc" van
-     * padeados de los dos lados, igual que {@code KW_PC_LIDER}; "nuc"/"brix"/
-     * "cubi" cubren los barebones que no se anuncian como "mini pc".
+     * Líder ⇒ Mini PC, antes de {@link #KW_PC_LIDER} y del bloque CPU/Monitor. "nuc"/"brix"/ "cubi"
+     * cubren los barebones que no se anuncian como "mini pc".
      */
     public static final String[] KW_MINIPC_LIDER = { " mini pc ", " minipc ", " nuc ", " brix ", " cubi " };
 
-    /**
-     * Líder ⇒ CPU aunque el título nombre "cooler" como accesorio (pc-builder-
-     * deep-taxonomy, T2a). Bare " micro " queda afuera a propósito: se come
-     * "Micro SD".
-     */
     public static final String[] KW_CPU_LIDER = {
         " procesador ", " microprocesador ", " micro amd ", " micro intel "
     };
 
     /**
-     * Líder ⇒ RAM aunque el título nombre el perfil de overclock del
-     * fabricante de CPU (pc-builder-homelab, T14). "Memoria RAM Kingston
-     * Fury Beast 16GB 5600 Mhz DDR5 CL36 Negra AMD EXPO"/"Memoria Corsair
-     * DDR5 32GB ... Intel XMP 3.0 / AMD EXPO" tienen " amd "/" intel " (el
-     * perfil de overclock, no la marca de un procesador) y caían en CPU vía
-     * {@code KW_CPU} — 35 filas medidas. Exige además un token de {@link
-     * #KW_RAM} real: "memoria" sola también nombra una microSD.
+     * Intel XMP 3.0 / AMD EXPO" tienen " amd "/" intel " (el perfil de overclock, no la marca de un
+     * procesador) y caían en CPU vía {@code KW_CPU} — 35 filas medidas.
      */
     public static final String[] KW_RAM_LIDER = { " memoria " };
 
     /**
-     * Redes. NO tiene "red" pelado a propósito: "red" es un color en inglés y
-     * el nombre de un switch mecánico de teclado — "Teclado Mecánico Raptor
-     * Fireclaw M87 Red Red Switch" tiene las dos palabras y no es un router.
-     * Los sustantivos de acá se nombran solos; "switch" es el único ambiguo y
-     * va aparte, en {@link #KW_RED_SWITCH}, con guard de contexto.
+     * "red" es un color en inglés y el nombre de un switch mecánico de teclado — "Teclado Mecánico
+     * Raptor Fireclaw M87 Red Red Switch" tiene las dos palabras y no es un router.
      */
     public static final String[] KW_RED = {
         "router","modem","repetidor","access point","placa de red",
@@ -960,7 +734,7 @@ public final class GarmentTaxonomy {
         "placa wifi"
     };
 
-    /** Tier B: "switch" sólo es de red cuando hay señal de red. Ver {@code esContextoRed}. */
+    /** "switch" sólo es de red cuando hay señal de red. */
     public static final String[] KW_RED_SWITCH = { " switch " };
 
     /** Guard de {@link #KW_RED_SWITCH}: lo que un switch de red dice y un teclado no. */
@@ -978,32 +752,13 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Refrigeración. Corre DESPUÉS de Gabinete y Fuente y ANTES de CPU, y las
-     * tres posiciones están medidas, no elegidas:
-     *
-     * <ul>
-     *   <li><b>Después de Gabinete</b>: 268 gabinetes activos nombran
-     *       "cooler"/"fan" en el título ("Gabinete Elite 302 TG 3FAN ARGB",
-     *       "Gabinete Cooler Master"). Un gabinete con tres fans es un
-     *       gabinete.</li>
-     *   <li><b>Después de Fuente</b>: 27 fuentes nombran su cooler ("Fuente
-     *       Magnum Tech 600W Cooler 120mm").</li>
-     *   <li><b>Antes de CPU</b>: era el bug. 321 de las 646 filas de `CPU`
-     *       eran disipadores — la mitad de la categoría, a un orden de
-     *       magnitud de precio del procesador que decían ser.</li>
-     * </ul>
-     *
-     * <p>" fan " pelado NO entra: "Remera Fiume Sport Linea Fan Godoy Cruz" y
-     * "Short Le Coq Sportif Pumas Titular Fan 2025" son dos productos reales
-     * donde fan quiere decir hincha.</p>
+     * Corre DESPUÉS de Gabinete y Fuente y ANTES de CPU, y las tres posiciones están medidas, no
+     * elegidas:
      */
     public static final String[] KW_COOLER = {
         "cooler","watercooling","water cooling","refrigeracion liquida",
         "disipador"," aio ","fan cooler","ventilador de gabinete",
         "ventilador para gabinete","grasa termica","pasta termica",
-        // T14, pc-builder-homelab: "Thermal Pad Carbice Ice Pad para CPU
-        // AM4/AM5..." no tenía "pasta termica"/"grasa termica" y caía en
-        // CPU vía " cpu " (KW_CPU) — mismo accesorio, nombre en inglés.
         "thermal pad","pad termico","thermal paste"
     };
 
@@ -1026,7 +781,7 @@ public final class GarmentTaxonomy {
         " tablet ","tablets "
     };
 
-    /** Corre ANTES de Mouse: "Mouse Pad Fantech MP64" es un pad, no un mouse. */
+    /** Corre ANTES de Mouse: */
     public static final String[] KW_MOUSEPAD = {
         "mouse pad","mousepad","pad mouse","alfombrilla mouse","mouse-pad"
     };
@@ -1036,10 +791,7 @@ public final class GarmentTaxonomy {
         "palanca de cambios","control xbox","control ps4","control ps5"
     };
 
-    /**
-     * Tier B: " volante " es tanto un volante de simulador como un VUELO de
-     * tela ("vestido con volantes"). Sólo cuenta con contexto de gaming/racing.
-     */
+    /** Sólo cuenta con contexto de gaming/racing. */
     public static final String[] KW_VOLANTE_GENERICO = { " volante ", " volantes " };
 
     public static final String[] KW_VOLANTE_CONTEXTO = {
@@ -1052,9 +804,7 @@ public final class GarmentTaxonomy {
     };
 
     /**
-     * Cámaras de seguridad/IP. NO tiene "camara" pelado: la webcam ya tiene su
-     * categoría y "cámara" suelta también nombra la cámara de una cubierta.
-     * Corre ANTES de Monitor porque "Camara Wifi Ezviz BM1 2mp Baby Call
+     * Cámaras de seguridad/IP. Corre ANTES de Monitor porque "Camara Wifi Ezviz BM1 2mp Baby Call
      * Monitor" —un producto real— termina en la palabra monitor.
      */
     public static final String[] KW_CAMARA = {
@@ -1068,18 +818,8 @@ public final class GarmentTaxonomy {
         " reloj ","relojes "
     };
 
-    // ══════════════════════════════════════════════════════════════════
-    // EQUIPAMIENTO DEPORTIVO (richer-category-taxonomy)
-    //
-    // Corre en el mismo tramo temprano que TECH, antes del bloque de ropa:
-    // "Paleta De Pádel adidas Adipower Ctrl Team 3.3" caía en `Zapatilla
-    // Entrenamiento` porque "adipower" es un KW_TRAINING_MODELO y el fallback
-    // de calzado la agarraba primero.
-    //
-    // OJO: `NonTextileGuard` tenía "pelota" y "balon" en NO_TEXTIL_INICIO y
-    // cortaba la clasificación entera antes de llegar acá. Se sacaron los dos
-    // — ya no hacen falta para frenarlos: ahora tienen categoría propia.
-    // ══════════════════════════════════════════════════════════════════
+    // "Paleta De Pádel adidas Adipower Ctrl Team 3.3" caía en `Zapatilla Entrenamiento` porque
+    // "adipower" es un KW_TRAINING_MODELO y el fallback de calzado la agarraba primero.
 
     public static final String[] KW_PELOTA = {
         "pelota","pelotas","balon","balones"
@@ -1089,11 +829,6 @@ public final class GarmentTaxonomy {
         " paleta ","paletas ","paleta de padel","paleta de ping pong",
         "paleta de tenis de mesa"
     };
-
-    // ══════════════════════════════════════════════════════════════════
-    // Vistas derivadas (ADR-1) — usadas por CategoryClassifier (Work Unit 5)
-    // y PackQuantityDetector (Work Unit 4), un solo origen para evitar drift.
-    // ══════════════════════════════════════════════════════════════════
 
     public static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(
         KW_PUFFER, KW_PILOTO, KW_SACO, KW_CHALECO, KW_CAMPERA, KW_SWEATER,
@@ -1111,13 +846,6 @@ public final class GarmentTaxonomy {
     public static String[] torsoFlat() { return TORSO_KEYWORDS_FLAT; }
     public static String[] piernasFlat() { return PIERNAS_KEYWORDS_FLAT; }
 
-    /**
-     * Shared keyword-containment check, hoisted from the byte-identical
-     * per-class {@code anyMatch} copies previously in
-     * {@code CategoryClassifier} and {@code GymratTagger} — both already
-     * depend on this class for their keyword arrays, so this is the natural
-     * shared home (post-review cleanup, no logic change).
-     */
     public static boolean anyMatch(String text, String[] keywords) {
         for (String kw : keywords) if (text.contains(kw)) return true;
         return false;

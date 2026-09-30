@@ -3,7 +3,6 @@ package ar.scraper.indices;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Snapshot of one {@link Indice} for {@code GET /api/indices}. */
 public record ResumenIndice(
         Indice indice,
         double ultimoValor,

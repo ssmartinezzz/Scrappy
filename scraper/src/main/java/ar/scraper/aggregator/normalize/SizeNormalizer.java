@@ -9,14 +9,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Size canonicalization.
- *
- * <p>Extraído verbatim de {@code NormalizerService.normalizarTalles}/
- * {@code normalizarTalle} + {@code TALLE_MAP} (Work Unit 6 de la
- * modularización SOLID del aggregator) — pure relocation, no behavior
- * change. {@code normalizarTalle} never called {@code capitalize} (it
- * upper-cases and strips non-alphanumeric characters directly), so there is
- * nothing to move from that utility here.</p>
+ * {@code normalizarTalle} never called {@code capitalize} (it upper-cases and strips
+ * non-alphanumeric characters directly), so there is nothing to move from that utility here.
  */
 @Component
 public class SizeNormalizer {
@@ -48,7 +42,6 @@ public class SizeNormalizer {
         String lower = raw.trim().toLowerCase();
         String mapped = TALLE_MAP.get(lower);
         if (mapped != null) return mapped;
-        // Devolver el talle original en mayúsculas si parece válido
         String clean = raw.trim().toUpperCase().replaceAll("[^A-Z0-9./]", "");
         return clean.length() <= 6 ? clean : "";
     }
