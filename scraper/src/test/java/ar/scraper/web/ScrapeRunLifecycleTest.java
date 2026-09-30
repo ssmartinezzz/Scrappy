@@ -124,7 +124,7 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
                 Mockito.mock(ScraperConfig.class), Mockito.mock(ResultAggregator.class),
                 Mockito.mock(ar.scraper.scrape.ScrapeRunPort.class),
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
-                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.ml.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class),
                 Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));

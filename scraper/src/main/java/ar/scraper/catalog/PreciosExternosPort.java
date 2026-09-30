@@ -9,7 +9,7 @@ import java.util.Map;
  *
  * <p>Vive en {@code catalog} y no en un área propia porque su payload no
  * trae ningún tipo que lo ubique en otro lado y de lo que habla es del
- * catálogo — el mismo criterio con el que {@code MlOutputPort} quedó acá.</p>
+ * catálogo.</p>
  *
  * <p>La implementa un {@code @Repository} package-private de
  * {@code ar.scraper.db}.</p>

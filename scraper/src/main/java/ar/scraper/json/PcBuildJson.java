@@ -1,5 +1,7 @@
-package ar.scraper.pcs;
+package ar.scraper.json;
 
+import ar.scraper.pcs.PcBuild;
+import ar.scraper.pcs.PcPick;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;

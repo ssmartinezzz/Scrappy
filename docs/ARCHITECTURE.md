@@ -272,7 +272,7 @@ Igual que F3, **esta extracción SÍ refrescó el store**: los seis constructore
 
 **`CategoriaStatsPort`/`MlOutputPort`/`ScrapeRunPort`/`SitiosPort`, del séptimo al décimo (extract-ml-persistence-ports).** Cuatro puertos en un commit porque son un cluster de consumo, no de implementación: son exactamente los que le quedaban a `MlEndpoints`, `AgentEndpoints`, `DbAdminEndpoints`, `ScraperService` y `ResultAggregator`, las cinco clases cuya dependencia dual el párrafo anterior declaraba. Las cinco dejan `DatabaseService` **por completo**. Cada puerto vive en el área dueña del tipo que devuelve: `CategoriaStatsPort` en `catalog` porque `CategoriaStats` ya estaba ahí, `ScrapeRunPort` en `scrape` por `CorridaInterrumpida`, y `SitiosPort` en `classification` por `SiteRegistry`.
 
-`MlOutputPort` es el único que no tuvo un tipo que lo ubicara —su payload es un `JsonNode` pelado— y **no** se le hizo un área `ml` propia: `ar.scraper.ml` ya existe y es infraestructura (el runner del subproceso Python, los enrichers), tanto que `areasSonSumideros` la lista entre los paquetes de los que un área NO puede depender. Un área homónima al lado de un paquete de infraestructura con el mismo nombre habría sido una trampa para el próximo lector. Va a `catalog`, que es de lo que el payload habla.
+`MlOutputPort` y `CategoriaStatsPort` llevan un `JsonNode` en su firma, y el dominio no importa Jackson (backend-hardening T8): viven hoy en `ar.scraper.ml`, el paquete de infraestructura del subproceso Python, junto a sus consumidores. Los serializadores `ProductJson`, `HistorialJson` y `PcBuildJson` viven en `ar.scraper.json`, que un área tampoco puede nombrar.
 
 `SitiosPort` arrastra un contrato que no se ve en la firma: **toda escritura termina en un `SiteRegistry.reload()`**, porque el registry cachea la tabla `sitio` y sin ese reload queda stale detrás de una escritura. Por eso el puerto recibe el `SiteRegistry`, y por eso una implementación que se saltee el reload está mal aunque compile. Lo que **no** subió al puerto es `PLATAFORMAS_VALIDAS`: `PlatformVocabularySyncTest` la alcanza por acceso de paquete para probar que coincide con el CHECK de SQL, y subirla la convertiría en API pública en vez de un invariante chequeado.
 
@@ -292,7 +292,7 @@ de vida. `ar.scraper.outfits.SavedOutfitsPort` (4 firmas) es `saved_outfits` y
 sus items. `ar.scraper.catalog.PreciosExternosPort` (2 firmas) es
 `precios_externos`, y **no** tuvo un área propia: su payload es
 `List<Map<String,Object>>`, sin ningún tipo que lo ubique, así que va a `catalog`
-porque de eso habla — el mismo criterio con el que `MlOutputPort` quedó ahí.
+porque de eso habla.
 `cargarPreciosExternos` entra a la regla ArchUnit aunque hoy no tenga un solo
 consumidor fuera de `db`: la regla describe el agregado, no el conteo de llamadas
 del commit que la escribe.

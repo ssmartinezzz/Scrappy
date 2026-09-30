@@ -1,6 +1,6 @@
 package ar.scraper.web;
 
-import ar.scraper.catalog.ProductJson;
+import ar.scraper.json.ProductJson;
 import org.apache.commons.lang3.StringUtils;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.api.PageMeta;

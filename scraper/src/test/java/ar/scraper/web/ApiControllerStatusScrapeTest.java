@@ -45,7 +45,7 @@ class ApiControllerStatusScrapeTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
-    private ar.scraper.catalog.MlOutputPort mlOutput;
+    private ar.scraper.ml.MlOutputPort mlOutput;
     private ProductPort productos;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
@@ -65,7 +65,7 @@ class ApiControllerStatusScrapeTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
-        mlOutput              = mock(ar.scraper.catalog.MlOutputPort.class);
+        mlOutput              = mock(ar.scraper.ml.MlOutputPort.class);
         when(db.mlOutput()).thenReturn(mlOutput);
         productos             = mock(ProductPort.class);
         when(db.productos()).thenReturn(productos);

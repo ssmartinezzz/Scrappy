@@ -12,12 +12,12 @@ import org.springframework.http.ResponseEntity;
 class DbAdminEndpoints {
 
     private final ScraperService service;
-    private final ar.scraper.catalog.MlOutputPort mlOutput;
+    private final ar.scraper.ml.MlOutputPort mlOutput;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
     DbAdminEndpoints(ScraperService service,
-                     ar.scraper.catalog.MlOutputPort mlOutput,
+                     ar.scraper.ml.MlOutputPort mlOutput,
                      ar.scraper.catalog.ProductPort productos,
                      ar.scraper.aggregator.ResultAggregator aggregator) {
         this.service = service;

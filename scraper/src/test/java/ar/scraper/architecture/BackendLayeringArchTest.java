@@ -62,6 +62,7 @@ class BackendLayeringArchTest {
                                                     "ar.scraper.aggregator..",
                                                     "ar.scraper.web..",
                                                     "ar.scraper.ml..",
+                                                    "ar.scraper.json..",
                                                     "ar.scraper.agent..",
                                                     "ar.scraper.security..",
                                                     "ar.scraper.config..",
