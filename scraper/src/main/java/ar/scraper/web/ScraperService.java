@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.CatalogSnapshotPort;
 import ar.scraper.aggregator.ResultAggregator;
+import ar.scraper.catalog.CatalogoActualizado;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.ml.MlOutputPort;
 import ar.scraper.classification.SiteRegistry;
@@ -20,6 +21,8 @@ import com.microsoft.playwright.Playwright;
 import com.opencsv.CSVWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -133,10 +136,24 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public RunState getRunState() { return runState.get(); }
 
+    private final ApplicationEventPublisher eventos;
+    private final AtomicLong snapshotVersion = new AtomicLong();
+    private final AtomicReference<AggregatedResult> vistaPublicada = new AtomicReference<>();
+
     public ScraperService(ScraperConfig config, ResultAggregator aggregator,
                           ScrapeRunPort scrapeRun, SitiosPort sitios, MlOutputPort mlOutput,
                           SiteRegistry siteRegistry, ProductPort productos,
                           TechSpecsIndexer techSpecsIndexer) {
+        this(config, aggregator, scrapeRun, sitios, mlOutput, siteRegistry, productos,
+             techSpecsIndexer, evento -> { });
+    }
+
+    @Autowired
+    public ScraperService(ScraperConfig config, ResultAggregator aggregator,
+                          ScrapeRunPort scrapeRun, SitiosPort sitios, MlOutputPort mlOutput,
+                          SiteRegistry siteRegistry, ProductPort productos,
+                          TechSpecsIndexer techSpecsIndexer, ApplicationEventPublisher eventos) {
+        this.eventos      = eventos;
         this.config       = config;
         this.aggregator   = aggregator;
         this.scrapeRun    = scrapeRun;
@@ -187,6 +204,7 @@ public class ScraperService implements CatalogSnapshotPort {
             List<ar.scraper.model.Product> prods = productos.cargarProductos();
             if (!prods.isEmpty()) {
                 synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
+                publicarCambio();
                 // Restaurar ML output
                 com.fasterxml.jackson.databind.JsonNode mlOut = mlOutput.cargarMlOutput();
                 if (mlOut != null) aggregator.setLastMlOutput(mlOut);
@@ -197,6 +215,21 @@ public class ScraperService implements CatalogSnapshotPort {
         } catch (Exception e) {
             LOG.warn("[DB] Error restaurando resultados: {}", e.getMessage());
         }
+    }
+
+    /** Bumps on every change to what readers are served; caches derived from the snapshot key on it. */
+    public long snapshotVersion() { return snapshotVersion.get(); }
+
+    /**
+     * Must follow every assignment of {@code lastResult} / {@code servedResult}, outside
+     * {@code catalogLock}. It compares what readers are served now with what was last announced,
+     * so writes that do not change the served view (progressive rebuilds during a run, which
+     * readers do not see) announce nothing.
+     */
+    private void publicarCambio() {
+        AggregatedResult servido = getLastResult();
+        if (vistaPublicada.getAndSet(servido) == servido) return;
+        eventos.publishEvent(new CatalogoActualizado(snapshotVersion.incrementAndGet()));
     }
 
     public record SitioExtra(String nombre, String url, String plataforma) {}
@@ -240,6 +273,7 @@ public class ScraperService implements CatalogSnapshotPort {
             // hasta que la corrida termine, un catálogo que ya no existe.
             this.servedResult = null;
         }
+        publicarCambio();
     }
 
     /** Saca un producto del catálogo en memoria tras un soft-delete manual en DB
@@ -258,6 +292,7 @@ public class ScraperService implements CatalogSnapshotPort {
                     lastResult.statsPorSitio());
             servedResult = sinProducto(servedResult, url);
         }
+        publicarCambio();
     }
 
     /** Misma poda sobre la foto servida, si hay corrida abierta. */
@@ -299,6 +334,7 @@ public class ScraperService implements CatalogSnapshotPort {
             lastResult = reclasificado(lastResult, url, categoria, marca, genero, subCategoria, rubro);
             servedResult = reclasificado(servedResult, url, categoria, marca, genero, subCategoria, rubro);
         }
+        publicarCambio();
     }
 
     private static AggregatedResult reclasificado(AggregatedResult foto, String url,
@@ -332,7 +368,10 @@ public class ScraperService implements CatalogSnapshotPort {
      * convention to mirror (unlike {@code DatabaseService.initEn}, which is
      * package-private because its test lives in the same package).
      */
-    public void setLastResultParaTest(AggregatedResult result) { synchronized (catalogLock) { this.lastResult = result; } }
+    public void setLastResultParaTest(AggregatedResult result) {
+        synchronized (catalogLock) { this.lastResult = result; }
+        publicarCambio();
+    }
 
     /**
      * Synchronously re-runs {@link ar.scraper.ml.FinanciacionEnricher} over the
@@ -357,6 +396,7 @@ public class ScraperService implements CatalogSnapshotPort {
             this.lastResult = refinanciado(actual, aggregator);
             this.servedResult = refinanciado(this.servedResult, aggregator);
         }
+        publicarCambio();
     }
 
     private static AggregatedResult refinanciado(AggregatedResult foto, ResultAggregator aggregator) {
@@ -543,6 +583,7 @@ public class ScraperService implements CatalogSnapshotPort {
                                 synchronized (catalogLock) {
                                     lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
                                 }
+                                publicarCambio();
                                 LOG.debug("[PARCIAL] {} → {} productos totales",
                                         r.sitio(), todosActuales.size());
                             }
@@ -606,6 +647,7 @@ public class ScraperService implements CatalogSnapshotPort {
         synchronized (catalogLock) {
             lastResult = catalogoEntero(delBatch);
         }
+        publicarCambio();
 
         // Own write path (D11 in pc-builder-gama): a broken parse here can never
         // take down the run that just aggregated the whole catalog.
@@ -629,6 +671,7 @@ public class ScraperService implements CatalogSnapshotPort {
                         lastResult.facets(), lastResult.minPrecio(), lastResult.maxPrecio(),
                         lastResult.statsPorSitio());
             }
+            publicarCambio();
             for (SiteYieldGuard.Alerta a : alertas) {
                 LOG.warn("[SALUD] {}", a.mensaje());
                 RUN_LOG.warn("[SALUD]   {}", a.mensaje());
@@ -822,6 +865,7 @@ public class ScraperService implements CatalogSnapshotPort {
 
             List<ar.scraper.model.Product> prods = productos.cargarProductos();
             synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
+            publicarCambio();
 
             cerrarRun("COMPLETED", prods.size());
             status.set(ScraperStatus.DONE);
@@ -950,6 +994,7 @@ public class ScraperService implements CatalogSnapshotPort {
                     ? java.util.Optional.of(arranque)
                     : java.util.Optional.empty();
         }
+        publicarCambio();
     }
 
     private void liberarLectores() {
@@ -957,6 +1002,7 @@ public class ScraperService implements CatalogSnapshotPort {
             servedResult = null;
             cotaDeLectura = java.util.Optional.empty();
         }
+        publicarCambio();
     }
 
     private void registrarSitioEnCurso(String sitio) {
