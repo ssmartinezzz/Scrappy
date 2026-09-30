@@ -23,6 +23,7 @@ import ar.scraper.web.dto.PcsDtos;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,8 +34,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/** PC builder endpoint + saved PCs. Mappings live in {@link ApiController}. */
-class PcsEndpoints {
+/** PC builder endpoint + saved PCs. */
+@RestController
+@RequestMapping("/api")
+public class PcsController {
 
     private final ScraperService service;
     private final PcBuilder pcBuilder;
@@ -42,7 +45,7 @@ class PcsEndpoints {
     private final PreferenciaArmadorPort preferenciaArmador;
     private final ar.scraper.security.ActorResolver actorResolver;
 
-    PcsEndpoints(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
+    public PcsController(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
                  PreferenciaArmadorPort preferenciaArmador, ar.scraper.security.ActorResolver actorResolver) {
         this.service = service;
         this.pcBuilder = pcBuilder;
@@ -76,11 +79,22 @@ class PcsEndpoints {
     }
 
     /** {@code uso} blank/absent means {@link Uso#GAMING}, the default ({@link UsoWire#parse}). */
-    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
-            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
-            Boolean ramDual, Boolean wifi,
-            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos,
-            String uso) {
+    @GetMapping("/pcs/builder")
+    public ResponseEntity<ApiResponse<ObjectNode>> builder(@RequestParam(defaultValue = "0") double presupuesto,
+            @RequestParam(defaultValue = "false") boolean conGpu,
+            @RequestParam(defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "") String gama,
+            @RequestParam(defaultValue = "") String ddr,
+            @RequestParam(defaultValue = "") String marcaCpu,
+            @RequestParam(defaultValue = "") String marcaGpu,
+            @RequestParam(defaultValue = "") String tipoAlmacenamiento,
+            @RequestParam(required = false) Boolean ramDual,
+            @RequestParam(required = false) Boolean wifi,
+            @RequestParam(required = false) Integer capacidadMinimaGb,
+            @RequestParam(defaultValue = "") String tamanioGabinete,
+            @RequestParam(defaultValue = "") String tipoCooler,
+            @RequestParam(required = false) Integer wattsMinimos,
+            @RequestParam(defaultValue = "") String uso) {
         Gama gamaPedida;
         PreferenciasDeArmado prefs;
         Uso usoPedido;
@@ -108,13 +122,15 @@ class PcsEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
     }
 
-    ResponseEntity<ApiResponse<PcsDtos.Preferencia>> getPreferencia() {
+    @GetMapping("/pcs/preferencia")
+    public ResponseEntity<ApiResponse<PcsDtos.Preferencia>> getPreferencia() {
         Optional<PreferenciaArmador> pref = preferenciaArmador.cargar(Sujeto.de(actorResolver));
         if (pref.isEmpty()) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(ApiResponse.ok(preferencia(pref.get())));
     }
 
-    ResponseEntity<ApiResponse<PcsDtos.Preferencia>> putPreferencia(Map<String, Object> body) {
+    @PutMapping("/pcs/preferencia")
+    public ResponseEntity<ApiResponse<PcsDtos.Preferencia>> putPreferencia(@RequestBody Map<String, Object> body) {
         Object gamaRaw = body.get("gama");
         Gama gama;
         PreferenciasDeArmado prefs;
@@ -177,7 +193,8 @@ class PcsEndpoints {
                 prefs.wattsMinimos(), UsoWire.wire(p.uso()));
     }
 
-    ResponseEntity<ApiResponse<PcsDtos.Guardada>> savePc(Map<String, Object> body) {
+    @PostMapping("/pcs/save")
+    public ResponseEntity<ApiResponse<PcsDtos.Guardada>> savePc(@RequestBody Map<String, Object> body) {
         String nombre = String.valueOf(body.getOrDefault("nombre", "PC")).trim();
         double presupuesto = asDouble(body.get("presupuesto"));
         boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
@@ -236,11 +253,13 @@ class PcsEndpoints {
     }
 
     // Rows come from SavedPcsPort as maps; typing them is a persistence-layer change.
-    ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedPcs() {
+    @GetMapping("/pcs/saved")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedPcs() {
         return ResponseEntity.ok(ApiResponse.ok(pcsGuardadas.obtenerPcsGuardadas(Sujeto.de(actorResolver))));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> deleteSavedPc(int id) {
+    @DeleteMapping("/pcs/saved/{id}")
+    public ResponseEntity<ApiResponse<OpResult>> deleteSavedPc(@PathVariable int id) {
         // 404 covers "does not exist" AND "belongs to someone else": telling them apart would
         // confirm another user's row exists.
         if (!pcsGuardadas.eliminarPcGuardada(Sujeto.de(actorResolver), id)) {
@@ -249,7 +268,8 @@ class PcsEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "PC eliminado")));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> renameSavedPc(int id, Map<String, Object> body) {
+    @PatchMapping("/pcs/saved/{id}/nombre")
+    public ResponseEntity<ApiResponse<OpResult>> renameSavedPc(@PathVariable int id, @RequestBody Map<String, Object> body) {
         String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
         if (nombre.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");

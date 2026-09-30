@@ -1,8 +1,6 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.Confianza;
 import ar.scraper.indices.Deflactor;
@@ -11,13 +9,10 @@ import ar.scraper.indices.IndiceService;
 import ar.scraper.indices.PuntoIndice;
 import ar.scraper.indices.ResumenIndice;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -42,16 +37,11 @@ class ApiControllerIndicesRecomendacionTest {
 
     private ScraperService service;
     private IndiceService indiceService;
-    private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
     private HistorialPort historial;
     private ar.scraper.catalog.ProductPort productos;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private FinanciacionController controller;
 
     @BeforeEach
     void setUp() {
@@ -62,7 +52,6 @@ class ApiControllerIndicesRecomendacionTest {
     private void wireController() {
         service               = mock(ScraperService.class);
         indiceService         = mock(IndiceService.class);
-        config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
         historial             = mock(HistorialPort.class);
@@ -70,12 +59,7 @@ class ApiControllerIndicesRecomendacionTest {
         when(db.historial()).thenReturn(historial);
         when(db.productos()).thenReturn(productos);
         when(productos.obtenerProducto(any())).thenReturn(java.util.Optional.empty());
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new FinanciacionController(service, indiceService, db.presets(), db.historial(), db.productos(), aggregator);
     }
 
     // ── GET /api/indices ─────────────────────────────────────────────────

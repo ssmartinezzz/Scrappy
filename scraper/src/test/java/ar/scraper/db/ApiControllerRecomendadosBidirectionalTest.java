@@ -2,15 +2,10 @@ package ar.scraper.db;
 
 import ar.scraper.web.support.Wire;
 import ar.scraper.db.support.PostgresTestBase;
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.web.ApiController;
+import ar.scraper.web.OutfitsController;
 import ar.scraper.web.RecomendadosController;
-import ar.scraper.indices.IndiceService;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.web.ScraperService;
@@ -49,10 +44,9 @@ import static org.mockito.Mockito.when;
 class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
 
     private DatabaseService db;
-    private ApiController controller;
+    private OutfitsController controller;
     private RecomendadosController recomendadosController;
     private ScraperService service;
-    private ResultAggregator aggregator;
 
     private Product producto(String url, String marca, String categoria) {
         return producto(url, marca, categoria, "hombre");
@@ -78,21 +72,15 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         db = TestDatabaseServices.create(dataSource());
 
         service           = mock(ScraperService.class);
-        IndiceService indiceService = mock(IndiceService.class);
-        ScraperConfig config              = mock(ScraperConfig.class);
-        aggregator                        = mock(ResultAggregator.class);
-        GroupingService grouping          = mock(GroupingService.class);
-        PythonRunner pythonRunner         = mock(PythonRunner.class);
         RecommendationService recommendationService = new RecommendationService();
         OutfitService outfitService       = new OutfitService(recommendationService);
 
-        when(config.getMoneda()).thenReturn("ARS");
-
         SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
-        recomendadosController = new RecomendadosController(service, db.feedback(), recommendationService, new ar.scraper.security.ActorResolver());
+        controller = new OutfitsController(service, db.feedback(), db.outfitsGuardados(), outfitService,
+                new ar.scraper.security.ActorResolver());
+        recomendadosController = new RecomendadosController(service, db.feedback(), recommendationService,
+                new ar.scraper.security.ActorResolver());
     }
 
 

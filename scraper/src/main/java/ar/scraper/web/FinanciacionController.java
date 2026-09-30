@@ -15,6 +15,7 @@ import ar.scraper.web.dto.FinanciacionDtos;
 import ar.scraper.web.dto.OpResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -24,9 +25,11 @@ import java.util.Map;
 /**
  * Financing presets, the per-product buy recommendation and the macro indices feed.
  * Activate/edit/delete of the active preset trigger a SYNCHRONOUS in-memory recompute
- * (cheap O(n) arithmetic, not a subprocess). Mappings live in {@link ApiController}.
+ * (cheap O(n) arithmetic, not a subprocess).
  */
-class FinanciacionEndpoints {
+@RestController
+@RequestMapping("/api")
+public class FinanciacionController {
 
     private final ScraperService service;
     private final IndiceService indiceService;
@@ -35,7 +38,7 @@ class FinanciacionEndpoints {
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
-    FinanciacionEndpoints(ScraperService service,
+    public FinanciacionController(ScraperService service,
                           IndiceService indiceService,
                           ar.scraper.financiacion.PresetPort presets,
                           ar.scraper.catalog.HistorialPort historial,
@@ -49,7 +52,8 @@ class FinanciacionEndpoints {
         this.aggregator = aggregator;
     }
 
-    ResponseEntity<ApiResponse<FinanciacionDtos.Presets>> listarPresets() {
+    @GetMapping("/financiacion/presets")
+    public ResponseEntity<ApiResponse<FinanciacionDtos.Presets>> listarPresets() {
         List<FinanciacionDtos.Preset> lista = new ArrayList<>();
         for (var preset : presets.listarPresets()) {
             lista.add(new FinanciacionDtos.Preset(preset.id(), preset.label(),
@@ -61,7 +65,8 @@ class FinanciacionEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(new FinanciacionDtos.Presets(lista, activo)));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> crearPreset(Map<String, Object> body) {
+    @PostMapping("/financiacion/presets")
+    public ResponseEntity<ApiResponse<OpResult>> crearPreset(@RequestBody Map<String, Object> body) {
         rechazarSiHayScraping();
         String label = String.valueOf(body.getOrDefault("label", "")).trim();
         Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
@@ -75,7 +80,8 @@ class FinanciacionEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Preset creado")));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> activarPreset(int id) {
+    @PutMapping("/financiacion/presets/{id}/activar")
+    public ResponseEntity<ApiResponse<OpResult>> activarPreset(@PathVariable int id) {
         rechazarSiHayScraping();
         if (!presets.activarPreset(id)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "Preset no encontrado");
@@ -84,7 +90,8 @@ class FinanciacionEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> editarPreset(int id, Map<String, Object> body) {
+    @PutMapping("/financiacion/presets/{id}")
+    public ResponseEntity<ApiResponse<OpResult>> editarPreset(@PathVariable int id, @RequestBody Map<String, Object> body) {
         rechazarSiHayScraping();
         String label = String.valueOf(body.getOrDefault("label", "")).trim();
         Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
@@ -104,7 +111,8 @@ class FinanciacionEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Preset actualizado")));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> eliminarPreset(int id) {
+    @DeleteMapping("/financiacion/presets/{id}")
+    public ResponseEntity<ApiResponse<OpResult>> eliminarPreset(@PathVariable int id) {
         rechazarSiHayScraping();
         boolean eraActivo = presets.cargarPresetActivo()
                 .map(p -> p.id() == id).orElse(false);
@@ -143,7 +151,8 @@ class FinanciacionEndpoints {
         catch (Exception e) { return null; }
     }
 
-    ResponseEntity<ApiResponse<FinanciacionDtos.Recomendacion>> recomendacion(String url) {
+    @GetMapping("/recomendacion")
+    public ResponseEntity<ApiResponse<FinanciacionDtos.Recomendacion>> recomendacion(@RequestParam String url) {
         var root = new FinanciacionDtos.Recomendacion();
         var hist = historial.getHistorialPrecios(url);
         if (hist == null || hist.isEmpty()) {
@@ -215,7 +224,8 @@ class FinanciacionEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(root));
     }
 
-    ResponseEntity<ApiResponse<FinanciacionDtos.Indices>> indices() {
+    @GetMapping("/indices")
+    public ResponseEntity<ApiResponse<FinanciacionDtos.Indices>> indices() {
         return ResponseEntity.ok(ApiResponse.ok(new FinanciacionDtos.Indices(
                 resumen(indiceService.resumen(Indice.IPC)),
                 resumen(indiceService.resumen(Indice.USD_OFICIAL)),

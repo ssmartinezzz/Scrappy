@@ -1,14 +1,7 @@
 package ar.scraper.web;
 
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
@@ -48,7 +41,7 @@ class ApiControllerPcsPreferenciaTest {
 
     private DatabaseService db;
     private PreferenciaArmadorPort preferenciaArmador;
-    private ApiController controller;
+    private PcsController controller;
 
     @AfterEach
     void limpiarContexto() {
@@ -58,19 +51,11 @@ class ApiControllerPcsPreferenciaTest {
     @BeforeEach
     void setUp() {
         ScraperService service = mock(ScraperService.class);
-        IndiceService indiceService = mock(IndiceService.class);
-        ScraperConfig config = mock(ScraperConfig.class);
-        ResultAggregator aggregator = mock(ResultAggregator.class);
         db = mock(DatabaseService.class);
         preferenciaArmador = mock(PreferenciaArmadorPort.class);
         when(db.preferenciaArmador()).thenReturn(preferenciaArmador);
-        GroupingService grouping = mock(GroupingService.class);
-        PythonRunner pythonRunner = mock(PythonRunner.class);
-        OutfitService outfitService = mock(OutfitService.class);
-        RecommendationService recommendationService = mock(RecommendationService.class);
         SujetoDePrueba.entrar("ADMIN");
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new PcsController(service, new ar.scraper.pcs.PcBuilder(), db.pcsGuardadas(), db.preferenciaArmador(), new ar.scraper.security.ActorResolver());
     }
 
     // ── GET /api/pcs/preferencia ────────────────────────────────────────────
@@ -79,7 +64,7 @@ class ApiControllerPcsPreferenciaTest {
     void getReturns204WhenNoPreferenceSaved() {
         when(preferenciaArmador.cargar(any())).thenReturn(Optional.empty());
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -89,7 +74,7 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true)));
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -103,7 +88,7 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
         JsonNode body = Wire.data(resp);
 
         assertThat(body.get("gama").asText()).isEqualTo("media");
@@ -115,7 +100,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putValidPayloadPersistsAndReturns200() {
-        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of(
+        ResponseEntity<?> resp = controller.putPreferencia(Map.of(
                 "gama", "alta", "presupuesto", 1500000.0, "conGpu", true));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
@@ -128,7 +113,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putAcceptsAccentAndCaseInsensitiveGamaAndDefaultsAbsentFields() {
-        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of("gama", "ECONÓMICA"));
+        ResponseEntity<?> resp = controller.putPreferencia(Map.of("gama", "ECONÓMICA"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         verify(preferenciaArmador).guardar(any(), eq(new PreferenciaArmador(Gama.BAJA, null, false)));
@@ -136,7 +121,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putMissingGamaReturns400AndNeverPersists() {
-        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("conGpu", true)));
+        ApiException e = Wire.apiError(() -> controller.putPreferencia(Map.of("conGpu", true)));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -145,7 +130,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putInvalidGamaReturns400AndNeverPersists() {
-        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("gama", "ultra")));
+        ApiException e = Wire.apiError(() -> controller.putPreferencia(Map.of("gama", "ultra")));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -161,7 +146,7 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true, prefs)));
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
         JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ddr").asText()).isEqualTo("ddr5");
@@ -177,7 +162,7 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
         JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ddr").isNull()).isTrue();
@@ -190,7 +175,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putValidPayloadWithTechnicalPreferencesPersistsAndReturns200() {
-        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of(
+        ResponseEntity<?> resp = controller.putPreferencia(Map.of(
                 "gama", "alta", "ddr", "ddr4", "marcaCpu", "intel", "marcaGpu", "amd",
                 "tipoAlmacenamiento", "sata", "ramDual", true, "wifi", false));
 
@@ -208,7 +193,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putInvalidDdrReturns400AndNeverPersists() {
-        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("gama", "alta", "ddr", "ddr3")));
+        ApiException e = Wire.apiError(() -> controller.putPreferencia(Map.of("gama", "alta", "ddr", "ddr3")));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");
@@ -218,7 +203,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putInvalidTipoAlmacenamientoReturns400AndNeverPersists() {
-        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(
+        ApiException e = Wire.apiError(() -> controller.putPreferencia(
                 Map.of("gama", "alta", "tipoAlmacenamiento", "ssd")));
 
         assertThat(e.status().value()).isEqualTo(400);
@@ -235,7 +220,7 @@ class ApiControllerPcsPreferenciaTest {
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true,
                         PreferenciasDeArmado.NINGUNA, ar.scraper.pcs.Uso.HOMELAB)));
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
 
         assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("homelab");
     }
@@ -245,14 +230,14 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
 
-        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPreferencia();
 
         assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("gaming");
     }
 
     @Test
     void putValidPayloadWithUsoPersistsAndReturns200() {
-        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "homelab"));
+        ResponseEntity<?> resp = controller.putPreferencia(Map.of("gama", "alta", "uso", "homelab"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("homelab");
@@ -262,7 +247,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putAbsentUsoDefaultsToGaming() {
-        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of("gama", "alta"));
+        ResponseEntity<?> resp = controller.putPreferencia(Map.of("gama", "alta"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("gaming");
@@ -270,7 +255,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putInvalidUsoReturns400AndNeverPersists() {
-        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "servidor")));
+        ApiException e = Wire.apiError(() -> controller.putPreferencia(Map.of("gama", "alta", "uso", "servidor")));
 
         assertThat(e.status().value()).isEqualTo(400);
         assertThat(e.code()).isEqualTo("solicitud_invalida");

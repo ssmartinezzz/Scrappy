@@ -25,6 +25,7 @@ import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.AgentDtos;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -33,8 +34,10 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 
-/** LLM Catalog Agent: chat / apply / models. Mappings live in {@link ApiController}. */
-class AgentEndpoints {
+/** LLM Catalog Agent: chat / apply / models. */
+@RestController
+@RequestMapping("/api")
+public class AgentController {
 
     /** Enforced transport caps on a client-supplied tool trace ({@link #parseAgentTrace}); the frontend copy is a convenience. */
     private static final int AGENT_MAX_TRACE_STEPS = 8;
@@ -52,7 +55,7 @@ class AgentEndpoints {
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
 
-    AgentEndpoints(ScraperService service,
+    public AgentController(ScraperService service,
                    RubroResolver rubroResolver,
                    ar.scraper.catalog.ProductPort productos,
                    CatalogAgentService catalogAgentService,
@@ -66,7 +69,8 @@ class AgentEndpoints {
         this.actorResolver = actorResolver;
     }
 
-    ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(Map<String, Object> body) {
+    @PostMapping("/agent/chat")
+    public ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(@RequestBody Map<String, Object> body) {
         if (service.getStatus() == ScraperStatus.RUNNING) {
             throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
                     "Hay un scraping en curso. Esperá a que termine.");
@@ -120,7 +124,8 @@ class AgentEndpoints {
     }
 
     // Not scrape-gated: read-only metadata, touches no model/VRAM.
-    ResponseEntity<ApiResponse<AgentDtos.Models>> agentModels() {
+    @GetMapping("/agent/models")
+    public ResponseEntity<ApiResponse<AgentDtos.Models>> agentModels() {
         if (catalogAgentService == null || agentConfig == null) {
             throw agenteNoDisponible();
         }
@@ -128,7 +133,8 @@ class AgentEndpoints {
                 new AgentDtos.Models(catalogAgentService.listModels(), agentConfig.model())));
     }
 
-    ResponseEntity<ApiResponse<AgentDtos.Applied>> agentApply(ReclassifyProposal body) {
+    @PostMapping("/agent/apply")
+    public ResponseEntity<ApiResponse<AgentDtos.Applied>> agentApply(@RequestBody ReclassifyProposal body) {
         if (service.getStatus() == ScraperStatus.RUNNING) {
             throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
                     "Hay un scraping en curso. Esperá a que termine.");
