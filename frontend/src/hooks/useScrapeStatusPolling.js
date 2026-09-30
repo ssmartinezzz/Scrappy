@@ -23,6 +23,7 @@ export function useScrapeStatusPolling() {
 
   const firstStatusSeen = useRef(false);
   const streamSeen = useRef(false);
+  const pushes = useRef(0);
   const onDone = useRef(null);
 
   const apply = useCallback(st => {
@@ -56,6 +57,7 @@ export function useScrapeStatusPolling() {
   useEffect(() => {
     if (!live) return;
     streamSeen.current = true;
+    pushes.current++;
     setReadFailed(false);
     apply(live);
   }, [live, apply]);
@@ -75,7 +77,10 @@ export function useScrapeStatusPolling() {
   const watchRun = useCallback((done, { reconcile = false } = {}) => {
     onDone.current = done;
     if (!reconcile) return;
+    const pushesBefore = pushes.current;
     readStatus().then(st => {
+      // Anything the server pushed while this read was in flight is newer than its answer.
+      if (pushes.current !== pushesBefore) return;
       if (!st) { setReadFailed(true); return; }
       setReadFailed(false);
       apply(st);

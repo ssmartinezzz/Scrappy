@@ -282,6 +282,25 @@ describe('useScrapeStatusPolling — launching a run from this tab', () => {
   });
 });
 
+describe('useScrapeStatusPolling — a read never overwrites a newer push', () => {
+  it('drops the reconcile answer when an event arrived while the read was in flight', async () => {
+    fetchStatus.mockResolvedValue({ status: 'IDLE', mensaje: '', tieneData: true });
+    const { s, open } = silentStream();
+    const { result } = await mountHook(open);
+    await act(async () => { s.frame('snapshot', snapshot({ status: 'IDLE', mensaje: '', tieneData: true })); });
+    act(() => { result.current.markRunning(); });
+    let answer;
+    fetchStatus.mockReturnValue(new Promise(r => { answer = r; }));
+    act(() => { result.current.watchRun(vi.fn(), { reconcile: true }); });
+
+    await act(async () => { s.frame('scrape.status', { status: 'RUNNING', mensaje: 'el más nuevo' }); });
+    await waitFor(() => expect(result.current.mensaje).toBe('el más nuevo'));
+    await act(async () => { answer({ status: 'RUNNING', mensaje: 'el más viejo', tieneData: true }); });
+
+    expect(result.current.mensaje).toBe('el más nuevo');
+  });
+});
+
 describe('useScrapeStatusPolling — totalProds es el CATÁLOGO, no la cantidad de sitios', () => {
   // `progreso.total` es ProgressData(totalSitios, ...) — la cantidad de sitios
   // de la corrida. Leer de ahí hacía que el botón dijera "Ver 3 productos
