@@ -17,17 +17,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import javax.sql.DataSource;
 
 /**
- * Declaring any DataSource bean makes Boot's DataSourceAutoConfiguration back off, so the
- * Hikari pool is declared here with the same binding Boot used ({@code spring.datasource.*}
- * plus {@code spring.datasource.hikari.*}).
- *
- * <p>Class-based proxies on purpose: an explicit {@code @EnableTransactionManagement} makes
- * Boot's auto-configuration back off, and the default would be JDK proxies.
- *
- * <p>Repositories get the {@link TransactionAwareDataSourceProxy}: inside a
- * {@code @Transactional} method its {@code getConnection()} returns the transaction's
- * connection, outside one it behaves like the pool. The transaction manager and Flyway
- * work on the raw pool.
+ * Class-based proxies on purpose: an explicit {@code @EnableTransactionManagement} makes Boot's
+ * auto-configuration back off, and the default would be JDK proxies.
  */
 @Configuration
 @EnableConfigurationProperties(DataSourceProperties.class)

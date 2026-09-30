@@ -6,19 +6,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Deterministic recognition of requests the agent must refuse before any model call:
- * creating, changing, deleting or assigning users, roles or permissions, and creating,
- * scheduling, launching or modifying cron jobs or scrapes. The tools are already
- * read-only; this makes the refusal reliable instead of depending on the grounding
- * gate, which used to discard a correct model refusal as "ungrounded".
- *
- * <p>Precision beats recall: a false positive blocks a legitimate product search, a
- * false negative only reaches a model that has no tool to do it anyway. So a match
- * needs BOTH an action word and a restricted object within {@link #WINDOW} tokens after
- * it — "dame un mouse para usuario zurdo" (object four tokens away) is a product query,
- * "dame permisos de administrador" is not. A bare question ("¿cuántos usuarios tiene el
- * catálogo?") has no action word and is deliberately NOT restricted: it is a read, and a
- * refusal that says "no puedo modificar" would misdescribe it.</p>
+ * Deterministic recognition of requests the agent must refuse before any model call: creating,
+ * changing, deleting or assigning users, roles or permissions, and creating, scheduling, launching
+ * or modifying cron jobs or scrapes.
  */
 final class RestrictedIntents {
 
@@ -28,7 +18,6 @@ final class RestrictedIntents {
     private static final int WINDOW = 3;
 
     private static final Set<String> ACTIONS = Set.of(
-            // ES: imperative / infinitive / subjunctive forms people actually type
             "crea", "crear", "cree", "borra", "borrar", "borres", "elimina", "eliminar", "elimines",
             "modifica", "modificar", "modifiques", "cambia", "cambiar", "cambiale", "cambies",
             "asigna", "asignar", "asignale", "asignes", "da", "dame", "dale", "des", "dar", "otorga",
@@ -38,7 +27,6 @@ final class RestrictedIntents {
             "lanza", "lanzar", "ejecuta", "ejecutar", "inicia", "iniciar", "corre", "correr",
             "dispara", "disparar", "habilita", "habilitar", "deshabilita", "deshabilitar",
             "desactiva", "desactivar", "activa", "activar", "registra", "registrar",
-            // EN
             "create", "delete", "remove", "add", "give", "grant", "make", "assign", "change", "edit",
             "modify", "update", "schedule", "launch", "run", "start", "trigger", "revoke", "disable",
             "enable");
@@ -50,7 +38,6 @@ final class RestrictedIntents {
             "cron", "crons", "cronjob", "cronjobs", "scrape", "scrapes", "scraping",
             "tarea", "tareas", "job", "jobs");
 
-    /** Verbs that are already the whole request: "scrapeá todos los sitios". */
     private static final Set<String> SCRAPE_VERBS = Set.of(
             "scrapea", "scrapear", "scrapee", "scrapeen", "scrapeame", "scrapeale", "scrapeo");
 

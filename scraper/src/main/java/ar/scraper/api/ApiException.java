@@ -3,7 +3,6 @@ package ar.scraper.api;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
-/** Thrown by handlers to answer with an {@link ApiError} and the given status. */
 public class ApiException extends RuntimeException {
     private final HttpStatus status;
     private final String code;

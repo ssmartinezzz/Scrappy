@@ -15,45 +15,9 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Fail-fast guard for spec requirement "Environment-Only Configuration"
- * (decouple-services-postgres, design D6; scoped correction closing
- * verify-report CRITICAL-1): the default profile MUST NOT silently default a
- * missing required env var to a local resource — it must fail startup fast
+ * Fail-fast guard for spec requirement "Environment-Only Configuration": the default profile MUST
+ * NOT silently default a missing required env var to a local resource — it must fail startup fast
  * with a clear error naming every missing variable.
- *
- * <p>Runs as an {@link EnvironmentPostProcessor}, fired during
- * {@code ApplicationEnvironmentPreparedEvent} — before any bean (including
- * {@code DataSource}/{@code CorsConfig}) is created, so the failure happens
- * as early as possible and with a precise message instead of a generic
- * Spring placeholder-resolution stack trace.</p>
- *
- * <p><b>dev/test profile opt-out</b>: local developer convenience and the
- * test suite both need to run without every required var set. Both cases are
- * carried by {@code application-dev.properties} (fallback values, active only
- * via {@code SPRING_PROFILES_ACTIVE=dev}) and the {@code test} profile
- * (activated for the whole Maven test JVM via the {@code spring.profiles.active}
- * system property in {@code pom.xml}'s surefire config) respectively — this
- * guard simply skips its check when either profile is active.</p>
- *
- * <p><b>Presence, not blankness — for infrastructure variables</b>: a variable
- * in {@link #REQUIRED_VARS} counts as "set" if the environment has it at all,
- * even as an empty string. This matters for {@code DATABASE_PASSWORD}: the
- * installer intentionally writes an empty value for local trust-auth Postgres
- * ({@code _tools/pgsql}, {@code initdb -A trust}) — that is an explicit
- * configuration choice, not a silently-missing resource, and must not be
- * rejected by this guard.</p>
- *
- * <p><b>Blankness too — for the authentication secrets</b> in
- * {@link #REQUIRED_SECRETS}. The trust-auth reasoning has no analogue there:
- * there is no deployment in which an empty JWT signing secret or an empty
- * bootstrap admin password is a deliberate choice. An empty signing secret is
- * an unsigned token, and an empty admin password is an account anybody can log
- * into. Both are the failure this guard exists to prevent, wearing a value's
- * clothes, so blank counts as missing for these five and only for these five.</p>
- *
- * <p>Neither list may carry a default. This repository is public: a working
- * default secret is shared by every clone, which is the same as having no
- * secret at all.</p>
  */
 public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
 
@@ -67,9 +31,8 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
     );
 
     /**
-     * Authentication secrets (user-accounts-and-roles, slice 2). Required
-     * <b>and non-blank</b>, unlike {@link #REQUIRED_VARS} above — see the
-     * class javadoc for why the two rules differ.
+     * Required and non-blank, unlike {@link #REQUIRED_VARS} above — see the class javadoc for why
+     * the two rules differ.
      */
     static final List<String> REQUIRED_SECRETS = List.of(
             "AUTH_JWT_SECRET",
@@ -79,13 +42,7 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
             "CLI_SERVICE_ACCOUNT_PASSWORD"
     );
 
-    /**
-     * SMTP is required <b>conditionally</b> — only when the operator has selected
-     * that channel. Listing it unconditionally would force every installation to
-     * configure a mail server for a feature whose default adapter writes to the
-     * log and needs nothing, which is the opposite of what this project's
-     * zero-configuration install is for.
-     */
+    /** SMTP is required conditionally — only when the operator has selected that channel. */
     static final List<String> SMTP_VARS = List.of(
             "SMTP_HOST",
             "SMTP_PORT",
@@ -149,15 +106,9 @@ public class RequiredEnvVarsGuard implements EnvironmentPostProcessor {
     }
 
     /**
-     * Checks whether the bootstrap admin account already exists in the database.
      * When it does, {@code ADMIN_BOOTSTRAP_PASSWORD} is inert — the seeder's
-     * {@code ON CONFLICT DO NOTHING} won't consume it — so requiring it would
-     * block startup for no reason. A fresh install still needs it because the
-     * account doesn't exist yet.
-     *
-     * <p>On any failure (DB down, driver missing, query error) this returns
-     * {@code false} — the guard falls back to requiring the password, which is
-     * the safe default for a fresh install.</p>
+     * {@code ON CONFLICT DO NOTHING} won't consume it — so requiring it would block startup for no
+     * reason.
      */
     private boolean adminExists(ConfigurableEnvironment environment) {
         String url = environment.getProperty("DATABASE_URL");

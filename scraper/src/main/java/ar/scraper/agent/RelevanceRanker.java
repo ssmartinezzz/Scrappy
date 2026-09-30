@@ -9,20 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Ranking BM25F sobre los productos de un snapshot. Campos: nombre (1.0), marca (2.0),
- * categoria + subCategoria (1.5); k1 = 1.2, b = 0.75 con normalización de largo por campo.
- *
- * <p>Cada término de la consulta se compara contra el VOCABULARIO del índice (no contra cada
- * producto), con un nivel de coincidencia que multiplica su aporte: palabra exacta 1.0; prefijo
- * (término de 4+ letras) 0.8; sufijo de unidad tras dígitos ("tb" ~ "1tb") 0.8; typo
- * (Damerau-Levenshtein ≤ 1 desde 5 letras, ≤ 2 desde 8, sólo entre palabras alfabéticas) 0.5.
- * Nunca substring crudo: el espacio es el límite de palabra ("ram" no está en "programa").</p>
- *
- * <p>IDF estándar con +1 dentro del log (siempre positivo). El df es el de la forma exacta del
- * término si existe en el vocabulario; si no (prefijo/typo), la cantidad de documentos que
- * matchearon de cualquier modo.</p>
- *
- * <p>El índice se arma una vez por instancia de snapshot y se cachea por identidad.</p>
+ * Campos: nombre (1.0), marca (2.0), categoria + subCategoria (1.5); k1 = 1.2, b = 0.75 con
+ * normalización de largo por campo.
  */
 final class RelevanceRanker {
 
@@ -37,7 +25,10 @@ final class RelevanceRanker {
     private static final double NIVEL_TYPO = 0.5;
     private static final int MIN_PREFIJO = 4;
 
-    /** score y máscara de términos matcheados, alineados con el orden de {@code snapshot.productos()}. */
+    /**
+     * score y máscara de términos matcheados, alineados con el orden de
+     * {@code snapshot.productos()}.
+     */
     record Scores(double[] score, int[] mask, int tokenCount) {}
 
     private record Posting(int doc, int campo, int tf) {}
@@ -157,7 +148,6 @@ final class RelevanceRanker {
         return true;
     }
 
-    /** ¿Los primeros {@code hasta} caracteres son todos dígitos (y hay al menos uno)? */
     private static boolean soloDigitos(String s, int hasta) {
         if (hasta == 0) return false;
         for (int i = 0; i < hasta; i++) {
@@ -167,7 +157,6 @@ final class RelevanceRanker {
         return true;
     }
 
-    /** Optimal string alignment (Damerau-Levenshtein con transposición adyacente). */
     static int distancia(String a, String b, int tope) {
         int la = a.length(), lb = b.length();
         int[] prev2 = new int[lb + 1], prev = new int[lb + 1], cur = new int[lb + 1];

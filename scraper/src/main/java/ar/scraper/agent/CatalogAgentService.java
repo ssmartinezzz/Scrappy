@@ -70,24 +70,16 @@ public class CatalogAgentService {
     private static final Logger LOG = LoggerFactory.getLogger(CatalogAgentService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Bounded iteration limit (design D3) — never an infinite loop. */
+    /** Bounded iteration limit — never an infinite loop. */
     public static final int MAX_ITERATIONS = 6;
 
     /**
-     * Upper bound on tool calls re-executed from the conversation's history in
-     * one request. Bounds both the work done before the first provider call
-     * and — the binding constraint — how much replayed tool output can crowd
-     * a local model's context window. The window is the TAIL of the
-     * conversation: recent turns are what a follow-up question refers to.
+     * Bounds both the work done before the first provider call and — the binding constraint — how
+     * much replayed tool output can crowd a local model's context window.
      */
     public static final int MAX_REPLAY_CALLS = 12;
 
-    /**
-     * Sent once per turn when the model answers without having touched the
-     * catalog. Phrased as an instruction rather than an error so the model
-     * corrects course instead of apologising — the rejection below is what
-     * happens if it ignores this.
-     */
+    /** Sent once per turn when the model answers without having touched the catalog. */
     private static final String GROUNDING_NUDGE = """
             No ejecutaste ninguna herramienta en este turno, así que tu respuesta no se le va a entregar \
             al usuario. Volvé a responder la última pregunta usando primero al menos una herramienta \
@@ -95,9 +87,8 @@ public class CatalogAgentService {
             el dato más arriba en la conversación.""";
 
     /**
-     * Sent once per turn when a search came back empty and the model is about to
-     * give up. Un solo intento de búsqueda casi nunca agota las formas de pedir lo
-     * mismo: el mensaje canónico de "no hay" se entrega recién después de este reintento.
+     * Un solo intento de búsqueda casi nunca agota las formas de pedir lo mismo: el mensaje
+     * canónico de "no hay" se entrega recién después de este reintento.
      */
     private static final String RELAX_RETRY_NUDGE = """
             La búsqueda no devolvió resultados, así que todavía no podés concluir que no hay. Antes de \
@@ -113,21 +104,10 @@ public class CatalogAgentService {
         this.registry = registry;
     }
 
-    /**
-     * Runs the loop for one user turn.
-     *
-     * @param conversation the full conversation as the client reports it, the
-     *                     current user message last. Past assistant turns may
-     *                     carry a {@link ToolStep} trace, which is replayed
-     *                     against the live catalog (see class javadoc).
-     * @param model model id override for this call, or {@code null} to use
-     *              the provider's env-configured default (D8) — forwarded
-     *              verbatim to every {@link ChatProvider#next} call in this
-     *              run.
-     */
     public AgentChatResponse run(List<ConversationTurn> conversation, String model) {
         String lastUserText = lastUserText(conversation);
-        // Before MetaIntents and the provider: a refusal must not depend on the model or the grounding gate.
+        // Before MetaIntents and the provider: a refusal must not depend on the model or the
+        // grounding gate.
         if (RestrictedIntents.matches(lastUserText)) {
             return AgentChatResponse.withoutTrace(restrictedRefusal(), TurnOutcome.CAPABILITY);
         }
@@ -141,10 +121,6 @@ public class CatalogAgentService {
 
         List<ToolSpec> tools = registry.specs();
         List<ReclassifyProposal> proposals = new ArrayList<>();
-        // This turn's own tool activity, step by step — exported to the client
-        // so the NEXT turn can replay it. Only successful calls are recorded:
-        // replaying a call that already failed would re-inject a dead end into
-        // the transcript and spend budget re-learning it.
         List<ToolStep> trace = new ArrayList<>();
         // grounded == true means at least one tool call THIS TURN actually
         // returned real catalog data (a matched product, a found view, a
@@ -155,18 +131,13 @@ public class CatalogAgentService {
         // confirmedNoMatches below for how that legitimate case is still
         // answered honestly, without trusting the model's free text).
         boolean grounded = false;
-        // True when at least one search_products call executed successfully
-        // and truthfully found zero matches — a real, useful answer ("no
-        // tengo eso en el catálogo") that must remain deliverable even though
-        // it does not set `grounded` above (Safeguard consistency with
-        // ViewProductTool's not-found handling). Unlike `grounded`, this can
-        // never come from replay: "no encontré nada" is a claim about the
-        // search THIS turn ran, not about one three turns ago.
+        // True when at least one search_products call executed successfully and truthfully found
+        // zero matches — a real, useful answer ("no tengo eso en el catálogo") that must remain
+        // deliverable even though it does not set `grounded` above.
         boolean confirmedNoMatches = false;
-        // The corrective nudge fires at most once per turn — see GROUNDING_NUDGE.
         boolean nudged = false;
-        // Independent from `nudged`: the relax retry answers an EMPTY search, the grounding
-        // nudge answers a turn with no tool at all. Also at most once per turn.
+        // Independent from `nudged`: the relax retry answers an EMPTY search, the grounding nudge
+        // answers a turn with no tool at all.
         boolean relaxed = false;
         // Content of the last non-empty search THIS turn (never replay) and whether the turn made a
         // proposal or a PC: those turns keep the model's prose, the rest get a rendered listing.
@@ -194,10 +165,9 @@ public class CatalogAgentService {
                     continue;
                 }
                 if (confirmedNoMatches) {
-                    // The model's own prose is still discarded here (it is
-                    // just as untrusted as in the ungrounded case), but the
-                    // turn itself is a legitimate, answerable "no results"
-                    // outcome, not a rejection.
+                    // The model's own prose is still discarded here (it is just as untrusted as in
+                    // the ungrounded case), but the turn itself is a legitimate, answerable "no
+                    // results" outcome, not a rejection.
                     return new AgentChatResponse(noMatchesMessage(), proposals,
                             TurnOutcome.COMPLETE, trace);
                 }
@@ -244,17 +214,10 @@ public class CatalogAgentService {
                 proposals, TurnOutcome.EXHAUSTED, List.of());
     }
 
-    // ── Transcript reconstruction ───────────────────────────────────────
-
     /**
-     * Rebuilds the conversation into provider-facing {@link ChatMessage}s,
-     * re-executing each replayable past turn's tool calls so their results are
-     * read from the live catalog rather than carried by the client.
-     *
-     * <p>Deliberately side-effect free with respect to this turn's grounding
-     * and proposals: replaying a past {@code propose_reclassify} regenerates
-     * its diff for the model to read, but never re-emits a proposal card the
-     * user already answered.</p>
+     * Rebuilds the conversation into provider-facing {@link ChatMessage}s, re-executing each
+     * replayable past turn's tool calls so their results are read from the live catalog rather than
+     * carried by the client.
      */
     private void replayInto(List<ChatMessage> history, List<ConversationTurn> conversation) {
         Map<Integer, List<ToolStep>> window = selectReplayWindow(conversation);
@@ -269,20 +232,16 @@ public class CatalogAgentService {
             for (ToolStep step : window.getOrDefault(t, List.of())) {
                 List<ToolCall> calls = new ArrayList<>();
                 for (ToolStep.Call call : step.calls()) {
-                    // Unknown names are dropped rather than executed: the
-                    // registry's "unknown tool" error is a self-correction
-                    // signal for the live loop, not transcript material.
-                    // Logged because it is never expected from our own
-                    // client — it means a stale tab or a tampered payload.
+                    // Unknown names are dropped rather than executed: the registry's "unknown tool"
+                    // error is a self-correction signal for the live loop, not transcript material.
                     if (!registry.knows(call.name())) {
                         LOG.warn("[Agent] Replay: descarto '{}' — no es una herramienta registrada", call.name());
                         continue;
                     }
                     calls.add(new ToolCall("replay_" + (callSeq++), call.name(), call.arguments()));
                 }
-                // An assistant message announcing tool_calls MUST be followed
-                // by one tool message per call — emitting an empty batch would
-                // put a malformed pair on the wire.
+                // An assistant message announcing tool_calls MUST be followed by one tool message
+                // per call — emitting an empty batch would put a malformed pair on the wire.
                 if (calls.isEmpty()) continue;
                 history.add(ChatMessage.assistant("", calls));
                 for (ToolCall call : calls) {
@@ -295,20 +254,9 @@ public class CatalogAgentService {
     }
 
     /**
-     * Picks, per past assistant turn, which of its steps get replayed — walking
-     * backwards from the most recent within {@link #MAX_REPLAY_CALLS}.
-     *
-     * <p>The window is a contiguous TAIL of the conversation. A hole in the
-     * middle would show the model a transcript where it sometimes used tools
-     * and sometimes conjured the same kind of answer out of nothing — the exact
-     * pattern this change exists to stop teaching it.</p>
-     *
-     * <p>A turn too big to fit whole is TRUNCATED to its most recent steps
-     * rather than dropped. Dropping it would fail worst exactly where it costs
-     * most: a turn whose own tool use exceeds the budget is the tool-heaviest
-     * turn in the conversation, and the one a follow-up question is most likely
-     * to be about — so the naive "skip what doesn't fit" rule collapsed replay
-     * to nothing precisely when it mattered.</p>
+     * A hole in the middle would show the model a transcript where it sometimes used tools and
+     * sometimes conjured the same kind of answer out of nothing — the exact pattern this change
+     * exists to stop teaching it.
      */
     private static Map<Integer, List<ToolStep>> selectReplayWindow(List<ConversationTurn> conversation) {
         Map<Integer, List<ToolStep>> window = new HashMap<>();
@@ -323,9 +271,9 @@ public class CatalogAgentService {
             budget -= callCount(fitted);
 
             if (callCount(fitted) != callCount(turn.trace())) {
-                // Expected on any long conversation, but worth a line: from
-                // here backwards every turn degrades to bare prose, which is
-                // precisely the shape that made this bug invisible before.
+                // Expected on any long conversation, but worth a line: from here backwards every
+                // turn degrades to bare prose, which is precisely the shape that made this bug
+                // invisible before.
                 LOG.debug("[Agent] Replay: el turno {} entra recortado ({} de {} llamadas); el presupuesto "
                                 + "de {} se agota ahí y los turnos previos van sin traza",
                         t, callCount(fitted), callCount(turn.trace()), MAX_REPLAY_CALLS);
@@ -336,11 +284,9 @@ public class CatalogAgentService {
     }
 
     /**
-     * The longest TAIL of {@code steps} whose calls fit {@code budget}. If not
-     * even the last step fits whole, its most recent calls are kept: the
-     * replayed assistant message announces exactly the calls {@link #replayInto}
-     * goes on to execute, so a partially-kept step is still well-formed on the
-     * wire (one tool message per announced call).
+     * If not even the last step fits whole, its most recent calls are kept: the replayed assistant
+     * message announces exactly the calls {@link #replayInto} goes on to execute, so a
+     * partially-kept step is still well-formed on the wire (one tool message per announced call).
      */
     private static List<ToolStep> fitWithin(List<ToolStep> steps, int budget) {
         Deque<ToolStep> kept = new ArrayDeque<>();
@@ -365,8 +311,6 @@ public class CatalogAgentService {
         return steps.stream().mapToInt(step -> step.calls().size()).sum();
     }
 
-    // ── Turn outcomes ───────────────────────────────────────────────────
-
     private AgentChatResponse rejectUngrounded(String discardedProse) {
         LOG.warn("[Agent] Turno rechazado por falta de grounding — respuesta descartada: {}",
                 discardedProse == null ? "" : discardedProse.substring(0, Math.min(200, discardedProse.length())));
@@ -385,13 +329,10 @@ public class CatalogAgentService {
     }
 
     /**
-     * True iff {@code call} was {@link SearchProductsTool#NAME} and its
-     * (non-error) result is a well-formed, genuinely empty match array —
-     * {@code search_products} always returns {@code ok} for a syntactically
-     * valid query regardless of match count, unlike {@link ViewProductTool}
-     * which only returns {@code ok} when it actually found the requested
-     * product. Distinguishing "found nothing" from "found real data" here is
-     * what keeps the two read tools consistent about what counts as grounding.
+     * True iff {@code call} was {@link SearchProductsTool#NAME} and its (non-error) result is a
+     * well-formed, genuinely empty match array — {@code search_products} always returns {@code ok}
+     * for a syntactically valid query regardless of match count, unlike {@link ViewProductTool}
+     * which only returns {@code ok} when it actually found the requested product.
      */
     private boolean isEmptySearchResult(ToolCall call, ToolResult result) {
         if (!SearchProductsTool.NAME.equals(call.name())) return false;
@@ -419,7 +360,6 @@ public class CatalogAgentService {
                 + "producto o que revise su categoría actual.";
     }
 
-    /** Discovers models available from the active provider (D8). */
     public List<String> listModels() {
         return provider.listModels();
     }
@@ -427,7 +367,8 @@ public class CatalogAgentService {
     private void collectProposal(ToolResult result, List<ReclassifyProposal> proposals) {
         try {
             ReclassifyProposal p = MAPPER.readValue(result.content(), ReclassifyProposal.class);
-            // A model that repeats itself must not show the user the same card twice (records: value equality).
+            // A model that repeats itself must not show the user the same card twice (records:
+            // value equality).
             if (!proposals.contains(p)) proposals.add(p);
         } catch (Exception e) {
             LOG.warn("[Agent] No se pudo parsear la propuesta de reclasificación: {}", e.getMessage());
