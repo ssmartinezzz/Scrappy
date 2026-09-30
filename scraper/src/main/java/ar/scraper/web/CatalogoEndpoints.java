@@ -10,40 +10,28 @@ import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.HistorialJson;
 import ar.scraper.catalog.ProductJson;
-import ar.scraper.catalog.ProductKey;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.api.PageMeta;
+import ar.scraper.web.dto.CatalogoDtos;
+import ar.scraper.web.dto.OpResult;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * The catalog itself: the paginated product listing with server-side filters,
- * the standalone facets payload, the CSV export and the product soft-delete.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched. That matters more here
- * than anywhere else in the split — many tests call {@code controller.data(...)}
- * directly, in both the 17-arg and 21-arg overloads.</p>
- *
- * <p>Catalog search goes through {@link CatalogQueryPort} and product reads/writes
- * through {@link ProductPort} (extract-catalog-query-port). {@code DatabaseService}
- * is no longer held here at all.</p>
- */
+/** The catalog listing, facets, CSV export and product soft-delete. Mappings live in {@link ApiController}. */
 class CatalogoEndpoints {
 
     private final ScraperService service;
@@ -68,161 +56,66 @@ class CatalogoEndpoints {
         this.presets = presets;
         this.historial = historial;
         this.config = config;
-        // senal y finan NO se persisten: se calculan. Antes se calculaban para el
-        // catálogo entero durante la agregación; ahora, para los productos de la
-        // página — menos trabajo, no más.
         this.senalEnricher = new ar.scraper.ml.SenalEnricher(historial, indiceService);
         this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, indiceService);
     }
 
-    private String safe(String s) { return ProductJson.safe(s); }
-
-    private static void volcar(ObjectNode destino, java.util.Map<String, Long> conteo) {
-        conteo.forEach(destino::put);
-    }
-
-    ResponseEntity<ObjectNode> data(
+    ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(
             int page, int size, List<String> talle, String genero, List<String> categoria,
             String q, String sitio, List<String> marca, String badge, String segment,
             String rubro, Boolean gymrat, String orden, Boolean pack,
             Double precioMin, Double precioMax, List<String> subCategoria,
             String fit, String estampado, String escote, String colorDominante
     ) {
-        // El catálogo vive en la base, no en el snapshot de la última corrida:
-        // el dashboard ya no muestra 204 sobre 13543 productos sólo porque en
-        // ESTA sesión todavía nadie scrapeó (sql-catalog-filtering).
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
                 fit, estampado, escote, colorDominante);
 
-        // La misma cota para el resumen y para la página: un resumen sin acotar
-        // gatillando una página acotada hace que el 204 y el contenido no digan
-        // lo mismo, y que las facetas ofrezcan filtros que la página no cumple.
+        // Summary and page share one bound: an unbounded summary next to a bounded page
+        // would offer facets the page cannot satisfy.
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
         CatalogResumen resumen = catalogQuery.resumen(cota);
-        if (resumen.total() == 0) return ResponseEntity.noContent().build();
+        // The 1-based port below adds one: keep Integer.MAX_VALUE from wrapping to a negative page.
+        int numero = Math.min(Math.max(page, 0), Integer.MAX_VALUE - 1);
+        if (resumen.total() == 0) {
+            var vacio = new CatalogoDtos.Meta(
+                    config.getMoneda(), config.getPrecioMinimo(), config.getPrecioMaximo(),
+                    0, 0, LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                    CatalogoDtos.FacetsDto.vacio(), Map.of(), null);
+            return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(vacio, List.of()),
+                    PageMeta.of(numero, size, 0)));
+        }
 
-        CatalogPage paginaSql = catalogQuery.buscar(filtro, orden, page, size, cota);
+        // The port is 1-based; the API is 0-based.
+        CatalogPage paginaSql = catalogQuery.buscar(filtro, orden, numero + 1, size, cota);
 
-        // senal y finan no se persisten — se recalculan, pero SOLO para los
-        // productos de esta página, no para el catálogo entero como antes.
+        // senal/finan are computed, not persisted: only for this page's products.
         List<Product> pagina = financiacionEnricher.enriquecer(
                 senalEnricher.enriquecer(paginaSql.productos()));
 
         String presetActivoLabel = presets.cargarPresetActivo()
                 .map(ar.scraper.financiacion.Preset::label).orElse("");
 
-        int total = paginaSql.total();
-        int totalPaginas = (int) Math.ceil((double) total / size);
-        int paginaClamped = Math.max(page, 1);
-
-        String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode meta = root.putObject("meta");
-        meta.put("moneda",      config.getMoneda());
-        meta.put("precioMin",   config.getPrecioMinimo());
-        meta.put("precioMax",   config.getPrecioMaximo());
-        meta.put("rangMin",     resumen.minPrecio());
-        meta.put("rangMax",     resumen.maxPrecio());
-        meta.put("fecha",       fecha);
-        meta.put("total",       total);
-        meta.put("pagina",      paginaClamped);
-        meta.put("pageSize",    size);
-        meta.put("totalPaginas", totalPaginas);
-
-        // Facets sobre el dataset COMPLETO (sin filtrar) para que no desaparezcan pills
+        // Facets over the FULL dataset so filter pills do not vanish once used.
         Facets facets = catalogQuery.facetas(cota);
-        ObjectNode facetsNode = meta.putObject("facets");
-        volcar(facetsNode.putObject("talles"),          facets.talles());
-        volcar(facetsNode.putObject("generos"),         facets.generos());
-        volcar(facetsNode.putObject("categorias"),      facets.categorias());
-        volcar(facetsNode.putObject("marcas"),          facets.marcas());
-        volcar(facetsNode.putObject("badges"),          facets.badges());
-        volcar(facetsNode.putObject("subCategorias"),   facets.subCategorias());
-        volcar(facetsNode.putObject("fits"),            facets.fits());
-        volcar(facetsNode.putObject("estampados"),      facets.estampados());
-        volcar(facetsNode.putObject("escotes"),         facets.escotes());
-        volcar(facetsNode.putObject("colorDominantes"), facets.colorDominantes());
-        volcar(facetsNode.putObject("rubros"),          resumen.rubros());
-        facetsNode.put("gymratCount", resumen.gymrat());
-        facetsNode.put("packCount",   resumen.packs());
-
-        // Conteo por sitio: del catálogo persistido. Los ERRORES no — son
-        // metadata de la última corrida y no existen si todavía no hubo una.
-        ObjectNode marcas = meta.putObject("marcas");
-        resumen.porSitio().forEach(marcas::put);
         AggregatedResult ultimaCorrida = service.getLastResult();
-        if (ultimaCorrida != null && !ultimaCorrida.erroresPorSitio().isEmpty()) {
-            ObjectNode errs = meta.putObject("errores");
-            ultimaCorrida.erroresPorSitio().forEach(errs::put);
-        }
+        // Errors are last-run metadata; they do not exist before the first run.
+        Map<String, String> errores = ultimaCorrida != null && !ultimaCorrida.erroresPorSitio().isEmpty()
+                ? ultimaCorrida.erroresPorSitio() : null;
 
-        // Productos de la página
-        ArrayNode prods = root.putArray("productos");
-        for (Product p : pagina) {
-            ObjectNode n = prods.addObject();
-            // Handle corto para las rutas del frontend (/historial/{key}).
-            // OJO: esta fila se arma acá inline y NO por ProductJson.escribir —
-            // son dos copias del mismo shape, y este campo hay que agregarlo en
-            // las dos o el link sale vacío en una superficie y anda en la otra.
-            n.put("key",        ProductKey.of(p.url()));
-            n.put("sitio",      safe(p.sitio()));
-            n.put("nombre",     safe(p.nombre()));
-            n.put("precio",     p.precio());
-            n.put("precioOrig", p.precioOriginal());
-            n.put("descuento",  p.tieneDescuento());
-            n.put("url",        safe(p.url()));
-            String img = safe(p.imagenUrl());
-            if (img.startsWith("//")) img = "https:" + img;
-            n.put("img",        img);
-            n.put("categoria",  safe(p.categoria()));
-            n.put("genero",     safe(p.genero()));
-            n.put("marca",      safe(p.marca()));
-            n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
-            n.put("gymrat",     p.gymrat());
-            n.put("marcaPremium", p.marcaPremium());
-            n.put("cantidadUnidades", p.cantidadUnidades());
-            n.put("esPack",     p.esPack());
-            n.put("precioUnitario", ProductJson.precioUnitario(p));
-            n.put("sub_categoria", safe(p.subCategoria()));
-            ArrayNode tallesArr = n.putArray("talles");
-            if (p.talles() != null) p.talles().forEach(tallesArr::add);
-            // ML score — siempre serializar para el panel de detalle
-            if (p.ml() != null) {
-                ObjectNode ml = n.putObject("ml");
-                ml.put("badge",      p.ml().badge() != null ? p.ml().badge() : "");
-                ArrayNode badgesArr = ml.putArray("badges");
-                if (p.ml().badges() != null) p.ml().badges().forEach(badgesArr::add);
-                ml.put("scoreP",     p.ml().scoreP());
-                ml.put("ofertaReal", p.ml().ofertaReal());
-                ml.put("tendencia",  p.ml().tendencia() != null ? p.ml().tendencia() : "estable");
-                ml.put("pctil",      p.ml().pctilCategoria());
-                ml.put("zScore",     p.ml().zScore());
-                ml.put("segment",    p.ml().segment() != null ? p.ml().segment() : "standard");
-            }
-            // Señal de compra precomputada — siempre presente (sin_datos incluido)
-            // para que el frontend decida ocultar el badge sin necesitar un fetch extra.
-            Product.SenalCompra senal = p.senal() != null ? p.senal() : Product.SenalCompra.EMPTY;
-            ObjectNode senalNode = n.putObject("senal");
-            senalNode.put("senal",       senal.senal());
-            senalNode.put("scoreCompra", senal.scoreCompra());
-            senalNode.put("confianza",   senal.confianzaDeflactor().name().toLowerCase());
+        var meta = new CatalogoDtos.Meta(
+                config.getMoneda(), config.getPrecioMinimo(), config.getPrecioMaximo(),
+                resumen.minPrecio(), resumen.maxPrecio(),
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                CatalogoDtos.FacetsDto.of(facets, resumen.rubros(), resumen.gymrat(), resumen.packs()),
+                resumen.porSitio(), errores);
+        List<CatalogoDtos.ProductoRow> filas = pagina.stream()
+                .map(p -> CatalogoDtos.ProductoRow.of(p, presetActivoLabel)).toList();
 
-            // Señal de financiación precomputada — independiente de senal/scoreCompra
-            // (nunca se fusionan en el mismo valor/badge). presetLabel viene del
-            // preset activo, resuelto una sola vez por request (no por producto).
-            Product.SenalFinanciacion finan = p.finan() != null ? p.finan() : Product.SenalFinanciacion.EMPTY;
-            ObjectNode finanNode = n.putObject("senalFinanciacion");
-            finanNode.put("senal",       finan.senal());
-            finanNode.put("ahorroReal",  finan.ahorroReal());
-            finanNode.put("vp",          finan.vp());
-            finanNode.put("presetLabel", presetActivoLabel);
-        }
-
-        return ResponseEntity.ok(root);
+        return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(meta, filas),
+                PageMeta.of(numero, size, paginaSql.total())));
     }
 
     // ---------------------------------------------------------------
@@ -230,96 +123,37 @@ class CatalogoEndpoints {
     // ---------------------------------------------------------------
 
     /**
-     * Un producto y su serie de precios en una sola respuesta, para la vista
-     * dedicada de historial.
-     *
-     * <p>Entra por el handle corto ({@code producto_key}, V25) y no por la URL
-     * entera: una URL de producto como query param es ilegible, hay que
-     * encodearla en cada borde y mete el dominio scrapeado adentro de nuestra
-     * propia ruta. El handle es un alias de presentación — la identidad sigue
-     * siendo {@code productos.url}, que es la clave primaria.</p>
-     *
-     * <p>Se lee de la BASE, no del snapshot en memoria, por dos razones: la
-     * página es deep-linkeable —se puede abrir sin haber pasado por el catálogo,
-     * cuando el snapshot puede ni existir— y un producto soft-deleted tiene que
-     * seguir siendo inspeccionable, que es justo cuando su historial de precios
-     * es interesante.</p>
-     *
-     * <p>Distinto de {@code /api/historial}, que responde {@code 204} cuando no
-     * hay puntos: acá un producto scrapeado una sola vez es una página que
-     * igual tiene que renderizar, con sus datos y sin serie. El {@code 404}
-     * queda reservado para un producto que de verdad no existe.</p>
+     * Product plus price series for the history view. Reads the DB, not the in-memory snapshot:
+     * the page is deep-linkable and a soft-deleted product must stay inspectable. Unlike
+     * {@code /api/historial} a product with no points is still a 200; 404 means it does not exist.
      */
-    ResponseEntity<Object> productoDetalle(String key) {
-        if (StringUtils.isBlank(key)) return ResponseEntity.notFound().build();
-
-        var encontrado = productos.obtenerProductoPorKey(key);
-        if (encontrado.isEmpty()) return ResponseEntity.notFound().build();
+    ResponseEntity<ApiResponse<CatalogoDtos.ProductoDetalle>> productoDetalle(String key) {
+        var encontrado = StringUtils.isBlank(key) ? java.util.Optional.<Product>empty()
+                : productos.obtenerProductoPorKey(key);
+        if (encontrado.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "El producto no existe.");
+        }
 
         String url = encontrado.get().url();
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode prod = root.putObject("producto");
+        ObjectNode prod = JsonNodeFactory.instance.objectNode();
         prod.put("url", url);
         ProductJson.escribir(prod, encontrado.get());
-        root.set("historial", HistorialJson.construir(historial.cargarHistorial(url)));
-        return ResponseEntity.ok(root);
+        return ResponseEntity.ok(ApiResponse.ok(new CatalogoDtos.ProductoDetalle(
+                prod, HistorialJson.construir(historial.cargarHistorial(url)))));
     }
 
     // ---------------------------------------------------------------
     // Facets sueltos (para cargar filtros sin productos)
     // ---------------------------------------------------------------
-    ResponseEntity<ObjectNode> facets() {
+    ResponseEntity<ApiResponse<CatalogoDtos.FacetsDto>> facets() {
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
         CatalogResumen resumen = catalogQuery.resumen(cota);
-        if (resumen.total() == 0) return ResponseEntity.noContent().build();
+        if (resumen.total() == 0) return ResponseEntity.ok(ApiResponse.ok(CatalogoDtos.FacetsDto.vacio()));
 
-        Facets facets = catalogQuery.facetas(cota);
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        volcar(root.putObject("talles"),          facets.talles());
-        volcar(root.putObject("generos"),         facets.generos());
-        volcar(root.putObject("categorias"),      facets.categorias());
-        volcar(root.putObject("marcas"),          facets.marcas());
-        volcar(root.putObject("badges"),          facets.badges());
-        volcar(root.putObject("subCategorias"),   facets.subCategorias());
-        volcar(root.putObject("fits"),            facets.fits());
-        volcar(root.putObject("estampados"),      facets.estampados());
-        volcar(root.putObject("escotes"),         facets.escotes());
-        volcar(root.putObject("colorDominantes"), facets.colorDominantes());
-        // rubros NO va acá — es exclusivo de /api/data y hay un test que lo fija.
-        // gymratCount/packCount sí: /api/facets publica los mismos valores.
-        root.put("gymratCount", resumen.gymrat());
-        root.put("packCount",   resumen.packs());
-        return ResponseEntity.ok(root);
-    }
-
-    /**
-     * Los tres contadores que se publican sobre el catálogo COMPLETO, sin
-     * filtrar: el histograma de rubros, los gymrat y los packs.
-     *
-     * <p>Van sin filtrar a propósito — la UI los usa para decidir si ofrecer o
-     * no una pill de filtro, así que contarlos sobre el resultado ya filtrado
-     * haría desaparecer la pill apenas la usás.</p>
-     *
-     * <p>Eran tres barridos separados del catálogo entero, repetidos en los dos
-     * endpoints y en cada request. Los facets de al lado vienen precalculados
-     * del snapshot; estos no pueden, porque {@code eliminarProductoDeMemoria}
-     * reusa los facets del snapshot anterior tal cual, y congelarlos ahí dejaría
-     * los contadores mintiendo después de borrar un producto. Un solo recorrido
-     * los deja al día sin ese riesgo.</p>
-     */
-    private record ContadoresGlobales(Map<String, Integer> rubros, int gymrat, int packs) {
-        static ContadoresGlobales de(List<Product> productos) {
-            Map<String, Integer> rubros = new LinkedHashMap<>();
-            int gymrat = 0, packs = 0;
-            for (Product p : productos) {
-                String rubro = p.rubro();
-                if (StringUtils.isNotBlank(rubro)) rubros.merge(rubro.toLowerCase(), 1, Integer::sum);
-                if (p.gymrat()) gymrat++;
-                if (p.esPack()) packs++;
-            }
-            return new ContadoresGlobales(rubros, gymrat, packs);
-        }
+        // rubros is exclusive to /api/data; a test pins that.
+        return ResponseEntity.ok(ApiResponse.ok(CatalogoDtos.FacetsDto.of(
+                catalogQuery.facetas(cota), null, resumen.gymrat(), resumen.packs())));
     }
 
     // ---------------------------------------------------------------
@@ -334,14 +168,9 @@ class CatalogoEndpoints {
                 .body("\uFEFF" + content);
     }
 
-    ResponseEntity<ObjectNode> eliminarProducto(String url) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> eliminarProducto(String url) {
         productos.marcarDescontinuado(url);
         service.eliminarProductoDeMemoria(url);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
-
-    // Helpers de filtrado
-    // ---------------------------------------------------------------
 }

@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -234,7 +235,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
         sembrar(pack("https://site.com/packf5", 15000, 3),
                 producto("https://site.com/singlef4", 5000));
 
-        assertThat(controller.facets().getBody().path("packCount").asInt()).isEqualTo(1);
+        assertThat(Wire.data(controller.facets()).path("packCount").asInt()).isEqualTo(1);
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────
@@ -244,9 +245,9 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
     }
 
     private JsonNode pedirData(Boolean pack) {
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", pack, null, null, null);
-        return (JsonNode) resp.getBody();
+        return Wire.data(resp);
     }
 
     private JsonNode primerProducto(JsonNode body) {

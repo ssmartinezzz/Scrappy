@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -103,11 +104,11 @@ class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTes
         Product b = productoConBadges("https://site.com/b", 2000, List.of("above_market"));
         resultFor(a, b);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 "trending", null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/a");
     }
@@ -118,11 +119,11 @@ class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTes
         Product b = productoConBadges("https://site.com/d", 2000, List.of("above_market"));
         resultFor(a, b);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 "all_time_low", null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/c");
     }
@@ -134,18 +135,18 @@ class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTes
         Product c = productoConBadges("https://site.com/g", 3000, List.of("above_market"));
         resultFor(a, b, c);
 
-        ResponseEntity<?> page1 = controller.data(1, 1, null, null, null, null, null, null,
+        ResponseEntity<?> page1 = controller.data(0, 1, null, null, null, null, null, null,
                 "trending", null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
-        ResponseEntity<?> page2 = controller.data(2, 1, null, null, null, null, null, null,
+        ResponseEntity<?> page2 = controller.data(1, 1, null, null, null, null, null, null,
                 "trending", null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        assertThat(((JsonNode) page1.getBody()).path("meta").path("total").asInt()).isEqualTo(2);
-        assertThat(((JsonNode) page1.getBody()).path("productos")).hasSize(1);
-        assertThat(((JsonNode) page2.getBody()).path("productos")).hasSize(1);
-        assertThat(((JsonNode) page1.getBody()).path("productos").get(0).path("url").asText())
-                .isNotEqualTo(((JsonNode) page2.getBody()).path("productos").get(0).path("url").asText());
+        assertThat(Wire.page(page1).path("total").asInt()).isEqualTo(2);
+        assertThat(Wire.data(page1).path("productos")).hasSize(1);
+        assertThat(Wire.data(page2).path("productos")).hasSize(1);
+        assertThat(Wire.data(page1).path("productos").get(0).path("url").asText())
+                .isNotEqualTo(Wire.data(page2).path("productos").get(0).path("url").asText());
     }
 
     @Test
@@ -156,7 +157,7 @@ class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTes
 
         ResponseEntity<?> resp = controller.facets();
 
-        JsonNode badges = ((JsonNode) resp.getBody()).path("badges");
+        JsonNode badges = Wire.data(resp).path("badges");
         assertThat(badges.path("trending").asInt()).isEqualTo(2);
         assertThat(badges.path("verified_deal").asInt()).isEqualTo(1);
     }
@@ -166,11 +167,11 @@ class ApiControllerBadgeMembershipTest extends ar.scraper.db.support.PostgresTes
         Product a = productoConBadges("https://site.com/j", 1000, List.of("verified_deal", "trending"));
         resultFor(a);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        JsonNode ml = ((JsonNode) resp.getBody()).path("productos").get(0).path("ml");
+        JsonNode ml = Wire.data(resp).path("productos").get(0).path("ml");
         assertThat(ml.path("badge").asText()).isEqualTo("verified_deal");
         List<String> badgesArr = new java.util.ArrayList<>();
         ml.path("badges").forEach(n -> badgesArr.add(n.asText()));

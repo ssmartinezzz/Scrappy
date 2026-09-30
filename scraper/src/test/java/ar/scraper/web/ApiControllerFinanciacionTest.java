@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -107,7 +108,7 @@ class ApiControllerFinanciacionTest {
         ResponseEntity<?> resp = controller.listarPresets();
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("presets")).hasSize(2);
         assertThat(body.path("presets").get(0).path("id").asInt()).isEqualTo(1);
         assertThat(body.path("presets").get(0).path("label").asText()).isEqualTo("12 cuotas / 40%");
@@ -124,7 +125,7 @@ class ApiControllerFinanciacionTest {
 
         ResponseEntity<?> resp = controller.listarPresets();
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("presets")).isEmpty();
         assertThat(body.get("activo").isNull()).isTrue();
     }
@@ -139,7 +140,7 @@ class ApiControllerFinanciacionTest {
                 Map.of("label", "Mi preset", "recargoPct", 25.0, "cuotas", 6));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         verify(presets).crearPreset("Mi preset", 25.0, 6);
     }
@@ -147,11 +148,11 @@ class ApiControllerFinanciacionTest {
     @Test
     void postPresetBlankLabelReturns400WithoutPersisting() {
         Allure.parameter("label", "  ");
-        ResponseEntity<?> resp = controller.crearPreset(
-                Map.of("label", "  ", "recargoPct", 25.0, "cuotas", 6));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crearPreset(
+                Map.of("label", "  ", "recargoPct", 25.0, "cuotas", 6)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
     }
@@ -161,8 +162,8 @@ class ApiControllerFinanciacionTest {
         // Spec: recargoPct >= 0 strictly enforced at controller boundary —
         // stricter than DatabaseService.crearPreset's internal >-100 floor.
         Allure.parameter("recargoPct", -1.0);
-        ResponseEntity<?> resp = controller.crearPreset(
-                Map.of("label", "x", "recargoPct", -1.0, "cuotas", 6));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crearPreset(
+                Map.of("label", "x", "recargoPct", -1.0, "cuotas", 6)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
@@ -171,8 +172,8 @@ class ApiControllerFinanciacionTest {
     @Test
     void postPresetZeroCuotasReturns400WithoutPersisting() {
         Allure.parameter("cuotas", 0);
-        ResponseEntity<?> resp = controller.crearPreset(
-                Map.of("label", "x", "recargoPct", 10.0, "cuotas", 0));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crearPreset(
+                Map.of("label", "x", "recargoPct", 10.0, "cuotas", 0)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
@@ -184,11 +185,11 @@ class ApiControllerFinanciacionTest {
         // even when controller-level validation passed.
         when(presets.crearPreset("x", 10.0, 5)).thenReturn(-1);
 
-        ResponseEntity<?> resp = controller.crearPreset(
-                Map.of("label", "x", "recargoPct", 10.0, "cuotas", 5));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crearPreset(
+                Map.of("label", "x", "recargoPct", 10.0, "cuotas", 5)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -201,7 +202,7 @@ class ApiControllerFinanciacionTest {
         ResponseEntity<?> resp = controller.activarPreset(7);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         verify(service).recomputarFinanciacion(aggregator);
     }
@@ -210,10 +211,10 @@ class ApiControllerFinanciacionTest {
     void activarPresetNotFoundReturns404WithoutRecompute() {
         when(presets.activarPreset(999)).thenReturn(false);
 
-        ResponseEntity<?> resp = controller.activarPreset(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.activarPreset(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(service, never()).recomputarFinanciacion(any());
     }
@@ -251,8 +252,8 @@ class ApiControllerFinanciacionTest {
         when(presets.cargarPresetActivo()).thenReturn(Optional.empty());
         when(presets.editarPreset(99, "x", 20.0, 6)).thenReturn(false);
 
-        ResponseEntity<?> resp = controller.editarPreset(99,
-                Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.editarPreset(99,
+                Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verify(service, never()).recomputarFinanciacion(any());
@@ -291,10 +292,10 @@ class ApiControllerFinanciacionTest {
         when(presets.cargarPresetActivo()).thenReturn(Optional.empty());
         when(presets.eliminarPreset(999)).thenReturn(false);
 
-        ResponseEntity<?> resp = controller.eliminarPreset(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.eliminarPreset(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(service, never()).recomputarFinanciacion(any());
     }
@@ -307,11 +308,11 @@ class ApiControllerFinanciacionTest {
     void postPresetWhileScrapingRunningReturns409WithoutPersisting() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        ResponseEntity<?> resp = controller.crearPreset(
-                Map.of("label", "x", "recargoPct", 10.0, "cuotas", 6));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crearPreset(
+                Map.of("label", "x", "recargoPct", 10.0, "cuotas", 6)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(presets, never()).crearPreset(any(), anyDouble(), anyInt());
     }
@@ -320,11 +321,11 @@ class ApiControllerFinanciacionTest {
     void putPresetWhileScrapingRunningReturns409WithoutPersisting() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        ResponseEntity<?> resp = controller.editarPreset(3,
-                Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.editarPreset(3,
+                Map.of("label", "x", "recargoPct", 20.0, "cuotas", 6)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(presets, never()).editarPreset(anyInt(), any(), anyDouble(), anyInt());
         verify(service, never()).recomputarFinanciacion(any());
@@ -334,10 +335,10 @@ class ApiControllerFinanciacionTest {
     void activarPresetWhileScrapingRunningReturns409WithoutActivating() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        ResponseEntity<?> resp = controller.activarPreset(7);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.activarPreset(7));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(presets, never()).activarPreset(anyInt());
         verify(service, never()).recomputarFinanciacion(any());
@@ -347,10 +348,10 @@ class ApiControllerFinanciacionTest {
     void deletePresetWhileScrapingRunningReturns409WithoutDeleting() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        ResponseEntity<?> resp = controller.eliminarPreset(4);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.eliminarPreset(4));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(presets, never()).eliminarPreset(anyInt());
         verify(service, never()).recomputarFinanciacion(any());

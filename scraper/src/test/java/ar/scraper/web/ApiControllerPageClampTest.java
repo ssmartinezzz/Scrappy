@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -110,22 +111,21 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
     }
 
     @Test
-    void pageZeroReturnsSameResultAsPageOneWithoutError() {
+    void pageZeroIsTheFirstPageAndPageOneTheSecond() {
         Product a = producto("https://site.com/a", 1000);
         Product b = producto("https://site.com/b", 2000);
         sembrar(a, b);
 
-        ResponseEntity<?> respZero = controller.data(0, 24, null, null, null, null, null, null,
+        ResponseEntity<?> respZero = controller.data(0, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
-        ResponseEntity<?> respOne = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> respOne = controller.data(1, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
         assertThat(respZero.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode bodyZero = (JsonNode) respZero.getBody();
-        JsonNode bodyOne = (JsonNode) respOne.getBody();
-        assertThat(bodyZero.path("productos")).isEqualTo(bodyOne.path("productos"));
+        assertThat(Wire.data(respZero).path("productos").get(0).path("url").asText()).isEqualTo("https://site.com/a");
+        assertThat(Wire.data(respOne).path("productos").get(0).path("url").asText()).isEqualTo("https://site.com/b");
     }
 
     @Test
@@ -139,7 +139,7 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
                 null, null, null, null);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
     }
 
@@ -155,8 +155,8 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
                 null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        assertThat(((JsonNode) respZero.getBody()).path("meta").path("pagina").asInt()).isEqualTo(1);
-        assertThat(((JsonNode) respNeg.getBody()).path("meta").path("pagina").asInt()).isEqualTo(1);
+        assertThat(Wire.page(respZero).path("number").asInt()).isZero();
+        assertThat(Wire.page(respNeg).path("number").asInt()).isZero();
     }
 
     @Test
@@ -166,11 +166,11 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
         Product c = producto("https://site.com/p3", 3000);
         sembrar(a, b, c);
 
-        ResponseEntity<?> resp = controller.data(3, 1, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(2, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        assertThat(((JsonNode) resp.getBody()).path("meta").path("pagina").asInt()).isEqualTo(3);
+        assertThat(Wire.page(resp).path("number").asInt()).isEqualTo(2);
     }
 
     /**
@@ -189,7 +189,32 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
                 null, null, null, null);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).isEmpty();
+    }
+
+    @Test
+    void emptyCatalogAnswers200WithAnEmptyEnvelopeNotA204() {
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
+                null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = Wire.data(resp);
+        assertThat(data.path("productos").isArray()).isTrue();
+        assertThat(data.path("productos")).isEmpty();
+        assertThat(data.path("meta").path("facets").isObject()).isTrue();
+        assertThat(Wire.page(resp).path("total").asLong()).isZero();
+        assertThat(Wire.page(resp).path("totalPages").asInt()).isZero();
+        assertThat(Wire.page(resp).path("number").asInt()).isZero();
+    }
+
+    @Test
+    void emptyCatalogFacetsAnswer200WithEmptyFacets() {
+        ResponseEntity<?> resp = controller.facets();
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(Wire.data(resp).isObject()).isTrue();
+        assertThat(Wire.data(resp).path("marcas")).isEmpty();
     }
 }

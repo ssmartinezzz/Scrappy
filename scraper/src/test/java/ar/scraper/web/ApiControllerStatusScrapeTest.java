@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -16,7 +17,6 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
@@ -90,7 +90,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getProgressData()).thenReturn(null);
 
         var resp = controller.status();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("status").asText()).isEqualTo("IDLE");
         assertThat(body.get("tieneData").asBoolean()).isFalse();
@@ -108,7 +108,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getUltimasCategoriasRefinadas()).thenReturn(3);
 
         var resp = controller.status();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("tieneData").asBoolean()).isTrue();
         assertThat(body.get("total").asInt()).isEqualTo(1);
@@ -126,7 +126,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getProgressData()).thenReturn(pd);
 
         var resp = controller.status();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.has("progreso")).isTrue();
         assertThat(body.path("progreso").get("total").asInt()).isEqualTo(3);
@@ -141,7 +141,7 @@ class ApiControllerStatusScrapeTest {
         when(service.iniciarScraping(isNull(), eq(false))).thenReturn(true);
 
         var resp = controller.scrape(null, null, null, null, false);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("iniciado").asBoolean()).isTrue();
         assertThat(body.get("mensaje").asText()).contains("iniciado");
@@ -152,7 +152,7 @@ class ApiControllerStatusScrapeTest {
         when(service.iniciarScraping(isNull(), eq(false))).thenReturn(false);
 
         var resp = controller.scrape(null, null, null, null, false);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("iniciado").asBoolean()).isFalse();
         assertThat(body.get("mensaje").asText()).contains("curso");
@@ -187,7 +187,7 @@ class ApiControllerStatusScrapeTest {
     void limpiarProductosReturns409WhenScrapingRunning() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        var resp = controller.limpiarProductos();
+        var resp = Wire.answer(() -> controller.limpiarProductos());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         verifyNoInteractions(db, aggregator);
@@ -210,9 +210,11 @@ class ApiControllerStatusScrapeTest {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         doThrow(new SQLException("DB error")).when(productos).limpiarProductos();
 
-        var resp = controller.limpiarProductos();
+        var resp = Wire.answer(() -> controller.limpiarProductos());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
+        assertThat(Wire.error(resp).path("code").asText()).isEqualTo("error_interno");
+        assertThat(Wire.error(resp).path("message").asText()).doesNotContain("DB error");
     }
 
     // ── DELETE /api/db/ml ────────────────────────────────────────────────
@@ -221,7 +223,7 @@ class ApiControllerStatusScrapeTest {
     void limpiarMlReturns409WhenScrapingRunning() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        var resp = controller.limpiarMl();
+        var resp = Wire.answer(() -> controller.limpiarMl());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         verifyNoInteractions(db, aggregator);
@@ -243,9 +245,11 @@ class ApiControllerStatusScrapeTest {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         doThrow(new SQLException("DB error")).when(mlOutput).limpiarMlOutput();
 
-        var resp = controller.limpiarMl();
+        var resp = Wire.answer(() -> controller.limpiarMl());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
+        assertThat(Wire.error(resp).path("code").asText()).isEqualTo("error_interno");
+        assertThat(Wire.error(resp).path("message").asText()).doesNotContain("DB error");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

@@ -1,6 +1,11 @@
 package ar.scraper.web;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.OpResult;
+import org.springframework.http.HttpStatus;
+import java.util.ArrayList;
+import java.util.List;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
@@ -13,22 +18,7 @@ import ar.scraper.identity.Sujeto;
 
 import java.util.Map;
 
-/**
- * Saved products ("favoritos").
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
- *
- * <p>{@code DELETE /api/data} is deliberately NOT here. It is written inside the
- * favoritos region of the controller, but it soft-deletes a catalog product and
- * belongs with the catalog endpoints.</p>
- *
- * <p>Favoritos persistence goes through {@link FavoritosPort} (extract-favoritos-port).
- * Catalog reads ({@code obtenerProducto}/{@code esProductoActivo}) go through
- * {@link ProductPort} (extract-catalog-query-port). {@code DatabaseService} is
- * no longer held here at all.</p>
- */
+/** Saved products ("favoritos"). Mappings live in {@link ApiController}. */
 class FavoritosEndpoints {
 
     private final FavoritosPort favoritos;
@@ -42,14 +32,14 @@ class FavoritosEndpoints {
         this.actorResolver = actorResolver;
     }
 
-    ResponseEntity<ArrayNode> getFavoritos() {
-        ArrayNode arr = JsonNodeFactory.instance.arrayNode();
+    // Items are ProductJson rows (dynamic shape shared with /api/data), hence ObjectNode.
+    ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {
+        List<ObjectNode> arr = new ArrayList<>();
         for (var f : favoritos.listarFavoritos(Sujeto.de(actorResolver))) {
             String url = f.get("url");
-            ObjectNode n = arr.addObject();
-            // Si tenemos el producto en la DB, volcamos sus campos con la misma
-            // forma que /api/data (precio, img, ml, etc.) para que DetailPanel
-            // pueda mostrarlo sin pedir nada extra.
+            ObjectNode n = JsonNodeFactory.instance.objectNode();
+            arr.add(n);
+            // Same shape as /api/data so DetailPanel needs no extra request.
             productos.obtenerProducto(url).ifPresent(p -> ProductJson.escribir(n, p));
             n.put("url",    url);
             n.put("sitio",  ProductJson.safe(f.get("sitio")));
@@ -59,28 +49,22 @@ class FavoritosEndpoints {
             n.put("lastCheckedAt", ProductJson.safe(f.get("last_checked_at")));
             n.put("descontinuado", !productos.esProductoActivo(url));
         }
-        return ResponseEntity.ok(arr);
+        return ResponseEntity.ok(ApiResponse.ok(arr));
     }
 
-    ResponseEntity<ObjectNode> addFavorito(Map<String, String> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> addFavorito(Map<String, String> body) {
         String url    = body.getOrDefault("url", "").trim();
         String sitio  = body.getOrDefault("sitio", "").trim();
         String nombre = body.getOrDefault("nombre", "").trim();
         if (url.isBlank() || sitio.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "url y sitio obligatorios");
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "url y sitio obligatorios");
         }
         favoritos.guardarFavorito(Sujeto.de(actorResolver), url, sitio, nombre);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ObjectNode> deleteFavorito(String url) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> deleteFavorito(String url) {
         favoritos.eliminarFavorito(Sujeto.de(actorResolver), url);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 }

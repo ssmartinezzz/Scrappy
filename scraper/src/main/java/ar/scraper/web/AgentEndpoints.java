@@ -20,6 +20,10 @@ import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.AgentDtos;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
@@ -29,43 +33,19 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * LLM Catalog Agent (llm-catalog-nlp) — chat / apply / models, grouped
- * together behind the same future admin-only gate. NOTE (task 5.7, scope
- * id 734): this whole group is the intended insertion point for an
- * admin-only auth guard once user accounts/roles exist — no no-op guard
- * is added now, this comment only marks WHERE it goes.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
- */
+/** LLM Catalog Agent: chat / apply / models. Mappings live in {@link ApiController}. */
 class AgentEndpoints {
 
-    /**
-     * Transport caps on a client-supplied tool trace — see {@link #parseAgentTrace}.
-     * {@code AgentChatPanel} carries the same numbers, but that copy is only a
-     * convenience for what the browser stores: these are the enforced ones,
-     * since any caller can post to this endpoint directly.
-     */
+    /** Enforced transport caps on a client-supplied tool trace ({@link #parseAgentTrace}); the frontend copy is a convenience. */
     private static final int AGENT_MAX_TRACE_STEPS = 8;
     private static final int AGENT_MAX_TRACE_CALLS_PER_STEP = 6;
     private static final int AGENT_MAX_TRACE_ARG_KEYS = 8;
     private static final int AGENT_MAX_TRACE_ARG_LEN = 500;
-    /**
-     * How many raw entries the parser will even look at. Separate from the caps
-     * above because those only count entries it ACCEPTS — without this, a body
-     * made entirely of junk would still be walked end to end. Loose enough that
-     * a few malformed entries before the valid ones cost nothing.
-     */
+    /** Raw entries the parser will look at; the caps above only count ACCEPTED ones, so junk would otherwise be walked whole. */
     private static final int AGENT_MAX_TRACE_SCAN = 64;
     private static final ObjectMapper AGENT_MAPPER = new ObjectMapper();
 
     private final ScraperService service;
-    // The sitio registry itself, not the facade it used to be read from
-    // (extract-ml-persistence-ports): this class only ever wanted the
-    // @Component, so ApiController now hands it over directly and the dual
-    // dependency D6 declared is gone. Product reads/writes go through ProductPort.
     private final ar.scraper.classification.SiteRegistry siteRegistry;
     private final ar.scraper.catalog.ProductPort productos;
     private final CatalogAgentService catalogAgentService;
@@ -86,34 +66,20 @@ class AgentEndpoints {
         this.actorResolver = actorResolver;
     }
 
-    // Not Spring-managed (built on demand, same rationale as
-    // DatabaseService.rubroResolver, manual-classification-lock Phase 3): a
-    // pure function of (sitioKey, categoria, rubroPrevio), so computing it here
-    // for the in-memory patch is guaranteed to match what
-    // aplicarReclasificacionAuditada persisted. Built lazily, not in the
-    // constructor, so a test path that never reaches the reclassify branch
-    // never touches `db` (close-1nf-and-3nf-foundation extension) —
-    // several existing tests assert verifyNoInteractions(db) for exactly
-    // that reason.
-    //
-    // NOT a hot path, so NOT cached: this method has exactly one call site,
-    // reached at most once per POST /api/agent/apply request — a human-gated
-    // write of a single product, never a per-product loop over the catalog
-    // (unlike NormalizerService.normalizarProducto, which resolves the
-    // Spring-managed RubroResolver singleton once and reuses it across the
-    // whole scrape). The allocation itself is a single field assignment
-    // wrapping the already-loaded SiteRegistry singleton — no I/O, no query.
+    // Built on demand, not Spring-managed: a pure function of (sitioKey, categoria, rubroPrevio), so it
+    // matches what aplicarReclasificacionAuditada persisted. Lazy so paths that never reach the reclassify
+    // branch never touch `db` (tests assert verifyNoInteractions(db)). One call per apply request: not cached.
     private RubroResolver rubroResolver() {
         return new RubroResolver(siteRegistry);
     }
 
-    ResponseEntity<Object> agentChat(Map<String, Object> body) {
+    ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(Map<String, Object> body) {
         if (service.getStatus() == ScraperStatus.RUNNING) {
-            return ResponseEntity.status(409)
-                    .body(Map.of("mensaje", "Hay un scraping en curso. Esperá a que termine."));
+            throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
+                    "Hay un scraping en curso. Esperá a que termine.");
         }
         if (catalogAgentService == null) {
-            return ResponseEntity.internalServerError().body(Map.of("mensaje", "Agent no disponible."));
+            throw agenteNoDisponible();
         }
 
         Object messagesRaw = body.get("messages");
@@ -125,8 +91,7 @@ class AgentEndpoints {
                 String text = textRaw == null ? "" : textRaw.toString();
                 if (text.isBlank()) continue;
                 Role role = parseAgentRole(mm.get("role"));
-                // Only an assistant turn can carry tool activity, and only the
-                // calls — results are re-executed server-side (agent-chat-continuity).
+                // Only an assistant turn carries tool activity, and only the calls: results are re-executed server-side.
                 List<ToolStep> trace = role == Role.ASSISTANT
                         ? parseAgentTrace(mm.get("trace"))
                         : List.of();
@@ -134,8 +99,8 @@ class AgentEndpoints {
             }
         }
         if (conversation.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("mensaje", "El campo 'messages' es requerido y no puede estar vacío."));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "El campo 'messages' es requerido y no puede estar vacío.");
         }
 
         Object modelRaw = body.get("model");
@@ -143,95 +108,77 @@ class AgentEndpoints {
         if (modelRaw != null && !modelRaw.toString().isBlank()) {
             model = modelRaw.toString();
             if (!catalogAgentService.listModels().contains(model)) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("mensaje", "Modelo desconocido: '" + model + "'."));
+                throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                        "Modelo desconocido: '" + model + "'.");
             }
         }
 
         try {
             AgentChatResponse resp = catalogAgentService.run(conversation, model);
-            return ResponseEntity.ok(resp);
+            return ResponseEntity.ok(ApiResponse.ok(resp));
         } catch (ProviderUnavailableException e) {
-            return ResponseEntity.status(502)
-                    .body(Map.of("mensaje", "No se pudo contactar al proveedor LLM.",
-                            "codigo", "proveedor_no_disponible"));
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "proveedor_no_disponible",
+                    "No se pudo contactar al proveedor LLM.");
         }
     }
 
-    ResponseEntity<Object> agentModels() {
-        // NOT scrape-gated (spec "Runtime Model Selection" / design D5) —
-        // read-only metadata, touches no model/VRAM.
+    private static ApiException agenteNoDisponible() {
+        return new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "agente_no_disponible", "Agent no disponible.");
+    }
+
+    // Not scrape-gated: read-only metadata, touches no model/VRAM.
+    ResponseEntity<ApiResponse<AgentDtos.Models>> agentModels() {
         if (catalogAgentService == null || agentConfig == null) {
-            return ResponseEntity.internalServerError().body(Map.of("mensaje", "Agent no disponible."));
+            throw agenteNoDisponible();
         }
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("available", catalogAgentService.listModels());
-        resp.put("default", agentConfig.model());
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(
+                new AgentDtos.Models(catalogAgentService.listModels(), agentConfig.model())));
     }
 
-    ResponseEntity<Object> agentApply(ReclassifyProposal body) {
+    ResponseEntity<ApiResponse<AgentDtos.Applied>> agentApply(ReclassifyProposal body) {
         if (service.getStatus() == ScraperStatus.RUNNING) {
-            return ResponseEntity.status(409)
-                    .body(Map.of("ok", false, "mensaje", "Hay un scraping en curso. Esperá a que termine."));
+            throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
+                    "Hay un scraping en curso. Esperá a que termine.");
         }
 
-        // agent-chat-finetune WU4: typed @RequestBody instead of Map<String,Object>
-        // — the endpoint now reads the SAME field names ReclassifyProposal
-        // actually carries (categoriaPropuesta, not "categoria"), fixing the
-        // contract mismatch that 400'd every real confirm click. Per-field
-        // required check names only what's actually missing (never a
-        // blanket "'url' y 'categoria'" message when only one is absent).
+        // Typed body: reads the same field names ReclassifyProposal carries (categoriaPropuesta, not
+        // "categoria"). The per-field check names only what is actually missing.
         List<String> faltantes = new ArrayList<>();
         if (StringUtils.isBlank(body.url())) faltantes.add("url");
         if (StringUtils.isBlank(body.categoriaPropuesta())) faltantes.add("categoriaPropuesta");
         if (!faltantes.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("ok", false, "mensaje",
-                    "Faltan campos requeridos: " + String.join(", ", faltantes) + "."));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "Faltan campos requeridos: " + String.join(", ", faltantes) + ".");
         }
         if (!CategoryGroups.canonicalCategories().contains(body.categoriaPropuesta())) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "Categoría inválida: '" + body.categoriaPropuesta() + "'."));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "Categoría inválida: '" + body.categoriaPropuesta() + "'.");
         }
-        // normalize-db-schema-fks-1nf A.3: genero gets the same treatment
-        // categoria already got, because THIS is the write path — the
-        // ProposeReclassifyTool check is on the proposal, and this endpoint is
-        // reachable without it. Blank/null is skipped deliberately: below,
-        // a blank genero means "don't override", falling back to previo.genero()
-        // — it is not a value being written, so validating it as one would
-        // reject a legitimate no-op. Without this, an out-of-domain value
-        // violates V6's chk_productos_genero_domain and the caller gets an
-        // opaque 500 instead of a 400 naming what was wrong.
+        // genero is validated like categoria because THIS is the write path (reachable without
+        // ProposeReclassifyTool). Blank is skipped on purpose: it means "keep previo.genero()", not a
+        // value being written. Without this an out-of-domain value hits V6's CHECK and surfaces as a 500.
         String generoPropuesto = body.generoPropuesto();
         if (StringUtils.isNotBlank(generoPropuesto)
                 && !ProposeReclassifyTool.VALID_GENEROS.contains(generoPropuesto)) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "Género inválido: '" + generoPropuesto + "'."));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "Género inválido: '" + generoPropuesto + "'.");
         }
 
-        // Server-side re-validation — the client is NEVER trusted to have
-        // validated (design D4 Phase 2): look up the current product to
-        // confirm the url exists in the in-memory catalog snapshot.
+        // The client is never trusted to have validated: confirm the url exists in the catalog snapshot.
         Product current = ViewProductTool.find(service.getLastResult(), body.url());
         if (current == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("ok", false, "mensaje", "No existe ningún producto con esa url en el catálogo actual."));
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "No existe ningún producto con esa url en el catálogo actual.");
         }
 
-        // Staleness guard (agent-chat-finetune WU5): reads the DATABASE, never
-        // `current` above — `current` and the proposal's own categoriaActual
-        // both derive from the SAME in-memory snapshot (service.getLastResult()),
-        // so comparing them against each other would never detect drift.
-        // categoria is the only field the proposal carries a baseline for
-        // (subCategoria/marca/genero have no "before" in ReclassifyProposal).
-        // Fails closed: obtenerProducto returns Optional.empty() for both
-        // "not found" and an actual read error (see its Javadoc) — either way
-        // this is treated as a conflict, never as "safe to write".
+        // Staleness guard: reads the DATABASE, never `current` — `current` and the proposal's
+        // categoriaActual both derive from the same in-memory snapshot, so comparing them would never
+        // detect drift. Fails closed: obtenerProducto returns empty for both "not found" and a read error.
         Optional<Product> dbProducto = productos.obtenerProducto(body.url());
         String categoriaEnDb = dbProducto.map(Product::categoria).map(String::trim).orElse(null);
         String categoriaActualPropuesta = body.categoriaActual() != null ? body.categoriaActual().trim() : "";
         if (categoriaEnDb == null || !categoriaEnDb.equals(categoriaActualPropuesta)) {
-            return conflictoStale(dbProducto);
+            throw conflictoStale(dbProducto);
         }
         Product previo = dbProducto.get();
 
@@ -239,16 +186,9 @@ class AgentEndpoints {
         String marca = body.marcaPropuesta();
         String genero = body.generoPropuesto();
 
-        // agent-chat-finetune WU3: aplicarReclasificacionAuditada is the
-        // truthful write path (WU1) — its boolean return is ALWAYS checked, so
-        // a failed/no-op write can never be reported as "Reclasificación
-        // aplicada." (the original silent-success defect this fixes). talles
-        // and blank-field fallbacks now source from `previo` (the DB read
-        // above), not from the in-memory `current`.
-        // manual-classification-lock Phase 7: the acting identity is resolved
-        // through the ONE ActorResolver seam (architecture/session-readiness,
-        // obs #773) — never read inline. No role/permission check is performed
-        // on it; it is recorded, not verified.
+        // aplicarReclasificacionAuditada is the truthful write path: its boolean is always checked so a
+        // failed write is never reported as applied. Blank-field fallbacks come from `previo` (the DB read).
+        // The acting identity goes through the ONE ActorResolver seam; it is recorded, not verified.
         String actor = actorResolver.current();
         boolean applied = productos.aplicarReclasificacionAuditada(
                 body.url(),
@@ -261,18 +201,14 @@ class AgentEndpoints {
                 actor);
 
         if (!applied) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("ok", false, "mensaje", "No se pudo aplicar la reclasificación."));
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "error_interno",
+                    "No se pudo aplicar la reclasificación.");
         }
 
-        // El catálogo se sirve de lastResult, no de la DB en cada request, así que
-        // sin este parche la reclasificación recién persistida no se vería en
-        // /api/data ni /api/mejores hasta el próximo scrape/restart. Mismo patrón
-        // que eliminarProductoDeMemoria tras un soft-delete. Va DESPUÉS del check
-        // de `applied`: nunca se parchea memoria por una escritura que no ocurrió.
-        // rubro se deriva vía RubroResolver (mismo cómputo puro que ya usó
-        // aplicarReclasificacionAuditada para persistirlo, design D3) — fix del
-        // bug preexistente donde rubro quedaba stale tras un apply.
+        // The catalog is served from lastResult, so without this patch the reclassification would not show
+        // in /api/data or /api/mejores until the next scrape. AFTER the `applied` check: never patch memory
+        // for a write that did not happen. rubro is derived via RubroResolver, the same pure computation
+        // aplicarReclasificacionAuditada persisted.
         String sitioKey = SiteClassification.sitioKey(previo.sitio());
         String rubro = rubroResolver().resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
         service.actualizarProductoEnMemoria(
@@ -283,16 +219,11 @@ class AgentEndpoints {
                 (StringUtils.isNotBlank(subCategoria)) ? subCategoria : previo.subCategoria(),
                 rubro);
 
-        return ResponseEntity.ok(Map.of("ok", true, "applied", 1, "mensaje", "Reclasificación aplicada."));
+        return ResponseEntity.ok(ApiResponse.ok(new AgentDtos.Applied(true, 1, "Reclasificación aplicada.")));
     }
 
-    /**
-     * 422 response for the WU5 staleness guard — {@code actual} carries every
-     * field {@link #agentApply} read from the DB (when available) so the UI
-     * can show the caller what the product actually looks like now, without
-     * requiring a second round-trip.
-     */
-    private ResponseEntity<Object> conflictoStale(Optional<Product> dbProducto) {
+    /** 422 for the staleness guard; {@code details} carries what the DB holds now so the UI needs no second round-trip. */
+    private ApiException conflictoStale(Optional<Product> dbProducto) {
         Map<String, Object> actual = new LinkedHashMap<>();
         dbProducto.ifPresent(p -> {
             actual.put("categoria", p.categoria() != null ? p.categoria() : "");
@@ -300,20 +231,12 @@ class AgentEndpoints {
             actual.put("genero", p.genero() != null ? p.genero() : "");
             actual.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
         });
-        return ResponseEntity.status(422).body(Map.of(
-                "ok", false,
-                "codigo", "conflicto_stale",
-                "mensaje", "El producto cambió desde que se generó esta propuesta — volvé a consultar.",
-                "actual", actual));
+        return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "conflicto_stale",
+                "El producto cambió desde que se generó esta propuesta — volvé a consultar.",
+                Map.of("actual", actual));
     }
 
-    /**
-     * A client may only ever author the two roles it actually speaks in.
-     * Anything else — including a literal {@code "system"} or {@code "tool"} —
-     * degrades to {@code USER}: the system prompt and every tool result are
-     * server-authored, and a browser must not be able to smuggle one in by
-     * naming a role.
-     */
+    /** A client may only author USER/ASSISTANT; "system"/"tool" degrade to USER since those are server-authored. */
     private static Role parseAgentRole(Object roleRaw) {
         return roleRaw != null && "assistant".equalsIgnoreCase(roleRaw.toString())
                 ? Role.ASSISTANT
@@ -321,17 +244,9 @@ class AgentEndpoints {
     }
 
     /**
-     * Parses a past assistant turn's tool trace (agent-chat-continuity) out of
-     * the untrusted request body, rebuilt field by field rather than bound —
-     * the same posture {@code AgentChatPanel}'s {@code sanitizeSnapshot} takes
-     * on the client side.
-     *
-     * <p>Shape validation only: a name that no tool answers to is dropped
-     * later, by {@link ar.scraper.agent.CatalogAgentService} against its own
-     * registry, which is the component that actually knows the tool set. The
-     * caps here bound how much replay work one request can ask for — in
-     * entries scanned, entries accepted, and payload size per accepted call —
-     * and the service applies its own {@code MAX_REPLAY_CALLS} budget on top.</p>
+     * Rebuilds a past assistant turn's tool trace field by field from the untrusted body. Shape
+     * validation only: unknown tool names are dropped later by CatalogAgentService, which owns the
+     * registry. The caps bound scanned entries, accepted entries and payload size per call.
      */
     private static List<ToolStep> parseAgentTrace(Object traceRaw) {
         if (!(traceRaw instanceof List<?> steps)) return List.of();
@@ -360,27 +275,18 @@ class AgentEndpoints {
     }
 
     /**
-     * Rebuilds a replayed call's arguments as the flat object of scalars the
-     * three catalog tools actually declare ({@code url} / {@code query} /
-     * {@code categoria} / {@code limit} …), dropping nested, null and
-     * over-long values instead of passing the client's map through.
-     *
-     * <p>Without this, {@code MAX_REPLAY_CALLS} bounds only HOW MANY calls get
-     * replayed, not how big each one is — and every replayed call's arguments
-     * are re-serialised into the model's context on every later turn of the
-     * conversation.</p>
+     * Flat object of scalars, dropping nested/null/over-long values: MAX_REPLAY_CALLS bounds how many
+     * calls are replayed, not how big each is, and arguments are re-serialised into the model context
+     * on every later turn.
      */
     private static JsonNode sanitizeAgentArgs(Map<?, ?> raw) {
         ObjectNode clean = AGENT_MAPPER.createObjectNode();
         int scanned = 0;
         for (Map.Entry<?, ?> entry : raw.entrySet()) {
-            // Both bounds are needed: the key cap counts only entries ACCEPTED,
-            // and a non-scalar value is accepted by none of the branches below,
-            // so without the scan bound a map of nested junk is walked whole.
+            // Both bounds are needed: a non-scalar value is accepted by no branch below, so without
+            // the scan bound a map of nested junk is walked whole.
             if (clean.size() >= AGENT_MAX_TRACE_ARG_KEYS || ++scanned > AGENT_MAX_TRACE_SCAN) break;
-            // The KEY is bounded too, not just the value — it is re-serialised
-            // into the model's context on every later turn exactly like the
-            // value is, so leaving it unbounded would defeat the whole cap.
+            // The key is bounded too: it is re-serialised into the model context like the value.
             String key = truncateAgentArg(String.valueOf(entry.getKey()));
             if (key.isBlank()) continue;
             Object value = entry.getValue();

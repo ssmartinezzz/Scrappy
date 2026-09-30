@@ -1,32 +1,20 @@
 package ar.scraper.web;
 
 import ar.scraper.catalog.HistorialJson;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.MlDtos;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-/**
- * ML pipeline operations: the trends payload, price history, re-running the
- * pipeline over the current catalog, renormalisation, and the training /
- * visual-index endpoints.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3), where these
- * endpoints were spread across three separate regions of the file. This class
- * holds no request mappings: {@link ApiController} keeps them and delegates
- * here, so the routes and every existing caller are untouched.</p>
- *
- * <p>{@code /api/historial} is grouped here rather than with the catalog because
- * that is how the project's own API reference groups it — it feeds the same
- * analysis surfaces as {@code /api/tendencias}.</p>
- */
+/** ML pipeline operations: trends, price history, re-apply/renormalise and training. Mappings live in {@link ApiController}. */
 class MlEndpoints {
 
     private static final org.slf4j.Logger LOG =
         org.slf4j.LoggerFactory.getLogger(MlEndpoints.class);
 
     private final ScraperService service;
-    // Declared dual dependency (extract-catalog-query-port, D6): cargarCategoriaStats/
-    // guardarMlOutput below belong to repositories out of this slice's scope.
-    // actualizarCategoria/contarEmbeddings go through ProductPort instead.
     private final ar.scraper.catalog.CategoriaStatsPort categoriaStats;
     private final ar.scraper.catalog.MlOutputPort mlOutput;
     private final ar.scraper.catalog.HistorialPort historial;
@@ -50,34 +38,25 @@ class MlEndpoints {
         this.pythonRunner = pythonRunner;
     }
 
-    // ---------------------------------------------------------------
-    // Tendencias ML
-    // ---------------------------------------------------------------
-    ResponseEntity<com.fasterxml.jackson.databind.JsonNode> tendencias() {
+    // Payload is the trainer's JSON enriched with DB stats: dynamic, hence JsonNode.
+    ResponseEntity<ApiResponse<JsonNode>> tendencias() {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
         var ml = aggregator.getLastMlOutput();
 
-        // NOT_RUN: pipeline ML falló (null) → 503 con marcador, para que la UI distinga
-        // "falló" de "sin datos todavía"
+        // 503 lets the UI tell "the pipeline failed" from "no data yet" (204).
         if (ml == null || ml.isNull()) {
-            var err = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
-            err.put("error", "ml_failed");
-            return ResponseEntity.status(503).body(err);
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "ml_failed",
+                    "El pipeline ML falló en la última corrida.");
         }
 
-        // EMPTY: corrió pero scores/tendencias no son usables → 204 "sin datos"
         var scoresNode = ml.path("scores");
         var tendNode   = ml.path("tendencias");
         boolean valido = scoresNode.isObject() && !scoresNode.isEmpty() && tendNode.isObject();
         if (!valido) return ResponseEntity.noContent().build();
 
-        // VALID: 200 con payload (deepCopy de tendencias + enriquecido)
         com.fasterxml.jackson.databind.node.ObjectNode result =
                 (com.fasterxml.jackson.databind.node.ObjectNode) tendNode.deepCopy();
 
-        // Enriquecer con categoriaStats desde DB — V16 (design DD6): 12 columnas
-        // tipadas, ya no un payload JSON a reparsear. cv se redondea a 1 decimal,
-        // los otros 11 campos son enteros por construcción (columnas INTEGER/BIGINT).
         var catStats = categoriaStats.cargarCategoriaStats();
         if (!catStats.isEmpty()) {
             var catNode = result.putObject("distribucionCategorias");
@@ -97,72 +76,48 @@ class MlEndpoints {
                 n.put("fence_high", s.fenceHigh());
             });
         }
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    // ---------------------------------------------------------------
-    // Historial de precios
-    // ---------------------------------------------------------------
     /**
-     * El {@code 204} sin historial es para los widgets: un sparkline sin nada
-     * que dibujar no dibuja nada. La página dedicada NO puede usar este
-     * endpoint por eso mismo — ver {@code CatalogoEndpoints.productoDetalle},
-     * que responde 200 con {@code puntos} vacío. El cuerpo lo arma
-     * {@link HistorialJson}, compartido con esa otra ruta.
+     * 204 without history is for widgets (a sparkline with nothing to draw). The dedicated page
+     * cannot use it: see {@code CatalogoEndpoints.productoDetalle}, which answers 200 with empty points.
      */
-    ResponseEntity<Object> historial(String url) {
+    ResponseEntity<ApiResponse<JsonNode>> historial(String url) {
         var hist = historial.cargarHistorial(url);
         if (hist.isEmpty()) return ResponseEntity.noContent().build();
-        return ResponseEntity.ok(HistorialJson.construir(hist));
+        return ResponseEntity.ok(ApiResponse.ok(HistorialJson.construir(hist)));
     }
 
     /**
-     * Re-aplica el pipeline ML sobre el catálogo en memoria, en background.
-     *
-     * <p>Los dos rechazos de abajo existen porque el scoring NO es reentrante:
-     * {@code PythonRunner.ejecutar} resuelve {@code ml_productos.json} y
-     * {@code ml_output.json} en el cwd del proceso, así que dos corridas
-     * concurrentes se pisan los archivos sin que nada falle ruidosamente. El
-     * path de scrape llega al mismo {@code ejecutar} vía
-     * {@code ResultAggregator}, y este endpoint lanzaba su hilo virtual sin
-     * mirar a nadie.
-     *
-     * <p>El scrape es el dueño prioritario: es la operación larga y visible, y
-     * degradarla en silencio (su {@code ejecutar} devolviendo {@code null} =
-     * corrida sin ML) para que entre un "aplicar" manual sería el intercambio
-     * equivocado. Por eso el rechazo va acá, en la puerta, con la misma forma
-     * que {@code CronJobRunner.runJob} ya usa para no pisar un scrape en curso.
-     * La exclusión mutua atómica sigue viviendo junto al recurso
-     * ({@code PythonRunner.conReservaDeScoring}), que es lo que cierra el
-     * TOCTOU entre este chequeo y el arranque del hilo.
+     * Re-applies the ML pipeline over the in-memory catalog in the background.
+     * Scoring is not re-entrant: PythonRunner resolves ml_productos.json / ml_output.json in the
+     * process cwd, so concurrent runs overwrite each other silently. The scrape owns the slot;
+     * atomic exclusion lives in {@code PythonRunner.conReservaDeScoring}.
      */
-    ResponseEntity<Object> mlAplicar() {
+    ResponseEntity<ApiResponse<MlDtos.Started>> mlAplicar() {
         var r = service.getLastResult();
-        if (r == null) return ResponseEntity.badRequest()
-            .body(java.util.Map.of("error", "No hay datos. Ejecutá un scraping primero."));
+        if (r == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "No hay datos. Ejecutá un scraping primero.");
+        }
+        if (service.getStatus() == ar.scraper.scrape.ScraperStatus.RUNNING) {
+            throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
+                    "Hay un scraping en curso, que ya corre el pipeline ML. "
+                            + "Esperá a que termine y volvé a intentar.");
+        }
+        if (pythonRunner.isScoringEnCurso()) {
+            throw new ApiException(HttpStatus.CONFLICT, "ml_en_curso",
+                    "Ya hay una corrida del pipeline ML en vuelo. "
+                            + "Esperá a que termine y volvé a intentar.");
+        }
 
-        if (service.getStatus() == ar.scraper.scrape.ScraperStatus.RUNNING)
-            return ResponseEntity.status(409).body(java.util.Map.of(
-                "error", "Hay un scraping en curso, que ya corre el pipeline ML. "
-                       + "Esperá a que termine y volvé a intentar."));
-
-        if (pythonRunner.isScoringEnCurso())
-            return ResponseEntity.status(409).body(java.util.Map.of(
-                "error", "Ya hay una corrida del pipeline ML en vuelo. "
-                       + "Esperá a que termine y volvé a intentar."));
-
-        // Re-ejecutar pipeline ML sobre datos actuales en background
         Thread.ofVirtual().start(() -> {
             try {
                 String prodJson = aggregator.getMlEnricher().serializarProductos(r.productos());
-                // Mismo objeto que el guard de arriba consultó (PythonRunner es
-                // @Component, y aggregator.getPythonRunner() devuelve ese mismo
-                // singleton) — nombrarlo por el campo inyectado deja a la vista que
-                // la reserva y su consumidor son la misma instancia.
                 var mlOut = pythonRunner.ejecutar(prodJson);
                 if (mlOut != null) {
                     var enriquecidos = aggregator.getMlEnricher().enriquecer(r.productos(), mlOut);
-                    // Persistir categorías refinadas
                     java.util.Map<String,String> catOrig = new java.util.HashMap<>();
                     r.productos().forEach(p -> { if(p.url()!=null) catOrig.put(p.url(), p.categoria()!=null?p.categoria():""); });
                     enriquecidos.forEach(p -> {
@@ -178,105 +133,65 @@ class MlEndpoints {
                 LOG.warn("[ML/aplicar] Error: {}", e.getMessage());
             }
         });
-        return ResponseEntity.ok(java.util.Map.of(
-            "status", "started",
-            "mensaje", "Pipeline ML re-ejecutándose en background. Refrescá la página en 30 segundos."
-        ));
+        return ResponseEntity.ok(ApiResponse.ok(new MlDtos.Started("started",
+                "Pipeline ML re-ejecutándose en background. Refrescá la página en 30 segundos.")));
     }
 
-    ResponseEntity<Object> mlRenormalizar() {
-        var resultado = aggregator.renormalizarCatalogo();
-        return ResponseEntity.ok(resultado);
+    ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> mlRenormalizar() {
+        return ResponseEntity.ok(ApiResponse.ok(aggregator.renormalizarCatalogo()));
     }
 
-    // ─── ML Training ─────────────────────────────────────────────────────────────
-
-    ResponseEntity<Object> mlEstado() {
+    ResponseEntity<ApiResponse<MlDtos.Estado>> mlEstado() {
         java.io.File modelsDir = new java.io.File("_models");
         java.io.File textModel = new java.io.File(modelsDir, "text_classifier.pkl");
         java.io.File imgModel  = new java.io.File(modelsDir, "image_model.pt");
         java.io.File textMeta  = new java.io.File(modelsDir, "text_meta.json");
 
-        var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-        var root   = MAPPER.createObjectNode();
-        root.put("hasTextModel",  textModel.exists());
-        root.put("hasImageModel", imgModel.exists());
+        var estado = new MlDtos.Estado();
+        estado.setHasTextModel(textModel.exists());
+        estado.setHasImageModel(imgModel.exists());
         if (textMeta.exists()) {
             try {
-                var meta = MAPPER.readTree(textMeta);
-                root.set("textMeta", meta);
+                estado.setTextMeta(new com.fasterxml.jackson.databind.ObjectMapper().readTree(textMeta));
             } catch (Exception ignored) {}
         }
         var ts = pythonRunner.getTrainingStatus();
-        ObjectNode training = root.putObject("training");
-        training.put("running",   ts.running());
-        training.put("phase",     ts.phase());
-        training.put("pct",       ts.pct());
-        training.put("msg",       ts.msg());
-        training.put("startedAt", ts.startedAt() != null ? ts.startedAt() : "");
+        estado.setTraining(new MlDtos.Training(ts.running(), ts.phase(), ts.pct(), ts.msg(),
+                ts.startedAt() != null ? ts.startedAt() : ""));
 
-        // T6.3/T6.4 (fashion-image-classification PR6): visual-index coverage —
-        // additive fields, backward-compatible with MlStatusPanel's existing
-        // hasTextModel/hasImageModel/training.* consumption.
         long embeddingsCount = productos.contarEmbeddings();
         var lastResult = service.getLastResult();
         int totalProductos = lastResult != null ? lastResult.productos().size() : 0;
-        double coveragePct = totalProductos > 0
+        estado.setEmbeddingsCount(embeddingsCount);
+        estado.setTotalProductos(totalProductos);
+        estado.setCoveragePct(totalProductos > 0
                 ? Math.round((double) embeddingsCount / totalProductos * 1000.0) / 10.0
-                : 0.0;
-        root.put("embeddingsCount", embeddingsCount);
-        root.put("totalProductos",  totalProductos);
-        root.put("coveragePct",     coveragePct);
-
-        return ResponseEntity.ok(root);
+                : 0.0);
+        return ResponseEntity.ok(ApiResponse.ok(estado));
     }
 
-    ResponseEntity<Object> mlEntrenar(boolean images, int epochs) {
+    ResponseEntity<ApiResponse<MlDtos.Started>> mlEntrenar(boolean images, int epochs) {
+        if (pythonRunner.isTrainingRunning()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ml_en_curso", "Entrenamiento ya en curso");
+        }
 
-        if (pythonRunner.isTrainingRunning())
-            return ResponseEntity.badRequest()
-                .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
-
-        // T6.2 (fashion-image-classification PR6): "Construir índice visual"
-        // drives PythonRunner.construirIndiceVisualEnBackground (T5.4's
-        // sequencing entrypoint), NOT the standalone entrenarEnBackground.
-        // READ-005: entrenarEnBackground is NOT retired — it remains live as
-        // the post-scrape auto-training path (ResultAggregator.agregar); it's
-        // just no longer what this manual endpoint invokes. Do not delete it
-        // in a future cleanup. This endpoint runs text re-training FIRST,
-        // then the embeddings backfill, on ONE background thread, without
-        // blocking this HTTP response.
-        // decouple-services-postgres Batch 3 (task 3.6): no filesystem DB
-        // path to resolve anymore — the subprocess reads DATABASE_URL from
-        // its own env (see PythonRunner.aplicarEnvBaseDatosYModelos).
-        // READ-004: named args instead of naked booleans. forceRetrainTexto
-        // stays true (unchanged observable behavior: every manual button
-        // click forces a fresh text re-train, same as before);
-        // forceBackfillEmbeddings is also true — an explicit "Construir
-        // índice visual" click is a deliberate full-rebuild action, not a
-        // passive cache-first pass.
+        // Manual "Construir índice visual": text re-train first, then the embeddings backfill,
+        // on one background thread. Both are forced: an explicit click is a deliberate full rebuild.
+        // entrenarEnBackground stays live as the post-scrape auto-training path; do not delete it.
         boolean forceRetrainTexto = true;
         boolean forceBackfillEmbeddings = true;
         boolean iniciado = pythonRunner.construirIndiceVisualEnBackground(
                 forceRetrainTexto, images, epochs, forceBackfillEmbeddings);
-        // RESI-002 ≡ RELY-001: two near-simultaneous POSTs can both pass the
-        // isTrainingRunning() pre-check above; the atomic CAS inside the
-        // runner picks exactly one winner. The loser's request was NOT
-        // started — answer 409 Conflict instead of a false "started".
-        if (!iniciado)
-            return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT)
-                .body(java.util.Map.of("error", "Entrenamiento ya en curso"));
-        return ResponseEntity.ok(java.util.Map.of("status", "started"));
+        // Two near-simultaneous POSTs can both pass the pre-check; the runner's CAS picks one winner.
+        if (!iniciado) {
+            throw new ApiException(HttpStatus.CONFLICT, "ml_en_curso", "Entrenamiento ya en curso");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(new MlDtos.Started("started", null)));
     }
 
-    ResponseEntity<Object> mlResultado() {
+    ResponseEntity<ApiResponse<MlDtos.Resultado>> mlResultado() {
         var s = pythonRunner.getTrainingStatus();
-        return ResponseEntity.ok(java.util.Map.of(
-            "running", s.running(),
-            "phase",   s.phase(),
-            "pct",     s.pct(),
-            "msg",     s.msg(),
-            "done",    !s.running() && !"idle".equals(s.phase())
-        ));
+        return ResponseEntity.ok(ApiResponse.ok(new MlDtos.Resultado(s.running(), s.phase(), s.pct(),
+                s.msg(), !s.running() && !"idle".equals(s.phase()))));
     }
 }

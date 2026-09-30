@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -120,10 +121,10 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         sembrar(nike, adidas, puma);
 
         Allure.parameter("marca", List.of("Nike", "Adidas"));
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("Nike", "Adidas"), null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
         List<String> urls = List.of(productos.get(0).path("url").asText(), productos.get(1).path("url").asText());
         assertThat(urls).containsExactlyInAnyOrder("https://site.com/nike", "https://site.com/adidas");
@@ -137,10 +138,10 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         Product adidas = producto("https://site.com/adidas2", "Adidas");
         sembrar(nike, adidas);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of(), null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
     }
 
@@ -150,10 +151,10 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         Product adidas = producto("https://site.com/adidas3", "Adidas");
         sembrar(nike, adidas);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
     }
 
@@ -166,10 +167,10 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         sembrar(nike, adidas);
 
         Allure.parameter("marca", List.of("Nike"));
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/nike4");
     }
@@ -182,10 +183,10 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         sembrar(nike);
 
         Allure.parameter("marca", List.of("nike"));
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("nike"), null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
     }
 }
