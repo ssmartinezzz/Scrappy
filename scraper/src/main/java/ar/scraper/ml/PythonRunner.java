@@ -31,7 +31,6 @@ public class PythonRunner {
     private final java.util.concurrent.atomic.AtomicReference<TrainingStatus> trainingStatus =
         new java.util.concurrent.atomic.AtomicReference<>(TrainingStatus.idle());
 
-    /** Status of the visual-attribute backfill launched by {@link #backfillEmbeddingsEnBackground}. */
     public record BackfillStatus(boolean running, int pct, String msg, String startedAt) {
         public static BackfillStatus idle() {
             return new BackfillStatus(false, 0, "", null);
@@ -69,46 +68,18 @@ public class PythonRunner {
     }
 
     /**
-     * Slot de admisión del pipeline de scoring ({@link #ejecutar}): a lo sumo
-     * UNA corrida a la vez.
-     *
-     * <p>No es control de recursos, es integridad de datos. {@link #ejecutar}
-     * resuelve TRES rutas fijas en el cwd del proceso —{@code ml_productos.json},
-     * {@code ml_output.json}, {@code precio_historico.json}— y se las pasa al
-     * subproceso como argv. Dos corridas concurrentes se escriben los archivos
-     * entre sí, y ninguna falla ruidosamente: la segunda lee el input de la
-     * primera o publica un output mezclado.
-     *
-     * <p>Había dos llamadores capaces de chocar: el path de scrape
-     * ({@code ResultAggregator.ejecutarPipelineMl}) y
-     * {@code POST /api/ml/aplicar}, que lanzaba un hilo virtual sin guard
-     * alguno — a diferencia del entrenamiento, que ya reservaba su slot con
-     * {@link #intentarReservarSecuenciaIndiceVisual}. Este campo cierra ese
-     * hueco con el mismo molde (CAS, así un burst no puede tener dos
-     * ganadores).
+     * No es control de recursos, es integridad de datos. Dos corridas concurrentes se escriben los
+     * archivos entre sí, y ninguna falla ruidosamente: la segunda lee el input de la primera o
+     * publica un output mezclado.
      */
     private final java.util.concurrent.atomic.AtomicBoolean scoringEnCurso =
         new java.util.concurrent.atomic.AtomicBoolean(false);
 
-    /**
-     * ¿Hay una corrida de scoring en vuelo? Lo consulta
-     * {@code MlController.mlAplicar} para rechazar en la puerta con un 409 en
-     * vez de descubrirlo recién adentro de {@link #conReservaDeScoring}, donde
-     * el rechazo ya no tiene a quién contestarle (corre en un hilo de fondo).
-     */
     public boolean isScoringEnCurso() { return scoringEnCurso.get(); }
 
     /**
-     * Ejecuta {@code cuerpo} con el slot de scoring reservado, o devuelve
-     * {@code null} sin correrlo si ya había una corrida en vuelo.
-     *
-     * <p>Package-private como seam de test: permite verificar la exclusión
-     * mutua y la liberación en el {@code finally} sin depender de un
-     * intérprete Python real ni de los archivos del cwd.
-     *
-     * <p>El rechazo NO libera el slot — liberar una reserva que este llamado
-     * nunca tomó dejaría entrar a un tercero en paralelo con el cuerpo que
-     * sigue corriendo, que es justo la colisión que el guard cierra.
+     * Ejecuta {@code cuerpo} con el slot de scoring reservado, o devuelve {@code null} sin correrlo
+     * si ya había una corrida en vuelo.
      */
     <T> T conReservaDeScoring(java.util.function.Supplier<T> cuerpo) {
         if (!scoringEnCurso.compareAndSet(false, true)) {
@@ -124,17 +95,7 @@ public class PythonRunner {
     }
 
     /**
-     * Flag GPU/CPU por-job para los cron runs (scraper-cronjobs PR1, ver ADR-2
-     * en sdd/scraper-cronjobs/design). {@code true} (default) = comportamiento
-     * actual sin cambios (probe CUDA si está disponible). {@code false} = fuerza
-     * CPU en TODOS los subprocesos Python (scoring, entrenamiento y los probes
-     * {@code tieneCuda}/{@code tienePytorch}) seteando {@code CUDA_VISIBLE_DEVICES=-1},
-     * sin tocar ml_pipeline.py/ml_train.py (ambos ya bifurcan por
-     * {@code torch.cuda.is_available()}). {@code volatile} porque el scheduler/
-     * runner setea el flag desde otro hilo antes de disparar el scrape; los
-     * métodos públicos capturan el valor en una variable local ANTES de lanzar
-     * su hilo virtual (snapshot-at-entry) para evitar una carrera con el reset
-     * en el {@code finally} de {@code CronJobRunner}.
+     * {@code true} (default) = comportamiento actual sin cambios (probe CUDA si está disponible).
      */
     private volatile boolean useGpu = true;
 
@@ -142,24 +103,16 @@ public class PythonRunner {
     public boolean isUseGpu() { return useGpu; }
 
     /**
-     * Ejecuta el pipeline ML con contrato de 3 estados:
-     * - NOT_RUN (Python no encontrado, timeout, exit!=0, sin output, excepción) → retorna {@code null}
-     * - EMPTY/VALID (proceso OK, output parseado tal cual) → retorna el {@link JsonNode} leído
-     *
-     * La validación de contenido (scores/tendencias válidos) NO es responsabilidad de este
-     * método — vive en {@code DatabaseService} y {@code MlController}.
+     * Ejecuta el pipeline ML con contrato de 3 estados: - NOT_RUN (Python no encontrado, timeout,
+     * exit!=0, sin output, excepción) → retorna {@code null} - EMPTY/VALID (proceso OK, output
+     * parseado tal cual) → retorna el {@link JsonNode} leído.
      */
     public JsonNode ejecutar(String productosJson) {
         return conReservaDeScoring(() -> ejecutarScoring(productosJson));
     }
 
-    /**
-     * Cuerpo sincrónico de {@link #ejecutar}, extraído sin cambios para que el
-     * slot de {@link #conReservaDeScoring} envuelva la corrida entera —
-     * escritura del input incluida, que es donde empieza la colisión.
-     */
     private JsonNode ejecutarScoring(String productosJson) {
-        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
+        boolean useGpuSnapshot = this.useGpu;
         var stderrTail = new java.util.concurrent.ConcurrentLinkedDeque<String>();
         try {
             Path workDir   = Paths.get("").toAbsolutePath();
@@ -167,11 +120,9 @@ public class PythonRunner {
             Path outPath   = workDir.resolve("ml_output.json");
             Path histPath  = workDir.resolve("precio_historico.json");
             Path scriptPath = extraerScript(workDir);
-            // Stage-1b category/gender image refinement (ml_pipeline.py `import
-            // ml_embeddings`) degrades to text-only (via ml_pipeline.py's own
-            // import guard) if this sibling script can't be extracted alongside
-            // ml_pipeline.py. Guarded here so a missing/failed extraction never
-            // aborts the whole scoring pipeline.
+            // Stage-1b category/gender image refinement (ml_pipeline.py `import ml_embeddings`)
+            // degrades to text-only (via ml_pipeline.py's own import guard) if this sibling script
+            // can't be extracted alongside ml_pipeline.py.
             try {
                 extraerEmbeddingsScript(workDir);
             } catch (Exception e) {
@@ -236,11 +187,6 @@ public class PythonRunner {
 
     public BackfillStatus getBackfillStatus()  { return backfillStatus.get(); }
 
-    // ─── Extracción de los scripts Python del jar. Bodies in
-    // MlScriptExtractor (backlog A3). extraerEmbeddingsScript stays here as a
-    // package-private seam: the tests call it through this class.
-    // ─────────────────────────────────────────────────────────────────────
-
     private Path extraerScript(Path workDir) throws Exception {
         return MlScriptExtractor.extraerPipeline(workDir);
     }
@@ -254,12 +200,11 @@ public class PythonRunner {
     }
 
     /**
-     * Lanza entrenamiento ML en background después del scraping.
-     * Solo entrena si no existe modelo o si el modelo tiene más de 24h de antigüedad.
-     * Con forceRetrain=true, saltea la verificación de antigüedad y siempre entrena.
+     * Lanza entrenamiento ML en background después del scraping. Solo entrena si no existe modelo o
+     * si el modelo tiene más de 24h de antigüedad.
      */
     public void entrenarEnBackground(boolean forceRetrain, boolean withImages, int epochs) {
-        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
+        boolean useGpuSnapshot = this.useGpu;
         String python = detectarPython();
         if (python == null) { LOG.info("[ML-TRAIN] Python no disponible, saltando entrenamiento"); return; }
 
@@ -272,7 +217,6 @@ public class PythonRunner {
             LOG.info("[ML-TRAIN] forceRetrain=true — saltando verificación de antigüedad del modelo.");
         }
 
-        // Si el modelo existe y fue entrenado recientemente (<24h), saltear (a menos que forceRetrain=true)
         if (!forceRetrain && modelExists) {
             try {
                 long age = System.currentTimeMillis() - Files.getLastModifiedTime(textModel).toMillis();
@@ -297,10 +241,6 @@ public class PythonRunner {
                 var cmd = new java.util.ArrayList<String>();
                 cmd.add(python);
                 cmd.add(trainScript.toString());
-                // dbPath is no longer a parameter at all (design D5 + Batch 3
-                // task 3.6) — ml_train.py reads DATABASE_URL from its env
-                // instead (see construirProcessBuilderEntrenamiento/
-                // aplicarEnvBaseDatosYModelos).
 
                 boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
                 boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -319,7 +259,6 @@ public class PythonRunner {
                 ProcessBuilder pb = construirProcessBuilderEntrenamiento(cmd, workDir, useGpuSnapshot);
                 Process proc = pb.start();
 
-                // Stderr: logs [TRAIN]
                 Thread.ofVirtual().start(() -> {
                     try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
                         String line;
@@ -327,13 +266,11 @@ public class PythonRunner {
                     } catch (Exception ignored) {}
                 });
 
-                // Stdout: progress JSON lines + final result — stream en tiempo real
                 var sb = new StringBuilder();
                 try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                     String line;
                     while ((line = br.readLine()) != null) {
                         sb.append(line).append("\n");
-                        // Loguear líneas de progreso en tiempo real
                         if (line.startsWith("{") && line.contains("\"pct\"")) {
                             try {
                                 var node = new com.fasterxml.jackson.databind.ObjectMapper()
@@ -360,9 +297,7 @@ public class PythonRunner {
                 }
                 int exitCode = proc.exitValue();
 
-                // El último JSON completo es el resultado final
                 String out = sb.toString().trim();
-                // Buscar el último JSON completo (línea que empieza con '{' y tiene 'status')
                 String finalJson = "";
                 for (String l : out.split("\n")) {
                     if (l.startsWith("{") && l.contains("status")) finalJson = l;
@@ -370,7 +305,6 @@ public class PythonRunner {
                 if (exitCode == 0) {
                     LOG.info("[ML-TRAIN] ✓ ENTRENAMIENTO COMPLETADO");
                     if (!finalJson.isBlank()) LOG.info("[ML-TRAIN] Resultado: {}", finalJson);
-                    // Auto-aplicar modelo: re-ejecutar pipeline ML sobre datos actuales
                     LOG.info("[ML-TRAIN] Aplicando modelo a datos actuales...");
                     aplicarModeloActual();
                     setTraining(TrainingStatus.idle());
@@ -394,12 +328,9 @@ public class PythonRunner {
     }
 
     /**
-     * Test seam (package-private, pure): decides whether text re-training
-     * should be skipped for freshness — mirrors the guard inlined in
-     * {@link #entrenarEnBackground} ({@code modelExists && !forceRetrain &&
-     * age < 24h}). Extracted so the decision itself is directly unit-testable
-     * without touching the filesystem, and reused by the T5.4 sequencing
-     * entrypoint ({@link #construirIndiceVisualEnBackground}).
+     * Test seam (package-private, pure): decides whether text re-training should be skipped for
+     * freshness — mirrors the guard inlined in {@link #entrenarEnBackground}
+     * ({@code modelExists && !forceRetrain && age < 24h}).
      */
     boolean debeSaltearEntrenamientoPorFrescura(boolean modelExists, boolean forceRetrain,
             long edadModeloMillis) {
@@ -407,21 +338,6 @@ public class PythonRunner {
         return edadModeloMillis < 24L * 3600 * 1000;
     }
 
-    /**
-     * Test seam (package-private, pure): parses a subprocess stdout progress
-     * JSON line ({@code {"pct":N,"msg":"..."}}, own {@code "phase"} key
-     * ignored — the caller supplies the macro {@code fase} label instead) into
-     * an updated {@link TrainingStatus}, preserving {@code startedAt} from
-     * {@code previo}. Returns {@code previo} unchanged when the line isn't a
-     * recognizable progress line (null, non-JSON, missing {@code "pct"}, or
-     * malformed). Backs the T5.4 sequencing entrypoint
-     * ({@link #construirIndiceVisualEnBackground}), which tags every line
-     * from the text-training subprocess with {@code fase="training"} and
-     * every line from the embeddings-backfill subprocess with
-     * {@code fase="embedding"} — both writing into the SAME
-     * {@link #trainingStatus} object, so a single poll surface can
-     * distinguish the two phases of "Construir índice visual".
-     */
     TrainingStatus parsearLineaProgreso(String line, String fase, TrainingStatus previo) {
         if (line == null || !line.startsWith("{") || !line.contains("\"pct\"")) return previo;
         try {
@@ -435,54 +351,11 @@ public class PythonRunner {
     }
 
     /**
-     * Sequencing entrypoint for "Construir índice visual" (PR6's future
-     * {@code POST /api/ml/entrenar} handler, T6.2): runs text re-training
-     * FIRST, then the embeddings backfill, on ONE background thread — both
-     * phases reporting into the SAME {@link #trainingStatus} object, tagged
-     * with a distinct macro {@code phase} ({@code "training"} vs
-     * {@code "embedding"}) via {@link #parsearLineaProgreso}, so a single
-     * poll surface (future {@code GET /api/ml/estado}, T6.3/T6.4) can tell
-     * the two stages apart. Mirrors {@link #entrenarEnBackground} and
-     * {@link #backfillEmbeddingsEnBackground}'s executor/status/progress
-     * pattern (same {@link TrainingStatus} record, same
-     * {@code construirProcessBuilderEntrenamiento}/
-     * {@code construirProcessBuilderBackfill} seams) rather than reusing
-     * their thread bodies directly, so this new sequencing path can never
-     * regress either standalone entrypoint. Never throws — any failure in
-     * either phase degrades to a logged no-op and the sequence still
-     * attempts the next phase (backfill still runs even if text-training
-     * was skipped or failed).
-     *
-     * <p>RESI-003: each phase now reports success/failure back to this
-     * entrypoint. The {@code finally} block only resets {@link #trainingStatus}
-     * to {@link TrainingStatus#idle()} when BOTH phases succeeded
-     * ({@link #debeResetearAIdleTrasSecuencia}) — a phase failure already wrote
-     * a durable {@code phase="error"} terminal state (via
-     * {@link #marcarFalloIndiceVisual}, mirroring {@link #entrenarEnBackground}'s
-     * existing error-state pattern at its {@code exit != 0}/exception branches)
-     * that must survive so {@code /api/ml/estado} polling can observe it
-     * instead of seeing a falsely-idle run.</p>
-     *
-     * <p>RESI-002 ≡ RELY-001 (4R PR6 follow-up): returns the CAS reservation
-     * result so callers ({@code MlController}'s {@code POST /api/ml/entrenar}) can
-     * tell "sequence accepted" apart from "silently dropped because another
-     * sequence was already in flight". {@code true} = this call won the
-     * reservation (even if the sequence then degrades to a logged no-op, e.g.
-     * Python unavailable); {@code false} = another sequence holds the slot and
-     * THIS request was not started — the caller should surface a conflict
-     * (409) instead of a false "started".</p>
-     *
-     * <p>RESI-001 (4R PR6 follow-up): the reservation is taken BEFORE the
-     * background thread is spawned, so a thread-start failure (resource
-     * exhaustion, executor shutdown) must not leave {@code running=true}
-     * stuck forever with no thread alive to clear it — that would make every
-     * subsequent {@code POST /api/ml/entrenar} fail until a JVM restart. The
-     * {@code catch} below writes a durable {@code phase="error"} state
-     * (running=false, so a retry can re-reserve) and rethrows.</p>
-     *
-     * @return {@code true} when this call reserved and launched (or
-     *         no-op-degraded) the sequence; {@code false} when a sequence was
-     *         already in flight and this request was dropped.
+     * Mirrors {@link #entrenarEnBackground} and {@link #backfillEmbeddingsEnBackground}'s
+     * executor/status/progress pattern (same {@link TrainingStatus} record, same
+     * {@code construirProcessBuilderEntrenamiento}/ {@code construirProcessBuilderBackfill} seams)
+     * rather than reusing their thread bodies directly, so this new sequencing path can never
+     * regress either standalone entrypoint.
      */
     public boolean construirIndiceVisualEnBackground(boolean forceRetrainTexto,
             boolean withImages, int epochs, boolean forceBackfillEmbeddings) {
@@ -491,7 +364,7 @@ public class PythonRunner {
             return false;
         }
 
-        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
+        boolean useGpuSnapshot = this.useGpu;
         String python = detectarPython();
         if (python == null) {
             LOG.info("[ML-INDEX] Python no disponible, saltando construcción de índice visual");
@@ -505,9 +378,8 @@ public class PythonRunner {
             lanzarHiloSecuencia(() -> ejecutarSecuenciaIndiceVisual(python, workDir,
                     forceRetrainTexto, withImages, epochs, forceBackfillEmbeddings, useGpuSnapshot));
         } catch (Throwable t) {
-            // RESI-001: no thread was started, so nothing will ever clear the
-            // reservation — release it as a durable error (running=false) and
-            // let the failure propagate to the caller.
+            // RESI-001: no thread was started, so nothing will ever clear the reservation — release
+            // it as a durable error (running=false) and let the failure propagate to the caller.
             LOG.error("[ML-INDEX] No se pudo iniciar el hilo de la secuencia: {}", t.getMessage());
             marcarFalloIndiceVisual("sequencing", "no se pudo iniciar el hilo: " + t.getMessage());
             throw t;
@@ -517,33 +389,15 @@ public class PythonRunner {
 
     /**
      * Test seam (package-private): spawns the background thread for
-     * {@link #construirIndiceVisualEnBackground}. Extracted so a test can
-     * deterministically simulate a thread-start failure (RESI-001) or swallow
-     * the spawn entirely (RESI-002's return-value contract) without depending
-     * on real resource exhaustion. Production behavior is exactly
-     * {@code Thread.ofVirtual().start(body)}.
+     * {@link #construirIndiceVisualEnBackground}.
      */
     Thread lanzarHiloSecuencia(Runnable body) {
         return Thread.ofVirtual().start(body);
     }
 
     /**
-     * Test seam / re-entrancy guard (T6.2b, deferred PR5 finding — obs #369):
-     * atomically reserves the "sequence in flight" slot for
-     * {@link #construirIndiceVisualEnBackground}. Returns {@code true} (and
-     * synchronously flips {@link #trainingStatus} to a transient
-     * running=true/{@code "starting"} state) only when no training/embedding
-     * sequence was already running; returns {@code false} without touching the
-     * status otherwise.
-     *
-     * <p>Mirrors {@code MlController}'s existing {@code isTrainingRunning()}
-     * -then-reject shape, but atomic via CAS so a burst of near-simultaneous
-     * calls can never both win the race — closing the gap where the virtual
-     * thread body used to be the ONLY place that flipped
-     * {@link #trainingStatus} to running=true, leaving a window between
-     * {@code Thread.ofVirtual().start()} returning and the spawned thread's
-     * first statement executing where a second call would still observe
-     * {@code running=false} and launch a second concurrent sequence.</p>
+     * Test seam / re-entrancy guard: atomically reserves the "sequence in flight" slot for
+     * {@link #construirIndiceVisualEnBackground}.
      */
     boolean intentarReservarSecuenciaIndiceVisual() {
         TrainingStatus previo = trainingStatus.get();
@@ -556,38 +410,11 @@ public class PythonRunner {
 
     /**
      * Test seam (package-private): the synchronous core of
-     * {@link #construirIndiceVisualEnBackground} — same sequencing logic the
-     * public async entrypoint delegates to (via {@code Thread.ofVirtual()}),
-     * extracted so a test can invoke it directly with an explicit
-     * {@code python} executable (bypassing {@code detectarPython()}'s
-     * real-environment scan) and assert on the final {@link #trainingStatus}
-     * without polling a background thread. Production callers only ever
-     * reach this through the public entrypoint.
-     *
-     * <p>FIXV-001 fix (4R correction round, fix-delta escalation): the
-     * inter-phase {@code trainingStatus.set(new TrainingStatus(true,
-     * "embedding", ...))} — previously unconditional — now only fires when
-     * {@code trainingOk} is {@code true}, so a training failure's durable
-     * {@code phase="error"} status (already written by
-     * {@link #ejecutarFaseEntrenamientoSecuenciada} via
-     * {@link #marcarFalloIndiceVisual}) isn't immediately overwritten with a
-     * false "starting embedding, running" status before backfill even
-     * begins. That alone isn't sufficient, though: backfill's OWN progress
-     * reporting (via {@link #esperarConDrain}'s {@link #parsearLineaProgreso}
-     * calls) still legitimately flips {@link #trainingStatus} to
-     * running=true/phase="embedding" while it's actually running — accurate,
-     * desired behavior. The bug was specifically about the FINAL state after
-     * backfill completes: if training failed but backfill then SUCCEEDS,
-     * backfill's success path writes no terminal status of its own (only its
-     * failure branches call {@code marcarFalloIndiceVisual}), and
-     * {@link #debeResetearAIdleTrasSecuencia} correctly refuses to reset to
-     * idle for this combo (only true when BOTH succeed) — so without the
-     * explicit re-write below, the status would stay permanently stuck at
-     * running=true/phase="embedding" after this thread dies, silently
-     * erasing the training failure and leaving an {@code /api/ml/estado}
-     * poller seeing "in progress" forever. The
-     * {@code !trainingOk && backfillOk} branch re-asserts a durable,
-     * non-running error state whose message reflects both outcomes.</p>
+     * {@link #construirIndiceVisualEnBackground} — same sequencing logic the public async
+     * entrypoint delegates to (via {@code Thread.ofVirtual()}), extracted so a test can invoke it
+     * directly with an explicit {@code python} executable (bypassing {@code detectarPython()}'s
+     * real-environment scan) and assert on the final {@link #trainingStatus} without polling a
+     * background thread.
      */
     void ejecutarSecuenciaIndiceVisual(String python, Path workDir,
             boolean forceRetrainTexto, boolean withImages, int epochs, boolean forceBackfillEmbeddings,
@@ -627,39 +454,12 @@ public class PythonRunner {
         return construirIndiceVisualEnBackground(forceRetrainTexto, false, 8, forceBackfillEmbeddings);
     }
 
-    /** Outcome of {@link #esperarConDrain}: whether the process finished within
-     * the deadline, and its exit code when it did ({@code -1} when it didn't). */
     record ResultadoEspera(boolean finished, int exitCode) {}
 
     /**
-     * Test seam (package-private): RESI-001 fix. Drains {@code proc}'s stdout
-     * (tagging every parsed progress line into {@link #trainingStatus} via
-     * {@link #parsearLineaProgreso} under macro-phase {@code fase}, and handing
-     * the raw line to the optional {@code stdoutLineHandler}) and stderr (via
-     * the optional {@code stderrLineHandler}) on separate virtual threads,
-     * while THIS thread blocks ONLY on {@code proc.waitFor(timeout, unit)} —
-     * never on a blocking stdout {@code readLine()} loop.
-     *
-     * <p>Previously (both sequencing phase methods) stdout was read to EOF
-     * with a blocking {@code readLine()} loop BEFORE {@code waitFor} was ever
-     * reached, so a child that stayed alive with stdout open but silent (e.g.
-     * a cold model-weight download inside {@code _load_model} that emits no
-     * progress) blocked the calling thread forever and the timeout was never
-     * evaluated. Draining on separate threads keeps {@code waitFor}'s deadline
-     * reachable regardless of the child's stdout behavior.</p>
-     *
-     * <p>On timeout, force-kills {@code proc} and returns immediately WITHOUT
-     * waiting for the drain threads — a hung child's streams may never close
-     * on their own. On a normal exit, joins both drain threads with a short
-     * bounded wait ({@link #joinDrainThread}) so the last buffered lines are
-     * captured before the caller inspects any counters derived from the line
-     * handlers (e.g. backfill's degraded-row count, RESI-002).</p>
-     *
-     * <p>{@code timeout}/{@code unit} are parameterized (rather than a
-     * hardcoded {@code 180L} MINUTES) purely so a test can inject a short
-     * deadline against a synthetic long-lived, silent child process without
-     * waiting 180 real minutes; production call sites always pass
-     * {@code MINUTES}.</p>
+     * Drains {@code proc}'s stdout and stderr (via the optional {@code stderrLineHandler}) on
+     * separate virtual threads, while THIS thread blocks ONLY on
+     * {@code proc.waitFor(timeout, unit)} — never on a blocking stdout {@code readLine()} loop.
      */
     ResultadoEspera esperarConDrain(Process proc, long timeout, TimeUnit unit, String fase,
             java.util.function.Consumer<String> stdoutLineHandler,
@@ -698,11 +498,12 @@ public class PythonRunner {
         return new ResultadoEspera(true, proc.exitValue());
     }
 
-    /** Bounded join for a stdout/stderr drain thread after {@code waitFor()}
-     * returns — the child's streams close once the process exits, so the
-     * reader thread reaches EOF and finishes almost immediately; this join is
-     * just to avoid racing the last couple of buffered lines before the
-     * caller reads final counters. Never blocks indefinitely. */
+    /**
+     * Bounded join for a stdout/stderr drain thread after {@code waitFor()} returns — the child's
+     * streams close once the process exits, so the reader thread reaches EOF and finishes almost
+     * immediately; this join is just to avoid racing the last couple of buffered lines before the
+     * caller reads final counters.
+     */
     private void joinDrainThread(Thread t) {
         try {
             t.join(java.time.Duration.ofSeconds(5).toMillis());
@@ -711,27 +512,14 @@ public class PythonRunner {
         }
     }
 
-    /** Marker text ml_embeddings.py's {@code backfill()} logs to stderr, once
-     * per row, when {@code classify()} degraded to its no-signal sentinel and
-     * that row's visual attrs were skipped-not-persisted (see
-     * ml_embeddings.py's per-row skip branch, ~line 836). Used by
-     * {@link #esBackfillDegradado} detection (RESI-002) — counted, never
-     * parsed further. */
+    /**
+     * Used by {@link #esBackfillDegradado} detection (RESI-002) — counted, never parsed further.
+     */
     static final String BACKFILL_SIN_SENAL_MARKER = "no visual signal for";
 
     private static final java.util.regex.Pattern PROGRESO_PROCESADAS_PATTERN =
             java.util.regex.Pattern.compile("^(\\d+)/(\\d+) — ");
 
-    /**
-     * Test seam (package-private, pure): RESI-002. Extracts the running
-     * "processed" count from a backfill per-row progress line shaped
-     * {@code {"phase":"embedding","pct":N,"msg":"{processed}/{total} — {url}"}}
-     * (see ml_embeddings.py's {@code backfill()} per-row {@code _emit_progress}
-     * call). Returns {@code -1} when {@code line} doesn't match that shape
-     * (non-JSON, missing {@code pct}, or a msg like "sin productos
-     * pendientes"/"backfill completo"/an error message), so callers can tell
-     * "no count observed yet" apart from a real {@code 0}.
-     */
     int extraerProcesadasDeLineaProgreso(String line) {
         if (line == null || !line.startsWith("{") || !line.contains("\"pct\"")) return -1;
         try {
@@ -745,54 +533,24 @@ public class PythonRunner {
     }
 
     /**
-     * Test seam (package-private, pure): RESI-002 degraded-backfill detector.
-     * A backfill "succeeds" (exit 0) even when the model never loaded and
-     * every processed row hit ml_embeddings.py's classify()-degrades-to-""
-     * skip branch (logged via {@link #BACKFILL_SIN_SENAL_MARKER} instead of
-     * persisted) — {@code ml_embeddings.py} always {@code sys.exit(0)} for the
-     * {@code backfill} subcommand regardless. Returns {@code true} only when
-     * at least one row was actually processed AND every processed row was
-     * skipped — a partially-degraded run (some rows persisted, some skipped)
-     * is NOT reported as degraded, since it still added real signal.
+     * A backfill "succeeds" (exit 0) even when the model never loaded and every processed row hit
+     * ml_embeddings.py's classify()-degrades-to-"" skip branch (logged via
+     * {@link #BACKFILL_SIN_SENAL_MARKER} instead of persisted) — {@code ml_embeddings.py} always
+     * {@code sys.exit(0)} for the {@code backfill} subcommand regardless.
      */
     boolean esBackfillDegradado(int filasProcesadas, int filasSinSenal) {
         return filasProcesadas > 0 && filasSinSenal >= filasProcesadas;
     }
 
-    /**
-     * Test seam (package-private): RESI-003. Writes a durable
-     * {@code phase="error"} terminal {@link TrainingStatus} — mirrors
-     * {@link #entrenarEnBackground}'s existing error-state pattern
-     * ({@code new TrainingStatus(false, "error", 0, "exit " + exitCode, null)}).
-     * Called by both sequenced phase methods on timeout, non-zero exit,
-     * RESI-002 degraded-backfill detection, and unexpected exceptions, so
-     * {@code /api/ml/estado} polling can observe the failure instead of the
-     * entrypoint's {@code finally} silently resetting to idle over it (see
-     * {@link #debeResetearAIdleTrasSecuencia}).
-     */
     private void marcarFalloIndiceVisual(String fase, String motivo) {
         setTraining(new TrainingStatus(false, "error", 0,
                 "[" + fase + "] " + (motivo != null ? motivo : ""), null));
     }
 
-    /**
-     * Test seam (package-private, pure): RESI-003 decision — whether
-     * {@link #construirIndiceVisualEnBackground}'s {@code finally} block may
-     * reset {@link #trainingStatus} back to {@link TrainingStatus#idle()}.
-     * Only {@code true} when BOTH phases reported success; if either phase
-     * failed, it already wrote a durable {@code phase="error"} terminal state
-     * (via {@link #marcarFalloIndiceVisual}) that {@code /api/ml/estado}
-     * polling must be able to observe — resetting to idle in that case would
-     * silently erase the failure and make it indistinguishable from success.
-     */
     boolean debeResetearAIdleTrasSecuencia(boolean trainingOk, boolean backfillOk) {
         return trainingOk && backfillOk;
     }
 
-    /** Fase "training" de {@link #construirIndiceVisualEnBackground}. Nunca lanza.
-     * @return {@code true} on success (including a fresh-model skip); {@code false}
-     * on timeout, non-zero exit, or an unexpected exception — in every failure
-     * case a durable error state is written via {@link #marcarFalloIndiceVisual}. */
     boolean ejecutarFaseEntrenamientoSecuenciada(String python, Path workDir,
             boolean forceRetrain, boolean withImages, int epochs, boolean useGpuSnapshot) {
         try {
@@ -816,10 +574,6 @@ public class PythonRunner {
             var cmd = new java.util.ArrayList<String>();
             cmd.add(python);
             cmd.add(trainScript.toString());
-            // dbPath is no longer a parameter at all (design D5 + Batch 3
-            // task 3.6) — ml_train.py reads DATABASE_URL from its env
-            // instead (see construirProcessBuilderEntrenamiento/
-            // aplicarEnvBaseDatosYModelos).
 
             boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
             boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
@@ -859,11 +613,6 @@ public class PythonRunner {
         }
     }
 
-    /** Fase "embedding" de {@link #construirIndiceVisualEnBackground}. Nunca lanza.
-     * @return {@code true} on a genuinely successful backfill; {@code false} on
-     * timeout, non-zero exit, RESI-002 degraded-run detection, or an unexpected
-     * exception — in every failure case a durable error state is written via
-     * {@link #marcarFalloIndiceVisual}. */
     boolean ejecutarFaseBackfillSecuenciada(String python, Path workDir,
             boolean force, boolean useGpuSnapshot) {
         try {
@@ -912,14 +661,9 @@ public class PythonRunner {
         }
     }
 
-    /**
-     * Lanza el backfill de atributos visuales ({@code ml_embeddings.py backfill})
-     * en background. Ver el docstring de {@code backfill()} en ml_embeddings.py
-     * (~línea 718), que nombra explícitamente este método como su contraparte Java.
-     * Nunca lanza excepciones — cualquier fallo degrada a un no-op logueado.
-     */
+    /** Nunca lanza excepciones — cualquier fallo degrada a un no-op logueado. */
     public void backfillEmbeddingsEnBackground(boolean force) {
-        boolean useGpuSnapshot = this.useGpu; // snapshot-at-entry, ver javadoc de `useGpu`
+        boolean useGpuSnapshot = this.useGpu;
         try {
             String python = detectarPython();
             if (python == null) {
@@ -940,16 +684,9 @@ public class PythonRunner {
                             python, scriptPath.toString(), force, useGpuSnapshot);
                     Process proc = pb.start();
 
-                    // RESI-002: counters for degraded-backfill detection (model never
-                    // loaded, every processed row skipped-not-persisted — exit code is
-                    // still 0, see esBackfillDegradado's javadoc). Populated by the
-                    // existing stdout/stderr read loops below — no change to their
-                    // blocking read-before-waitFor structure (that latent RESI-001
-                    // pattern is explicitly out of scope for this pre-existing entrypoint).
                     var filasProcesadas = new java.util.concurrent.atomic.AtomicInteger(-1);
                     var filasSinSenal = new java.util.concurrent.atomic.AtomicInteger(0);
 
-                    // Stderr: logs [ML-BACKFILL]
                     Thread stderrThread = Thread.ofVirtual().start(() -> {
                         try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
                             String line;
@@ -960,7 +697,6 @@ public class PythonRunner {
                         } catch (Exception ignored) {}
                     });
 
-                    // Stdout: progress JSON lines — {"phase":"embedding","pct":N,"msg":"..."}
                     try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                         String line;
                         while ((line = br.readLine()) != null) {
@@ -980,8 +716,8 @@ public class PythonRunner {
                         }
                     }
 
-                    // Full-catalog download + embedding pass, generous timeout — same as
-                    // the `--images` training path (see entrenarEnBackground).
+                    // Full-catalog download + embedding pass, generous timeout — same as the
+                    // `--images` training path (see entrenarEnBackground).
                     long timeoutMin = 180L;
                     boolean finished = proc.waitFor(timeoutMin, TimeUnit.MINUTES);
                     if (!finished) {
@@ -990,10 +726,9 @@ public class PythonRunner {
                         setBackfill(BackfillStatus.idle());
                         return;
                     }
-                    // Brief bounded join so the stderr thread (racing the stdout loop
-                    // above, which already blocked until the child's stdout closed at
-                    // exit) has a moment to flush its last buffered lines before the
-                    // degraded-row count below is read.
+                    // Brief bounded join so the stderr thread (racing the stdout loop above, which
+                    // already blocked until the child's stdout closed at exit) has a moment to
+                    // flush its last buffered lines before the degraded-row count below is read.
                     joinDrainThread(stderrThread);
 
                     int exitCode = proc.exitValue();
@@ -1038,16 +773,8 @@ public class PythonRunner {
     }
 
     /**
-     * Test seam (package-private): computes the {@code forceCpu} argument
-     * that {@link #entrenarEnBackground} passes into the {@code tieneCuda}/
-     * {@code tienePytorch} probes, from the {@code useGpuSnapshot} flag
-     * ({@code true} = GPU allowed). The probes' {@code forceCpu} has the
-     * INVERSE polarity ({@code true} = force CPU on that probe subprocess
-     * via {@code CUDA_VISIBLE_DEVICES=-1}), so this must return
-     * {@code !useGpuSnapshot}. Extracted so the polarity itself is a named,
-     * directly testable unit instead of an inline expression — a previous
-     * version passed {@code useGpuSnapshot} straight through, which forced
-     * CPU on the CUDA probe whenever GPU was enabled and defeated detection.
+     * The probes' {@code forceCpu} has the INVERSE polarity ({@code true} = force CPU on that probe
+     * subprocess via {@code CUDA_VISIBLE_DEVICES=-1}), so this must return {@code !useGpuSnapshot}.
      */
     boolean forceCpuParaProbes(boolean useGpuSnapshot) {
         return !useGpuSnapshot;
@@ -1080,11 +807,10 @@ public class PythonRunner {
         } catch (Exception e) { return false; }
     }
 
-    // ── Test seams (package-private): construyen los ProcessBuilder de cada
-    // subproceso Python SIN iniciarlos, para poder verificar en tests el env
-    // var CUDA_VISIBLE_DEVICES sin depender de un intérprete Python real. ──
+    // ── Test seams (package-private): construyen los ProcessBuilder de cada subproceso Python SIN
+    // iniciarlos, para poder verificar en tests el env var CUDA_VISIBLE_DEVICES sin depender de un
+    // intérprete Python real. ──
 
-    /** ProcessBuilder del pipeline de scoring/inferencia ({@link #ejecutar}). */
     ProcessBuilder construirProcessBuilderScoring(String python, Path scriptPath, Path prodPath,
             Path outPath, Path histPath, Path workDir, boolean useGpuSnapshot) {
         ProcessBuilder pb = new ProcessBuilder(
@@ -1092,10 +818,9 @@ public class PythonRunner {
                 prodPath.toString(), outPath.toString(), histPath.toString());
         pb.redirectErrorStream(false);
         pb.directory(workDir.toFile());
-        // Paridad con el path de entrenamiento: UTF-8 evita el mojibake en
-        // los logs (estad�sticas → estadísticas) y PYTHONUNBUFFERED hace que
-        // stderr se vacíe línea a línea, así un crash nativo (ej. exit
-        // 0xC0000409) no se traga las últimas líneas y podemos ver dónde murió.
+        // UTF-8 evita el mojibake en los logs (estad�sticas → estadísticas) y PYTHONUNBUFFERED hace
+        // que stderr se vacíe línea a línea, así un crash nativo (ej. exit 0xC0000409) no se traga
+        // las últimas líneas y podemos ver dónde murió.
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
         pb.environment().put("PYTHONUNBUFFERED", "1");
@@ -1106,7 +831,6 @@ public class PythonRunner {
         return pb;
     }
 
-    /** ProcessBuilder del entrenamiento ({@link #entrenarEnBackground}). */
     ProcessBuilder construirProcessBuilderEntrenamiento(java.util.List<String> cmd, Path workDir,
             boolean useGpuSnapshot) {
         ProcessBuilder pb = new ProcessBuilder(cmd)
@@ -1121,16 +845,6 @@ public class PythonRunner {
         return pb;
     }
 
-    /**
-     * ProcessBuilder del backfill de embeddings ({@link #backfillEmbeddingsEnBackground}).
-     *
-     * <p>{@code dbPath} is no longer a parameter at all (decouple-services-postgres
-     * Batch 2 stopped forwarding it as a subprocess argv token per design D5;
-     * Batch 3 task 3.6 removed the parameter itself now that the backend no
-     * longer resolves a SQLite file path) — the subprocess reads
-     * {@code DATABASE_URL} from its env instead (see
-     * {@link #aplicarEnvBaseDatosYModelos}).</p>
-     */
     ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath,
             boolean force, boolean useGpuSnapshot) {
         var cmd = new java.util.ArrayList<String>();
@@ -1155,56 +869,37 @@ public class PythonRunner {
     }
 
     /**
-     * Test seam (package-private): applies the {@code DATABASE_URL} /
-     * {@code SCRAPER_MODELS_ROOT} / {@code HF_HOME} env trio (design D5,
-     * decouple-services-postgres Batch 2) to every Python subprocess
-     * {@code ProcessBuilder} — scoring, training, and backfill all need DB
-     * + models-dir access now that neither is derived from a {@code dbPath}
-     * filesystem argument. Extracted so all three
-     * {@code construirProcessBuilder*} seams share one implementation.
-     * {@code DATABASE_URL} is only set when present in THIS process's own
-     * environment (never clobbers with a literal null); it would already be
-     * inherited by the child via {@code ProcessBuilder}'s environment-copy
-     * default, but setting it explicitly keeps the contract visible and
-     * directly testable here rather than implicit.
+     * {@code DATABASE_URL} is only set when present in THIS process's own environment (never
+     * clobbers with a literal null); it would already be inherited by the child via
+     * {@code ProcessBuilder}'s environment-copy default, but setting it explicitly keeps the
+     * contract visible and directly testable here rather than implicit.
      */
-    // ─── Entorno de los subprocesos Python. Bodies in PythonEnv (backlog
-    // A3). The three statics stay here as package-private seams: the tests
-    // call them as PythonRunner.toPsycopgDsn / PythonRunner.resolveModelsRoot.
-    // ─────────────────────────────────────────────────────────────────────
 
     void aplicarEnvBaseDatosYModelos(ProcessBuilder pb, Path workDir) {
         PythonEnv.aplicar(pb, workDir);
     }
 
     /**
-     * Test seam (package-private, pure): translates the JVM's own
-     * {@code DATABASE_URL} (JDBC format) into a libpq/psycopg2-compatible DSN
-     * for the Python subprocess env — libpq only recognizes the
-     * {@code postgresql://}/{@code postgres://} schemes, not {@code jdbc:}.
+     * Test seam (package-private, pure): translates the JVM's own {@code DATABASE_URL} (JDBC
+     * format) into a libpq/psycopg2-compatible DSN for the Python subprocess env — libpq only
+     * recognizes the {@code postgresql://}/{@code postgres://} schemes, not {@code jdbc:}.
      */
     static String toPsycopgDsn(String jdbcOrPlainUrl, String username, String password) {
         return PythonEnv.toPsycopgDsn(jdbcOrPlainUrl, username, password);
     }
 
-    /**
-     * Test seam (package-private, pure): resolves {@code SCRAPER_MODELS_ROOT}
-     * for a Python subprocess env, falling back to {@code workDir/_models} —
-     * the SAME dir the JVM resolves for the model freshness check.
-     */
     static String resolveModelsRoot(String envModelsRoot, Path workDir) {
         return PythonEnv.resolveModelsRoot(envModelsRoot, workDir);
     }
 
     /**
-     * Test seam (package-private, pure): {@code <modelsRoot>/marqo} — same
-     * shape the installer pins and {@code ml_embeddings.py}'s own fallback.
+     * {@code <modelsRoot>/marqo} — same shape the installer pins and {@code ml_embeddings.py}'s own
+     * fallback.
      */
     static String hfHomeParaModelsRoot(String modelsRoot) {
         return PythonEnv.hfHomeParaModelsRoot(modelsRoot);
     }
 
-    /** ProcessBuilder de los probes {@code tieneCuda}/{@code tienePytorch}. */
     ProcessBuilder construirProcessBuilderProbe(String python, String codigoPython, boolean forceCpu) {
         ProcessBuilder pb = new ProcessBuilder(python, "-c", codigoPython)
                 .redirectErrorStream(true);
@@ -1214,15 +909,10 @@ public class PythonRunner {
         return pb;
     }
 
-    /** Package-private (era private) como test seam: los tests de
-     * {@link #construirIndiceVisualEnBackground} lo overridean para no
-     * depender del scan real del entorno (RESI-001/RESI-002). */
     String detectarPython() {
-        // 1. Prioridad: -DPYTHON_EXE pasado por el bat
         String sysPy = System.getProperty("PYTHON_EXE");
         if (StringUtils.isNotBlank(sysPy) && new java.io.File(sysPy).exists()) return sysPy;
 
-        // 2. Buscar python portable en _tools (relativo al working dir)
         String wd = System.getProperty("user.dir");
         String[] relatives = {
             wd + "/../_tools/python/python.exe",
@@ -1233,7 +923,6 @@ public class PythonRunner {
             if (new java.io.File(path).exists()) return path;
         }
 
-        // 3. Python del sistema
         for (String cmd : new String[]{"python3","python"}) {
             try {
                 Process p = new ProcessBuilder(cmd, "--version").redirectErrorStream(true).start();

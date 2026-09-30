@@ -10,19 +10,7 @@ import java.util.function.ToIntFunction;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Scraper para tiendas VTEX usando la API pública de catálogo.
- *
- * Endpoint: GET /api/catalog_system/pub/products/search
- * Paginación: headers _from y _to (bloques de 50, máx 2500 por endpoint)
- *
- * Estrategia de género: VTEX expone specificationGroups con
- * "Género"/"Gender"/"Genero" como especificación de producto.
- * Si no está, se hace heurística sobre nombre + categorías.
- *
- * Talles: specifications con nombre "Talle"/"Size"/"Tamaño" o
- * los skuSpecifications de cada SKU.
- */
+/** Si no está, se hace heurística sobre nombre + categorías. */
 public class VtexPage extends BasePage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -32,7 +20,6 @@ public class VtexPage extends BasePage {
 
     /** Techo sólo si el header {@code resources} nunca llega. */
     private static final int PAGINAS_SEGURIDAD_SIN_HEADER = 400;
-    /** La API legacy da HTTP 400 con {@code _from} ≥ 2550 (medido en Sporting); se parte por categoría. */
     static final int VENTANA_LEGACY = 2500;
     private static final int REINTENTOS = 3;
     private static final long ESPERA_REINTENTO_MS = 2_000;
@@ -63,13 +50,10 @@ public class VtexPage extends BasePage {
     public List<Product> scrapeAll() {
         String dom = domain(baseUrl);
 
-        // Paso 1: navegar al homepage para establecer sesion y cerrar popup de zona
         prepararSesion(dom);
 
-        // Paso 2: intentar API Legacy primero (Sporting y similares)
         List<Product> result = scrapeApiLegacy(dom);
 
-        // Paso 3: si legacy devuelve vacío, intentar VTEX IO Intelligent Search (Vaypol y similares)
         if (result.isEmpty()) {
             log.debug("[{}] Legacy API vacia, intentando VTEX IO Intelligent Search", sitio);
             result = scrapeApiIO(dom);
@@ -78,16 +62,12 @@ public class VtexPage extends BasePage {
         return result;
     }
 
-    /**
-     * Navega al homepage, espera y cierra cualquier popup de zona/localidad.
-     * VTEX stores con region-based catalog requieren esto para que la API devuelva productos.
-     */
+    /** VTEX stores con region-based catalog requieren esto para que la API devuelva productos. */
     private void prepararSesion(String dom) {
         try {
             navigateTo(dom);
             page.waitForTimeout(1500);
 
-            // Intentar cerrar popup de zona con diferentes selectores comunes
             String[] closeSels = {
                 "button[data-testid='close-button']",
                 "button[aria-label='Close']",
@@ -105,7 +85,6 @@ public class VtexPage extends BasePage {
                 } catch (Exception ignored) {}
             }
 
-            // Intentar también hacer click en "Continuar" o "Aceptar"
             String[] continueSels = {
                 "button:has-text('Continuar')",
                 "button:has-text('Aceptar')",
@@ -129,8 +108,8 @@ public class VtexPage extends BasePage {
     }
 
     /**
-     * VTEX Legacy catalog API. Por {@code page.request()} (comparte las cookies de
-     * {@link #prepararSesion}) y no rindiendo cada página de 7-9 MB en una pestaña.
+     * Por {@code page.request()} (comparte las cookies de {@link #prepararSesion}) y no rindiendo
+     * cada página de 7-9 MB en una pestaña.
      */
     private List<Product> scrapeApiLegacy(String dom) {
         List<String> partes = List.of("");
@@ -169,7 +148,6 @@ public class VtexPage extends BasePage {
                     + "?_from=" + from + "&_to=" + to + fq + "&O=OrderByReleaseDateDESC";
             log.debug("[{}] Legacy API from={}", sitio, from);
             try {
-                // Playwright retiene cada body en el driver hasta dispose(): ~8 MB por página.
                 APIResponse resp = page.request().get(apiUrl);
                 boolean ok;
                 int status;
@@ -235,7 +213,6 @@ public class VtexPage extends BasePage {
 
     record CategoriaVtex(int id, List<CategoriaVtex> hijos) { }
 
-    /** Paths {@code /106/108/1/} para {@code fq=C:}, cada uno con a lo sumo {@code ventana} productos si el árbol alcanza. */
     static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
         List<String> partes = new ArrayList<>();
         for (CategoriaVtex c : arbol) particionar(c, "/", totalDe, ventana, partes);
@@ -282,7 +259,6 @@ public class VtexPage extends BasePage {
         }
     }
 
-    /** {@code resources: 0-49/7151} → 7151. */
     static OptionalInt parseResourcesTotal(Map<String, String> headers) {
         if (headers == null) return OptionalInt.empty();
         for (var e : headers.entrySet()) {
@@ -298,7 +274,6 @@ public class VtexPage extends BasePage {
         return OptionalInt.empty();
     }
 
-    /** @param from el {@code _from} de la página que acaba de parsear, no el próximo */
     static boolean continuaPaginando(int itemsEnPagina, int from, OptionalInt total) {
         if (itemsEnPagina < PAGE_SIZE) return false;
         if (total.isPresent() && (from + PAGE_SIZE) >= total.getAsInt()) return false;
@@ -306,9 +281,8 @@ public class VtexPage extends BasePage {
     }
 
     /**
-     * VTEX IO Intelligent Search API — para tiendas headless como Vaypol.
-     * Endpoint: /api/io/_v/api/intelligent-search/product_search/trade-policy/1
-     * No requiere autenticacion. Paginacion por ?page=N&count=50.
+     * Endpoint: /api/io/_v/api/intelligent-search/product_search/trade-policy/1 No requiere
+     * autenticacion.
      */
     private List<Product> scrapeApiIO(String dom) {
         List<Product> result = new ArrayList<>();
@@ -330,7 +304,6 @@ public class VtexPage extends BasePage {
                 }
 
                 String trimmed = body.trim();
-                // La respuesta IO es {"products":[...],"pagination":{...}}
                 if (!trimmed.startsWith("{")) {
                     log.warn("[{}] IO corta en page={}: body no es un objeto JSON (empieza con '{}')",
                             sitio, page_num, StringUtils.left(trimmed, 30));
@@ -346,14 +319,12 @@ public class VtexPage extends BasePage {
 
                 for (JsonNode prod : prods) fromVtexIO(prod, dom).ifPresent(result::add);
 
-                // Leer paginacion
                 JsonNode pagination = root.path("pagination");
                 if (!pagination.isMissingNode()) {
                     JsonNode last = pagination.path("last");
                     if (!last.isMissingNode()) {
                         lastPage = last.path("index").asInt(1);
                     }
-                    // "count" = total de productos
                 }
 
                 log.debug("[{}] IO page={}/{}: {} acumulados", sitio, page_num, lastPage, result.size());
@@ -367,10 +338,7 @@ public class VtexPage extends BasePage {
         return result;
     }
 
-    /**
-     * Parser para respuesta de VTEX IO Intelligent Search.
-     * La estructura es similar a Legacy pero con algunas diferencias en imágenes y specs.
-     */
+    /** La estructura es similar a Legacy pero con algunas diferencias en imágenes y specs. */
     private Optional<Product> fromVtexIO(JsonNode prod, String dom) {
         try {
             String nombre = prod.path("productName").asText("").trim();
@@ -379,19 +347,16 @@ public class VtexPage extends BasePage {
             String linkText = prod.path("linkText").asText("");
             String url = linkText.isBlank() ? "" : dom + "/" + linkText + "/p";
 
-            // IO: imágenes en items[0].images[0].imageUrl
             String img = "";
             JsonNode items = prod.path("items");
             if (items.isArray() && !items.isEmpty()) {
                 JsonNode images = items.get(0).path("images");
                 if (images.isArray() && !images.isEmpty()) {
                     img = images.get(0).path("imageUrl").asText("");
-                    // IO también puede tener imageUrls en un formato con query string
                     if (img.contains("?")) img = img.substring(0, img.indexOf("?"));
                 }
             }
 
-            // Precio: mismo que legacy
             OptionalDouble precio = OptionalDouble.empty();
             Double precioCompare = null;
             if (items.isArray() && !items.isEmpty()) {
@@ -416,7 +381,6 @@ public class VtexPage extends BasePage {
             double p = precio.getAsDouble();
             if (p < precioMin || p > precioMax) return Optional.empty();
 
-            // Categoría
             String categoria = "";
             JsonNode cats = prod.path("categories");
             if (cats.isArray() && !cats.isEmpty()) {
@@ -427,7 +391,6 @@ public class VtexPage extends BasePage {
                 }
             }
 
-            // IO también puede tener categorías en categoryTree
             if (categoria.isBlank()) {
                 JsonNode catTree = prod.path("categoryTree");
                 if (catTree.isArray() && !catTree.isEmpty()) {
@@ -435,7 +398,6 @@ public class VtexPage extends BasePage {
                 }
             }
 
-            // Género y talles — mismos métodos que legacy
             String genero = extraerGeneroVtex(prod, nombre);
             List<String> talles = extraerTallesVtex(prod);
 
@@ -453,11 +415,9 @@ public class VtexPage extends BasePage {
             if (nombre.isBlank()) nombre = prod.path("name").asText("").trim();
             if (nombre.isBlank()) return Optional.empty();
 
-            // URL
             String linkText = prod.path("linkText").asText("");
             String url = linkText.isBlank() ? "" : dom + "/" + linkText + "/p";
 
-            // Imagen: primer item, primera imagen
             String img = "";
             JsonNode items = prod.path("items");
             if (items.isArray() && !items.isEmpty()) {
@@ -468,7 +428,6 @@ public class VtexPage extends BasePage {
                 }
             }
 
-            // Precio: buscar en sellers del primer item
             OptionalDouble precio = OptionalDouble.empty();
             Double precioCompare = null;
 
@@ -494,11 +453,9 @@ public class VtexPage extends BasePage {
             double p = precio.getAsDouble();
             if (p < precioMin || p > precioMax) return Optional.empty();
 
-            // Categorías
             String categoria = "";
             JsonNode cats = prod.path("categories");
             if (cats.isArray() && !cats.isEmpty()) {
-                // VTEX categories son strings tipo "/Ropa/Remeras/"
                 String rawCat = cats.get(cats.size() - 1).asText("").trim();
                 String[] parts = rawCat.split("/");
                 for (int i = parts.length - 1; i >= 0; i--) {
@@ -506,10 +463,8 @@ public class VtexPage extends BasePage {
                 }
             }
 
-            // Género: specificationGroups
             String genero = extraerGeneroVtex(prod, nombre);
 
-            // Talles: skuSpecifications del item
             List<String> talles = extraerTallesVtex(prod);
 
             return Optional.of(new Product(
@@ -520,11 +475,7 @@ public class VtexPage extends BasePage {
         }
     }
 
-    // ----------------------------------------------------------------
-    // Talles desde VTEX
-    // ----------------------------------------------------------------
     private List<String> extraerTallesVtex(JsonNode prod) {
-        // Estrategia 1: skuSpecifications a nivel producto
         JsonNode skuSpecs = prod.path("skuSpecifications");
         if (skuSpecs.isArray()) {
             for (JsonNode spec : skuSpecs) {
@@ -543,7 +494,6 @@ public class VtexPage extends BasePage {
             }
         }
 
-        // Estrategia 2: specifications dentro de allSpecifications
         JsonNode allSpecs = prod.path("allSpecifications");
         if (allSpecs.isArray()) {
             for (JsonNode s : allSpecs) {
@@ -562,7 +512,6 @@ public class VtexPage extends BasePage {
             }
         }
 
-        // Estrategia 3: items[].variations[]
         JsonNode items = prod.path("items");
         if (items.isArray()) {
             Set<String> seen = new LinkedHashSet<>();
@@ -619,11 +568,7 @@ public class VtexPage extends BasePage {
                 || name.contains("tamaño") || name.equals("medida");
     }
 
-    // ----------------------------------------------------------------
-    // Género desde VTEX
-    // ----------------------------------------------------------------
     private String extraerGeneroVtex(JsonNode prod, String nombre) {
-        // 1. specificationGroups — buscar spec llamada "Género", "Genero", "Gender"
         JsonNode specGroups = prod.path("specificationGroups");
         if (specGroups.isArray()) {
             for (JsonNode group : specGroups) {
@@ -644,7 +589,6 @@ public class VtexPage extends BasePage {
             }
         }
 
-        // 2. allSpecifications con el mismo criterio
         JsonNode allSpecs = prod.path("allSpecifications");
         if (allSpecs.isArray()) {
             for (JsonNode s : allSpecs) {
@@ -659,7 +603,6 @@ public class VtexPage extends BasePage {
             }
         }
 
-        // 3. Heurística sobre nombre y categorías
         List<String> fuentes = new ArrayList<>();
         fuentes.add(nombre.toLowerCase());
         JsonNode cats = prod.path("categories");

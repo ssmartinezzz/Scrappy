@@ -6,12 +6,8 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.config.ScraperConfig.SiteConfig;
 
 /**
- * close-1nf-and-3nf-foundation extension (design E1): the 8 name-sets and
- * {@code PLATAFORMA_NOMBRES} that used to drive {@link #crear}'s routing are
- * DELETED, not mirrored — {@code sitio.plataforma}, read through
- * {@link SiteRegistry}, is now the single source (`CODE-6`). The URL-based
- * fallbacks ({@code myshopify.com}, {@code vtexcommercestable.com.br}) stay
- * in code: they are not name-based and cannot live in a static seed table.
+ * The URL-based fallbacks ({@code myshopify.com}, {@code vtexcommercestable.com.br}) stay in code:
+ * they are not name-based and cannot live in a static seed table.
  */
 public class ScraperFactory {
 

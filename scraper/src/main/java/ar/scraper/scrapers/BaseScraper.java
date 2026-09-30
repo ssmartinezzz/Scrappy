@@ -10,9 +10,6 @@ import java.util.List;
 
 public abstract class BaseScraper {
 
-    /**
-     * JS init script applied to every new page to spoof bot-detection fingerprints.
-     */
     static final String STEALTH_INIT_SCRIPT = """
             // Spoof: navigator.webdriver, navigator.plugins, navigator.languages, window.chrome
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
@@ -22,17 +19,9 @@ public abstract class BaseScraper {
             """;
 
     /**
-     * Chromium launch flags shared by every scrape. {@code imagesEnabled=false}
-     * is the load-bearing one: the scraper stores the image <em>URL</em> and
-     * never reads a single image byte, yet fetching them anyway accounted for
-     * 9.5 MB of the 12.7 MB transferred on a measured Tiendanube listing page.
-     *
-     * <p>Disabling them at the Blink level costs nothing at runtime. Doing it
-     * with a catch-all {@code page.route("**&#47;*")} instead would round-trip
-     * every single request through the Java process, which is the opposite of
-     * an optimisation. The DOM is untouched either way — {@code src} and
-     * {@code data-src} attributes still parse, so extraction is unaffected
-     * (verified: identical img/anchor counts with and without the flag).
+     * {@code imagesEnabled=false} is the load-bearing one: the scraper stores the image URL and
+     * never reads a single image byte, yet fetching them anyway accounted for 9.5 MB of the 12.7 MB
+     * transferred on a measured Tiendanube listing page.
      */
     static List<String> launchArgs() {
         return List.of("--no-sandbox",
@@ -41,9 +30,7 @@ public abstract class BaseScraper {
                        "--blink-settings=imagesEnabled=false");
     }
 
-    /**
-     * Aborts requests that can never contribute to a product record.
-     */
+    /** Aborts requests that can never contribute to a product record. */
     static void aplicarBloqueosDeRed(Page page) {
         page.route("**/*.{woff,woff2,ttf,otf}", r -> r.abort());
         page.route("**/analytics**", r -> r.abort());

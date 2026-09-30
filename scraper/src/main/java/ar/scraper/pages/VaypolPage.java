@@ -9,21 +9,11 @@ import com.microsoft.playwright.Page;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Scraper para Vaypol / SomosCity — plataforma Next.js SSR.
- *
- * Estrategia principal: extraer __NEXT_DATA__ JSON embebido en el HTML.
- * Este objeto contiene todos los datos del producto incluyendo imagen,
- * género, talles y precio — sin necesidad de lazy loading ni DOM scraping.
- *
- * URL de listado: /{base}/productos/p/{page}
- * __NEXT_DATA__ path: props.pageProps.products[] o props.pageProps.data.products[]
- */
 public class VaypolPage extends BasePage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int MAX_PAGES = 250;
-    private static final int WAIT_MS   = 400; // Next.js SSR — no lazy loading wait needed
+    private static final int WAIT_MS   = 400;
 
     private final String sitio;
     private final String baseUrl;
@@ -42,8 +32,6 @@ public class VaypolPage extends BasePage {
 
 
 
-    // ─── Entry point ─────────────────────────────────────────────────────────
-
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
         String base = baseUrl.startsWith("http") ? baseUrl : "https://" + baseUrl;
@@ -56,7 +44,6 @@ public class VaypolPage extends BasePage {
                 navigateTo(url);
                 page.waitForTimeout(WAIT_MS);
 
-                // Estrategia 1: __NEXT_DATA__ JSON (preferido — tiene imágenes reales)
                 List<Product> pagina = extraerDeNextData(base);
 
                 // Estrategia 2: fallback links scraping si Next data no disponible
@@ -72,7 +59,6 @@ public class VaypolPage extends BasePage {
                     break;
                 }
 
-                // Detectar fin de catálogo por URLs repetidas
                 Set<String> urlsPagina = new HashSet<>();
                 for (Product prod : pagina) urlsPagina.add(prod.url());
                 if (!urlsPagina.isEmpty() && urlsVistas.containsAll(urlsPagina)) {
@@ -94,7 +80,6 @@ public class VaypolPage extends BasePage {
                 break;
             }
         }
-        // Enriquecer imágenes faltantes via HttpClient paralelo (NO Playwright)
         long sinImg = result.stream()
             .filter(p -> StringUtils.isBlank(p.imagenUrl())).count();
         if (sinImg > 0) {
@@ -106,17 +91,11 @@ public class VaypolPage extends BasePage {
         return result;
     }
 
-    // ─── Enriquecimiento de imágenes via HttpClient paralelo ─────────────────
-
-    /**
-     * Obtiene meta-og:image de páginas de detalle en PARALELO usando HttpClient.
-     * 8 threads concurrentes → ~600 productos en ~10-15 segundos.
-     * NO usa Playwright — solo GET HTTP simple, el meta-og:image está en los primeros 2KB.
-     */
+    /** NO usa Playwright — solo GET HTTP simple, el meta-og:image está en los primeros 2KB. */
     private static final int    IMG_THREADS       = 6;
     private static final int    IMG_DELAY_MS      = 300;  // between requests per thread
     private static final int    IMG_RETRIES       = 2;
-    private static final int    IMG_RETRY_WAIT_MS = 1500; // backoff on 429/503
+    private static final int    IMG_RETRY_WAIT_MS = 1500;
     private static final int    IMG_REQ_TIMEOUT_S = 20;
 
     private List<Product> enricherImagenesHttp(List<Product> productos) {
@@ -238,8 +217,8 @@ public class VaypolPage extends BasePage {
     }
 
     /**
-     * Extrae og:image del HTML sin regex — string search pura.
-     * Solo procesa los primeros 4KB donde está el <head>.
+     * Extrae og:image del HTML sin regex — string search pura. Solo procesa los primeros 4KB donde
+     * está el <head>.
      */
     private String extraerOgImage(String html) {
         if (StringUtils.isBlank(html)) return "";
@@ -259,8 +238,6 @@ public class VaypolPage extends BasePage {
         return url.startsWith("http") ? url : "";
     }
 
-    // ─── Estrategia 1: __NEXT_DATA__ + CDN scan ─────────────────────────────────
-
     private List<Product> extraerDeNextData(String base) {
         try {
             String rawJson = (String) page.evaluate(
@@ -271,7 +248,6 @@ public class VaypolPage extends BasePage {
             );
             if (StringUtils.isBlank(rawJson)) return List.of();
 
-            // Parsear __NEXT_DATA__ para productos
             JsonNode root = MAPPER.readTree(rawJson);
             JsonNode products = encontrarProductsNode(root);
 
@@ -296,10 +272,6 @@ public class VaypolPage extends BasePage {
         }
     }
 
-    /**
-     * Busca el array de productos en distintas rutas del __NEXT_DATA__ JSON.
-     * El path puede variar según la versión del sitio.
-     */
     private JsonNode encontrarProductsNode(JsonNode root) {
         String[] paths = {
             "props/pageProps/products",
@@ -319,8 +291,8 @@ public class VaypolPage extends BasePage {
             }
         }
 
-        // Si no encontramos el array buscando por path conocido,
-        // buscar recursivamente cualquier array de objetos con campo "slug" o "name"
+        // Si no encontramos el array buscando por path conocido, buscar recursivamente cualquier
+        // array de objetos con campo "slug" o "name"
         return buscarProductsRecursivo(root, 0);
     }
 
@@ -343,33 +315,23 @@ public class VaypolPage extends BasePage {
 
     private Optional<Product> fromNextData(JsonNode p, String base) {
         try {
-            // Nombre
             String nombre = p.path("name").asText("");
             if (nombre.isBlank()) nombre = p.path("title").asText("").trim();
             if (nombre.isBlank()) return Optional.empty();
 
-            // URL
             String slug = p.path("slug").asText("");
             String url  = slug.isBlank() ? "" : base + "/" + slug;
 
-            // Imagen — `dummy_images` es el campo que Vaypol usa de verdad, y lo
-            // trae CADA producto. La versión anterior no lo miraba: escaneaba el
-            // JSON entero por URLs del CDN y las repartía POR ÍNDICE. Eso no puede
-            // alinear — una página trae 60 productos y ~133 URLs porque cada uno
-            // tiene varias variantes, así que el producto N se llevaba una imagen
-            // de otro. Leerla del propio nodo no necesita alinear nada.
+            // La versión anterior no lo miraba: escaneaba el JSON entero por URLs del CDN y las
+            // repartía POR ÍNDICE.
             String img = "";
             JsonNode dummies = p.path("dummy_images");
             if (dummies.isArray() && !dummies.isEmpty()) {
                 img = dummies.get(0).path("url").asText("");
             }
             if (img.isBlank()) {
-                // Cada rama sólo puede RELLENAR. La versión anterior entraba acá
-                // con un ObjectNode vacío cuando ya tenía imagen, y `isObject()`
-                // la mandaba a `path("url").asText("")` — que pisaba con "" la
-                // imagen que acababa de resolver. El override del CDN nunca
-                // sobrevivía a esta línea, y por eso el 100% de los productos
-                // salía sin foto y caía al fetch individual.
+                // Cada rama sólo puede RELLENAR. El override del CDN nunca sobrevivía a esta línea,
+                // y por eso el 100% de los productos salía sin foto y caía al fetch individual.
                 JsonNode imgNode = p.path("image");
                 if (imgNode.isTextual()) {
                     img = imgNode.asText("");
@@ -387,11 +349,9 @@ public class VaypolPage extends BasePage {
             }
             if (img.startsWith("//")) img = "https:" + img;
 
-            // Precio
             double precio    = 0;
             Double precioOrig = null;
 
-            // Vaypol Next.js puede tener precio en distintos campos
             JsonNode priceNode = p.path("price");
             if (!priceNode.isMissingNode()) {
                 if (priceNode.isNumber()) {
@@ -400,7 +360,6 @@ public class VaypolPage extends BasePage {
                     Optional<Double> pv = parsePrecio(priceNode.asText());
                     if (pv.isPresent()) precio = pv.get();
                 } else if (priceNode.isObject()) {
-                    // {current: N, original: N}
                     precio = priceNode.path("current").asDouble(
                                 priceNode.path("selling").asDouble(
                                     priceNode.path("sale").asDouble(0)));
@@ -409,7 +368,6 @@ public class VaypolPage extends BasePage {
                     if (orig > precio && orig > 0) precioOrig = orig;
                 }
             }
-            // Alternativas
             if (precio == 0) {
                 precio = p.path("selling_price").asDouble(
                             p.path("sale_price").asDouble(
@@ -421,16 +379,13 @@ public class VaypolPage extends BasePage {
             }
             if (precio == 0 || precio < precioMin || precio > precioMax) return Optional.empty();
 
-            // Género
             String genero = normalizarGenero(
                 p.path("gender").asText(
                     p.path("genre").asText("")));
 
-            // Categoría
             String categoria = p.path("category").asText(
                                 p.path("product_type").asText("")).trim();
 
-            // Talles
             List<String> talles = extraerTalles(p);
 
             return Optional.of(new Product(
@@ -442,16 +397,11 @@ public class VaypolPage extends BasePage {
         }
     }
 
-    // ─── Estrategia 2: Links fallback (sin imágenes reales) ─────────────────
+    // Links fallback (sin imágenes reales) ─────────────────
 
     /**
-     * slug → imagen, leído de {@code __NEXT_DATA__}.
-     *
-     * <p>La vidriera renderiza sus {@code <img>} del lado del cliente, así que
-     * el DOM que ve el scraper no tiene ninguna. El payload sí: cada producto
-     * de {@code initialReduxState.products.items} trae su propia
-     * {@code dummy_images}. Sin este mapa, cada producto sale con imagen vacía
-     * y termina en el fetch individual de og:image — 1896 requests, 22 minutos.
+     * Sin este mapa, cada producto sale con imagen vacía y termina en el fetch individual de
+     * og:image — 1896 requests, 22 minutos.
      */
     private Map<String, String> imagenesPorSlug() {
         try {
@@ -467,7 +417,7 @@ public class VaypolPage extends BasePage {
 
             Map<String, String> porSlug = new HashMap<>();
             for (JsonNode it : items) {
-                String slug = it.path("url").asText("");   // el campo `url` ES el slug
+                String slug = it.path("url").asText("");
                 JsonNode imgs = it.path("dummy_images");
                 if (slug.isBlank() || !imgs.isArray() || imgs.isEmpty()) continue;
                 String img = imgs.get(0).path("url").asText("");
@@ -579,13 +529,10 @@ public class VaypolPage extends BasePage {
             "})()";
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-
     private List<String> extraerTalles(JsonNode p) {
         List<String> talles = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
 
-        // Buscar en variants[].size o similar
         JsonNode variants = p.path("variants");
         if (variants.isArray()) {
             for (JsonNode v : variants) {
@@ -593,7 +540,6 @@ public class VaypolPage extends BasePage {
                 if (!t.isBlank()) seen.add(t);
             }
         }
-        // Buscar en sizes[] directamente
         JsonNode sizes = p.path("sizes");
         if (sizes.isArray()) {
             for (JsonNode s : sizes) {
@@ -601,7 +547,6 @@ public class VaypolPage extends BasePage {
                 if (!t.isBlank()) seen.add(t);
             }
         }
-        // Campo "available_sizes" o "stock_sizes"
         JsonNode avail = p.path("available_sizes");
         if (avail.isArray()) {
             for (JsonNode s : avail) seen.add(s.asText().trim());

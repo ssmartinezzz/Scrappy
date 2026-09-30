@@ -7,10 +7,6 @@ import com.microsoft.playwright.Page;
 
 import java.util.List;
 
-/**
- * INPRO — mobiliario de oficina. Tiendanube headless detrás de un Next.js;
- * el catálogo se lee del payload RSC, no del DOM. Ver {@link InproPage}.
- */
 public class InproScraper extends BaseScraper {
 
     public InproScraper(ScraperConfig config, String sitio, String url) {
