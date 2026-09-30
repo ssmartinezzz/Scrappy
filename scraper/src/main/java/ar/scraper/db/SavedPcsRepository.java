@@ -6,6 +6,7 @@ import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.pcs.TechSpecs;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,47 +40,43 @@ class SavedPcsRepository implements SavedPcsPort {
 
     /**
      * Cabecera e ítems se escriben en UNA transacción: un build a medias
-     * —guardado pero sin picks— es peor que no haberlo guardado.
+     * —guardado pero sin picks— es peor que no haberlo guardado. El {@code catch}
+     * devuelve el centinela {@code -1}, así que marca rollback a mano: sin eso el
+     * commit ocurriría igual.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
                          boolean conGpu, double totalEstimado, Gama gama) {
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                int id;
-                try (PreparedStatement ps = c.prepareStatement("""
-                        INSERT INTO saved_pcs (usuario_id, nombre, presupuesto, con_gpu, total_estimado, created_at, gama_id)
-                        VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM gama WHERE nombre = ?))
-                        """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setObject(1, usuarioId);
-                    ps.setString(2, nombre != null ? nombre : "PC");
-                    ps.setDouble(3, presupuesto);
-                    ps.setBoolean(4, conGpu);
-                    ps.setDouble(5, totalEstimado);
-                    ps.setObject(6, Timestamps.now());
-                    String gamaNombre = gamaNombreOrNull(gama);
-                    if (gamaNombre == null) {
-                        ps.setNull(7, Types.VARCHAR);
-                    } else {
-                        ps.setString(7, gamaNombre);
-                    }
-                    ps.executeUpdate();
-                    try (ResultSet keys = ps.getGeneratedKeys()) {
-                        if (!keys.next()) { c.rollback(); return -1; }
-                        id = keys.getInt(1);
-                    }
+            int id;
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO saved_pcs (usuario_id, nombre, presupuesto, con_gpu, total_estimado, created_at, gama_id)
+                    VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM gama WHERE nombre = ?))
+                    """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, nombre != null ? nombre : "PC");
+                ps.setDouble(3, presupuesto);
+                ps.setBoolean(4, conGpu);
+                ps.setDouble(5, totalEstimado);
+                ps.setObject(6, Timestamps.now());
+                String gamaNombre = gamaNombreOrNull(gama);
+                if (gamaNombre == null) {
+                    ps.setNull(7, Types.VARCHAR);
+                } else {
+                    ps.setString(7, gamaNombre);
                 }
-                insertarItems(c, id, picks);
-                c.commit();
-                return id;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando PC, rollback: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-                return -1;
+                ps.executeUpdate();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    if (!keys.next()) { Sql.marcarRollback(); return -1; }
+                    id = keys.getInt(1);
+                }
             }
+            insertarItems(c, id, picks);
+            return id;
         } catch (Exception e) {
-            LOG.warn("[DB] Error guardando PC: {}", e.getMessage());
+            LOG.warn("[DB] Error guardando PC, rollback: {}", e.getMessage());
+            Sql.marcarRollback();
             return -1;
         }
     }
