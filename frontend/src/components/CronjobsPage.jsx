@@ -13,6 +13,7 @@ import {
   CheckCircle2, XCircle, Loader2, SkipForward, CircleAlert,
 } from 'lucide-react';
 import { listCronJobs, updateCronJob, deleteCronJob, runCronNow } from '../api';
+import { useStreamEvent } from '../hooks/EventStreamProvider';
 import { cn } from '@/lib/utils';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -73,6 +74,11 @@ export default function CronjobsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // A run starting or ending changes the last-run columns; re-read quietly, without the loading state.
+  const refresh = useCallback(() => { listCronJobs().then(data => setJobs(data || [])); }, []);
+  useStreamEvent('db.changed', d => { if (d.table === 'cron_execution') refresh(); });
+  useStreamEvent('resync', refresh);
 
   const handleToggle = useCallback(async (job) => {
     await updateCronJob(job.id, { ...job, enabled: !job.enabled });

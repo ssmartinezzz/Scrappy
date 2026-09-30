@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useMlStatus } from '../hooks/EventStreamProvider';
 import { fetchMlResultado, fetchIndices } from '../api';
 import { fmt } from '../api';
 import { cn } from '@/lib/utils';
@@ -31,18 +32,14 @@ export default function Topbar({
     r.key === '' || (rubrosMap[r.key] || 0) > 0
   );
 
-  // Polling estado ML
-  const [mlStatus, setMlStatus] = useState(null);
+  // The stream's training state wins once it has spoken; the one read covers a stream that has not.
+  const [firstRead, setFirstRead] = useState(null);
   useEffect(() => {
     let alive = true;
-    const poll = async () => {
-      const r = await fetchMlResultado().catch(() => null);
-      if (alive) setMlStatus(r);
-      if (alive && r?.running) setTimeout(poll, 4000);
-    };
-    poll();
+    fetchMlResultado().catch(() => null).then(r => { if (alive) setFirstRead(r); });
     return () => { alive = false; };
   }, []);
+  const mlStatus = useMlStatus().resultado ?? firstRead;
 
   // IPC/USD widget data
   const [indices, setIndices] = useState(null);
