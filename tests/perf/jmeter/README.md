@@ -110,13 +110,13 @@ consulta SQL con faceteo. Ninguna de las dos cosas era obvia leyendo el código.
 
 ### Lo que encontró la suite mientras se la ponía a punto
 
-- **`GET /api/recomendados?page=0` tira 500.** `RecomendadosEndpoints.java:131`
-  hace `Math.min((page - 1) * size, total)`: con `page=0` eso da `-24` y
-  `subList(-24, …)` revienta con `IndexOutOfBoundsException`. El `Math.min`
-  acota arriba y nada acota abajo. El contrato dice `page` base 1
-  (`docs/openapi.yaml`), así que la request estaba fuera de contrato — pero
-  `/api/data` recibe el mismo `page=0` y lo clampea sin drama. Dos endpoints
-  con el mismo parámetro contestan distinto a la misma entrada inválida.
+- **`GET /api/recomendados?page=0` tiraba 500 (resuelto).** `RecomendadosEndpoints`
+  hacía `Math.min((page - 1) * size, total)`: con `page=0` eso daba `-24` y
+  `subList(-24, …)` reventaba con `IndexOutOfBoundsException`, mientras `/api/data`
+  recibía el mismo `page=0` y lo clampeaba. Hoy `page` es base 0 en los dos
+  endpoints (`docs/openapi.yaml`): `page=0` es la primera página y un valor
+  negativo se acota a 0 en vez de reventar. Queda como ejemplo de por qué la
+  suite sondea el mismo parámetro en ambos endpoints.
 - **`/api/outfits/builder` exige `categorias` y `/api/suplementos/builder`
   exige `tipos`**; sin ellos son 400. No están marcados `required` en
   `docs/openapi.yaml`.
