@@ -11,11 +11,11 @@ function jsonResponse(body, init = {}) {
 }
 
 function refreshRejected() {
-  return { ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }) };
+  return { ok: false, status: 401, json: async () => ({ error: { code: 'refresh_invalido', message: '' } }) };
 }
 
 function refreshOk() {
-  return jsonResponse({ accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' });
+  return jsonResponse({ data: { accessToken: 'tok', csrfNonce: 'nonce', expiresIn: 900, tokenType: 'Bearer' } });
 }
 
 function TestTree({ initialPath = '/protegido' }) {
@@ -69,7 +69,7 @@ describe('AuthGate — bootstrap ordering (design D5)', () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/api/auth/refresh')) return refreshOk();
-      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (u.includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${u}`);
     });
 

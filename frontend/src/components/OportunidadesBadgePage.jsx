@@ -17,7 +17,7 @@ export default function OportunidadesBadgePage({ onProductClick }) {
   const navigate = useNavigate();
   const [prods, setProds] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const loadingRef = useRef(false);
 
@@ -51,9 +51,9 @@ export default function OportunidadesBadgePage({ onProductClick }) {
     // would silently drop this badge's first load.
     loadingRef.current = false;
     setProds([]);
-    setPage(1);
+    setPage(0);
     setHasMore(true);
-    loadPage(1, true);
+    loadPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [badge]);
 

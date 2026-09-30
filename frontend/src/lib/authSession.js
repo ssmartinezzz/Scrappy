@@ -244,11 +244,16 @@ async function fetchIdentity() {
     const res = await fetch(`${BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
-    identity = res.ok ? await res.json() : null;
+    identity = res.ok ? (await res.json()).data : null;
   } catch {
     identity = null;
   }
   notify();
+}
+
+// Error bodies are `{ error: { code, message } }`.
+function errorCode(body) {
+  return body?.error?.code;
 }
 
 // ─── Refresh (D1: bootstrap-CSRF admission + D2: coordination) ─────────────
@@ -258,12 +263,6 @@ async function fetchIdentity() {
 // Credentialed CORS covers exactly these two paths (RefreshCookie.PATH and
 // CorsConfig.LOGIN_PATH); anywhere else it would be silently useless
 // cross-origin and a needless widening same-origin.
-//
-// This comment used to say "the ONLY place", which stopped being true the
-// moment login() was fixed — in the same commit, fifty lines below. Three
-// separate sweeps missed it because the code was right and only the prose was
-// wrong. If you change the credentialed surface, grep for the claim, do not
-// just fix the site you are looking at.
 async function refreshCookieFetch(method, nonce) {
   const headers = {};
   if (nonce) headers['X-Refresh-CSRF'] = nonce;
@@ -296,12 +295,12 @@ async function attemptRefresh() {
       } catch {
         return { ok: false, networkError: true };
       }
-      if (retry.ok) return { ok: true, data: await retry.json() };
+      if (retry.ok) return { ok: true, data: (await retry.json()).data };
       const body = await retry.json().catch(() => ({}));
-      return { ok: false, reason: body.error || 'csrf_invalido' };
+      return { ok: false, reason: errorCode(body) || 'csrf_invalido' };
     }
     const body = await res.json().catch(() => ({}));
-    return { ok: false, reason: body.error || 'csrf_invalido' };
+    return { ok: false, reason: errorCode(body) || 'csrf_invalido' };
   }
 
   if (!res.ok) {
@@ -315,12 +314,12 @@ async function attemptRefresh() {
     // exists to prevent. Connection-refused was absorbed correctly; its
     // next-door neighbour was not.
     if (res.status !== 401 && res.status !== 403) {
-      return { ok: false, transient: true, reason: body.error || `http_${res.status}` };
+      return { ok: false, transient: true, reason: errorCode(body) || `http_${res.status}` };
     }
-    return { ok: false, reason: body.error || `http_${res.status}` };
+    return { ok: false, reason: errorCode(body) || `http_${res.status}` };
   }
 
-  return { ok: true, data: await res.json() };
+  return { ok: true, data: (await res.json()).data };
 }
 
 async function performRefresh() {
@@ -437,7 +436,7 @@ export async function login(username, password) {
     return { ok: false, networkError: true };
   }
   if (!res.ok) return { ok: false };
-  const data = await res.json();
+  const { data } = await res.json();
   adoptSession(data);
   await fetchIdentity();
   return { ok: true };
