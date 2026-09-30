@@ -11,20 +11,11 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Identity-key computation for {@link GroupingService}'s pre-grouping phase.
- *
- * <p>Extracted from {@code GroupingService.calcularIdentidad} (Work Unit 2 of
- * the aggregator SOLID modularization) — literal move, no behavior change.</p>
- *
- * <p>Identidad de un producto: string que captura marca + modelo sin
- * variables (color, talle, género).</p>
+ * Identidad de un producto: string que captura marca + modelo sin variables (color, talle, género).
  */
 @Component
 public class ProductIdentity {
 
-    // Compilados una vez. String.split/replaceAll/matches compilan un Pattern
-    // nuevo en cada llamada, y esto corre por token, por producto, sobre el
-    // catálogo entero en cada request a /api/grupos.
     private static final Pattern SEPARADORES = Pattern.compile("[\\s\\-_/.,()]+");
     private static final Pattern NO_ALFANUM   = Pattern.compile("[^a-z0-9]");
     private static final Pattern NO_LETRA     = Pattern.compile("[^a-z]");
@@ -35,7 +26,6 @@ public class ProductIdentity {
         String nombre = normalizar(p.nombre() != null ? p.nombre() : "");
         String cat   = (p.categoria() != null ? p.categoria() : "").toLowerCase().trim();
 
-        // Combinar marca + nombre, filtrar palabras stop
         String combined = (marca + " " + nombre).trim();
         String[] tokens = SEPARADORES.split(combined);
 
@@ -44,7 +34,6 @@ public class ProductIdentity {
                 .map(t -> NO_ALFANUM.matcher(t).replaceAll(""))
                 .filter(t -> t.length() >= 3)
                 .filter(t -> !StopWords.STOP.contains(t))
-                // Filtrar números puros que pueden ser talle (1-3 dígitos)
                 .filter(t -> !NUMERO_CORTO.matcher(t).matches())
                 .limit(5)
                 .collect(Collectors.toList());
