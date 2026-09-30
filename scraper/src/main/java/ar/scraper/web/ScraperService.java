@@ -21,6 +21,8 @@ import ar.scraper.scrapers.BaseScraper;
 import ar.scraper.scrapers.ScraperFactory;
 import com.microsoft.playwright.Playwright;
 import com.opencsv.CSVWriter;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1179,26 +1181,36 @@ public class ScraperService implements CatalogSnapshotPort {
                                   int maxAttempts, long baseDelayMs,
                                   java.util.function.BooleanSupplier cancelado)
             throws InterruptedException {
-        Exception last = null;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            if (cancelado.getAsBoolean()) {
-                return new ScrapeResult("", List.of(), "cancelado", 0);
-            }
-            try {
+        RetryConfig config = RetryConfig.custom()
+                .maxAttempts(maxAttempts)
+                .intervalFunction(attempt -> baseDelayMs * attempt)
+                .retryOnException(e -> !(e instanceof InterruptedException)
+                        && !(e instanceof RunCancelled) && !cancelado.getAsBoolean())
+                .build();
+        try {
+            return Retry.of("site-scrape", config).executeCallable(() -> {
+                if (cancelado.getAsBoolean()) throw new RunCancelled();
                 return task.call();
-            } catch (InterruptedException ie) {
+            });
+        } catch (RunCancelled c) {
+            return new ScrapeResult("", List.of(), "cancelado", 0);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw ie;
+        } catch (Exception e) {
+            if (Thread.interrupted()) {
                 Thread.currentThread().interrupt();
-                throw ie;
-            } catch (Exception e) {
-                last = e;
-                if (cancelado.getAsBoolean()) break;
-                if (attempt < maxAttempts && baseDelayMs > 0) {
-                    Thread.sleep(baseDelayMs * attempt);
-                }
+                throw new InterruptedException();
             }
+            return new ScrapeResult("", List.of(), e.getMessage(), 0);
         }
-        return new ScrapeResult("", List.of(),
-                last != null ? last.getMessage() : "retry exhausted", 0);
+    }
+
+    /** Thrown inside the retried callable when the run was cancelled before an attempt began. */
+    private static final class RunCancelled extends RuntimeException {
+        RunCancelled() {
+            super(null, null, false, false);
+        }
     }
 
     // ── CSV ──────────────────────────────────────────────────────────────────

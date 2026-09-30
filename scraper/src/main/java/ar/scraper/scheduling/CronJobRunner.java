@@ -2,6 +2,8 @@ package ar.scraper.scheduling;
 
 import ar.scraper.scrape.ScrapeControlPort;
 import ar.scraper.scrape.ScraperStatus;
+import ar.scraper.scrape.StatusEvent;
+import ar.scraper.scrape.StatusEvents;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
@@ -9,6 +11,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Ejecuta UN {@link CronJob} de punta a punta, replicando la receta de
@@ -26,7 +32,8 @@ public class CronJobRunner {
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(CronJobRunner.class);
     private static final String RUN_LOGGER = "ar.scraper.run";
     private static final int KEEP_EXECUTIONS = 50;
-    private static final long POLL_INTERVAL_MS = 5_000L;
+    /** The bus is the wake-up; this in-memory re-read only guards against a lost event. */
+    private static final long RECHECK_INTERVAL_MS = 60_000L;
     private static final long MAX_WAIT_MS = 2L * 60 * 60 * 1000; // 2h, cota generosa
     private static final DateTimeFormatter ISO_SECONDS = CronJobService.ISO_SECONDS;
 
@@ -34,16 +41,30 @@ public class CronJobRunner {
     private final CronPort db;
     private final Clock clock;
     private final RunLogCapture logCapture;
+    private final StatusEvents bus;
+    private final long recheckIntervalMs;
 
     public CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock) {
         this(scrape, db, clock, RunLogCapture.NONE);
     }
 
     public CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock, RunLogCapture logCapture) {
+        this(scrape, db, clock, logCapture, StatusEvents.NONE);
+    }
+
+    public CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock, RunLogCapture logCapture,
+                         StatusEvents bus) {
+        this(scrape, db, clock, logCapture, bus, RECHECK_INTERVAL_MS);
+    }
+
+    CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock, RunLogCapture logCapture,
+                  StatusEvents bus, long recheckIntervalMs) {
         this.scrape = scrape;
         this.db = db;
         this.clock = clock;
         this.logCapture = logCapture;
+        this.bus = bus;
+        this.recheckIntervalMs = recheckIntervalMs;
     }
 
     /**
@@ -115,21 +136,43 @@ public class CronJobRunner {
         db.pruneCronExecutions(job.id(), KEEP_EXECUTIONS);
     }
 
-    /** Espera bloqueante (acotada) a que el scraping deje de estar RUNNING. */
+    /**
+     * Blocks (bounded) until the scrape leaves RUNNING. Subscribes BEFORE reading the state, so a
+     * run that finishes in between is still seen; the periodic re-read covers a lost event.
+     */
     private String awaitTerminal() {
-        long deadline = clock.millis() + MAX_WAIT_MS;
-        while (scrape.estado() == ScraperStatus.RUNNING) {
-            if (clock.millis() >= deadline) {
-                LOG.warn("[CRON] Timeout esperando fin de scraping tras {} ms", MAX_WAIT_MS);
-                return "error";
+        CompletableFuture<ScraperStatus> terminal = new CompletableFuture<>();
+        try (StatusEvents.Subscription ignored = bus.subscribe(event -> {
+            if (event instanceof StatusEvent.ScrapeStatus s && s.status() != ScraperStatus.RUNNING) {
+                terminal.complete(s.status());
             }
-            try {
-                Thread.sleep(POLL_INTERVAL_MS);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                return "error";
+        })) {
+            ScraperStatus actual = scrape.estado();
+            if (actual != ScraperStatus.RUNNING) return resultOf(actual);
+
+            long deadline = clock.millis() + MAX_WAIT_MS;
+            while (true) {
+                long remaining = deadline - clock.millis();
+                if (remaining <= 0) {
+                    LOG.warn("[CRON] Timeout esperando fin de scraping tras {} ms", MAX_WAIT_MS);
+                    return "error";
+                }
+                try {
+                    return resultOf(terminal.get(Math.min(remaining, recheckIntervalMs), TimeUnit.MILLISECONDS));
+                } catch (TimeoutException quiet) {
+                    actual = scrape.estado();
+                    if (actual != ScraperStatus.RUNNING) return resultOf(actual);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return "error";
+                } catch (ExecutionException never) {
+                    return "error";
+                }
             }
         }
-        return scrape.estado() == ScraperStatus.ERROR ? "error" : "success";
+    }
+
+    private static String resultOf(ScraperStatus terminal) {
+        return terminal == ScraperStatus.ERROR ? "error" : "success";
     }
 }
