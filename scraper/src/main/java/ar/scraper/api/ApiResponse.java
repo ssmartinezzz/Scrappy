@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Success envelope: {@code {"data": T}} plus {@code "page"} on paginated lists. */
 @Getter
 @Setter
 @NoArgsConstructor

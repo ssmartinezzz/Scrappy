@@ -8,11 +8,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Tokenización de la búsqueda del agente. La MISMA normalización + stemming se aplica a la
- * consulta y al texto de los productos, así el plural de un lado matchea el singular del otro.
- *
- * <p>No reutiliza {@code aggregator.grouping.StopWords}: esa lista tira colores, talles y
- * géneros, que acá son criterios reales de búsqueda.</p>
+ * La MISMA normalización + stemming se aplica a la consulta y al texto de los productos, así el
+ * plural de un lado matchea el singular del otro.
  */
 final class QueryTokenizer {
 
@@ -20,24 +17,19 @@ final class QueryTokenizer {
     record Token(String word, String stem) {}
 
     /**
-     * Palabras vacías de la CONSULTA (ya normalizadas: minúscula, sin acentos): función del
-     * español y relleno conversacional. Nunca colores, talles, géneros, unidades ni marcas.
-     * "sin" NO está: es significativo ("sin mangas"). "precio" tampoco.
+     * Palabras vacías de la CONSULTA (ya normalizadas: minúscula, sin acentos): función del español
+     * y relleno conversacional. Nunca colores, talles, géneros, unidades ni marcas.
      */
     static final Set<String> STOPWORDS = Set.of(
-            // artículos, preposiciones, conjunciones, pronombres
             "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "con", "para", "por",
             "en", "y", "o", "a", "e", "que", "me", "mi", "al", "lo", "se",
-            // relleno conversacional
             "tenes", "tienen", "tiene", "hay", "algun", "alguno", "alguna", "algunos", "algunas",
             "busco", "buscame", "quiero", "necesito", "mostrame", "dame", "pasame", "quisiera",
             "podes", "podrias", "hola", "favor", "porfa", "cual", "cuales", "algo", "cosa", "cosas",
             "producto", "productos");
 
-    /** "1 tb" → "1tb": un número separado de su unidad es el mismo término que el pegado. */
     private static final Pattern NUMERO_UNIDAD = Pattern.compile("(\\d) +(?=[a-z])");
     private static final Pattern NO_ALFANUM = Pattern.compile("[^a-z0-9]+");
-    /** Consonantes tras las que el plural es "-es" (pantalón/pantalones, mujer/mujeres). */
     private static final String CONSONANTES_ES = "rlndzj";
     private static final int MIN_STEM_LEN = 5;
 
@@ -53,9 +45,7 @@ final class QueryTokenizer {
     }
 
     /**
-     * Términos (raíces) de un campo de producto. No descarta palabras vacías: cuentan para el largo
-     * del campo. Se indexan las palabras sueltas Y las formas pegadas número+unidad: "1 TB" da
-     * "1", "tb" y "1tb" (matchea la consulta "1 tb"), y "SA510 SATA" da "sa510", "sata" y
+     * "1 TB" da "1", "tb" y "1tb" (matchea la consulta "1 tb"), y "SA510 SATA" da "sa510", "sata" y
      * "sa510sata" — un código de modelo seguido de una palabra no debe esconder la palabra.
      */
     static List<String> terms(String text) {
@@ -68,7 +58,7 @@ final class QueryTokenizer {
         return out;
     }
 
-    /** Plural liviano. Sólo palabras alfabéticas de 5+ letras; nunca toca las que llevan dígitos. */
+    /** Sólo palabras alfabéticas de 5+ letras; nunca toca las que llevan dígitos. */
     static String stem(String word) {
         int n = word.length();
         if (n < MIN_STEM_LEN || !word.endsWith("s")) return word;

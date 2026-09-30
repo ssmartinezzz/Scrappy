@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Pagination block of an {@link ApiResponse}. {@code number} is 0-based. */
 @Getter
 @Setter
 @NoArgsConstructor

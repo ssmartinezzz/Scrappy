@@ -4,15 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Capacidad de persistencia de {@code precios_externos}: el precio de un
- * producto del catálogo en otros sitios, cacheado por búsqueda externa.
- *
- * <p>Vive en {@code catalog} y no en un área propia porque su payload no
- * trae ningún tipo que lo ubique en otro lado y de lo que habla es del
- * catálogo.</p>
- *
- * <p>La implementa un {@code @Repository} package-private de
- * {@code ar.scraper.db}.</p>
+ * Capacidad de persistencia de {@code precios_externos}: el precio de un producto del catálogo en
+ * otros sitios, cacheado por búsqueda externa.
  */
 public interface PreciosExternosPort {
 

@@ -12,13 +12,7 @@ import java.time.Duration;
 
 /**
  * Bounded in-memory caches for views derived from the in-memory catalog snapshot (see
- * {@code web.cache.CatalogoDerivadoCache}). Every cache has a size cap and a TTL; the TTL is a
- * backstop, because entries are also keyed by the snapshot version and evicted on each change.
- * Sizes and TTLs come from env like the rest of the config.
- *
- * <p>Class-based proxies on purpose, same as {@code TransactionConfig}: the cached beans are classes,
- * not interfaces. Null is never cached ({@code allowNullValues=false}); cached methods opt out with
- * {@code unless = "#result == null"}.
+ * {@code web.cache.CatalogoDerivadoCache}).
  */
 @Configuration
 @EnableCaching(proxyTargetClass = true)
