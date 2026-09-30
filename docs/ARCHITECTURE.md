@@ -1049,6 +1049,28 @@ mano desde `frontend/` se comporta igual que antes, y `frontend/public/config.js
 es un archivo inerte que Vite copia a `dist/` para que un build no gestionado
 sirva algo válido en vez de un 404.
 
+### El estado se empuja, no se consulta
+
+**Decisión** (`backend-hardening` T3): la UI no pollea el estado del scrape, del ML ni
+de los cron; se le avisa. **Por qué**: cada pestaña abierta eran tres timers (1,8 s /
+2 s / 4 s) contra la app, y de ahí contra la base — "saturamos". El sentido correcto es
+que la base avise hacia afuera y nosotros no le preguntemos.
+
+- **Bus en proceso**: `scrape.StatusEvents` es el puerto (sin Spring ni Jackson);
+  `web.events.InProcessStatusEvents` lo implementa. Los eventos son `ScrapeStatus`,
+  `ScrapeProgress`, `MlStatus`, `DbChanged` y `Resync`. Un listener que tira no afecta a
+  los demás, y el progreso se coalesce a un máximo de 4 por segundo (un evento de estado
+  vacía primero el progreso pendiente, para no invertir el orden).
+- **Dos fuentes**: el estado del scrape y del entrenamiento ML vive EN MEMORIA
+  (`ScraperService`, `PythonRunner`), así que un trigger no lo ve: esos dos publican
+  directo al bus, por un único punto de mutación (`transition`/`anunciar`/`progreso`,
+  `setTraining`/`setBackfill`). Lo que sí está en la base (`scrape_run`,
+  `scrape_run_site`, `cron_executions`) lo anuncia la propia base con `pg_notify`
+  ([`DATABASE.md` § `V41`](./DATABASE.md)).
+- **Falla la espera, no el dato**: un evento perdido no deja a nadie con un estado
+  equivocado; el bus emite `Resync` y el cliente relee. Por eso el aviso es una pista,
+  y la fuente de verdad sigue siendo `/api/status` y `/api/ml/estado`.
+
 ---
 
 ## Diagrama de capas y topología de servicios
