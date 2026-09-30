@@ -824,14 +824,15 @@ deshacer lo que la corrida escribió. `finished_at` tampoco se pisa — la barri
 de arranque ya lo puso cuando detectó la interrupción, y ese es el momento en
 que la corrida terminó de verdad.
 
-**El poller no se arma solo, y eso era la mitad faltante.** Sólo el botón de
-lanzar armaba el intervalo, así que aterrizar en `/splash` con una corrida ya
-`RUNNING` —que es exactamente lo que pasa al retomar, y también tras un reload
-a mitad de corrida— escribía `RUNNING` en pantalla y se quedaba ahí: status
+**El splash tiene que unirse a una corrida que no lanzó, y eso era la mitad faltante.**
+Sólo el botón de lanzar esperaba el final, así que aterrizar en `/splash` con una
+corrida ya `RUNNING` —que es exactamente lo que pasa al retomar, y también tras un
+reload a mitad de corrida— escribía `RUNNING` en pantalla y se quedaba ahí: status
 congelado, sin progreso y sin completar, mientras la pestaña siguiera abierta.
-La bandera que lo dispara la levanta la lectura de montaje **una sola vez**; si
-espejara el status vivo, el efecto que la observa re-armaría el intervalo en
-cada render que viera una corrida en curso.
+La bandera (`runInFlightAtMount`) la levanta el primer status conocido **una sola
+vez**; si espejara el status vivo, el efecto que la observa volvería a armar la
+espera en cada render que viera una corrida en curso. (El intervalo que esto armaba
+hoy es el stream `/api/events`; ver "El estado se empuja, no se consulta".)
 
 ### ¿Por qué `/picks` abre en un carrusel de rubros y no en la galería entera?
 
@@ -1082,6 +1083,16 @@ que la base avise hacia afuera y nosotros no le preguntemos.
   cliente tiene su cola acotada y un hilo virtual que hace las escrituras bloqueantes, así
   que uno lento no frena al bus. El token viaja en un header, por eso el cliente usa
   `fetch` y no `EventSource`; el stream dura 10 min, menos que los 15 del access token.
+- **En el frontend** (`EventStreamProvider`): UNA conexión por sesión, montada bajo
+  `AuthGate` y atada a `authenticated` (no al usuario: la identidad llega después de
+  la sesión y reconectar ahí abría dos streams por login). Reemplaza los tres timers
+  de `AppLayout`, `MlStatusPanel` y `Topbar`. Un `snapshot` reemplaza el estado; los
+  eventos lo completan; `resync` relee `/api/status` y `/api/ml/estado`. Lo que los
+  eventos no llevan (`total`, `tieneData`, `mlRefinadas`, los flags del modelo) se
+  trae con UNA lectura al terminar la corrida o el entrenamiento, y una lectura
+  que contesta después de un push más nuevo se descarta. Las lecturas de montaje
+  siguen (`readStatus`), como respaldo si el stream todavía no habló. El CLI sigue
+  polleando `/api/status`: su contrato no cambió.
 - **Falla la espera, no el dato**: un evento perdido no deja a nadie con un estado
   equivocado; el bus emite `Resync` y el cliente relee. Por eso el aviso es una pista,
   y la fuente de verdad sigue siendo `/api/status` y `/api/ml/estado`.
@@ -1446,5 +1457,5 @@ Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 5. Actualización progresiva por sitio: upsertParcial + fromDBParcial — solo las
    URLs del sitio recién terminado se re-enriquecen; el resto reusa el snapshot previo
 6. En background si corresponde: re-train de texto + backfill de embeddings
-7. Frontend pollea /api/status cada 1800ms → DONE → dashboard con filtros server-side
+7. El backend empuja el estado por /api/events → DONE → dashboard con filtros server-side
 ```

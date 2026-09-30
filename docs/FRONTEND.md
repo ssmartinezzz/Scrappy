@@ -70,3 +70,30 @@ la página; quedan las tres de auth, que mutan la sesión de quien llama.
 a nivel `AppLayout`, no rutas.
 
 ---
+
+## Estado de la corrida y del ML: un stream, no intervalos
+
+Nada en el frontend pollea el estado. `EventStreamProvider` (`hooks/`, montado en
+`App.jsx` dentro de `AuthGate`) mantiene UNA conexión a `GET /api/events` mientras
+haya sesión y la cierra al desloguearse o desmontar. La lectura del stream vive en
+`lib/eventStream.js` (puro, con `fetch`/`sleep`/`random`/reloj inyectables): parser
+SSE incremental, reconexión con jitter completo (1 s → 30 s, se resetea con el primer
+frame), watchdog de 45 s sin bytes, y corte definitivo ante 401 tras el refresh o 403.
+
+| Se lee con | Devuelve |
+|---|---|
+| `useScrapeStatus()` | el status de la corrida (forma de `GET /api/status`), `null` antes del primer `snapshot` |
+| `useMlStatus()` | `{ estado, training, backfill, resultado }`; `resultado` es lo que respondería `/api/ml/resultado` |
+| `useStreamState()` | `{ phase: 'idle'\|'connecting'\|'live'\|'reconnecting'\|'closed' }` — la salud de la conexión; `idle` fuera del provider |
+| `useStreamEvent(nombre, fn)` | suscripción a un evento: `db.changed`, `resync`, `ml.status`, y `training` (snapshot + eventos + relectura de `resync`) |
+
+Fuera del provider los hooks devuelven "sin stream" y cada pantalla sigue funcionando
+con su lectura de montaje: por eso los tests que montan un componente suelto no
+necesitan el provider. Quién consume qué: el splash (`useScrapeStatusPolling`, que ya
+no pollea y mantiene su nombre), `AppLayout` (overlay GPU, banner ML, `scrapeStatus` del
+reducer), `Topbar` (indicador "Entrenando ML"), `MlStatusPanel` (progreso y toast de
+fin), `CronjobsPage` y `CronJobCard` (releen al llegar `db.changed` de `cron_execution`
+o un `resync`). Lo único con reloj que queda es cosmético: el `tick` de 2 s que
+refresca el "tiempo transcurrido" de `MlStatusPanel` y la animación de la barra del
+splash; ninguno hace un request. Ver [`GOTCHAS.md`](./GOTCHAS.md) → "El estado llega
+por un stream".

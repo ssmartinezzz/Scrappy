@@ -111,32 +111,63 @@ excepción. Las colapsa en "no hay status" **un solo lector**,
 `frontend/src/lib/readStatus.js`, y todo call site pasa por ahí.
 
 Vivió un tiempo adentro de `useScrapeStatusPolling.js`, y ahí estaba el
-problema: **hay DOS pollers y tres lecturas de montaje**, y el fix sólo llegó a
-uno. Los otros tres seguían llamando `fetchStatus` pelado. `AppLayout` tenía la
-copia idéntica del bug original —`await` sin try/catch adentro de un
-`setInterval`, muriendo cada 1800 ms contra un backend caído sin limpiar nunca
-el intervalo— y `RootGate` era peor: `.then()` sin `.catch()` en la ruta `/`,
-así que un backend que no escucha dejaba `gate` en `'checking'` y **la puerta de
-entrada de la app renderizaba el fallback para siempre**. Los 239 tests del
-frontend estaban en verde.
+problema: había **dos pollers y tres lecturas de montaje**, y el fix sólo llegó a
+uno. `AppLayout` tenía la copia idéntica del bug original —`await` sin try/catch
+adentro de un `setInterval`, muriendo cada 1800 ms contra un backend caído— y
+`RootGate` era peor: `.then()` sin `.catch()` en la ruta `/`, así que un backend
+que no escucha dejaba `gate` en `'checking'` y **la puerta de entrada de la app
+renderizaba el fallback para siempre**. Los 239 tests del frontend estaban en
+verde. Los pollers ya no existen (ver "El estado llega por un stream"), pero las
+lecturas de una sola vez siguen, y siguen pasando por `readStatus`.
 
-Aparte de eso, `useScrapeStatusPolling` expone un `backendUnreachable`: "no lo
-puedo contactar" y "sigue corriendo" son frases distintas, y la pantalla tiene
-que decir la correcta. Ese estado **no** se mete en `scrapeStatus`, que espeja el
-`ScraperStatus` del backend; lo que se apaga es el progreso, no el campo.
+`useScrapeStatusPolling` (el nombre quedó; ya no pollea) expone un
+`backendUnreachable`: "no lo puedo contactar" y "sigue corriendo" son frases
+distintas, y la pantalla tiene que decir la correcta. Ese estado **no** se mete
+en `scrapeStatus`, que espeja el `ScraperStatus` del backend; lo que se apaga es
+el progreso, no el campo. Hoy es `true` si la lectura de montaje falló **o** si el
+stream está en `reconnecting`.
 
-**El poller del splash no se arma solo salvo por una bandera de un solo tiro:**
-sólo `handleScrape` armaba el intervalo, así que aterrizar en `/splash` con una
-corrida ya `RUNNING` —lo que pasa al **retomar** una corrida interrumpida, y
-también tras un reload a mitad de corrida— dejaba el status congelado sin
-progreso ni final. Lo dispara `pollingNeeded`, que **levanta la lectura de
-montaje y nadie más**: si espejara el status vivo, el efecto que la observa
-re-armaría el intervalo en cada render que viera una corrida en curso. Al
-tocarlo, acordate de que el test correspondiente **no puede vivir en
-`App.test.jsx`** — necesita fake timers y la cadena de bootstrap de auth no
-drena bajo ellos, así que la baseline lee cero y la aserción pasa midiendo la
-lectura de montaje en vez del poller. Vive en `src/SplashRoute.test.jsx`, que
-mockea `useAuth` y fija la baseline en 1 antes de medir.
+**El splash se une a una corrida en curso con una bandera de un solo tiro:**
+aterrizar en `/splash` con una corrida ya `RUNNING` —lo que pasa al **retomar** y
+tras un reload a mitad de corrida— dejaba la pantalla sin saber cuándo terminaba.
+`runInFlightAtMount` la levanta **el primer status que el hook conoce y nadie
+más**: si espejara el status vivo, el efecto que la observa volvería a armar
+`watchRun` en cada render que viera una corrida en curso. El test no puede vivir
+en `App.test.jsx` (la cadena de bootstrap de auth no drena bajo fake timers y la
+baseline leería cero): vive en `src/SplashRoute.test.jsx`, que mockea `useAuth` y
+fija la baseline en 1 antes de medir.
+
+**El estado llega por un stream, no por un intervalo.** La UI no pollea `/api/status`, `/api/ml/estado` ni `/api/ml/resultado`: abre UNA
+conexión a `GET /api/events` (`EventStreamProvider`, montado en `App.jsx` dentro
+de `AuthGate`) y todo lo que muestra estado —splash, topbar, overlay GPU, panel ML,
+cronjobs— lo lee de ahí. Cuatro trampas:
+
+1. **Es `fetch` + lector de stream, no `EventSource`.** El access token es un header
+   `Authorization` en memoria y `EventSource` no puede mandar headers. Pasa por
+   `authedFetch`, así que un token vencido se refresca **antes** de que el stream
+   arranque (un 401 del stream es el 401 de siempre). Un 403 corta sin reintentar;
+   un 401 que sobrevivió al refresh también (el logout es asunto de la capa de auth).
+2. **Un proxy que bufferea convierte el push en un batch tardío.** El backend manda
+   `X-Accel-Buffering: no` y un `: ping` cada 15 s; un nginx propio delante tiene que
+   respetarlo (`proxy_buffering off`). Si las actualizaciones llegan de a rachas, es
+   esto. El cliente aborta y reconecta si pasan 45 s sin un solo byte.
+3. **Una lectura vieja no pisa un evento nuevo.** Las lecturas que quedan (montaje,
+   tras lanzar un scrape, tras `resync`, al terminar una corrida para traer `total` y
+   `tieneData`, que los eventos no llevan) pueden contestar después de un evento más
+   reciente. `useScrapeStatusPolling` descarta la respuesta si entró un push mientras
+   volaba, y el provider sólo completa los campos que faltan si la corrida sigue
+   terminada. Sin eso la pantalla quedaba clavada en el mensaje viejo.
+4. **El stream abierto rompe `networkidle` de Playwright**: la red nunca queda ociosa
+   mientras hay sesión. `tabs.spec.js` espera la respuesta de `/api/events` de cada
+   pestaña —que sólo abre cuando la sesión ya asentó— en vez de `networkidle`.
+   Conectar por `[authenticated]` y **no** por el usuario: la identidad llega después
+   de la sesión (`/api/auth/me`), y reconectar ahí abría dos streams por login.
+
+Un stream que el servidor cierra (cada 10 min) reconecta **sin** mostrar
+`backendUnreachable`; uno que falla reintenta con backoff de jitter completo
+(1 s → 30 s, se resetea con el primer frame). Las pruebas e2e de la UI empujan
+eventos con `e2e/event-stream-stub.js` (envuelve `window.fetch` sólo para
+`/api/events`); el endpoint real lo cubre `e2e/event-stream.spec.js`.
 
 **Trampas que dejó `user-accounts-and-roles` (todas cobraron al menos una vez):**
 
