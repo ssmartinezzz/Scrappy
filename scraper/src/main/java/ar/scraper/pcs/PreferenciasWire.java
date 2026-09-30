@@ -3,38 +3,20 @@ package ar.scraper.pcs;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Wire↔domain mapping for the six technical preferences from
- * pc-builder-deep-taxonomy (D8) — shared by the builder endpoint, the
- * preferencia endpoints and {@code agent.ProposePcTool}, same molde as
- * {@link GamaWire} (CODE-6/DOC-1): parse + wire, never emits an abstention
- * sentinel ({@code TipoAlmacenamiento.DESCONOCIDO}) as if it were a
- * requestable value.
- *
- * <p>{@code tipoAlmacenamiento}'s wire word for {@link TipoAlmacenamiento#SSD}
- * is {@code "sata"}, not {@code "ssd"} — the wire vocabulary names the
- * interface a user shops by, not the enum's own Java name.</p>
- *
- * <p>Fase 9 adds four more. The two floors ({@code capacidadMinimaGb},
- * {@code wattsMinimos}) travel as plain integers — there is no enum to name,
- * and the UI's chips are just convenient values, never a closed domain the
- * server enforces. The two enums keep the same shape as the others: a
- * lowercase word, and never an abstention sentinel.</p>
+ * {@code tipoAlmacenamiento}'s wire word for {@link TipoAlmacenamiento#SSD} is {@code "sata"}, not
+ * {@code "ssd"} — the wire vocabulary names the interface a user shops by, not the enum's own Java
+ * name.
  */
 public final class PreferenciasWire {
 
     private PreferenciasWire() {}
 
-    /**
-     * Pre-fase-9 shape: none of the four new preferences requested. Blank/null
-     * every field parses to {@link PreferenciasDeArmado#NINGUNA}.
-     */
     public static PreferenciasDeArmado parse(String ddrWire, String marcaCpuWire, String marcaGpuWire,
             String tipoAlmacenamientoWire, Boolean ramDual, Boolean wifi) {
         return parse(ddrWire, marcaCpuWire, marcaGpuWire, tipoAlmacenamientoWire, ramDual, wifi,
                 null, null, null, null);
     }
 
-    /** Fase 9: the six above plus capacidad/tamaño/cooler/watts. */
     public static PreferenciasDeArmado parse(String ddrWire, String marcaCpuWire, String marcaGpuWire,
             String tipoAlmacenamientoWire, Boolean ramDual, Boolean wifi,
             Integer capacidadMinimaGb, String tamanioGabineteWire, String tipoCoolerWire, Integer wattsMinimos) {

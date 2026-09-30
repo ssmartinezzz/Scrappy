@@ -3,19 +3,13 @@ package ar.scraper.pcs;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Wire↔domain mapping for {@code uso} ("gaming"/"homelab") — same molde as
- * {@link GamaWire} (CODE-6/DOC-1), shared by the builder endpoint, the
- * preferencia endpoints and {@code agent.ProposePcTool}.
- *
- * <p>Unlike {@link GamaWire#parse}, blank/null does NOT mean "not
- * requested" — {@link Uso} has no such state. It means the default,
- * {@link Uso#GAMING}: today's build, unchanged.</p>
+ * Unlike {@link GamaWire#parse}, blank/null does NOT mean "not requested" — {@link Uso} has no such
+ * state.
  */
 public final class UsoWire {
 
     private UsoWire() {}
 
-    /** Blank/null parses to {@link Uso#GAMING} (the default). Any other non-blank value throws. */
     public static Uso parse(String valorWire) {
         if (StringUtils.isBlank(valorWire)) return Uso.GAMING;
         return switch (valorWire.trim().toLowerCase()) {

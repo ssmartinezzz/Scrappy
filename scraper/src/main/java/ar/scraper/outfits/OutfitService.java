@@ -8,35 +8,20 @@ import java.util.stream.Collectors;
 import java.util.Comparator;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Armador de outfits (Gym): combina productos del catálogo agregado en
- * memoria (no consulta la DB — sigue el mismo patrón que /api/data,
- * /api/mejores, /api/marcas-browser) en torso + piernas + calzado,
- * con un accesorio opcional best-effort.
- *
- * No persiste outfits generados (stateless por request); el feedback
- * (like/dislike) se persiste aparte en DatabaseService.outfit_feedback_item y SÍ
- * influye en el muestreo desde outfit-recommendation-quality: dislike excluye
- * el par marca|categoria de forma permanente, like aumenta su peso de muestreo
- * (ver FeedbackModel, ADR-1/ADR-2 en design.md).
- */
 public class OutfitService {
 
     private final RecommendationService recommendationService;
 
     /**
-     * Supplement-combo bodies, extracted to their own class (backlog A3).
-     * Built here rather than injected so this constructor's shape stays
-     * unchanged for the existing test call sites — it takes the same
-     * RecommendationService this class already receives, for the score tiebreak
-     * in its pick ranking.
+     * Built here rather than injected so this constructor's shape stays unchanged for the existing
+     * test call sites — it takes the same RecommendationService this class already receives, for
+     * the score tiebreak in its pick ranking.
      */
     private final SupplementCombo supplementCombo;
 
     /**
-     * Budget-builder bodies, extracted to their own class (backlog A3).
-     * Built here rather than injected so this constructor's shape stays
-     * unchanged for the existing test call sites.
+     * Built here rather than injected so this constructor's shape stays unchanged for the existing
+     * test call sites.
      */
     private final OutfitBudgetBuilder budgetBuilder;
 
@@ -46,7 +31,6 @@ public class OutfitService {
         this.supplementCombo = new SupplementCombo(recommendationService);
     }
 
-    /** Slots requeridos para un outfit completo. */
     public static final String SLOT_TORSO     = "torso";
     public static final String SLOT_PIERNAS   = "piernas";
     public static final String SLOT_CALZADO   = "calzado";
@@ -55,42 +39,23 @@ public class OutfitService {
     private static final List<String> SLOTS_REQUERIDOS =
             List.of(SLOT_TORSO, SLOT_PIERNAS, SLOT_CALZADO);
 
-    // Banda de precio: ±30% alrededor de la mediana del pool elegible.
-    // Elegido como compromiso entre coherencia visual/económica del outfit
-    // y disponibilidad de candidatos en catálogos chicos (ver tasks.md 1.4).
     private static final double PRICE_BAND_PCT = OutfitRules.PRICE_BAND_PCT;
 
-    // Boost de feedback (ADR-2 en design.md de outfit-recommendation-quality):
-    // cada like sobre un par marca|categoria suma FEEDBACK_BOOST_STEP al multiplicador
-    // de peso en weightedRandomPick, hasta un máximo de FEEDBACK_BOOST_CAP likes contados
-    // (boostFactor ∈ [1.0, 1 + CAP*STEP] = [1.0, 4.0] con los defaults). Tunables documentados
-    // igual que PRICE_BAND_PCT — ver Open Question 0.2 en tasks.md.
     private static final double FEEDBACK_BOOST_STEP = OutfitRules.FEEDBACK_BOOST_STEP;
     private static final int    FEEDBACK_BOOST_CAP   = OutfitRules.FEEDBACK_BOOST_CAP;
 
-    // Factor de oportunidad ML en weightedRandomPick. El armador aleatorio pesaba
-    // solo por distancia de precio y likes: dentro de una misma banda, un
-    // fake_discount y un all_time_low eran igual de probables — mientras el budget
-    // builder maximiza exactamente esa señal y el feed "Para ti" ordena por ella.
-    //
-    // ML_SCORE_NEUTRO es baseMlScore(MlScore.EMPTY) = 100 - 50. Normalizar contra ese
-    // punto hace que un producto sin datos de ML dé factor 1.0 exacto, así que un
-    // catálogo que nunca pasó por el pipeline conserva los pesos previos.
-    //
-    // El techo queda POR DEBAJO del de FEEDBACK_BOOST (4.0) a propósito: un like es
-    // una declaración de gusto, un badge es una observación de precio.
+    // El armador aleatorio pesaba solo por distancia de precio y likes: dentro de una misma banda,
+    // un fake_discount y un all_time_low eran igual de probables — mientras el budget builder
+    // maximiza exactamente esa señal y el feed "Para ti" ordena por ella.
     private static final double ML_SCORE_NEUTRO = OutfitRules.ML_SCORE_NEUTRO;
     private static final double ML_FACTOR_MIN   = OutfitRules.ML_FACTOR_MIN;
     private static final double ML_FACTOR_MAX   = OutfitRules.ML_FACTOR_MAX;
 
-    /** categoria → slot, por taxonomía de design.md / spec.md. */
     private static final Map<String, String> CATEGORIA_SLOT = buildCategoriaSlotMap();
 
     /**
-     * Regla de elegibilidad por estilo: whitelists nullable por slot — null significa
-     * "sin restricción de estilo, usar la taxonomía base de ese slot". Gym restringe
-     * los cuatro slots (calzado, torso, piernas, accesorio); estilos futuros pueden
-     * restringir solo algunos y dejar el resto en null.
+     * Regla de elegibilidad por estilo: whitelists nullable por slot — null significa "sin
+     * restricción de estilo, usar la taxonomía base de ese slot".
      */
     private record StyleRule(
             Set<String> calzadoWhitelist   /* nullable */,
@@ -105,72 +70,45 @@ public class OutfitService {
                     Set.of("Buzo", "Campera", "Remera", "Musculosa"),
                     Set.of("Short", "Pantalón", "Calza"),
                     Set.of("Gorra", "Medias", "Suplemento"))
-            // Excluidos a propósito para Gym: Botines/Borcego/Botas/Ojotas/Zapatilla
-            // Skate (calzado — skate no es training, ej. DC/Vans); Sweater/Camisa/
-            // Chomba/Casaca/Chaleco/Saco/Traje/Piloto/Puffer (torso); Baggy/Jean/
-            // Bermuda/Pollera (piernas); Riñonera/Billetera/Cinturón/Bufanda/Guantes/
-            // Gorro/Lentes (accesorio) — confirmado por el usuario.
+            // Botines/Borcego/Botas/Ojotas/Zapatilla Skate (calzado — skate no es training, ej.
+            // DC/Vans);
     );
     private static final StyleRule DEFAULT_STYLE_RULE = new StyleRule(null, null, null, null); // sin restricción
 
-    /**
-     * Veto global (ajuste posterior a outfit-recommendation-quality): categorias
-     * acá NUNCA son elegibles para su slot, bajo NINGÚN estilo — ni siquiera
-     * DEFAULT_STYLE_RULE (whitelist null). Chequeado en slotDe() ANTES del gate
-     * de estilo, así que es independiente de STYLE_RULES.
-     */
     private static final Set<String> ACCESORIO_VETADO = Set.of("Mochila", "Bolso");
 
-    /**
-     * Veto de marca para calzado, Gym-only (no global — análogo a Borcego/Botas/
-     * Ojotas): DC es marca de skate/lifestyle, no training, aunque el producto
-     * puntual se clasifique como "Zapatilla" genérica (sin keyword de skate en
-     * el nombre). Confirmado por el usuario tras verla aparecer en el armador.
-     */
+    /** Veto de marca para calzado, Gym-only (no global — análogo a Borcego/Botas/ Ojotas): */
     private static final Set<String> CALZADO_MARCA_VETADA_GYM = Set.of("DC");
 
     /**
-     * Veto global (ADR-2 de outfit-per-item-feedback): categorias acá NUNCA son
-     * elegibles para el slot calzado, bajo NINGÚN estilo — ni siquiera
-     * DEFAULT_STYLE_RULE (whitelist null). Chequeado en slotDe() ANTES del gate
-     * de estilo, así que es independiente de STYLE_RULES.
-     * Borcego/Botas/Ojotas NO están acá — siguen gobernados solo por el
-     * whitelist Gym-only de STYLE_RULES.
+     * Borcego/Botas/Ojotas NO están acá — siguen gobernados solo por el whitelist Gym-only de
+     * STYLE_RULES.
      */
     private static final Set<String> CALZADO_VETADO = Set.of("Botines");
 
     /**
-     * Union of all canonical categories across the four taxonomy groups
-     * (Torso / Piernas / Calzado / Accesorio). Used by the Budget Builder
-     * endpoint to reject or ignore unknown category names sent by the client.
+     * Used by the Budget Builder endpoint to reject or ignore unknown category names sent by the
+     * client.
      */
     public static final Set<String> KNOWN_CATEGORIAS = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList(
-                    // Torso
                     "Puffer", "Campera", "Sweater", "Buzo", "Musculosa", "Camisa", "Remera",
                     "Chomba", "Casaca", "Chaleco", "Saco", "Traje", "Piloto",
-                    // Piernas
                     "Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón",
-                    // Calzado
                     "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
                     "Zapatilla Skate", "Zapatilla Urbana", "Sneaker",
                     "Botines", "Borcego", "Botas", "Ojotas",
-                    // Accesorio
                     "Mochila", "Bolso", "Riñonera", "Billetera", "Cinturón", "Bufanda",
                     "Guantes", "Gorro", "Gorra", "Lentes", "Medias", "Suplemento"
             )));
 
-    // Sub-slot keys for the budget builder (armarPorCategorias).
-    // Torso is split into base + outer layers; accesorio into head/feet/body.
-    // Piernas and calzado remain single-pick and reuse their slot key directly.
     static final String SUBSLOT_TORSO_BASE      = "torso-base";
     static final String SUBSLOT_TORSO_OUTER     = "torso-outer";
     static final String SUBSLOT_ACCESORIO_HEAD  = "accesorio-head";
     static final String SUBSLOT_ACCESORIO_FEET  = "accesorio-feet";
     static final String SUBSLOT_ACCESORIO_BODY  = "accesorio-body";
 
-    // Package-private, not private: OutfitBudgetBuilder reads it. Still DECLARED
-    // on this class, which is what OutfitServiceSubslotTest's getDeclaredField needs.
+    // Package-private, not private:
     static final Map<String, String> CATEGORIA_SUBSLOT = buildCategoriaSubslotMap();
 
     private static Map<String, String> buildCategoriaSubslotMap() {
@@ -189,7 +127,6 @@ public class OutfitService {
         m.put("Medias", SUBSLOT_ACCESORIO_FEET);
         for (String cat : List.of("Riñonera", "Cinturón", "Lentes", "Bufanda", "Guantes", "Billetera"))
             m.put(cat, SUBSLOT_ACCESORIO_BODY);
-        // Mochila, Bolso, Suplemento are excluded (vetoed or handled separately)
         return Collections.unmodifiableMap(m);
     }
 
@@ -218,36 +155,16 @@ public class OutfitService {
         return Collections.unmodifiableMap(m);
     }
 
-    /** Resultado de un slot individual dentro de un outfit generado. */
     public record SlotPick(
             String slot, String sitio, String nombre, double precio,
             String url, String img, String categoria, String marca) {
     }
 
-    /** Resultado completo de armar() — outfit con slots, genero usado, flag partial, total y flag de presupuesto. */
     public record Outfit(List<SlotPick> slots, String genero, boolean partial,
                          double totalEstimado, boolean presupuestoExcedido) {
     }
 
-    /**
-     * Result of {@link #armarPorCategorias}: globally-optimal product picks
-     * within the requested budget, or an empty set when no valid combination
-     * fits. Never exceeds {@code presupuesto} — the hard-budget invariant is
-     * always enforced.
-     *
-     * @param slots                  chosen products (SlotPick.slot == categoria)
-     * @param genero                 gender filter applied (empty = no filter)
-     * @param presupuesto            the original budget ceiling
-     * @param totalEstimado          sum of selected item prices (always ≤ presupuesto)
-     * @param noCumplePresupuesto    true when ≥1 category had candidates but
-     *                               the optimizer could not include them within budget
-     * @param categoriasVacias       categories with no eligible products after
-     *                               catalog + gender + gymrat filter (catalog gap)
-     * @param categoriasSinPresupuesto categories that had products but none fit
-     *                               within the remaining budget during optimization
-     * @param minimoBudgetNecesario  sum of cheapest eligible product per category
-     *                               (null = at least one category has no eligible products)
-     */
+    /** Never exceeds {@code presupuesto} — the hard-budget invariant is always enforced.. */
     public record OutfitBuilderResult(
             List<SlotPick> slots,
             String genero,
@@ -259,61 +176,42 @@ public class OutfitService {
             Double minimoBudgetNecesario) {
     }
 
-    /**
-     * Un subtipo ofrecible del combo de suplementos, con su grupo de selector
-     * ({@code null} = "Otros"). Sirve al selector del frontend, que mantenía su propia
-     * copia a mano de esta lista.
-     */
     public record SupplementTipo(String tipo, String grupo) { }
 
     /**
-     * Nombres de los subtipos. Existe para que un test pueda afirmar que el endpoint no
-     * se queda corto respecto de lo que el builder puede devolver — un subtipo que el
-     * builder elige pero la lista no anuncia es inseleccionable en la UI.
+     * Existe para que un test pueda afirmar que el endpoint no se queda corto respecto de lo que el
+     * builder puede devolver — un subtipo que el builder elige pero la lista no anuncia es
+     * inseleccionable en la UI.
      */
     public static final List<String> TIPOS_SUPLEMENTO = SupplementCombo.tiposDisponibles()
             .stream().map(SupplementTipo::tipo).toList();
 
-    /** Resultado de un ítem del combo de suplementos (independiente de los slots del outfit). */
     public record SupplementPick(
             String tipo, String sitio, String nombre, double precio,
             String url, String img, String marca) {
     }
 
-    // ─── Combo de suplementos. Bodies in SupplementCombo (backlog A3);
-    // this class keeps the public surface and delegates. SupplementPick stays
-    // nested here: callers and tests name it OutfitService.SupplementPick.
-    // ─────────────────────────────────────────────────────────────────────
-
     /**
-     * Combo de suplementos a mostrar siempre junto al outfit, independiente de
-     * género/estilo — best-effort por subtipo (subtipo sin candidatos se omite).
-     * Backward-compat overload: sin límite de presupuesto.
+     * Combo de suplementos a mostrar siempre junto al outfit, independiente de género/estilo —
+     * best-effort por subtipo (subtipo sin candidatos se omite). Backward-compat overload: sin
+     * límite de presupuesto.
      */
     public List<SupplementPick> armarComboSuplementos(List<Product> productos) {
         return supplementCombo.armarComboSuplementos(productos);
     }
 
-    /**
-     * Combo de suplementos con presupuesto independiente opcional.
-     * presupuesto=0 → sin límite. Budget-aware: por subtipo, filtra candidatos por
-     * precio ≤ remaining; si ninguno cabe, elige el más barato (no bloquea el slot).
-     */
+    /** Combo de suplementos con presupuesto independiente opcional. presupuesto=0 → sin límite. */
     public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto) {
         return supplementCombo.armarComboSuplementos(productos, presupuesto);
     }
 
-    /**
-     * Combo de suplementos filtrado por tipos solicitados. tipos vacío o null →
-     * usa todos los subtipos (backward-compat con el overload de 2 args).
-     */
     public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
         return supplementCombo.armarComboSuplementos(productos, presupuesto, tipos);
     }
 
     /**
-     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar"
-     * ofrezca el siguiente en vez de repetir. Ver {@link SupplementCombo}.
+     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar" ofrezca el
+     * siguiente en vez de repetir.
      */
     public List<SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto,
                                                       Set<String> tipos, Set<String> excluirUrls) {
@@ -321,19 +219,11 @@ public class OutfitService {
     }
 
     /**
-     * Modelo de feedback (ADR-1/ADR-2 en design.md de outfit-recommendation-quality):
-     * exclude = pares marca|categoria con al menos un dislike (veto duro, permanente);
-     * boostLikeCount = cantidad de likes por par marca|categoria (folding en
-     * weightedRandomPick, Fase 2 — Task 2.6; no usado todavía en esta fase).
-     * excludeCategoria = categorias bare (sin marca) marcadas "no me interesa"
-     * feed-wide (Decision 1 de design.md, personalized-recommendations-feed) —
-     * eje de exclusión SEGUNDO e independiente del pair-exclude existente; un
-     * producto se excluye si su categoria bare está acá, sin importar marca,
-     * incluyendo productos sin marca de esa categoria. NO afecta exclude/
-     * boostLikeCount existentes.
-     * Construido por FeedbackModels.build() a partir de
-     * DatabaseService.obtenerOutfitFeedback() + DatabaseService.obtenerCategoriaDismiss()
-     * + el catálogo vivo (OutfitService permanece DB-agnostic, ADR-3 de outfit-builder).
+     * Modelo de feedback: exclude = pares marca|categoria con al menos un dislike (veto duro,
+     * permanente); boostLikeCount = cantidad de likes por par marca|categoria. excludeCategoria =
+     * categorias bare (sin marca) marcadas "no me interesa" feed-wide — eje de exclusión SEGUNDO e
+     * independiente del pair-exclude existente; un producto se excluye si su categoria bare está
+     * acá, sin importar marca, incluyendo productos sin marca de esa categoria.
      */
     public record FeedbackModel(Set<String> exclude, Map<String, Integer> boostLikeCount,
                                  Set<String> excludeCategoria) {
@@ -341,7 +231,6 @@ public class OutfitService {
             return new FeedbackModel(Set.of(), Map.of(), Set.of());
         }
 
-        /** marca|categoria, null-safe — null/blank colapsa al lado vacío de la key. */
         public static String keyOf(Product p) {
             String marca     = p.marca()     != null ? p.marca().trim()     : "";
             String categoria = p.categoria() != null ? p.categoria().trim() : "";
@@ -350,18 +239,17 @@ public class OutfitService {
     }
 
     /**
-     * categoria → slot, dependiente del estilo activo (ADR-3). Footwear (ADR-1) usa
-     * esCalzadoElegible(rule, cat) independientemente de gymrat; torso/piernas SÍ
-     * exigen gymrat==true (chequeado en armar(), no aquí). categorias fuera de la
-     * taxonomía, o calzado no elegible bajo el estilo activo, no entran a ningún slot
-     * — NO debe caer al fallback de CATEGORIA_SLOT.get(cat) para calzado, porque eso
-     * reintroduciría una segunda vía hacia SLOT_CALZADO que saltea el gate de estilo.
+     * Footwear (ADR-1) usa esCalzadoElegible(rule, cat) independientemente de gymrat; torso/piernas
+     * SÍ exigen gymrat==true (chequeado en armar(), no aquí). categorias fuera de la taxonomía, o
+     * calzado no elegible bajo el estilo activo, no entran a ningún slot — NO debe caer al fallback
+     * de CATEGORIA_SLOT.get(cat) para calzado, porque eso reintroduciría una segunda vía hacia
+     * SLOT_CALZADO que saltea el gate de estilo.
      */
     private String slotDe(Product p, StyleRule rule) {
         String cat = p.categoria();
         if (StringUtils.isBlank(cat)) return null;
-        if (ACCESORIO_VETADO.contains(cat)) return null; // global, style-independent
-        if (CALZADO_VETADO.contains(cat)) return null; // global, style-independent
+        if (ACCESORIO_VETADO.contains(cat)) return null;
+        if (CALZADO_VETADO.contains(cat)) return null;
         if (esCalzadoBase(cat)) {
             if (!esCalzadoElegible(rule, cat)) return null;
             if (rule.calzadoWhitelist() != null
@@ -374,7 +262,9 @@ public class OutfitService {
                 ? slot : null;
     }
 
-    /** Whitelist activa para un slot no-calzado bajo la StyleRule dada (null = sin restricción). */
+    /**
+     * Whitelist activa para un slot no-calzado bajo la StyleRule dada (null = sin restricción).
+     */
     private Set<String> slotWhitelist(StyleRule rule, String slot) {
         return switch (slot) {
             case SLOT_TORSO -> rule.torsoWhitelist();
@@ -385,12 +275,9 @@ public class OutfitService {
     }
 
     /**
-     * Taxonomía base de calzado, independiente de estilo (ADR-1): esGymrat() siempre
-     * devuelve false para calzado (guard en NormalizerService), así que el slot
-     * calzado filtra por categoria directamente, sin tocar esCalzado()/esGymrat().
-     * Usado como fallback de DEFAULT_STYLE_RULE (sin restricción de estilo) y como
-     * guard en slotDe() para decidir si una categoria pertenece a la familia calzado
-     * antes de aplicar el whitelist de estilo.
+     * Taxonomía base de calzado, independiente de estilo (ADR-1): esGymrat() siempre devuelve false
+     * para calzado (guard en NormalizerService), así que el slot calzado filtra por categoria
+     * directamente, sin tocar esCalzado()/esGymrat().
      */
     private boolean esCalzadoBase(String categoria) {
         if (categoria == null) return false;
@@ -403,11 +290,9 @@ public class OutfitService {
     }
 
     /**
-     * Elegibilidad de calzado bajo el estilo activo (ADR-3): si la regla no restringe
-     * calzado (whitelist null), cualquier categoria de la taxonomía base es elegible.
      * Si restringe (p.ej. Gym), solo las categorias explícitamente listadas lo son —
-     * Botines/Borcego/Botas/Ojotas quedan afuera para Gym aunque sigan siendo parte de
-     * la taxonomía general de calzado (Slot Taxonomy).
+     * Botines/Borcego/Botas/Ojotas quedan afuera para Gym aunque sigan siendo parte de la taxonomía
+     * general de calzado (Slot Taxonomy).
      */
     private boolean esCalzadoElegible(StyleRule rule, String categoria) {
         if (rule.calzadoWhitelist() == null) return esCalzadoBase(categoria);
@@ -415,49 +300,37 @@ public class OutfitService {
     }
 
     /**
-     * Genero Matching Policy: requested == valor OR "unisex" OR vacío/null.
-     * Un pedido genero=unisex (o ausente) matchea CUALQUIER genero del producto
-     * (spec: "MUST match products whose genero is unisex, empty/missing, OR any
-     * gendered value") — bug fix: antes un pedido "unisex" explícito caía en la
-     * comparación estricta de la última línea y excluía productos con genero
-     * "hombre"/"mujer", lo que también dejaba sin efecto el fallback paso 2.
-     * Excepción dura: genero=="infantil" (NormalizerService.normalizarGenero)
-     * nunca es elegible, ni siquiera pidiendo "unisex" — el armador es para
-     * adultos, confirmado por el usuario tras ver zapatillas de niños en Gym.
+     * "MUST match products whose genero is unisex, empty/missing, OR any gendered value") — bug
+     * fix: antes un pedido "unisex" explícito caía en la comparación estricta de la última línea y
+     * excluía productos con genero "hombre"/"mujer", lo que también dejaba sin efecto el fallback
+     * paso 2.
      */
     private boolean generoElegible(Product p, String generoSolicitado) {
         return OutfitRules.generoElegible(p, generoSolicitado);
     }
 
     /**
-     * Armar un outfit Gym para el genero solicitado (o "" / null → unisex-eligible).
-     * Overload de compatibilidad (ADR-3, Open Question 0.3, confirmado por Task 2.5):
-     * delega al 4-arg con estilo="gym" y sin feedback — no-op de exclude/boost,
-     * comportamiento idéntico al pre-existente. Se mantiene aunque la búsqueda de
-     * callers (Task 2.5) solo encontró OutfitsController, para no forzar un cambio en
-     * eventuales callers futuros/tests.
+     * Overload de compatibilidad (ADR-3, Open Question 0.3, confirmado por Task 2.5): delega al
+     * 4-arg con estilo="gym" y sin feedback — no-op de exclude/boost, comportamiento idéntico al
+     * pre-existente.
      */
     public Outfit armar(List<Product> productos, String generoSolicitado) {
         return armar(productos, generoSolicitado, "gym", FeedbackModel.empty());
     }
 
     /**
-     * Overload de compatibilidad 4-arg: delega al 6-arg con presupuesto=0 (sin límite)
-     * y sin excluirUrls. Comportamiento idéntico al pre-existente.
+     * Overload de compatibilidad 4-arg: delega al 6-arg con presupuesto=0 (sin límite) y sin
+     * excluirUrls.
      */
     public Outfit armar(List<Product> productos, String generoSolicitado, String estilo, FeedbackModel feedback) {
         return armar(productos, generoSolicitado, estilo, feedback, 0, Set.of());
     }
 
     /**
-     * Armar un outfit para el genero y estilo solicitados, con feedback de
-     * usuario aplicado, presupuesto opcional y URLs a excluir por slot-swap.
-     *
-     * presupuesto=0 → sin límite de presupuesto (comportamiento original).
-     * excluirUrls → URLs de productos a excluir (slot-swap del usuario).
-     * Budget-aware selection: por slot, si presupuesto > 0, filtra candidatos por
-     * precio ≤ (presupuesto - runningTotal). Si ninguno cabe, usa el pool completo
-     * (fallback — mejor dar un outfit completo que uno parcial por presupuesto).
+     * Armar un outfit para el genero y estilo solicitados, con feedback de usuario aplicado,
+     * presupuesto opcional y URLs a excluir por slot-swap. presupuesto=0 → sin límite de
+     * presupuesto (comportamiento original). excluirUrls → URLs de productos a excluir (slot-swap
+     * del usuario).
      */
     public Outfit armar(List<Product> productos, String generoSolicitado, String estilo,
                         FeedbackModel feedback, double presupuesto, Set<String> excluirUrls) {
@@ -468,14 +341,8 @@ public class OutfitService {
         Set<String> excludeCategoria = feedback.excludeCategoria();
         StyleRule rule = STYLE_RULES.getOrDefault(estilo, DEFAULT_STYLE_RULE);
 
-        // 1. Particionar por slot, solo gymrat (torso/piernas) o calzado elegible
-        //    bajo la StyleRule activa.
-        //    Hard exclude (ADR-2): se descarta cualquier producto cuyo marca|categoria
-        //    esté en feedback.exclude() ANTES de que corra el fallback de 3 pasos.
-        //    Segundo eje (personalized-recommendations-feed, Decision 1): se descarta
-        //    también cualquier producto cuya categoria bare esté en excludeCategoria,
-        //    sin importar marca — independiente del pair-exclude anterior.
-        //    excluirUrls: exclusión a nivel URL (slot-swap por el usuario).
+        // Particionar por slot, solo gymrat (torso/piernas) o calzado elegible bajo la StyleRule
+        // activa.
         final Set<String> excluirUrlsFinal = excluirUrls;
         Map<String, List<Product>> bySlot = new HashMap<>();
         for (Product p : productos) {
@@ -493,8 +360,6 @@ public class OutfitService {
             bySlot.computeIfAbsent(slot, k -> new ArrayList<>()).add(p);
         }
 
-        // 2. Banda de precio ±PRICE_BAND_PCT sobre la mediana del pool elegible
-        //    (gymrat torso+piernas+calzado, ya filtrado por genero).
         List<Product> poolElegible = bySlot.values().stream()
                 .flatMap(List::stream)
                 .filter(p -> generoElegible(p, generoSolicitado))
@@ -503,18 +368,13 @@ public class OutfitService {
 
         boolean partial = false;
         Map<String, SlotPick> picks = new LinkedHashMap<>();
-        // Los Product elegidos, en paralelo a picks: SlotPick no lleva los atributos
-        // visuales, y VisualCoherence necesita el producto entero para comparar contra
-        // lo que ya está puesto.
         Map<String, Product> elegidos = new LinkedHashMap<>();
         double runningTotal = 0.0;
 
         for (String slot : SLOTS_REQUERIDOS) {
             List<Product> base = bySlot.getOrDefault(slot, List.of());
 
-            // Budget-aware candidate pre-filtering: si hay presupuesto activo,
-            // intentar primero candidatos que quepan en el restante. Si ninguno
-            // cabe, usar el pool completo (fallback — outfit completo > outfit parcial).
+            // Si ninguno cabe, usar el pool completo (fallback — outfit completo > outfit parcial).
             List<Product> baseFiltered = base;
             if (presupuesto > 0) {
                 double remaining = presupuesto - runningTotal;
@@ -525,18 +385,13 @@ public class OutfitService {
                 // else: fallback al pool completo del slot
             }
 
-            // Paso 0: genero + banda de precio
             List<Product> cands = filtrar(baseFiltered, generoSolicitado, band[0], band[1]);
 
-            // Paso 1: relajar banda de precio (mantener genero)
             if (cands.isEmpty()) {
                 cands = filtrar(baseFiltered, generoSolicitado, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
             }
 
             // Paso 2: relajar a productos sin género o explícitamente unisex.
-            // NO usar generoElegible(p, "unisex") — esa ruta devuelve true para
-            // TODOS los géneros (spec de compatibilidad), lo que cuela productos
-            // del género opuesto cuando el catálogo de un slot es pequeño.
             if (cands.isEmpty()) {
                 cands = baseFiltered.stream()
                         .filter(p -> { String g = p.genero() != null ? p.genero().trim() : "";
@@ -557,8 +412,7 @@ public class OutfitService {
             runningTotal += elegido.precio();
         }
 
-        // Accesorio: best-effort, sin fallback (ADR confirmado en design.md / spec).
-        // También aplica budget-aware filtering si hay presupuesto activo.
+        // Accesorio: best-effort, sin fallback.
         List<Product> accesorios = bySlot.getOrDefault(SLOT_ACCESORIO, List.of());
         List<Product> accesoriosElegibles = filtrar(accesorios, generoSolicitado,
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -590,18 +444,8 @@ public class OutfitService {
     }
 
     /**
-     * Style eligibility gate for the budget builder's torso/piernas sub-slots.
-     * Calzado and accesorio always pass (their eligibility is category-driven,
-     * style-independent — see armarPorCategorias / CATEGORIA_SUBSLOT).
-     *
-     * <ul>
-     *   <li>{@code estilo="gym"} (default): torso/piernas require {@code gymrat==true}
-     *       — training-oriented apparel only, mirroring the pre-existing hardcoded gate.</li>
-     *   <li>{@code estilo="casual"}: torso/piernas require {@code gymrat==false} — everyday
-     *       apparel. Since "not gymrat" is the whole casual universe (confirmed with the
-     *       user: non-gymrat isn't formal, so it's casual), new casual sites become eligible
-     *       automatically without a site whitelist.</li>
-     * </ul>
+     * {@code estilo="gym"} (default): torso/piernas require {@code gymrat==true} —
+     * training-oriented apparel only, mirroring the pre-existing hardcoded gate.
      */
     private boolean pasaEstiloGate(Product p, String slot, String estilo) {
         return OutfitRules.pasaEstiloGate(p, slot, estilo);
@@ -614,7 +458,7 @@ public class OutfitService {
                 .collect(Collectors.toList());
     }
 
-    /** Banda [min,max] = mediana ± PRICE_BAND_PCT. Si no hay pool, banda abierta (sin restricción). */
+    /** Si no hay pool, banda abierta (sin restricción). */
     private double[] priceBand(List<Product> pool) {
         if (pool.isEmpty()) {
             return new double[]{Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY};
@@ -627,29 +471,8 @@ public class OutfitService {
     }
 
     /**
-     * Selección aleatoria ponderada: candidatos más cercanos a la mediana de la
-     * banda de precio reciben mayor peso, para favorecer coherencia económica
-     * sin descartar variedad. El peso base se multiplica por un boostFactor
-     * derivado de boostLikeCount (ADR-2): pares con más likes (hasta
-     * FEEDBACK_BOOST_CAP) ganan más peso, sin volverse unbounded. El early-return
-     * de candidatos.size()==1 se mantiene — es seguro porque el exclude ya corrió
-     * upstream en armar(), así que un único candidato no puede ser un par excluido,
-     * y ni el boost ni el resto de los factores cambian una elección forzada.
-     *
-     * El peso final es el producto de cuatro términos, todos multiplicativos y todos
-     * neutros en 1.0 cuando no hay señal: cercanía de precio × boost de likes ×
-     * {@link #mlFactor} (oportunidad ML) × {@link VisualCoherence#coherencia}
-     * (estampado/fit/color contra lo que ya está puesto). Ninguno es un filtro —
-     * un candidato malo en los cuatro ejes baja de probabilidad pero sigue siendo
-     * alcanzable, que es lo que evita que un catálogo chico devuelva un slot vacío.
-     *
-     * distancia se normaliza por la mitad del ancho de banda (escala relativa,
-     * no pesos absolutos) — bug encontrado en vivo: con distancia en pesos
-     * crudos, un candidato a pocos pesos del centro (ej. coincidencia de
-     * $9 en una banda de $36000) pesaba ~1000x más que el resto y ganaba
-     * casi siempre, colapsando la variedad para categorías de ticket alto
-     * (calzado) donde esa coincidencia es más probable por la granularidad
-     * de precios del catálogo.
+     * Selección aleatoria ponderada: candidatos más cercanos a la mediana de la banda de precio
+     * reciben mayor peso, para favorecer coherencia económica sin descartar variedad.
      */
     private Product weightedRandomPick(List<Product> candidatos, double[] band,
                                         Map<String, Integer> boostLikeCount,
@@ -687,26 +510,13 @@ public class OutfitService {
     }
 
     /**
-     * Factor de oportunidad ML de un candidato, normalizado contra el score neutro
-     * (scoreP=50, sin badges) y acotado a [{@value #ML_FACTOR_MIN}, {@value #ML_FACTOR_MAX}].
-     *
-     * <p>Usa {@link RecommendationService#baseMlScore} — la misma señal que maximiza
-     * el budget builder y por la que ordena el feed "Para ti" — en vez de una tercera
-     * opinión inventada acá. Es un peso, no un filtro: un producto con mala señal baja
-     * de probabilidad pero nunca queda excluido, que es lo que mantiene la variedad.</p>
+     * Factor de oportunidad ML de un candidato, normalizado contra el score neutro (scoreP=50, sin
+     * badges) y acotado a [{@value #ML_FACTOR_MIN}, {@value #ML_FACTOR_MAX}].
      */
     private double mlFactor(Product p) {
         return OutfitRules.mlFactor(recommendationService.baseMlScore(p));
     }
 
-    // ─── Budget Builder (MCKP). Bodies in OutfitBudgetBuilder (backlog A3);
-    // this class keeps the public surface and delegates. The four overloads
-    // mirror the originals exactly: 5, 7, 8 and 9 args.
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Backward-compatible 5-arg overload. Delegates with no exclusions and MCKP mode.
-     */
     public OutfitBuilderResult armarPorCategorias(
             List<Product> productos, List<String> categorias,
             double presupuesto, String genero, FeedbackModel feedback) {
@@ -737,7 +547,6 @@ public class OutfitService {
                 feedback, excluirUrls, greedy, pinned, estilo);
     }
 
-    /** Delegates to {@link OutfitRules}; kept private so the assembler above is untouched. */
     private SlotPick toSlotPick(String slot, Product p) {
         return OutfitRules.toSlotPick(slot, p);
     }

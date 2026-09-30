@@ -3,10 +3,6 @@ package ar.scraper.pcs.reglas;
 import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
 
-/**
- * Vetoes a ram candidate whose own {@code ddr()} isn't the one requested.
- * D2: abstention vetoes when a DDR was requested.
- */
 public class ReglaDdrPedidaRam implements ReglaCompatibilidad {
 
     private final String pedida;
