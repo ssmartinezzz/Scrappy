@@ -1067,6 +1067,17 @@ que la base avise hacia afuera y nosotros no le preguntemos.
   `setTraining`/`setBackfill`). Lo que sí está en la base (`scrape_run`,
   `scrape_run_site`, `cron_executions`) lo anuncia la propia base con `pg_notify`
   ([`DATABASE.md` § `V41`](./DATABASE.md)).
+- **Quién escucha la base**: `db.DbNotificationListener`, UNA conexión `LISTEN` propia
+  (`DriverManager`, fuera de Hikari: vive lo que vive el proceso y no le saca un slot al
+  pool que atiende requests; `application_name=scrappy-listen`). Arranca en
+  `ApplicationReadyEvent`, no demora el boot, y si la base cae reconecta con backoff
+  exponencial + jitter (Resilience4j) sin tope de intentos. En cada (re)conexión publica
+  `Resync`, porque las notificaciones no son durables. Sólo loguea transiciones de estado.
+- **Variables de entorno, todas opcionales** (no entran en `RequiredEnvVarsGuard`):
+  `DB_INIT_FAIL_TIMEOUT_MS` (60000) y `DB_CONNECTION_TIMEOUT_MS` (30000) para Hikari,
+  `DB_CONNECT_RETRIES` (10) y `DB_CONNECT_RETRY_INTERVAL` (10s) para Flyway,
+  `DB_LISTEN_RETRY_INITIAL_MS` (1000) y `DB_LISTEN_RETRY_MAX_MS` (60000) para el listener.
+  El arranque espera a la base en vez de morir en la primera conexión rechazada.
 - **Falla la espera, no el dato**: un evento perdido no deja a nadie con un estado
   equivocado; el bus emite `Resync` y el cliente relee. Por eso el aviso es una pista,
   y la fuente de verdad sigue siendo `/api/status` y `/api/ml/estado`.
