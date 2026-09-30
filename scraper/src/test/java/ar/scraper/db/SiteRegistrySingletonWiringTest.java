@@ -57,6 +57,11 @@ class SiteRegistrySingletonWiringTest {
     @Configuration
     static class UnreachableDataSourceConfig {
         @Bean
+        org.springframework.transaction.PlatformTransactionManager transactionManager(DataSource dataSource) {
+            return new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource);
+        }
+
+        @Bean
         DataSource dataSource() {
             return new DataSource() {
                 @Override
