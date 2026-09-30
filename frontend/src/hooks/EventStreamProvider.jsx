@@ -67,8 +67,7 @@ const BusContext = createContext(NO_BUS);
  * leaves a stream open on a dead token.
  */
 export function EventStreamProvider({ children, open = openEventStream, connectOptions }) {
-  const { authenticated, identity } = useAuth();
-  const username = identity?.username;
+  const { authenticated } = useAuth();
   const [state, dispatch] = useReducer(reduceStatusEvent, INITIAL);
   const [stream, setStream] = useState(NO_STREAM);
   const listeners = useRef(new Map());
@@ -128,7 +127,7 @@ export function EventStreamProvider({ children, open = openEventStream, connectO
     }
     const handle = connectEventStream({ open, onEvent, onState: setStream, ...connectOptions });
     return () => handle.close();
-  }, [authenticated, username, open, onEvent, connectOptions]);
+  }, [authenticated, open, onEvent, connectOptions]);
 
   const ml = useMemo(() => ({ estado: state.estado, backfill: state.backfill }), [state.estado, state.backfill]);
 
