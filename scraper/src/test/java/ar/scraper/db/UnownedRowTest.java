@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.TestRepositories;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -41,7 +42,7 @@ class UnownedRowTest extends PostgresTestBase {
     @BeforeEach
     void setUp() throws Exception {
         db = TestDatabaseServices.create(dataSource());
-        usuarios = new UsuarioRepository(dataSource());
+        usuarios = TestRepositories.usuarios(dataSource());
         usuarios.crear("ana", null, "$argon2id$x", false);
         ana = usuarios.buscarActivaPorUsername("ana").orElseThrow().id();
 

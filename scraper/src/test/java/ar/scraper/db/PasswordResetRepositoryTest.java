@@ -1,6 +1,9 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.TestRepositories;
+import ar.scraper.db.support.TestTransactions;
+import org.springframework.transaction.support.TransactionTemplate;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -48,8 +51,8 @@ class PasswordResetRepositoryTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        repo = new PasswordResetRepository(dataSource());
-        usuarios = new UsuarioRepository(dataSource());
+        repo = TestRepositories.passwordResets(dataSource());
+        usuarios = TestRepositories.usuarios(dataSource());
         usuarios.crear("ana", "ana@example.com", "$argon2id$x", false);
         ana = usuarios.buscarActivaPorUsername("ana").orElseThrow().id();
     }
@@ -131,11 +134,10 @@ class PasswordResetRepositoryTest extends PostgresTestBase {
     void aRolledBackConsumeDoesNotBurnTheToken() throws Exception {
         repo.crear(ana, "token-crudo", AHORA.plus(Duration.ofMinutes(30)));
 
-        try (Connection c = dataSource().getConnection()) {
-            c.setAutoCommit(false);
-            assertThat(repo.consumir(c, "token-crudo", AHORA)).contains(ana);
-            c.rollback();
-        }
+        new TransactionTemplate(TestTransactions.manager(dataSource())).executeWithoutResult(tx -> {
+            assertThat(repo.consumir("token-crudo", AHORA)).contains(ana);
+            tx.setRollbackOnly();
+        });
 
         assertThat(repo.consumir("token-crudo", AHORA))
                 .as("a link burnt by a change that then failed would send the user back for another "
@@ -150,9 +152,7 @@ class PasswordResetRepositoryTest extends PostgresTestBase {
         repo.crear(ana, "token-2", AHORA.plus(Duration.ofMinutes(30)));
         repo.crear(ana, "token-3", AHORA.plus(Duration.ofMinutes(30)));
 
-        try (Connection c = dataSource().getConnection()) {
-            assertThat(repo.anularPendientesDe(c, ana, AHORA)).isEqualTo(3);
-        }
+        assertThat(repo.anularPendientesDe(ana, AHORA)).isEqualTo(3);
 
         assertThat(repo.consumir("token-1", AHORA)).isEmpty();
         assertThat(repo.consumir("token-2", AHORA)).isEmpty();

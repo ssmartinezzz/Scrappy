@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -58,12 +59,12 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        repo = new UsuarioRepository(dataSource());
+        repo = TestRepositories.usuarios(dataSource());
         PasswordHasher hasher = new PasswordHasher();
         tokens = new TokenService(SECRETO, Clock.systemUTC());
         Clock reloj = Clock.systemUTC();
         endpoints = new AuthEndpoints(repo, hasher, tokens,
-                new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj),
+                new RefreshTokenService(TestRepositories.refreshTokens(dataSource()), tokens, reloj),
                 null);   // el reseteo tiene su propio test; acá no se ejercita
 
         repo.crear("ana", "ana@example.com", hasher.hash(PASSWORD), false);

@@ -194,19 +194,18 @@ class TransactionalUnitsRollbackTest extends PostgresTestBase {
     @DisplayName("guardarSitio writes neither table when the second one fails")
     void guardarSitioWritesNeitherTable() throws Exception {
         try (var fault = FaultInjection.raiseOn(dataSource(), "sitio", "INSERT", "NEW.origen = 'dinamico'")) {
-            db.guardarSitio("MiSitio", "https://misitio.com", "shopify");
+            db.guardarSitio("SitioAtomico", "https://misitio.com", "shopify");
         }
         assertThat(count("sitios_dinamicos")).isZero();
-        var registered = db.siteRegistry().porKey(ar.scraper.classification.SiteClassification.sitioKey("MiSitio"));
-        assertThat(registered == null || !"dinamico".equals(registered.origen())).isTrue();
+        assertThat(count("sitio WHERE nombre = 'SitioAtomico'")).isZero();
     }
 
     @Test
     @DisplayName("eliminarSitio keeps the site when re-labelling its origin fails")
     void eliminarSitioKeepsTheSiteWhenRelabellingFails() throws Exception {
-        db.guardarSitio("MiSitio", "https://misitio.com", "shopify");
+        db.guardarSitio("SitioAtomico", "https://misitio.com", "shopify");
         try (var fault = FaultInjection.raiseOn(dataSource(), "sitio", "UPDATE", "NEW.origen = 'historico'")) {
-            db.eliminarSitio("MiSitio");
+            db.eliminarSitio("SitioAtomico");
         }
         assertThat(count("sitios_dinamicos")).isEqualTo(1);
     }

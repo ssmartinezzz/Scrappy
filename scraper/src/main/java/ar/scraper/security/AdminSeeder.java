@@ -8,8 +8,6 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 /**
  * Creates the bootstrap admin and the CLI service account at startup, then
  * adopts every personal row that has no owner yet.
@@ -86,13 +84,8 @@ public class AdminSeeder implements ApplicationRunner {
         String hashAdmin = hasher.hash(adminPassword);
         String hashServicio = hasher.hash(servicioPassword);
 
-        int adoptadas = usuarios.enTransaccion(tx -> {
-            // email is null for both: the service account's CHECK requires it,
-            // and the bootstrap admin has no address anybody has confirmed.
-            UUID adminId = tx.sembrarCuenta(adminUsername, null, hashAdmin, false, ROL_ADMIN);
-            tx.sembrarCuenta(servicioUsername, null, hashServicio, true, ROL_ADMIN);
-            return tx.adoptarFilasSinDueno(adminId);
-        });
+        int adoptadas = usuarios.sembrarAdministracion(
+                adminUsername, hashAdmin, servicioUsername, hashServicio, ROL_ADMIN);
 
         if (adoptadas > 0) {
             LOG.info("[AUTH] {} filas personales preexistentes adoptadas por '{}'", adoptadas, adminUsername);

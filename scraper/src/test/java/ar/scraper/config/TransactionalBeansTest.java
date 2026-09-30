@@ -84,10 +84,18 @@ class TransactionalBeansTest extends PostgresTestBase {
                 .withUserConfiguration(TransactionConfigProbe.class)
                 .withBean(SiteRegistry.class, () -> SiteRegistry.forTesting(Map.of()))
                 .withBean(RubroResolver.class, () -> new RubroResolver(SiteRegistry.forTesting(Map.of())))
+                // collaborators of the transactional beans that are not transactional themselves
+                .withBean(ar.scraper.db.PasswordResetRepository.class)
+                .withBean(ar.scraper.db.RefreshTokenRepository.class)
+                .withBean(ar.scraper.security.PasswordHasher.class)
+                .withBean(java.time.Clock.class, java.time.Clock::systemUTC)
+                .withBean(ar.scraper.security.reset.ResetRateLimiter.class)
+                .withBean(ar.scraper.security.reset.PasswordResetChannel.class, () -> (destino, enlace) -> { })
                 .withPropertyValues(
                         "spring.datasource.url=" + simple.getUrl(),
                         "spring.datasource.username=" + simple.getUsername(),
-                        "spring.datasource.password=" + simple.getPassword());
+                        "spring.datasource.password=" + simple.getPassword(),
+                        "password.reset.link-base=http://localhost");
         for (Class<?> type : types) {
             @SuppressWarnings("unchecked") Class<Object> bean = (Class<Object>) type;
             runner = runner.withBean(bean);

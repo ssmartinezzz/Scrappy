@@ -147,18 +147,6 @@ public class RefreshTokenRepository {
      * in would be useless as a remedy for the case people actually reset a
      * password in — somebody else is already inside.</p>
      */
-    public int revocarTodasLasDe(Connection c, UUID usuarioId, Instant cuando) {
-        try (PreparedStatement ps = c.prepareStatement(
-                "UPDATE refresh_token SET revoked_at = ? WHERE usuario_id = ? AND revoked_at IS NULL")) {
-            ps.setTimestamp(1, Timestamp.from(cuando));
-            ps.setObject(2, usuarioId);
-            return ps.executeUpdate();
-        } catch (Exception e) {
-            throw new UsuarioRepository.DatabaseException("no se pudieron revocar los tokens del usuario", e);
-        }
-    }
-
-    /** Convenience overload for callers with no transaction of their own. */
     public int revocarTodasLasDe(UUID usuarioId, Instant cuando) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
