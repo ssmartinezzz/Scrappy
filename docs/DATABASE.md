@@ -125,6 +125,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V37` | `tamanio_gabinete` (lookup sembrado) + `radiador_mm` y las cuatro preferencias finas de la fase 9 |
 | `V38` | Categoría `Mini PC` (`categoria`, lookup) — fase 10 del armador |
 | `V39` | `uso` (lookup) + `preferencia_armador.uso_id` — perfil homelab, fase 10 |
+| `V40` | `catalog_version` (una fila) + triggers: versión del catálogo para cachear facetas |
+| `V41` | `notify_status_change()` + triggers `pg_notify` sobre `scrape_run`, `scrape_run_site` y `cron_executions` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -2992,3 +2994,63 @@ hace explícito. `catalog_version` se suelta antes que su secuencia por la
 misma razón que en `V39`: nada más referencia a ninguna de las dos, así que
 no hay ambigüedad de orden entre ellas, pero soltar la tabla primero evita
 dejar un default huérfano si alguna vez lo tuviera.
+
+## `V41` — la base avisa los cambios de estado
+
+La UI consultaba el estado de la corrida, del ML y de los cron por polling
+(1,8 s / 2 s / 4 s por pestaña): cada pestaña abierta es tráfico contra la app
+y, detrás, contra la base. `backend-hardening` T3 invierte el sentido: **la base
+avisa hacia afuera, la aplicación no le pregunta.**
+
+`notify_status_change()` es un trigger `AFTER INSERT OR UPDATE ... FOR EACH ROW`
+sobre `scrape_run`, `scrape_run_site` y `cron_executions` que hace
+`pg_notify('status_events', payload)`. Un solo canal; el payload es un `jsonb`
+chico con la tabla lógica (`t`), la operación (`op`), los identificadores y el
+estado nuevo:
+
+| Tabla | Payload |
+|---|---|
+| `scrape_run` | `{"t":"scrape_run","op","id","status"}` |
+| `scrape_run_site` | `{"t":"scrape_run_site","op","run","site","status"}` |
+| `cron_executions` | `{"t":"cron_execution","op","id","job","status"}` |
+
+- **Transaccional**: `pg_notify` entrega al COMMIT. Un rollback no avisa nada, y
+  un batch que toca varias filas avisa una vez por fila cambiada.
+- **Sólo cambios de estado**: en un `UPDATE` que deja `status` igual (por
+  ejemplo `productos_count` subiendo durante una corrida) el trigger vuelve sin
+  notificar. No hay triggers de `DELETE`.
+- **Sin texto libre**: `error` y `log_output` nunca viajan. El payload de NOTIFY
+  tiene un tope de 8000 bytes, y un mensaje de error largo lo reventaría.
+- **La función vive en el `V41`, no en un `R__`**: las repetibles corren después
+  de las versionadas, así que los triggers de este mismo archivo fallarían en
+  una base nueva. Como el `V40`, fija `search_path = pg_catalog, public`.
+- **Quién escucha**: una única conexión `LISTEN` fuera de Hikari
+  (`ar.scraper.db.DbNotificationListener`). El estado del scrape y del ML en curso
+  vive en memoria (`ScraperService`, `PythonRunner`) y un trigger no lo ve: eso lo
+  publica la aplicación directo al bus de eventos, no pasa por la base.
+
+```sql
+CREATE FUNCTION notify_status_change() RETURNS trigger ...
+CREATE TRIGGER trg_status_notify_scrape_run       AFTER INSERT OR UPDATE ON scrape_run       ...
+CREATE TRIGGER trg_status_notify_scrape_run_site  AFTER INSERT OR UPDATE ON scrape_run_site  ...
+CREATE TRIGGER trg_status_notify_cron_executions  AFTER INSERT OR UPDATE ON cron_executions  ...
+```
+
+El SQL completo está en `V41__status_notify.sql`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V41
+DROP TRIGGER trg_status_notify_cron_executions ON cron_executions;
+DROP TRIGGER trg_status_notify_scrape_run_site ON scrape_run_site;
+DROP TRIGGER trg_status_notify_scrape_run ON scrape_run;
+DROP FUNCTION notify_status_change();
+-- <<< rollback:V41
+```
+
+Los triggers se sueltan antes que la función que ejecutan; nunca `CASCADE`.
+Los rollbacks componen en orden inverso: el de `V41` corre ANTES que el de
+`V29` (que suelta `scrape_run`) y que cualquiera que suelte `cron_executions`.
+Soltar una de esas tablas primero se llevaría el trigger y dejaría la función
+huérfana, y este bloque fallaría con `does not exist`.
