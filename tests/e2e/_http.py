@@ -77,6 +77,15 @@ class Respuesta:
             return {}
         return parsed if isinstance(parsed, dict) else {"_lista": parsed}
 
+    def data(self) -> dict:
+        """``body["data"]`` of the success envelope, or ``{}`` (a list stays a list)."""
+        return self.json().get("data") or {}
+
+    def error_code(self) -> str:
+        """``body["error"]["code"]`` of the error envelope, or ``""``."""
+        error = self.json().get("error")
+        return error.get("code", "") if isinstance(error, dict) else ""
+
     def lista(self) -> list:
         parsed = jsonlib.loads(self.body.decode("utf-8"))
         assert isinstance(parsed, list), f"esperaba un array JSON, llegó {parsed!r}"
