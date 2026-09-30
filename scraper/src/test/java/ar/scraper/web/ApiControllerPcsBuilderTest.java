@@ -1,5 +1,8 @@
 package ar.scraper.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.web.support.Wire;
 import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator;
@@ -86,7 +89,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/cpu"))));
 
         var resp = controller.pcsBuilder(0, false, "");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.has("picks")).isTrue();
@@ -106,7 +109,7 @@ class ApiControllerPcsBuilderTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
 
         var resp = controller.pcsBuilder(0, false, "");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").size()).isEqualTo(0);
@@ -119,7 +122,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/gpu"))));
 
         var resp = controller.pcsBuilder(0, true, "");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         boolean tieneGpu = false;
         for (var pick : body.get("picks")) {
@@ -134,7 +137,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Placa de Video RTX 4070", 900_000, "GPU", "https://t/gpu"))));
 
         var resp = controller.pcsBuilder(0, false, "");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         for (var pick : body.get("picks")) {
             assertThat(pick.get("slot").asText()).isNotEqualTo("gpu");
@@ -153,7 +156,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/r9"))));
 
         var resp = controller.pcsBuilder(0, false, "", "alta");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").get(0).get("slot").asText()).isEqualTo("cpu");
@@ -166,7 +169,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador Amd Ryzen 9 7900 Am5", 400_000, "CPU", "https://t/r9"))));
 
         var resp = controller.pcsBuilder(0, false, "", "ECONÓMICA");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("sinCompatible").toString()).contains("cpu");
@@ -178,7 +181,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador Intel Core i3 12100", 100_000, "CPU", "https://t/i3"))));
 
         var resp = controller.pcsBuilder(0, false, "", "");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("sinCompatible").size()).isEqualTo(0);
@@ -187,10 +190,10 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void gamaInvalidReturns400WithOkFalse() {
-        var resp = controller.pcsBuilder(0, false, "", "ultra");
+        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "ultra"));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
     }
 
     // ── preferencias técnicas (pc-builder-deep-taxonomy T5c) ──────────────
@@ -202,7 +205,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Motherboard ASUS PRIME B450M DDR4 AM4", 150_000, "Motherboard", "https://t/ddr4"))));
 
         var resp = controller.pcsBuilder(0, false, "", "", "ddr4", "", "", "", null, null);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/ddr4");
@@ -210,11 +213,11 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void ddrInvalidReturns400WithOkFalse() {
-        var resp = controller.pcsBuilder(0, false, "", "", "ddr3", "", "", "", null, null);
+        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "ddr3", "", "", "", null, null));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("ddr");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("ddr");
     }
 
     @Test
@@ -224,7 +227,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Procesador AMD Ryzen 5 5600X AM4", 140_000, "CPU", "https://t/amd"))));
 
         var resp = controller.pcsBuilder(0, false, "", "", "", "amd", "", "", null, null);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/amd");
@@ -232,11 +235,11 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void marcaCpuInvalidReturns400WithOkFalse() {
-        var resp = controller.pcsBuilder(0, false, "", "", "", "nvidia", "", "", null, null);
+        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "", "nvidia", "", "", null, null));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("marcaCpu");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("marcaCpu");
     }
 
     @Test
@@ -246,7 +249,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Placa de Video Radeon RX 7800 XT", 800_000, "GPU", "https://t/amd"))));
 
         var resp = controller.pcsBuilder(0, true, "", "", "", "", "amd", "", null, null);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         String gpuUrl = null;
         for (var pick : body.get("picks")) {
@@ -257,11 +260,11 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void marcaGpuInvalidReturns400WithOkFalse() {
-        var resp = controller.pcsBuilder(0, true, "", "", "", "", "intel", "", null, null);
+        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, true, "", "", "", "", "intel", "", null, null));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("marcaGpu");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("marcaGpu");
     }
 
     @Test
@@ -271,7 +274,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Disco Rigido Seagate 1TB HDD", 40_000, "Almacenamiento", "https://t/hdd"))));
 
         var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "hdd", null, null);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         String almacenamientoUrl = null;
         for (var pick : body.get("picks")) {
@@ -282,11 +285,11 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void tipoAlmacenamientoInvalidReturns400WithOkFalse() {
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "ssd", null, null);
+        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "", "", "", "ssd", null, null));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("tipoAlmacenamiento");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("tipoAlmacenamiento");
     }
 
     @Test
@@ -296,7 +299,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Memoria Corsair DDR5 32GB 6000MHz", 170_000, "RAM", "https://t/single"))));
 
         var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", true, null);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/kit");
@@ -309,7 +312,7 @@ class ApiControllerPcsBuilderTest {
                 producto("Motherboard ASUS TUF Gaming B650M-E AM5", 190_000, "Motherboard", "https://t/nowifi"))));
 
         var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, true);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").get(0).get("url").asText()).isEqualTo("https://t/wifi");
@@ -330,7 +333,7 @@ class ApiControllerPcsBuilderTest {
 
         var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
                 null, "", "", null, "homelab");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         java.util.List<String> slots = new java.util.ArrayList<>();
@@ -345,7 +348,7 @@ class ApiControllerPcsBuilderTest {
 
         var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
                 null, "", "", null, "");
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         java.util.List<String> slots = new java.util.ArrayList<>();
         body.get("picks").forEach(p -> slots.add(p.get("slot").asText()));
@@ -354,11 +357,11 @@ class ApiControllerPcsBuilderTest {
 
     @Test
     void usoInvalidoReturns400WithOkFalse() {
-        var resp = controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
-                null, "", "", null, "servidor");
+        ApiException e = Wire.apiError(() -> controller.pcsBuilder(0, false, "", "", "", "", "", "", null, null,
+                null, "", "", null, "servidor"));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("uso");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("uso");
     }
 }

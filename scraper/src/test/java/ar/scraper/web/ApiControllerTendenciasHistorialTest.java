@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.api.ApiException;
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -93,11 +95,10 @@ class ApiControllerTendenciasHistorialTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
         when(aggregator.getLastMlOutput()).thenReturn(null);
 
-        var resp = controller.tendencias();
-        JsonNode body = resp.getBody();
+        ApiException e = Wire.apiError(() -> controller.tendencias());
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(503);
-        assertThat(body.get("error").asText()).isEqualTo("ml_failed");
+        assertThat(e.status().value()).isEqualTo(503);
+        assertThat(e.code()).isEqualTo("ml_failed");
     }
 
     @Test
@@ -128,7 +129,7 @@ class ApiControllerTendenciasHistorialTest {
         var resp = controller.tendencias();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody().get("topCategoria").asText()).isEqualTo("Zapatilla");
+        assertThat(Wire.data(resp).get("topCategoria").asText()).isEqualTo("Zapatilla");
     }
 
     // ── GET /api/historial ───────────────────────────────────────────────
@@ -151,8 +152,7 @@ class ApiControllerTendenciasHistorialTest {
         when(historial.cargarHistorial("https://a.com/1")).thenReturn(entries);
 
         var resp = controller.historial("https://a.com/1");
-        JsonNode body = new ObjectMapper().readTree(
-                new ObjectMapper().writeValueAsString(resp.getBody()));
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("puntos").size()).isEqualTo(3);
@@ -167,8 +167,7 @@ class ApiControllerTendenciasHistorialTest {
         when(historial.cargarHistorial("https://a.com/1")).thenReturn(entries);
 
         var resp = controller.historial("https://a.com/1");
-        JsonNode body = new ObjectMapper().readTree(
-                new ObjectMapper().writeValueAsString(resp.getBody()));
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("puntos").size()).isEqualTo(1);
@@ -192,12 +191,11 @@ class ApiControllerTendenciasHistorialTest {
         when(grouping.agrupar(any(), anyBoolean())).thenReturn(List.of());
 
         var resp = controller.grupos(null, null, null, null, 2, 0, 20);
-        JsonNode body = new ObjectMapper().readTree(
-                new ObjectMapper().writeValueAsString(resp.getBody()));
+        JsonNode body = Wire.body(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(body.get("total").asInt()).isEqualTo(0);
-        assertThat(body.get("grupos").isArray()).isTrue();
+        assertThat(body.get("page").get("total").asInt()).isEqualTo(0);
+        assertThat(body.get("data").isArray()).isTrue();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

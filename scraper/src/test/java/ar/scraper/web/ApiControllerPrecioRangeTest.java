@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -131,14 +132,14 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
         Product caro   = producto("https://site.com/caro", 50000);
         sembrar(barato, medio, caro);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null);
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         JsonNode productos = body.path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/medio");
-        assertThat(body.path("meta").path("total").asInt()).isEqualTo(1);
+        assertThat(Wire.page(resp).path("total").asInt()).isEqualTo(1);
     }
 
     @Test
@@ -148,10 +149,10 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
         sembrar(barato, caro);
 
         Allure.parameter("precioMin", 5000.0);
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 5000.0, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/caro2");
     }
@@ -163,10 +164,10 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
         sembrar(barato, caro);
 
         Allure.parameter("precioMax", 5000.0);
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, 5000.0, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/barato3");
     }
@@ -180,10 +181,10 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
 
         Allure.parameter("precioMin", 10000.0);
         Allure.parameter("precioMax", 20000.0);
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
     }
 
@@ -197,10 +198,10 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
         Product unidadFueraDelRango = producto("https://site.com/unidad-out", 36000);
         sembrar(packDentroDelRango, unidadFueraDelRango);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/pack-in");
     }
@@ -212,10 +213,10 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
         Product pack = productoPack("https://site.com/pack-cheap-unit", 12000, 5);
         sembrar(pack);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).isEmpty();
     }
 
@@ -227,12 +228,12 @@ class ApiControllerPrecioRangeTest extends ar.scraper.db.support.PostgresTestBas
         Product b = producto("https://site.com/b", 90000);
         sembrar(a, b);
 
-        ResponseEntity<?> respWithoutNewParams = controller.data(1, 24, null, null, null, null, null, null,
+        ResponseEntity<?> respWithoutNewParams = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode body = (JsonNode) respWithoutNewParams.getBody();
+        JsonNode body = Wire.data(respWithoutNewParams);
         assertThat(body.path("productos")).hasSize(2);
-        assertThat(body.path("meta").path("total").asInt()).isEqualTo(2);
-        assertThat(body.path("meta").path("totalPaginas").asInt()).isEqualTo(1);
+        assertThat(Wire.page(respWithoutNewParams).path("total").asInt()).isEqualTo(2);
+        assertThat(Wire.page(respWithoutNewParams).path("totalPages").asInt()).isEqualTo(1);
     }
 }

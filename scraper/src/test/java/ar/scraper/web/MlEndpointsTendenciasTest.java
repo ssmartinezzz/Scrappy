@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -83,7 +84,7 @@ class MlEndpointsTendenciasTest {
                 11000, 18000, 7000, 2500, 500, 28500);
         when(categoriaStats.cargarCategoriaStats()).thenReturn(Map.of("Remera", remera));
 
-        JsonNode body = controller.tendencias().getBody();
+        JsonNode body = Wire.data(controller.tendencias());
         JsonNode cat = body.get("distribucionCategorias").get("Remera");
 
         assertThat(cat).isNotNull();
@@ -106,7 +107,7 @@ class MlEndpointsTendenciasTest {
     void sinStatsNoHayDistribucionCategorias() {
         when(categoriaStats.cargarCategoriaStats()).thenReturn(Map.of());
 
-        JsonNode body = controller.tendencias().getBody();
+        JsonNode body = Wire.data(controller.tendencias());
 
         assertThat(body.has("distribucionCategorias")).isFalse();
     }

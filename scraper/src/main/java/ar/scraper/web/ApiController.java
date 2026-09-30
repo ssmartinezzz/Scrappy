@@ -1,38 +1,29 @@
 package ar.scraper.web;
 
 import ar.scraper.indices.IndiceService;
-
-import ar.scraper.aggregator.ResultAggregator;
-import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductJson;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.identity.ActorResolver;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;
 import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.*;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
 public class ApiController {
-
-
-    private static final org.slf4j.Logger LOG =
-        org.slf4j.LoggerFactory.getLogger(ApiController.class);
 
     private final ScraperService   service;
     private final IndiceService indiceService;
@@ -48,86 +39,32 @@ public class ApiController {
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
 
-    /**
-     * LLM Catalog Agent endpoints, extracted to their own class (backlog A3).
-     * The request mappings stay on this controller and delegate here, so routes
-     * and callers are unchanged.
-     */
     private final AgentEndpoints agentEndpoints;
 
-    /**
-     * Financing presets, buy recommendation and inflation endpoints, extracted
-     * to their own class (backlog A3) — same delegation shape as
-     * {@link #agentEndpoints}.
-     */
     private final FinanciacionEndpoints financiacionEndpoints;
 
-    /**
-     * Outfit / supplement builder and saved-outfit endpoints, extracted to their
-     * own class (backlog A3) — same delegation shape as {@link #agentEndpoints}.
-     */
     private final OutfitsEndpoints outfitsEndpoints;
 
-    /** PC builder endpoint (pc-builder phase 2) — same delegation shape as {@link #agentEndpoints}. */
     private final PcsEndpoints pcsEndpoints;
 
-    /**
-     * "Para ti" feed endpoints, extracted to their own class (backlog A3) —
-     * same delegation shape as {@link #agentEndpoints}.
-     */
     private final RecomendadosEndpoints recomendadosEndpoints;
 
-    /**
-     * Favoritos endpoints, extracted to their own class (backlog A3) — same
-     * delegation shape as {@link #agentEndpoints}.
-     */
     private final FavoritosEndpoints favoritosEndpoints;
 
-    /**
-     * ML pipeline / training endpoints, extracted to their own class (backlog
-     * A3) — same delegation shape as {@link #agentEndpoints}.
-     */
     private final MlEndpoints mlEndpoints;
 
-    /**
-     * Brand browser and mejores-picks endpoints, extracted to their own class
-     * (backlog A3) — same delegation shape as {@link #agentEndpoints}.
-     */
     private final MarcasPicksEndpoints marcasPicksEndpoints;
 
-    /**
-     * Multi-site comparison endpoints, extracted to their own class (backlog
-     * A3) — same delegation shape as {@link #agentEndpoints}.
-     */
     private final ComparadorEndpoints comparadorEndpoints;
 
-    /**
-     * Destructive DB maintenance and the retired export/import, extracted to
-     * their own class (backlog A3).
-     */
     private final DbAdminEndpoints dbAdminEndpoints;
 
-    /**
-     * Catalog listing / facets / CSV / soft-delete, extracted to their own
-     * class (backlog A3) — same delegation shape as {@link #agentEndpoints}.
-     */
     private final CatalogoEndpoints catalogoEndpoints;
 
-    /**
-     * Run control (status / scrape) and site+config management, extracted to
-     * their own class (backlog A3) — same delegation shape as
-     * {@link #agentEndpoints}.
-     */
     private final ScrapeControlEndpoints scrapeControlEndpoints;
 
-    /**
-     * Primary constructor (manual-classification-lock Phase 7) — adds the
-     * {@link ActorResolver} seam (architecture/session-readiness, obs #773):
-     * {@code agentApply} resolves the acting identity through this ONE seam,
-     * never inline. Spring wires this one (see {@code @Autowired} below); two
-     * legacy overloads are kept right below purely so the existing unit tests
-     * that construct {@code ApiController} directly keep compiling unchanged.
-     */
+    // Mappings live here; bodies live in the *Endpoints delegates. The shorter constructors and the
+    // mapping-less overloads below exist only so tests that build the controller directly keep compiling.
     @Autowired
     public ApiController(ScraperService service,
                          IndiceService indiceService, ScraperConfig config,
@@ -169,12 +106,6 @@ public class ApiController {
         this.scrapeControlEndpoints = new ScrapeControlEndpoints(service, config);
     }
 
-    /**
-     * Legacy 11-arg constructor (pre manual-classification-lock, llm-catalog-nlp
-     * shape) — see the note on the primary constructor above. Defaults to a real
-     * (not fake) {@link ActorResolver} — it has no dependencies of its own, so
-     * this is behaviorally identical to Spring injecting it.
-     */
     public ApiController(ScraperService service,
                          IndiceService indiceService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
@@ -189,7 +120,6 @@ public class ApiController {
              outfitService, recommendationService, catalogAgentService, agentConfig, new ActorResolver());
     }
 
-    /** Legacy 9-arg constructor (pre-agent) — see the note on the primary constructor above. */
     public ApiController(ScraperService service,
                          IndiceService indiceService, ScraperConfig config,
                          ar.scraper.aggregator.ResultAggregator aggregator,
@@ -202,76 +132,53 @@ public class ApiController {
              outfitService, recommendationService, null, null);
     }
 
-    // ─── Run control: status/progreso y lanzar scraping. Bodies in
-    // ScrapeControlEndpoints (backlog A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
-
     @GetMapping("/scrape/interrupted")
-    public ResponseEntity<ObjectNode> scrapeInterrumpido() {
+    public ResponseEntity<ApiResponse<ScrapeDtos.Interrumpida>> scrapeInterrumpido() {
         return scrapeControlEndpoints.interrumpida();
     }
 
     @PostMapping("/scrape/resume")
-    public ResponseEntity<ObjectNode> retomarScrape() {
+    public ResponseEntity<ApiResponse<ScrapeDtos.Retomar>> retomarScrape() {
         return scrapeControlEndpoints.retomar();
     }
 
     @PostMapping("/scrape/discard")
-    public ResponseEntity<ObjectNode> descartarScrapeInterrumpido() {
+    public ResponseEntity<ApiResponse<ScrapeDtos.Descartar>> descartarScrapeInterrumpido() {
         return scrapeControlEndpoints.descartar();
     }
 
     @PostMapping("/scrape/cancel")
-    public ResponseEntity<ObjectNode> cancelarScrape() {
+    public ResponseEntity<ApiResponse<ScrapeDtos.Cancelar>> cancelarScrape() {
         return scrapeControlEndpoints.cancelar();
     }
 
     @GetMapping("/status")
-    public ResponseEntity<ObjectNode> status() {
+    public ResponseEntity<ApiResponse<ScrapeDtos.Status>> status() {
         return scrapeControlEndpoints.status();
     }
 
     @PostMapping("/scrape")
-    public ResponseEntity<ObjectNode> scrape(
+    public ResponseEntity<ApiResponse<ScrapeDtos.Iniciar>> scrape(
             @RequestParam(required=false) Double precioMin,
             @RequestParam(required=false) Double precioMax,
-            @RequestParam(required=false) Double precio,          // legado
-            @RequestParam(required=false) List<String> sitios,   // seleccion opcional
+            @RequestParam(required=false) Double precio,          // legacy alias of precioMax
+            @RequestParam(required=false) List<String> sitios,
             @RequestParam(defaultValue="false") boolean forceRetrain) {
         return scrapeControlEndpoints.scrape(precioMin, precioMax, precio, sitios, forceRetrain);
     }
 
     @DeleteMapping("/db/productos")
-    public ResponseEntity<String> limpiarProductos() {
+    public ResponseEntity<ApiResponse<MensajeDto>> limpiarProductos() {
         return dbAdminEndpoints.limpiarProductos();
     }
 
     @DeleteMapping("/db/ml")
-    public ResponseEntity<String> limpiarMl() {
+    public ResponseEntity<ApiResponse<MensajeDto>> limpiarMl() {
         return dbAdminEndpoints.limpiarMl();
     }
 
-    // ─── Catálogo: listado paginado con filtros, facets sueltos, CSV y
-    // soft-delete. Bodies in CatalogoEndpoints (backlog A3); the mappings
-    // and BOTH data(...) overloads stay here -- tests call them directly.
-    //
-    // Query params de /data:
-    //   page        int (default 1)
-    //   size        int (default 24)
-    //   talle       string[] (multi, OR dentro del grupo)
-    //   genero      string   (single)
-    //   categoria   string[] (multi, OR)
-    //   q           string   (búsqueda full-text en nombre)
-    //   orden       precio_asc | precio_desc | nombre (default precio_asc)
-    // ─────────────────────────────────────────────────────────────────────
 
-    /**
-     * Legacy 17-arg overload (pre-PR6) — retained for backward source
-     * compatibility with existing test call sites built before the 4 additive
-     * visual-attribute filters (T6.7/T6.8) were added. Defaults
-     * fit/estampado/escote/colorDominante to {@code null} (no filter).
-     */
-    public ResponseEntity<ObjectNode> data(
+    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(
             int page, int size, List<String> talle, String genero, List<String> categoria,
             String q, String sitio, List<String> marca, String badge, String segment,
             String rubro, Boolean gymrat, String orden, Boolean pack,
@@ -283,8 +190,8 @@ public class ApiController {
     }
 
     @GetMapping("/data")
-    public ResponseEntity<ObjectNode> data(
-            @RequestParam(defaultValue = "1")   int page,
+    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(
+            @RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "24")  int size,
             @RequestParam(required = false)     List<String> talle,
             @RequestParam(required = false)     String genero,
@@ -312,7 +219,7 @@ public class ApiController {
     }
 
     @GetMapping("/facets")
-    public ResponseEntity<ObjectNode> facets() {
+    public ResponseEntity<ApiResponse<CatalogoDtos.FacetsDto>> facets() {
         return catalogoEndpoints.facets();
     }
 
@@ -321,60 +228,46 @@ public class ApiController {
         return catalogoEndpoints.csv();
     }
 
-    /**
-     * Detalle de un producto + su historial, para la vista dedicada. 404 si no
-     * existe. Entra por el handle corto (`producto_key`), no por la URL entera.
-     */
     @GetMapping("/producto/{key}")
-    public ResponseEntity<Object> productoDetalle(@PathVariable String key) {
+    public ResponseEntity<ApiResponse<CatalogoDtos.ProductoDetalle>> productoDetalle(@PathVariable String key) {
         return catalogoEndpoints.productoDetalle(key);
     }
 
-    // ─── Gestión de sitios y config. Bodies in ScrapeControlEndpoints
-    // (backlog A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/sitios")
-    public ResponseEntity<ObjectNode> getSitios() {
+    public ResponseEntity<ApiResponse<ScrapeDtos.Sitios>> getSitios() {
         return scrapeControlEndpoints.getSitios();
     }
 
     @PostMapping("/sitios")
-    public ResponseEntity<ObjectNode> agregarSitio(@RequestBody Map<String, String> body) {
+    public ResponseEntity<ApiResponse<OpResult>> agregarSitio(@RequestBody Map<String, String> body) {
         return scrapeControlEndpoints.agregarSitio(body);
     }
 
     @DeleteMapping("/sitios/{nombre}")
-    public ResponseEntity<ObjectNode> eliminarSitio(@PathVariable String nombre) {
+    public ResponseEntity<ApiResponse<OpResult>> eliminarSitio(@PathVariable String nombre) {
         return scrapeControlEndpoints.eliminarSitio(nombre);
     }
 
     @PutMapping("/config")
-    public ResponseEntity<ObjectNode> updateConfig(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<ScrapeDtos.ConfigResult>> updateConfig(@RequestBody Map<String, Object> body) {
         return scrapeControlEndpoints.updateConfig(body);
     }
 
-    // ─── ML: tendencias, historial de precios, aplicar/renormalizar y
-    // entrenamiento. Bodies in MlEndpoints (backlog A3); the mappings stay
-    // here. They were spread across three regions of this file.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/tendencias")
-    public ResponseEntity<com.fasterxml.jackson.databind.JsonNode> tendencias() {
+    public ResponseEntity<ApiResponse<JsonNode>> tendencias() {
         return mlEndpoints.tendencias();
     }
 
     @GetMapping("/historial")
-    public ResponseEntity<Object> historial(@RequestParam String url) {
+    public ResponseEntity<ApiResponse<JsonNode>> historial(@RequestParam String url) {
         return mlEndpoints.historial(url);
     }
 
-    // ─── Comparador: grupos multi-sitio + búsqueda externa. Bodies in
-    // ComparadorEndpoints (backlog A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/grupos")
-    public ResponseEntity<Object> grupos(
+    public ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String sitio,
             @RequestParam(required = false) String categoria,
@@ -386,61 +279,54 @@ public class ApiController {
     }
 
     @PostMapping("/ml/aplicar")
-    public ResponseEntity<Object> mlAplicar() {
+    public ResponseEntity<ApiResponse<MlDtos.Started>> mlAplicar() {
         return mlEndpoints.mlAplicar();
     }
 
     @PostMapping("/ml/renormalizar")
-    public ResponseEntity<Object> mlRenormalizar() {
+    public ResponseEntity<ApiResponse<Map<String, Integer>>> mlRenormalizar() {
         return mlEndpoints.mlRenormalizar();
     }
 
-    // ─── Presets de financiación ("¿conviene en cuotas?") + recomendación
-    // de compra + inflación INDEC. Bodies in FinanciacionEndpoints (backlog
-    // A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/financiacion/presets")
-    public ResponseEntity<ObjectNode> listarPresets() {
+    public ResponseEntity<ApiResponse<FinanciacionDtos.Presets>> listarPresets() {
         return financiacionEndpoints.listarPresets();
     }
 
     @PostMapping("/financiacion/presets")
-    public ResponseEntity<ObjectNode> crearPreset(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> crearPreset(@RequestBody Map<String, Object> body) {
         return financiacionEndpoints.crearPreset(body);
     }
 
     @PutMapping("/financiacion/presets/{id}/activar")
-    public ResponseEntity<ObjectNode> activarPreset(@PathVariable int id) {
+    public ResponseEntity<ApiResponse<OpResult>> activarPreset(@PathVariable int id) {
         return financiacionEndpoints.activarPreset(id);
     }
 
     @PutMapping("/financiacion/presets/{id}")
-    public ResponseEntity<ObjectNode> editarPreset(@PathVariable int id, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> editarPreset(@PathVariable int id, @RequestBody Map<String, Object> body) {
         return financiacionEndpoints.editarPreset(id, body);
     }
 
     @DeleteMapping("/financiacion/presets/{id}")
-    public ResponseEntity<ObjectNode> eliminarPreset(@PathVariable int id) {
+    public ResponseEntity<ApiResponse<OpResult>> eliminarPreset(@PathVariable int id) {
         return financiacionEndpoints.eliminarPreset(id);
     }
 
     @GetMapping("/recomendacion")
-    public ResponseEntity<Object> recomendacion(@RequestParam String url) {
+    public ResponseEntity<ApiResponse<FinanciacionDtos.Recomendacion>> recomendacion(@RequestParam String url) {
         return financiacionEndpoints.recomendacion(url);
     }
 
     @GetMapping("/indices")
-    public ResponseEntity<Object> indices() {
+    public ResponseEntity<ApiResponse<FinanciacionDtos.Indices>> indices() {
         return financiacionEndpoints.indices();
     }
 
-    // ─── Outfits + supplement builder + saved outfits. Bodies in
-    // OutfitsEndpoints (backlog A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/outfits")
-    public ResponseEntity<ObjectNode> outfits(
+    public ResponseEntity<ApiResponse<OutfitsDtos.Outfit>> outfits(
             @RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
             @RequestParam(required = false, defaultValue = "") String excluir,
@@ -449,7 +335,7 @@ public class ApiController {
     }
 
     @GetMapping("/outfits/builder")
-    public ResponseEntity<ObjectNode> outfitsBuilder(
+    public ResponseEntity<ApiResponse<OutfitsDtos.Builder>> outfitsBuilder(
             @RequestParam(required = false) String categorias,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
             @RequestParam(required = false) String genero,
@@ -461,12 +347,12 @@ public class ApiController {
     }
 
     @GetMapping("/suplementos/tipos")
-    public ResponseEntity<ObjectNode> suplementosTipos() {
+    public ResponseEntity<ApiResponse<OutfitsDtos.SuplementoTipos>> suplementosTipos() {
         return outfitsEndpoints.suplementosTipos();
     }
 
     @GetMapping("/suplementos/builder")
-    public ResponseEntity<Object> suplementosBuilder(
+    public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(
             @RequestParam(required = false) String tipos,
             @RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "") String excluir) {
@@ -474,7 +360,7 @@ public class ApiController {
     }
 
     @GetMapping("/pcs/builder")
-    public ResponseEntity<ObjectNode> pcsBuilder(
+    public ResponseEntity<ApiResponse<ObjectNode>> pcsBuilder(
             @RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
             @RequestParam(defaultValue = "") String excluir,
@@ -495,13 +381,7 @@ public class ApiController {
                 capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso);
     }
 
-    /**
-     * Backward-compatible 14-arg overload, sin mapping propio — la ruta la sigue
-     * sirviendo el método de arriba. Existe para que los call sites previos a
-     * {@code uso} (pc-builder-homelab T5) sigan compilando sin editarlos
-     * ({@code CODE-2}).
-     */
-    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama,
+    public ResponseEntity<ApiResponse<ObjectNode>> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi,
             Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos) {
@@ -510,115 +390,91 @@ public class ApiController {
                 capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);
     }
 
-    /**
-     * Backward-compatible 10-arg overload, sin mapping propio — la ruta la sigue
-     * sirviendo el método de arriba. Existe para que los call sites previos a las
-     * cuatro preferencias finas de la fase 9 sigan compilando sin editarlos
-     * ({@code CODE-2}).
-     */
-    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama,
+    public ResponseEntity<ApiResponse<ObjectNode>> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi) {
         return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama,
                 ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi);
     }
 
-    /**
-     * Backward-compatible 4-arg overload, sin mapping propio — la ruta la sigue
-     * sirviendo el método de arriba. Existe para que los call sites previos a
-     * las preferencias técnicas de T5c sigan compilando sin editarlos.
-     */
-    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama) {
+    public ResponseEntity<ApiResponse<ObjectNode>> pcsBuilder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return pcsEndpoints.builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
     }
 
-    /**
-     * Backward-compatible 3-arg overload, sin mapping propio — la ruta la sigue
-     * sirviendo el método de arriba. Existe para que los call sites previos a
-     * {@code gama} sigan compilando sin editarlos.
-     */
-    public ResponseEntity<ObjectNode> pcsBuilder(double presupuesto, boolean conGpu, String excluir) {
+    public ResponseEntity<ApiResponse<ObjectNode>> pcsBuilder(double presupuesto, boolean conGpu, String excluir) {
         return pcsEndpoints.builder(presupuesto, conGpu, excluir, "", "", "", "", "", null, null);
     }
 
     @GetMapping("/pcs/preferencia")
-    public ResponseEntity<ObjectNode> getPcsPreferencia() {
+    public ResponseEntity<ApiResponse<PcsDtos.Preferencia>> getPcsPreferencia() {
         return pcsEndpoints.getPreferencia();
     }
 
     @PutMapping("/pcs/preferencia")
-    public ResponseEntity<ObjectNode> putPcsPreferencia(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<PcsDtos.Preferencia>> putPcsPreferencia(@RequestBody Map<String, Object> body) {
         return pcsEndpoints.putPreferencia(body);
     }
 
     @PostMapping("/pcs/save")
-    public ResponseEntity<ObjectNode> savePc(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<PcsDtos.Guardada>> savePc(@RequestBody Map<String, Object> body) {
         return pcsEndpoints.savePc(body);
     }
 
     @GetMapping("/pcs/saved")
-    public ResponseEntity<Object> getSavedPcs() {
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedPcs() {
         return pcsEndpoints.getSavedPcs();
     }
 
     @DeleteMapping("/pcs/saved/{id}")
-    public ResponseEntity<ObjectNode> deleteSavedPc(@PathVariable int id) {
+    public ResponseEntity<ApiResponse<OpResult>> deleteSavedPc(@PathVariable int id) {
         return pcsEndpoints.deleteSavedPc(id);
     }
 
     @PatchMapping("/pcs/saved/{id}/nombre")
-    public ResponseEntity<ObjectNode> renameSavedPc(@PathVariable int id, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> renameSavedPc(@PathVariable int id, @RequestBody Map<String, Object> body) {
         return pcsEndpoints.renameSavedPc(id, body);
     }
 
-    /**
-     * Backward-compatible 2-arg overload, sin mapping propio — la ruta la sigue
-     * sirviendo el método de arriba. Existe para que los call sites previos a
-     * {@code excluir} sigan compilando sin editarlos.
-     */
-    public ResponseEntity<Object> suplementosBuilder(String tipos, double presupuesto) {
+    public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(String tipos, double presupuesto) {
         return outfitsEndpoints.suplementosBuilder(tipos, presupuesto, "");
     }
 
     @PostMapping("/outfits/feedback")
-    public ResponseEntity<ObjectNode> outfitFeedback(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> outfitFeedback(@RequestBody Map<String, Object> body) {
         return outfitsEndpoints.outfitFeedback(body);
     }
 
     @PostMapping("/outfits/save")
-    public ResponseEntity<ObjectNode> saveOutfit(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OutfitsDtos.Guardado>> saveOutfit(@RequestBody Map<String, Object> body) {
         return outfitsEndpoints.saveOutfit(body);
     }
 
     @GetMapping("/outfits/saved")
-    public ResponseEntity<Object> getSavedOutfits() {
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedOutfits() {
         return outfitsEndpoints.getSavedOutfits();
     }
 
     @DeleteMapping("/outfits/saved/{id}")
-    public ResponseEntity<ObjectNode> deleteSavedOutfit(@PathVariable int id) {
+    public ResponseEntity<ApiResponse<OpResult>> deleteSavedOutfit(@PathVariable int id) {
         return outfitsEndpoints.deleteSavedOutfit(id);
     }
 
     @PatchMapping("/outfits/saved/{id}/nombre")
-    public ResponseEntity<ObjectNode> renameSavedOutfit(@PathVariable int id,
+    public ResponseEntity<ApiResponse<OpResult>> renameSavedOutfit(@PathVariable int id,
                                                          @RequestBody Map<String, Object> body) {
         return outfitsEndpoints.renameSavedOutfit(id, body);
     }
 
     @DeleteMapping("/outfits/feedback")
-    public ResponseEntity<ObjectNode> resetOutfitFeedback(
+    public ResponseEntity<ApiResponse<OpResult>> resetOutfitFeedback(
             @RequestParam(required = false, defaultValue = "gym") String estilo) {
         return outfitsEndpoints.resetOutfitFeedback(estilo);
     }
 
-    // ─── Recomendados ("Para ti" feed). Bodies in RecomendadosEndpoints
-    // (backlog A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/recomendados")
-    public ResponseEntity<ObjectNode> recomendados(
-            @RequestParam(defaultValue = "1")  int page,
+    public ResponseEntity<ApiResponse<List<ObjectNode>>> recomendados(
+            @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "24") int size,
             @RequestParam(required = false)    String genero,
             @RequestParam(required = false)    String categoria) {
@@ -626,68 +482,61 @@ public class ApiController {
     }
 
     @PostMapping("/recomendados/feedback")
-    public ResponseEntity<ObjectNode> recomendadosFeedback(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<OpResult>> recomendadosFeedback(@RequestBody Map<String, Object> body) {
         return recomendadosEndpoints.recomendadosFeedback(body);
     }
 
     @PostMapping("/recomendados/dismiss-categoria")
-    public ResponseEntity<ObjectNode> dismissCategoria(@RequestBody Map<String, String> body) {
+    public ResponseEntity<ApiResponse<OpResult>> dismissCategoria(@RequestBody Map<String, String> body) {
         return recomendadosEndpoints.dismissCategoria(body);
     }
 
     @DeleteMapping("/recomendados/dismiss-categoria")
-    public ResponseEntity<ObjectNode> undismissCategoria(@RequestParam String categoria) {
+    public ResponseEntity<ApiResponse<OpResult>> undismissCategoria(@RequestParam String categoria) {
         return recomendadosEndpoints.undismissCategoria(categoria);
     }
 
-    // ─── Favoritos. Bodies in FavoritosEndpoints (backlog A3); the mappings
-    // stay here. DELETE /api/data is NOT part of that group -- it is written
-    // in this region but soft-deletes a catalog product.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/favoritos")
-    public ResponseEntity<ArrayNode> getFavoritos() {
+    public ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {
         return favoritosEndpoints.getFavoritos();
     }
 
     @PostMapping("/favoritos")
-    public ResponseEntity<ObjectNode> addFavorito(@RequestBody Map<String, String> body) {
+    public ResponseEntity<ApiResponse<OpResult>> addFavorito(@RequestBody Map<String, String> body) {
         return favoritosEndpoints.addFavorito(body);
     }
 
     @DeleteMapping("/favoritos")
-    public ResponseEntity<ObjectNode> deleteFavorito(@RequestParam String url) {
+    public ResponseEntity<ApiResponse<OpResult>> deleteFavorito(@RequestParam String url) {
         return favoritosEndpoints.deleteFavorito(url);
     }
 
     @DeleteMapping("/data")
-    public ResponseEntity<ObjectNode> eliminarProducto(@RequestParam String url) {
+    public ResponseEntity<ApiResponse<OpResult>> eliminarProducto(@RequestParam String url) {
         return catalogoEndpoints.eliminarProducto(url);
     }
 
     @GetMapping("/ml/estado")
-    public ResponseEntity<Object> mlEstado() {
+    public ResponseEntity<ApiResponse<MlDtos.Estado>> mlEstado() {
         return mlEndpoints.mlEstado();
     }
 
     @PostMapping("/ml/entrenar")
-    public ResponseEntity<Object> mlEntrenar(
+    public ResponseEntity<ApiResponse<MlDtos.Started>> mlEntrenar(
             @RequestParam(defaultValue = "false") boolean images,
             @RequestParam(defaultValue = "8") int epochs) {
         return mlEndpoints.mlEntrenar(images, epochs);
     }
 
     @GetMapping("/ml/resultado")
-    public ResponseEntity<Object> mlResultado() {
+    public ResponseEntity<ApiResponse<MlDtos.Resultado>> mlResultado() {
         return mlEndpoints.mlResultado();
     }
 
-    // ─── Marcas browser + mejores picks. Bodies in MarcasPicksEndpoints
-    // (backlog A3); the mappings stay here.
-    // ─────────────────────────────────────────────────────────────────────
 
     @GetMapping("/marcas-browser")
-    public ResponseEntity<Object> marcasBrowser(
+    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.Marca>>> marcasBrowser(
             @RequestParam(required = false) String rubro,
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "count") String sort) {
@@ -695,89 +544,50 @@ public class ApiController {
     }
 
     @GetMapping("/mejores")
-    public ResponseEntity<Object> mejoresPorCategoria(
+    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(
             @RequestParam(required = false) String rubro) {
         return marcasPicksEndpoints.mejoresPorCategoria(rubro);
     }
 
-    /**
-     * Precio por unidad de un producto (precio de estantería dividido por
-     * {@code cantidadUnidades} cuando es un pack). Espeja la fórmula usada en
-     * {@code /api/data} (fila del catálogo) para que catálogo, ML y mejores
-     * picks compartan una única fuente de verdad. Guard contra división por
-     * cero: {@code cantidadUnidades <= 0} cae al precio de estantería.
-     *
-     * <p>Kept on this class as a delegate because a test calls it directly.</p>
-     */
     static double precioUnitario(Product p) {
         return ProductJson.precioUnitario(p);
     }
 
-    // ─── DB Export / Import ──────────────────────────────────────────────────────
 
     @GetMapping("/db/export")
-    public ResponseEntity<Object> exportDb() {
+    public ResponseEntity<ApiResponse<Void>> exportDb() {
         return dbAdminEndpoints.exportDb();
     }
 
     @PostMapping(value = "/db/import",
                  consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Object> importDb(
+    public ResponseEntity<ApiResponse<Void>> importDb(
             @RequestParam("file") org.springframework.web.multipart.MultipartFile upload) {
         return dbAdminEndpoints.importDb(upload);
     }
 
     @GetMapping("/buscar-externo")
-    public ResponseEntity<Object> buscarExterno(
+    public ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(
             @RequestParam String q,
             @RequestParam(required = false) String url,
             @RequestParam(defaultValue = "mercadolibre") String sitio) {
         return comparadorEndpoints.buscarExterno(q, url, sitio);
     }
 
-    private String safe(String s) { return ProductJson.safe(s); }
 
-    // ---------------------------------------------------------------
-    // LLM Catalog Agent (llm-catalog-nlp) — chat / apply / models, grouped
-    // together behind the same future admin-only gate. NOTE (task 5.7, scope
-    // id 734): this whole group is the intended insertion point for an
-    // admin-only auth guard once user accounts/roles exist — no no-op guard
-    // is added now, this comment only marks WHERE it goes.
-    //
-    // The bodies live in AgentEndpoints (backlog A3); the mappings stay here.
-    // ---------------------------------------------------------------
 
     @PostMapping("/agent/chat")
-    public ResponseEntity<Object> agentChat(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(@RequestBody Map<String, Object> body) {
         return agentEndpoints.agentChat(body);
     }
 
     @GetMapping("/agent/models")
-    public ResponseEntity<Object> agentModels() {
+    public ResponseEntity<ApiResponse<AgentDtos.Models>> agentModels() {
         return agentEndpoints.agentModels();
     }
 
     @PostMapping("/agent/apply")
-    public ResponseEntity<Object> agentApply(@RequestBody ReclassifyProposal body) {
+    public ResponseEntity<ApiResponse<AgentDtos.Applied>> agentApply(@RequestBody ReclassifyProposal body) {
         return agentEndpoints.agentApply(body);
-    }
-
-
-    /**
-     * An owner-scoped surface reached with no authenticated subject.
-     *
-     * <p>Answered as 401 rather than as an empty list: showing a user nothing
-     * when their data is fine is a bug that looks like data loss, and answering
-     * with everybody's rows would be the leak. Refusing is the only honest
-     * option. In practice the filter chain already guarantees a subject on every
-     * one of these routes — this is what catches a future route added to the
-     * wrong band before it serves somebody else's data.</p>
-     */
-    @org.springframework.web.bind.annotation.ExceptionHandler(Sujeto.SinSujeto.class)
-    public ResponseEntity<ObjectNode> sinSujeto(Sujeto.SinSujeto e) {
-        ObjectNode resp = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
-        resp.put("error", "no_autenticado");
-        resp.put("mensaje", "Esta operación es personal y necesita una sesión.");
-        return ResponseEntity.status(401).body(resp);
     }
 }

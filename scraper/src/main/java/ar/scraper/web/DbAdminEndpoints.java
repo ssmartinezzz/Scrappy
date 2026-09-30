@@ -1,24 +1,17 @@
 package ar.scraper.web;
 
+import ar.scraper.catalog.FavoritosProtegidosException;
 import ar.scraper.scrape.ScraperStatus;
-
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.MensajeDto;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Destructive catalog/ML maintenance and the retired file export/import.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
- */
+/** Destructive catalog/ML maintenance and the retired file export/import. Mappings live in {@link ApiController}. */
 class DbAdminEndpoints {
 
-    private static final org.slf4j.Logger LOG =
-        org.slf4j.LoggerFactory.getLogger(DbAdminEndpoints.class);
-
     private final ScraperService service;
-    // Declared dual dependency (extract-catalog-query-port, D6): limpiarMlOutput
-    // below belongs to MlOutputRepository, out of this slice's scope.
     private final ar.scraper.catalog.MlOutputPort mlOutput;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
@@ -33,61 +26,49 @@ class DbAdminEndpoints {
         this.aggregator = aggregator;
     }
 
-    ResponseEntity<String> limpiarProductos() {
-        if (service.getStatus() == ScraperStatus.RUNNING) {
-            return ResponseEntity.status(409).body("Hay un scraping en curso. Esperá a que termine.");
-        }
+    ResponseEntity<ApiResponse<MensajeDto>> limpiarProductos() {
+        rechazarSiHayScraping();
         try {
             productos.limpiarProductos();
             service.clearLastResult();
             aggregator.clearMlOutput();
-            return ResponseEntity.ok("Catálogo eliminado.");
-        } catch (ar.scraper.catalog.FavoritosProtegidosException e) {
-            // normalize-db-schema-fks-1nf, slice A.1 (design D9): the FK RESTRICT
-            // on favoritos.url (V4) surfaces here as an actionable 409 instead of
-            // a raw FK-violation 500. No ?force= override — deliberate (spec
-            // "Catalog-wipe contract").
-            return ResponseEntity.status(409).body(
+            return ResponseEntity.ok(ApiResponse.ok(new MensajeDto("Catálogo eliminado.")));
+        } catch (FavoritosProtegidosException e) {
+            // favoritos.url has an FK RESTRICT (V4); no ?force= override on purpose.
+            throw new ApiException(HttpStatus.CONFLICT, "conflicto",
                     "No se puede vaciar el catálogo: " + e.getFavoritosBloqueantes()
                             + " producto(s) favorito(s) todavía existen.");
-        } catch (Exception e) {
-            LOG.error("[API] Error al limpiar productos", e);
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("No se pudo limpiar el catálogo", e);
         }
     }
 
-    ResponseEntity<String> limpiarMl() {
-        if (service.getStatus() == ScraperStatus.RUNNING) {
-            return ResponseEntity.status(409).body("Hay un scraping en curso. Esperá a que termine.");
-        }
+    ResponseEntity<ApiResponse<MensajeDto>> limpiarMl() {
+        rechazarSiHayScraping();
         try {
             mlOutput.limpiarMlOutput();
-            aggregator.clearMlOutput();
-            return ResponseEntity.ok("Datos ML eliminados.");
-        } catch (Exception e) {
-            LOG.error("[API] Error al limpiar ML", e);
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("No se pudo limpiar los datos ML", e);
+        }
+        aggregator.clearMlOutput();
+        return ResponseEntity.ok(ApiResponse.ok(new MensajeDto("Datos ML eliminados.")));
+    }
+
+    private void rechazarSiHayScraping() {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
+            throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
+                    "Hay un scraping en curso. Esperá a que termine.");
         }
     }
 
-    // decouple-services-postgres Batch 3 (task 3.6): the backend no longer
-    // resolves a filesystem SQLite path — persistence lives in Postgres
-    // (Batch 1, design D1-D3). The old file-based export/import (which
-    // downloaded/replaced a `scraper.db` file, backed by the removed
-    // `encontrarDbFile()`) has no equivalent for a networked Postgres
-    // instance and is retired here rather than left silently broken.
-    // A Postgres-native backup/restore flow (pg_dump/pg_restore, an
-    // installer/ops concern) is out of scope for this change; these
-    // endpoints now answer honestly instead of pretending to work.
-    ResponseEntity<Object> exportDb() {
-        return ResponseEntity.status(org.springframework.http.HttpStatus.GONE)
-            .body(java.util.Map.of("error",
-                "DB export de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_dump."));
+    // Persistence is PostgreSQL, not a scraper.db file: the file export/import is retired.
+    ResponseEntity<ApiResponse<Void>> exportDb() {
+        throw new ApiException(HttpStatus.GONE, "recurso_eliminado",
+                "DB export de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_dump.");
     }
 
-    ResponseEntity<Object> importDb(org.springframework.web.multipart.MultipartFile upload) {
-        return ResponseEntity.status(org.springframework.http.HttpStatus.GONE)
-            .body(java.util.Map.of("error",
-                "DB import de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_restore."));
+    ResponseEntity<ApiResponse<Void>> importDb(org.springframework.web.multipart.MultipartFile upload) {
+        throw new ApiException(HttpStatus.GONE, "recurso_eliminado",
+                "DB import de archivo ya no aplica: la persistencia es PostgreSQL, no un archivo scraper.db. Usar pg_restore.");
     }
 }

@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
@@ -88,8 +89,8 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
     }
 
 
-    private boolean hasBuzoPumaSlot(ResponseEntity<ObjectNode> resp) {
-        JsonNode slots = resp.getBody().get("slots");
+    private boolean hasBuzoPumaSlot(ResponseEntity<?> resp) {
+        JsonNode slots = Wire.data(resp).get("slots");
         if (slots == null) return false;
         for (JsonNode s : slots) {
             if ("Puma".equals(s.path("marca").asText()) && "Buzo".equals(s.path("categoria").asText())) {
@@ -117,13 +118,13 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
 
         // Gym builder: pair vetoed → the gym Buzo is excluded (only candidate) → absent.
         Allure.parameter("estilo", "gym");
-        ResponseEntity<ObjectNode> gymResp = controller.outfitsBuilder(
+        ResponseEntity<?> gymResp = controller.outfitsBuilder(
                 "Buzo", 500_000, "hombre", "", "", false, "gym");
         assertThat(hasBuzoPumaSlot(gymResp)).isFalse();
 
         // Casual builder: gym dislike must NOT leak → the casual Buzo is present.
         Allure.parameter("estilo", "casual");
-        ResponseEntity<ObjectNode> casualResp = controller.outfitsBuilder(
+        ResponseEntity<?> casualResp = controller.outfitsBuilder(
                 "Buzo", 500_000, "hombre", "", "", false, "casual");
         assertThat(hasBuzoPumaSlot(casualResp)).isTrue();
     }
@@ -146,13 +147,13 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
         Allure.parameter("estilo", "gym");
         controller.resetOutfitFeedback("gym");
 
-        ResponseEntity<ObjectNode> casualResp = controller.outfitsBuilder(
+        ResponseEntity<?> casualResp = controller.outfitsBuilder(
                 "Buzo", 500_000, "hombre", "", "", false, "casual");
         assertThat(hasBuzoPumaSlot(casualResp)).isFalse();
 
         // Reset casual → veto gone → pair reappears.
         controller.resetOutfitFeedback("casual");
-        ResponseEntity<ObjectNode> afterReset = controller.outfitsBuilder(
+        ResponseEntity<?> afterReset = controller.outfitsBuilder(
                 "Buzo", 500_000, "hombre", "", "", false, "casual");
         assertThat(hasBuzoPumaSlot(afterReset)).isTrue();
     }

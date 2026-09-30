@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -17,7 +18,6 @@ import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -93,7 +93,7 @@ class ApiControllerIndicesRecomendacionTest {
         when(indiceService.ultimaActualizacion()).thenReturn("2025-01-01");
 
         var resp = controller.indices();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ipc").get("ultimoValor").asDouble()).isEqualTo(156.3);
@@ -109,7 +109,7 @@ class ApiControllerIndicesRecomendacionTest {
         when(indiceService.resumen(Indice.USD_OFICIAL)).thenReturn(ResumenIndice.sinDatos(Indice.USD_OFICIAL));
 
         var resp = controller.indices();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ipc").get("confianza").asText()).isEqualTo("sin_datos");
         assertThat(body.get("ipc").get("ultimos").size()).isEqualTo(0);
@@ -122,7 +122,7 @@ class ApiControllerIndicesRecomendacionTest {
         when(historial.getHistorialPrecios("https://a.com/1")).thenReturn(List.of());
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("senal").asText()).isEqualTo("sin_datos");
@@ -142,7 +142,7 @@ class ApiControllerIndicesRecomendacionTest {
                 Indice.IPC, 100.0, LocalDate.parse("2025-01-01"), 4.0, 50.0, 10.0, Confianza.OBSERVADO, List.of()));
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("senal").asText()).isEqualTo("comprar_ahora");
         assertThat(body.get("scoreCompra").asInt()).isEqualTo(95);
@@ -162,7 +162,7 @@ class ApiControllerIndicesRecomendacionTest {
                 .thenReturn(new Deflactor(1.10, Confianza.EXTRAPOLADO, 12));
         when(indiceService.resumen(Indice.IPC)).thenReturn(ResumenIndice.sinDatos(Indice.IPC));
 
-        JsonNode body = AllureSteps.toJson(controller.recomendacion("https://a.com/gpu").getBody());
+        JsonNode body = Wire.data(controller.recomendacion("https://a.com/gpu"));
 
         assertThat(body.get("indice").asText()).isEqualTo("USD_OFICIAL");
         assertThat(body.get("confianza").asText()).isEqualTo("extrapolado");
@@ -184,7 +184,7 @@ class ApiControllerIndicesRecomendacionTest {
                 Indice.IPC, 100.0, LocalDate.parse("2025-01-01"), 4.0, 50.0, 10.0, Confianza.OBSERVADO, List.of()));
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("senal").asText()).isEqualTo("precio_normal");
         assertThat(body.get("scoreCompra").asInt()).isEqualTo(50);
@@ -200,7 +200,7 @@ class ApiControllerIndicesRecomendacionTest {
                 Indice.IPC, 100.0, LocalDate.parse("2025-01-01"), 4.2, 100.0, 10.0, Confianza.OBSERVADO, List.of()));
 
         var resp = controller.recomendacion("https://a.com/1");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("inflacionMensual").asDouble()).isEqualTo(4.2);
         assertThat(body.get("inflacionInteranual").asDouble()).isEqualTo(100.0);
