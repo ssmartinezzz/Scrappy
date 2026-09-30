@@ -108,7 +108,7 @@ class SiteRegistrySingletonWiringTest {
     @DisplayName("context.getBean(SiteRegistry.class) es exactamente db.siteRegistry()")
     void databaseServiceSiteRegistryIsTheSameSpringSingleton() {
         try (var context = new AnnotationConfigApplicationContext(
-                UnreachableDataSourceConfig.class, SiteRegistry.class, CronRepository.class,
+                UnreachableDataSourceConfig.class, SiteRegistry.class, JdbcSiteSource.class, CronRepository.class,
                 FavoritosRepository.class, PresetRepository.class, HistorialRepository.class,
                 CatalogQueryRepository.class, ProductRepository.class,
                 CategoriaStatsRepository.class, MlOutputRepository.class,

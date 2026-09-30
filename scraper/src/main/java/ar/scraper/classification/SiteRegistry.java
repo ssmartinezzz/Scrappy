@@ -2,14 +2,8 @@ package ar.scraper.classification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -38,24 +32,18 @@ public final class SiteRegistry {
                          boolean esPremium, String rubroForzado, String origen) {
     }
 
-    private final DataSource dataSource;
+    private final SiteSource source;
     private volatile Map<String, Sitio> porSitioKey = Map.of();
 
-    @Autowired
-    public SiteRegistry(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public SiteRegistry(SiteSource source) {
+        this.source = source;
         reload();
-    }
-
-    /** Test-only: seed the cache directly, no DB connection involved. */
-    private SiteRegistry(Map<String, Sitio> seed) {
-        this.dataSource = null;
-        this.porSitioKey = Map.copyOf(seed);
     }
 
     /** Builds a registry over an already-resolved cache — classpath-only tests, no DB. */
     public static SiteRegistry forTesting(Map<String, Sitio> seed) {
-        return new SiteRegistry(seed);
+        Map<String, Sitio> copia = Map.copyOf(seed);
+        return new SiteRegistry(() -> copia);
     }
 
     /**
@@ -63,24 +51,12 @@ public final class SiteRegistry {
      * construction time and again whenever {@code POST}/{@code DELETE
      * /api/sitios} changes the table, so a dashboard-added or -removed site is
      * visible without a restart. A transient read failure keeps the previous
-     * cache rather than wiping it (same "don't degrade what already worked"
-     * posture as the rest of the read paths in this class's callers).
+     * cache rather than wiping it.
      */
     public void reload() {
-        if (dataSource == null) return;
-        Map<String, Sitio> next = new HashMap<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                     "SELECT nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen FROM sitio")) {
-            while (rs.next()) {
-                String key = rs.getString("sitio_key");
-                next.put(key, new Sitio(
-                        rs.getString("nombre"), key, rs.getString("plataforma"),
-                        rs.getBoolean("es_premium"), rs.getString("rubro_forzado"), rs.getString("origen")));
-            }
-            this.porSitioKey = Map.copyOf(next);
-        } catch (Exception e) {
+        try {
+            this.porSitioKey = Map.copyOf(source.cargar());
+        } catch (RuntimeException e) {
             LOG.warn("[SiteRegistry] Error cargando sitio: {}", e.getMessage());
         }
     }

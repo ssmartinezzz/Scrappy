@@ -32,7 +32,7 @@ class CatalogQueryPortPrimaryWiringTest extends PostgresTestBase {
     void catalogQueryPortEsElCache() {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.getBeanFactory().registerSingleton("dataSource", dataSource());
-            context.register(SiteRegistry.class, CatalogQueryRepository.class, CachingCatalogQueryPort.class);
+            context.register(SiteRegistry.class, JdbcSiteSource.class, CatalogQueryRepository.class, CachingCatalogQueryPort.class);
             context.refresh();
 
             CatalogQueryPort port = context.getBean(CatalogQueryPort.class);

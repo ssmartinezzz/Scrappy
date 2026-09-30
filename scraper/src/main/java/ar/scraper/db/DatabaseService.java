@@ -99,7 +99,7 @@ public class DatabaseService {
      * instance is behaviorally identical to them.
      */
     public DatabaseService(DataSource dataSource) {
-        this(dataSource, new SiteRegistry(dataSource));
+        this(dataSource, new SiteRegistry(new JdbcSiteSource(dataSource)));
     }
 
     /**
