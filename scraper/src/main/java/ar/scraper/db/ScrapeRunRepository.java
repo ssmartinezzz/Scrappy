@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -80,6 +81,7 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * later resume, which reads as "nothing left to do".
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId, Collection<String> sitios) {
         return Sql.traducir(() -> crearSql(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios));
     }
@@ -88,22 +90,13 @@ class ScrapeRunRepository implements ScrapeRunPort {
         Instant arranque = truncarAlSegundo(startedAt);
 
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                long runId = insertarRun(c, scrapeUuid, arranque, triggeredBy, cronJobId);
-                for (String sitio : sitios) {
-                    if (StringUtils.isBlank(sitio)) continue;
-                    asegurarSitio(c, sitio);
-                    enrolarSitio(c, runId, sitio);
-                }
-                c.commit();
-                return runId;
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
+            long runId = insertarRun(c, scrapeUuid, arranque, triggeredBy, cronJobId);
+            for (String sitio : sitios) {
+                if (StringUtils.isBlank(sitio)) continue;
+                asegurarSitio(c, sitio);
+                enrolarSitio(c, runId, sitio);
             }
+            return runId;
         }
     }
 
@@ -321,32 +314,24 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * started.</p>
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void reabrir(long runId) {
         Sql.traducir(() -> reabrirSql(runId));
     }
 
     private void reabrirSql(long runId) throws SQLException {
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                try (PreparedStatement ps = c.prepareStatement(
-                        "UPDATE scrape_run SET status = 'RUNNING', finished_at = NULL WHERE id = ?")) {
-                    ps.setLong(1, runId);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = c.prepareStatement("""
-                        UPDATE scrape_run_site SET status = 'PENDING', started_at = NULL
-                         WHERE scrape_run_id = ? AND status = 'RUNNING'
-                        """)) {
-                    ps.setLong(1, runId);
-                    ps.executeUpdate();
-                }
-                c.commit();
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
+            try (PreparedStatement ps = c.prepareStatement(
+                    "UPDATE scrape_run SET status = 'RUNNING', finished_at = NULL WHERE id = ?")) {
+                ps.setLong(1, runId);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement("""
+                    UPDATE scrape_run_site SET status = 'PENDING', started_at = NULL
+                     WHERE scrape_run_id = ? AND status = 'RUNNING'
+                    """)) {
+                ps.setLong(1, runId);
+                ps.executeUpdate();
             }
         }
     }
@@ -357,6 +342,7 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * overwriting it would move the end of a run that ended days ago.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public List<Long> descartarInterrumpidas(Instant cuando) {
         return Sql.traducir(() -> descartarInterrumpidasSql(cuando));
     }
@@ -364,35 +350,26 @@ class ScrapeRunRepository implements ScrapeRunPort {
     private List<Long> descartarInterrumpidasSql(Instant cuando) throws SQLException {
         List<Long> ids = new ArrayList<>();
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
+            try (PreparedStatement ps = c.prepareStatement("""
+                    UPDATE scrape_run
+                       SET status = 'CANCELLED',
+                           finished_at = COALESCE(finished_at, ?)
+                     WHERE status = 'INTERRUPTED'
+                    RETURNING id
+                    """)) {
+                ps.setObject(1, enUtc(cuando));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) ids.add(rs.getLong(1));
+                }
+            }
+            for (long runId : ids) {
                 try (PreparedStatement ps = c.prepareStatement("""
-                        UPDATE scrape_run
-                           SET status = 'CANCELLED',
-                               finished_at = COALESCE(finished_at, ?)
-                         WHERE status = 'INTERRUPTED'
-                        RETURNING id
+                        UPDATE scrape_run_site SET status = 'SKIPPED'
+                         WHERE scrape_run_id = ? AND status IN ('PENDING', 'RUNNING')
                         """)) {
-                    ps.setObject(1, enUtc(cuando));
-                    try (ResultSet rs = ps.executeQuery()) {
-                        while (rs.next()) ids.add(rs.getLong(1));
-                    }
+                    ps.setLong(1, runId);
+                    ps.executeUpdate();
                 }
-                for (long runId : ids) {
-                    try (PreparedStatement ps = c.prepareStatement("""
-                            UPDATE scrape_run_site SET status = 'SKIPPED'
-                             WHERE scrape_run_id = ? AND status IN ('PENDING', 'RUNNING')
-                            """)) {
-                        ps.setLong(1, runId);
-                        ps.executeUpdate();
-                    }
-                }
-                c.commit();
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
             }
         }
         if (!ids.isEmpty()) LOG.warn("[RUN] {} corrida(s) interrumpida(s) descartadas: {}", ids.size(), ids);

@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Array;
@@ -71,6 +72,7 @@ class ProductRepository implements ProductPort {
      * sinCambios, desactivados}.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public UpsertStats upsertProductos(List<Product> productos) {
         return upsertProductos(productos, (ar.scraper.scrape.CorridaEnCurso) null);
     }
@@ -120,54 +122,47 @@ class ProductRepository implements ProductPort {
      *                behaving exactly as it did before this change.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public UpsertStats upsertProductos(List<Product> productos,
                                        ar.scraper.scrape.CorridaEnCurso corrida) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                String rowsJson = buildRowsJson(productos, now, today, true);
+            String rowsJson = buildRowsJson(productos, now, today, true);
 
-                int nuevos = 0, actualizados = 0, sinCambios = 0;
-                try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
-                    ps.setString(1, rowsJson);
-                    ps.setBoolean(2, true);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            JsonNode stats = MAPPER.readTree(rs.getString(1));
-                            nuevos       = stats.path("nuevos").asInt(0);
-                            actualizados = stats.path("actualizados").asInt(0);
-                            sinCambios   = stats.path("sinCambios").asInt(0);
-                        }
+            int nuevos = 0, actualizados = 0, sinCambios = 0;
+            try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
+                ps.setString(1, rowsJson);
+                ps.setBoolean(2, true);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        JsonNode stats = MAPPER.readTree(rs.getString(1));
+                        nuevos       = stats.path("nuevos").asInt(0);
+                        actualizados = stats.path("actualizados").asInt(0);
+                        sinCambios   = stats.path("sinCambios").asInt(0);
                     }
                 }
-
-                // El alcance del soft-delete NO sale de la lista de sitios
-                // pedidos: un sitio cuyo scraper se rompió llega con 0
-                // productos, y no hay que confundir "se rompió" con "se vació".
-                // Sale de lo que la corrida efectivamente tocó — de la base
-                // cuando hay run, del batch cuando no.
-                Alcance alcance = corrida != null
-                        ? alcanceDelRun(c, corrida)
-                        : alcanceDelBatch(productos);
-                int desactivados = softDeleteAusentes(c, alcance.urls(), now, alcance.sitios());
-
-                purgarHistorialViejo(c);
-
-                c.commit();
-
-                LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
-                        nuevos, actualizados, sinCambios, desactivados);
-                return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
-            } catch (Exception e) {
-                LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
-                try { c.rollback(); } catch (Exception ignored) {}
-                return new UpsertStats(0, 0, 0, 0);
             }
-        } catch (SQLException e) {
+
+            // El alcance del soft-delete NO sale de la lista de sitios
+            // pedidos: un sitio cuyo scraper se rompió llega con 0
+            // productos, y no hay que confundir "se rompió" con "se vació".
+            // Sale de lo que la corrida efectivamente tocó — de la base
+            // cuando hay run, del batch cuando no.
+            Alcance alcance = corrida != null
+                    ? alcanceDelRun(c, corrida)
+                    : alcanceDelBatch(productos);
+            int desactivados = softDeleteAusentes(c, alcance.urls(), now, alcance.sitios());
+
+            purgarHistorialViejo(c);
+
+            LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
+                    nuevos, actualizados, sinCambios, desactivados);
+            return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
+        } catch (Exception e) {
             LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
+            Sql.marcarRollback();
             return new UpsertStats(0, 0, 0, 0);
         }
     }
@@ -319,26 +314,21 @@ class ProductRepository implements ProductPort {
      * esta etapa del pipeline VisualAttrs todavía no está poblado).
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void upsertParcial(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return;
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                String rowsJson = buildRowsJson(productos, now, today, false);
-                try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
-                    ps.setString(1, rowsJson);
-                    ps.setBoolean(2, false);
-                    ps.executeQuery().close();
-                }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
+            String rowsJson = buildRowsJson(productos, now, today, false);
+            try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
+                ps.setString(1, rowsJson);
+                ps.setBoolean(2, false);
+                ps.executeQuery().close();
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
+            Sql.marcarRollback();
         }
     }
 
@@ -617,6 +607,7 @@ class ProductRepository implements ProductPort {
      * columna bloqueada.</p>
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
         if (url == null) return 0;
@@ -624,6 +615,7 @@ class ProductRepository implements ProductPort {
             return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, true);
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
+            Sql.marcarRollback();
             return 0;
         }
     }
@@ -657,6 +649,7 @@ class ProductRepository implements ProductPort {
      * ese guard.</p>
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
                                                    String genero, List<String> talles, String subCategoria,
                                                    Product previo, String actor) {
@@ -667,54 +660,45 @@ class ProductRepository implements ProductPort {
         java.time.OffsetDateTime ahora = Timestamps.now();
 
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, false);
-                if (rows != 1) {
-                    c.rollback();
-                    return false;
-                }
-                try (PreparedStatement ps = c.prepareStatement(
-                        "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
-                    ps.setString(1, rubro != null ? rubro : "indumentaria");
-                    ps.setString(2, StringUtils.isNotBlank(actor) ? actor : "local");
-                    ps.setObject(3, ahora);
-                    ps.setString(4, url);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO agent_reclassify_audit " +
-                        "(url, categoria_antes, categoria_despues, marca_antes, marca_despues, " +
-                        "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, " +
-                        "applied_at, applied_by) " +
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
-                    ps.setString(1, url);
-                    ps.setString(2, previo != null && previo.categoria() != null ? previo.categoria() : "");
-                    ps.setString(3, categoria != null ? categoria : "");
-                    ps.setString(4, previo != null && previo.marca() != null ? previo.marca() : "");
-                    ps.setString(5, marca != null ? marca : "");
-                    ps.setString(6, previo != null && previo.genero() != null ? previo.genero() : "");
-                    ps.setString(7, genero != null ? genero : "");
-                    ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
-                    ps.setString(9, subCategoria != null ? subCategoria : "");
-                    ps.setObject(10, ahora);
-                    ps.setString(11, StringUtils.isNotBlank(actor) ? actor : "local");
-                    ps.executeUpdate();
-                }
-                c.commit();
-                return true;
-            } catch (Exception e) {
-                LOG.error("[DB] Error en aplicarReclasificacionAuditada, rollback: {}", e.getMessage(), e);
-                try { c.rollback(); } catch (Exception ignored) {}
+            int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, false);
+            if (rows != 1) {
+                Sql.marcarRollback();
                 return false;
             }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+                ps.setString(1, rubro != null ? rubro : "indumentaria");
+                ps.setString(2, StringUtils.isNotBlank(actor) ? actor : "local");
+                ps.setObject(3, ahora);
+                ps.setString(4, url);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO agent_reclassify_audit " +
+                    "(url, categoria_antes, categoria_despues, marca_antes, marca_despues, " +
+                    "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, " +
+                    "applied_at, applied_by) " +
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
+                ps.setString(1, url);
+                ps.setString(2, previo != null && previo.categoria() != null ? previo.categoria() : "");
+                ps.setString(3, categoria != null ? categoria : "");
+                ps.setString(4, previo != null && previo.marca() != null ? previo.marca() : "");
+                ps.setString(5, marca != null ? marca : "");
+                ps.setString(6, previo != null && previo.genero() != null ? previo.genero() : "");
+                ps.setString(7, genero != null ? genero : "");
+                ps.setString(8, previo != null && previo.subCategoria() != null ? previo.subCategoria() : "");
+                ps.setString(9, subCategoria != null ? subCategoria : "");
+                ps.setObject(10, ahora);
+                ps.setString(11, StringUtils.isNotBlank(actor) ? actor : "local");
+                ps.executeUpdate();
+            }
+            return true;
         } catch (Exception e) {
-            LOG.error("[DB] Error abriendo conexión en aplicarReclasificacionAuditada: {}", e.getMessage(), e);
+            LOG.error("[DB] Error en aplicarReclasificacionAuditada, rollback: {}", e.getMessage(), e);
+            Sql.marcarRollback();
             return false;
         }
     }
-
-
 
     @Override
     public long contarEmbeddings() {
@@ -779,30 +763,25 @@ class ProductRepository implements ProductPort {
      * CASCADE} on {@code precio_historico.url} covers it.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void limpiarProductos() {
         Sql.traducir(() -> limpiarProductosSql());
     }
 
     private void limpiarProductosSql() throws SQLException {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (var st = c.createStatement()) {
-                try (ResultSet rs = st.executeQuery(
-                        "SELECT COUNT(*) FROM favoritos f JOIN productos p ON p.url = f.url")) {
-                    rs.next();
-                    long bloqueantes = rs.getLong(1);
-                    if (bloqueantes > 0) {
-                        throw new FavoritosProtegidosException(bloqueantes);
-                    }
+        try (Connection c = dataSource.getConnection();
+             var st = c.createStatement()) {
+            try (ResultSet rs = st.executeQuery(
+                    "SELECT COUNT(*) FROM favoritos f JOIN productos p ON p.url = f.url")) {
+                rs.next();
+                long bloqueantes = rs.getLong(1);
+                if (bloqueantes > 0) {
+                    throw new FavoritosProtegidosException(bloqueantes);
                 }
-                st.execute("DELETE FROM productos");
-                st.execute("DELETE FROM categoria_stats");
-                c.commit();
-                LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
-            } catch (SQLException | RuntimeException e) {
-                c.rollback();
-                throw e;
             }
+            st.execute("DELETE FROM productos");
+            st.execute("DELETE FROM categoria_stats");
+            LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
         }
     }
 }
