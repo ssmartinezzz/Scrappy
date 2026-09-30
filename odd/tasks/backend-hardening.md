@@ -94,7 +94,7 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
 - [x] T3a Push instead of poll, backend: Hikari/Flyway boot retries, V41 `pg_notify` triggers, status bus, cron wait on the bus, Resilience4j `withRetry`, LISTEN listener with backoff, `GET /api/events` SSE
 - [x] T3b Push instead of poll, frontend: fetch-stream reader through `authedFetch` replaces the 1.8 s / 2 s / 4 s polls; unit tests + `tests/e2e` (see "T3b handoff")
-- [ ] T7 SOLID: split `ApiController` (65 handlers) by resource
+- [x] T7 SOLID: split `ApiController` (65 handlers) by resource
 - [ ] T1 Final comment sweep across `ar.scraper`
 - [x] ~~T2 Remove unused Lombok dependency~~ — dropped: user wants Lombok DTOs
 
@@ -401,9 +401,38 @@ Final: 55 files / 513 tests (+86). `useScrapeStatusPolling.test.js` went 15 -> 2
 - One failure in ~33 full-suite runs: `tabs.spec.js` "two tabs cold-starting" saw 2 refreshes instead of 1 on the first run after a fresh backend boot. The artifact was overwritten by the next run, and it did not reproduce in 12 isolated runs, 60 `--repeat-each`, 13 full runs or 5 cold boots. It is the race-sensitive cold-start spec and I could not attribute it (the stream opens only after the session settles, so it should not add refreshes); treat it as open.
 - No real scrape ran, so a live `scrape.progress`/`ml.status` stream into the browser was verified only by unit tests and the stubbed-stream e2e, not by the real backend.
 
+### T7 evidence
+
+Baseline 3258 / 0 / 0 / 7 (HEAD 3c3ee4b). Route set captured BEFORE touching code (source scan of the mapping annotations, verified equal to `LiveRoutes.todas()` on the untouched tree): 83 (method, path) pairs in `src/test/resources/ar/scraper/security/rutas-vivas.txt`, asserted by the new `LiveRouteSetTest` (equality + no duplicates).
+
+**Controllers** (all `@RestController @RequestMapping("/api")`, constructor injection, ports injected directly, no `new XxxEndpoints`): `ScrapeController` 6 (status, scrape, interrupted, resume, discard, cancel), `SitiosController` 4 (sitios x3, `PUT /config`), `CatalogoController` 5 (data GET/DELETE, facets, csv, producto), `ComparadorController` 2, `MarcasPicksController` 2, `RecomendadosController` 4, `FavoritosController` 3, `OutfitsController` 8, `SuplementosController` 2, `PcsController` 7, `MlController` 5, `TendenciasController` 2 (tendencias, historial), `AgentController` 3, `FinanciacionController` 7 (presets x5, recomendacion, indices), `DbAdminController` 4 = 64 handlers in 15 controllers (the "65" counted the mapping-less `data` overload). `ApiController` deleted.
+
+| Commit | Hash | Suite |
+|---|---|---|
+| `refactor(web): give scrape, catalog, ml and feed handlers their own controllers` | b136a3c | 3259 / 0 / 0 / 7 (+1 route-set test) |
+| `refactor(web): give outfit, supplement, pc, agent and financing handlers their own controllers` | 0e3cde0 | 3259 / 0 / 0 / 7 |
+| `refactor(web): drop ApiController` | 6382c48 | 3259 / 0 / 0 / 7 |
+
+`docs/openapi.yaml` untouched; `RouteCoverageTest`, `OpenApiRouteCoverageTest`, `SpringWiringTest`, `BackendLayeringArchTest`, `CacheUsageArchTest` green unchanged.
+
+**Boot check** (`clean package -DskipTests`, JRE 21, profile dev, dev DB, throwaway secrets, `admin` existing; cron jobs 3 and 4 disabled for the run and back to `enabled=true`, `last_run_at`/`next_run_at` unchanged): `Started App in 3.7 s`, only WARN is `UserDetailsServiceAutoConfiguration`, no ERROR. As `e2e-admin`: 25 GET/DELETE routes spanning every new controller answered 200/204 (`/api/db/export` 410, as before), `/api/events` 200 `text/event-stream` with `X-Accel-Buffering: no`, anonymous `/api/status` 401.
+
+**E2E** (`tests/e2e/run-e2e.sh`, fresh jar + bundle): pytest 51 passed + Playwright 31 passed. Cleanup: the run left 40 inactive `e2e-*` usuario rows (created after the run start), deleted in one transaction (FKs cascade); `usuario` 222 before and after, no scrape_run created (max id 34), `cron_executions` 32, `refresh_token` 10797 -> 10806 (logins, as in any run).
+
+**Deviations**
+- Handler names follow the old `*Endpoints` helpers, not `ApiController`: `scrapeInterrumpido/retomarScrape/descartarScrapeInterrumpido/cancelarScrape` -> `interrumpida/retomar/descartar/cancelar`, `pcsBuilder` -> `builder`, `get/putPcsPreferencia` -> `get/putPreferencia`. Callers in tests adapted.
+- Split beyond the helpers: `ScrapeControlEndpoints` -> Scrape + Sitios, `OutfitsEndpoints` -> Outfits + Suplementos (shared `SuplementoPicks` mapper), `MlEndpoints` -> Ml + Tendencias.
+- Test-only overloads that lived on `ApiController` (`data` 17 args, `pcsBuilder` 3 args, `suplementosBuilder` 2 args) are gone; their call sites pass the defaults explicitly (`null, null, null, null` / `""`). The `PcsController.builder` overloads of 4/10/14 args that `PcsEndpoints` already had were kept.
+- `PcBuilder` became a bean (`PcsConfig`); `ProposePcTool` still builds its own (javadoc corrected).
+- `EventsController` reads `ScrapeStatusView` / `MlEstadoView` (new small `@Component`s holding the former `statusDto`/`estadoDto`), not a controller; `EventsControllerTest` / `SseRealPortTest` mock those.
+- `verifyNoInteractions(db)` assertions (`ScrapeControllerTest` x2, `AgentControllerTest` x5) now name the ports the route must not touch (`mlOutput, productos, aggregator` / `productos`), because the controllers no longer receive `db`; the `clearInvocations(db)` workaround and its comment are gone.
+- Test classes renamed (`ApiController*Test` -> `Catalogo*/Outfits*/Pcs*/...Test`, 32 files, `git mv`); assertions unchanged. `DisplayName`s and stale comments updated. `DatabaseService` port accessors are now test-only handles (comments corrected, not removed: 100+ test uses).
+- Docs updated with the code: `STRUCTURE.md`, `ARCHITECTURE.md` (+ a T7 paragraph), `GOTCHAS.md`, `LLM_EMBED.md`. Historical paragraphs in `ARCHITECTURE.md`/`DATABASE.md` and archived openspec/odd files still name the old classes on purpose.
+- Mid-task tooling bug (mine): my signature rewriter matched a continuation line once and mangled `OutfitsController`/`PcsController`; compile caught it, regenerated from the originals and diffed every controller against its `*Endpoints` source.
+
 ## Next step
 
-T7, then T1. (T3 done: T3a + T3b.)
+T1. (T3 and T7 done.)
 
 ### Upsert sentinel decision APPLIED (user, 2026-09-30) in 6f15a11
 
