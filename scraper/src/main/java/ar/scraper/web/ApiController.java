@@ -167,6 +167,14 @@ public class ApiController {
         return scrapeControlEndpoints.cancelar();
     }
 
+    public ScrapeDtos.Status statusSnapshot() {
+        return scrapeControlEndpoints.statusDto();
+    }
+
+    public MlDtos.Estado mlEstadoSnapshot() {
+        return mlEndpoints.estadoDto();
+    }
+
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<ScrapeDtos.Status>> status() {
         return scrapeControlEndpoints.status();

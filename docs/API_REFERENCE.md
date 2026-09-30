@@ -445,6 +445,36 @@ tiene `run`.
 
 ---
 
+## GET /events
+
+Stream de eventos del servidor (`text/event-stream`) que **reemplaza el polling** de
+`/status` y `/ml/estado`: la app avisa cuando algo cambia, el cliente no pregunta.
+Requiere token (`AUTHENTICATED`). El token viaja en el header `Authorization`, así que
+se consume con `fetch` + lector de stream, no con `EventSource` (que no puede mandar headers).
+
+El primer evento es siempre `snapshot`; los siguientes son cambios:
+
+| Evento | `data` | Cuándo |
+|---|---|---|
+| `snapshot` | `{ status, ml }`: el `data` de `GET /status` y de `GET /ml/estado` | al conectar |
+| `scrape.status` | `{ status, mensaje }` | cada cambio de estado o de mensaje de la corrida |
+| `scrape.progress` | `{ total, completados, productos, sitios[] }` (mismo `progreso` de `/status`) | avance por sitio; máximo 4 por segundo |
+| `ml.status` | `{ kind: "training"\|"backfill", running, phase, pct, msg, startedAt }` | entrenamiento o backfill de embeddings |
+| `db.changed` | `{ table, op, id?, run?, site?, job?, status }` | la base avisó un cambio de estado en `scrape_run`, `scrape_run_site` o `cron_executions` |
+| `resync` | `{}` | se pudieron perder eventos: releer el estado |
+
+- **`resync` es la red de seguridad.** Se emite al reconectarse la app a la base, y cuando
+  un cliente lento se atrasa (su cola es de 64; se descartan los más viejos). Ante un
+  `resync` el cliente relee `/status`, `/ml/estado` y lo que muestre de cron.
+- **`db.changed` de `cron_execution` sólo le llega a un ADMIN**, igual que `/cron`.
+- **Latido**: un comentario `: ping` cada 15 s mantiene viva la conexión tras un proxy. El
+  header `X-Accel-Buffering: no` evita que nginx la bufferee.
+- **Dura 10 minutos** y se cierra, antes de que venza el access token (15 min). El cliente
+  reconecta por su fetch autenticado, que renueva el token si hace falta, y recibe otro `snapshot`.
+- Un 401 antes de empezar el stream tiene el envelope de siempre (`no_autenticado`).
+
+---
+
 ## GET /scrape/interrupted
 
 **ADMIN.** Qué dejó abierto el proceso anterior. **Sólo informa.**

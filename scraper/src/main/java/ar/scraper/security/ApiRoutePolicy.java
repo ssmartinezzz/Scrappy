@@ -166,6 +166,8 @@ public final class ApiRoutePolicy {
                     "deliberately NOT Band A — answering 'who am I' to an anonymous caller is an oracle"),
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/status"), Access.AUTHENTICATED,
                     "gated like everything else — deliberately not on the permit list"),
+            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/events"), Access.AUTHENTICATED,
+                    "SSE status stream; cron_execution changes are filtered to ADMIN inside"),
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/data", "/api/facets", "/api/csv", "/api/producto/**"),
                     Access.AUTHENTICATED),
