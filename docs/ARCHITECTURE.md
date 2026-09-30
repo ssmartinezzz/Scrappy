@@ -1331,6 +1331,40 @@ reales es un puñado de valores de `cota`, no el catálogo entero. El versionado
 en sí —por qué una tabla `catalog_version` y no un TTL— está en
 [`DATABASE.md` § `V40`](./DATABASE.md).
 
+### ¿Por qué hay caches de vistas derivadas del snapshot en memoria, y por qué no las cubre `catalog_version`?
+
+`/api/grupos`, `/api/marcas-browser` y `/api/mejores` re-derivaban su respuesta del
+catálogo entero en cada request (el agrupado Jaccard de `/api/grupos` es lo
+caro). Ahora `web.cache.CatalogoDerivadoCache` las cachea con
+`@Cacheable` sobre Caffeine (`CacheConfig`: tope de entradas y TTL por cache,
+env `APP_CACHE_{GRUPOS,MARCAS,MEJORES}_{MAX,TTL_MINUTES}`, stats activadas).
+
+**No se reusa `catalog_version`.** Esa tabla versiona lo que está en SQL y
+`CachingCatalogQueryPort` la usa para `facetas()`/`resumen()`. Estas vistas se
+derivan de `ScraperService.getLastResult()`, que cambia sin un commit
+correspondiente en la base: `eliminarProductoDeMemoria`,
+`actualizarProductoEnMemoria`, `recomputarFinanciacion`, `clearLastResult`, el
+rearmado de `catalogoEntero`, el congelado/liberado de `servedResult` y
+`cargarDesdeBD`. Por eso `ScraperService` tiene su propio `snapshotVersion()` y,
+tras cada asignación de `lastResult`/`servedResult`, llama `publicarCambio()`:
+si lo que ve un lector cambió, sube la versión y publica
+`CatalogoActualizado(version)`; `CatalogCacheEvictor` vacía todas las caches y
+loguea el hit ratio de cada una. El rearmado progresivo de una corrida no
+publica nada: el lector sigue viendo la foto congelada. `/api/ml/aplicar` no
+reemplaza el snapshot, así que tampoco publica.
+
+La versión también va en cada clave, así un cálculo en vuelo que termina
+después del vaciado queda bajo una clave que nadie vuelve a pedir. El bean
+lee la versión ANTES de calcular (nunca más viejo que su clave). Las dos
+caches (SQL y snapshot) conviven: cada una es válida para el dato que versiona.
+
+**Sólo vistas anónimas del catálogo.** Recomendados, outfits, PCs, suplementos
+y favoritos leen al usuario autenticado y no se cachean: `CacheUsageArchTest`
+prohíbe que el bean dependa de `ActorResolver`. Las anotaciones de cache viven
+en un único bean porque los `*Endpoints` se construyen con `new` y ahí serían
+inertes. Las claves normalizan a minúsculas (los filtros ya comparan sin
+mayúsculas) pero no hacen `trim`: los endpoints tampoco.
+
 ---
 
 <!-- Movido desde CLAUDE.md (2026-09-28) -->

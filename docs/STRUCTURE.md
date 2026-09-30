@@ -54,7 +54,8 @@ Scrappy/
         │   ├── App.java                    ← Entry point Spring Boot
         │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard, un *Config por área que
         │   │                                  arma sus servicios de dominio con @Bean, y los adaptadores
-        │   │                                  de Spring (CronTicker, IndiceRefreshRunner, SpringCronSchedule)
+        │   │                                  de Spring (CronTicker, IndiceRefreshRunner, SpringCronSchedule),
+        │   │                                  TransactionConfig y CacheConfig/CacheNames (Caffeine acotado)
         │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
         │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
         │   │                                  HistorialEntry, HistorialPort, UpsertStats,
@@ -123,6 +124,8 @@ Scrappy/
         │   │                                  FuenteIndicePort) + HttpJson + FuenteIndiceConfig
         │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
         │   └── web/                        ← ApiController + *Endpoints (20 clases, transporte)
+        │       └── cache/                  ← CatalogoDerivadoCache (@Cacheable: grupos, marcas, mejores),
+        │                                      CatalogCacheEvictor (vacía al publicarse CatalogoActualizado)
         └── resources/
             ├── application.properties, logback-spring.xml, config.properties
             ├── db/migration/               ← Flyway

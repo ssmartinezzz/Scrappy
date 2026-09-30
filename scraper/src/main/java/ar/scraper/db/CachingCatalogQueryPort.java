@@ -29,6 +29,10 @@ import java.util.function.Supplier;
  * {@code (cota, catalog_version)}. {@code buscar()} is a pass-through: it
  * varies per filter/page, so caching it would just be an unbounded map.
  *
+ * <p>This is the SQL-side cache, versioned by {@code catalog_version}. Views derived from the
+ * in-memory snapshot are cached separately ({@code web.cache.CatalogoDerivadoCache}), keyed by
+ * {@code ScraperService.snapshotVersion()}.</p>
+ *
  * <p>Version is read BEFORE computing, so a cached entry can be fresher than
  * its label but never staler — a write that commits between the read and the
  * compute only makes the result MORE current than what it's keyed under. No
