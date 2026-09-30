@@ -1,6 +1,5 @@
 package ar.scraper.scrape;
 
-import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -25,22 +24,21 @@ public interface ScrapeRunPort {
 
     /** Opens a run and returns its id. */
     long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId,
-               Collection<String> sitios) throws SQLException;
+               Collection<String> sitios);
 
-    void marcarSitioEnCurso(long runId, String sitio, Instant cuando) throws SQLException;
+    void marcarSitioEnCurso(long runId, String sitio, Instant cuando);
 
     void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
-                              String error, Instant cuando) throws SQLException;
+                              String error, Instant cuando);
 
-    void finalizar(long runId, String status, int productosCount, Instant finishedAt)
-            throws SQLException;
+    void finalizar(long runId, String status, int productosCount, Instant finishedAt);
 
     /** Boot-time sweep: any run still open belonged to a process that died. */
-    List<Long> marcarInterrumpidosAlArrancar(Instant cuando) throws SQLException;
+    List<Long> marcarInterrumpidosAlArrancar(Instant cuando);
 
-    Optional<CorridaInterrumpida> ultimaInterrumpida() throws SQLException;
+    Optional<CorridaInterrumpida> ultimaInterrumpida();
 
-    void reabrir(long runId) throws SQLException;
+    void reabrir(long runId);
 
     /**
      * Cierra como {@code CANCELLED} toda corrida {@code INTERRUPTED} y marca
@@ -48,12 +46,11 @@ public interface ScrapeRunPort {
      * #ultimaInterrumpida} nombra solo la mas reciente, asi que de a una
      * destaparia la siguiente en el proximo arranque.
      */
-    List<Long> descartarInterrumpidas(Instant cuando) throws SQLException;
+    List<Long> descartarInterrumpidas(Instant cuando);
 
-    List<String> marcarAusentesDelRegistro(long runId, Collection<String> nombresActuales)
-            throws SQLException;
+    List<String> marcarAusentesDelRegistro(long runId, Collection<String> nombresActuales);
 
-    boolean existeCorridaCompletada() throws SQLException;
+    boolean existeCorridaCompletada();
 
-    Optional<Instant> startedAtDe(long runId) throws SQLException;
+    Optional<Instant> startedAtDe(long runId);
 }

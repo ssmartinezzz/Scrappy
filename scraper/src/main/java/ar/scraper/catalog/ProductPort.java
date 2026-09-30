@@ -2,7 +2,6 @@ package ar.scraper.catalog;
 
 import ar.scraper.model.Product;
 
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +51,7 @@ public interface ProductPort {
 
     void marcarDescontinuado(String url);
 
-    void limpiarProductos() throws SQLException;
+    void limpiarProductos();
 
     // ─── audited human path ────────────────────────────────────────────────
 

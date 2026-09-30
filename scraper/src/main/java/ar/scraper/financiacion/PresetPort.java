@@ -1,6 +1,5 @@
 package ar.scraper.financiacion;
 
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,7 +17,7 @@ public interface PresetPort {
      * explícitamente como ejemplo y lo deja activo. Llamado desde
      * {@code DatabaseService.init()}.
      */
-    void seedPresetIlustrativoSiVacio() throws SQLException;
+    void seedPresetIlustrativoSiVacio();
 
     List<Preset> listarPresets();
 
