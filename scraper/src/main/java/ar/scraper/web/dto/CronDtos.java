@@ -9,7 +9,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the cron job endpoints. */
 public final class CronDtos {
 
     private CronDtos() {}

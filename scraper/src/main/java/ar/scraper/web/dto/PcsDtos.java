@@ -5,12 +5,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Payloads of the PC builder preference and saved-PC endpoints. */
 public final class PcsDtos {
 
     private PcsDtos() {}
 
-    /** Absent preferences travel as explicit nulls, as they always did. */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class Preferencia {
         private String gama;

@@ -10,7 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/** ML trends and per-product price history. */
 @RestController
 @RequestMapping("/api")
 public class TendenciasController {
@@ -28,13 +27,11 @@ public class TendenciasController {
         this.aggregator = aggregator;
     }
 
-    // Payload is the trainer's JSON enriched with DB stats: dynamic, hence JsonNode.
     @GetMapping("/tendencias")
     public ResponseEntity<ApiResponse<JsonNode>> tendencias() {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
         var ml = aggregator.getLastMlOutput();
 
-        // 503 lets the UI tell "the pipeline failed" from "no data yet" (204).
         if (ml == null || ml.isNull()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "ml_failed",
                     "El pipeline ML falló en la última corrida.");
@@ -71,8 +68,9 @@ public class TendenciasController {
     }
 
     /**
-     * 204 without history is for widgets (a sparkline with nothing to draw). The dedicated page
-     * cannot use it: see {@code CatalogoController.productoDetalle}, which answers 200 with empty points.
+     * . 204 without history is for widgets (a sparkline with nothing to draw). The dedicated page
+     * cannot use it: see {@code CatalogoController.productoDetalle}, which answers 200 with empty
+     * points.
      */
     @GetMapping("/historial")
     public ResponseEntity<ApiResponse<JsonNode>> historial(@RequestParam String url) {

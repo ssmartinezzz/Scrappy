@@ -6,7 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Outcome of a mutating call that has nothing else to return. */
 @Getter
 @Setter
 @NoArgsConstructor

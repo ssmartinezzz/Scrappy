@@ -4,9 +4,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * One client's outbox. Bounded: a full queue drops its OLDEST entries to make room and guarantees
- * exactly one {@code resync} sits behind them, because a client that missed events must re-read
- * state rather than trust what is left. A resync that is already queued is never duplicated.
+ * Bounded: a full queue drops its OLDEST entries to make room and guarantees exactly one
+ * {@code resync} sits behind them, because a client that missed events must re-read state rather
+ * than trust what is left.
  */
 final class ClientQueue {
 

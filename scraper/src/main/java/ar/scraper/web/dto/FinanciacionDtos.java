@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the financing presets, buy recommendation and macro indices endpoints. */
 public final class FinanciacionDtos {
 
     private FinanciacionDtos() {}

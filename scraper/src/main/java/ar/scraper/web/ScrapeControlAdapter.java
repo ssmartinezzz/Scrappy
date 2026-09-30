@@ -9,20 +9,9 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 
 /**
- * Une las tres piezas que el scheduler necesitaba nombrar por separado
- * ({@link ScraperService}, {@link ScraperConfig}, {@link PythonRunner}) detras
- * de {@link ScrapeControlPort}.
- *
- * <p>Package-private a proposito, como los {@code @Repository} de
- * {@code ar.scraper.db} que implementan los 13 puertos de F2: es {@code javac},
- * no ArchUnit, quien impide nombrar el tipo concreto fuera de {@code web}.</p>
- *
- * <p>No es un bean mas que envuelve a {@code ScraperService} por prolijidad: el
- * flag de GPU no vive en {@code ScraperService} — vive en {@code PythonRunner} —
- * y la banda de precio vive en {@code ScraperConfig}. Sin este adapter, darle al
- * scheduler una sola costura habria significado meterle a {@code ScraperService}
- * una dependencia de {@code PythonRunner} que hoy no tiene, para beneficio
- * exclusivo del scheduler.</p>
+ * No es un bean mas que envuelve a {@code ScraperService} por prolijidad: el flag de GPU no vive en
+ * {@code ScraperService} — vive en {@code PythonRunner} — y la banda de precio vive en
+ * {@code ScraperConfig}.
  */
 @Component
 class ScrapeControlAdapter implements ScrapeControlPort {

@@ -19,33 +19,13 @@ import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Issues and verifies the short-lived access token.
- *
- * <p><b>The token carries the subject and nothing else.</b> No role, no
- * permissions, no account state. That is not minimalism for its own sake: a
- * claim inside a signed token cannot be withdrawn before it expires, so a user
- * demoted from ADMIN — or disabled outright — would keep acting on the old
- * answer until the token ran out. Authorization therefore re-reads the role
- * from the database on every request, and the token's only job is to say who is
- * asking.</p>
- *
- * <p><b>HS256, not RS256.</b> There is exactly one issuer and one verifier —
- * this backend — so an asymmetric keypair buys nothing and costs key
- * distribution and rotation on a portable installer that has no PKI to lean on.
- * The algorithm is fixed at verification time and never read from the token
- * header, which closes the algorithm-confusion hole where an attacker presents
- * {@code alg: none} and the verifier obligingly agrees.</p>
- *
- * <p><b>Fifteen minutes</b> is short enough that a leaked token has a small
- * window and long enough that the refresh path is not hammered. It is a
- * constant rather than a setting: a deployment that tunes it is trading a
- * security property, which deserves a code change and a review, not an
- * environment variable.</p>
+ * Authorization therefore re-reads the role from the database on every request, and the token's
+ * only job is to say who is asking. HS256, not RS256.
  */
 @Component
 public class TokenService {
 
-    /** Access-token lifetime. See the class javadoc for why this is not configurable. */
+    /** See the class javadoc for why this is not configurable. */
     public static final Duration TTL = Duration.ofMinutes(15);
 
     /** HS256's key must be at least as long as its digest, or the signature is weak. */
@@ -79,20 +59,12 @@ public class TokenService {
             jwt.sign(new MACSigner(secreto));
             return jwt.serialize();
         } catch (Exception e) {
-            // Signing cannot fail on a valid key and a well-formed claims set, so
-            // reaching here means the process is misconfigured, not that a caller
-            // sent something bad.
+            // Signing cannot fail on a valid key and a well-formed claims set, so reaching here
+            // means the process is misconfigured, not that a caller sent something bad.
             throw new IllegalStateException("no se pudo firmar el access token", e);
         }
     }
 
-    /**
-     * @return the subject when the token is well-formed, signed by us with HS256,
-     *         and not expired; empty in every other case — including malformed
-     *         input. A caller deciding whether to let a request through has no
-     *         use for the distinction, and handing it an exception invites a
-     *         {@code catch} that lets the request through.
-     */
     public Optional<UUID> verificar(String token) {
         if (StringUtils.isBlank(token)) {
             return Optional.empty();
@@ -118,11 +90,8 @@ public class TokenService {
     }
 
     /**
-     * The token's {@code iat}, when it is one of ours and still valid.
-     *
-     * <p>Read separately from {@link #verificar} so the two questions stay
-     * separate: "is this token ours" and "was it issued before the password
-     * changed" have different answers and different consequences.</p>
+     * "is this token ours" and "was it issued before the password changed" have different answers
+     * and different consequences.
      */
     public Optional<Instant> emitidoEn(String token) {
         if (verificar(token).isEmpty()) {

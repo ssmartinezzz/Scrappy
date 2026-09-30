@@ -16,12 +16,10 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-/** Payloads of the catalog listing, facets and product detail endpoints. */
 public final class CatalogoDtos {
 
     private CatalogoDtos() {}
 
-    /** {@code data} of {@code GET /api/data}; the pagination block travels in the envelope's {@code page}. */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class Catalogo {
         private Meta meta;
@@ -42,7 +40,7 @@ public final class CatalogoDtos {
         private Map<String, String> errores;
     }
 
-    /** Facet histograms; {@code rubros} is only published by {@code /api/data}. */
+    /** {@code rubros} is only published by {@code /api/data}. */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class FacetsDto {
@@ -72,7 +70,6 @@ public final class CatalogoDtos {
         }
     }
 
-    /** One catalog row of {@code /api/data}. */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class ProductoRow {
         private String key;
@@ -169,7 +166,6 @@ public final class CatalogoDtos {
         private String presetLabel;
     }
 
-    /** {@code data} of {@code GET /api/producto/{key}}; both parts are built by dynamic JSON helpers. */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class ProductoDetalle {
         private ObjectNode producto;

@@ -26,25 +26,15 @@ public class App {
 
     /**
      * Reloj del sistema en la zona local del servidor — inyectado en
-     * {@code CronJobService}/{@code CronJobRunner} (scraper-cronjobs) para que
-     * los tests puedan sustituirlo por un {@link Clock#fixed} sin contexto de
-     * Spring.
+     * {@code CronJobService}/{@code CronJobRunner} (scraper-cronjobs) para que los tests puedan
+     * sustituirlo por un {@link Clock#fixed} sin contexto de Spring.
      */
     @Bean
     public Clock clock() {
         return Clock.systemDefaultZone();
     }
 
-    /**
-     * Abre el browser automaticamente cuando Spring arranca — gated detrás de
-     * {@code APP_OPEN_URL} (decouple-services-postgres, Batch 3, design D6).
-     * El backend ahora es API-only (sin SPA embebida en {@code static/}), así
-     * que ya no hay una página propia útil para abrir por default: sin la
-     * variable de entorno, este listener es un no-op. Si se define
-     * {@code APP_OPEN_URL} (por ejemplo, apuntando al frontend standalone),
-     * se abre esa URL. Corre en {@code ApplicationReadyEvent}: Tomcat ya acepta
-     * conexiones, sin dormir a ciegas.
-     */
+    /** Tomcat ya acepta conexiones, sin dormir a ciegas. */
     @EventListener(ApplicationReadyEvent.class)
     public void onStart() {
         String url = System.getenv("APP_OPEN_URL");

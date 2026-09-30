@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the outfit and supplement builder endpoints. */
 public final class OutfitsDtos {
 
     private OutfitsDtos() {}
@@ -67,7 +66,10 @@ public final class OutfitsDtos {
         private List<Tipo> tipos;
     }
 
-    /** {@code grupo} is an explicit null for "Otros" so the client need not tell "no group" from "field missing". */
+    /**
+     * {@code grupo} is an explicit null for "Otros" so the client need not tell "no group" from
+     * "field missing".
+     */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class Tipo {
         private String tipo;

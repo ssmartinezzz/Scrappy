@@ -7,7 +7,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the account administration endpoints. */
 public final class UsuariosDtos {
 
     private UsuariosDtos() {}

@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** What {@code /api/status} puts inside {@code data}; the event stream's snapshot reuses it. */
 @Component
 public class ScrapeStatusView {
 
@@ -37,8 +36,8 @@ public class ScrapeStatusView {
             }
         }
 
-        // `run` is additive: `status` stays IDLE|RUNNING|DONE|ERROR (a cancelled run reports
-        // DONE) so the CLI contract in cli/core/rest.py does not gain an enum value.
+        // `status` stays IDLE|RUNNING|DONE|ERROR (a cancelled run reports DONE) so the CLI contract
+        // in cli/core/rest.py does not gain an enum value.
         var rs = service.getRunState();
         if (rs != null) {
             b.run(new ScrapeDtos.RunInfo(rs.scrapeUuid().toString(), rs.startedAt().toString(),

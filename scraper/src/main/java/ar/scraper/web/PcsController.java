@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/** PC builder endpoint + saved PCs. */
 @RestController
 @RequestMapping("/api")
 public class PcsController {
@@ -56,12 +55,11 @@ public class PcsController {
 
     private String safe(String s) { return s != null ? s : ""; }
 
-    /** {@code gama} is the wire value ("economica"/"media"/"alta"); blank/absent means no tier filter. */
     ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
     }
 
-    /** Wire values (blank/absent = not requested); {@code ramDual}/{@code wifi} are null when absent. */
+    /** Wire values (blank/absent = not requested); */
     ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi) {
@@ -78,7 +76,6 @@ public class PcsController {
                 ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, "");
     }
 
-    /** {@code uso} blank/absent means {@link Uso#GAMING}, the default ({@link UsoWire#parse}). */
     @GetMapping("/pcs/builder")
     public ResponseEntity<ApiResponse<ObjectNode>> builder(@RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
@@ -118,7 +115,6 @@ public class PcsController {
                         .collect(Collectors.toSet());
 
         PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido);
-        // PcBuildJson is a dynamic JSON builder shared with the agent tool, hence ObjectNode.
         return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
     }
 
@@ -166,7 +162,10 @@ public class PcsController {
         return valor != null ? Boolean.parseBoolean(String.valueOf(valor)) : null;
     }
 
-    /** An absent floor is "not requested", not zero: a {@code 0} would reach PreferenciasDeArmado, which rejects it. */
+    /**
+     * An absent floor is "not requested", not zero: a {@code 0} would reach PreferenciasDeArmado,
+     * which rejects it.
+     */
     private static Integer enteroDe(Map<String, Object> body, String clave) {
         Object valor = body.get(clave);
         if (valor == null) return null;
@@ -252,7 +251,6 @@ public class PcsController {
         }
     }
 
-    // Rows come from SavedPcsPort as maps; typing them is a persistence-layer change.
     @GetMapping("/pcs/saved")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedPcs() {
         return ResponseEntity.ok(ApiResponse.ok(pcsGuardadas.obtenerPcsGuardadas(Sujeto.de(actorResolver))));
