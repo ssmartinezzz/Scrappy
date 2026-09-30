@@ -210,4 +210,115 @@ class TransactionalUnitsRollbackTest extends PostgresTestBase {
         }
         assertThat(count("sitios_dinamicos")).isEqualTo(1);
     }
+
+    // ── scrape runs and products ─────────────────────────────────────────────
+
+    private String text(String sql) throws SQLException {
+        try (Connection c = dataSource().getConnection(); Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            return rs.next() ? rs.getString(1) : null;
+        }
+    }
+
+    private void exec(String sql) throws SQLException {
+        try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
+            st.execute(sql);
+        }
+    }
+
+    private ar.scraper.model.Product producto(String url, double precio) {
+        return new ar.scraper.model.Product("Freres", "Producto", precio, null, url, "http://img.example/x.jpg",
+                "Remera", "unisex", List.of("M"), ar.scraper.model.Product.MlScore.EMPTY, "Nike",
+                "indumentaria", false, false, ar.scraper.model.Product.SenalCompra.EMPTY,
+                ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);
+    }
+
+    @Test
+    @DisplayName("crearScrapeRun leaves no run when enrolling its sites fails")
+    void crearScrapeRunLeavesNoRun() throws Exception {
+        try (var fault = FaultInjection.raiseOn(dataSource(), "scrape_run_site", "INSERT", null)) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> db.crearScrapeRun(
+                    UUID.randomUUID(), java.time.Instant.now(), null, null, List.of("freres")))
+                    .isInstanceOf(ar.scraper.model.PersistenciaException.class);
+        }
+        assertThat(count("scrape_run")).isZero();
+    }
+
+    @Test
+    @DisplayName("reabrirScrapeRun keeps the run INTERRUPTED when resetting its sites fails")
+    void reabrirKeepsTheRunInterrupted() throws Exception {
+        long run = db.crearScrapeRun(UUID.randomUUID(), java.time.Instant.now(), null, null, List.of("freres"));
+        db.marcarSitioEnCurso(run, "freres", java.time.Instant.now());
+        db.marcarRunsInterrumpidos(java.time.Instant.now());
+        try (var fault = FaultInjection.raiseOn(dataSource(), "scrape_run_site", "UPDATE", null)) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> db.reabrirScrapeRun(run))
+                    .isInstanceOf(ar.scraper.model.PersistenciaException.class);
+        }
+        assertThat(text("SELECT status FROM scrape_run WHERE id = " + run)).isEqualTo("INTERRUPTED");
+    }
+
+    @Test
+    @DisplayName("upsertProductos returns 0 nuevos and keeps every earlier row when the soft-delete step fails")
+    void upsertProductosFailureIsAllOrNothing() throws Exception {
+        db.upsertParcial(List.of(producto("https://t/a", 1000), producto("https://t/b", 1000)));
+        try (var fault = FaultInjection.raiseOn(dataSource(), "productos", "UPDATE", "NEW.activo = false")) {
+            var stats = db.upsertProductos(List.of(producto("https://t/a", 2000), producto("https://t/c", 500)));
+
+            assertThat(stats).isEqualTo(new ar.scraper.catalog.UpsertStats(0, 0, 0, 0));
+        }
+        assertThat(text("SELECT precio::int FROM productos WHERE url = 'https://t/a'")).isEqualTo("1000");
+        assertThat(text("SELECT activo::text FROM productos WHERE url = 'https://t/b'")).isEqualTo("true");
+        assertThat(count("productos WHERE url = 'https://t/c'")).isZero();
+    }
+
+    @Test
+    @DisplayName("rows committed per site by upsertParcial survive a later upsertProductos failure")
+    void perSiteRowsSurviveAFailedFinalUpsert() throws Exception {
+        db.upsertParcial(List.of(producto("https://t/a", 1000)));
+        db.upsertParcial(List.of(producto("https://t/b", 1000)));
+        try (var fault = FaultInjection.raiseOn(dataSource(), "productos", "UPDATE", "NEW.activo = false")) {
+            db.upsertProductos(List.of(producto("https://t/a", 1000)));
+        }
+        assertThat(count("productos WHERE activo")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("limpiarProductos keeps the catalog when wiping category stats fails")
+    void limpiarProductosKeepsTheCatalogWhenStatsWipeFails() throws Exception {
+        db.upsertParcial(List.of(producto("https://t/a", 1000)));
+        exec("INSERT INTO categoria_stats (categoria, n, mean, median, mode, std, cv, q1, q3, iqr, mad, fence_low,"
+                + " fence_high, updated_at) VALUES ('Remera',1,1,1,1,1,1,1,1,1,1,1,1, now())");
+        try (var fault = FaultInjection.raiseOn(dataSource(), "categoria_stats", "DELETE", null)) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> db.limpiarProductos())
+                    .isInstanceOf(ar.scraper.model.PersistenciaException.class);
+        }
+        assertThat(count("productos")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("actualizarNormalizacion keeps the previous sizes when writing the new ones fails")
+    void actualizarNormalizacionKeepsPreviousSizes() throws Exception {
+        db.upsertParcial(List.of(producto("https://t/a", 1000)));
+        try (var fault = FaultInjection.raiseOn(dataSource(), "producto_talle", "INSERT", null)) {
+            int rows = db.actualizarNormalizacion("https://t/a", "Remera", "Nike", "unisex", List.of("L", "XL"), "");
+
+            assertThat(rows).isZero();
+        }
+        assertThat(text("SELECT string_agg(talle, ',') FROM producto_talle WHERE url = 'https://t/a'")).isEqualTo("M");
+    }
+
+    @Test
+    @DisplayName("aplicarReclasificacionAuditada changes nothing when the audit row fails")
+    void aplicarReclasificacionAuditadaChangesNothingWithoutAudit() throws Exception {
+        var previo = producto("https://t/a", 1000);
+        db.upsertParcial(List.of(previo));
+        try (var fault = FaultInjection.raiseOn(dataSource(), "agent_reclassify_audit", "INSERT", null)) {
+            boolean ok = db.aplicarReclasificacionAuditada("https://t/a", "Pantalon", "Nike", "unisex",
+                    List.of("M"), "", previo, "tester");
+
+            assertThat(ok).isFalse();
+        }
+        assertThat(text("SELECT categoria FROM productos WHERE url = 'https://t/a'")).isEqualTo("Remera");
+        assertThat(text("SELECT bloqueado_por FROM productos WHERE url = 'https://t/a'")).isNull();
+    }
 }
