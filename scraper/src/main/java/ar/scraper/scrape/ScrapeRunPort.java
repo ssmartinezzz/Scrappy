@@ -7,22 +7,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Capability port for the {@code scrape_run}/{@code scrape_run_sitio} aggregate:
- * the lifecycle of one scraping run, site by site, plus the interrupted-run
- * bookkeeping that lets a killed process be resumed
- * (extract-ml-persistence-ports, port 9 of 13).
- *
- * <p>It lives in {@code scrape} because {@link CorridaInterrumpida}, the type
- * it returns, already does.</p>
- *
- * <p>Method names are the repository's, not the facade's — decision D3 of
- * extract-catalog-query-port. {@code DatabaseService} keeps spelling them
- * {@code crearScrapeRun}/{@code finalizarScrapeRun}/{@code reabrirScrapeRun}
- * and renames while delegating.</p>
+ * {@code DatabaseService} keeps spelling them
+ * {@code crearScrapeRun}/{@code finalizarScrapeRun}/{@code reabrirScrapeRun} and renames while
+ * delegating.
  */
 public interface ScrapeRunPort {
 
-    /** Opens a run and returns its id. */
     long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId,
                Collection<String> sitios);
 
@@ -33,7 +23,6 @@ public interface ScrapeRunPort {
 
     void finalizar(long runId, String status, int productosCount, Instant finishedAt);
 
-    /** Boot-time sweep: any run still open belonged to a process that died. */
     List<Long> marcarInterrumpidosAlArrancar(Instant cuando);
 
     Optional<CorridaInterrumpida> ultimaInterrumpida();
@@ -41,10 +30,8 @@ public interface ScrapeRunPort {
     void reabrir(long runId);
 
     /**
-     * Cierra como {@code CANCELLED} toda corrida {@code INTERRUPTED} y marca
-     * SKIPPED sus sitios abiertos. Todas, no la ofrecida: {@link
-     * #ultimaInterrumpida} nombra solo la mas reciente, asi que de a una
-     * destaparia la siguiente en el proximo arranque.
+     * Todas, no la ofrecida: {@link #ultimaInterrumpida} nombra solo la mas reciente, asi que de a
+     * una destaparia la siguiente en el proximo arranque.
      */
     List<Long> descartarInterrumpidas(Instant cuando);
 

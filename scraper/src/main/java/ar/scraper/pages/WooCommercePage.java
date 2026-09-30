@@ -10,17 +10,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Scraper para tiendas WooCommerce (WordPress + WooCommerce).
- *
- * Indicadores WC: li.product, woocommerce-Price-amount, wp-post-image,
- *                 woocommerce-loop-product__title
- *
- * Formato de precio soportado:
- *   "ARS209 175"   → 209175
- *   "$209.175,00"  → 209175
- *   "209175"       → 209175
- */
 public class WooCommercePage extends BasePage {
 
     private static final Logger log = LoggerFactory.getLogger(WooCommercePage.class);
@@ -42,13 +31,10 @@ public class WooCommercePage extends BasePage {
         this.precioMax = precioMax;
     }
 
-    // ─── Entry point ─────────────────────────────────────────────────────────
-
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
         Set<String> urlsVistas = new HashSet<>();
 
-        // Intentar detectar la URL de la tienda
         String shopUrl = detectarShopUrl();
         if (shopUrl == null) {
             log.warn("[{}] No se encontró URL de tienda WooCommerce", sitio);
@@ -80,7 +66,6 @@ public class WooCommercePage extends BasePage {
                     fromNode(n).ifPresent(result::add);
                 }
 
-                // Detectar página repetida
                 if (!urlsPagina.isEmpty() && urlsVistas.containsAll(urlsPagina)) {
                     log.info("[{}] página {} repetida → fin de catálogo", sitio, p);
                     break;
@@ -102,10 +87,7 @@ public class WooCommercePage extends BasePage {
         return result;
     }
 
-    // ─── Detectar URL de la tienda ────────────────────────────────────────────
-
     private String detectarShopUrl() {
-        // Candidatas comunes para WooCommerce en Argentina
         String[] candidatas = {
             baseUrl + "/tienda/",
             baseUrl + "/shop/",
@@ -131,8 +113,6 @@ public class WooCommercePage extends BasePage {
         }
         return null;
     }
-
-    // ─── Modelo ───────────────────────────────────────────────────────────────
 
     private Optional<Product> fromNode(JsonNode n) {
         try {
@@ -168,24 +148,15 @@ public class WooCommercePage extends BasePage {
         }
     }
 
-    /**
-     * Parser de precio WooCommerce.
-     * Soporta: "ARS209 175", "$209.175,00", "209175", "ARS 209.175"
-     */
     private Optional<Double> parsePrecioWC(String raw) {
         if (StringUtils.isBlank(raw)) return Optional.empty();
-        // Quitar prefijo moneda (ARS, $, USD, etc.) y espacios
         String s = raw.replaceAll("[A-Za-z$€£]", "").trim();
-        // Quitar espacios usados como separador de miles (formato ARS "209 175")
         s = s.replaceAll("\\s+", "");
-        // Formato argentino: punto=miles, coma=decimal → "209.175,00"
         if (s.matches(".*[.,]\\d{2}$")) {
-            // Si termina con ,XX o .XX → decimal
             char dec = s.charAt(s.length() - 3);
             if (dec == ',') {
                 s = s.replace(".", "").replace(",", ".");
             } else if (dec == '.') {
-                // Podría ser separador de miles, no decimal
                 if (s.lastIndexOf('.') == s.indexOf('.')) {
                     // Solo hay un punto → es decimal
                     s = s.replace(",", "");
@@ -214,14 +185,11 @@ public class WooCommercePage extends BasePage {
         return "";
     }
 
-    // ─── Extractor JS ─────────────────────────────────────────────────────────
-
     private String buildExtractorJs() {
         return "(function() {" +
             "var results = [];" +
             "var seen = new Set();" +
 
-            // Selectores WooCommerce para cards de producto
             "var cards = Array.from(document.querySelectorAll(" +
             "  'li.product, .product-item, .wc-block-grid__product, " +
             "   article.product-type-simple, article.product-type-variable'));" +
@@ -229,7 +197,6 @@ public class WooCommercePage extends BasePage {
             "cards.forEach(function(card) {" +
             "  try {" +
 
-            // URL y nombre: el link principal del producto
             "    var linkEl = card.querySelector('a.woocommerce-loop-product__link, " +
             "      a.wp-block-button__link, a[href*=\"/product/\"], " +
             "      h2 a, h3 a, .woocommerce-loop-product__title a');" +
@@ -238,13 +205,11 @@ public class WooCommercePage extends BasePage {
             "    var url = linkEl.href || '';" +
             "    if (!url || seen.has(url)) return; seen.add(url);" +
 
-            // Nombre
             "    var nameEl = card.querySelector('.woocommerce-loop-product__title, " +
             "      h2, h3, .wc-block-grid__product-title, .product-title');" +
             "    var nombre = nameEl ? nameEl.textContent.trim() : linkEl.textContent.trim();" +
             "    if (!nombre || nombre.length < 2) return;" +
 
-            // Imagen
             "    var img = '';" +
             "    var imgEl = card.querySelector('img.wp-post-image, img.woocommerce-placeholder, " +
             "      .wc-block-grid__product-image img, img[class*=product], img');" +
@@ -257,8 +222,8 @@ public class WooCommercePage extends BasePage {
             "      }" +
             "    }" +
 
-            // Precio: WC pone precio original en <del> y actual en <ins>
-            // Si no hay oferta, el precio está directamente en .price
+            // WC pone precio original en <del> y actual en <ins> Si no hay oferta, el precio está
+            // directamente en.price
             "    var precio = '';" +
             "    var precioOrig = '';" +
             "    var insEl = card.querySelector('ins .woocommerce-Price-amount bdi, " +
@@ -276,7 +241,6 @@ public class WooCommercePage extends BasePage {
             "    }" +
             "    if (!precio) return;" +
 
-            // Categoría desde breadcrumb o atributo
             "    var categoria = '';" +
             "    var catEl = card.querySelector('[class*=cat], [data-category], " +
             "      .product-category, .posted_in a');" +

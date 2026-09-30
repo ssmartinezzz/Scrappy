@@ -32,11 +32,6 @@ public class MlEnricher {
             JsonNode s  = scores.path(key);
             if (s.isMissingNode()) { result.add(p); continue; }
 
-            // ── Badge set (badges-oportunidades-revamp D3) ──────────────────
-            // ml_pipeline.py emits BOTH 'badge' (principal, back-compat string)
-            // and 'badges' (ordered, principal-first list). A cached/older
-            // ml_output that still lacks 'badges' (pre-multi-badge) falls back
-            // to a one-element list derived from 'badge'.
             List<String> badges = new ArrayList<>();
             JsonNode badgesNode = s.path("badges");
             if (badgesNode.isArray()) {
@@ -52,10 +47,6 @@ public class MlEnricher {
             Product.MlScore ml = new Product.MlScore(
                     s.path("composite").asInt(s.path("pctil").asInt(50)),
                     badges,
-                    // Fallback de compatibilidad: pipelines previos a tendencias-clusters-fix
-                    // NO emitían 'ofertaReal'. Si la key falta (output viejo restaurado desde
-                    // la DB), derivamos la regla localmente para no perder el badge.
-                    // La fuente de verdad es ml_pipeline.py (scores[pid].ofertaReal).
                     s.path("ofertaReal").asBoolean(
                         s.path("descuentoSig").asBoolean(false)
                         && s.path("ratio").asDouble(1.0) >= 1.15),
@@ -65,7 +56,6 @@ public class MlEnricher {
                     s.path("segment").asText("standard")
             );
 
-            // ── Aplicar categoría refinada por modelo ML ──────────────────
             String catFinal = p.categoria();
             String catML    = s.path("categoriaML").asText("");
             double catConf  = s.path("catMLConf").asDouble(0.0);
@@ -74,34 +64,22 @@ public class MlEnricher {
                 catRefinadas++;
             }
 
-            // ── Rellenar género vía imagen SOLO cuando el texto no dice nada ──
-            // Invariante text-wins (PR4 judgment-day, A-001/B-001): un género
-            // ya resuelto por texto NUNCA se pisa con la señal de imagen.
             String generoFinal = p.genero();
             if (StringUtils.isBlank(generoFinal)) {
                 String gML   = s.path("generoML").asText("");
                 double gConf = s.path("genImgConf").asDouble(0.0);
                 if (("hombre".equals(gML) || "mujer".equals(gML)) && gConf >= 0.80) {
-                    generoFinal = gML; // señal de imagen decisiva rellena un hueco de texto
+                    generoFinal = gML;
                     generosRellenados++;
                 }
                 // "unisex" de imagen (sentinel bajo-umbral) deja el género en blanco
             }
 
-            // ── Atributos visuales derivados de imagen (fit/estampado/escote/color) ──
-            // RELY-001 fix: aditivo por campo, no un reemplazo incondicional.
-            // ml_pipeline.py solo puebla estas 4 keys para el subconjunto gateado
-            // por needs_image_fallback (capado a 400 por run) — el resto del score
-            // trae blank/missing en estos campos aunque el producto SÍ tenga visual
-            // persistido de un run anterior o del backfill CLI. Si acá se reemplazara
-            // incondicionalmente (como antes), cada scrape regular volvería a ""
-            // los visual attrs de todo lo que no entró en el subconjunto de ESTE run.
-            // Por campo: valor del score si no está blank, si no se preserva
-            // p.visual() — mismo invariante aditivo que ml_embeddings.py
-            // (ml_embeddings.py:660-676, "_persist_visual_attrs": "This CLI must
-            // only ever ADD signal, never remove it"). ml_pipeline.py ya remapea
-            // las claves en Python (estampado->print, escote->neckline,
-            // color_dominante->color), así que acá se leen verbatim, sin re-mapeo.
+            // ── Atributos visuales derivados de imagen (fit/estampado/escote/color) ── RELY-001
+            // fix: aditivo por campo, no un reemplazo incondicional. ml_pipeline.py solo puebla
+            // estas 4 keys para el subconjunto gateado por needs_image_fallback (capado a 400 por
+            // run) — el resto del score trae blank/missing en estos campos aunque el producto SÍ
+            // tenga visual persistido de un run anterior o del backfill CLI.
             Product.VisualAttrs visualPrevio = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
             Product.VisualAttrs visual = new Product.VisualAttrs(
                     valorScoreOPrevio(s.path("fit").asText(""), visualPrevio.fit()),
@@ -126,14 +104,6 @@ public class MlEnricher {
         return result;
     }
 
-    /**
-     * Per-field additive-preserve seam (RELY-001): a blank score value means
-     * "this run's ML pass produced no signal for this field" (missing key,
-     * explicit {@code ""}, or the product wasn't in this run's gated
-     * needs_image_fallback subset) rather than "the model confidently
-     * observed nothing" — so it must never overwrite a previously persisted
-     * non-blank value.
-     */
     private static String valorScoreOPrevio(String valorScore, String valorPrevio) {
         if (StringUtils.isNotBlank(valorScore)) return valorScore;
         return valorPrevio != null ? valorPrevio : "";
