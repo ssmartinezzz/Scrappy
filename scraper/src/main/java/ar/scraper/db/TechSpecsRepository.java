@@ -19,12 +19,9 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Persistence for {@code producto_tech_specs} (V35, widened by V36 and V37):
- * the specs {@code TechSpecsIndexer} parses off each tech product's name, one
- * row per url. Every {@code *_id} is resolved from its lookup by name in the
- * same statement — same molde as {@code PreferenciaArmadorRepository}'s
- * {@code (SELECT id FROM gama WHERE nombre = ?)} — rather than caching ids in
- * Java, so the lookups stay the single source of the vocabulary.
+ * Every {@code *_id} is resolved from its lookup by name in the same statement — same molde as
+ * {@code PreferenciaArmadorRepository}'s {@code (SELECT id FROM gama WHERE nombre = ?)} — rather
+ * than caching ids in Java, so the lookups stay the single source of the vocabulary.
  */
 @Repository
 class TechSpecsRepository implements TechSpecsPort {
@@ -79,7 +76,7 @@ class TechSpecsRepository implements TechSpecsPort {
                 actualizado_at         = now()
             """;
 
-    /** {@code tierChipset}'s int scale (T3b/T4c, pc-builder-deep-taxonomy) — 0 is abstention, never a row. */
+    /** {@code tierChipset}'s int scale — 0 is abstention, never a row. */
     private static String nombreDeTierChipset(int tierChipset) {
         return switch (tierChipset) {
             case 1 -> "X_Z";
@@ -128,8 +125,8 @@ class TechSpecsRepository implements TechSpecsPort {
         setNullableString(ps, 14, specs.tipoCooler() == TipoCooler.DESCONOCIDO ? null : specs.tipoCooler().name());
         setNullableInt(ps, 15, specs.generacion());
         setNullableInt(ps, 16, specs.modulos());
-        // wifi (D2's exception): only a Motherboard row gets an affirmed true/false —
-        // every other reader's false is a default, not an assertion (T5b).
+        // wifi: only a Motherboard row gets an affirmed true/false — every other reader's false is
+        // a default, not an assertion.
         if ("Motherboard".equals(categoria)) {
             ps.setBoolean(17, specs.wifi());
         } else {

@@ -29,26 +29,8 @@ import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * `/api/data`'s catalog query, in SQL (`sql-catalog-filtering`).
- *
- * <p>Until now the endpoint streamed the whole in-memory catalog through 18
- * Java predicates on every request, paginating what was left. The two filters
- * that could NOT be expressed in SQL were {@code talle} and {@code badge} —
- * both were lists packed into a single TEXT column. That is precisely what V7's
- * child tables removed, so this is the payoff that migration was for.</p>
- *
- * <p><b>The semantics are reproduced, not improved.</b> Every quirk of the Java
- * filter is mirrored here on purpose — the defaulted {@code segment}/{@code rubro},
- * the two-way prefix match on {@code categoria}, the unit-price range, badge
- * membership rather than equality. {@code CatalogSqlEquivalenceTest} pins them
- * against the original implementation over the same dataset. Anything worth
- * changing gets changed afterwards, visibly, not smuggled in as "while I was
- * there".</p>
- *
- * <p>One deliberate difference: SQL has no stable sort, so every ORDER BY ends
- * with {@code url} as a tiebreaker. Without it, two products at the same price
- * could swap places between page 1 and page 2 of the same query and a product
- * would be shown twice or never.</p>
+ * Until now the endpoint streamed the whole in-memory catalog through 18 Java predicates on every
+ * request, paginating what was left.
  */
 @Repository
 class CatalogQueryRepository implements CatalogQueryPort {
@@ -68,7 +50,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return buscar(filtro, orden, page, size, Optional.empty());
     }
 
-    /** @param desde the run's {@code started_at}; empty serves the whole catalogue. */
     @Override
     public CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
         Where where = construirWhere(filtro, cotaDe(desde));
@@ -86,28 +67,15 @@ class CatalogQueryRepository implements CatalogQueryPort {
     }
 
     /**
-     * Las facetas del catálogo activo, con un GROUP BY por faceta en vez de un
-     * barrido en memoria de las 13543 filas.
-     *
-     * <p>Cada consulta aplica en SQL la MISMA normalización de clave que hacía
-     * {@code FacetCalculator} (trim, lower para género, capitalizar la primera
-     * letra en categoría) para que las claves salgan idénticas. El orden
-     * también se replica: categorías y marcas por conteo descendente, marcas
-     * limitadas a 30, subcategorías por clave, y los talles por
-     * {@link ar.scraper.catalog.TalleOrder#sortTalles} — que se reusa,
-     * no se reimplementa.</p>
-     *
-     * <p>Un cambio visible y deliberado: género, badges y los cuatro atributos
-     * visuales salían en "orden de primera aparición" dentro de un catálogo
-     * ordenado por precio, que no es un orden sino un accidente. Ahora salen
-     * por conteo descendente.</p>
+     * Cada consulta aplica en SQL la MISMA normalización de clave que hacía {@code FacetCalculator}
+     * (trim, lower para género, capitalizar la primera letra en categoría) para que las claves
+     * salgan idénticas.
      */
     @Override
     public Facets facetas() {
         return facetas(Optional.empty());
     }
 
-    /** @param desde the run's {@code started_at}; empty counts the whole catalogue. */
     @Override
     public Facets facetas(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
@@ -139,21 +107,9 @@ class CatalogQueryRepository implements CatalogQueryPort {
     }
 
     /**
-     * Las ocho expresiones que antes eran ocho {@code contar(...)} — ocho barridos
-     * de {@code productos} — en UNA: un {@code GROUPING SETS} de un solo scan.
-     *
-     * <p>Cada fila del resultado pertenece a UNA de las ocho facetas; cuál es la
-     * dice {@code GROUPING(expr)}, que vale 0 para la expresión activa de esa fila
-     * y 1 para las otras siete (que llegan en NULL — así es como Postgres
-     * materializa un {@code GROUPING SETS} de conjuntos de una sola columna). El
-     * orden de {@link #FACET_EXPRS} es el índice: {@code GROUPING(expr_i) = 0}
-     * ⇒ esta fila cuenta para la faceta {@code i}.</p>
-     *
-     * <p>El blanco se excluye EN JAVA, no en el WHERE: acá conviven las ocho
-     * expresiones en una sola query, y una fila puede ser blanco en {@code fit}
-     * y no serlo en {@code marca} — un WHERE compartido las perdería a las dos.
-     * Es el mismo criterio que el {@code contar(...)} anterior aplicaba en SQL:
-     * {@code coalesce(btrim(expr), '') <> ''}.</p>
+     * Las ocho expresiones que antes eran ocho {@code contar(...)} — ocho barridos de
+     * {@code productos} — en UNA: un {@code GROUPING SETS} de un solo scan. El orden de
+     * {@link #FACET_EXPRS} es el índice:
      */
     private List<Map<String, Long>> contarProductosPorFaceta(Connection c, Cota cota) throws SQLException {
         String[] exprs = FACET_EXPRS;
@@ -173,9 +129,9 @@ class CatalogQueryRepository implements CatalogQueryPort {
 
         List<Map<String, Long>> crudo = new ArrayList<>(exprs.length);
         for (int i = 0; i < exprs.length; i++) crudo.add(new java.util.LinkedHashMap<>());
-        // Acumula en listas primero: el orden final (conteo DESC, clave ASC) se
-        // decide en Java por faceta, no en el ORDER BY — mezclar ocho criterios
-        // de orden distintos en una sola cláusula no vale la pena.
+        // Acumula en listas primero: el orden final (conteo DESC, clave ASC) se decide en Java por
+        // faceta, no en el ORDER BY — mezclar ocho criterios de orden distintos en una sola
+        // cláusula no vale la pena.
         List<List<Map.Entry<String, Long>>> porFaceta = new ArrayList<>(exprs.length);
         for (int i = 0; i < exprs.length; i++) porFaceta.add(new ArrayList<>());
 
@@ -189,7 +145,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
                         int kCol = i * 2 + 2;
                         if (rs.getInt(gCol) != 0) continue; // no es la faceta activa de esta fila
                         String clave = rs.getString(kCol);
-                        if (StringUtils.isBlank(clave)) break; // blanco: se excluye, igual que antes
+                        if (StringUtils.isBlank(clave)) break;
                         porFaceta.get(i).add(Map.entry(clave, rs.getLong(cntCol)));
                         break;
                     }
@@ -233,12 +189,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return resumen(Optional.empty());
     }
 
-    /**
-     * @param desde the run's {@code started_at}; empty summarises the whole
-     *              catalogue. Bounding this and leaving it out of {@code buscar}
-     *              — or the reverse — is what makes the 204 check and the page
-     *              contents disagree, so both go through the same {@link Cota}.
-     */
     @Override
     public CatalogResumen resumen(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
@@ -270,7 +220,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return new CatalogResumen(min, max, porSitio, rubros, conteoGymrat, conteoPacks, total);
     }
 
-    /** GROUP BY sobre una expresión de `productos`, descartando el blanco, por conteo descendente. */
     private Map<String, Long> contar(Connection c, String expresion, Cota cota) throws SQLException {
         Map<String, Long> conteo = new java.util.LinkedHashMap<>();
         String sql = "SELECT " + expresion + " AS clave, COUNT(*) FROM productos "
@@ -287,16 +236,14 @@ class CatalogQueryRepository implements CatalogQueryPort {
     }
 
     /**
-     * Igual pero sobre una tabla hija: un producto cuenta UNA VEZ POR VALOR que
-     * tiene, no una sola vez — es la semántica multi-badge que la spec pide.
+     * Igual pero sobre una tabla hija: un producto cuenta UNA VEZ POR VALOR que tiene, no una sola
+     * vez — es la semántica multi-badge que la spec pide.
      */
     private Map<String, Long> contarHija(Connection c, String tabla, String columna, Cota cota)
             throws SQLException {
         Map<String, Long> conteo = new java.util.LinkedHashMap<>();
-        // The bound qualifies `p`, the parent: a child row is in scope exactly
-        // when its product is. Leaving this one unbounded is invisible from
-        // `buscar` — the page shrinks correctly while the talles and badges
-        // filters keep offering values only the held-back products carry.
+        // Leaving this one unbounded is invisible from `buscar` — the page shrinks correctly while
+        // the talles and badges filters keep offering values only the held-back products carry.
         String sql = "SELECT btrim(h." + columna + ") AS clave, COUNT(*) FROM " + tabla + " h "
                 + "JOIN productos p ON p.url = h.url "
                 + "WHERE p.activo AND btrim(h." + columna + ") <> ''"
@@ -325,48 +272,23 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return out;
     }
 
-    // ─── WHERE ──────────────────────────────────────────────────────────────
-
     /** SQL fragment plus its bound parameters, in order. */
     private record Where(String sql, List<Object> params) {
     }
 
     /**
-     * The reader bound: while a run is in flight, hold back the rows it has
-     * already re-touched so a reader sees the catalogue as it stood before the
-     * run started, instead of a half-rescraped mix (design D1/D6).
-     *
-     * <p><b>Absent means serve everything</b>, never "bound = epoch, serve
-     * nothing". A fresh install with no completed run behind it must show its
-     * progress, not an empty screen.</p>
-     *
-     * <p><b>Exclusive on purpose, and the mirror image of the soft-delete
-     * union.</b> {@code touched_at} only ever holds whole seconds and
-     * {@code ScrapeRunRepository.crear} truncates {@code started_at} to match,
-     * so a row written during the run's own first second compares equal and
-     * fails {@code <} — it is held back. That is a row hidden one second early,
-     * before any site can plausibly have finished, and it loses nobody any data.
-     * The sweep's bound is {@code >=} because it must protect rows from being
-     * deleted; this one is {@code <} because it may hide a fresh row. The two
-     * directions are deliberate and opposite.</p>
-     *
-     * <p>Rendering and binding live together here on purpose: the predicate has
-     * to reach <b>four</b> separate {@code activo} clauses — {@code construirWhere},
-     * {@code resumen}'s aggregate, the {@code contar(String)} GROUP BY overload
-     * and {@code contarHija}'s JOIN. Four hand-written copies is four chances to
-     * miss one, and missing one is invisible from {@code buscar}: the page shrinks
-     * correctly while the facets keep advertising values it cannot show.</p>
+     * The reader bound: while a run is in flight, hold back the rows it has already re-touched so a
+     * reader sees the catalogue as it stood before the run started, instead of a half-rescraped
+     * mix.
      */
     private record Cota(Optional<Instant> desde) {
 
         static final Cota SIN_COTA = new Cota(Optional.empty());
 
-        /** {@code " AND <alias>touched_at < ?"}, or nothing when absent. */
         String sqlAnd(String alias) {
             return desde.isEmpty() ? "" : " AND " + alias + "touched_at < ?";
         }
 
-        /** Binds this bound's parameter, if any, and returns the next free index. */
         int bind(PreparedStatement ps, int idx) throws SQLException {
             if (desde.isEmpty()) return idx;
             ps.setObject(idx, desde.get().truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
@@ -411,8 +333,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
             params.add(f.badge());
         }
         if (noVacio(f.segment())) {
-            // El default vive en el mapper (ml_segment NULL -> "standard"), así que
-            // el filtro tiene que comparar contra el valor YA defaulteado.
             cond.add("lower(coalesce(nullif(p.ml_segment,''),'standard')) = lower(?)");
             params.add(f.segment());
         }
@@ -439,9 +359,8 @@ class CatalogQueryRepository implements CatalogQueryPort {
             params.add(f.genero());
         }
         if (noVacia(f.categorias())) {
-            // Prefijo en LAS DOS direcciones: "Zapatilla" matchea "Zapatilla Running"
-            // y al revés. El separador es un espacio, no un prefijo pelado, así que
-            // "Buzo" nunca matchea "Buzos".
+            // El separador es un espacio, no un prefijo pelado, así que "Buzo" nunca matchea
+            // "Buzos".
             cond.add("EXISTS (SELECT 1 FROM unnest(?) AS sel(v) WHERE "
                     + "lower(coalesce(p.categoria,'')) = sel.v "
                     + "OR lower(coalesce(p.categoria,'')) LIKE sel.v || ' %' "
@@ -470,41 +389,25 @@ class CatalogQueryRepository implements CatalogQueryPort {
         params.add(valor);
     }
 
-    // ─── ORDER BY ───────────────────────────────────────────────────────────
-
     /**
-     * {@code url} cierra todos los ORDER BY: SQL no tiene sort estable y sin
-     * desempate una misma consulta puede devolver un producto en dos páginas
-     * distintas (o en ninguna).
+     * {@code url} cierra todos los ORDER BY: SQL no tiene sort estable y sin desempate una misma
+     * consulta puede devolver un producto en dos páginas distintas (o en ninguna).
      */
     private String orderBy(String orden) {
         return switch (orden != null ? orden : "precio_asc") {
             case "precio_desc" -> "ORDER BY p.precio DESC, p.url ASC";
             case "nombre_asc", "nombre" -> "ORDER BY lower(coalesce(p.nombre,'')) ASC, p.url ASC";
-            // DESC, no ASC. El filtro en memoria ordenaba ascendente, o sea que
-            // el selector rotulado "ML Score" en el frontend mostraba PRIMERO los
-            // peores scores. Arreglado acá y no replicado: acarrearlo a SQL era
-            // convertir un bug de UI en un bug de esquema.
+            // Arreglado acá y no replicado: acarrearlo a SQL era convertir un bug de UI en un bug
+            // de esquema.
             case "composite", "ml_score" -> "ORDER BY p.ml_score DESC, p.url ASC";
-            // Ordena, no filtra. El comparador en memoria descartaba los productos
-            // sin descuento DENTRO del sort, así que cambiar el orden cambiaba el
-            // total y la paginación — total sigue sin cambiar acá.
-            //
-            // NULLS LAST (D6, V17): precio_orig ya es double precision, así que
-            // PCT_DESCUENTO es una resta/división que propaga NULL sola cuando
-            // no hay precio original — "no sé" nunca cae al final del sort
-            // travestido de "0% de descuento" (el bug real: un descuento
-            // NEGATIVO conocido terminaba ordenado DESPUÉS de un precio_orig
-            // NULL, porque 0.0 > cualquier negativo). Ver CatalogOrdenTest.
+            // El comparador en memoria descartaba los productos sin descuento DENTRO del sort, así
+            // que cambiar el orden cambiaba el total y la paginación — total sigue sin cambiar acá.
             case "desc_pct" -> "ORDER BY " + PCT_DESCUENTO + " DESC NULLS LAST, p.url ASC";
             default -> "ORDER BY p.precio ASC, p.url ASC";
         };
     }
 
-    /** precio_orig es double precision desde V17 — sin parseo, sin regex. */
     private static final String PCT_DESCUENTO = "((p.precio_orig - p.precio) / p.precio_orig)";
-
-    // ─── Ejecución ──────────────────────────────────────────────────────────
 
     private int contar(Connection c, Where where) throws SQLException {
         String sql = "SELECT COUNT(*) FROM productos p WHERE " + where.sql();
@@ -517,10 +420,8 @@ class CatalogQueryRepository implements CatalogQueryPort {
     }
 
     /**
-     * Cuatro sentencias por página, TODAS constantes en el tamaño del catálogo:
-     * las urls de la página (con el filtro y el orden), los productos de esas
-     * urls, y sus dos tablas hijas. El orden lo fija la primera query y se
-     * reconstruye en Java — {@code WHERE url = ANY(...)} no conserva ninguno.
+     * Cuatro sentencias por página, TODAS constantes en el tamaño del catálogo: las urls de la
+     * página (con el filtro y el orden), los productos de esas urls, y sus dos tablas hijas.
      */
     private List<Product> leerPagina(Connection c, Where where, String orden, int size, int offset)
             throws SQLException {
@@ -576,7 +477,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return porUrl;
     }
 
-    /** Marker so a text[] parameter survives the generic param list. */
     private record TextArray(List<String> valores) {
     }
 
@@ -592,8 +492,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return i;
     }
 
-    // ─── helpers ────────────────────────────────────────────────────────────
-
     private static boolean noVacio(String s) {
         return StringUtils.isNotBlank(s);
     }
@@ -608,7 +506,6 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return out;
     }
 
-    /** LIKE/ILIKE tratan % y _ como comodines; el filtro Java hacía substring literal. */
     private static String escaparLike(String valor) {
         return valor.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }

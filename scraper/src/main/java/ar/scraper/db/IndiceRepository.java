@@ -14,7 +14,6 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
-/** V33 — persistence for {@code indice_valor}. */
 @Repository
 class IndiceRepository implements IndicePort {
 

@@ -6,7 +6,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
-/** Shared GET helper for the three index sources below. */
 final class HttpJson {
 
     private HttpJson() {

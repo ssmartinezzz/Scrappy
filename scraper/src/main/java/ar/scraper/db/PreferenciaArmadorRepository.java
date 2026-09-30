@@ -19,11 +19,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Persistence for the one saved builder preference per user
- * ({@code preferencia_armador}, V35, widened by V36 and V37). Same shape as
- * {@link SavedPcsRepository}.
- */
 @Repository
 class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
 
@@ -35,11 +30,6 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
         this.dataSource = dataSource;
     }
 
-    /**
-     * Upsert por dueño: el {@code WHERE} del conflict target repite exactamente
-     * el de {@code uq_preferencia_armador_usuario} — un índice parcial no se
-     * infiere solo (V26, la lección de {@code favoritos}).
-     */
     @Override
     public void guardar(UUID usuarioId, PreferenciaArmador preferencia) {
         String gamaNombre = GamaMapeo.nombreDeGama(preferencia.gama());
@@ -162,12 +152,17 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
         }
     }
 
-    /** D2: {@code FALSE} and "not requested" are the same state — never re-invented as a third value. */
+    /**
+     * {@code FALSE} and "not requested" are the same state — never re-invented as a third value.
+     */
     private static Boolean booleanOrNull(boolean value) {
         return value ? Boolean.TRUE : null;
     }
 
-    /** Un piso NULL en la base es "no pedida", nunca un 0 — igual que {@link PreferenciasDeArmado} lo exige. */
+    /**
+     * Un piso NULL en la base es "no pedida", nunca un 0 — igual que {@link PreferenciasDeArmado}
+     * lo exige.
+     */
     private static Integer intOrNull(ResultSet rs, String columna) throws java.sql.SQLException {
         int valor = rs.getInt(columna);
         return rs.wasNull() ? null : valor;

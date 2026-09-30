@@ -18,19 +18,8 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Reads of the {@code precio_historico} aggregate.
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). The
- * {@code HistorialEntry} record lives in {@code ar.scraper.catalog}
- * (extract-preset-historial-ports).</p>
- *
- * <p>Writes to this table are NOT here: they happen inside the product upsert
- * ({@code sp_upsert_run}) and its history pruning, which belong to the product
- * aggregate.</p>
- *
- * <p>Implements {@link HistorialPort} (extract-preset-historial-ports) so
- * {@code ar.scraper.web} and {@code ar.scraper.ml} depend on that port, not on
- * {@code DatabaseService} directly.</p>
+ * Writes to this table are NOT here: they happen inside the product upsert ({@code sp_upsert_run})
+ * and its history pruning, which belong to the product aggregate.
  */
 @Repository
 class HistorialRepository implements HistorialPort {
@@ -82,27 +71,10 @@ class HistorialRepository implements HistorialPort {
     }
 
     /**
-     * Variante batch de {@link #getHistorialPrecios(String)}: carga el historial de
-     * múltiples URLs en una sola consulta, evitando el patrón N+1 que resultaría de
-     * llamar la versión single-URL por producto (usado por {@code SenalEnricher}
-     * para precomputar señal de compra sobre todo el catálogo en un solo round-trip
-     * a la DB).
-     *
-     * <p>El filtro va como {@code url = ANY(?)} con UN array bindeado, no como un
-     * {@code IN (?,?,…)} con un placeholder por URL. La diferencia no es cosmética:</p>
-     * <ul>
-     *   <li>El SQL deja de depender del tamaño del lote. Con un placeholder por URL,
-     *       cada tamaño distinto producía un texto de consulta distinto, así que
-     *       Postgres nunca podía reutilizar un plan preparado.</li>
-     *   <li>Desaparece el techo de 65535 parámetros del protocolo. Pasado ese punto
-     *       el driver rechazaba la sentencia entera, y como el {@code catch} de abajo
-     *       se traga la excepción, el catálogo entero quedaba "sin historial de
-     *       precios" en silencio — sin señal de compra para ningún producto.</li>
-     * </ul>
-     *
-     * @param urls URLs de productos a consultar; URLs vacías/blank son ignoradas
-     * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
-     *         historial no aparecen como key
+     * Variante batch de {@link #getHistorialPrecios(String)}: carga el historial de múltiples URLs
+     * en una sola consulta, evitando el patrón N+1 que resultaría de llamar la versión single-URL
+     * por producto (usado por {@code SenalEnricher} para precomputar señal de compra sobre todo el
+     * catálogo en un solo round-trip a la DB).
      */
     @Override
     public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {

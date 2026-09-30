@@ -19,11 +19,6 @@ import java.util.UUID;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Persistence for the {@code saved_outfits} aggregate.
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
- */
 @Repository
 class SavedOutfitsRepository implements SavedOutfitsPort {
 
@@ -37,15 +32,8 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
     }
 
     /**
-     * Persiste un outfit con sus ítems en filas propias (V14), no como un blob.
-     *
-     * <p>La firma sigue recibiendo JSON porque eso es lo que llega del borde
-     * HTTP; lo que cambió es la FORMA EN QUE SE GUARDA. El parseo pasó a ser un
-     * detalle de este método en vez de la estructura de la tabla.</p>
-     *
-     * <p>Cabecera e ítems se escriben en UNA transacción: un outfit a medias
-     * —guardado pero sin prendas— es peor que no haberlo guardado. El {@code catch}
-     * devuelve {@code -1}, así que marca rollback a mano.</p>
+     * La firma sigue recibiendo JSON porque eso es lo que llega del borde HTTP; lo que cambió es la
+     * FORMA EN QUE SE GUARDA.
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -76,11 +64,7 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
         }
     }
 
-    /**
-     * {@code campoRanura} es la única diferencia entre las dos listas: los slots
-     * traen {@code slot} ("torso") y los suplementos {@code tipo} ("Proteína").
-     * Un ítem sin url se descarta — sin él la fila no apunta a nada.
-     */
+    /** Un ítem sin url se descarta — sin él la fila no apunta a nada. */
     private void insertarItems(Connection c, int outfitId, String clase, String campoRanura, String json)
             throws Exception {
         if (StringUtils.isBlank(json)) return;
@@ -112,7 +96,6 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
         }
     }
 
-    /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
     @Override
     public List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
         List<Map<String, Object>> result = new ArrayList<>();
@@ -133,8 +116,8 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
                 result.add(row);
             }
             }
-            // Los ítems se cargan sólo para los outfits ya filtrados por dueño,
-            // así que heredan el scope del padre sin repetir el WHERE.
+            // Los ítems se cargan sólo para los outfits ya filtrados por dueño, así que heredan el
+            // scope del padre sin repetir el WHERE.
             cargarItems(c, result);
         } catch (Exception e) {
             LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
@@ -143,13 +126,8 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
     }
 
     /**
-     * Los ítems de TODOS los outfits en una sola consulta, mergeados por id —
-     * nunca una consulta por outfit.
-     *
-     * <p>Cada ítem devuelve la FOTO (lo que el producto era cuando se guardó) y
-     * además {@code precioActual}, que sale de un LEFT JOIN contra el catálogo
-     * vivo. Si el producto ya no existe, {@code precioActual} viene {@code null}
-     * y el outfit sigue mostrándose igual: por eso {@code url} no lleva FK.</p>
+     * Los ítems de TODOS los outfits en una sola consulta, mergeados por id — nunca una consulta
+     * por outfit.
      */
     private void cargarItems(Connection c, List<Map<String, Object>> outfits) throws Exception {
         Map<Integer, List<Map<String, Object>>> slots = new LinkedHashMap<>();
@@ -176,11 +154,6 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
                 item.put("marca",  rs.getString("marca"));
                 double precioActual = rs.getDouble("precio_actual");
                 item.put("precioActual", rs.wasNull() ? null : precioActual);
-                // Handle corto del producto vivo. Sin él, el panel de detalle
-                // que abre un ítem guardado no puede pedir la fila entera del
-                // catálogo y queda sin ML, sin distribución y sin link al
-                // historial completo. null cuando el producto ya no existe:
-                // no hay fila que pedir, igual que precioActual.
                 item.put("key", rs.getString("producto_key"));
                 (esSlot ? slots : suplementos)
                         .computeIfAbsent(rs.getInt("outfit_id"), k -> new ArrayList<>())
@@ -194,13 +167,7 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
         }
     }
 
-    /** Elimina un outfit guardado por id. Retorna true si existía. */
-    /**
-     * @return {@code false} when the outfit does not exist <b>or belongs to
-     *         somebody else</b>. The two are one answer on purpose: telling a
-     *         caller "that exists but is not yours" confirms the existence of
-     *         another user's row, which is the disclosure the scoping prevents.
-     */
+    /** Elimina un outfit guardado por id. */
     @Override
     public boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
         try (Connection c = dataSource.getConnection();
@@ -215,7 +182,7 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
         }
     }
 
-    /** Renombra un outfit guardado. Retorna true si existía. */
+    /** Renombra un outfit guardado. */
     @Override
     public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
         if (StringUtils.isBlank(nombre)) return false;

@@ -23,10 +23,6 @@ import java.util.UUID;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Persistence for the {@code saved_pcs} aggregate. Same shape as
- * {@link SavedOutfitsRepository} (V34).
- */
 @Repository
 class SavedPcsRepository implements SavedPcsPort {
 
@@ -39,10 +35,8 @@ class SavedPcsRepository implements SavedPcsPort {
     }
 
     /**
-     * Cabecera e ítems se escriben en UNA transacción: un build a medias
-     * —guardado pero sin picks— es peor que no haberlo guardado. El {@code catch}
-     * devuelve el centinela {@code -1}, así que marca rollback a mano: sin eso el
-     * commit ocurriría igual.
+     * Cabecera e ítems se escriben en UNA transacción: un build a medias —guardado pero sin picks—
+     * es peor que no haberlo guardado.
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -82,9 +76,8 @@ class SavedPcsRepository implements SavedPcsPort {
     }
 
     /**
-     * {@code null} and {@link Gama#DESCONOCIDA} both mean "no gama to
-     * record" — {@code saved_pcs.gama_id} is nullable, unlike {@code
-     * preferencia_armador.gama_id} (D10, pc-builder-gama T6).
+     * {@code null} and {@link Gama#DESCONOCIDA} both mean "no gama to record" —
+     * {@code saved_pcs.gama_id} is nullable, unlike {@code preferencia_armador.gama_id}.
      */
     private static String gamaNombreOrNull(Gama gama) {
         return (gama == null || gama == Gama.DESCONOCIDA) ? null : GamaMapeo.nombreDeGama(gama);
@@ -151,8 +144,8 @@ class SavedPcsRepository implements SavedPcsPort {
                     result.add(row);
                 }
             }
-            // Los ítems se cargan sólo para los PCs ya filtrados por dueño, así
-            // que heredan el scope del padre sin repetir el WHERE.
+            // Los ítems se cargan sólo para los PCs ya filtrados por dueño, así que heredan el
+            // scope del padre sin repetir el WHERE.
             cargarItems(c, result);
         } catch (Exception e) {
             LOG.warn("[DB] Error obteniendo PCs guardadas: {}", e.getMessage());
@@ -161,10 +154,8 @@ class SavedPcsRepository implements SavedPcsPort {
     }
 
     /**
-     * Los ítems de TODOS los PCs en una sola consulta, mergeados por id —
-     * nunca una consulta por PC. Igual que {@link SavedOutfitsRepository}, cada
-     * ítem devuelve la FOTO más {@code precioActual} vía LEFT JOIN contra el
-     * catálogo vivo; {@code null} si el producto ya no existe.
+     * Los ítems de TODOS los PCs en una sola consulta, mergeados por id — nunca una consulta por
+     * PC.
      */
     private void cargarItems(Connection c, List<Map<String, Object>> pcs) throws Exception {
         Map<Integer, List<Map<String, Object>>> porPc = new LinkedHashMap<>();
@@ -196,9 +187,9 @@ class SavedPcsRepository implements SavedPcsPort {
                 item.put("specs", specs);
                 double precioActual = rs.getDouble("precio_actual");
                 item.put("precioActual", rs.wasNull() ? null : precioActual);
-                // Mismo motivo que en SavedOutfitsRepository: el handle corto
-                // es lo único que el cliente no puede derivar solo, y es lo que
-                // le permite al panel de detalle pedir la fila entera.
+                // Mismo motivo que en SavedOutfitsRepository: el handle corto es lo único que el
+                // cliente no puede derivar solo, y es lo que le permite al panel de detalle pedir
+                // la fila entera.
                 item.put("key", rs.getString("producto_key"));
                 porPc.computeIfAbsent(rs.getInt("pc_id"), k -> new ArrayList<>()).add(item);
             }
@@ -209,11 +200,6 @@ class SavedPcsRepository implements SavedPcsPort {
         }
     }
 
-    /**
-     * @return {@code false} cuando el PC no existe o es de otro usuario — las dos
-     *         cosas se responden igual a propósito, mismo motivo que
-     *         {@link SavedOutfitsRepository#eliminarOutfitGuardado}.
-     */
     @Override
     public boolean eliminarPcGuardada(UUID usuarioId, int id) {
         try (Connection c = dataSource.getConnection();

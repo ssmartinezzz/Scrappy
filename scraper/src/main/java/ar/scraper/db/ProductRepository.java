@@ -35,16 +35,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Persistence for the product aggregate: the scrape write-path
- * ({@code sp_upsert_run} + soft-delete + history pruning), catalog reads, the
- * machine and human classification paths, and the destructive catalog clear.
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). It also owns
- * the WRITES to {@code precio_historico} — they happen inside the upsert
- * function and the pruning, never through a method of their own, which is why
- * {@link HistorialRepository} holds only reads.</p>
- */
 @Repository
 class ProductRepository implements ProductPort {
 
@@ -67,72 +57,17 @@ class ProductRepository implements ProductPort {
         this.siteRegistry = siteRegistry;
     }
 
-    // ─── Upsert de productos (write-path, design D2) ─────────────────────────
-
-    /**
-     * Aplica la lógica de merge al dataset completo de un scraping, delegando
-     * la decisión de "cambió el precio" y el insert/upsert/historial a
-     * {@code sp_upsert_run} (server-side, design D2) — ya NO hay una lectura
-     * previa {@code getPreciosActuales()} en Java que pueda desincronizarse
-     * con un writer concurrente. Retorna estadísticas: {nuevos, actualizados,
-     * sinCambios, desactivados}.
-     */
     @Override
     public UpsertStats upsertProductos(List<Product> productos) {
         return upsertProductos(productos, (ar.scraper.scrape.CorridaEnCurso) null);
     }
 
-    /**
-     * Same merge, with the soft-delete scope derived from the run instead of
-     * from this batch (design D4).
-     *
-     * <p><b>The problem.</b> {@code aggregator.agregar} hands over only the
-     * results it holds. On a resumed run that is the resumed half alone, so a
-     * batch-derived scope stops sweeping every site the interrupted half had
-     * covered, and their stale rows stay {@code activo} forever.</p>
-     *
-     * <p><b>Why not simply widen {@code p_sitios}.</b> Widening the site list
-     * while {@code p_urls} still held only the resumed half's URLs would make
-     * every product of the other sites look absent, and
-     * {@code sp_soft_delete_ausentes} would deactivate them <i>entirely</i> —
-     * strictly worse than the bug being fixed. Both arrays have to widen
-     * together, which is exactly what deriving them from one query guarantees.</p>
-     *
-     * <p><b>Why {@code touched_at} and not a run id.</b> "Everything this run
-     * saw" is already recorded: {@code upsertParcial} commits each site's rows
-     * as it finishes, stamping {@code touched_at} from the same Java clock.
-     * Reading it back spans both halves without a {@code scrape_run_id} column
-     * on the hottest table in the schema, and without passing a run id into
-     * {@code sp_soft_delete_ausentes} — whose body stays byte-identical to
-     * {@code V5}, as {@code StoredProcedureDriftTest} asserts.</p>
-     *
-     * <p><b>The bound is inclusive on purpose.</b> {@code touched_at} is written
-     * through a whole-second format ({@link #DT}), and
-     * {@code ScrapeRunRepository.crear} truncates {@code started_at} to match.
-     * Rows written during the run's own first second therefore compare equal and
-     * {@code >=} keeps them. An exclusive bound — or a sub-second
-     * {@code started_at} — would read them as absent and soft-delete products
-     * the run had just written.</p>
-     *
-     * <p><b>And why the time bound alone is not the run.</b> A resumed run keeps
-     * its original {@code started_at}, which can be days old, so the window
-     * swept up sites ANOTHER run had touched in between — sites this run never
-     * looked at, where "absent" means nothing. The run's own
-     * {@code scrape_run_site} rows narrow it back, and only narrow: a site must
-     * still have written rows inside the window, so a broken scraper's 0
-     * products stay out exactly as before.</p>
-     *
-     * @param corrida the run this write belongs to, or {@code null} when the
-     *                caller has no run; then the scope falls back to the batch,
-     *                behaving exactly as it did before this change.
-     */
+    /** {@code aggregator.agregar} hands over only the results it holds. */
     @Override
     public UpsertStats upsertProductos(List<Product> productos,
                                        ar.scraper.scrape.CorridaEnCurso corrida) {
-        // The transaction is opened here, programmatically, so a failure to open (or
-        // close) one is caught by this try. A @Transactional proxy would throw before
-        // the method body ran, past every catch inside it: the run would abort instead
-        // of getting the "0 nuevos" sentinel it always got (user decision, 2026-09-30).
+        // The transaction is opened here, programmatically, so a failure to open (or close) one is
+        // caught by this try.
         try {
             return tx.execute(status -> upsertEnTransaccion(productos, corrida, status));
         } catch (RuntimeException e) {
@@ -164,11 +99,9 @@ class ProductRepository implements ProductPort {
                 }
             }
 
-            // El alcance del soft-delete NO sale de la lista de sitios
-            // pedidos: un sitio cuyo scraper se rompió llega con 0
-            // productos, y no hay que confundir "se rompió" con "se vació".
-            // Sale de lo que la corrida efectivamente tocó — de la base
-            // cuando hay run, del batch cuando no.
+            // El alcance del soft-delete NO sale de la lista de sitios pedidos: un sitio cuyo
+            // scraper se rompió llega con 0 productos, y no hay que confundir "se rompió" con "se
+            // vació".
             Alcance alcance = corrida != null
                     ? alcanceDelRun(c, corrida)
                     : alcanceDelBatch(productos);
@@ -186,11 +119,6 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    /**
-     * Serializa el batch de productos al array JSON consumido por
-     * {@code sp_upsert_run} — mismo set de columnas que antes armaba el
-     * {@code PreparedStatement} Java, ahora empaquetado como filas jsonb.
-     */
     private String buildRowsJson(List<Product> productos, String now, String fecha, boolean includeVisual)
             throws Exception {
         ArrayNode arr = MAPPER.createArrayNode();
@@ -205,10 +133,6 @@ class ProductRepository implements ProductPort {
             row.put("imagenUrl", p.imagenUrl());
             row.put("categoria", p.categoria());
             row.put("genero", p.genero());
-            // talles/mlBadges travel as real JSON arrays: sp_upsert_run explodes
-            // them into producto_talle/producto_badge with WITH ORDINALITY (V7).
-            // Serializing a list into a string here and splitting it there is what
-            // the child tables exist to stop doing.
             ArrayNode tallesJson = row.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesJson::add);
             ArrayNode badgesJson = row.putArray("mlBadges");
@@ -240,26 +164,20 @@ class ProductRepository implements ProductPort {
     }
 
     /**
-     * The two arrays {@code sp_soft_delete_ausentes} takes, kept together
-     * because widening one without the other is the destructive failure the
-     * union exists to prevent.
+     * The two arrays {@code sp_soft_delete_ausentes} takes, kept together because widening one
+     * without the other is the destructive failure the union exists to prevent.
      */
     private record Alcance(Set<String> urls, Set<String> sitios) {}
 
     /**
-     * Everything the run has written so far, across every half it completed.
-     *
-     * <p>Read inside the caller's transaction and after {@code sp_upsert_run},
-     * so this batch's own rows are already stamped and included.</p>
+     * Read inside the caller's transaction and after {@code sp_upsert_run}, so this batch's own
+     * rows are already stamped and included.
      */
     private Alcance alcanceDelRun(Connection c, ar.scraper.scrape.CorridaEnCurso corrida)
             throws SQLException {
         Set<String> urls   = new LinkedHashSet<>();
         Set<String> sitios = new LinkedHashSet<>();
-        // One query still, so p_urls and p_sitios cannot widen apart. The join
-        // goes through sitio_key: `productos.sitio` is display ("Vcp") and
-        // `scrape_run_site.sitio_key` is identity ("vcp"), so comparing the two
-        // columns directly matches nothing and empties the scope in silence.
+        // One query still, so p_urls and p_sitios cannot widen apart.
         String sql = "SELECT p.url, p.sitio"
                    + "  FROM productos p"
                    + " WHERE p.touched_at >= ?"
@@ -267,9 +185,9 @@ class ProductRepository implements ProductPort {
                    + "                WHERE s.scrape_run_id = ?"
                    + "                  AND s.sitio_key = p.sitio_key)";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
-            // Bound as a parameter at UTC: a formatted literal would be read in
-            // the session zone, which pgjdbc takes from the JVM, making the
-            // predicate depend on the machine the backend runs on.
+            // Bound as a parameter at UTC: a formatted literal would be read in the session zone,
+            // which pgjdbc takes from the JVM, making the predicate depend on the machine the
+            // backend runs on.
             ps.setObject(1, corrida.startedAt().truncatedTo(ChronoUnit.SECONDS)
                     .atOffset(ZoneOffset.UTC));
             ps.setLong(2, corrida.runId());
@@ -285,7 +203,6 @@ class ProductRepository implements ProductPort {
         return new Alcance(urls, sitios);
     }
 
-    /** Pre-D4 behaviour, kept for callers that have no run to scope by. */
     private Alcance alcanceDelBatch(List<Product> productos) {
         Set<String> urls   = new LinkedHashSet<>();
         Set<String> sitios = new LinkedHashSet<>();
@@ -316,22 +233,13 @@ class ProductRepository implements ProductPort {
         try (PreparedStatement ps = c.prepareStatement(
                 "DELETE FROM precio_historico WHERE fecha < ? " +
                 "AND url NOT IN (SELECT url FROM favoritos)")) {
-            // fecha is DATE (design D6) — ps.setString binds a varchar-typed
-            // parameter and "date < character varying" has no operator;
-            // ps.setObject(LocalDate) binds it as a real date parameter.
             ps.setObject(1, cutoff);
             int deleted = ps.executeUpdate();
             if (deleted > 0) LOG.debug("[DB] Purged {} entradas historial > 90 dias", deleted);
         }
     }
 
-    /**
-     * Upsert parcial durante scraping progresivo.
-     * NUNCA hace soft-delete — solo inserta/actualiza los productos dados.
-     * El soft-delete lo hace upsertProductos() al final del run completo.
-     * Columnas visuales excluidas a propósito (mismo motivo que antes: en
-     * esta etapa del pipeline VisualAttrs todavía no está poblado).
-     */
+    /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
     @Override
     public void upsertParcial(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return;
@@ -358,16 +266,7 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    // ─── Cargar productos ────────────────────────────────────────────────────
 
-
-    /**
-     * Tres sentencias en total, constantes en el tamaño del catálogo (design D3):
-     * las dos tablas hijas se leen enteras, planas y ordenadas ANTES del loop
-     * principal y se mergean por url en memoria. Un lookup por producto serían
-     * 27086 round trips sobre 13543 filas; un {@code LEFT JOIN … array_agg}
-     * obligaría a {@code obtenerProducto()} y a este método a divergir.
-     */
     @Override
     public List<Product> cargarProductos() {
         List<Product> result = new ArrayList<>();
@@ -393,13 +292,8 @@ class ProductRepository implements ProductPort {
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
     /**
-     * Resuelve un producto por su handle corto ({@code producto_key}, la columna
-     * generada de V25) en vez de por su URL entera.
-     *
-     * <p>Delega en {@link #obtenerProducto} después de traducir handle -> url,
-     * a propósito: la carga de talles y badges es idéntica y duplicarla sería
-     * dos caminos de lectura que pueden divergir. El índice único sobre
-     * {@code producto_key} hace que la traducción sea una búsqueda, no un scan.</p>
+     * Delega en {@link #obtenerProducto} después de traducir handle -> url, a propósito: la carga
+     * de talles y badges es idéntica y duplicarla sería dos caminos de lectura que pueden divergir.
      */
     @Override
     public java.util.Optional<Product> obtenerProductoPorKey(String key) {
@@ -436,7 +330,6 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    /** Toda una tabla hija, plana y ordenada por (url, posicion), agrupada por url. */
     private Map<String, List<String>> cargarMultivalor(Connection c, String tabla, String columna)
             throws SQLException {
         Map<String, List<String>> porUrl = new HashMap<>();
@@ -464,14 +357,7 @@ class ProductRepository implements ProductPort {
         return valores;
     }
 
-    /**
-     * Read-side of the manual classification lock (design D3/D4). One entry
-     * per locked product, keyed by url — {@code ResultAggregator.aplicarBloqueos}
-     * reads this ONCE per {@code agregar} call and applies it in memory before
-     * ML scoring and again after stage-1b (the SQL guards in {@code sp_upsert_run}
-     * are authoritative for persistence; this closes the in-memory
-     * {@code lastResult} snapshot gap, design problem 3).
-     */
+    /** Read-side of the manual classification lock. */
     @Override
     public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
         Map<String, ClasificacionBloqueada> result = new LinkedHashMap<>();
@@ -496,16 +382,8 @@ class ProductRepository implements ProductPort {
 
 
     /**
-     * Actualiza la categoría de un producto (corrección por modelo ML).
-     *
-     * <p>Camino de MÁQUINA (design D5) — llamado en cada scrape desde
-     * {@code ResultAggregator.persistirCategoriasRefinadas} y desde
-     * {@code POST /api/ml/aplicar}. Lleva {@code AND bloqueado_por IS NULL}:
-     * un producto bloqueado no debe perder su categoría humana-confirmada
-     * por este camino. El camino HUMANO ({@link #aplicarReclasificacionAuditada},
-     * vía la {@code updateNormalizacion} privada compartida) NO lleva este
-     * guard — una segunda confirmación humana debe poder re-lockear un
-     * producto ya bloqueado.</p>
+     * Lleva {@code AND bloqueado_por IS NULL}: un producto bloqueado no debe perder su categoría
+     * humana-confirmada por este camino.
      */
     @Override
     public void actualizarCategoria(String url, String nuevaCategoria) {
@@ -522,29 +400,9 @@ class ProductRepository implements ProductPort {
     }
 
     /**
-     * UPDATE compartido de clasificación (categoria/marca/genero/sub_categoria) +
-     * talles — extraído de {@link #actualizarNormalizacion} (agent-chat-finetune
-     * WU1), reutilizado por {@link #aplicarReclasificacionAuditada} (camino
-     * humano, dentro de su propia transacción) y por {@link #actualizarNormalizacion}
-     * (camino de máquina). {@code respectLock} decide si se agrega el guard
-     * {@code AND bloqueado_por IS NULL} a la sentencia de clasificación —
-     * {@code false} para el camino humano (una segunda confirmación debe poder
-     * re-lockear un producto ya bloqueado), {@code true} para el de máquina.
-     * Un único parámetro booleano en vez de dos sentencias mantenidas por
-     * separado (review fix F1, manual-classification-lock): antes de este fix,
-     * {@link #actualizarNormalizacion} traía su propio UPDATE duplicado
-     * hand-rolled con el guard, y este método quedaba sin usar desde ahí pese
-     * a lo que su JavaDoc afirmaba.
-     *
-     * <p>{@code talles} SIEMPRE se escribe en su PROPIA sentencia, sin guard:
-     * no es una columna bloqueada (design D3 — {@code SpUpsertRunColumnCoverageTest}
-     * la clasifica OVERWRITTEN, no LOCKED, y {@code sp_upsert_run} la sobrescribe
-     * siempre sin importar el estado del lock). Bundlearla dentro del UPDATE
-     * guardado congelaba {@code talles} en un producto bloqueado, contradiciendo
-     * esa misma taxonomía (review fix F2). El row count devuelto es el de la
-     * sentencia de CLASIFICACIÓN — la única que puede ser bloqueada — y es lo
-     * que el llamador SIEMPRE debe mirar (descartar este valor era la raíz del
-     * defecto "silent success" original).</p>
+     * {@code respectLock} decide si se agrega el guard {@code AND bloqueado_por IS NULL} a la
+     * sentencia de clasificación — {@code false} para el camino humano (una segunda confirmación
+     * debe poder re-lockear un producto ya bloqueado), {@code true} para el de máquina.
      */
     private int updateNormalizacion(Connection c, String url, String categoria, String marca,
                                      String genero, List<String> talles, String subCategoria,
@@ -554,16 +412,6 @@ class ProductRepository implements ProductPort {
                 + (respectLock ? " AND bloqueado_por IS NULL" : "");
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, categoria != null ? categoria : "");
-            // marca: "" es el centinela de abstención de BrandExtractor, y la FK
-            // fk_productos_marca (V21) no puede referenciarlo — una FK afirma una
-            // REFERENCIA, y no hay marca que referenciar cuando el extractor no supo.
-            // El contrato lo fija el header de V21: NULL en la base, "" en el borde
-            // Java, y es exactamente lo que hace sp_upsert_run con
-            // nullif(r->>'marca',''). Este path escribía "" literal, así que
-            // reclasificar un producto sin marca reventaba contra la FK y el rollback
-            // devolvía false — el agente "confirmaba" un cambio que nunca ocurría.
-            // isBlank() y no isEmpty(): " " tampoco es una fila de `marca`, así que
-            // dejarla pasar sería el mismo choque por otra puerta.
             if (StringUtils.isBlank(marca)) ps.setNull(2, java.sql.Types.VARCHAR);
             else ps.setString(2, marca);
             ps.setString(3, genero != null ? genero : "");
@@ -574,22 +422,9 @@ class ProductRepository implements ProductPort {
     }
 
     /**
-     * DELETE + INSERT, nunca {@code ON CONFLICT} (design D4): una lista de
-     * talles que se ACHICA no puede dejar filas viejas atrás — es exactamente
-     * lo que significaba que {@code talles} fuera OVERWRITTEN y no fill-only.
-     * Misma semántica que la sentencia propia y sin guard que tenía antes: los
-     * talles se escriben aunque el producto esté bloqueado (review fix F2).
-     *
-     * <p>Las posiciones son contiguas y arrancan en 1 — un talle en blanco se
-     * descarta sin consumir posición, igual que hace el backfill de V7.</p>
-     *
-     * <p>Sobre una url INEXISTENTE con lista no vacía, el INSERT viola la FK a
-     * {@code productos(url)} en vez de ser un UPDATE de 0 filas silencioso como
-     * antes. Los dos contratos publicados se mantienen igual —
-     * {@link #actualizarNormalizacion} devuelve 0, {@link #aplicarReclasificacionAuditada}
-     * hace rollback y devuelve {@code false}— y ninguna fila huérfana queda:
-     * lo único que cambia es que ahora queda un log del intento
-     * ({@code TallesRoundTripTest}).</p>
+     * DELETE + INSERT, nunca {@code ON CONFLICT}: una lista de talles que se ACHICA no puede dejar
+     * filas viejas atrás — es exactamente lo que significaba que {@code talles} fuera OVERWRITTEN y
+     * no fill-only.
      */
     private void reemplazarTalles(Connection c, String url, List<String> talles) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("DELETE FROM producto_talle WHERE url=?")) {
@@ -612,25 +447,7 @@ class ProductRepository implements ProductPort {
     }
 
     /**
-     * Actualiza categoria/marca/genero/talles de un producto ya existente en la
-     * DB sin re-scrapear. Usado por la re-normalización bulk del catálogo
-     * ({@code ResultAggregator#renormalizarCatalogo}): aplica las reglas
-     * actuales de {@code NormalizerService} sobre datos ya persistidos.
-     * Devuelve el row count real del UPDATE de clasificación (0 si la url no
-     * existe, el producto está bloqueado, o hubo una excepción) — el llamador
-     * lo usa para distinguir "escritura intentada" de "escritura aplicada"
-     * (agent-chat-finetune WU1/WU2; antes de este fix este método era
-     * {@code void} y el bulk path contaba cambios intentados como si hubieran
-     * sido efectivamente persistidos).
-     *
-     * <p>Camino de MÁQUINA (design D5) — llamado desde el bulk path de
-     * {@code ResultAggregator.renormalizarCatalogo} ({@code POST /api/ml/renormalizar}).
-     * Reutiliza la {@code updateNormalizacion} privada compartida con
-     * {@code respectLock=true} (review fix F1): un 0-row-count aquí sobre un
-     * producto bloqueado es el comportamiento correcto, no una falla — Phase 6
-     * lo distingue de una escritura fallida real. {@code talles} SIEMPRE se
-     * escribe, incluso en un producto bloqueado (review fix F2) — no es una
-     * columna bloqueada.</p>
+     * Actualiza categoria/marca/genero/talles de un producto ya existente en la DB sin re-scrapear.
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -647,32 +464,8 @@ class ProductRepository implements ProductPort {
     }
 
     /**
-     * Camino auditado de reclasificación humana ({@code POST /api/agent/apply},
-     * agent-chat-finetune WU1 — fix del confirm-button del LLM catalog agent;
-     * extendido por manual-classification-lock Phase 3 para adquirir el lock
-     * de clasificación). Una sola conexión, una sola transacción: el UPDATE de
-     * {@link #updateNormalizacion}, el UPDATE de {@code rubro}/lock y el
-     * INSERT de auditoría se confirman juntos o ninguno de los tres. Si el
-     * primer UPDATE afecta 0 filas (url inexistente) o el INSERT de auditoría
-     * falla por cualquier motivo, se hace rollback completo y se devuelve
-     * {@code false} — nunca queda una reclasificación sin fila de auditoría,
-     * ni una fila de auditoría de algo que no pasó (tradeoff elegido: se
-     * pierde un click humano confirmado antes que dejar un cambio sin
-     * auditar). Los valores "antes" de la auditoría salen de {@code previo}
-     * (una lectura server-side previa, nunca de valores que mande el cliente).
-     *
-     * <p>{@code rubro} se deriva de la {@code categoria} humana vía
-     * {@link RubroResolver} (design D3) — nunca lo propone el agente — y se
-     * persiste junto con el lock ({@code bloqueado_por}/{@code bloqueado_at})
-     * en la MISMA transacción, así {@code sp_upsert_run} lo congela como al
-     * resto de las columnas bloqueadas. {@code actor} viene de
-     * {@link ar.scraper.security.ActorResolver#current()} — nunca leído
-     * inline. IMPORTANTE (Phase 4): este es un método PÚBLICO llamado por el
-     * camino humano; NO lleva el guard {@code AND bloqueado_por IS NULL} —
-     * una segunda confirmación humana debe poder re-lockear (con un actor
-     * distinto) un producto ya bloqueado. Solo los caminos de MÁQUINA
-     * ({@link #actualizarCategoria}, {@link #actualizarNormalizacion}) llevan
-     * ese guard.</p>
+     * Una sola conexión, una sola transacción: el UPDATE de {@link #updateNormalizacion}, el UPDATE
+     * de {@code rubro}/lock y el INSERT de auditoría se confirman juntos o ninguno de los tres.
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -780,14 +573,6 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    /**
-     * normalize-db-schema-fks-1nf, slice A.1 (design D9): the favourite-count
-     * check and the DELETE now share this same transaction — a favourite
-     * added between an endpoint-level pre-check and the delete would
-     * otherwise turn the intended 409 into a raw FK-violation 500 (TOCTOU).
-     * {@code DELETE FROM precio_historico} is gone: V4's {@code ON DELETE
-     * CASCADE} on {@code precio_historico.url} covers it.
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void limpiarProductos() {

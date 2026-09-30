@@ -17,30 +17,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Persistence for the {@code favoritos} aggregate.
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
- *
- * <p><b>Every method takes {@code usuarioId} first, and there is no unscoped
- * variant of any of them.</b> That absence is the design: a role-branching read
- * (<code>isAdmin ? selectAll() : selectMine()</code>) is where a leak eventually
- * appears — a third caller forgets the branch, or a refactor inverts the
- * condition, and it fails silently because the ADMIN path <i>looks</i> like it
- * works. A method that does not exist cannot be called by mistake, and the
- * compiler enforces that rather than a reviewer. ADMIN and VIEWER run
- * byte-identical SQL with a different bound parameter; that is the entire
- * implementation of "an ADMIN sees only their own personal data".</p>
- *
- * <p><b>The upsert conflicts on {@code uq_fav_owner_url} by name.</b> Rows now
- * carry an owner, so the target is the {@code (usuario_id, url)} constraint
- * rather than the partial index that covered the ownerless window. Naming the
- * constraint instead of inferring from a column list means a future key change
- * fails loudly here rather than silently matching the wrong index — and a silent
- * failure would read as "no favourites saved", because the methods below log and
- * swallow.</p>
- *
- * <p>Implements {@link FavoritosPort} (extract-favoritos-port) so {@code ar.scraper.web}
- * depends on that port, not on {@code DatabaseService} directly.</p>
+ * A method that does not exist cannot be called by mistake, and the compiler enforces that rather
+ * than a reviewer.
  */
 @Repository
 class FavoritosRepository implements FavoritosPort {
@@ -113,14 +91,6 @@ class FavoritosRepository implements FavoritosPort {
         return result;
     }
 
-    /**
-     * Stamps {@code last_checked_at}.
-     *
-     * <p>Scoped like everything else even though it writes no personal content:
-     * an unscoped variant sitting here is a method somebody will later reach for
-     * when they want "all of them", which is exactly the door this class keeps
-     * shut.</p>
-     */
     @Override
     public void tocarFavorito(UUID usuarioId, String url) {
         try (Connection c = dataSource.getConnection();

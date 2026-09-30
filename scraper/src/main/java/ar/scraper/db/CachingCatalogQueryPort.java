@@ -25,34 +25,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * `catalog-facets-perf`, T3 — caches {@code facetas()}/{@code resumen()} by
- * {@code (cota, catalog_version)}. {@code buscar()} is a pass-through: it
- * varies per filter/page, so caching it would just be an unbounded map.
- *
- * <p>This is the SQL-side cache, versioned by {@code catalog_version}. Views derived from the
- * in-memory snapshot are cached separately ({@code web.cache.CatalogoDerivadoCache}), keyed by
- * {@code ScraperService.snapshotVersion()}.</p>
- *
- * <p>Version is read BEFORE computing, so a cached entry can be fresher than
- * its label but never staler — a write that commits between the read and the
- * compute only makes the result MORE current than what it's keyed under. No
- * version row (migration not applied, or the row TRUNCATEd away with nothing
- * to reseed it) means don't cache, not "cache under a fake key".</p>
- *
- * <p>Single-flight per (kind, cota, version): concurrent callers for the same
- * key share one {@link CompletableFuture} instead of piling N queries onto the
- * pool. Bounded to {@value #MAX_ENTRIES} entries (LRU) — the key space is a
- * handful of {@code cota} values in practice, not the whole catalog history.</p>
- *
- * <p><b>Never caches a fallback.</b> {@code CatalogQueryRepository} swallows
- * SQL errors and returns an all-empty {@link Facets} / a {@link CatalogResumen}
- * with {@code total()==0} instead of throwing. Caching THAT under the current
- * version would serve an empty catalog until the next write bumps it — a
- * transient pool timeout turning into hours of empty facets / a 204. Waiting
- * single-flight callers still get the fallback (returning nothing would be
- * worse), but the entry is removed right after, so the next call recomputes.
- * The one tradeoff: a genuinely empty catalog looks identical and also isn't
- * cached — cheap, since there is nothing to scan.</p>
+ * {@code buscar()} is a pass-through: it varies per filter/page, so caching it would just be an
+ * unbounded map.
  */
 @Repository
 @Primary
@@ -106,7 +80,9 @@ class CachingCatalogQueryPort implements CatalogQueryPort {
         return conCache("resumen", desde, r -> r.total() == 0, () -> delegate.resumen(desde));
     }
 
-    /** La misma forma que devuelve {@code CatalogQueryRepository.facetas()} cuando la SQL falla. */
+    /**
+     * La misma forma que devuelve {@code CatalogQueryRepository.facetas()} cuando la SQL falla.
+     */
     private static boolean esFallback(Facets f) {
         return f.talles().isEmpty() && f.generos().isEmpty() && f.categorias().isEmpty()
                 && f.marcas().isEmpty() && f.badges().isEmpty() && f.subCategorias().isEmpty()
