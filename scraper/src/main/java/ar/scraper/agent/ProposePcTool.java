@@ -6,7 +6,7 @@ import ar.scraper.outfits.RecommendationService;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.GamaWire;
 import ar.scraper.pcs.PcBuild;
-import ar.scraper.pcs.PcBuildJson;
+import ar.scraper.json.PcBuildJson;
 import ar.scraper.pcs.PcBuilder;
 import ar.scraper.pcs.PreferenciasDeArmado;
 import ar.scraper.pcs.PreferenciasWire;

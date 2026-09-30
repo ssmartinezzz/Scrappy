@@ -1,5 +1,12 @@
-package ar.scraper.pcs;
+package ar.scraper.json;
 
+import ar.scraper.pcs.PcBuild;
+import ar.scraper.pcs.PcPick;
+import ar.scraper.pcs.TechSpecs;
+import ar.scraper.pcs.Gama;
+import ar.scraper.pcs.Certificacion;
+import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.pcs.TipoCooler;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

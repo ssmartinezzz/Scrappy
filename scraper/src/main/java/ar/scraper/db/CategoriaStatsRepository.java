@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.catalog.CategoriaStatsPort;
+import ar.scraper.ml.CategoriaStatsPort;
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.catalog.CategoriaStats;
 import com.fasterxml.jackson.databind.JsonNode;

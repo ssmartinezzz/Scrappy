@@ -5,7 +5,7 @@ import ar.scraper.identity.Sujeto;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.GamaWire;
 import ar.scraper.pcs.PcBuild;
-import ar.scraper.pcs.PcBuildJson;
+import ar.scraper.json.PcBuildJson;
 import ar.scraper.pcs.PcBuilder;
 import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.PreferenciaArmador;

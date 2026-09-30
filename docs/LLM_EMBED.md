@@ -348,7 +348,7 @@ adapter hoy: `OpenAiCompatProvider` (Ollama).
 (`MAX_ITERATIONS=6`): `search_products`, `view_product`, `propose_reclassify`,
 `propose_pc`. La cuarta corre `PcBuilder.armar` sobre el snapshot vivo
 (`presupuesto`, `conGpu`, `excluir` urls) y devuelve el mismo JSON que
-`GET /api/pcs/builder` — `PcBuildJson`, en `pcs/`, es la única serialización
+`GET /api/pcs/builder` — `PcBuildJson`, en `json/`, es la única serialización
 para los dos. El agente narra los picks; guardar sigue siendo cosa de `/pcs`.
 `PcBuilder` no es bean (lo instancia `ApiController` a mano) y `agent/` no
 puede nombrar `web/`, así que la tool construye el suyo con `RecommendationService`.

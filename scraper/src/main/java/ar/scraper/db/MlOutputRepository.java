@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.ml.MlOutputPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;

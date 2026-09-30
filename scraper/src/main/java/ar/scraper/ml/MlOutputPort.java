@@ -1,4 +1,4 @@
-package ar.scraper.catalog;
+package ar.scraper.ml;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

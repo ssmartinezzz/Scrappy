@@ -1,7 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.indices.IndiceService;
-import ar.scraper.catalog.ProductJson;
+import ar.scraper.json.ProductJson;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.identity.ActorResolver;

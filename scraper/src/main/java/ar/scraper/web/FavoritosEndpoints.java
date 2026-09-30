@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.ResponseEntity;
 
-import ar.scraper.catalog.ProductJson;
+import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.identity.ActorResolver;

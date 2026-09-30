@@ -1,5 +1,6 @@
-package ar.scraper.catalog;
+package ar.scraper.ml;
 
+import ar.scraper.catalog.CategoriaStats;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.Map;

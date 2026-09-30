@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.aggregator.CatalogSnapshotPort;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.ml.MlOutputPort;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SitiosPort;
 import ar.scraper.scrape.ScrapeRunPort;

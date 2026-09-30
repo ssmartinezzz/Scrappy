@@ -1,6 +1,6 @@
 package ar.scraper.web;
 
-import ar.scraper.catalog.HistorialJson;
+import ar.scraper.json.HistorialJson;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.MlDtos;
@@ -15,16 +15,16 @@ class MlEndpoints {
         org.slf4j.LoggerFactory.getLogger(MlEndpoints.class);
 
     private final ScraperService service;
-    private final ar.scraper.catalog.CategoriaStatsPort categoriaStats;
-    private final ar.scraper.catalog.MlOutputPort mlOutput;
+    private final ar.scraper.ml.CategoriaStatsPort categoriaStats;
+    private final ar.scraper.ml.MlOutputPort mlOutput;
     private final ar.scraper.catalog.HistorialPort historial;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final ar.scraper.ml.PythonRunner pythonRunner;
 
     MlEndpoints(ScraperService service,
-                ar.scraper.catalog.CategoriaStatsPort categoriaStats,
-                ar.scraper.catalog.MlOutputPort mlOutput,
+                ar.scraper.ml.CategoriaStatsPort categoriaStats,
+                ar.scraper.ml.MlOutputPort mlOutput,
                 ar.scraper.catalog.HistorialPort historial,
                 ar.scraper.catalog.ProductPort productos,
                 ar.scraper.aggregator.ResultAggregator aggregator,

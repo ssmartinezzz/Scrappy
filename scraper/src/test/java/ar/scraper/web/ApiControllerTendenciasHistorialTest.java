@@ -47,7 +47,7 @@ class ApiControllerTendenciasHistorialTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
-    private ar.scraper.catalog.CategoriaStatsPort categoriaStats;
+    private ar.scraper.ml.CategoriaStatsPort categoriaStats;
     private HistorialPort historial;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
@@ -67,7 +67,7 @@ class ApiControllerTendenciasHistorialTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
-        categoriaStats        = mock(ar.scraper.catalog.CategoriaStatsPort.class);
+        categoriaStats        = mock(ar.scraper.ml.CategoriaStatsPort.class);
         when(db.categoriaStats()).thenReturn(categoriaStats);
         historial             = mock(HistorialPort.class);
         when(db.historial()).thenReturn(historial);

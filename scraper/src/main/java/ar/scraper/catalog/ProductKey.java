@@ -27,10 +27,10 @@ import org.apache.commons.lang3.StringUtils;
  * tanto usable en una columna generada; {@code sha256()} habría necesitado un
  * cast de {@code text} a {@code bytea} que no lo es.</p>
  *
- * <p><b>Es pública por una duplicación, no por diseño.</b> Su único consumidor
- * fuera de este paquete es {@code CatalogoEndpoints}, y esa línea es una copia
- * de {@link ProductJson#escribir}, que sí vive acá. Unificadas las dos copias
- * del shape de fila, esto vuelve a package-private.</p>
+ * <p><b>Es pública por una duplicación, no por diseño.</b> Sus consumidores
+ * fuera de este paquete son {@code CatalogoEndpoints} y
+ * {@code ar.scraper.json.ProductJson#escribir}: esa línea de endpoint es una
+ * copia. Unificadas las dos copias del shape de fila, queda solo el serializador.</p>
  */
 public final class ProductKey {
 

@@ -56,11 +56,9 @@ Scrappy/
         │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
         │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
         │   │                                  HistorialEntry, HistorialPort, UpsertStats,
-        │   │                                  CatalogQueryPort, ProductPort, CategoriaStatsPort,
-        │   │                                  MlOutputPort, PreciosExternosPort (los seis puertos
-        │   │                                  los implementan @Repository package-private en db/)
-        │   │                                  + ProductJson, ProductKey, HistorialJson (json de borde,
-        │   │                                  movidos de web/ en F3b)
+        │   │                                  CatalogQueryPort, ProductPort,
+        │   │                                  PreciosExternosPort (los puertos los implementan
+        │   │                                  @Repository package-private en db/) + ProductKey
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
         │   │                                  implementa un @Repository package-private en db/)
@@ -103,7 +101,10 @@ Scrappy/
         │   │   │                               SubcategoryResolver, GymratTagger
         │   │   ├── grouping/               ←   GroupingService, ProductIdentity, JaccardSimilarity
         │   │   └── text/AccentStripper     ←   hot path: 10 clases lo usan
-        │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
+        │   ├── json/                       ← ProductJson, HistorialJson, PcBuildJson (Jackson de borde;
+        │   │                                  el dominio no importa Jackson)
+        │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator, MlOutputPort,
+        │   │                                  CategoriaStatsPort (puertos con JsonNode)
         │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
         │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
         │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
