@@ -141,7 +141,7 @@ def test_reset_end_to_end_invalidates_every_existing_session(
         "/api/auth/password-reset/confirm", json_body={"token": token, "password": nueva}
     )
     assert confirmacion.status == 200, f"confirm answered {confirmacion.status}: {confirmacion.body!r}"
-    assert confirmacion.json()["ok"] is True
+    assert confirmacion.data()["ok"] is True
 
     # 1. The old password is gone.
     vieja = api.post(
@@ -202,7 +202,7 @@ def test_a_used_token_cannot_be_used_twice(api, backend_log, crear_usuario):
         json_body={"token": token, "password": f"pw-{uuid.uuid4().hex}"},
     )
     assert segunda.status == 400, f"a consumed token was accepted again: {segunda.body!r}"
-    assert segunda.json()["error"] == "reseteo_invalido"
+    assert segunda.error_code() == "reseteo_invalido"
 
 
 def test_confirm_refuses_a_short_password_the_same_way_it_refuses_a_bad_token(api):

@@ -53,7 +53,7 @@ def test_allowlisted_origin_and_same_site_is_admitted(api, sesion_fresca, app_or
     r = _refresh(api, sesion_fresca, Origin=app_origin, **{"Sec-Fetch-Site": SEC_FETCH_SITE_REAL})
 
     assert r.status == 200, f"bootstrap refresh answered {r.status}: {r.body!r}"
-    cuerpo = r.json()
+    cuerpo = r.data()
     assert cuerpo["accessToken"], "an admitted bootstrap must hand back an access token"
     assert cuerpo["csrfNonce"], "and a fresh nonce, or the client can never refresh again"
     assert cuerpo["csrfNonce"] != sesion_fresca.nonce, "the nonce rotates with the token"
@@ -95,13 +95,13 @@ def test_origin_from_a_non_allowlisted_port_is_refused(api, sesion_fresca):
         **{"Sec-Fetch-Site": SEC_FETCH_SITE_REAL},
     )
     assert r.status == 403, f"a foreign localhost port must not bootstrap, got {r.status}"
-    assert "accessToken" not in r.json(), f"refused and yet issued a token: {r.body!r}"
+    assert "accessToken" not in r.data(), f"refused and yet issued a token: {r.body!r}"
 
 
 def test_absent_origin_is_refused(api, sesion_fresca):
     r = _refresh(api, sesion_fresca, **{"Sec-Fetch-Site": SEC_FETCH_SITE_REAL})
     assert r.status == 403, f"no Origin must fail closed, got {r.status}"
-    assert r.json()["error"] == "csrf_invalido"
+    assert r.error_code() == "csrf_invalido"
 
 
 def test_absent_sec_fetch_site_is_refused(api, sesion_fresca, app_origin):
@@ -113,7 +113,7 @@ def test_absent_sec_fetch_site_is_refused(api, sesion_fresca, app_origin):
     """
     r = _refresh(api, sesion_fresca, Origin=app_origin)
     assert r.status == 403, f"no Sec-Fetch-Site must fail closed, got {r.status}"
-    assert r.json()["error"] == "csrf_invalido"
+    assert r.error_code() == "csrf_invalido"
 
 
 @pytest.mark.parametrize("valor", ["cross-site", "none"])
@@ -126,7 +126,7 @@ def test_untrusted_sec_fetch_site_values_are_refused(api, sesion_fresca, app_ori
     """
     r = _refresh(api, sesion_fresca, Origin=app_origin, **{"Sec-Fetch-Site": valor})
     assert r.status == 403, f"Sec-Fetch-Site: {valor} must fail closed, got {r.status}"
-    assert r.json()["error"] == "csrf_invalido"
+    assert r.error_code() == "csrf_invalido"
 
 
 def test_a_present_but_wrong_nonce_is_never_forgiven(api, sesion_fresca, app_origin):
@@ -142,7 +142,7 @@ def test_a_present_but_wrong_nonce_is_never_forgiven(api, sesion_fresca, app_ori
         **{"Sec-Fetch-Site": SEC_FETCH_SITE_REAL, "X-Refresh-CSRF": "no-es-el-nonce"},
     )
     assert r.status == 403, f"a wrong nonce must be refused, got {r.status}"
-    assert r.json()["error"] == "csrf_invalido"
+    assert r.error_code() == "csrf_invalido"
 
 
 def test_a_refused_csrf_leaves_the_token_intact(api, sesion_fresca, app_origin):
@@ -189,11 +189,11 @@ def test_a_revoked_token_is_401_even_with_perfect_bootstrap_headers(
         cookies=sesion_fresca.cookie(),
         headers={"X-Refresh-CSRF": sesion_fresca.nonce, "Origin": app_origin},
     )
-    assert cerrado.status == 200 and cerrado.json()["cerrada"] is True
+    assert cerrado.status == 200 and cerrado.data()["cerrada"] is True
 
     r = _refresh(api, sesion_fresca, Origin=app_origin, **{"Sec-Fetch-Site": SEC_FETCH_SITE_REAL})
     assert r.status == 401, f"a revoked token must be 401, got {r.status}: {r.body!r}"
-    assert r.json()["error"] == "refresh_invalido"
+    assert r.error_code() == "refresh_invalido"
 
 
 # ── The cookie itself ───────────────────────────────────────────────────────

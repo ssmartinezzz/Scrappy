@@ -68,6 +68,24 @@ class TokenHolder:
         return bool(self.access_token) and now < self.expires_at - _EXPIRY_SKEW_SECONDS
 
 
+def _data(body: Any) -> Any:
+    """Success bodies are `{"data": ...}`; return the payload."""
+    if isinstance(body, dict) and "data" in body:
+        return body["data"]
+    return body
+
+
+def _error_suffix(exc: "urllib.error.HTTPError") -> str:
+    """` [code] message` from an `{"error": {"code", "message"}}` body, or empty."""
+    try:
+        error = json.loads(exc.read() or b"{}").get("error") or {}
+    except (ValueError, AttributeError, OSError):
+        return ""
+    if not isinstance(error, dict) or not error:
+        return ""
+    return f" [{error.get('code', '')}] {error.get('message', '')}".rstrip()
+
+
 def _urlencode(params: dict[str, Any]) -> str:
     """Build a query string, dropping `None` values and lowercasing bools
     the way Java/Spring's boolean converter expects (`true`/`false`)."""
@@ -127,13 +145,13 @@ class RestClient:
         )
         try:
             with self._open(request) as response:
-                payload = json.loads(response.read() or b"{}")
+                payload = _data(json.loads(response.read() or b"{}"))
         except urllib.error.HTTPError as exc:
             # Loud, and never a silent skip or a retry loop: a cronjob whose
             # service account was disabled or rotated must fail visibly.
             raise RestError(
                 f"El login de la cuenta de servicio '{self.username}' fue rechazado "
-                f"(HTTP {exc.code}).",
+                f"(HTTP {exc.code}{_error_suffix(exc)}).",
                 action=(
                     "Revisá CLI_SERVICE_ACCOUNT_USERNAME/CLI_SERVICE_ACCOUNT_PASSWORD en .env "
                     "y que la cuenta siga activa en la base."
@@ -183,7 +201,7 @@ class RestClient:
         if not raw:
             return {}
         try:
-            return json.loads(raw)
+            return _data(json.loads(raw))
         except json.JSONDecodeError:
             return {}
 
@@ -231,7 +249,7 @@ class RestClient:
                         ),
                     ) from exc
                 raise RestError(
-                    f"{method} {url} failed: {exc}",
+                    f"{method} {url} failed: {exc}{_error_suffix(exc)}",
                     action="Confirm the backend is running on the configured port.",
                 ) from exc
             except urllib.error.URLError as exc:
