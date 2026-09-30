@@ -11,6 +11,8 @@ import ar.scraper.config.CacheConfig;
 import ar.scraper.config.CacheNames;
 import ar.scraper.model.Product;
 import ar.scraper.web.cache.CatalogoDerivadoCache.GruposKey;
+import ar.scraper.web.cache.CatalogoDerivadoCache.MarcasKey;
+import ar.scraper.web.cache.CatalogoDerivadoCache.MejoresKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -196,5 +198,53 @@ class CatalogoDerivadoCacheTest {
             }
         }
         assertThat(violaciones).isEmpty();
+    }
+
+    @Test
+    void brandBrowserIsCachedPerVersionAndNormalizedFilters() {
+        var a = cache.marcas(MarcasKey.de(1, "Indumentaria", "NIKE", "count"));
+        var b = cache.marcas(MarcasKey.de(1, "indumentaria", "nike", "count"));
+        var otraVersion = cache.marcas(MarcasKey.de(2, "indumentaria", "nike", "count"));
+
+        assertThat(a).hasSize(1);
+        assertThat(b).isSameAs(a);
+        assertThat(otraVersion).isNotSameAs(a).hasSameSizeAs(a);
+    }
+
+    @Test
+    void brandBrowserSortIsPartOfTheKey() {
+        var porCantidad = cache.marcas(MarcasKey.de(1, "", "", "count"));
+        var porPrecio = cache.marcas(MarcasKey.de(1, "", "", "precio_asc"));
+
+        assertThat(porPrecio).isNotSameAs(porCantidad);
+    }
+
+    @Test
+    void bestPerCategoryIsCachedPerVersionAndRubro() {
+        var a = cache.mejores(MejoresKey.de(1, "INDUMENTARIA"));
+        var b = cache.mejores(MejoresKey.de(1, "indumentaria"));
+
+        assertThat(a).isNotEmpty();
+        assertThat(b).isSameAs(a);
+        assertThat(cache.mejores(MejoresKey.de(2, "indumentaria"))).isNotSameAs(a);
+    }
+
+    @Test
+    void theChangeEventEmptiesTheBrandAndBestCachesToo() {
+        var marcas = cache.marcas(MarcasKey.de(1, "", "", "count"));
+        var mejores = cache.mejores(MejoresKey.de(1, ""));
+
+        ctx.publishEvent(new CatalogoActualizado(2));
+
+        assertThat(cache.marcas(MarcasKey.de(1, "", "", "count"))).isNotSameAs(marcas);
+        assertThat(cache.mejores(MejoresKey.de(1, ""))).isNotSameAs(mejores);
+    }
+
+    @Test
+    void noSnapshotGivesEmptyBrandAndBestViews() {
+        foto.set(null);
+
+        assertThat(cache.marcas(MarcasKey.de(1, "", "", "count"))).isEmpty();
+        assertThat(cache.mejores(MejoresKey.de(1, ""))).isEmpty();
     }
 }
