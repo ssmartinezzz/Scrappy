@@ -86,6 +86,12 @@ export async function fetchStatus() {
   return softUnwrap(r);
 }
 
+// Raw Response on purpose: the caller reads the body as a stream. `init.signal`
+// aborts it; the Bearer header is added by authedFetch, which is why this is not an EventSource.
+export function openEventStream(init) {
+  return authedFetch(`${BASE}/api/events`, init);
+}
+
 export async function startScrape({ precioMin, precioMax, sitios, forceRetrain = false }) {
   const p = new URLSearchParams({ precioMin, precioMax });
   sitios.forEach(s => p.append('sitios', s));
