@@ -78,6 +78,21 @@ class BackendLayeringArchTest {
                 }
             })));
 
+    // backend-hardening T8: the domain is plain Java. Spring wiring lives in
+    // ar.scraper.config, JDBC in db, Jackson in json/ml, servlet and Playwright in
+    // web/pages/scrapers. `ar.scraper.model` and `ar.scraper.health` are domain too.
+    @ArchTest
+    static final ArchRule dominioSinHerramientas = noClasses()
+        .that().resideInAnyPackage("ar.scraper.catalog..", "ar.scraper.classification..",
+                                   "ar.scraper.scrape..", "ar.scraper.scheduling..",
+                                   "ar.scraper.favoritos..", "ar.scraper.financiacion..",
+                                   "ar.scraper.feedback..", "ar.scraper.outfits..",
+                                   "ar.scraper.indices..", "ar.scraper.pcs..",
+                                   "ar.scraper.model..", "ar.scraper.health..")
+        .should().dependOnClassesThat().resideInAnyPackage(
+            "org.springframework..", "com.fasterxml.jackson..", "java.sql..", "javax.sql..",
+            "com.microsoft.playwright..", "jakarta.servlet..");
+
     // ── close-backend-package-cycles (F3a) ──────────────────────────────────
     // Las unicas aristas que entran a `web` desde adentro del backend son tres:
     // `ml` -> IndiceService, `agent` -> ScraperService y `cron` -> ScraperService.
