@@ -1,7 +1,6 @@
 package ar.scraper.outfits;
 
 import ar.scraper.model.Product;
-import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.List;
@@ -12,8 +11,7 @@ import java.util.stream.Collectors;
 /**
  * Ranking core for the "Para ti" personalized recommendations feed
  * (design.md Decision 3, personalized-recommendations-feed). Pure, stateless,
- * DB-agnostic — mirrors {@link OutfitService}'s style: no Spring deps beyond
- * {@code @Service}, no caching, deterministic per-request full-scan rank
+ * DB-agnostic — mirrors {@link OutfitService}'s style: no Spring deps, no caching, deterministic per-request full-scan rank
  * over the live in-memory catalog (same cost class as {@code /api/mejores}).
  *
  * Algorithm (exact order, per design.md):
@@ -28,7 +26,6 @@ import java.util.stream.Collectors;
  *   4. Deterministic sort — descending by final score, tiebreak ascending by
  *      scoreP, then by url for full stability.
  */
-@Service
 public class RecommendationService {
 
     /**

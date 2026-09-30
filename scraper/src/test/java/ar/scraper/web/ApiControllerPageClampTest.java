@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
@@ -72,7 +73,7 @@ class ApiControllerPageClampTest extends ar.scraper.db.support.PostgresTestBase 
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         config            = mock(ScraperConfig.class);
         aggregator        = mock(ResultAggregator.class);
-        db                = new DatabaseService(dataSource());
+        db                = TestDatabaseServices.create(dataSource());
         grouping          = mock(GroupingService.class);
         pythonRunner      = mock(PythonRunner.class);
         outfitService     = mock(OutfitService.class);

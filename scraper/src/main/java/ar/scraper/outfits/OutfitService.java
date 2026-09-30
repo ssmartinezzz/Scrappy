@@ -1,7 +1,6 @@
 package ar.scraper.outfits;
 
 import ar.scraper.model.Product;
-import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,7 +20,6 @@ import org.apache.commons.lang3.StringUtils;
  * el par marca|categoria de forma permanente, like aumenta su peso de muestreo
  * (ver FeedbackModel, ADR-1/ADR-2 en design.md).
  */
-@Service
 public class OutfitService {
 
     private final RecommendationService recommendationService;

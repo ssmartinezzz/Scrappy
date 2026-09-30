@@ -52,7 +52,7 @@ class DeleteProductosGlobalGuardTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() throws Exception {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         UsuarioRepository usuarios = new UsuarioRepository(dataSource());
 
         usuarios.crear("jefa", null, "$argon2id$x", false);

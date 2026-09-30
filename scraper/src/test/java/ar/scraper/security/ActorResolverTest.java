@@ -1,4 +1,4 @@
-package ar.scraper.identity;
+package ar.scraper.security;
 
 import org.junit.jupiter.api.Test;
 

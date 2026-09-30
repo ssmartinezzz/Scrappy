@@ -2,7 +2,6 @@ package ar.scraper.classification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
@@ -20,7 +19,6 @@ import java.util.Map;
  * {@code ScraperFactory.crear}), {@code esPremium} to {@code false}, and
  * {@code rubroForzado} to {@code null} (no rule forces a rubro).</p>
  */
-@Component
 public final class SiteRegistry {
 
     private static final Logger LOG = LoggerFactory.getLogger(SiteRegistry.class);

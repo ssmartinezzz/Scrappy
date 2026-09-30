@@ -45,7 +45,7 @@ class DatabaseServiceFavoritoUpsertTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() throws Exception {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         try (Connection c = dataSource().getConnection();
              Statement st = c.createStatement()) {
             st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "

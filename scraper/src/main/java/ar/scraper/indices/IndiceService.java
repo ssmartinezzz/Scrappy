@@ -2,7 +2,6 @@ package ar.scraper.indices;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.EnumMap;
@@ -17,7 +16,6 @@ import java.util.Optional;
  * builds the next map fully before publishing it, so a reader never observes
  * a state where one index updated and another did not.
  */
-@Service
 public class IndiceService {
 
     private static final Logger LOG = LoggerFactory.getLogger(IndiceService.class);

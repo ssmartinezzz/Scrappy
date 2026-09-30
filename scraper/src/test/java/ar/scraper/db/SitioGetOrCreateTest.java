@@ -41,7 +41,7 @@ class SitioGetOrCreateTest extends PostgresTestBase {
     @Test
     @DisplayName("Distintas grafías del MISMO sitio no rebotan contra la FK")
     void grafiasDistintasDelMismoSitio() throws Exception {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
 
         // 'Vcp' es como lo sembro V18. El scraper escribe 'VCP' y 'vcp'.
         // Los tres son el mismo sitio: sitioKey() los manda a 'vcp'. Una FK
@@ -88,7 +88,7 @@ class SitioGetOrCreateTest extends PostgresTestBase {
     @Test
     @DisplayName("Un sitio desconocido se crea solo, y el upsert NO se traga un error")
     void sitioDesconocidoSeCreaSolo() throws Exception {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         String sitioNuevo = "Tienda Que No Existia";
 
         var stats = db.upsertProductos(List.of(producto(
@@ -122,7 +122,7 @@ class SitioGetOrCreateTest extends PostgresTestBase {
     @Test
     @DisplayName("Un sitio ya sembrado NO se pisa: conserva plataforma y es_premium")
     void sitioExistenteNoSePisa() throws Exception {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
 
         var stats = db.upsertProductos(List.of(producto(
                 "http://harvey.test/soquete", "Soquete Ozzy Black", "Harvey")));

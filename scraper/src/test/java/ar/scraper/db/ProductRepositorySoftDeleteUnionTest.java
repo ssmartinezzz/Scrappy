@@ -63,7 +63,7 @@ class ProductRepositorySoftDeleteUnionTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         runStart = Instant.now().truncatedTo(ChronoUnit.SECONDS);
     }
 

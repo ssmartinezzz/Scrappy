@@ -6,7 +6,6 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -25,7 +24,6 @@ import java.util.Set;
  * {@code ar.scraper.run} para esa ventana, y registro/retención de la
  * ejecución en {@code cron_executions}.
  */
-@Component
 public class CronJobRunner {
 
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(CronJobRunner.class);

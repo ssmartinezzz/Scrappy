@@ -5,7 +5,7 @@ import ar.scraper.model.Product;
 import ar.scraper.outfits.FeedbackModels;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.SupplementCombo;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.security.Sujeto;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.OpResult;
@@ -35,7 +35,7 @@ class OutfitsEndpoints {
                      ar.scraper.feedback.FeedbackPort feedback,
                      ar.scraper.outfits.SavedOutfitsPort outfitsGuardados,
                      OutfitService outfitService,
-                     ar.scraper.identity.ActorResolver actorResolver) {
+                     ar.scraper.security.ActorResolver actorResolver) {
         this.service = service;
         this.feedback = feedback;
         this.outfitsGuardados = outfitsGuardados;
@@ -43,7 +43,7 @@ class OutfitsEndpoints {
         this.actorResolver = actorResolver;
     }
 
-    private final ar.scraper.identity.ActorResolver actorResolver;
+    private final ar.scraper.security.ActorResolver actorResolver;
 
     private String safe(String s) { return s != null ? s : ""; }
 

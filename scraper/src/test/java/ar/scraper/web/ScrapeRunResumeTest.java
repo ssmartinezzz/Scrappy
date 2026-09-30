@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.scrape.ScraperStatus;
 
 import ar.scraper.aggregator.ResultAggregator;
@@ -61,7 +62,7 @@ class ScrapeRunResumeTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         aggregator = Mockito.mock(ResultAggregator.class);
         Mockito.when(aggregator.fromDB(Mockito.anyList()))
                 .thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(),

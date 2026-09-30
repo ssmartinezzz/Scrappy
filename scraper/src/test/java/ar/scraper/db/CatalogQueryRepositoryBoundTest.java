@@ -66,7 +66,7 @@ class CatalogQueryRepositoryBoundTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() throws Exception {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         runStart = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 
