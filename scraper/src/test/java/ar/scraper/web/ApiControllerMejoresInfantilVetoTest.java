@@ -4,14 +4,10 @@ import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.MlScore;
 import ar.scraper.model.Product.SenalFinanciacion;
@@ -27,14 +23,13 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for the infantil veto in {@code ApiController.mejoresPorCategoria()}
+ * Unit tests for the infantil veto in {@code MarcasPicksController.mejoresPorCategoria()}
  * (category-brand-quality-fixes, Phase 2). Mirrors
  * {@code ApiControllerPrecioRangeTest}'s Mockito-mock constructor convention.
  *
@@ -50,15 +45,8 @@ import static org.mockito.Mockito.when;
 class ApiControllerMejoresInfantilVetoTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
-    private ScraperConfig config;
-    private ResultAggregator aggregator;
-    private DatabaseService db;
     private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private MarcasPicksController controller;
 
     @BeforeEach
     void setUp() {
@@ -68,16 +56,8 @@ class ApiControllerMejoresInfantilVetoTest {
     @Step("Wire ApiController with mocked collaborators")
     private void wireController() {
         service          = mock(ScraperService.class);
-        indiceService = mock(IndiceService.class);
-        config            = mock(ScraperConfig.class);
-        aggregator        = mock(ResultAggregator.class);
-        db                = mock(DatabaseService.class);
         grouping          = mock(GroupingService.class);
-        pythonRunner      = mock(PythonRunner.class);
-        outfitService     = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new MarcasPicksController(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
     }
 
     private Product producto(String url, String genero) {

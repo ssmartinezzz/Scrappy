@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,16 +26,18 @@ import org.apache.commons.lang3.StringUtils;
 /**
  * "Para ti" personalized feed. The shared taste signal lives in the outfit_feedback_item table
  * (slot="catalog" here), which {@link FeedbackModels#build} reads regardless of slot, so it is
- * shared with the outfit builder without extra wiring. Mappings live in {@link ApiController}.
+ * shared with the outfit builder without extra wiring.
  */
-class RecomendadosEndpoints {
+@RestController
+@RequestMapping("/api")
+public class RecomendadosController {
 
     private final ScraperService service;
     private final ar.scraper.feedback.FeedbackPort feedback;
     private final RecommendationService recommendationService;
     private final ar.scraper.security.ActorResolver actorResolver;
 
-    RecomendadosEndpoints(ScraperService service,
+    public RecomendadosController(ScraperService service,
                           ar.scraper.feedback.FeedbackPort feedback,
                           RecommendationService recommendationService,
                           ar.scraper.security.ActorResolver actorResolver) {
@@ -92,7 +95,11 @@ class RecomendadosEndpoints {
     }
 
     // Items are ProductJson rows (dynamic shape shared with /api/data), hence ObjectNode.
-    ResponseEntity<ApiResponse<List<ObjectNode>>> recomendados(int page, int size, String genero, String categoria) {
+    @GetMapping("/recomendados")
+    public ResponseEntity<ApiResponse<List<ObjectNode>>> recomendados(@RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "24") int size,
+            @RequestParam(required = false)    String genero,
+            @RequestParam(required = false)    String categoria) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.ok(ApiResponse.page(List.of(), PageMeta.of(Math.max(0, page), Math.max(1, size), 0)));
 
@@ -133,7 +140,8 @@ class RecomendadosEndpoints {
         return ResponseEntity.ok(ApiResponse.page(items, PageMeta.of(paginaPedida, tamanio, total)));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> recomendadosFeedback(Map<String, Object> body) {
+    @PostMapping("/recomendados/feedback")
+    public ResponseEntity<ApiResponse<OpResult>> recomendadosFeedback(@RequestBody Map<String, Object> body) {
         String genero = String.valueOf(body.getOrDefault("genero", ""));
 
         Object itemsObj = body.get("items");
@@ -153,7 +161,8 @@ class RecomendadosEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> dismissCategoria(Map<String, String> body) {
+    @PostMapping("/recomendados/dismiss-categoria")
+    public ResponseEntity<ApiResponse<OpResult>> dismissCategoria(@RequestBody Map<String, String> body) {
         String categoria = body.getOrDefault("categoria", "").trim();
         if (categoria.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "categoria es obligatoria");
@@ -162,7 +171,8 @@ class RecomendadosEndpoints {
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ApiResponse<OpResult>> undismissCategoria(String categoria) {
+    @DeleteMapping("/recomendados/dismiss-categoria")
+    public ResponseEntity<ApiResponse<OpResult>> undismissCategoria(@RequestParam String categoria) {
         feedback.borrarCategoriaDismiss(Sujeto.de(actorResolver), categoria);
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }

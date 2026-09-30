@@ -2,21 +2,15 @@ package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
 import ar.scraper.model.PersistenciaException;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.scrape.ScraperStatus;
 
-import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
@@ -37,47 +31,31 @@ import static org.mockito.Mockito.*;
 @Epic("REST API")
 @Feature("Sitios / Config / Wiring")
 @Story("Status / scrape")
-@DisplayName("ApiController — Status & scrape endpoints")
+@DisplayName("ScrapeController / DbAdminController — Status, scrape & wipe endpoints")
 class ApiControllerStatusScrapeTest {
 
     private ScraperService service;
-    private IndiceService indiceService;
     private ScraperConfig config;
     private ResultAggregator aggregator;
-    private DatabaseService db;
     private ar.scraper.ml.MlOutputPort mlOutput;
     private ProductPort productos;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private ScrapeController controller;
+    private DbAdminController dbAdmin;
 
     @BeforeEach
     void setUp() {
         wireController();
     }
 
-    @Step("Wire ApiController with mocked collaborators")
+    @Step("Wire controllers with mocked collaborators")
     private void wireController() {
         service               = mock(ScraperService.class);
-        indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
-        db                    = mock(DatabaseService.class);
         mlOutput              = mock(ar.scraper.ml.MlOutputPort.class);
-        when(db.mlOutput()).thenReturn(mlOutput);
         productos             = mock(ProductPort.class);
-        when(db.productos()).thenReturn(productos);
-        grouping              = mock(GroupingService.class);
-        pythonRunner          = mock(PythonRunner.class);
-        outfitService         = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
-        // The controller reads db.favoritos() while wiring its endpoints; forget that
-        // so verifyNoInteractions(db) below keeps asserting what each route does.
-        clearInvocations(db);
+        controller = new ScrapeController(service, config, new ScrapeStatusView(service));
+        dbAdmin = new DbAdminController(service, mlOutput, productos, aggregator);
     }
 
     // ── GET /api/status ──────────────────────────────────────────────────
@@ -187,17 +165,17 @@ class ApiControllerStatusScrapeTest {
     void limpiarProductosReturns409WhenScrapingRunning() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        var resp = Wire.answer(() -> controller.limpiarProductos());
+        var resp = Wire.answer(() -> dbAdmin.limpiarProductos());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        verifyNoInteractions(db, aggregator);
+        verifyNoInteractions(mlOutput, productos, aggregator);
     }
 
     @Test
     void limpiarProductosReturns200AndClearsStateWhenIdle() throws Exception {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
-        var resp = controller.limpiarProductos();
+        var resp = dbAdmin.limpiarProductos();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         verify(productos).limpiarProductos();
@@ -210,7 +188,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         doThrow(new PersistenciaException("DB error")).when(productos).limpiarProductos();
 
-        var resp = Wire.answer(() -> controller.limpiarProductos());
+        var resp = Wire.answer(() -> dbAdmin.limpiarProductos());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
         assertThat(Wire.error(resp).path("code").asText()).isEqualTo("error_interno");
@@ -223,17 +201,17 @@ class ApiControllerStatusScrapeTest {
     void limpiarMlReturns409WhenScrapingRunning() {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        var resp = Wire.answer(() -> controller.limpiarMl());
+        var resp = Wire.answer(() -> dbAdmin.limpiarMl());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        verifyNoInteractions(db, aggregator);
+        verifyNoInteractions(mlOutput, productos, aggregator);
     }
 
     @Test
     void limpiarMlReturns200AndClearsDataWhenIdle() throws Exception {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
-        var resp = controller.limpiarMl();
+        var resp = dbAdmin.limpiarMl();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         verify(mlOutput).limpiarMlOutput();
@@ -245,7 +223,7 @@ class ApiControllerStatusScrapeTest {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
         doThrow(new PersistenciaException("DB error")).when(mlOutput).limpiarMlOutput();
 
-        var resp = Wire.answer(() -> controller.limpiarMl());
+        var resp = Wire.answer(() -> dbAdmin.limpiarMl());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
         assertThat(Wire.error(resp).path("code").asText()).isEqualTo("error_interno");

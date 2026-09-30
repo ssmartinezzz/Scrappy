@@ -24,6 +24,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -31,8 +32,10 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
-/** The catalog listing, facets, CSV export and product soft-delete. Mappings live in {@link ApiController}. */
-class CatalogoEndpoints {
+/** The catalog listing, facets, CSV export and product soft-delete. */
+@RestController
+@RequestMapping("/api")
+public class CatalogoController {
 
     private final ScraperService service;
     private final CatalogQueryPort catalogQuery;
@@ -43,7 +46,7 @@ class CatalogoEndpoints {
     private final ar.scraper.ml.SenalEnricher senalEnricher;
     private final ar.scraper.ml.FinanciacionEnricher financiacionEnricher;
 
-    CatalogoEndpoints(ScraperService service,
+    public CatalogoController(ScraperService service,
                       ar.scraper.financiacion.PresetPort presets,
                       ar.scraper.catalog.HistorialPort historial,
                       CatalogQueryPort catalogQuery,
@@ -60,13 +63,28 @@ class CatalogoEndpoints {
         this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, indiceService);
     }
 
-    ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(
-            int page, int size, List<String> talle, String genero, List<String> categoria,
-            String q, String sitio, List<String> marca, String badge, String segment,
-            String rubro, Boolean gymrat, String orden, Boolean pack,
-            Double precioMin, Double precioMax, List<String> subCategoria,
-            String fit, String estampado, String escote, String colorDominante
-    ) {
+    @GetMapping("/data")
+    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(@RequestParam(defaultValue = "0")   int page,
+            @RequestParam(defaultValue = "24")  int size,
+            @RequestParam(required = false)     List<String> talle,
+            @RequestParam(required = false)     String genero,
+            @RequestParam(required = false)     List<String> categoria,
+            @RequestParam(required = false)     String q,
+            @RequestParam(required = false)     String sitio,
+            @RequestParam(required = false)     List<String> marca,
+            @RequestParam(required = false)     String badge,
+            @RequestParam(required = false)     String segment,
+            @RequestParam(required = false)     String rubro,
+            @RequestParam(required = false)     Boolean gymrat,
+            @RequestParam(defaultValue = "precio_asc") String orden,
+            @RequestParam(required = false)     Boolean pack,
+            @RequestParam(required = false)     Double precioMin,
+            @RequestParam(required = false)     Double precioMax,
+            @RequestParam(required = false)     List<String> subCategoria,
+            @RequestParam(required = false)     String fit,
+            @RequestParam(required = false)     String estampado,
+            @RequestParam(required = false)     String escote,
+            @RequestParam(required = false)     String colorDominante) {
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
@@ -127,7 +145,8 @@ class CatalogoEndpoints {
      * the page is deep-linkable and a soft-deleted product must stay inspectable. Unlike
      * {@code /api/historial} a product with no points is still a 200; 404 means it does not exist.
      */
-    ResponseEntity<ApiResponse<CatalogoDtos.ProductoDetalle>> productoDetalle(String key) {
+    @GetMapping("/producto/{key}")
+    public ResponseEntity<ApiResponse<CatalogoDtos.ProductoDetalle>> productoDetalle(@PathVariable String key) {
         var encontrado = StringUtils.isBlank(key) ? java.util.Optional.<Product>empty()
                 : productos.obtenerProductoPorKey(key);
         if (encontrado.isEmpty()) {
@@ -145,7 +164,8 @@ class CatalogoEndpoints {
     // ---------------------------------------------------------------
     // Facets sueltos (para cargar filtros sin productos)
     // ---------------------------------------------------------------
-    ResponseEntity<ApiResponse<CatalogoDtos.FacetsDto>> facets() {
+    @GetMapping("/facets")
+    public ResponseEntity<ApiResponse<CatalogoDtos.FacetsDto>> facets() {
         java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
 
         CatalogResumen resumen = catalogQuery.resumen(cota);
@@ -159,7 +179,8 @@ class CatalogoEndpoints {
     // ---------------------------------------------------------------
     // CSV — descarga todo sin filtrar
     // ---------------------------------------------------------------
-    ResponseEntity<String> csv() throws Exception {
+    @GetMapping("/csv")
+    public ResponseEntity<String> csv() throws Exception {
         String content = service.generarCsv();
         if (content.isBlank()) return ResponseEntity.noContent().build();
         return ResponseEntity.ok()
@@ -168,7 +189,8 @@ class CatalogoEndpoints {
                 .body("\uFEFF" + content);
     }
 
-    ResponseEntity<ApiResponse<OpResult>> eliminarProducto(String url) {
+    @DeleteMapping("/data")
+    public ResponseEntity<ApiResponse<OpResult>> eliminarProducto(@RequestParam String url) {
         productos.marcarDescontinuado(url);
         service.eliminarProductoDeMemoria(url);
         return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));

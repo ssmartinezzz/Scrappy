@@ -2,17 +2,13 @@ package ar.scraper.web;
 
 import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import ar.scraper.model.Product.VisualAttrs;
@@ -29,7 +25,6 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -54,13 +49,8 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
     private ScraperService service;
     private IndiceService indiceService;
     private ScraperConfig config;
-    private ResultAggregator aggregator;
     private DatabaseService db;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private CatalogoController controller;
 
     @BeforeEach
     void setUp() {
@@ -77,14 +67,8 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         config                 = mock(ScraperConfig.class);
-        aggregator             = mock(ResultAggregator.class);
         db = TestDatabaseServices.create(dataSource());
-        grouping               = mock(GroupingService.class);
-        pythonRunner           = mock(PythonRunner.class);
-        outfitService          = mock(OutfitService.class);
-        recommendationService  = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
     }
 
     /**
@@ -250,7 +234,8 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         sembrar(nike);
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
-                List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null);
+                List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);

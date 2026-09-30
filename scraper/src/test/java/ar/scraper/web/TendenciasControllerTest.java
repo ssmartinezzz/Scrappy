@@ -1,19 +1,13 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
-import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
-import ar.scraper.aggregator.grouping.GroupingService;
-import ar.scraper.config.ScraperConfig;
 import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,36 +32,29 @@ import static org.mockito.Mockito.when;
  * <p>{@code /api/tendencias}'s {@code distribucionCategorias.<cat>} shape MUST
  * be unchanged after {@code categoria_stats} flattens from a JSON blob to 12
  * typed columns: same 12 keys, same rounding (cv to 1 decimal, the other 11
- * integral). {@code MlEndpoints.tendencias} stops calling
+ * integral). {@code TendenciasController.tendencias} stops calling
  * {@code readTree(payload)} and builds the node field by field instead — this
  * pins that the two paths produce byte-identical JSON.</p>
  */
 @Epic("REST API")
 @Feature("Tendencias / ML Ops")
 @Story("distribucionCategorias shape survives the V16 flatten")
-@DisplayName("MlEndpoints.tendencias — distribucionCategorias rounding")
-class MlEndpointsTendenciasTest {
+@DisplayName("TendenciasController.tendencias — distribucionCategorias rounding")
+class TendenciasControllerTest {
 
     private DatabaseService db;
     private ar.scraper.ml.CategoriaStatsPort categoriaStats;
-    private ApiController controller;
+    private TendenciasController controller;
 
     @BeforeEach
     void setUp() {
         ScraperService service               = mock(ScraperService.class);
-        IndiceService indiceService    = mock(IndiceService.class);
-        ScraperConfig config                 = mock(ScraperConfig.class);
         ResultAggregator aggregator          = mock(ResultAggregator.class);
         db                                    = mock(DatabaseService.class);
         categoriaStats                        = mock(ar.scraper.ml.CategoriaStatsPort.class);
         when(db.categoriaStats()).thenReturn(categoriaStats);
-        GroupingService grouping             = mock(GroupingService.class);
-        PythonRunner pythonRunner            = mock(PythonRunner.class);
-        OutfitService outfitService          = mock(OutfitService.class);
-        RecommendationService recommendationService = mock(RecommendationService.class);
 
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new TendenciasController(service, db.categoriaStats(), db.historial(), aggregator);
 
         when(service.getLastResult()).thenReturn(mockResult());
         ObjectMapper mapper = new ObjectMapper();

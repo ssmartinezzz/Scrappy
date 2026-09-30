@@ -8,15 +8,18 @@ import ar.scraper.api.ApiResponse;
 import ar.scraper.api.PageMeta;
 import ar.scraper.web.dto.ComparadorDtos;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** Multi-site price comparison and the external MercadoLibre lookup. Mappings live in {@link ApiController}. */
-class ComparadorEndpoints {
+/** Multi-site price comparison and the external MercadoLibre lookup. */
+@RestController
+@RequestMapping("/api")
+public class ComparadorController {
 
     private static final org.slf4j.Logger LOG =
-        org.slf4j.LoggerFactory.getLogger(ComparadorEndpoints.class);
+        org.slf4j.LoggerFactory.getLogger(ComparadorController.class);
 
     /** One shared client: a per-request one cost 5.2 ms and a live thread each, and discarded the connection pool. */
     private static final java.net.http.HttpClient HTTP = java.net.http.HttpClient.newBuilder()
@@ -35,13 +38,7 @@ class ComparadorEndpoints {
     private final ar.scraper.catalog.PreciosExternosPort preciosExternos;
     private final CatalogoDerivadoCache derivados;
 
-    ComparadorEndpoints(ScraperService service,
-                        ar.scraper.catalog.PreciosExternosPort preciosExternos,
-                        ar.scraper.aggregator.grouping.GroupingService grouping) {
-        this(service, preciosExternos, new CatalogoDerivadoCache(service, grouping));
-    }
-
-    ComparadorEndpoints(ScraperService service,
+    public ComparadorController(ScraperService service,
                         ar.scraper.catalog.PreciosExternosPort preciosExternos,
                         CatalogoDerivadoCache derivados) {
         this.service = service;
@@ -52,8 +49,14 @@ class ComparadorEndpoints {
     private String safe(String s) { return ProductJson.safe(s); }
 
     /** {@code page} is 0-based here (unlike /api/data and /api/recomendados). */
-    ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(String q, String sitio, String categoria,
-                                                                   String rubro, int minSitios, int page, int size) {
+    @GetMapping("/grupos")
+    public ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(@RequestParam(required = false) String q,
+            @RequestParam(required = false) String sitio,
+            @RequestParam(required = false) String categoria,
+            @RequestParam(required = false) String rubro,
+            @RequestParam(defaultValue = "2") int minSitios,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
 
         var grupos = derivados.grupos(GruposKey.de(service.snapshotVersion(), q, categoria, rubro, minSitios >= 2));
@@ -88,7 +91,8 @@ class ComparadorEndpoints {
         return ResponseEntity.ok(ApiResponse.page(items, PageMeta.of(page, size, total)));
     }
 
-    ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(String q, String url, String sitio) {
+    @GetMapping("/buscar-externo")
+    public ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(@RequestParam String q, @RequestParam(required = false) String url, @RequestParam(defaultValue = "mercadolibre") String sitio) {
         try {
             // Strip size/colour/gender/SKU codes: keep brand + model.
             String cleanQ = limpiarQueryBusqueda(q);

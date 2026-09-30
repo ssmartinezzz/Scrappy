@@ -6,8 +6,9 @@ import ar.scraper.scrape.StatusEvent;
 import ar.scraper.security.JwtAuthFilter;
 import ar.scraper.security.SecurityConfig;
 import ar.scraper.security.TokenService;
-import ar.scraper.web.ApiController;
 import ar.scraper.web.EventsController;
+import ar.scraper.web.MlEstadoView;
+import ar.scraper.web.ScrapeStatusView;
 import ar.scraper.web.dto.MlDtos;
 import ar.scraper.web.dto.ScrapeDtos;
 import io.qameta.allure.Epic;
@@ -95,12 +96,18 @@ class SseRealPortTest {
         }
 
         @Bean
-        ApiController api() {
-            ApiController api = Mockito.mock(ApiController.class);
-            when(api.statusSnapshot()).thenReturn(ScrapeDtos.Status.builder()
+        ScrapeStatusView scrapeStatus() {
+            ScrapeStatusView view = Mockito.mock(ScrapeStatusView.class);
+            when(view.snapshot()).thenReturn(ScrapeDtos.Status.builder()
                     .status("IDLE").mensaje("Listo").tieneData(false).build());
-            when(api.mlEstadoSnapshot()).thenReturn(new MlDtos.Estado());
-            return api;
+            return view;
+        }
+
+        @Bean
+        MlEstadoView mlEstado() {
+            MlEstadoView view = Mockito.mock(MlEstadoView.class);
+            when(view.snapshot()).thenReturn(new MlDtos.Estado());
+            return view;
         }
     }
 

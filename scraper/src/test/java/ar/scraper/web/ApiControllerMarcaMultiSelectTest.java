@@ -2,17 +2,13 @@ package ar.scraper.web;
 
 import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import ar.scraper.model.Product.SenalFinanciacion;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,7 +24,6 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -50,13 +45,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
     private ScraperService service;
     private IndiceService indiceService;
     private ScraperConfig config;
-    private ResultAggregator aggregator;
     private DatabaseService db;
-    private GroupingService grouping;
-    private PythonRunner pythonRunner;
-    private OutfitService outfitService;
-    private RecommendationService recommendationService;
-    private ApiController controller;
+    private CatalogoController controller;
 
     @BeforeEach
     void setUp() {
@@ -73,14 +63,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         config            = mock(ScraperConfig.class);
-        aggregator        = mock(ResultAggregator.class);
         db                = TestDatabaseServices.create(dataSource());
-        grouping          = mock(GroupingService.class);
-        pythonRunner      = mock(PythonRunner.class);
-        outfitService     = mock(OutfitService.class);
-        recommendationService = mock(RecommendationService.class);
-        controller = new ApiController(service, indiceService, config, aggregator,
-                db, grouping, pythonRunner, outfitService, recommendationService);
+        controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
     }
 
     /**
@@ -123,7 +107,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
 
         Allure.parameter("marca", List.of("Nike", "Adidas"));
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
-                List.of("Nike", "Adidas"), null, null, null, null, "precio_asc", null, null, null, null);
+                List.of("Nike", "Adidas"), null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -140,7 +125,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         sembrar(nike, adidas);
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
-                List.of(), null, null, null, null, "precio_asc", null, null, null, null);
+                List.of(), null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -153,7 +139,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
         sembrar(nike, adidas);
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
-                null, null, null, null, null, "precio_asc", null, null, null, null);
+                null, null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -169,7 +156,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
 
         Allure.parameter("marca", List.of("Nike"));
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
-                List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null);
+                List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -185,7 +173,8 @@ class ApiControllerMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTe
 
         Allure.parameter("marca", List.of("nike"));
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
-                List.of("nike"), null, null, null, null, "precio_asc", null, null, null, null);
+                List.of("nike"), null, null, null, null, "precio_asc", null, null, null, null,
+                null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);

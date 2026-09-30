@@ -1,19 +1,14 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
-import ar.scraper.outfits.OutfitService;
-import ar.scraper.outfits.RecommendationService;
 
 import ar.scraper.indices.IndiceService;
 
-import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.catalog.HistorialPort;
 import ar.scraper.catalog.ProductKey;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.config.ScraperConfig;
-import ar.scraper.db.DatabaseService;
-import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
@@ -59,22 +54,20 @@ class ApiControllerProductoDetalleTest {
     private static final String KEY = ProductKey.of(URL);
 
     private ScraperService service;
-    private DatabaseService db;
     private HistorialPort historial;
     private ProductPort productos;
-    private ApiController controller;
+    private CatalogoController controller;
+    private TendenciasController tendencias;
 
     @BeforeEach
     void setUp() {
         service   = mock(ScraperService.class);
-        db        = mock(DatabaseService.class);
         historial = mock(HistorialPort.class);
         productos = mock(ProductPort.class);
-        when(db.historial()).thenReturn(historial);
-        when(db.productos()).thenReturn(productos);
-        controller = new ApiController(service, mock(IndiceService.class), mock(ScraperConfig.class),
-                mock(ResultAggregator.class), db, mock(GroupingService.class), mock(PythonRunner.class),
-                mock(OutfitService.class), mock(RecommendationService.class));
+        controller = new CatalogoController(service, mock(ar.scraper.financiacion.PresetPort.class), historial,
+                mock(ar.scraper.catalog.CatalogQueryPort.class), productos,
+                mock(ScraperConfig.class), mock(IndiceService.class));
+        tendencias = new TendenciasController(service, mock(ar.scraper.ml.CategoriaStatsPort.class), historial, mock(ResultAggregator.class));
     }
 
     private Product producto() {
@@ -173,7 +166,7 @@ class ApiControllerProductoDetalleTest {
     void theOlderHistorialEndpointKeepsIts204() {
         when(historial.cargarHistorial(URL)).thenReturn(List.of());
 
-        assertThat(controller.historial(URL).getStatusCode().value()).isEqualTo(204);
+        assertThat(tendencias.historial(URL).getStatusCode().value()).isEqualTo(204);
     }
 
     @Test
@@ -183,7 +176,7 @@ class ApiControllerProductoDetalleTest {
                 punto("2026-05-20", 20000),
                 punto("2026-06-04", 16000)));
 
-        JsonNode body = Wire.data(controller.historial(URL));
+        JsonNode body = Wire.data(tendencias.historial(URL));
 
         assertThat(body.path("puntos")).hasSize(2);
         assertThat(body.path("min").asDouble()).isEqualTo(16000);
