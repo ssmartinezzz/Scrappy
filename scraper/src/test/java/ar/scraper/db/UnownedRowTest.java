@@ -40,7 +40,7 @@ class UnownedRowTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() throws Exception {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         usuarios = new UsuarioRepository(dataSource());
         usuarios.crear("ana", null, "$argon2id$x", false);
         ana = usuarios.buscarActivaPorUsername("ana").orElseThrow().id();

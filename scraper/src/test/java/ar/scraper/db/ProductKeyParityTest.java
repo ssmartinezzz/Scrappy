@@ -44,7 +44,7 @@ class ProductKeyParityTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     /** Cada entrada es una forma distinta de romper un hash de texto entre lenguajes. */

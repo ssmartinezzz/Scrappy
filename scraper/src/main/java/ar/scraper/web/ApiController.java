@@ -4,7 +4,7 @@ import ar.scraper.indices.IndiceService;
 import ar.scraper.json.ProductJson;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
-import ar.scraper.identity.ActorResolver;
+import ar.scraper.security.ActorResolver;
 import ar.scraper.agent.AgentChatResponse;
 import ar.scraper.agent.AgentConfig;
 import ar.scraper.agent.CatalogAgentService;
@@ -89,7 +89,7 @@ public class ApiController {
         this.catalogAgentService = catalogAgentService;
         this.agentConfig        = agentConfig;
         this.actorResolver      = actorResolver;
-        this.agentEndpoints     = new AgentEndpoints(service, db.siteRegistry(), db.productos(), catalogAgentService,
+        this.agentEndpoints     = new AgentEndpoints(service, db.rubroResolver(), db.productos(), catalogAgentService,
                                                      agentConfig, actorResolver);
         this.financiacionEndpoints = new FinanciacionEndpoints(service, indiceService,
                                                                db.presets(), db.historial(), db.productos(), aggregator);

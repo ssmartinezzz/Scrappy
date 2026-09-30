@@ -1,7 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.db.UsuarioRepository;
-import ar.scraper.identity.ActorResolver;
+import ar.scraper.security.ActorResolver;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;

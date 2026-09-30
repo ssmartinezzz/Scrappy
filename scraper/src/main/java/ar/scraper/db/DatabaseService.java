@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.catalog.CatalogFilter;
@@ -36,7 +37,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -87,43 +87,10 @@ public class DatabaseService {
     private final CatalogQueryPort catalogQueryPort;
     private final ScrapeRunPort scrapeRunPort;
     private final SiteRegistry siteRegistry;
+    private final RubroResolver rubroResolver;
 
-    /**
-     * Backward-compatible overload for the ~46 existing test call sites that
-     * construct {@code DatabaseService} without a {@link SiteRegistry} — each
-     * gets its own private instance, backed by the same {@code DataSource},
-     * rather than the single Spring-managed singleton production wiring
-     * shares (close-1nf-and-3nf-foundation extension, design E1). None of
-     * those tests exercise cross-refresh behavior (a POST/DELETE
-     * {@code /api/sitios} elsewhere becoming visible here), so a private
-     * instance is behaviorally identical to them.
-     */
-    public DatabaseService(DataSource dataSource) {
-        this(dataSource, new SiteRegistry(new JdbcSiteSource(dataSource)));
-    }
-
-    /**
-     * Delegating ctor: builds {@code CatalogQueryRepository}/{@code ProductRepository}
-     * here, sharing the ONE {@link SiteRegistry} the 1-arg overload just created,
-     * instead of each repository resolving its own (extract-catalog-query-port).
-     */
-    private DatabaseService(DataSource dataSource, SiteRegistry siteRegistry) {
-        this(dataSource, siteRegistry, new CronRepository(dataSource),
-                new FavoritosRepository(dataSource), new PresetRepository(dataSource),
-                new HistorialRepository(dataSource),
-                new CatalogQueryRepository(dataSource, siteRegistry),
-                new ProductRepository(dataSource, siteRegistry),
-                new CategoriaStatsRepository(dataSource), new MlOutputRepository(dataSource),
-                new ScrapeRunRepository(dataSource),
-                new SitiosRepository(dataSource, siteRegistry),
-                new FeedbackRepository(dataSource), new SavedOutfitsRepository(dataSource),
-                new SavedPcsRepository(dataSource),
-                new PreferenciaArmadorRepository(dataSource),
-                new PreciosExternosRepository(dataSource));
-    }
-
-    @Autowired
-    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort,
+    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
+            CronPort cronPort,
             FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort,
             CatalogQueryPort catalogQueryPort, ProductPort productPort,
             CategoriaStatsPort categoriaStatsPort, MlOutputPort mlOutputPort,
@@ -134,6 +101,7 @@ public class DatabaseService {
             PreciosExternosPort preciosExternosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
+        this.rubroResolver = rubroResolver;
         this.cronPort = cronPort;
         this.favoritosPort = favoritosPort;
         this.presetPort = presetPort;
@@ -153,6 +121,10 @@ public class DatabaseService {
 
     public SiteRegistry siteRegistry() {
         return siteRegistry;
+    }
+
+    public RubroResolver rubroResolver() {
+        return rubroResolver;
     }
 
     /** Accessor for {@code web} consumers built by hand (not Spring beans) that still

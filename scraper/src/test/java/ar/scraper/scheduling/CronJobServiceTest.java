@@ -1,5 +1,6 @@
 package ar.scraper.scheduling;
 
+import ar.scraper.config.SpringCronSchedule;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronPort;
 import io.qameta.allure.Allure;
@@ -56,7 +57,7 @@ class CronJobServiceTest {
     private void wireService() {
         db = mock(CronPort.class);
         runner = mock(CronJobRunner.class);
-        service = new CronJobService(db, runner, clock);
+        service = new CronJobService(db, runner, clock, new SpringCronSchedule());
     }
 
     private CronJob job(long id, boolean enabled, String nextRunAt) {

@@ -37,7 +37,7 @@ class DatabaseServiceCategoriaDismissTest extends PostgresTestBase {
 
     @Step("Open temp-file SQLite DB and initialize schema")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
 

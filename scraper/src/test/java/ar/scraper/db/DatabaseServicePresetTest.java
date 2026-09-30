@@ -38,7 +38,7 @@ class DatabaseServicePresetTest extends PostgresTestBase {
 
     @Step("Open Postgres-backed DatabaseService and run its @PostConstruct seed")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         // DatabaseService.init() (@PostConstruct: seeds the illustrative default
         // preset) only runs automatically when Spring manages the bean. Tests
         // construct it directly via `new`, so invoke the same package-private

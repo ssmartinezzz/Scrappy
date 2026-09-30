@@ -36,7 +36,7 @@ class CatalogoMarcaPremiumViaSiteRegistryTest extends PostgresTestBase {
     @Test
     @DisplayName("un producto de un sitio premium (Harvey) sale con marcaPremium=true")
     void premiumSiteProductComesBackMarcaPremiumTrue() {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         CatalogQueryRepository repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         db.upsertProductos(List.of(producto("https://catalogo-premium.test/a", "Harvey")));
 
@@ -51,7 +51,7 @@ class CatalogoMarcaPremiumViaSiteRegistryTest extends PostgresTestBase {
     @Test
     @DisplayName("un producto de un sitio no premium (Freres) sale con marcaPremium=false")
     void nonPremiumSiteProductComesBackMarcaPremiumFalse() {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         CatalogQueryRepository repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         db.upsertProductos(List.of(producto("https://catalogo-premium.test/b", "Freres")));
 
@@ -66,7 +66,7 @@ class CatalogoMarcaPremiumViaSiteRegistryTest extends PostgresTestBase {
     @Test
     @DisplayName("un sitio desconocido (no sembrado en sitio) abstiene a marcaPremium=false")
     void unknownSiteAbstainsToMarcaPremiumFalse() {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         CatalogQueryRepository repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         db.upsertProductos(List.of(producto("https://catalogo-premium.test/c", "SitioNuncaVisto")));
 

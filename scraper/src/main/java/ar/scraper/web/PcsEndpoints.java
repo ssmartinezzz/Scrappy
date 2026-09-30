@@ -1,7 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.security.Sujeto;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.GamaWire;
 import ar.scraper.pcs.PcBuild;
@@ -40,10 +40,10 @@ class PcsEndpoints {
     private final PcBuilder pcBuilder;
     private final SavedPcsPort pcsGuardadas;
     private final PreferenciaArmadorPort preferenciaArmador;
-    private final ar.scraper.identity.ActorResolver actorResolver;
+    private final ar.scraper.security.ActorResolver actorResolver;
 
     PcsEndpoints(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
-                 PreferenciaArmadorPort preferenciaArmador, ar.scraper.identity.ActorResolver actorResolver) {
+                 PreferenciaArmadorPort preferenciaArmador, ar.scraper.security.ActorResolver actorResolver) {
         this.service = service;
         this.pcBuilder = pcBuilder;
         this.pcsGuardadas = pcsGuardadas;

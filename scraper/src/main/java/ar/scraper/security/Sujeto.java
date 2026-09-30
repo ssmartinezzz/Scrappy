@@ -1,6 +1,4 @@
-package ar.scraper.identity;
-
-import ar.scraper.identity.ActorResolver;
+package ar.scraper.security;
 
 import java.util.UUID;
 

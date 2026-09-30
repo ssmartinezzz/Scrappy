@@ -8,11 +8,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,6 +79,18 @@ class SpringWiringTest {
         return AnnotatedElementUtils.hasAnnotation(clase, Component.class);
     }
 
+    /** Return types of the {@code @Bean} methods in the scanned {@code @Configuration} classes. */
+    private static List<Class<?>> tiposProducidosPorBeanMethods(List<Class<?>> beans) {
+        List<Class<?>> producidos = new ArrayList<>();
+        for (Class<?> bean : beans) {
+            if (!AnnotatedElementUtils.hasAnnotation(bean, Configuration.class)) continue;
+            for (Method metodo : bean.getDeclaredMethods()) {
+                if (metodo.isAnnotationPresent(Bean.class)) producidos.add(metodo.getReturnType());
+            }
+        }
+        return producidos;
+    }
+
     /** Our own types are the ones we can make claims about; framework types are not. */
     private static boolean esTipoPropio(Class<?> tipo) {
         return tipo.getName().startsWith(PAQUETE_RAIZ + ".");
@@ -93,7 +108,8 @@ class SpringWiringTest {
      */
     private static boolean resoluble(Class<?> tipo, List<Class<?>> beans) {
         if (esBean(tipo)) return true;
-        return beans.stream().anyMatch(tipo::isAssignableFrom);
+        if (beans.stream().anyMatch(tipo::isAssignableFrom)) return true;
+        return tiposProducidosPorBeanMethods(beans).stream().anyMatch(tipo::isAssignableFrom);
     }
 
     @Test
@@ -201,6 +217,30 @@ class SpringWiringTest {
 
         assertThat(rotos)
                 .as("parámetros de constructor que Spring no podría resolver")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("ningún parámetro de un método @Bean pide una clase nuestra que no sea bean")
+    void ningunMetodoBeanPideUnNoBean() throws Exception {
+        List<Class<?>> beans = beansDeLaAplicacion();
+        List<String> rotos = new ArrayList<>();
+
+        for (Class<?> bean : beans) {
+            if (!AnnotatedElementUtils.hasAnnotation(bean, Configuration.class)) continue;
+            for (Method metodo : bean.getDeclaredMethods()) {
+                if (!metodo.isAnnotationPresent(Bean.class)) continue;
+                for (Class<?> parametro : metodo.getParameterTypes()) {
+                    if (!esTipoPropio(parametro) || resoluble(parametro, beans)) continue;
+                    rotos.add(String.format(
+                            "%s.%s pide %s, que no es un bean ni lo produce un @Bean",
+                            bean.getSimpleName(), metodo.getName(), parametro.getSimpleName()));
+                }
+            }
+        }
+
+        assertThat(rotos)
+                .as("parámetros de @Bean que Spring no podría resolver")
                 .isEmpty();
     }
 

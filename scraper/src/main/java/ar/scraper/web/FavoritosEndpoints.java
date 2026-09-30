@@ -13,8 +13,8 @@ import org.springframework.http.ResponseEntity;
 import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.favoritos.FavoritosPort;
-import ar.scraper.identity.ActorResolver;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.security.ActorResolver;
+import ar.scraper.security.Sujeto;
 
 import java.util.Map;
 

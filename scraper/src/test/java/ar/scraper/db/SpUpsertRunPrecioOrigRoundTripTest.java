@@ -48,7 +48,7 @@ class SpUpsertRunPrecioOrigRoundTripTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     private Product producto(String url, Double precioOrig) {

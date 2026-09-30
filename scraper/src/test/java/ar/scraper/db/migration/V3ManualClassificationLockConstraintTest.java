@@ -1,5 +1,6 @@
 package ar.scraper.db.migration;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
@@ -43,7 +44,7 @@ class V3ManualClassificationLockConstraintTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     private Product producto(String url) {

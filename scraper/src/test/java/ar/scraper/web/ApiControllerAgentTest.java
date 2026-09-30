@@ -23,6 +23,7 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.aggregator.grouping.GroupingService;
+import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
@@ -99,7 +100,7 @@ class ApiControllerAgentTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
-        when(db.siteRegistry()).thenReturn(SiteRegistry.forTesting(Map.of()));
+        when(db.rubroResolver()).thenReturn(new RubroResolver(SiteRegistry.forTesting(Map.of())));
         productos             = mock(ProductPort.class);
         when(db.productos()).thenReturn(productos);
         grouping              = mock(GroupingService.class);
@@ -593,7 +594,7 @@ class ApiControllerAgentTest {
     @Test
     @DisplayName("manual-classification-lock Phase 7: agentApply passes actorResolver.current(), never a bare literal")
     void applyPassesTheActorResolverCurrentValueToTheWritePath() {
-        ar.scraper.identity.ActorResolver actorResolver = mock(ar.scraper.identity.ActorResolver.class);
+        ar.scraper.security.ActorResolver actorResolver = mock(ar.scraper.security.ActorResolver.class);
         when(actorResolver.current()).thenReturn("santi-desde-sesion");
         ApiController controllerConActor = new ApiController(service, indiceService, config, aggregator, db,
                 grouping, pythonRunner, outfitService, recommendationService, catalogAgentService, agentConfig,

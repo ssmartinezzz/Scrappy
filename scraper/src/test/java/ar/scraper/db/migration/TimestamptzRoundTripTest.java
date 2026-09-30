@@ -1,5 +1,6 @@
 package ar.scraper.db.migration;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.db.DatabaseService;
@@ -47,7 +48,7 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     @Test

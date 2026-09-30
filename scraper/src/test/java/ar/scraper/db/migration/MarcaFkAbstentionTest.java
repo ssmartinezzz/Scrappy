@@ -1,5 +1,6 @@
 package ar.scraper.db.migration;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
@@ -62,7 +63,7 @@ class MarcaFkAbstentionTest extends PostgresTestBase {
     void nullComesBackAsEmptyStringThroughTheJavaMapper() throws Exception {
         insertarConMarca("https://marca-fk.test/lectura", null);
 
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         Product leido = db.cargarProductos().stream()
                 .filter(p -> "https://marca-fk.test/lectura".equals(p.url()))
                 .findFirst()

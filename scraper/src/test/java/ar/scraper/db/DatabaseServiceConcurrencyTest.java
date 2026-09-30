@@ -45,7 +45,7 @@ class DatabaseServiceConcurrencyTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     private Product producto(String url, String nombre, double precio) {

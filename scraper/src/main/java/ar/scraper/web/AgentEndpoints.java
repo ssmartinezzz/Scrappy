@@ -15,7 +15,7 @@ import ar.scraper.agent.ReclassifyProposal;
 import ar.scraper.agent.Role;
 import ar.scraper.agent.ToolStep;
 import ar.scraper.agent.ViewProductTool;
-import ar.scraper.identity.ActorResolver;
+import ar.scraper.security.ActorResolver;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,31 +46,24 @@ class AgentEndpoints {
     private static final ObjectMapper AGENT_MAPPER = new ObjectMapper();
 
     private final ScraperService service;
-    private final ar.scraper.classification.SiteRegistry siteRegistry;
+    private final RubroResolver rubroResolver;
     private final ar.scraper.catalog.ProductPort productos;
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
 
     AgentEndpoints(ScraperService service,
-                   ar.scraper.classification.SiteRegistry siteRegistry,
+                   RubroResolver rubroResolver,
                    ar.scraper.catalog.ProductPort productos,
                    CatalogAgentService catalogAgentService,
                    AgentConfig agentConfig,
                    ActorResolver actorResolver) {
         this.service = service;
-        this.siteRegistry = siteRegistry;
+        this.rubroResolver = rubroResolver;
         this.productos = productos;
         this.catalogAgentService = catalogAgentService;
         this.agentConfig = agentConfig;
         this.actorResolver = actorResolver;
-    }
-
-    // Built on demand, not Spring-managed: a pure function of (sitioKey, categoria, rubroPrevio), so it
-    // matches what aplicarReclasificacionAuditada persisted. Lazy so paths that never reach the reclassify
-    // branch never touch `db` (tests assert verifyNoInteractions(db)). One call per apply request: not cached.
-    private RubroResolver rubroResolver() {
-        return new RubroResolver(siteRegistry);
     }
 
     ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(Map<String, Object> body) {
@@ -210,7 +203,7 @@ class AgentEndpoints {
         // for a write that did not happen. rubro is derived via RubroResolver, the same pure computation
         // aplicarReclasificacionAuditada persisted.
         String sitioKey = SiteClassification.sitioKey(previo.sitio());
-        String rubro = rubroResolver().resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
+        String rubro = rubroResolver.resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
         service.actualizarProductoEnMemoria(
                 body.url(),
                 body.categoriaPropuesta(),
