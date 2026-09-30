@@ -95,7 +95,7 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T3a Push instead of poll, backend: Hikari/Flyway boot retries, V41 `pg_notify` triggers, status bus, cron wait on the bus, Resilience4j `withRetry`, LISTEN listener with backoff, `GET /api/events` SSE
 - [x] T3b Push instead of poll, frontend: fetch-stream reader through `authedFetch` replaces the 1.8 s / 2 s / 4 s polls; unit tests + `tests/e2e` (see "T3b handoff")
 - [x] T7 SOLID: split `ApiController` (65 handlers) by resource
-- [ ] T1 Final comment sweep across `ar.scraper`
+- [x] T1 Final comment sweep across `ar.scraper`
 - [x] ~~T2 Remove unused Lombok dependency~~ — dropped: user wants Lombok DTOs
 
 ## Acceptance
@@ -430,9 +430,20 @@ Baseline 3258 / 0 / 0 / 7 (HEAD 3c3ee4b). Route set captured BEFORE touching cod
 - Docs updated with the code: `STRUCTURE.md`, `ARCHITECTURE.md` (+ a T7 paragraph), `GOTCHAS.md`, `LLM_EMBED.md`. Historical paragraphs in `ARCHITECTURE.md`/`DATABASE.md` and archived openspec/odd files still name the old classes on purpose.
 - Mid-task tooling bug (mine): my signature rewriter matched a continuation line once and mangled `OutfitsController`/`PcsController`; compile caught it, regenerated from the originals and diffed every controller against its `*Endpoints` source.
 
+### T1 evidence
+
+Comment sweep over `scraper/src/main/java/ar/scraper` (313 of 343 files touched; the rest had no droppable comments). Tool: a string/text-block-aware Java tokenizer that keeps, per comment, only the 1-2 sentences carrying a why-marker (constraint, ordering, concurrency, units, security) and drops restatements, banners, history prose (phase/design/T-ids/change names), tag-only javadoc and commented-out code.
+
+- Comment lines (`find ... -exec cat {} + | grep -cE '^\s*(//|/\*|\*)'`): 10263 -> 3268. Total lines: 40219 -> 33144.
+- Per commit (files, +/-): d8d4e03 agent/api/catalog/classification/config 60, +205/-994; 884aa4c db/favoritos/feedback/financiacion/fuentes/health 41, +286/-1470; e960f75 aggregator/indices/json/model 37, +349/-1417; 6493158 ml/scheduling/scrape/scrapers/pages 46, +346/-1668; 0132f46 outfits/pcs 63, +498/-2182; e4003de security/web/App 66, +394/-1422.
+- Comment-only check: for all 313 files, source with comments removed (Java-aware, strings and text blocks preserved) and whitespace stripped is byte-identical between 62855f5 and HEAD; also run per commit on the staged blobs (bad=0 each time). Nothing under `src/test` or `src/main/resources` changed.
+- Suite before each commit: 3259 tests, 0 failures, 0 errors, 7 skipped, BUILD SUCCESS (clean, dev DB up). `ScrapeRunIndexBenchmarkTest` did not flake.
+- Files reverted: none. `NoIntegerBooleanLiteralsTest` scans `db/*.java` text; deleting comments cannot add matches and it stayed green.
+- Residual: surviving comments keep their original language; some extracted sentences read a little terse without the dropped lead-in.
+
 ## Next step
 
-T1. (T3 and T7 done.)
+Open PR(s). (T1, T3 and T7 done.)
 
 ### Upsert sentinel decision APPLIED (user, 2026-09-30) in 6f15a11
 
