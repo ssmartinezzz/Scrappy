@@ -33,8 +33,9 @@ def test_service_log_path_lives_under_scraper_logs(tmp_path: Path):
 def test_service_log_path_rejects_unknown_service(tmp_path: Path):
     """The service name reaches a filesystem path, so it is validated
     against a fixed allow-list rather than interpolated blindly."""
+    cfg = _cfg(tmp_path)
     with pytest.raises(ValueError):
-        service_log_path(_cfg(tmp_path), "../../etc/passwd")
+        service_log_path(cfg, "../../etc/passwd")
 
 
 def test_every_known_service_has_a_path(tmp_path: Path):

@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 30.0
 
 LOGIN_PATH = "/api/auth/login"
+BACKEND_UNREACHABLE_ACTION = "Confirm the backend is running on the configured port."
 
 # Re-authenticate slightly before the token actually expires, so a call that
 # starts valid cannot finish invalid. Small enough not to waste a token's life,
@@ -160,7 +161,7 @@ class RestClient:
         except urllib.error.URLError as exc:
             raise RestError(
                 f"POST {url} failed: {exc}",
-                action="Confirm the backend is running on the configured port.",
+                action=BACKEND_UNREACHABLE_ACTION,
             ) from exc
 
         token = payload.get("accessToken")
@@ -250,12 +251,12 @@ class RestClient:
                     ) from exc
                 raise RestError(
                     f"{method} {url} failed: {exc}{_error_suffix(exc)}",
-                    action="Confirm the backend is running on the configured port.",
+                    action=BACKEND_UNREACHABLE_ACTION,
                 ) from exc
             except urllib.error.URLError as exc:
                 raise RestError(
                     f"{method} {url} failed: {exc}",
-                    action="Confirm the backend is running on the configured port.",
+                    action=BACKEND_UNREACHABLE_ACTION,
                 ) from exc
         raise AssertionError("unreachable: el loop siempre retorna o levanta")
 
