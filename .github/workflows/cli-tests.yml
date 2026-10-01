@@ -40,7 +40,7 @@ jobs:
 
       - name: Install CLI test dependencies
         if: steps.changes.outputs.cli == 'true'
-        run: python -m pip install --require-hashes --only-binary :all: -r cli/requirements-ci.txt
+        run: 'python -m pip install --require-hashes --only-binary :all: -r cli/requirements-ci.txt'
 
       - name: Run pytest tests/cli
         if: steps.changes.outputs.cli == 'true'
