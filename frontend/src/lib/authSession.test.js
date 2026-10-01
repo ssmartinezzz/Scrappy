@@ -279,6 +279,39 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
     expect(elapsed).toBeLessThan(100); // no dead lock left behind to probe against
   });
 
+  it('two tabs cold-starting together refresh once even when the lock reaches the second tab before the broadcast does', async () => {
+    // The refresh lock and the BroadcastChannel are separate browser channels with no
+    // ordering between them: tab B can be granted the lock before tab A's `session`
+    // message is delivered. Delaying delivery makes that order deterministic.
+    const deliverNow = FakeBroadcastChannel.prototype.postMessage;
+    FakeBroadcastChannel.prototype.postMessage = function postLate(data) {
+      setTimeout(() => deliverNow.call(this, data), 50);
+    };
+
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    vi.resetModules();
+    const tabA = await import('./authSession');
+    vi.resetModules();
+    const tabB = await import('./authSession');
+
+    try {
+      const [okA, okB] = await Promise.all([tabA.bootstrap(), tabB.bootstrap()]);
+
+      expect(okA).toBe(true);
+      expect(okB).toBe(true);
+      const refreshCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/auth/refresh'));
+      expect(refreshCalls).toHaveLength(1);
+      expect(tabB.getAccessToken()).toBe(tabA.getAccessToken());
+    } finally {
+      FakeBroadcastChannel.prototype.postMessage = deliverNow;
+    }
+  });
+
   it('with no navigator.locks (but a live channel), bootstrap still pays the fixed probe timeout — unchanged', async () => {
     uninstallCoordinationPrimitives();
     FakeBroadcastChannel.resetRegistry();
