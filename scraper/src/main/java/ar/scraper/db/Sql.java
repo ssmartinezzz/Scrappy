@@ -2,6 +2,8 @@ package ar.scraper.db;
 
 import ar.scraper.model.PersistenciaException;
 
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+
 import java.sql.SQLException;
 
 /** Translates {@link SQLException} into the domain's {@link PersistenciaException} at a port boundary. */
@@ -33,5 +35,14 @@ final class Sql {
         } catch (SQLException e) {
             throw new PersistenciaException(e);
         }
+    }
+
+    /**
+     * A method that swallows its exception to return a sentinel would otherwise COMMIT the
+     * half-done unit. Throws when there is no transaction: that means the object was built
+     * with {@code new} and {@code @Transactional} never ran.
+     */
+    static void marcarRollback() {
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
     }
 }

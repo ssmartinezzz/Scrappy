@@ -2,6 +2,7 @@ package ar.scraper.db;
 
 import ar.scraper.catalog.PreciosExternosPort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,42 +35,36 @@ class PreciosExternosRepository implements PreciosExternosPort {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
         if (resultados == null || resultados.isEmpty()) return;
         LocalDate hoy = LocalDate.now();
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                // Borrar los del día para no duplicar
-                try (PreparedStatement del = c.prepareStatement(
-                        "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
-                    // fecha is DATE (design D6) — ps.setString binds varchar and
-                    // "date = character varying" has no operator; setObject(LocalDate)
-                    // binds it as a real date parameter.
-                    del.setString(1, productoUrl); del.setString(2, sitio); del.setObject(3, hoy);
-                    del.executeUpdate();
-                }
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO precios_externos (producto_url,sitio,titulo,precio,externo_url,condicion,fecha) VALUES(?,?,?,?,?,?,?)")) {
-                    for (var r : resultados) {
-                        ps.setString(1, productoUrl);
-                        ps.setString(2, sitio);
-                        ps.setString(3, (String) r.getOrDefault("titulo", ""));
-                        ps.setDouble(4, ((Number) r.getOrDefault("precio", 0.0)).doubleValue());
-                        ps.setString(5, (String) r.getOrDefault("url", ""));
-                        ps.setString(6, (String) r.getOrDefault("condicion", "new"));
-                        ps.setObject(7, hoy);
-                        ps.executeUpdate();
-                    }
-                }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
+            try (PreparedStatement del = c.prepareStatement(
+                    "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
+                // fecha is DATE (design D6) — ps.setString binds varchar and
+                // "date = character varying" has no operator; setObject(LocalDate)
+                // binds it as a real date parameter.
+                del.setString(1, productoUrl); del.setString(2, sitio); del.setObject(3, hoy);
+                del.executeUpdate();
             }
-        } catch (SQLException e) {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO precios_externos (producto_url,sitio,titulo,precio,externo_url,condicion,fecha) VALUES(?,?,?,?,?,?,?)")) {
+                for (var r : resultados) {
+                    ps.setString(1, productoUrl);
+                    ps.setString(2, sitio);
+                    ps.setString(3, (String) r.getOrDefault("titulo", ""));
+                    ps.setDouble(4, ((Number) r.getOrDefault("precio", 0.0)).doubleValue());
+                    ps.setString(5, (String) r.getOrDefault("url", ""));
+                    ps.setString(6, (String) r.getOrDefault("condicion", "new"));
+                    ps.setObject(7, hoy);
+                    ps.executeUpdate();
+                }
+            }
+        } catch (Exception e) {
             LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
+            Sql.marcarRollback();
         }
     }
 

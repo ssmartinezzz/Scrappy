@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -15,7 +16,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 
 /**
  * Persistence for the {@code usuario} aggregate and its role grants.
@@ -219,8 +219,8 @@ public class UsuarioRepository {
     }
 
     /**
-     * Sets a new hash and stamps {@code password_changed_at}, on the caller's
-     * connection so it can join the reset transaction.
+     * Sets a new hash and stamps {@code password_changed_at}. Joins the reset
+     * transaction when called inside one.
      *
      * <p>The stamp is not bookkeeping. Access tokens already issued stay
      * cryptographically valid for up to fifteen minutes after a reset, and
@@ -228,8 +228,9 @@ public class UsuarioRepository {
      * window — at no extra query, because the per-request authorization lookup
      * reads it anyway.</p>
      */
-    public boolean cambiarPassword(Connection c, UUID usuarioId, String passwordHash, java.time.Instant cuando) {
-        try (PreparedStatement ps = c.prepareStatement(
+    public boolean cambiarPassword(UUID usuarioId, String passwordHash, java.time.Instant cuando) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
                 "UPDATE usuario SET password_hash = ?, password_changed_at = ? WHERE id = ?")) {
             ps.setString(1, passwordHash);
             ps.setTimestamp(2, java.sql.Timestamp.from(cuando));
@@ -362,16 +363,15 @@ public class UsuarioRepository {
      *         {@code r.nombre}, so an invalid role would grant nothing and the
      *         account would be born unusable.
      */
+    @Transactional(rollbackFor = Exception.class)
     public Optional<UUID> crearConRol(String username, String email, String passwordHash, String rol) {
         if (!rolesValidos().contains(rol)) {
             throw new IllegalArgumentException("rol inválido: " + rol);
         }
-        return enTransaccion(tx -> {
-            if (!tx.existeUsername(username)) {
-                return Optional.of(tx.sembrarCuenta(username, email, passwordHash, false, rol));
-            }
+        if (existe(username)) {
             return Optional.empty();
-        });
+        }
+        return Optional.of(sembrarCuenta(username, email, passwordHash, false, rol));
     }
 
     /**
@@ -382,11 +382,31 @@ public class UsuarioRepository {
      * meaningful request, while accidentally leaving the old grant in place would
      * be a demotion that did not demote.</p>
      */
+    @Transactional(rollbackFor = Exception.class)
     public boolean reemplazarRol(String username, String rol) {
         if (!rolesValidos().contains(rol)) {
             throw new IllegalArgumentException("rol inválido: " + rol);
         }
-        return enTransaccion(tx -> tx.reemplazarRol(username, rol));
+        try (Connection c = dataSource.getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement("""
+                    DELETE FROM usuario_rol
+                     WHERE usuario_id = (SELECT id FROM usuario WHERE username = ?)
+                    """)) {
+                ps.setString(1, username);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO usuario_rol (usuario_id, rol_id)
+                    SELECT u.id, r.id FROM usuario u, rol r
+                    WHERE u.username = ? AND r.nombre = ?
+                    """)) {
+                ps.setString(1, username);
+                ps.setString(2, rol);
+                return ps.executeUpdate() == 1;
+            }
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo reemplazar el rol de '" + username + "'", e);
+        }
     }
 
     /** Counts active ADMINs. Used to refuse removing the last one. */
@@ -435,59 +455,42 @@ public class UsuarioRepository {
         }
     }
 
-    // ─── Unidad de trabajo transaccional ─────────────────────────────────────
-
-    /**
-     * Runs {@code trabajo} against one connection with autocommit off,
-     * committing on return and rolling back on any throw.
-     *
-     * <p>It exists because bootstrap seeding and ownership adoption have to be
-     * one atomic step. Adopting rows into an admin account that a later failure
-     * rolls back would leave every personal row pointing at a user id that does
-     * not exist — a dangling owner is worse than no owner, because the rows
-     * become unreachable rather than merely unclaimed.</p>
-     */
-    public <T> T enTransaccion(Function<Tx, T> trabajo) {
-        try (Connection c = dataSource.getConnection()) {
-            boolean autocommitPrevio = c.getAutoCommit();
-            c.setAutoCommit(false);
-            try {
-                T resultado = trabajo.apply(new Tx(c));
-                c.commit();
-                return resultado;
-            } catch (RuntimeException | Error e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(autocommitPrevio);
-            }
-        } catch (java.sql.SQLException e) {
-            throw new DatabaseException("falló la transacción de cuentas", e);
-        }
-    }
+    // ─── Bootstrap ───────────────────────────────────────────────────────────
 
     /** The four tables a person owns rows in. {@code saved_outfit_item} inherits through its parent. */
     private static final List<String> TABLAS_CON_DUENO =
             List.of("favoritos", "saved_outfits", "outfit_feedback_item", "categoria_dismiss");
 
-    /** Connection-scoped operations. Only reachable from {@link #enTransaccion}. */
-    public final class Tx {
+    /**
+     * Seeds the bootstrap admin and the service account, then hands every ownerless row to the
+     * admin, all in one transaction.
+     *
+     * <p>Adopting rows into an admin account that a later failure rolls back would leave every
+     * personal row pointing at a user id that does not exist — a dangling owner is worse than no
+     * owner, because the rows become unreachable rather than merely unclaimed.</p>
+     *
+     * <p>email is null for both: the service account's CHECK requires it, and the bootstrap admin
+     * has no address anybody has confirmed.</p>
+     *
+     * @return how many rows were adopted, across all four tables.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int sembrarAdministracion(String adminUsername, String hashAdmin,
+                                     String servicioUsername, String hashServicio, String rol) {
+        UUID adminId = sembrarCuenta(adminUsername, null, hashAdmin, false, rol);
+        sembrarCuenta(servicioUsername, null, hashServicio, true, rol);
+        return adoptarFilasSinDueno(adminId);
+    }
 
-        private final Connection c;
-
-        private Tx(Connection c) {
-            this.c = c;
-        }
-
-        /**
-         * Insert-if-absent plus the role grant, both idempotent.
-         *
-         * @return the account's id, whether this call created it or found it.
-         *         An existing {@code password_hash} is never touched — see
-         *         {@link UsuarioRepository#crear}.
-         */
-        public UUID sembrarCuenta(String username, String email, String passwordHash,
-                                  boolean esServicio, String rol) {
+    /**
+     * Insert-if-absent plus the role grant, both idempotent.
+     *
+     * @return the account's id, whether this call created it or found it.
+     *         An existing {@code password_hash} is never touched — see {@link #crear}.
+     */
+    private UUID sembrarCuenta(String username, String email, String passwordHash,
+                               boolean esServicio, String rol) {
+        try (Connection c = dataSource.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO usuario (username, email, password_hash, es_servicio)
                     VALUES (?, ?, ?, ?)
@@ -516,8 +519,7 @@ public class UsuarioRepository {
                 throw new DatabaseException("no se pudo asignar el rol " + rol + " a '" + username + "'", e);
             }
 
-            try (PreparedStatement ps = c.prepareStatement(
-                    "SELECT id FROM usuario WHERE username = ?")) {
+            try (PreparedStatement ps = c.prepareStatement("SELECT id FROM usuario WHERE username = ?")) {
                 ps.setString(1, username);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (!rs.next()) {
@@ -531,55 +533,21 @@ public class UsuarioRepository {
             } catch (Exception e) {
                 throw new DatabaseException("no se pudo leer el id de '" + username + "'", e);
             }
+        } catch (java.sql.SQLException e) {
+            throw new DatabaseException("no se pudo sembrar la cuenta '" + username + "'", e);
         }
+    }
 
-        /** Inside the transaction, so create-if-absent cannot race with itself. */
-        public boolean existeUsername(String username) {
-            try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM usuario WHERE username = ?")) {
-                ps.setString(1, username);
-                try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next();
-                }
-            } catch (Exception e) {
-                throw new DatabaseException("no se pudo verificar '" + username + "'", e);
-            }
-        }
-
-        /** Drops every existing grant and leaves exactly one. */
-        public boolean reemplazarRol(String username, String rol) {
-            try (PreparedStatement ps = c.prepareStatement("""
-                    DELETE FROM usuario_rol
-                     WHERE usuario_id = (SELECT id FROM usuario WHERE username = ?)
-                    """)) {
-                ps.setString(1, username);
-                ps.executeUpdate();
-            } catch (Exception e) {
-                throw new DatabaseException("no se pudo limpiar el rol de '" + username + "'", e);
-            }
-            try (PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO usuario_rol (usuario_id, rol_id)
-                    SELECT u.id, r.id FROM usuario u, rol r
-                    WHERE u.username = ? AND r.nombre = ?
-                    """)) {
-                ps.setString(1, username);
-                ps.setString(2, rol);
-                return ps.executeUpdate() == 1;
-            } catch (Exception e) {
-                throw new DatabaseException("no se pudo asignar el rol a '" + username + "'", e);
-            }
-        }
-
-        /**
-         * Claims every ownerless row for {@code duenoId}.
-         *
-         * <p>Scoped to {@code usuario_id IS NULL}, which is what makes it both
-         * idempotent (a second run matches nothing) and safe to run while other
-         * accounts already own rows — it claims the unclaimed, never the owned.</p>
-         *
-         * @return how many rows were adopted, across all four tables.
-         */
-        public int adoptarFilasSinDueno(UUID duenoId) {
-            int adoptadas = 0;
+    /**
+     * Claims every ownerless row for {@code duenoId}.
+     *
+     * <p>Scoped to {@code usuario_id IS NULL}, which is what makes it both
+     * idempotent (a second run matches nothing) and safe to run while other
+     * accounts already own rows — it claims the unclaimed, never the owned.</p>
+     */
+    private int adoptarFilasSinDueno(UUID duenoId) {
+        int adoptadas = 0;
+        try (Connection c = dataSource.getConnection()) {
             for (String tabla : TABLAS_CON_DUENO) {
                 try (PreparedStatement ps = c.prepareStatement(
                         "UPDATE " + tabla + " SET usuario_id = ? WHERE usuario_id IS NULL")) {
@@ -589,7 +557,9 @@ public class UsuarioRepository {
                     throw new DatabaseException("no se pudieron adoptar las filas de " + tabla, e);
                 }
             }
-            return adoptadas;
+        } catch (java.sql.SQLException e) {
+            throw new DatabaseException("no se pudieron adoptar las filas sin dueño", e);
         }
+        return adoptadas;
     }
 }

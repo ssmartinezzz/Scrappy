@@ -4,6 +4,7 @@ import ar.scraper.feedback.OutfitItemRow;
 
 import ar.scraper.feedback.FeedbackPort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +13,6 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -105,20 +105,14 @@ class FeedbackRepository implements FeedbackPort {
      */
     @Override
     public void limpiarOutfitFeedback(UUID usuarioId) {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (PreparedStatement ps = c.prepareStatement(
-                    // outfit_feedback (el modelo legacy por-outfit) se borró en V15:
-                    // estaba muerta y era la última violación de 1FN del esquema.
-                    "DELETE FROM outfit_feedback_item WHERE usuario_id=?")) {
-                ps.setObject(1, usuarioId);
-                ps.executeUpdate();
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-            }
-        } catch (SQLException e) {
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                // outfit_feedback (el modelo legacy por-outfit) se borró en V15:
+                // estaba muerta y era la última violación de 1FN del esquema.
+                "DELETE FROM outfit_feedback_item WHERE usuario_id=?")) {
+            ps.setObject(1, usuarioId);
+            ps.executeUpdate();
+        } catch (Exception e) {
             LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
         }
     }
@@ -149,38 +143,30 @@ class FeedbackRepository implements FeedbackPort {
      * categoria ya está dismissed, no inserta una fila duplicada.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
         if (StringUtils.isBlank(categoria)) return;
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                try (PreparedStatement check = c.prepareStatement(
-                        "SELECT 1 FROM categoria_dismiss WHERE usuario_id=? AND categoria=?")) {
-                    check.setObject(1, usuarioId);
-                    check.setString(2, categoria);
-                    try (ResultSet rs = check.executeQuery()) {
-                        if (rs.next()) {
-                            c.rollback(); // ya existe — no-op idempotente
-                            return;
-                        }
-                    }
+            try (PreparedStatement check = c.prepareStatement(
+                    "SELECT 1 FROM categoria_dismiss WHERE usuario_id=? AND categoria=?")) {
+                check.setObject(1, usuarioId);
+                check.setString(2, categoria);
+                try (ResultSet rs = check.executeQuery()) {
+                    if (rs.next()) return;
                 }
-                try (PreparedStatement ps = c.prepareStatement("""
-                        INSERT INTO categoria_dismiss (usuario_id, categoria, created_at)
-                        VALUES (?, ?, ?)
-                        """)) {
-                    ps.setObject(1, usuarioId);
-                    ps.setString(2, categoria);
-                    ps.setObject(3, Timestamps.now());
-                    ps.executeUpdate();
-                    c.commit();
-                }
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
             }
-        } catch (SQLException e) {
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO categoria_dismiss (usuario_id, categoria, created_at)
+                    VALUES (?, ?, ?)
+                    """)) {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, categoria);
+                ps.setObject(3, Timestamps.now());
+                ps.executeUpdate();
+            }
+        } catch (Exception e) {
             LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
+            Sql.marcarRollback();
         }
     }
 

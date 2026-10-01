@@ -1,6 +1,7 @@
 package ar.scraper.security;
 
 import ar.scraper.db.UsuarioRepository;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -48,7 +49,7 @@ class AdminSeederTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        repo = new UsuarioRepository(dataSource());
+        repo = TestRepositories.usuarios(dataSource());
         hasher = new PasswordHasher();
     }
 

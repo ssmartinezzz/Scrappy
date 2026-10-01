@@ -9,10 +9,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
-import javax.sql.DataSource;
 import java.security.SecureRandom;
-import java.sql.Connection;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -65,7 +65,6 @@ public class PasswordResetService {
 
     private static final int TOKEN_BYTES = 32;
 
-    private final DataSource dataSource;
     private final UsuarioRepository usuarios;
     private final PasswordResetRepository tokens;
     private final RefreshTokenRepository refrescos;
@@ -78,8 +77,7 @@ public class PasswordResetService {
     private final SecureRandom random = new SecureRandom();
 
     @Autowired
-    public PasswordResetService(DataSource dataSource,
-                                UsuarioRepository usuarios,
+    public PasswordResetService(UsuarioRepository usuarios,
                                 PasswordResetRepository tokens,
                                 RefreshTokenRepository refrescos,
                                 PasswordHasher hasher,
@@ -87,13 +85,12 @@ public class PasswordResetService {
                                 ResetRateLimiter limiter,
                                 Clock reloj,
                                 @Value("${password.reset.link-base}") String baseDelEnlace) {
-        this(dataSource, usuarios, tokens, refrescos, hasher, canal, limiter, reloj, baseDelEnlace,
+        this(usuarios, tokens, refrescos, hasher, canal, limiter, reloj, baseDelEnlace,
                 tarea -> Thread.ofVirtual().name("reset-dispatch").start(tarea));
     }
 
     /** Test seam: lets a test run the dispatch synchronously and await it. */
-    PasswordResetService(DataSource dataSource,
-                         UsuarioRepository usuarios,
+    PasswordResetService(UsuarioRepository usuarios,
                          PasswordResetRepository tokens,
                          RefreshTokenRepository refrescos,
                          PasswordHasher hasher,
@@ -102,7 +99,6 @@ public class PasswordResetService {
                          Clock reloj,
                          String baseDelEnlace,
                          Executor ejecutor) {
-        this.dataSource = dataSource;
         this.usuarios = usuarios;
         this.tokens = tokens;
         this.refrescos = refrescos;
@@ -161,10 +157,14 @@ public class PasswordResetService {
     /**
      * Consumes the token and changes the password, or reports failure.
      *
+     * <p>The {@code false} branches mark the transaction rollback-only: a token consumed by a
+     * call that then fails to change the password must not stay consumed.</p>
+     *
      * @return {@code false} for an unknown, expired or already-used token, and
      *         for a password that fails the length check. The caller must not
      *         tell them apart either.
      */
+    @Transactional(rollbackFor = Exception.class)
     public boolean confirmar(String token, String nuevaPassword) {
         if (StringUtils.isBlank(token) || nuevaPassword == null || nuevaPassword.length() < 8) {
             return false;
@@ -172,34 +172,20 @@ public class PasswordResetService {
         Instant ahora = reloj.instant();
         String hash = hasher.hash(nuevaPassword);
 
-        try (Connection c = dataSource.getConnection()) {
-            boolean autocommitPrevio = c.getAutoCommit();
-            c.setAutoCommit(false);
-            try {
-                Optional<UUID> duenio = tokens.consumir(c, token, ahora);
-                if (duenio.isEmpty()) {
-                    c.rollback();
-                    return false;
-                }
-                UUID usuarioId = duenio.get();
-                if (!usuarios.cambiarPassword(c, usuarioId, hash, ahora)) {
-                    c.rollback();
-                    return false;
-                }
-                refrescos.revocarTodasLasDe(c, usuarioId, ahora);
-                tokens.anularPendientesDe(c, usuarioId, ahora);
-                c.commit();
-                LOG.info("[RESET] contraseña cambiada y sesiones revocadas para el usuario {}", usuarioId);
-                return true;
-            } catch (RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(autocommitPrevio);
-            }
-        } catch (java.sql.SQLException e) {
-            throw new UsuarioRepository.DatabaseException("falló la transacción de reseteo", e);
+        Optional<UUID> duenio = tokens.consumir(token, ahora);
+        if (duenio.isEmpty()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return false;
         }
+        UUID usuarioId = duenio.get();
+        if (!usuarios.cambiarPassword(usuarioId, hash, ahora)) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return false;
+        }
+        refrescos.revocarTodasLasDe(usuarioId, ahora);
+        tokens.anularPendientesDe(usuarioId, ahora);
+        LOG.info("[RESET] contraseña cambiada y sesiones revocadas para el usuario {}", usuarioId);
+        return true;
     }
 
     private String aleatorio() {

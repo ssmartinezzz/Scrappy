@@ -68,8 +68,7 @@ class BackendLayeringArchTest {
                                                     "ar.scraper.config..",
                                                     "ar.scraper.scrapers..",
                                                     "ar.scraper.pages..",
-                                                    "ar.scraper.health..",
-                                                    "ar.scraper.identity..")
+                                                    "ar.scraper.health..")
             .and(DescribedPredicate.not(new DescribedPredicate<JavaClass>(
                     "an aggregator leaf under the F3b carve-out") {
                 @Override
@@ -91,7 +90,7 @@ class BackendLayeringArchTest {
                                    "ar.scraper.model..", "ar.scraper.health..")
         .should().dependOnClassesThat().resideInAnyPackage(
             "org.springframework..", "com.fasterxml.jackson..", "java.sql..", "javax.sql..",
-            "com.microsoft.playwright..", "jakarta.servlet..");
+            "com.microsoft.playwright..", "jakarta.servlet..", "ch.qos.logback..");
 
     // ── close-backend-package-cycles (F3a) ──────────────────────────────────
     // Las unicas aristas que entran a `web` desde adentro del backend son tres:
@@ -116,7 +115,7 @@ class BackendLayeringArchTest {
     static final ArchRule agentNoTocaUsuariosRolesNiCron = noClasses()
         .that().resideInAPackage("ar.scraper.agent..")
         .should().dependOnClassesThat().resideInAnyPackage(
-            "ar.scraper.security..", "ar.scraper.identity..", "ar.scraper.scheduling..", "ar.scraper.db..");
+            "ar.scraper.security..", "ar.scraper.scheduling..", "ar.scraper.db..");
 
     // `cron/` se absorbe en `scheduling/`, que es el nombre final del area. Una
     // vez vacio el paquete, quien impide que el runner vuelva a nombrar `web`,

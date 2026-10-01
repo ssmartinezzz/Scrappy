@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -33,6 +34,7 @@ class MlOutputRepository implements MlOutputPort {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void guardarMlOutput(JsonNode mlOutput) {
         if (mlOutput == null) return;
         if (!esMlOutputValido(mlOutput)) {
@@ -40,30 +42,24 @@ class MlOutputRepository implements MlOutputPort {
             return;
         }
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                String json = MAPPER.writeValueAsString(mlOutput);
-                java.time.OffsetDateTime now = Timestamps.now();
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
-                    ps.setString(1, json);
-                    ps.setObject(2, now);
-                    ps.executeUpdate();
-                }
-                // Mantener solo los últimos 10 outputs
-                try (Statement st = c.createStatement()) {
-                    st.executeUpdate("""
-                        DELETE FROM ml_output WHERE id NOT IN (
-                            SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
-                        )""");
-                }
-                c.commit();
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
+            String json = MAPPER.writeValueAsString(mlOutput);
+            java.time.OffsetDateTime now = Timestamps.now();
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
+                ps.setString(1, json);
+                ps.setObject(2, now);
+                ps.executeUpdate();
             }
-        } catch (SQLException e) {
+            // Mantener solo los últimos 10 outputs
+            try (Statement st = c.createStatement()) {
+                st.executeUpdate("""
+                    DELETE FROM ml_output WHERE id NOT IN (
+                        SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
+                    )""");
+            }
+        } catch (Exception e) {
             LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
+            Sql.marcarRollback();
         }
     }
 
@@ -101,16 +97,10 @@ class MlOutputRepository implements MlOutputPort {
     }
 
     private void limpiarMlOutputSql() throws SQLException {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (var st = c.createStatement()) {
-                st.execute("DELETE FROM ml_output");
-                c.commit();
-                LOG.info("[DB] Datos ML eliminados.");
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            }
+        try (Connection c = dataSource.getConnection();
+             var st = c.createStatement()) {
+            st.execute("DELETE FROM ml_output");
+            LOG.info("[DB] Datos ML eliminados.");
         }
     }
 }
