@@ -9,7 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/** Destructive catalog/ML maintenance and the retired file export/import. */
 @RestController
 @RequestMapping("/api")
 public class DbAdminController {
@@ -38,7 +37,6 @@ public class DbAdminController {
             aggregator.clearMlOutput();
             return ResponseEntity.ok(ApiResponse.ok(new MensajeDto("Catálogo eliminado.")));
         } catch (FavoritosProtegidosException e) {
-            // favoritos.url has an FK RESTRICT (V4); no ?force= override on purpose.
             throw new ApiException(HttpStatus.CONFLICT, "conflicto",
                     "No se puede vaciar el catálogo: " + e.getFavoritosBloqueantes()
                             + " producto(s) favorito(s) todavía existen.");

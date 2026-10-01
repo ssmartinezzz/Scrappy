@@ -18,25 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import static ar.scraper.classification.SiteClassification.sitioKey;
 
-/**
- * Normalización profunda post-scraping — orquestador puro.
- *
- * <p>Secuencia (composición, ver design ADR-2): mapea cada {@link Product}
- * crudo a través de los 8 collaborators de {@code ar.scraper.aggregator.normalize}
- * (categoría, género, talles, marca, rubro, gymrat, marca premium, cantidad
- * de unidades, subcategoría) y reconstruye el record {@link Product} — la
- * ÚNICA reconstrucción del record vive acá, en {@link #normalizarProducto}.
- * Todos los collaborators son {@code @Component} beans constructor-inyectados
- * (Work Unit 8 de la modularización SOLID del aggregator); los data/predicate
- * holders ({@code GarmentTaxonomy}, {@code CategoryGroups},
- * {@code SiteClassification}, {@code NonTextileGuard}, Work Unit 3) se siguen
- * consumiendo vía static import/referencia estática dentro de cada
- * collaborator, sin cambios — este orquestador solo usa
- * {@code SiteClassification.sitioKey} directamente. {@code marcaPremium}
- * pasa a leer {@link SiteRegistry#esPremium} (close-1nf-and-3nf-foundation
- * extension, design E1) en vez de {@code SiteClassification.SITIOS_PREMIUM}
- * — mismo dato, un solo dueño.</p>
- */
+/** Normalización profunda post-scraping — orquestador puro. */
 @Component
 public class NormalizerService {
 

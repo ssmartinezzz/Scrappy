@@ -9,18 +9,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Reads gama + nivel + chip brand off a mini PC's name — reusing {@link
- * CpuSpecsReader}'s scale verbatim (CODE-6, pc-builder-homelab T2): a mini
- * PC's CPU is named the same way a standalone CPU's is ("Ryzen 7 6800H",
- * "Core I5 10210U"), so it ranks on the same axes {@code EjesTecnicos.CPU}
- * already defines.
- *
- * <p>{@code capacidadGb} reads RAM, not storage: the FIRST standalone
- * "NNGb" token, same left-to-right convention {@link RamSpecsReader} uses
- * for a kit multiplier. This catalog states RAM before storage ("16Gb
- * 480Gb"), so the first match is the RAM.</p>
- */
 public final class MiniPcSpecsReader implements LectorDeSpecs {
 
     private static final Pattern GB_STANDALONE = Pattern.compile("^(\\d+)gb$");

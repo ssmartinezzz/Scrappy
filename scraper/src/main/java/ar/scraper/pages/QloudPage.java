@@ -9,33 +9,21 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Reader for stores on the Qloud platform (confirmed via {@code cdn.qloud.ar}
- * / {@code statics.qloud.com.ar} references, 368 hits on rockethard.com.ar).
- * Qloud is a multi-tenant platform, not a single store — this pair
- * generalizes to any Argentine store on it, same argument as
- * {@link VaypolPage}/{@code VaypolScraper} (design D1).
- *
- * <p>Server-rendered: no JS hydration wait needed, {@code curl} already sees
- * the product cards. Every product renders TWICE in the DOM (a desktop card
- * and a responsive mobile duplicate, identical URL both times) — dedup by
- * URL within a page is mandatory, not just across pages.</p>
- *
- * <p>{@code /productos} is a confirmed 404 (redirects to {@code /productos/}
- * which 404s) — never synthesized as a category slug.</p>
+ * Qloud is a multi-tenant platform, not a single store — this pair generalizes to any Argentine
+ * store on it, same argument as {@link VaypolPage}/{@code VaypolScraper}.
  */
 public class QloudPage extends BasePage {
 
     private static final Logger log = LoggerFactory.getLogger(QloudPage.class);
 
     /**
-     * Named fallback used only when nav discovery returns 0 slugs (design D5).
-     * Frozen list measured live 2026-08-13 against rockethard.com.ar.
+     * Named fallback used only when nav discovery returns 0 slugs. Frozen list measured live
+     * 2026-08-13 against rockethard.com.ar.
      */
     static final List<String> FALLBACK_SLUGS = List.of(
             "hardware", "perifericos", "monitores", "gabinete",
             "refrigeracion", "conectividad", "almacenamiento", "accesorios-");
 
-    /** Non-listing pages that legitimately show up in a flat top-level nav link. */
     private static final Set<String> DENYLIST = Set.of(
             "contacto", "atencion-a-empresas", "arma-tu-pc", "elegi-tu-pc", "eligi-tu-combo",
             "mi-cuenta", "carrito", "checkout", "login", "registro", "productos");
@@ -55,8 +43,6 @@ public class QloudPage extends BasePage {
         this.precioMin = precioMin;
         this.precioMax = precioMax;
     }
-
-    // ─── Entry point ─────────────────────────────────────────────────────────
 
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
@@ -80,7 +66,7 @@ public class QloudPage extends BasePage {
         return result;
     }
 
-    /** Crawls one category slug's pagination until an empty or fully-repeated page. Returns true if the slug never yielded anything. */
+    /** Returns true if the slug never yielded anything. */
     private boolean crawlCategory(String slug, String categoriaHint, Set<String> vistas, List<Product> result) {
         boolean neverYielded = true;
         for (int p = 1; p <= MAX_PAGES; p++) {
@@ -93,7 +79,7 @@ public class QloudPage extends BasePage {
                 List<Product> nuevos = pagina.stream()
                         .filter(prod -> vistas.add(prod.url()))
                         .toList();
-                if (nuevos.isEmpty()) break; // página vacía o 100% repetida -> fin del catálogo/categoría
+                if (nuevos.isEmpty()) break;
                 result.addAll(nuevos);
                 neverYielded = false;
             } catch (Exception e) {
@@ -104,7 +90,10 @@ public class QloudPage extends BasePage {
         return neverYielded;
     }
 
-    /** Navega a la home y descubre slugs vía nav; frozen list como fallback nombrado si la descubierta da 0 (design D5). */
+    /**
+     * Navega a la home y descubre slugs vía nav; frozen list como fallback nombrado si la
+     * descubierta da 0.
+     */
     private List<String> discoverCategorySlugs() {
         try {
             navigateTo(baseUrl + "/");
@@ -124,8 +113,6 @@ public class QloudPage extends BasePage {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
-    // ─── Pure, package-private: parsing (design D6) ───────────────────────
-
     private static final java.util.regex.Pattern TITLE_URL = java.util.regex.Pattern.compile(
             "card-title[^\"]*\"\\s*>\\s*<a href=\"([^\"]+)\">([^<]+)</a>");
     private static final java.util.regex.Pattern IMG = java.util.regex.Pattern.compile("<img src=\"([^\"]+)\"");
@@ -140,10 +127,9 @@ public class QloudPage extends BasePage {
 
         List<Product> result = new ArrayList<>();
         Set<String> vistasEnPagina = new HashSet<>();
-        // Split on the card wrapper's opening tag, NOT on the "<!--Card-->" HTML
-        // comment: the real markup also emits "<!--Card image-->"/"<!--Card
-        // content-->" sub-comments inside the SAME card, which would fragment
-        // one product's title/price across different split pieces.
+        // Split on the card wrapper's opening tag, NOT on the "<!--Card-->" HTML comment: the real
+        // markup also emits "<!--Card image-->"/"<!--Card content-->" sub-comments inside the SAME
+        // card, which would fragment one product's title/price across different split pieces.
         String[] cards = html.split("<div class=\"card card-ecommerce");
         // cards[0] is whatever precedes the first card — not a card.
         for (int i = 1; i < cards.length; i++) {

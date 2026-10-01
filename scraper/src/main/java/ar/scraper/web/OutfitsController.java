@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/** Outfit builders (gym + budget-aware), their feedback writes and saved outfits. */
 @RestController
 @RequestMapping("/api")
 public class OutfitsController {
@@ -77,9 +76,9 @@ public class OutfitsController {
             slots.add(slotPick(pick));
         }
 
-        // Types are explicit: without them the combo uses ALL subtypes, so every new food
-        // category would silently add a card to this grid. Here the stack is a fixed suggestion;
-        // choosing is /suplementos' job.
+        // Types are explicit: without them the combo uses ALL subtypes, so every new food category
+        // would silently add a card to this grid. Here the stack is a fixed suggestion; choosing is
+        // /suplementos' job.
         var suplementosList = outfitService.armarComboSuplementos(
                 r.productos(), presupuestoSuplementos, SupplementCombo.TIPOS_COMBO_OUTFIT);
         double totalSuplementos = suplementosList.stream()
@@ -95,12 +94,7 @@ public class OutfitsController {
                 pick.precio(), safe(pick.url()), safe(pick.img()), safe(pick.categoria()), safe(pick.marca()));
     }
 
-    /**
-     * Globally-optimal product combination for the requested categories within a hard budget
-     * ceiling (MCKP in {@link OutfitService}). 400 on missing categorias, presupuesto <= 0, no
-     * known category left, or more than 20 categories. No-fit is NOT an error: 200 with
-     * {@code noCumplePresupuesto:true} and empty slots.
-     */
+    /** No-fit is NOT an error: 200 with {@code noCumplePresupuesto:true} and empty slots. */
     @GetMapping("/outfits/builder")
     public ResponseEntity<ApiResponse<OutfitsDtos.Builder>> outfitsBuilder(@RequestParam(required = false) String categorias,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
@@ -109,9 +103,8 @@ public class OutfitsController {
             @RequestParam(required = false, defaultValue = "") String pin,
             @RequestParam(defaultValue = "false") boolean greedy,
             @RequestParam(required = false, defaultValue = "gym") String estilo) {
-        // Only {gym, casual} are builder surfaces; anything else (blank, "null", the reserved
-        // feed bucket "catalog") falls back to "gym". Also keeps FeedbackModels.build's
-        // Set.of(estilo, "catalog") from throwing on duplicate elements.
+        // Only {gym, casual} are builder surfaces; anything else (blank, "null", the reserved feed
+        // bucket "catalog") falls back to "gym".
         estilo = "casual".equalsIgnoreCase(estilo) ? "casual" : "gym";
 
         if (StringUtils.isBlank(categorias)) {
@@ -123,7 +116,6 @@ public class OutfitsController {
                     "presupuesto must be a positive number");
         }
 
-        // Parse, filter unknowns, deduplicate
         List<String> catList = Arrays.stream(categorias.split(","))
                 .map(String::strip)
                 .filter(s -> !s.isBlank())
@@ -161,12 +153,11 @@ public class OutfitsController {
         java.util.UUID sujeto = Sujeto.de(actorResolver);
         var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
         var dismissCats  = feedback.obtenerCategoriaDismiss(sujeto);
-        // Style-scoped signal: gym and casual read disjoint buckets, both see the shared "catalog" feed.
         var feedback     = FeedbackModels.build(feedbackRows, r.productos(), dismissCats,
                 Set.of(estilo, "catalog"));
 
-        // Unresolved pin URLs are silently dropped. One index instead of a catalog scan per
-        // pinned URL (6700 products, every regen click); putIfAbsent keeps first-wins.
+        // Unresolved pin URLs are silently dropped. One index instead of a catalog scan per pinned
+        // URL (6700 products, every regen click); putIfAbsent keeps first-wins.
         List<Product> pinned = List.of();
         if (!pinUrls.isEmpty()) {
             Map<String, Product> porUrl = new HashMap<>();
@@ -206,7 +197,6 @@ public class OutfitsController {
     @PostMapping("/outfits/feedback")
     public ResponseEntity<ApiResponse<OpResult>> outfitFeedback(@RequestBody Map<String, Object> body) {
         String genero = String.valueOf(body.getOrDefault("genero", ""));
-        // estilo splits the signal per surface (gym | casual); defaults to "gym" for older clients.
         String estilo = String.valueOf(body.getOrDefault("estilo", "gym"));
         if (estilo.isBlank() || "null".equals(estilo)) estilo = "gym";
 
@@ -256,7 +246,6 @@ public class OutfitsController {
         return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.Guardado(true, id, nombre, totalEstimado)));
     }
 
-    // Rows come from SavedOutfitsPort as maps; typing them is a persistence-layer change.
     @GetMapping("/outfits/saved")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedOutfits() {
         return ResponseEntity.ok(ApiResponse.ok(outfitsGuardados.obtenerOutfitsGuardados(Sujeto.de(actorResolver))));
@@ -264,8 +253,8 @@ public class OutfitsController {
 
     @DeleteMapping("/outfits/saved/{id}")
     public ResponseEntity<ApiResponse<OpResult>> deleteSavedOutfit(@PathVariable int id) {
-        // 404 covers "does not exist" AND "belongs to somebody else": telling them apart
-        // would confirm another user's row exists.
+        // 404 covers "does not exist" AND "belongs to somebody else": telling them apart would
+        // confirm another user's row exists.
         if (!outfitsGuardados.eliminarOutfitGuardado(Sujeto.de(actorResolver), id)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "Outfit no encontrado");
         }
@@ -287,7 +276,6 @@ public class OutfitsController {
 
     @DeleteMapping("/outfits/feedback")
     public ResponseEntity<ApiResponse<OpResult>> resetOutfitFeedback(@RequestParam(required = false, defaultValue = "gym") String estilo) {
-        // Scoped by estilo: resetting gym leaves casual and the shared feed ("catalog") alone.
         feedback.limpiarOutfitFeedback(Sujeto.de(actorResolver), StringUtils.isBlank(estilo) ? "gym" : estilo);
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Historial de feedback reseteado")));
     }

@@ -12,44 +12,17 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Fine sub-grouping by Jaccard similarity over bag-of-words, within an
- * identity pre-group.
- *
- * <p>Extracted from {@code GroupingService.subAgruparPorJaccard} /
- * {@code jaccardSimilarity} / {@code palabrasSignificativas} (Work Unit 2 of
- * the aggregator SOLID modularization) — literal move, no behavior change.
- * Delegates the shared accent-stripping step to {@link AccentStripper}
- * (ADR-4); the stop-word filtering here stays local to this class.</p>
- *
- * <p>Evita el falso positivo de "Nike Air Force" vs "Nike Air Max":
- *   words("Nike Air Force") = {nike, air, force}
- *   words("Nike Air Max")   = {nike, air, max}
- *   Jaccard = |{nike,air}| / |{nike,air,force,max}| = 2/4 = 0.5 → umbral no superado ✗
- *
- *   words("Nike Air Force 1 Blanco") = {nike, air, force}
- *   words("Nike Air Force 1 Negro")  = {nike, air, force}
- *   Jaccard = 3/3 = 1.0 ✓</p>
+ * Delegates the shared accent-stripping step to {@link AccentStripper} (ADR-4); the stop-word
+ * filtering here stays local to this class.
  */
 @Component
 public class JaccardSimilarity {
 
-    // Umbral mínimo de similitud Jaccard para considerar 2 productos como "el mismo artículo"
     private static final double JACCARD_THRESHOLD = 0.55;
 
     /**
-     * Sub-agrupa un pregrupo por similitud Jaccard, greedy: cada producto sin
-     * asignar siembra un grupo y absorbe a los que le superen el umbral.
-     *
-     * <p>La tokenización se hace UNA vez por producto, por adelantado. Antes
-     * {@code palabrasSignificativas(j)} vivía dentro del loop interno, así que
-     * un pregrupo de k productos se tokenizaba ~k²/2 veces en vez de k — y
-     * tokenizar no es barato: {@code String.replaceAll} y {@code String.matches}
-     * compilan un {@code Pattern} nuevo por token en cada llamada. Todo esto
-     * corre entero en cada request a {@code /api/grupos}, paginado incluido.</p>
-     *
-     * <p>El orden greedy es intencional y se conserva tal cual: quién siembra
-     * cada grupo cambia el resultado, así que recorrer los índices en otro orden
-     * no sería una optimización sino otro algoritmo.</p>
+     * Sub-agrupa un pregrupo por similitud Jaccard, greedy: cada producto sin asignar siembra un
+     * grupo y absorbe a los que le superen el umbral.
      */
     List<List<Product>> subAgruparPorJaccard(List<Product> productos) {
         List<List<Product>> grupos = new ArrayList<>();
@@ -79,14 +52,7 @@ public class JaccardSimilarity {
         return grupos;
     }
 
-    /**
-     * Jaccard sobre dos bags-of-words: |intersección| / |unión|.
-     *
-     * <p>Cuenta la intersección recorriendo el set más chico contra el más
-     * grande, y deriva la unión por aritmética ({@code |a| + |b| - |inter|}),
-     * en vez de materializar dos {@code HashSet} descartables por comparación.
-     * Mismo valor exacto — son enteros, no hay redondeo de por medio.</p>
-     */
+    /** Mismo valor exacto — son enteros, no hay redondeo de por medio. */
     double jaccardSimilarity(Set<String> a, Set<String> b) {
         if (a.isEmpty() && b.isEmpty()) return 1.0;
         if (a.isEmpty() || b.isEmpty()) return 0.0;
@@ -97,8 +63,6 @@ public class JaccardSimilarity {
         return (double) interseccion / (a.size() + b.size() - interseccion);
     }
 
-    // Compilados una vez: String.split/replaceAll/matches compilan un Pattern
-    // nuevo en cada llamada, y esto corre por token y por producto.
     private static final Pattern SEPARADORES  = Pattern.compile("[\\s\\-_/.,()]+");
     private static final Pattern NO_ALFANUM   = Pattern.compile("[^a-z0-9]");
     private static final Pattern NUMERO_CORTO = Pattern.compile("^\\d{1,2}$");

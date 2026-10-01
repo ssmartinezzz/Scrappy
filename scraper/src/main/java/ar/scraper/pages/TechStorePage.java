@@ -12,16 +12,9 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Scraper genérico para tiendas de tecnología argentinas con plataformas custom.
- *
- *  COMPRAGAMER — Angular SPA, catalog read from its own static JSON feed
- *                (static.compragamer.com/productos), not scraped from the DOM
- *  MAXIMUS   — ASP.NET custom, URL: /Productos/{category}.aspx
- *
- * <p>FullH4rd used to live here too (URL: {@code /cat/supra/{ID}/{name}/{page}})
- * until the site's redesign (fix-failing-site-scrapers, T5) moved it to its
- * own {@link FullH4rdPage} — its listing markup, category discovery and
- * pagination no longer have anything in common with this class's shape.</p>
+ * COMPRAGAMER — Angular SPA, catalog read from its own static JSON feed
+ * (static.compragamer.com/productos), not scraped from the DOM MAXIMUS — ASP.NET custom, URL:
+ * /Productos/{category}.aspx.
  */
 public class TechStorePage extends BasePage {
 
@@ -46,8 +39,6 @@ public class TechStorePage extends BasePage {
         this.tipo      = tipo;
     }
 
-    // ─── Entry point ─────────────────────────────────────────────────────────
-
     public List<Product> scrapeAll() {
         return switch (tipo) {
             case COMPRAGAMER -> scrapeCompraGamer();
@@ -56,21 +47,12 @@ public class TechStorePage extends BasePage {
         };
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // COMPRAGAMER — static JSON feed (design D3). Replaces the old React-SPA
-    // HTML scrape (discoverCompraGamerCates/extractCompraGamer, deleted here):
-    // the SPA loads its whole catalog from an unauthenticated, unpaginated
-    // static endpoint, so reading it directly is strictly more robust than
-    // scraping the rendered DOM ever was.
-    // ═══════════════════════════════════════════════════════════════════════
-
     private static final String CG_FEED_HOST = "https://static.compragamer.com";
 
     private List<Product> scrapeCompraGamer() {
         try {
-            // Navegar al origin de la tienda primero: mismo UA/cookies/CORS
-            // que el resto de los scrapers, y consistente con cómo la propia
-            // SPA hace estos tres GETs.
+            // Navegar al origin de la tienda primero: mismo UA/cookies/CORS que el resto de los
+            // scrapers, y consistente con cómo la propia SPA hace estos tres GETs.
             navigateTo(baseUrl + "/");
 
             String productos = fetchJson(CG_FEED_HOST + "/productos");
@@ -87,23 +69,17 @@ public class TechStorePage extends BasePage {
         }
     }
 
-    /** GET vía fetch dentro de la página ya navegada (mismo UA/cookies que el resto del scrape). */
     private String fetchJson(String url) {
         return (String) page.evaluate("(u) => fetch(u).then(r => r.text())", url);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // MAXIMUS — ASP.NET custom, page-method JSON API behind a Playwright session
-    // URL: /Productos/{Slug}/maximus.aspx?/CAT={id}/SCAT=-1/M=-1/OR=1/PAGE={n}/
-    // API:  POST /wfmWebSite2.aspx/wsNRW_Script  (needs the session cookies a
-    //       category-page navigation mints — a cookie-less call is REJECTED,
-    //       see MaximusPayloadException/parseMaximusPayload)
+    // POST /wfmWebSite2.aspx/wsNRW_Script (needs the session cookies a category-page navigation
+    // mints — a cookie-less call is REJECTED, see MaximusPayloadException/parseMaximusPayload)
     // Producto: /Producto/{Slug}/ITEM={id}/maximus.aspx
     // ═══════════════════════════════════════════════════════════════════════
 
     /** Cosmetic slug segment — confirmed live that only `CAT=` routes, any text works. */
     private static final String MAXIMUS_SLUG_PLACEHOLDER = "categoria";
-    /** GlobalBluePoint serves item pictures off a fixed path keyed by {@code item_code4web}. */
     private static final String MAXIMUS_IMAGE_PATH = "/Temp/App_WebSite/App_PictureFiles/Items/";
     private static final String MAXIMUS_IMAGE_SUFFIX = "_600.jpg";
 
@@ -133,12 +109,10 @@ public class TechStorePage extends BasePage {
     }
 
     /**
-     * Package-private: pagination loop for one category, mocked-Page
-     * testable (design D6). A {@link MaximusPayloadException} from
-     * {@link #parseMaximusPayload} is NEVER caught here — it propagates
-     * through {@code scrapeMaximus}/{@code scrapeAll} into
-     * {@code BaseScraper.ejecutar}'s catch, landing in
-     * {@code ScrapeResult.error} instead of a silently empty result.
+     * A {@link MaximusPayloadException} from {@link #parseMaximusPayload} is NEVER caught here — it
+     * propagates through {@code scrapeMaximus}/{@code scrapeAll} into
+     * {@code BaseScraper.ejecutar}'s catch, landing in {@code ScrapeResult.error} instead of a
+     * silently empty result.
      */
     List<Product> crawlMaximusCategory(int catId, Set<String> vistas) {
         List<Product> result = new ArrayList<>();
@@ -153,9 +127,8 @@ public class TechStorePage extends BasePage {
             try {
                 maximusPage = parseMaximusPayload(d);
             } catch (MaximusPayloadException e) {
-                // WARN (not debug) — this is the R1 loud-failure contract: visible in
-                // error.log, not swallowed into an indistinguishable empty category.
-                // Rethrown immediately, never caught-and-return-empty.
+                // WARN (not debug) — this is the R1 loud-failure contract: visible in error.log,
+                // not swallowed into an indistinguishable empty category.
                 log.warn("[{}] CAT={} p={}: Maximus payload gate/forma inesperada — {}", sitio, catId, p, e.getMessage());
                 throw e;
             }
@@ -175,7 +148,6 @@ public class TechStorePage extends BasePage {
         return result;
     }
 
-    /** POST body built in Java/Jackson — never a JSON literal concatenated into JS source (CODE-7). */
     private String fetchMaximusApiPage(int catId, int pageNum) {
         try {
             ObjectNode inner = MAPPER.createObjectNode();
@@ -200,10 +172,6 @@ public class TechStorePage extends BasePage {
             outer.put("JSonParameters", MAPPER.writeValueAsString(inner));
             String body = MAPPER.writeValueAsString(outer);
 
-            // Two-arg evaluate: `body` travels as a real JS argument, never
-            // interpolated into the script source (CODE-7 by elimination —
-            // this removes two of the four quoting levels the raw string
-            // concatenation would otherwise need).
             return (String) page.evaluate(
                     "(body) => fetch('/wfmWebSite2.aspx/wsNRW_Script', {"
                             + "method:'POST',"
@@ -213,15 +181,14 @@ public class TechStorePage extends BasePage {
                             + "}).then(r => r.text())",
                     body);
         } catch (Exception e) {
-            // Un fallo de red/serialización acá NO es el session-gate — es una
-            // falla de transporte genérica, se trata como cualquier otro error
-            // de página (log + página vacía), no como MaximusPayloadException.
+            // Un fallo de red/serialización acá NO es el session-gate — es una falla de transporte
+            // genérica, se trata como cualquier otro error de página (log + página vacía), no como
+            // MaximusPayloadException.
             log.debug("[{}] fetchMaximusApiPage error CAT={} p={}: {}", sitio, catId, pageNum, e.getMessage());
             return "";
         }
     }
 
-    /** Extrae el campo `d` del envelope `{"d": "..."}`. Cadena vacía -> "" (no null), tratado como gate por parseMaximusPayload. */
     private static String extractD(String outerJson) {
         try {
             JsonNode outer = MAPPER.readTree(outerJson);
@@ -232,15 +199,8 @@ public class TechStorePage extends BasePage {
     }
 
     /**
-     * Pure, package-private (design D6, D2). Discriminator:
-     * <ul>
-     *   <li>{@code d} parses to a JSON object whose {@code data.items} is a
-     *       (possibly empty) array -> real payload, never throws.</li>
-     *   <li>Anything else — does not parse as JSON, parses to a non-object
-     *       (bare scalar), or an object missing {@code data.items} — is the
-     *       session/module gate shape or an unrecognized contract change,
-     *       and MUST fail loudly rather than look like an empty category.</li>
-     * </ul>
+     * {@code d} parses to a JSON object whose {@code data.items} is a (possibly empty) array ->
+     * real payload, never throws.
      */
     static MaximusPage parseMaximusPayload(String d) {
         if (StringUtils.isBlank(d)) throw new MaximusPayloadException(prefixOf(d));
@@ -296,10 +256,8 @@ public class TechStorePage extends BasePage {
         String desc4link = item.path("item_desc4link").asText("");
         String url = baseUrl + "/Producto/" + desc4link + "/ITEM=" + itemId + "/maximus.aspx";
 
-        // La API no trae un campo de imagen, pero sí `item_code4web`, que es la
-        // clave con la que el propio sitio arma el <img> del listado. Medido en
-        // vivo 2026-08-15: HEAD 200 en 121/121 items de las CAT 48/56/68/3/10.
-        // Sin código no hay URL que valga: abstención (CODE-5), no una a medias.
+        // La API no trae un campo de imagen, pero sí `item_code4web`, que es la clave con la que el
+        // propio sitio arma el <img> del listado.
         String itemCode = item.path("item_code4web").asText("").trim();
         String img = itemCode.isBlank()
                 ? ""
@@ -311,7 +269,10 @@ public class TechStorePage extends BasePage {
                 List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
     }
 
-    /** Navega a la home y descubre IDs de categoría vía nav; frozen list como fallback si la descubierta da 0. */
+    /**
+     * Navega a la home y descubre IDs de categoría vía nav; frozen list como fallback si la
+     * descubierta da 0.
+     */
     private List<Integer> discoverMaximusCategoryIds() {
         try {
             navigateTo(baseUrl + "/");
@@ -341,8 +302,6 @@ public class TechStorePage extends BasePage {
         }
         return List.copyOf(ids);
     }
-
-    // ─── Generic link extractor ───────────────────────────────────────────
 
     private List<Product> extractGenericWithLinks(Set<String> vistas, String linkSelector) {
         try {
@@ -375,26 +334,12 @@ public class TechStorePage extends BasePage {
         } catch (Exception e) { return List.of(); }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // COMPRAGAMER — static JSON feed parsing (design D3, package-private pure)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * Deviation from design's illustrative interface (D6): {@code baseUrl} was
-     * added as a parameter. The design's contract listed only
-     * ({@code productos, categoriasSub, marcas, sitio, min, max}), but the
-     * feed has no per-item URL field — only {@code id_producto} — so a real
-     * absolute product URL cannot be built without the store's own base URL.
-     */
     static List<Product> parseCompraGamerFeed(String productos, String categoriasSub,
                                                 String marcas, String sitio, String baseUrl,
                                                 double precioMin, double precioMax) {
         Map<Integer, String> categorias = compraGamerLookup(categoriasSub);
-        // marcas is parsed for logging visibility only (design D3) — id_marca is
-        // NEVER resolved into Product.marca: V21's fk_productos_marca throws on a
-        // brand absent from the marca table, ProductRepository swallows that
-        // SQLException, and the run silently reports "0 nuevos". BrandExtractor
-        // owns marca (CODE-6).
+        // marcas is parsed for logging visibility only — id_marca is NEVER resolved into
+        // Product.marca:
         Map<Integer, String> marcasPorId = compraGamerLookup(marcas);
 
         List<Product> result = new ArrayList<>();
@@ -416,7 +361,6 @@ public class TechStorePage extends BasePage {
         return result;
     }
 
-    /** Parses a flat `[{id, nombre}, ...]` lookup array into an id -> trimmed name map. */
     private static Map<Integer, String> compraGamerLookup(String json) {
         Map<Integer, String> map = new HashMap<>();
         try {
@@ -494,12 +438,8 @@ public class TechStorePage extends BasePage {
     }
 
     /**
-     * The feed's {@code imagenes[].nombre} is the image KEY, not its URL — the
-     * bucket path has to be rebuilt around it. Confirmed live 2026-08-15 against
-     * the {@code <img>} the store itself renders, and with HEAD 200 on the URL
-     * built here. The {@code Imganen} typo is theirs and is load-bearing: the
-     * bare {@code imagenes.compragamer.com/{nombre}} the previous code built
-     * answers {@code 403 AccessDenied} for 100% of the catalog.
+     * The feed's {@code imagenes[].nombre} is the image KEY, not its URL — the bucket path has to
+     * be rebuilt around it.
      */
     private static final String CG_IMAGE_PREFIX =
             "https://imagenes.compragamer.com/productos/compragamer_Imganen_general_";
@@ -508,22 +448,11 @@ public class TechStorePage extends BasePage {
     private static final java.util.regex.Pattern CG_NO_ALFANUMERICO =
             java.util.regex.Pattern.compile("[^A-Za-z0-9]+");
 
-    /**
-     * Builds the {@code {slug}} half of Compragamer's {@code /producto/{slug}_{id}}
-     * route. The store's router keys on the trailing {@code _{id}} — measured live,
-     * {@code /producto/x_20213} renders the right product — but the bare
-     * {@code /producto/{id}} the previous code built has no {@code _} at all and
-     * the router bounces it to the homepage, so every row held a dead link.
-     * Each RUN of non-alphanumerics collapses into one underscore, which is how
-     * the store builds its own links ({@code Tp-Link TG-3468} -> {@code Tp_Link_TG_3468}).
-     */
     static String slugCompraGamer(String nombre) {
         if (StringUtils.isBlank(nombre)) return "";
         String slug = CG_NO_ALFANUMERICO.matcher(nombre.trim()).replaceAll("_");
         return slug.replaceAll("^_+", "").replaceAll("_+$", "");
     }
-
-    // ─── Shared: parse JSON array → List<Product> ─────────────────────────
 
     List<Product> parseProductNodes(String json, Set<String> vistas) {
         if (json == null || json.equals("[]")) return List.of();
@@ -550,9 +479,9 @@ public class TechStorePage extends BasePage {
             return Optional.empty();
 
         String url  = n.path("url").asText("");
-        // FullH4rd sirve el src root-relative (/img/productos/{cat}/{slug}-0.jpg):
-        // sin absolutizar, la fila guarda un path pelado que no puede fetchear ni
-        // el dashboard ni el clasificador visual.
+        // FullH4rd sirve el src root-relative (/img/productos/{cat}/{slug}-0.jpg): sin absolutizar,
+        // la fila guarda un path pelado que no puede fetchear ni el dashboard ni el clasificador
+        // visual.
         String img  = ImageUrl.absolutize(n.path("img").asText(""), baseUrl);
 
         Double precioOrig = null;
@@ -567,8 +496,6 @@ public class TechStorePage extends BasePage {
                 List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
     }
 
-    // ─── Price parser ─────────────────────────────────────────────────────
-
     static Optional<Double> parsePrecioTech(String raw) {
         if (StringUtils.isBlank(raw)) return Optional.empty();
         // Quitar todo excepto dígitos, puntos, comas
@@ -579,10 +506,8 @@ public class TechStorePage extends BasePage {
         long nComas  = s.chars().filter(c -> c == ',').count();
 
         if (nComas == 1) {
-            // Coma como decimal: 849.999,99 → 849999.99
             s = s.replace(".", "").replace(",", ".");
         } else if (nPuntos >= 2) {
-            // Múltiples puntos = separador de miles: 1.249.999
             s = s.replace(".", "").replace(",", "");
         } else {
             s = s.replace(".", "").replace(",", "");

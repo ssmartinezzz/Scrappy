@@ -18,24 +18,12 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Builds the supplement combo (protein, creatine, vitamins, fit condiments…).
- *
- * <p>Extracted verbatim from {@link OutfitService} (backlog A3). Supplements are
- * a different domain from clothing that happened to live inside a class named
- * OutfitService: they have their own catalogue categories, their own subtype
- * keyword matching and their own brand preference order, and share none of the
- * slot/style machinery.</p>
- *
- * <p>{@code SupplementPick} stays nested on OutfitService — callers and tests
- * name it {@code OutfitService.SupplementPick}.</p>
+ * Supplements are a different domain from clothing that happened to live inside a class named
+ * OutfitService: they have their own catalogue categories, their own subtype keyword matching and
+ * their own brand preference order, and share none of the slot/style machinery.
  */
 public class SupplementCombo {
 
-    /**
-     * Only used for {@code baseMlScore}, the tiebreak for candidates whose package
-     * size cannot be read off the name — the same ranking the "Para ti" feed and the
-     * budget builder already use, rather than a third opinion invented here.
-     */
     private final RecommendationService recommendationService;
 
     SupplementCombo(RecommendationService recommendationService) {
@@ -43,54 +31,31 @@ public class SupplementCombo {
     }
 
     /**
-     * PRIMER campo estático de la clase, a propósito. Los estáticos se inicializan en
-     * orden de declaración, y varios de los que siguen normalizan keywords al construirse
-     * ({@link #VETO_POR_SUBTIPO}, {@link #SUBTIPOS_POR_PRECEDENCIA}) — un Pattern
-     * declarado más abajo llegaría null a su propio uso, con un
-     * ExceptionInInitializerError como único síntoma.
+     * Los estáticos se inicializan en orden de declaración, y varios de los que siguen normalizan
+     * keywords al construirse ({@link #VETO_POR_SUBTIPO}, {@link #SUBTIPOS_POR_PRECEDENCIA}) — un
+     * Pattern declarado más abajo llegaría null a su propio uso, con un ExceptionInInitializerError
+     * como único síntoma.
      */
     private static final Pattern NO_ALFANUMERICO = Pattern.compile("[^a-z0-9]+");
 
     /**
-     * Un subtipo del combo.
-     *
-     * <p>{@code grupo} es el encabezado bajo el que el selector agrupa el tipo
-     * ({@code null} = "Otros"). Es metadata de taxonomía, no de presentación, y vive acá
-     * por la misma razón que el resto: el frontend mantenía su propia copia de la lista
-     * Y de los grupos, así que cada subtipo nuevo había que agregarlo dos veces — y un
-     * olvido dejaba un tipo que el builder devuelve y la UI no puede seleccionar.</p>
+     * Es metadata de taxonomía, no de presentación, y vive acá por la misma razón que el resto: el
+     * frontend mantenía su propia copia de la lista Y de los grupos, así que cada subtipo nuevo
+     * había que agregarlo dos veces — y un olvido dejaba un tipo que el builder devuelve y la UI no
+     * puede seleccionar.
      */
     private record SubtipoSuplemento(String tipo, String grupo, boolean comida, String[] keywords) {
         SubtipoSuplemento(String tipo, String[] keywords) { this(tipo, null, false, keywords); }
         SubtipoSuplemento(String tipo, String grupo, String[] keywords) { this(tipo, grupo, false, keywords); }
 
-        /**
-         * Un subtipo de COMIDA. La bandera arrastra dos consecuencias, y las dos salen
-         * del mismo hecho — es un alimento, no un suplemento:
-         *
-         * <ol>
-         *   <li>queda fuera del combo que acompaña al outfit de Gym
-         *       ({@link #TIPOS_COMBO_OUTFIT}). Ese combo se arma con TODOS los subtipos,
-         *       así que cada tipo nuevo le agrega una tarjeta a una grilla que ya tiene
-         *       21: el stack sugerido dejaría de ser una sugerencia. El builder de
-         *       {@code /suplementos}, donde el usuario elige, los ofrece completos;</li>
-         *   <li>hereda el veto de sabor ({@link #esElSaborDeUnPolvo}): sus keywords son
-         *       sustantivos culinarios, y un polvo los usa para nombrar su gusto.</li>
-         * </ol>
-         */
         static SubtipoSuplemento comida(String tipo, String grupo, String[] keywords) {
             return new SubtipoSuplemento(tipo, grupo, true, keywords);
         }
     }
 
     /**
-     * Subtipos del combo de suplementos, en el orden en que se arma el combo —
-     * que es también el orden en que se consume el presupuesto. NO es el orden de
-     * clasificación: para eso está {@link #PRECEDENCIA_CLASIFICACION}, donde los
-     * subtipos específicos corren antes que el bucket genérico de proteína.
-     * Cada producto con categoria=="Suplemento" se reclasifica por nombre (no
-     * toca el campo categoria canónico — evita romper el whitelist de accesorio
-     * Gym ni los facets del dashboard, que dependen del string "Suplemento").
+     * Subtipos del combo de suplementos, en el orden en que se arma el combo — que es también el
+     * orden en que se consume el presupuesto.
      */
     private static final List<SubtipoSuplemento> SUPLEMENTO_SUBTIPOS = List.of(
             new SubtipoSuplemento("Proteína en Polvo", "Proteína", new String[]{
@@ -111,23 +76,16 @@ public class SupplementCombo {
                     "budín proteico", "budin proteico",
                     "muffin proteico", "brownie proteico", "alfajor proteico",
                     "tortita proteica", "galleta proteica",
-                    // GRANGER-style protein snacks (product-owner request): match the
-                    // bare noun so branded food (categoria "Alimentos") surfaces here.
-                    // Accented forms are redundant now that keywords are normalized
-                    // like the names they match, but harmless — both fold to the same
-                    // token, so the duplicate is a no-op rather than a second rule.
+                    // Accented forms are redundant now that keywords are normalized like the names
+                    // they match, but harmless — both fold to the same token, so the duplicate is a
+                    // no-op rather than a second rule.
                     "cupcake", "pudding", "budin", "budín", "omelette", "omelet"
             }),
             new SubtipoSuplemento("Creatina", new String[]{"creatina", "creatine", "monohidrato"}),
-            // BCAA y Pre-Workout leen las keywords CANÓNICAS de GarmentTaxonomy en vez de
-            // una cuarta copia acá: son las mismas con las que el clasificador asigna las
-            // categorías "BCAA" y "Pre-Workout", así que las dos capas no pueden divergir.
             new SubtipoSuplemento("BCAA", GarmentTaxonomy.KW_BCAA_SUP),
             new SubtipoSuplemento("Pre-Workout", GarmentTaxonomy.KW_PRE_WORKOUT_SUP),
-            // "gainer" pelado además de los tokens canónicos: KW_GAINERS trae
-            // "mass gainer"/"hipercalorico", y en el catálogo aparecen productos que son
-            // sólo "Gainer Xtreme". Como el bucket de proteína ya no los acepta, sin este
-            // token quedarían fuera del combo por completo.
+            // KW_GAINERS trae "mass gainer"/"hipercalorico", y en el catálogo aparecen productos
+            // que son sólo "Gainer Xtreme".
             new SubtipoSuplemento("Gainer", new String[]{
                     "gainer", "hipercalorico", "ganador de peso", "mass gainer"
             }),
@@ -196,18 +154,14 @@ public class SupplementCombo {
             }),
             SubtipoSuplemento.comida("Infusiones", "Bebidas", new String[]{
                     "yerba", "mate ", "te verde", "matcha", "infusion",
-                    // "cafe" pelado NO: es uno de los sabores más comunes de un whey.
-                    // Las tres formas de abajo nombran al café como producto.
                     "cafe molido", "cafe en grano", "cafe instantaneo"
             }),
             SubtipoSuplemento.comida("Pasta de Maní", "Alimentos", new String[]{
                     "pasta de mani", "manteca de mani", "mantequilla de mani",
                     "crema de mani", "pasta de almendra", "manteca de almendra",
                     "mantequilla de almendra"
-                    // "peanut butter" NO: en este catálogo aparece como SABOR de un
-                    // isolate ("RAW Proteína Itholate … CHOCOLATE PEANUT BUTTER") tanto
-                    // como en un frasco. El veto de sabor ya lo resolvería, pero la
-                    // forma castellana es la que nombra al frasco y alcanza.
+                    // El veto de sabor ya lo resolvería, pero la forma castellana es la que nombra
+                    // al frasco y alcanza.
             }),
             SubtipoSuplemento.comida("Avena / Harina", "Alimentos", new String[]{
                     "avena", "harina de avena", "harina integral", "harina de almendra",
@@ -233,26 +187,14 @@ public class SupplementCombo {
             })
     );
 
-    /**
-     * Los subtipos que arma el combo que acompaña al outfit de Gym — todos menos los
-     * de comida. Ver {@link SubtipoSuplemento#comida}.
-     */
     public static final Set<String> TIPOS_COMBO_OUTFIT = SUPLEMENTO_SUBTIPOS.stream()
             .filter(s -> !s.comida())
             .map(SubtipoSuplemento::tipo)
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
     /**
-     * Orden de clasificación — de específico a genérico, y deliberadamente distinto
-     * al de {@link #SUPLEMENTO_SUBTIPOS} (que es el orden de salida del combo).
-     *
-     * <p>Una barra de proteína es una barra, no un polvo. Antes cada subtipo filtraba
-     * el pool completo por su cuenta, así que un nombre que traía tokens de dos
-     * subtipos ("Barra de Proteína Whey") se emitía DOS veces: el mismo URL como
-     * polvo y como barra. Con asignación única el orden pasa a ser semántico —
-     * quien corre primero se lo lleva — y por eso los subtipos específicos van
-     * antes que "Proteína en Polvo", y "Multivitamínico" antes que las vitaminas
-     * individuales que un multivitamínico nombra de paso.</p>
+     * Orden de clasificación — de específico a genérico, y deliberadamente distinto al de
+     * {@link #SUPLEMENTO_SUBTIPOS} (que es el orden de salida del combo).
      */
     private static final List<String> PRECEDENCIA_CLASIFICACION = List.of(
             "Barra Proteica", "Pancake / Waffle", "Snack Proteico",
@@ -261,35 +203,18 @@ public class SupplementCombo {
             "Omega 3", "Zinc", "Magnesio",
             "Mayonesa", "Ketchup / Salsa", "Mostaza", "Maple / Sirope",
             "Mermelada / Dulce", "Miel / Endulzante",
-            // Los subtipos de comida corren DESPUÉS de todo suplemento y ANTES del polvo.
-            // Entre ellos el orden también es semántico, y cada par tiene un producto real
-            // detrás: "Pasta de Maní" antes que "Frutos Secos" (un frasco de pasta de maní
-            // dice "mani"), "Avena / Harina" antes que "Frutos Secos" ("Harina de Almendras"
-            // es harina) y antes que "Granola / Cereal" ("Cereal de Avena" es avena).
+            // Los subtipos de comida corren DESPUÉS de todo suplemento y ANTES del polvo. Entre
+            // ellos el orden también es semántico, y cada par tiene un producto real detrás:
             "Postre Proteico", "Bebida Proteica", "Infusiones",
             "Pasta de Maní", "Avena / Harina", "Granola / Cereal",
             "Galletas / Tostadas", "Fideos / Arroz", "Snack Salado", "Frutos Secos",
-            // Proteína en Polvo va al final, y Colágeno DESPUÉS todavía: hay whey
-            // fortificada con colágeno y es whey. Un colágeno puro no nombra proteína,
-            // así que no matchea el bucket de polvo y cae acá igual. Es el mismo
-            // razonamiento que dejó KW_COLAGENO debajo de KW_PROTEINA en el clasificador.
+            // Proteína en Polvo va al final, y Colágeno DESPUÉS todavía: hay whey fortificada con
+            // colágeno y es whey.
             "Proteína en Polvo", "Colágeno");
 
     /**
-     * Formatos que descalifican a un candidato del subtipo "Proteína en Polvo": tiene
-     * proteína, pero no es un pote de polvo.
-     *
-     * <p>Son FRASES, no sustantivos pelados, y eso es la restricción central: los
-     * nombres de sabor usan exactamente los mismos sustantivos que un veto de formato
-     * querría atrapar. "Whey sabor Leche Chocolatada" y "sabor Yogur Griego" son whey.
-     * Vetar " leche " o " yogur " mataría productos legítimos, así que el veto sólo
-     * dispara cuando el sustantivo viene junto a la proteína, que es cuando nombra al
-     * producto en vez de a su gusto.</p>
-     *
-     * <p>El gainer y el hipercalórico salieron de esta lista: ahora son un subtipo
-     * propio por encima del polvo, así que la precedencia los saca del bucket de
-     * proteína sola — y de paso los vuelve elegibles como lo que son. Un subtipo es
-     * mejor mecanismo que un veto: no descarta, clasifica.</p>
+     * Formatos que descalifican a un candidato del subtipo "Proteína en Polvo": tiene proteína,
+     * pero no es un pote de polvo.
      */
     private static final String[] FORMATO_NO_POLVO = {
             "leche proteica", "leche con proteina", "leche saborizada",
@@ -302,8 +227,7 @@ public class SupplementCombo {
     };
 
     /**
-     * Sustantivos de formato comida/bebida, para la regla COMPUESTA de abajo. Acá sí van
-     * pelados, porque por sí solos no vetan nada: sólo cuentan si el nombre además dice
+     * Acá sí van pelados, porque por sí solos no vetan nada: sólo cuentan si el nombre además dice
      * "con proteína".
      */
     private static final String[] FORMATO_ALIMENTO = {
@@ -314,37 +238,14 @@ public class SupplementCombo {
             "waffle", "pancake", "panqueque", "brownie", "cookie", "cupcake", "pudding",
     };
 
-    /**
-     * Palabras con las que un polvo se anuncia a sí mismo. Se usan para ubicar
-     * DÓNDE aparece la proteína en el nombre, no para decidir si aparece.
-     */
     private static final String[] CABEZA_PROTEINA = {
             "proteina", "protein", "whey", "isolate", "caseina", "casein"
     };
 
     /**
-     * Regla estructural: si un sustantivo de formato comida aparece ANTES que la
-     * palabra proteína, el producto es un alimento fortificado, no un polvo.
-     *
-     * <p>La versión anterior exigía la frase literal {@code " con proteina"}, y eso
-     * hacía que el conector del envase decidiera el resultado. Dos frascos de pasta de
-     * maní del catálogo real caían de lados distintos:</p>
-     *
-     * <pre>
-     *   "Pasta de Mani con Proteina Power Cookies"   → vetado
-     *   "Pasta De Maní … 370g Alta Proteína"          → NO vetado, se ofrecía como polvo
-     * </pre>
-     *
-     * <p>Enumerar conectores pierde para siempre: "alta proteína", "rica en proteína",
-     * "fuente de proteína", "+ proteína", "20g de proteína". Lo estable es el ORDEN.
-     * Un polvo se nombra por la cabeza — "Proteína Whey", "Whey Protein Isolate" —
-     * mientras que un alimento fortificado arranca por el alimento y menciona la
-     * proteína después, como claim.</p>
-     *
-     * <p>Los sabores quedan a salvo por construcción, que es lo que un veto de
-     * "menciona un sustantivo de comida" no lograba: un sabor SIEMPRE va detrás de la
-     * cabeza ("Proteína Whey sabor Cookies &amp; Cream", "Whey sabor Leche
-     * Chocolatada"), así que la proteína aparece primero y la regla no dispara.</p>
+     * Lo estable es el ORDEN. Un polvo se nombra por la cabeza — "Proteína Whey", "Whey Protein
+     * Isolate" — mientras que un alimento fortificado arranca por el alimento y menciona la
+     * proteína después, como claim.
      */
     private static boolean esProteinaAgregadaAUnAlimento(String nombreNormalizado) {
         int proteina = primeraAparicion(nombreNormalizado, CABEZA_PROTEINA);
@@ -354,21 +255,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Espejo exacto de {@link #esProteinaAgregadaAUnAlimento}, para los subtipos de
-     * comida: si el nombre arranca por la cabeza de un polvo y ningún sustantivo de
-     * comida la precede, el sustantivo culinario que matcheó es el SABOR del polvo y no
-     * el producto.
-     *
-     * <p>Es la misma observación de orden, leída del otro lado, y por eso las dos reglas
-     * no pueden contradecirse: "Whey Protein sabor Leche Chocolatada" no es una bebida
-     * láctea, "Proteína Whey sabor Yogur Griego" no es un postre y "Whey sabor Chocolate
-     * Chips" no es un snack salado — en las tres la proteína se nombra primero. Al revés,
-     * "Leche con Proteína 1L" y "Avena Alta en Proteína 500g" arrancan por el alimento,
-     * así que el veto no dispara y el subtipo de comida se los queda.</p>
-     *
-     * <p>Sin esta regla, cada sustantivo de comida agregado acá le robaba productos al
-     * bucket de proteína en polvo — el mismo bug que {@code FORMATO_NO_POLVO} cerró en
-     * la otra dirección, reintroducido desde el lado de los alimentos.</p>
+     * Es la misma observación de orden, leída del otro lado, y por eso las dos reglas no pueden
+     * contradecirse:
      */
     private static boolean esElSaborDeUnPolvo(String nombreNormalizado) {
         int proteina = primeraAparicion(nombreNormalizado, CABEZA_PROTEINA);
@@ -377,7 +265,6 @@ public class SupplementCombo {
         return alimento < 0 || alimento > proteina;
     }
 
-    /** Índice de la primera de estas palabras en el nombre padeado, o -1. */
     private static int primeraAparicion(String nombreNormalizado, String[] palabras) {
         int mejor = -1;
         for (String palabra : palabras) {
@@ -388,21 +275,16 @@ public class SupplementCombo {
     }
 
     /**
-     * Vetos por subtipo: el predicado que descalifica un match de keywords que la
-     * forma del nombre delata como otra cosa.
-     *
-     * <p>Quién tiene veto y por qué vive en {@link #compilarVetos()}, que es donde se
-     * arma. Tenerlo en un solo lugar es el punto: esta línea llegó a afirmar que el
-     * mecanismo "hoy sólo lo usa Proteína en Polvo" mientras cuatro líneas más abajo
-     * los doce subtipos de comida ya heredaban el suyo.</p>
+     * Tenerlo en un solo lugar es el punto: esta línea llegó a afirmar que el mecanismo "hoy sólo
+     * lo usa Proteína en Polvo" mientras cuatro líneas más abajo los doce subtipos de comida ya
+     * heredaban el suyo.
      */
     private static final Map<String, Predicate<String>> VETO_POR_SUBTIPO = compilarVetos();
 
     /**
-     * "Proteína en Polvo" tiene el suyo — es el único bucket cuyas keywords aparecen en
-     * productos de otro formato por el solo hecho de declarar su composición — y cada
-     * subtipo de comida hereda el espejo, {@link #esElSaborDeUnPolvo}. Se deriva de la
-     * bandera y no se lista a mano: un subtipo de comida nuevo no puede olvidarse el veto.
+     * "Proteína en Polvo" tiene el suyo — es el único bucket cuyas keywords aparecen en productos
+     * de otro formato por el solo hecho de declarar su composición — y cada subtipo de comida
+     * hereda el espejo, {@link #esElSaborDeUnPolvo}.
      */
     private static Map<String, Predicate<String>> compilarVetos() {
         Map<String, Predicate<String>> vetos = new HashMap<>();
@@ -414,13 +296,8 @@ public class SupplementCombo {
         return Map.copyOf(vetos);
     }
 
-    /** Ningún veto — el caso de los subtipos de suplemento, que no necesitan uno. */
     private static final Predicate<String> SIN_VETO = n -> false;
 
-    /**
-     * Compila frases a un veto. Se ancla como prefijo igual que las keywords, así
-     * "leche con proteina" también atrapa "…proteinas".
-     */
     private static Predicate<String> vetoDeFrases(String[] frases) {
         List<String> compiladas = new ArrayList<>(frases.length);
         for (String frase : frases) {
@@ -436,18 +313,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Un subtipo con sus keywords ya normalizadas y ya padeadas, para que un request
-     * no las re-derive ni concatene un pad por comparación.
-     *
-     * <p>{@code prefijos} ancla al ARRANQUE de una palabra y admite sufijo, que es lo
-     * que mantiene viva la flexión del castellano ("barrita" sigue matcheando
-     * "Barritas"). {@code exactos} sale de las keywords DECLARADAS con espacio final
-     * — la convención que ya usaban este archivo y {@code GarmentTaxonomy} para decir
-     * "palabra completa, sin sufijo": "cla " no debe convertir "Clásico" en un
-     * quemador.</p>
-     *
-     * <p>{@code vetos} se chequea PRIMERO y descalifica: un veto que matchea gana sobre
-     * cualquier keyword que también matchee (ver {@link #FORMATO_NO_POLVO}).</p>
+     * Un subtipo con sus keywords ya normalizadas y ya padeadas, para que un request no las
+     * re-derive ni concatene un pad por comparación.
      */
     private record SubtipoCompilado(String tipo, List<String> prefijos, List<String> exactos,
                                     Predicate<String> veto) {
@@ -466,8 +333,8 @@ public class SupplementCombo {
         for (SubtipoSuplemento s : SUPLEMENTO_SUBTIPOS) porTipo.put(s.tipo(), s);
 
         // Fail-fast en class-init si las dos listas divergen: un subtipo agregado a
-        // SUPLEMENTO_SUBTIPOS sin lugar en la precedencia nunca se clasificaría, que
-        // es exactamente la clase de bug silencioso que este orden viene a cerrar.
+        // SUPLEMENTO_SUBTIPOS sin lugar en la precedencia nunca se clasificaría, que es exactamente
+        // la clase de bug silencioso que este orden viene a cerrar.
         if (!porTipo.keySet().equals(new LinkedHashSet<>(PRECEDENCIA_CLASIFICACION))) {
             throw new IllegalStateException(
                     "PRECEDENCIA_CLASIFICACION y SUPLEMENTO_SUBTIPOS deben listar los mismos subtipos");
@@ -479,9 +346,8 @@ public class SupplementCombo {
             List<String> exactos  = new ArrayList<>();
             for (String kw : porTipo.get(tipo).keywords()) {
                 boolean palabraCompleta = kw.endsWith(" ");
-                String norm = normalizar(kw); // viene padeado a ambos lados
+                String norm = normalizar(kw);
                 if (norm.isBlank()) continue;
-                // Palabra completa conserva el pad derecho; el prefijo lo suelta.
                 if (palabraCompleta) exactos.add(norm);
                 else prefijos.add(norm.substring(0, norm.length() - 1));
             }
@@ -492,14 +358,8 @@ public class SupplementCombo {
     }
 
     /**
-     * minúsculas → acentos removidos → toda corrida de no-alfanuméricos colapsada a
-     * un espacio → padeado con espacios.
-     *
-     * <p>Que la puntuación se vuelva límite de palabra es a propósito: "Proteína/Whey"
-     * y "OMEGA-3" tokenizan igual que sus formas con espacio, algo que un
-     * {@code contains()} pelado sobre el nombre crudo no podía hacer. Se aplica a las
-     * keywords Y a los nombres, así que ambos lados de la comparación viven en el
-     * mismo alfabeto — el bug de fondo era justamente que no.</p>
+     * Se aplica a las keywords Y a los nombres, así que ambos lados de la comparación viven en el
+     * mismo alfabeto — el bug de fondo era justamente que no.
      */
     private static String normalizar(String s) {
         String base = AccentStripper.strip(s.toLowerCase());
@@ -507,10 +367,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Orden de preferencia de CATEGORÍA de proteína, pedido por el usuario. Mismo
-     * contrato que {@link #SUPLEMENTO_MARCAS_PREFERIDAS}: los strings tienen que ser
-     * categorías canónicas de {@code CategoryGroups.canonicalCategories()} — salen
-     * de `V32`. A diferencia de las marcas, esto SÍ es un orden.
+     * Orden de preferencia de CATEGORÍA de proteína, pedido por el usuario. A diferencia de las
+     * marcas, esto SÍ es un orden.
      */
     private static final List<String> SUPLEMENTO_CATEGORIA_PRIORIDAD =
             List.of("Proteína Isolada");
@@ -520,77 +378,32 @@ public class SupplementCombo {
             Set.of("Proteína Vegetal");
 
     /**
-     * Marcas preferidas para el combo de suplementos, confirmadas por el usuario.
-     * Es un CONJUNTO, no un orden: todas compiten entre sí y el precio por unidad
-     * de medida decide cuál gana — {@link #mejorGrupoDeMarca} las junta a todas y
-     * {@link #mejorValor} elige.
-     *
-     * <p><b>Antes era un ORDEN</b>, y {@code mejorGrupoDeMarca} se quedaba con la
-     * primera que tuviera stock: con una sola whey de ENA en el pool, Star, Gold y
-     * BSN quedaban descartadas antes de que el $/g las mirara, por buena que fuera
-     * su relación precio/tamaño.</p>
-     *
-     * <p>Los strings tienen que coincidir con los que emite
-     * {@code BrandExtractor.MARCAS} — es de donde sale {@code Product.marca()}. La
-     * versión anterior de esta lista ("ENA", "STAR", "BCC") no matcheaba nada porque
-     * esa lista curada no conocía ni una marca de suplementos, así que toda marca
-     * caía al nombre del sitio y esta preferencia era código muerto.</p>
-     *
-     * <p>{@code "BSA"} salió: el usuario confirmó que fue un typo. Medido sobre el
-     * catálogo vivo el 2026-09-02, cero productos con esa marca y cero cuyo nombre
-     * contuviera siquiera esa cadena.</p>
+     * Es un CONJUNTO, no un orden: todas compiten entre sí y el precio por unidad de medida decide
+     * cuál gana — {@link #mejorGrupoDeMarca} las junta a todas y {@link #mejorValor} elige.
      */
     private static final Set<String> SUPLEMENTO_MARCAS_PREFERIDAS =
             Set.of("ENA", "Gold Nutrition", "Star Nutrition", "BSN", "Xtrenght");
 
-    /** Gana siempre que tenga stock, por encima del conjunto y del $/g. Syntha-6 cuenta como BSN. */
     private static final Set<String> SUPLEMENTO_MARCAS_PRIORITARIAS = Set.of("BSN");
 
-    /**
-     * Líneas de producto preferidas, con el mismo peso que una marca de
-     * {@link #SUPLEMENTO_MARCAS_PREFERIDAS} y compitiendo con ellas por $/g.
-     *
-     * <p>Viven aparte porque una línea NO es una marca: {@code Product.marca()} de
-     * un Syntha-6 dice {@code "BSN"}, que es quien lo fabrica. Meter la línea en el
-     * conjunto de marcas arrastraría el catálogo entero de BSN con ella.</p>
-     *
-     * <p>Se comparan contra el nombre normalizado por {@link #normalizar}, que
-     * colapsa la puntuación a espacios: por eso {@code " syntha 6 "} cubre
-     * "Syntha-6", "SYNTHA 6" y "Syntha 6" con un solo token.</p>
-     */
+    /** Viven aparte porque una línea NO es una marca: */
     private static final String[] SUPLEMENTO_LINEAS_PREFERIDAS = {
         " syntha 6 "
     };
 
     /**
-     * Subtipos donde "Regenerar" rota de MARCA y no sólo de URL: BSN primero, después
-     * la preferida todavía no mostrada con mejor $/g. Sin esto, con varios potes de
-     * BSN en el catálogo cada click caía en otro BSN y el resto nunca aparecía.
+     * Subtipos donde "Regenerar" rota de MARCA y no sólo de URL: BSN primero, después la preferida
+     * todavía no mostrada con mejor $/g.
      */
     private static final Set<String> SUBTIPOS_CON_ROTACION_DE_MARCA =
             Set.of("Proteína en Polvo", "Creatina");
 
     /**
-     * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice
-     * nada (ver {@link #clasificarPorSubtipo}).
-     *
-     * <p>Cierra el agujero de fondo: el builder re-derivaba el subtipo del nombre crudo
-     * e ignoraba la categoría que el clasificador YA había resuelto. Un producto cuya
-     * señal de proteína venía de la colección del sitio y no de su título — "Nitro Tech
-     * 908g" — quedaba invisible, aunque su {@code categoria} dijera "Proteína".</p>
-     *
-     * <p>Es fallback y no clave primaria porque una keyword del nombre es estrictamente
-     * más específica: "Barra de Proteína Whey" tiene categoria "Proteína" y es una barra.
-     * Las keywords deciden primero; esto sólo habla cuando se quedaron calladas.</p>
-     *
-     * <p>Deliberadamente NO mapea "Vitaminas", "Suplemento" ni "Alimentos": la primera no
-     * permite elegir entre Vitamina C / D / Complejo B, y las otras dos no dicen nada.
-     * Adivinar sería peor que omitir, que es lo que ya pasa hoy con esos productos.</p>
+     * Categoría canónica → subtipo, usado SÓLO como fallback cuando el nombre no dice nada (ver
+     * {@link #clasificarPorSubtipo}).
      */
     private static final Map<String, String> SUBTIPO_POR_CATEGORIA = Map.ofEntries(
             Map.entry("Proteína",         "Proteína en Polvo"),
-            // El split de V32 no cambia el combo: los tres siguen siendo polvo,
-            // y el subtipo que el usuario elige es el formato, no el origen.
             Map.entry("Proteína Isolada", "Proteína en Polvo"),
             Map.entry("Proteína Vegetal", "Proteína en Polvo"),
             Map.entry("Barra Proteica",   "Barra Proteica"),
@@ -605,8 +418,8 @@ public class SupplementCombo {
             Map.entry("Quemadores",       "Quemador"));
 
     /**
-     * Los subtipos del combo, en orden de armado, para que el selector del frontend deje
-     * de mantener su propia copia. Expuesto vía {@code GET /api/suplementos/tipos}.
+     * Los subtipos del combo, en orden de armado, para que el selector del frontend deje de
+     * mantener su propia copia.
      */
     public static List<OutfitService.SupplementTipo> tiposDisponibles() {
         return SUPLEMENTO_SUBTIPOS.stream()
@@ -618,22 +431,21 @@ public class SupplementCombo {
     private static final Set<String> CATEGORIAS_SUPLEMENTO = Set.of(
             "Suplemento", "Proteína", "Creatina", "Colágeno", "Magnesio",
             "Pre-Workout", "BCAA", "Vitaminas", "Quemadores", "Gainer", "Alimentos",
-            // Nutrition subcategories the classifier can assign directly — must be
-            // whitelisted here or the product is filtered out before subtype matching.
+            // Nutrition subcategories the classifier can assign directly — must be whitelisted here
+            // or the product is filtered out before subtype matching.
             "Snack Proteico", "Pancake Proteico", "Barra Proteica",
-            // El split de V32. Sin estas dos, el guard estático de abajo tira
-            // IllegalStateException en class-init — que es exactamente lo que
-            // tiene que pasar: un producto de una categoría no whitelisteada se
-            // filtra ANTES de clasificar subtipo, así que el combo simplemente
+            // Sin estas dos, el guard estático de abajo tira IllegalStateException en class-init —
+            // que es exactamente lo que tiene que pasar: un producto de una categoría no
+            // whitelisteada se filtra ANTES de clasificar subtipo, así que el combo simplemente
             // dejaría de ofrecer proteína vegetal sin un solo error.
             "Proteína Isolada", "Proteína Vegetal"
     );
 
     static {
-        // Fail-fast en class-init, mismo criterio que el guard de PRECEDENCIA_CLASIFICACION:
-        // una clave que no esté en el whitelist deja el mapeo MUERTO (el producto se filtra
-        // antes de clasificar), y un valor que no sea un subtipo real mete productos bajo un
-        // tipo que SUPLEMENTO_SUBTIPOS nunca recorre — se pierden sin un solo error.
+        // Fail-fast en class-init, mismo criterio que el guard de PRECEDENCIA_CLASIFICACION: una
+        // clave que no esté en el whitelist deja el mapeo MUERTO (el producto se filtra antes de
+        // clasificar), y un valor que no sea un subtipo real mete productos bajo un tipo que
+        // SUPLEMENTO_SUBTIPOS nunca recorre — se pierden sin un solo error.
         Set<String> subtiposValidos = SUPLEMENTO_SUBTIPOS.stream()
                 .map(SubtipoSuplemento::tipo).collect(Collectors.toSet());
         SUBTIPO_POR_CATEGORIA.forEach((categoria, tipo) -> {
@@ -649,48 +461,29 @@ public class SupplementCombo {
     }
 
     /**
-     * Combo de suplementos (Proteína/Creatina/Quemador/Magnesio) a mostrar siempre
-     * junto al outfit, independiente de género/estilo — best-effort por subtipo
-     * (subtipo sin candidatos se omite del combo, mismo criterio que el accesorio
-     * del armador de outfits).
-     * Backward-compat overload: sin límite de presupuesto (comportamiento original).
+     * Combo de suplementos (Proteína/Creatina/Quemador/Magnesio) a mostrar siempre junto al outfit,
+     * independiente de género/estilo — best-effort por subtipo (subtipo sin candidatos se omite del
+     * combo, mismo criterio que el accesorio del armador de outfits).
      */
     List<OutfitService.SupplementPick> armarComboSuplementos(List<Product> productos) {
         return armarComboSuplementos(productos, 0);
     }
 
     /**
-     * Combo de suplementos con presupuesto independiente opcional.
-     * presupuesto=0 → sin límite (comportamiento original).
-     * Budget-aware: por subtipo, filtra candidatos por precio ≤ remaining. Si ninguno
-     * cabe dentro del presupuesto restante, elige el más barato disponible (no bloquea
-     * el slot — combo completo > slot vacío).
+     * Combo de suplementos con presupuesto independiente opcional. presupuesto=0 → sin límite
+     * (comportamiento original).
      */
     List<OutfitService.SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto) {
         return armarComboSuplementos(productos, presupuesto, null);
     }
 
-    /**
-     * Combo de suplementos filtrado por tipos solicitados (subset de SUPLEMENTO_SUBTIPOS).
-     * tipos vacío o null → usa todos los subtipos (backward-compat con el overload de 2 args).
-     */
     List<OutfitService.SupplementPick> armarComboSuplementos(List<Product> productos, double presupuesto, Set<String> tipos) {
         return armarComboSuplementos(productos, presupuesto, tipos, null);
     }
 
     /**
-     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar"
-     * ofrezca el siguiente en vez de repetir.
-     *
-     * <p>El pick es deterministico a propósito (marca → $/unidad → score → url), así
-     * que un request idéntico devuelve lo mismo: es el arreglo de que el builder
-     * cambiara de suplemento solo por volver a preguntar. Por eso la variedad viene
-     * del cliente diciendo qué ya se le mostró, y no de volver a meter azar.</p>
-     *
-     * <p>Si un subtipo se queda sin candidatos tras excluir, la exclusión se ignora
-     * <em>para ese subtipo</em> y el ciclo vuelve a empezar por el mejor. Una fila
-     * vacía es peor producto que una repetida: el usuario pidió un stack, no que el
-     * panel se encoja a medida que clickea.</p>
+     * Combo con URLs a excluir — lo que el usuario ya vio, para que "Regenerar" ofrezca el
+     * siguiente en vez de repetir.
      */
     List<OutfitService.SupplementPick> armarComboSuplementos(
             List<Product> productos, double presupuesto, Set<String> tipos, Set<String> excluirUrls) {
@@ -700,10 +493,8 @@ public class SupplementCombo {
                 .filter(p -> CATEGORIAS_SUPLEMENTO.contains(p.categoria()))
                 .collect(Collectors.toList());
 
-        // Se clasifica el pool ENTERO, no sólo los tipos pedidos: la asignación tiene
-        // que ser la misma trate el request de un subtipo o de todos. Si se filtrara
-        // antes, pedir sólo "Proteína en Polvo" volvería a mostrar barras como polvo —
-        // el bug de doble asignación, disfrazado de filtro.
+        // Se clasifica el pool ENTERO, no sólo los tipos pedidos: la asignación tiene que ser la
+        // misma trate el request de un subtipo o de todos.
         Map<String, List<Product>> porTipo = clasificarPorSubtipo(suplementos);
 
         List<OutfitService.SupplementPick> combo = new ArrayList<>();
@@ -717,8 +508,8 @@ public class SupplementCombo {
             Map<String, Integer> vistasPorMarca = SUBTIPOS_CON_ROTACION_DE_MARCA.contains(subtipo.tipo())
                     ? contarVistasPorMarca(candidatos, excluir) : null;
 
-            // Lo ya mostrado sale del pool, salvo que no quede nada: ahí el ciclo
-            // vuelve a empezar en vez de dejar la fila vacía.
+            // Lo ya mostrado sale del pool, salvo que no quede nada: ahí el ciclo vuelve a empezar
+            // en vez de dejar la fila vacía.
             if (!excluir.isEmpty()) {
                 List<Product> frescos = candidatos.stream()
                         .filter(p -> !excluir.contains(p.url()))
@@ -735,8 +526,6 @@ public class SupplementCombo {
                 if (!affordable.isEmpty()) {
                     elegido = elegirPick(affordable, vistasPorMarca);
                 } else {
-                    // Nada entra en el presupuesto restante: acá lo que importa es gastar
-                    // lo mínimo posible, no el mejor $/kg — de ahí el precio absoluto.
                     elegido = candidatos.stream()
                             .min(Comparator.comparingDouble(Product::precio))
                             .orElse(candidatos.get(0));
@@ -751,19 +540,14 @@ public class SupplementCombo {
     }
 
     /**
-     * Asigna cada producto a EXACTAMENTE UN subtipo — el primero que matchea en orden
-     * de precedencia — en una sola pasada.
-     *
-     * <p>Reemplaza un stream completo por subtipo (17 pasadas sobre el pool, con un
-     * {@code toLowerCase()} nuevo de cada nombre en cada una) por una pasada que
-     * normaliza cada nombre una única vez. Un producto sin subtipo simplemente no
-     * entra al mapa: el combo lo omite, igual que antes.</p>
+     * Asigna cada producto a EXACTAMENTE UN subtipo — el primero que matchea en orden de
+     * precedencia — en una sola pasada.
      */
     private Map<String, List<Product>> clasificarPorSubtipo(List<Product> suplementos) {
         Map<String, List<Product>> porTipo = new HashMap<>();
         for (Product p : suplementos) {
-            // Un producto sin nombre se omite: el pick se muestra por nombre, así que
-            // colarlo por su categoría dejaría una fila vacía en la UI.
+            // Un producto sin nombre se omite: el pick se muestra por nombre, así que colarlo por
+            // su categoría dejaría una fila vacía en la UI.
             if (StringUtils.isBlank(p.nombre())) continue;
             String nombreNormalizado = normalizar(p.nombre());
 
@@ -783,12 +567,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Subtipo derivado de la categoría canónica, cuando el nombre no alcanzó.
-     *
-     * <p>El veto del subtipo destino se sigue chequeando: si no, esta ruta sería una
-     * puerta trasera que lo saltea. Una "Leche con Proteína" tiene categoria "Proteína",
-     * así que sin este chequeo el fallback la reinsertaría como proteína en polvo justo
-     * después de que el veto la hubiera descartado.</p>
+     * El veto del subtipo destino se sigue chequeando: si no, esta ruta sería una puerta trasera
+     * que lo saltea.
      */
     private String porCategoriaCanonica(String categoria, String nombreNormalizado) {
         if (categoria == null) return null;
@@ -799,25 +579,11 @@ public class SupplementCombo {
     }
 
     /**
-     * Elige el pick de un subtipo. Antes era "el primer producto de la marca preferida
-     * que aparezca, y si no hay ninguno, uno AL AZAR" — o sea que el mismo catálogo
-     * devolvía otro suplemento en cada request, y entre dos potes de la misma marca
-     * ganaba el que la lista trajera primero.
-     *
-     * <p>Claves de orden, de mayor a menor peso:</p>
-     * <ol>
-     *   <li>marca o línea preferida ({@link #SUPLEMENTO_MARCAS_PREFERIDAS},
-     *       {@link #SUPLEMENTO_LINEAS_PREFERIDAS}) — es un FILTRO, no un orden: una
-     *       marca de confianza le gana a una desconocida, pero entre las de
-     *       confianza no hay jerarquía;</li>
-     *   <li>precio por unidad de medida ($/g, $/ml, $/cápsula) ascendente, entre los
-     *       candidatos de unidad comparable;</li>
-     *   <li>{@code baseMlScore} descendente, para los que no declaran tamaño;</li>
-     *   <li>url ascendente, para que el pick sea estable entre requests.</li>
-     * </ol>
-     *
-     * <p>Que la marca le gane al valor frente a una marca desconocida sigue siendo
-     * deliberado. Lo que cambió es que entre las preferidas ya no hay orden.</p>
+     * Claves de orden, de mayor a menor peso: marca o línea preferida
+     * ({@link #SUPLEMENTO_MARCAS_PREFERIDAS}, {@link #SUPLEMENTO_LINEAS_PREFERIDAS}) — es un
+     * FILTRO, no un orden: una marca de confianza le gana a una desconocida, pero entre las de
+     * confianza no hay jerarquía; precio por unidad de medida ($/g, $/ml, $/cápsula) ascendente,
+     * entre los candidatos de unidad comparable;
      */
     private Product elegirPick(List<Product> candidatos, Map<String, Integer> vistasPorMarca) {
         List<Product> porCategoria = mejorGrupoDeCategoria(candidatos);
@@ -829,9 +595,7 @@ public class SupplementCombo {
     }
 
     /**
-     * Candidatos de las marcas preferidas menos mostradas. Entre ellas BSN va primero;
-     * si no está, compiten todas y {@link #mejorValor} decide por $/g. Vacío si ningún
-     * candidato es de marca preferida: ahí sigue mandando {@link #mejorGrupoDeMarca}.
+     * Entre ellas BSN va primero; si no está, compiten todas y {@link #mejorValor} decide por $/g.
      */
     private List<Product> siguienteEnRotacion(List<Product> candidatos, Map<String, Integer> vistasPorMarca) {
         Map<String, List<Product>> porMarca = new HashMap<>();
@@ -862,7 +626,9 @@ public class SupplementCombo {
         return vistas;
     }
 
-    /** Marca preferida canónica del producto; un Syntha-6 cuenta como BSN. null si no es preferida. */
+    /**
+     * Marca preferida canónica del producto; un Syntha-6 cuenta como BSN. null si no es preferida.
+     */
     private String marcaDeRotacion(Product p) {
         if (esPrioritario(p)) {
             return SUPLEMENTO_MARCAS_PRIORITARIAS.iterator().next();
@@ -874,25 +640,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Preferencia de CATEGORÍA, y corre por fuera de la de marca: primero se elige
-     * qué clase de proteína, y recién adentro de esa clase manda la marca y después
-     * el valor. Antes de `V32` esto no existía porque no podía: las tres eran una
-     * sola categoría.
-     *
-     * <p>Un aislado, una whey concentrada y una proteína de arveja no son
-     * intercambiables para quien compra, así que rankearlas en un pool único hacía
-     * que el $/g decidiera entre productos que no compiten entre sí.</p>
-     *
-     * <p><b>La vegetal es de-preferencia, no veto</b>, y la diferencia importa: con
-     * 21 filas contra 143, en la práctica no gana nunca — pero un pool que sólo
-     * tenga vegetal sigue devolviendo un pick en vez de dejar el slot vacío. Es el
-     * mismo criterio con el que {@link #mejorGrupoDeMarca} cae a todos los
-     * candidatos cuando ninguna marca preferida tiene stock. Vetarla de verdad es
-     * cambiar el último {@code return} por la lista filtrada.</p>
-     *
-     * <p>Para todo subtipo que no sea proteína esto es un no-op: ningún candidato
-     * de Creatina o Magnesio tiene una de estas categorías, así que las dos etapas
-     * caen a la lista completa sin tocar el orden.</p>
+     * Preferencia de CATEGORÍA, y corre por fuera de la de marca: primero se elige qué clase de
+     * proteína, y recién adentro de esa clase manda la marca y después el valor.
      */
     private List<Product> mejorGrupoDeCategoria(List<Product> candidatos) {
         for (String categoria : SUPLEMENTO_CATEGORIA_PRIORIDAD) {
@@ -908,14 +657,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Candidatos de la marca prioritaria; si no hay, de cualquier marca o línea
-     * preferida; si tampoco, todos.
-     *
-     * <p>Devuelve el grupo entero y no la marca de mayor prioridad porque la
-     * preferencia dejó de ser un orden: todas compiten y {@link #mejorValor} decide
-     * por precio por unidad de medida. Sigue siendo un filtro DURO contra las no
-     * listadas —una marca de confianza le gana a una desconocida por barata que
-     * esté—, pero entre las de confianza manda el valor.</p>
+     * Candidatos de la marca prioritaria; si no hay, de cualquier marca o línea preferida; si
+     * tampoco, todos.
      */
     private List<Product> mejorGrupoDeMarca(List<Product> candidatos) {
         List<Product> prioritarios = candidatos.stream()
@@ -953,10 +696,8 @@ public class SupplementCombo {
     }
 
     /**
-     * Mejor relación precio/tamaño del grupo. Sólo se dividen precios por magnitudes de
-     * la MISMA familia de unidad: $/gramo contra $/cápsula no es un número que signifique
-     * algo. Se toma la familia mayoritaria del grupo y los que quedan afuera (otra familia,
-     * o sin tamaño legible) caen al desempate por score.
+     * Sólo se dividen precios por magnitudes de la MISMA familia de unidad: $/gramo contra
+     * $/cápsula no es un número que signifique algo.
      */
     private Product mejorValor(List<Product> candidatos) {
         List<Medido> medidos = candidatos.stream()
@@ -986,14 +727,11 @@ public class SupplementCombo {
                 .orElseThrow();
     }
 
-    /** Un candidato con su tamaño ya parseado, para no re-parsear el nombre por comparación. */
     private record Medido(Product producto, SupplementSizeParser.Tamano tamano) { }
 
     /**
-     * Familia de unidad mayoritaria entre los candidatos con tamaño legible.
-     * Empate → MASA, VOLUMEN, CONTEO en ese orden, para que el resultado no dependa
-     * del orden de llegada del catálogo. Ninguno legible → DESCONOCIDA, que no
-     * matchea a nadie y manda todo el grupo al desempate por score.
+     * Empate → MASA, VOLUMEN, CONTEO en ese orden, para que el resultado no dependa del orden de
+     * llegada del catálogo.
      */
     private static SupplementSizeParser.Familia familiaDominante(List<Medido> medidos) {
         Map<SupplementSizeParser.Familia, Integer> conteo = new HashMap<>();

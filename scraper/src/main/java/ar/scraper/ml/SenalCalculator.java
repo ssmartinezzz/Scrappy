@@ -7,15 +7,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Pure, dependency-free buy-signal classifier. Lifted from the inline logic
- * that previously lived in {@code FinanciacionController.recomendacion} (lines
- * 588-652), so it can be precomputed once per scrape run (mirroring the
- * {@code MlEnricher}/{@code MlScore} pattern) instead of being recalculated
- * on every live request.
- *
- * <p>No DB/Spring/service dependencies: inflation adjustment is taken as an
- * already-resolved multiplicative factor ({@code precioAjustado = precioAntiguo
- * * inflacionFactor}), so this class stays trivially unit-testable.</p>
+ * No DB/Spring/service dependencies: inflation adjustment is taken as an already-resolved
+ * multiplicative factor ({@code precioAjustado = precioAntiguo * inflacionFactor}), so this class
+ * stays trivially unit-testable.
  */
 public final class SenalCalculator {
 
@@ -36,16 +30,6 @@ public final class SenalCalculator {
     private SenalCalculator() {
     }
 
-    /**
-     * Classifies a product's buy signal from its price history.
-     *
-     * @param historial       price history points (any order; sorted internally by {@code fecha})
-     * @param inflacionFactor multiplicative inflation adjustment already resolved by the caller
-     *                        (e.g. {@code vHoy / vEntonces} or a compounded monthly rate),
-     *                        applied as {@code precioAntiguo * inflacionFactor}
-     * @return the resolved {@link SenalCompra}; {@link SenalCompra#EMPTY} when there is no
-     *         usable history
-     */
     public static SenalCompra compute(List<HistorialEntry> historial, double inflacionFactor) {
         if (historial == null || historial.isEmpty()) {
             return SenalCompra.EMPTY;

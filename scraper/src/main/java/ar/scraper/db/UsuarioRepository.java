@@ -18,37 +18,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Persistence for the {@code usuario} aggregate and its role grants.
- *
- * <p>Two shapes here are deliberate and both exist to remove a branch from the
- * caller rather than to save a query:</p>
- *
- * <ul>
- *   <li>{@link #buscarActivaPorUsername} filters {@code activo = TRUE} in SQL.
- *       An empty result therefore means "no usable account", collapsing
- *       "unknown user" and "disabled user" into one case. Login never has to
- *       remember the second check, and forgetting it would be a revoked account
- *       that still logs in.</li>
- *   <li>{@link #crear} is an insert-if-absent that reports whether it inserted,
- *       and <b>never overwrites an existing {@code password_hash}</b>. The
- *       bootstrap seeder runs on every boot; without this it would reset the
- *       admin password back to the environment value on each restart, silently
- *       undoing a password change.</li>
- * </ul>
- *
- * <p><b>A Spring bean, unlike its siblings in this package.</b> The others are
- * package-private and constructed inside {@link DatabaseService}, which then
- * delegates to them. This one is injected directly into {@code AuthEndpoints}
- * and {@code AdminSeeder}, because authentication has no reason to reach
- * through a service that also owns scraping, the catalogue and the ML output.
- * There is deliberately no second copy behind {@code DatabaseService}: two
- * instances of the same repository is how a future stateful field ends up
- * disagreeing with itself.</p>
- *
- * <p>Unlike the older repositories in this package, the methods here do not
- * swallow their exceptions. A favourite that fails to save is an annoyance; an
- * account operation that fails silently is an authentication decision made on
- * bad data, so failures propagate as {@link DatabaseException}.</p>
+ * Two shapes here are deliberate and both exist to remove a branch from the caller rather than to
+ * save a query: Login never has to remember the second check, and forgetting it would be a revoked
+ * account that still logs in.
  */
 @Repository
 public class UsuarioRepository {
@@ -70,12 +42,9 @@ public class UsuarioRepository {
     }
 
     /**
-     * Thrown instead of logging and returning a wrong answer.
-     *
-     * <p>Public constructor because the account-adjacent services outside this
-     * package — the reset flow, the session store — need to raise the same kind
-     * of failure. Their alternative is inventing a parallel exception for the
-     * same condition, which only makes the callers catch two things.</p>
+     * Thrown instead of logging and returning a wrong answer. Public constructor because the
+     * account-adjacent services outside this package — the reset flow, the session store — need to
+     * raise the same kind of failure.
      */
     public static class DatabaseException extends RuntimeException {
         public DatabaseException(String message, Throwable cause) {
@@ -83,12 +52,6 @@ public class UsuarioRepository {
         }
     }
 
-    /**
-     * Inserts the account if no row holds that {@code username}.
-     *
-     * @return {@code true} when this call created the row, {@code false} when it
-     *         already existed — in which case nothing about it was modified.
-     */
     public boolean crear(String username, String email, String passwordHash, boolean esServicio) {
         Objects.requireNonNull(username, "username must not be null");
         Objects.requireNonNull(passwordHash, "passwordHash must not be null");
@@ -108,7 +71,6 @@ public class UsuarioRepository {
         }
     }
 
-    /** Empty for an unknown username AND for a disabled one — both are "unusable". */
     public Optional<Cuenta> buscarActivaPorUsername(String username) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
@@ -175,9 +137,9 @@ public class UsuarioRepository {
     }
 
     /**
-     * Revocation switch. Deliberately not a DELETE: the row keeps the audit
-     * trail and the referential integrity of every grant and token that points
-     * at it, and re-enabling is a one-column update rather than a re-creation.
+     * Deliberately not a DELETE: the row keeps the audit trail and the referential integrity of
+     * every grant and token that points at it, and re-enabling is a one-column update rather than a
+     * re-creation.
      */
     public void desactivar(String username) {
         try (Connection c = dataSource.getConnection();
@@ -218,16 +180,7 @@ public class UsuarioRepository {
         }
     }
 
-    /**
-     * Sets a new hash and stamps {@code password_changed_at}. Joins the reset
-     * transaction when called inside one.
-     *
-     * <p>The stamp is not bookkeeping. Access tokens already issued stay
-     * cryptographically valid for up to fifteen minutes after a reset, and
-     * comparing a token's {@code iat} against this column is what closes that
-     * window — at no extra query, because the per-request authorization lookup
-     * reads it anyway.</p>
-     */
+    /** Joins the reset transaction when called inside one. The stamp is not bookkeeping. */
     public boolean cambiarPassword(UUID usuarioId, String passwordHash, java.time.Instant cuando) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -242,16 +195,10 @@ public class UsuarioRepository {
     }
 
     /**
-     * Everything authorization needs about a subject, in <b>one</b> query.
-     *
-     * <p>Role and {@code password_changed_at} come back together because the
-     * filter needs both on every single request, and two round-trips for one
-     * decision is the kind of cost that later gets "optimised" into a cache —
-     * which is exactly what must not happen here, since a missed eviction would
-     * be a privilege escalation nobody sees.</p>
-     *
-     * <p>Filters {@code activo = TRUE}, so an empty result covers unknown,
-     * disabled and role-less alike.</p>
+     * Role and {@code password_changed_at} come back together because the filter needs both on
+     * every single request, and two round-trips for one decision is the kind of cost that later
+     * gets "optimised" into a cache — which is exactly what must not happen here, since a missed
+     * eviction would be a privilege escalation nobody sees.
      */
     public Optional<Autorizacion> autorizacionDe(UUID usuarioId) {
         try (Connection c = dataSource.getConnection();
@@ -284,26 +231,15 @@ public class UsuarioRepository {
         }
     }
 
-    /** What the per-request authorization check reads. */
     public record Autorizacion(String username, List<String> roles, java.time.Instant passwordChangedAt) {}
 
-    // ─── Administración de cuentas (slice 9) ────────────────────────────────
-
-    /** A user as the administration surface shows them. Never carries the hash. */
+    /** Never carries the hash. */
     public record Ficha(UUID id, String username, String email, boolean activo,
                         boolean esServicio, List<String> roles) {}
 
     /**
-     * Every account, active and disabled alike.
-     *
-     * <p>Disabled ones are included on purpose: an admin looking for the person
-     * they locked out last week needs to find them in order to let them back in.
-     * A list that silently omitted them would make deactivation look like
-     * deletion, which is exactly the confusion {@link #desactivar} avoids.</p>
-     *
-     * <p>{@code password_hash} is not selected. Nothing in this surface needs it,
-     * and a field that is never fetched cannot be leaked by a future serializer
-     * that helpfully includes every column.</p>
+     * Disabled ones are included on purpose: an admin looking for the person they locked out last
+     * week needs to find them in order to let them back in.
      */
     public List<Ficha> listar() {
         Map<UUID, Ficha> porId = new java.util.LinkedHashMap<>();
@@ -349,19 +285,9 @@ public class UsuarioRepository {
     }
 
     /**
-     * Creates the account and grants its role in ONE transaction.
-     *
-     * <p>Atomic because the halves are useless apart: a user with no role cannot
-     * authorize anything (the per-request lookup returns empty and reads as
-     * "disabled"), and a grant with no user is impossible. Creating one without
-     * the other would leave an account that looks present in a listing and
-     * cannot log in, with no indication why.</p>
-     *
-     * @return the new account's id, or empty when the username is taken.
-     * @throws IllegalArgumentException for a role outside the closed vocabulary —
-     *         thrown, not silently ignored: {@link #asignarRol} matches on
-     *         {@code r.nombre}, so an invalid role would grant nothing and the
-     *         account would be born unusable.
+     * Atomic because the halves are useless apart: a user with no role cannot authorize anything
+     * (the per-request lookup returns empty and reads as "disabled"), and a grant with no user is
+     * impossible.
      */
     @Transactional(rollbackFor = Exception.class)
     public Optional<UUID> crearConRol(String username, String email, String passwordHash, String rol) {
@@ -375,12 +301,9 @@ public class UsuarioRepository {
     }
 
     /**
-     * Replaces the account's roles with exactly {@code rol}.
-     *
-     * <p>A replacement rather than an addition: the matrix has two roles and ADMIN
-     * strictly contains VIEWER's reach, so "add VIEWER to an ADMIN" is never a
-     * meaningful request, while accidentally leaving the old grant in place would
-     * be a demotion that did not demote.</p>
+     * A replacement rather than an addition: the matrix has two roles and ADMIN strictly contains
+     * VIEWER's reach, so "add VIEWER to an ADMIN" is never a meaningful request, while accidentally
+     * leaving the old grant in place would be a demotion that did not demote.
      */
     @Transactional(rollbackFor = Exception.class)
     public boolean reemplazarRol(String username, String rol) {
@@ -409,7 +332,6 @@ public class UsuarioRepository {
         }
     }
 
-    /** Counts active ADMINs. Used to refuse removing the last one. */
     public int adminsActivos() {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement("""
@@ -431,7 +353,6 @@ public class UsuarioRepository {
                 && buscarActivaPorUsername(username).isPresent();
     }
 
-    /** Puts a deactivated account back in service. */
     public boolean reactivar(String username) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
@@ -455,24 +376,12 @@ public class UsuarioRepository {
         }
     }
 
-    // ─── Bootstrap ───────────────────────────────────────────────────────────
-
-    /** The four tables a person owns rows in. {@code saved_outfit_item} inherits through its parent. */
     private static final List<String> TABLAS_CON_DUENO =
             List.of("favoritos", "saved_outfits", "outfit_feedback_item", "categoria_dismiss");
 
     /**
      * Seeds the bootstrap admin and the service account, then hands every ownerless row to the
      * admin, all in one transaction.
-     *
-     * <p>Adopting rows into an admin account that a later failure rolls back would leave every
-     * personal row pointing at a user id that does not exist — a dangling owner is worse than no
-     * owner, because the rows become unreachable rather than merely unclaimed.</p>
-     *
-     * <p>email is null for both: the service account's CHECK requires it, and the bootstrap admin
-     * has no address anybody has confirmed.</p>
-     *
-     * @return how many rows were adopted, across all four tables.
      */
     @Transactional(rollbackFor = Exception.class)
     public int sembrarAdministracion(String adminUsername, String hashAdmin,
@@ -482,12 +391,6 @@ public class UsuarioRepository {
         return adoptarFilasSinDueno(adminId);
     }
 
-    /**
-     * Insert-if-absent plus the role grant, both idempotent.
-     *
-     * @return the account's id, whether this call created it or found it.
-     *         An existing {@code password_hash} is never touched — see {@link #crear}.
-     */
     private UUID sembrarCuenta(String username, String email, String passwordHash,
                                boolean esServicio, String rol) {
         try (Connection c = dataSource.getConnection()) {
@@ -539,11 +442,9 @@ public class UsuarioRepository {
     }
 
     /**
-     * Claims every ownerless row for {@code duenoId}.
-     *
-     * <p>Scoped to {@code usuario_id IS NULL}, which is what makes it both
-     * idempotent (a second run matches nothing) and safe to run while other
-     * accounts already own rows — it claims the unclaimed, never the owned.</p>
+     * Scoped to {@code usuario_id IS NULL}, which is what makes it both idempotent (a second run
+     * matches nothing) and safe to run while other accounts already own rows — it claims the
+     * unclaimed, never the owned.
      */
     private int adoptarFilasSinDueno(UUID duenoId) {
         int adoptadas = 0;

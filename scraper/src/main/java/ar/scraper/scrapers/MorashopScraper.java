@@ -8,14 +8,9 @@ import com.microsoft.playwright.Page;
 import java.util.List;
 
 /**
- * Scraper de Morashop (Tiendanube). Idéntico a {@link TiendanubeScraper} salvo
- * que usa {@link MorashopPage}, que descubre las categorías hoja porque la
- * tienda no tiene URL de catálogo — su {@code /productos/} es una landing del
- * tema con cero productos.
- *
- * <p>Hereda toda la lógica de scraping; sólo overridea el Factory Method
- * {@link #crearPage(Page)} (Open/Closed) — no reescribe {@code scrape()}.
- * Mismo patrón que {@link MonkyforceScraper}.</p>
+ * Idéntico a {@link TiendanubeScraper} salvo que usa {@link MorashopPage}, que descubre las
+ * categorías hoja porque la tienda no tiene URL de catálogo — su {@code /productos/} es una landing
+ * del tema con cero productos.
  */
 public class MorashopScraper extends TiendanubeScraper {
 

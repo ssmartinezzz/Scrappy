@@ -26,31 +26,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Serves the checked-in OpenAPI contract ({@code docs/openapi.yaml}) to
- * anyone, streamed from the classpath — never a filesystem path relative to
- * {@code docs/}, which does not exist in Docker. {@code pom.xml}'s
- * {@code copy-resources} execution bundles the file at
- * {@code contract/openapi.yaml} (a neutral prefix Spring Boot never serves
- * directly). A missing classpath resource throws rather than returning an
- * empty 200 — {@code copy-resources} over a missing directory only warns.
- *
- * <p><b>The route is public because the response is filtered, not because the
- * whole contract became public.</b> Every operation carrying
- * {@code x-access: ADMIN} is stripped here, at serve time, so the body an
- * anonymous caller receives is exactly what a VIEWER may reach: the
- * {@code PERMIT} and {@code AUTHENTICATED} operations. The administrative
- * mutation surface the earlier ADMIN gate existed to hide —
- * {@code DELETE /api/db/productos}, {@code /api/agent/**},
- * {@code /api/usuarios/**} — is never written to the wire at all, which is
- * the difference between filtering and hiding a UI entry point.</p>
- *
- * <p>Filtering deliberately does NOT happen in the frontend: the full
- * document would still travel over the network and sit in devtools, readable
- * by anyone who opens the Network tab.</p>
- *
- * <p>The bundled resource itself stays untouched — {@code OpenApiRouteCoverageTest}
- * asserts it is byte-identical to {@code docs/openapi.yaml}, and that guard is
- * about the artefact, not about this response.</p>
+ * Serves the checked-in OpenAPI contract ({@code docs/openapi.yaml}) to anyone, streamed from the
+ * classpath — never a filesystem path relative to {@code docs/}, which does not exist in Docker.
  */
 @RestController
 public class OpenApiDocumentController {
@@ -60,16 +37,14 @@ public class OpenApiDocumentController {
     private static final MediaType APPLICATION_YAML =
             new MediaType("application", "yaml", StandardCharsets.UTF_8);
 
-    /** Path-item keys that are operations. Anything else there is metadata and is kept as-is. */
     private static final Set<String> VERBOS = Set.of(
             "get", "put", "post", "delete", "options", "head", "patch", "trace");
 
     private static final String ACCESO_OCULTO = "ADMIN";
 
     /**
-     * The filtered document is a pure function of a classpath resource, so it
-     * is computed once. Volatile + a benign double computation under a race is
-     * enough: two threads would produce the same string.
+     * Volatile + a benign double computation under a race is enough: two threads would produce the
+     * same string.
      */
     private volatile String documentoFiltrado;
 
@@ -103,15 +78,8 @@ public class OpenApiDocumentController {
     }
 
     /**
-     * Drops every {@code x-access: ADMIN} operation. A path left with no
-     * operation at all is dropped whole rather than served as an empty object:
-     * an empty path item still names the route, which is the very thing being
-     * withheld.
-     *
-     * <p>{@code info}, {@code servers}, {@code security}, {@code tags} and
-     * {@code components} are untouched. A tag that ends up with no operation
-     * under it is left in the list — it carries no path and no method, and
-     * swagger-ui renders sections from operations, not from the declaration.</p>
+     * A path left with no operation at all is dropped whole rather than served as an empty object:
+     * an empty path item still names the route, which is the very thing being withheld.
      */
     @SuppressWarnings("unchecked")
     static String filtrar(String yamlCrudo) {
@@ -125,11 +93,10 @@ public class OpenApiDocumentController {
         if (documento.get("paths") instanceof Map<?, ?> paths) {
             Map<String, Object> conservados = filtrarPaths((Map<String, Object>) paths);
             documento.put("paths", conservados);
-            // A tag left with no operations still names a surface the reader
-            // cannot reach — `Usuarios`, `Cron`, `DB` and `LLM Agent` are
-            // entirely ADMIN. swagger-ui renders nothing for them, but the
-            // name alone is a hint, so they are dropped rather than served
-            // empty.
+            // A tag left with no operations still names a surface the reader cannot reach —
+            // `Usuarios`, `Cron`, `DB` and `LLM Agent` are entirely ADMIN. swagger-ui renders
+            // nothing for them, but the name alone is a hint, so they are dropped rather than
+            // served empty.
             if (documento.get("tags") instanceof List<?> tags) {
                 documento.put("tags", filtrarTags((List<Object>) tags, tagsEnUso(conservados)));
             }
@@ -163,7 +130,6 @@ public class OpenApiDocumentController {
         return conservados;
     }
 
-    /** Every tag named by an operation that survived filtering. */
     @SuppressWarnings("unchecked")
     private static Set<String> tagsEnUso(Map<String, Object> paths) {
         Set<String> enUso = new LinkedHashSet<>();
@@ -205,10 +171,8 @@ public class OpenApiDocumentController {
         DumperOptions opciones = new DumperOptions();
         opciones.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         opciones.setSplitLines(false);
-        // The response declares charset=UTF-8, so an em dash should stay an em
-        // dash. Without this snakeyaml escapes every non-ASCII character into
-        // a numeric escape inside double quotes — still valid YAML, but this
-        // document is meant to be read.
+        // Without this snakeyaml escapes every non-ASCII character into a numeric escape inside
+        // double quotes — still valid YAML, but this document is meant to be read.
         opciones.setAllowUnicode(true);
         return new Yaml(opciones);
     }

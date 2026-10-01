@@ -41,30 +41,15 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Authentication endpoints: login, refresh, logout, me, password reset.
- *
- * <p>A controller of its own (like {@code CronApiController}): auth has no dependency on the scraper
- * or the catalogue. It gates everything: {@link ar.scraper.security.SecurityConfig} and {@code JwtAuthFilter}
- * gate every {@code /api/*} route through {@link ar.scraper.security.ApiRoutePolicy#TABLE}, which ends
- * in {@code denyAll()}. The browser client ({@code frontend/src/lib/authSession.js}) uses refresh and
- * logout; the CLI re-authenticates from its own {@code .env} and never holds a refresh token.</p>
- *
- * <p>Every login failure looks identical (unknown username, wrong password, disabled account, malformed
- * body): distinguishing them would make the endpoint an oracle for which usernames exist. Timing too:
- * an unknown username is verified against a fixed decoy hash so "no such user" costs the same Argon2id
- * work as "wrong password" (the gap was ~22 ms, measurable over a LAN; see {@code PasswordHasher}).</p>
- */
+/** Authentication endpoints: login, refresh, logout, me, password reset. */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthEndpoints {
 
     private static final Logger LOG = LoggerFactory.getLogger(AuthEndpoints.class);
 
-    /** Header carrying the double-submit nonce. See {@link RefreshTokenService#rotar}. */
     public static final String CSRF_HEADER = "X-Refresh-CSRF";
 
-    /** {@code Sec-Fetch-Site} values a nonce-less bootstrap refresh trusts. See {@link #esBootstrapAdmitido}. */
     private static final Set<String> SEC_FETCH_SITE_CONFIABLE = Set.of("same-origin", "same-site");
 
     private final UsuarioRepository usuarios;
@@ -76,12 +61,14 @@ public class AuthEndpoints {
     /** Absent in @WebMvcTest slices that do not register it: no throttle there. */
     private final LoginRateLimiter limiteLogin;
 
-    /** A real Argon2id hash of a value nobody knows, verified against when the account does not exist. */
+    /**
+     * A real Argon2id hash of a value nobody knows, verified against when the account does not
+     * exist.
+     */
     private final String hashSenuelo;
 
     /**
-     * The sole Spring-managed constructor (SpringWiringTest enforces one {@code @Autowired} constructor
-     * per bean). {@code AllowedOrigins} arrives via {@link ObjectProvider} because several older
+     * {@code AllowedOrigins} arrives via {@link ObjectProvider} because several older
      * {@code @WebMvcTest} slices register no such bean; absent means "never admit" in
      * {@link #esBootstrapAdmitido}.
      */
@@ -103,7 +90,10 @@ public class AuthEndpoints {
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
-    /** Plain-Java overload for tests that predate the bootstrap-CSRF check; with no allow-list a nonce-less refresh is never admitted. */
+    /**
+     * Plain-Java overload for tests that predate the bootstrap-CSRF check; with no allow-list a
+     * nonce-less refresh is never admitted.
+     */
     public AuthEndpoints(UsuarioRepository usuarios,
                          PasswordHasher hasher,
                          TokenService tokens,
@@ -125,7 +115,6 @@ public class AuthEndpoints {
         String password = body == null ? null : body.get("password");
 
         if (StringUtils.isBlank(username) || StringUtils.isEmpty(password)) {
-            // Still pay the verification cost: an instant reply to an empty body is a smaller oracle.
             hasher.verify("", hashSenuelo);
             throw rechazar();
         }
@@ -137,14 +126,13 @@ public class AuthEndpoints {
 
         Optional<UsuarioRepository.Cuenta> cuenta = usuarios.buscarActivaPorUsername(username);
 
-        // The lookup already excludes activo = FALSE, so a disabled account is indistinguishable
-        // from an unknown one by construction.
         String hashGuardado = cuenta.map(UsuarioRepository.Cuenta::passwordHash).orElse(hashSenuelo);
         boolean coincide = hasher.verify(password, hashGuardado);
 
         if (cuenta.isEmpty() || !coincide) {
             LOG.info("[AUTH] login rechazado para '{}'", username);
-            // Counted whether or not the account exists: counting only real ones would make the 429 an oracle.
+            // Counted whether or not the account exists: counting only real ones would make the 429
+            // an oracle.
             if (limiteLogin != null) limiteLogin.registrarFallo(username);
             throw rechazar();
         }
@@ -153,7 +141,6 @@ public class AuthEndpoints {
         if (limiteLogin != null) limiteLogin.limpiarCuenta(username);
         AuthDtos.Token resp = cuerpoDeAcceso(tokens.emitir(usuario.id()));
 
-        // A service account gets no rotating session: the CLI re-authenticates from .env.
         Optional<RefreshTokenService.Sesion> sesion =
                 sesiones.abrirSiCorresponde(usuario.id(), usuario.esServicio());
         if (sesion.isEmpty()) {
@@ -163,10 +150,9 @@ public class AuthEndpoints {
     }
 
     /**
-     * Rotates the session. The refresh token arrives only as a cookie and the nonce only as a header:
-     * that split is the CSRF defence (a cross-site page can make the browser send the cookie, not set a
-     * custom header). A cold page load holds no nonce, so {@link #esBootstrapAdmitido} decides from
-     * {@code Origin} and {@code Sec-Fetch-Site} alone whether its absence is forgiven.
+     * The refresh token arrives only as a cookie and the nonce only as a header: that split is the
+     * CSRF defence (a cross-site page can make the browser send the cookie, not set a custom
+     * header).
      */
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthDtos.Token>> refresh(
@@ -188,7 +174,8 @@ public class AuthEndpoints {
             throw error(403, "csrf_invalido", "Falta o no coincide el nonce de refresco");
         }
         if (resultado instanceof RefreshTokenService.ReusoDetectado) {
-            // The family is already revoked; clearing the cookie stops the browser re-presenting a dead token.
+            // The family is already revoked; clearing the cookie stops the browser re-presenting a
+            // dead token.
             throw error(401, "sesion_invalidada",
                     "La sesión fue invalidada por reuso del token. Volvé a iniciar sesión.")
                     .withHeader(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString());
@@ -197,17 +184,15 @@ public class AuthEndpoints {
                 .withHeader(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString());
     }
 
-    /** Plain-Java overload for tests that predate the bootstrap headers; without them the bootstrap is never admitted. */
+    /**
+     * Plain-Java overload for tests that predate the bootstrap headers; without them the bootstrap
+     * is never admitted.
+     */
     public ResponseEntity<ApiResponse<AuthDtos.Token>> refresh(String refreshToken, String nonce) {
         return refresh(refreshToken, nonce, null, null);
     }
 
-    /**
-     * Admits a nonce-less refresh only when BOTH hold: {@code Origin} is an exact match (port included)
-     * of a configured allow-listed origin, and {@code Sec-Fetch-Site} is {@code same-origin} or
-     * {@code same-site}. Either header missing fails closed. {@code Sec-Fetch-Site} alone cannot tell a
-     * legitimate cross-origin deployment from a foreign localhost port, so {@code Origin} carries the weight.
-     */
+    /** Admits a nonce-less refresh only when BOTH hold: Either header missing fails closed. */
     private boolean esBootstrapAdmitido(String origin, String secFetchSite) {
         if (allowedOrigins == null) {
             return false;
@@ -222,8 +207,7 @@ public class AuthEndpoints {
     }
 
     /**
-     * Who the caller is. Reached only after the chain required an authenticated subject; JwtAuthFilter
-     * already read username and roles for this request, so this adds no query. {@code roles} is an array
+     * Reached only after the chain required an authenticated subject; {@code roles} is an array
      * because {@code usuario_rol} admits more than one.
      */
     @GetMapping("/me")
@@ -240,9 +224,10 @@ public class AuthEndpoints {
     }
 
     /**
-     * Logout is {@code DELETE /api/auth/refresh} because the cookie's Path is {@code /api/auth/refresh}:
-     * on any other path the browser would not send it and the server could not tell which family to
-     * revoke, clearing the browser copy while leaving the session alive.
+     * Logout is {@code DELETE /api/auth/refresh} because the cookie's Path is
+     * {@code /api/auth/refresh}: on any other path the browser would not send it and the server
+     * could not tell which family to revoke, clearing the browser copy while leaving the session
+     * alive.
      */
     @DeleteMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthDtos.Logout>> logout(
@@ -251,7 +236,8 @@ public class AuthEndpoints {
 
         boolean cerrada = sesiones.cerrar(refreshToken, nonce);
 
-        // The cookie is cleared either way: a caller holding an unrecognised token still wants it gone.
+        // The cookie is cleared either way: a caller holding an unrecognised token still wants it
+        // gone.
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString())
                 .body(ApiResponse.ok(new AuthDtos.Logout(cerrada)));
@@ -290,7 +276,9 @@ public class AuthEndpoints {
         return new AuthDtos.Token(accessToken, "Bearer", TokenService.TTL.toSeconds(), null);
     }
 
-    /** The refresh token goes in the cookie and NEVER in the body; the nonce goes in the body only. */
+    /**
+     * The refresh token goes in the cookie and NEVER in the body; the nonce goes in the body only.
+     */
     private static ResponseEntity<ApiResponse<AuthDtos.Token>> conSesion(AuthDtos.Token resp,
                                                                         RefreshTokenService.Sesion sesion) {
         resp.setCsrfNonce(sesion.csrfNonce());

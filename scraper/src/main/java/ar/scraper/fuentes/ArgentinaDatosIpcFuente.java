@@ -12,9 +12,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-// The source publishes the monthly RATE (%), from 1943. Compounding all of it
-// overflows NUMERIC(14,4) by 1984 (verified 2026-09-18: 1.1e10), and the whole
-// batch aborts. The level is anchored where INDEC's national CPI is: Dec 2016 = 100.
+// Compounding all of it overflows NUMERIC(14,4) by 1984 (verified 2026-09-18: 1.1e10), and the
+// whole batch aborts.
 @Component
 class ArgentinaDatosIpcFuente implements FuenteIndicePort {
 

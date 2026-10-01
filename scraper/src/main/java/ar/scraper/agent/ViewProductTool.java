@@ -8,12 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
-/**
- * {@code view_product(url)} — returns a product's CURRENT
- * categoria/subCategoria/genero/marca as stored in the last aggregated
- * catalog snapshot (llm-catalog-nlp, task 3.3/3.4). Unknown url → {@code
- * is_error} (Safeguard A), never a fabricated/empty result.
- */
+/** Unknown url → {@code is_error}, never a fabricated/empty result. */
 @Component
 public class ViewProductTool implements CatalogTool {
 
@@ -60,9 +55,9 @@ public class ViewProductTool implements CatalogTool {
     }
 
     /**
-     * Shared lookup — also used by {@link ProposeReclassifyTool} and by
-     * {@code AgentController}'s {@code POST /api/agent/apply} server-side
-     * re-validation (the client is never trusted to have validated).
+     * Shared lookup — also used by {@link ProposeReclassifyTool} and by {@code AgentController}'s
+     * {@code POST /api/agent/apply} server-side re-validation (the client is never trusted to have
+     * validated).
      */
     public static Product find(AggregatedResult result, String url) {
         if (result == null || result.productos() == null) return null;

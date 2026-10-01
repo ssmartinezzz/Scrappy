@@ -6,8 +6,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-// ApplicationRunner, not @PostConstruct: DatabaseService owns its own pool, so it is
-// the only hook Spring guarantees to run after Flyway has applied V33.
+// ApplicationRunner, not @PostConstruct:
 @Component
 public class IndiceRefreshRunner implements ApplicationRunner {
 

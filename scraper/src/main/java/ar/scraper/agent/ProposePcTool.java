@@ -23,15 +23,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * {@code propose_pc(presupuesto?, conGpu?, excluir?, gama?)} — runs {@link
- * PcBuilder#armar} over the live snapshot and returns the same JSON shape
- * {@code GET /api/pcs/builder} serves (pc-builder-agent-tool, T2;
- * {@code gama} added in pc-builder-gama T6). Read-only: it never persists
- * anything — saving a build stays in the {@code /pcs} page ({@code
- * POST /api/pcs/save}).
- *
- * <p>{@link PcBuilder} is stateless, so this tool builds its own instead of
- * sharing the bean {@code PcsController} gets.
+ * Read-only: it never persists anything — saving a build stays in the {@code /pcs} page
+ * ({@code POST /api/pcs/save}).
  */
 @Component
 public class ProposePcTool implements CatalogTool {
@@ -211,9 +204,8 @@ public class ProposePcTool implements CatalogTool {
     }
 
     /**
-     * Un piso ausente es {@code null} ("no pedido"); uno presente tiene que
-     * ser un entero positivo. {@link PreferenciasDeArmado} rechaza el 0 a
-     * propósito — un filtro que no filtra no es un pedido.
+     * {@link PreferenciasDeArmado} rechaza el 0 a propósito — un filtro que no filtra no es un
+     * pedido.
      */
     private static Integer enteroPositivo(JsonNode args, String clave) {
         if (!args.hasNonNull(clave)) return null;

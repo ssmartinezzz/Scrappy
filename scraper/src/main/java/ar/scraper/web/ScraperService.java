@@ -49,11 +49,8 @@ public class ScraperService implements CatalogSnapshotPort {
     private static final int TIMEOUT_POR_SITIO_S = 600;
 
     /**
-     * How often the cancellation flag gets a look while waiting for a site.
-     *
-     * <p>Five seconds is the responsiveness of cancel, not a timeout: the site
-     * budget above is untouched. See {@link #esperarResultado} for why this is
-     * NOT the same as shortening the budget.</p>
+     * How often the cancellation flag gets a look while waiting for a site. Five seconds is the
+     * responsiveness of cancel, not a timeout: the site budget above is untouched.
      */
     private static final long POLL_GRANULARIDAD_MS = 5_000;
 
@@ -69,12 +66,9 @@ public class ScraperService implements CatalogSnapshotPort {
     private final AtomicReference<String> statusMsg =
             new AtomicReference<>("Listo");
 
-    // Progreso en tiempo real
     private volatile ProgressData progressData = null;
     private volatile AggregatedResult lastResult = null;
-    // Lo que ven los lectores mientras hay una corrida abierta: la referencia a
-    // lastResult tal como estaba al arrancar, no una copia — AggregatedResult ya
-    // es copy-on-write. Null = no hay corrida, se sirve el vivo.
+    // Null = no hay corrida, se sirve el vivo.
     private volatile AggregatedResult servedResult = null;
     private volatile java.util.Optional<java.time.Instant> cotaDeLectura =
             java.util.Optional.empty();
@@ -82,43 +76,29 @@ public class ScraperService implements CatalogSnapshotPort {
     private volatile boolean forceRetrain = false;
 
     /**
-     * Set by {@code POST /api/scrape/cancel}, cleared when a run starts.
-     *
-     * <p>Deliberately a field on the service and NOT inside {@code RunState},
-     * which the design suggested: {@code RunState} is null whenever the run
-     * bookkeeping failed to open its row, and cancellation must keep working
-     * when the database does not. Cancelling is a safety control; it cannot
-     * depend on accounting.</p>
+     * {@code RunState} is null whenever the run bookkeeping failed to open its row, and
+     * cancellation must keep working when the database does not. Cancelling is a safety control; it
+     * cannot depend on accounting.
      */
     private final java.util.concurrent.atomic.AtomicBoolean cancelado =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /**
-     * Every {@code Playwright} currently alive, so cancelling can close them.
-     *
-     * <p>Not a contingency: measured. Six chromium processes survived
-     * {@code exec.shutdownNow()} flat for six minutes, still parented to the
-     * JVM — a leak, not orphans, in a process that never restarts on a server.
-     * {@code shutdownNow} interrupts threads, and Playwright's transport blocks
-     * on pipe reads that are not guaranteed interruptible, so try-with-resources
-     * never gets to run its close.</p>
+     * Not a contingency: measured. Six chromium processes survived {@code exec.shutdownNow()} flat
+     * for six minutes, still parented to the JVM — a leak, not orphans, in a process that never
+     * restarts on a server.
      */
     private final java.util.Set<Playwright> playwrightsVivos =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    // Lock compartido entre el pipeline de scraping (que muta lastResult desde
-    // un hilo en background, progresivamente y al finalizar) y
-    // recomputarFinanciacion (que hace un read-modify-write sobre lastResult
-    // al activar/editar un preset). Sin este lock, ambos escritores pueden
-    // interlevarse y descartar silenciosamente el catálogo recién scrapeado.
+    // Sin este lock, ambos escritores pueden interlevarse y descartar silenciosamente el catálogo
+    // recién scrapeado.
     private final Object catalogLock = new Object();
 
     private final List<SitioExtra> sitiosExtras = new ArrayList<>();
 
-    // D6's declared dual dependency is gone (extract-ml-persistence-ports): the
-    // ScrapeRun/Sitios/MlOutput calls that kept this class on the facade now each
-    // have a port. SiteRegistry is injected as the @Component it always was,
-    // rather than read back through DatabaseService.siteRegistry().
+    // SiteRegistry is injected as the @Component it always was, rather than read back through
+    // DatabaseService.siteRegistry().
     private final ScrapeRunPort scrapeRun;
     private final SitiosPort sitios;
     private final MlOutputPort mlOutput;
@@ -126,13 +106,6 @@ public class ScraperService implements CatalogSnapshotPort {
     private final ProductPort productos;
     private final TechSpecsIndexer techSpecsIndexer;
 
-    /**
-     * The run currently open, or null when nothing is running.
-     *
-     * <p>Slice 3 adds the cancellation flag to this record; it is deliberately
-     * absent rather than present-and-unused, so nothing can read a field that
-     * no writer sets yet.</p>
-     */
     public record RunState(long runId, java.util.UUID scrapeUuid, java.time.Instant startedAt) {}
 
     private final java.util.concurrent.atomic.AtomicReference<RunState> runState =
@@ -181,7 +154,6 @@ public class ScraperService implements CatalogSnapshotPort {
 
     @PostConstruct
     public void cargarDesdeBD() {
-        // Cargar sitios dinámicos persistidos
         try {
             for (var row : sitios.cargarSitiosDinamicos()) {
                 sitiosExtras.add(new SitioExtra(
@@ -192,11 +164,8 @@ public class ScraperService implements CatalogSnapshotPort {
             LOG.warn("[DB] Error cargando sitios: {}", e.getMessage());
         }
 
-        // scrape-run-persistence-and-resume slice 1: whatever the previous process
-        // left open is closed HERE, and only marked — this never starts a scrape.
-        // Marking is also what keeps the signal single-valued: without it a second
-        // restart finds two runs still claiming to be live and "the interrupted
-        // run" stops naming one thing.
+        // Marking is also what keeps the signal single-valued: without it a second restart finds
+        // two runs still claiming to be live and "the interrupted run" stops naming one thing.
         try {
             var interrumpidos = scrapeRun.marcarInterrumpidosAlArrancar(java.time.Instant.now());
             if (!interrumpidos.isEmpty()) {
@@ -214,13 +183,11 @@ public class ScraperService implements CatalogSnapshotPort {
             LOG.warn("[DB] No se pudo revisar corridas interrumpidas: {}", e.getMessage());
         }
 
-        // Cargar último resultado de scraping
         try {
             List<ar.scraper.model.Product> prods = productos.cargarProductos();
             if (!prods.isEmpty()) {
                 synchronized (catalogLock) { lastResult = aggregator.fromDB(prods); }
                 publicarCambio();
-                // Restaurar ML output
                 com.fasterxml.jackson.databind.JsonNode mlOut = mlOutput.cargarMlOutput();
                 if (mlOut != null) aggregator.setLastMlOutput(mlOut);
                 transition(ScraperStatus.DONE, "Datos restaurados: " + prods.size() + " productos");
@@ -231,14 +198,14 @@ public class ScraperService implements CatalogSnapshotPort {
         }
     }
 
-    /** Bumps on every change to what readers are served; caches derived from the snapshot key on it. */
+    /**
+     * Bumps on every change to what readers are served; caches derived from the snapshot key on it.
+     */
     public long snapshotVersion() { return snapshotVersion.get(); }
 
     /**
      * Must follow every assignment of {@code lastResult} / {@code servedResult}, outside
-     * {@code catalogLock}. It compares what readers are served now with what was last announced,
-     * so writes that do not change the served view (progressive rebuilds during a run, which
-     * readers do not see) announce nothing.
+     * {@code catalogLock}.
      */
     private void publicarCambio() {
         AggregatedResult servido = getLastResult();
@@ -248,7 +215,6 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public record SitioExtra(String nombre, String url, String plataforma) {}
 
-    // ── Estado de progreso por sitio ────────────────────────────────────────
     public enum SitioEstado { ESPERANDO, EN_CURSO, DONE, ERROR }
 
     public record SitioProgress(
@@ -281,12 +247,8 @@ public class ScraperService implements CatalogSnapshotPort {
                         .toList()));
     }
     /**
-     * El catálogo que se le sirve a un lector.
-     *
-     * <p>Durante una corrida es la foto previa: el rearmado progresivo muta
-     * {@code lastResult} sitio por sitio, y sin esto el dashboard ve el catálogo
-     * a medio reconstruir. Lo que el usuario hace él mismo sí llega — los cuatro
-     * caminos de escritura parchean las dos fotos.</p>
+     * Durante una corrida es la foto previa: el rearmado progresivo muta {@code lastResult} sitio
+     * por sitio, y sin esto el dashboard ve el catálogo a medio reconstruir.
      */
     @Override
     public AggregatedResult getLastResult() {
@@ -294,7 +256,6 @@ public class ScraperService implements CatalogSnapshotPort {
         return servido != null ? servido : lastResult;
     }
 
-    /** La cota SQL de aislamiento, o vacía cuando se sirve todo. */
     public java.util.Optional<java.time.Instant> cotaDeLectura() { return cotaDeLectura; }
     public int  getUltimasCategoriasRefinadas()         { return ultimasCategoriasRefinadas; }
     public void setUltimasCategoriasRefinadas(int n)    { ultimasCategoriasRefinadas = n; }
@@ -303,17 +264,16 @@ public class ScraperService implements CatalogSnapshotPort {
     public void clearLastResult() {
         synchronized (catalogLock) {
             this.lastResult = null;
-            // DELETE /api/db/productos. Sin esta línea el lector sigue viendo,
-            // hasta que la corrida termine, un catálogo que ya no existe.
             this.servedResult = null;
         }
         publicarCambio();
     }
 
-    /** Saca un producto del catálogo en memoria tras un soft-delete manual en DB
-     *  (db.marcarDescontinuado ya puso activo=0; /api/data lee de lastResult, no de
-     *  la DB en cada request, así que sin esto el producto seguiría apareciendo
-     *  hasta el próximo scrape/restart). */
+    /**
+     * Saca un producto del catálogo en memoria tras un soft-delete manual en DB
+     * (db.marcarDescontinuado ya puso activo=0; /api/data lee de lastResult, no de la DB en cada
+     * request, así que sin esto el producto seguiría apareciendo hasta el próximo scrape/restart).
+     */
     public void eliminarProductoDeMemoria(String url) {
         synchronized (catalogLock) {
             if (lastResult == null || url == null) return;
@@ -329,7 +289,6 @@ public class ScraperService implements CatalogSnapshotPort {
         publicarCambio();
     }
 
-    /** Misma poda sobre la foto servida, si hay corrida abierta. */
     private static AggregatedResult sinProducto(AggregatedResult foto, String url) {
         if (foto == null) return null;
         List<Product> filtrados = foto.productos().stream()
@@ -339,27 +298,14 @@ public class ScraperService implements CatalogSnapshotPort {
                 foto.facets(), foto.minPrecio(), foto.maxPrecio(), foto.statsPorSitio());
     }
 
-    /** Reemplaza la clasificación de un producto en el catálogo en memoria tras
-     *  una reclasificación confirmada y ya persistida por
-     *  {@code POST /api/agent/apply} (DatabaseService.aplicarReclasificacionAuditada).
-     *  Mismo motivo que {@link #eliminarProductoDeMemoria}: {@code /api/data} y
-     *  {@code /api/mejores} sirven de {@code lastResult}, no de la DB en cada
-     *  request, así que sin esto el cambio no se vería hasta el próximo
-     *  scrape/restart.
-     *
-     *  <p>Un valor nulo o en blanco deja el dato anterior — el endpoint ya aplica
-     *  ese mismo fallback al persistir, así que memoria y DB no divergen. A
-     *  diferencia del soft-delete, acá las facetas SE RECALCULAN: la
-     *  reclasificación mueve al producto entre categorías/marcas y reusar los
-     *  contadores viejos dejaría el filtro del catálogo ofreciendo la categoría
-     *  que el producto ya no tiene. */
     /**
-     * manual-classification-lock Phase 7: {@code rubro} was a pre-existing bug
-     * (obs #773/design finding 4) — this method kept {@code p.rubro()}
-     * unconditionally, so {@code rubro} diverged from a human-set
-     * {@code categoria} the moment {@code POST /api/agent/apply} ran, before
-     * any scrape. Now fill-only like every other patched field: a blank
-     * incoming {@code rubro} preserves the prior value.
+     * {@code /api/data} y {@code /api/mejores} sirven de {@code lastResult}, no de la DB en cada
+     * request, así que sin esto el cambio no se vería hasta el próximo scrape/restart.
+     */
+    /**
+     * {@code rubro} was a pre-existing bug — this method kept {@code p.rubro()} unconditionally, so
+     * {@code rubro} diverged from a human-set {@code categoria} the moment
+     * {@code POST /api/agent/apply} ran, before any scrape.
      */
     public void actualizarProductoEnMemoria(String url, String categoria, String marca,
                                             String genero, String subCategoria, String rubro) {
@@ -396,11 +342,8 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * Test seam — replaces the in-memory catalog directly, without going
-     * through a scrape/fromDB cycle. Package-visible would suffice but this
-     * stays public since {@code ScraperService} has no other test-only hooks
-     * convention to mirror (unlike {@code DatabaseService.initEn}, which is
-     * package-private because its test lives in the same package).
+     * Test seam — replaces the in-memory catalog directly, without going through a scrape/fromDB
+     * cycle.
      */
     public void setLastResultParaTest(AggregatedResult result) {
         synchronized (catalogLock) { this.lastResult = result; }
@@ -408,19 +351,8 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * Synchronously re-runs {@link ar.scraper.ml.FinanciacionEnricher} over the
-     * currently loaded in-memory catalog and replaces it in place — triggered by
-     * preset activate/edit (ADR-5 of financing-buy-signal design). No async
-     * machinery: this is cheap O(n) arithmetic (one inflation read + one VP
-     * calculation per product), unlike {@code MlEnricher}/{@code PythonRunner}
-     * which fork a multi-second Python subprocess.
-     *
-     * <p>Only the {@code productos} list changes — {@code conteoPorSitio},
-     * {@code erroresPorSitio}, {@code facets}, {@code minPrecio}/{@code
-     * maxPrecio} are untouched, since the financing signal does not affect
-     * sitio counts, errors, or price range.</p>
-     *
-     * <p>No-op when no catalog is loaded yet (no scrape/restore has happened).</p>
+     * Synchronously re-runs {@link ar.scraper.ml.FinanciacionEnricher} over the currently loaded
+     * in-memory catalog and replaces it in place — triggered by preset activate/edit.
      */
     public void recomputarFinanciacion(ResultAggregator aggregator) {
         synchronized (catalogLock) {
@@ -448,11 +380,8 @@ public class ScraperService implements CatalogSnapshotPort {
         return sitiosExtras.removeIf(s -> s.nombre().equalsIgnoreCase(nombre));
     }
 
-    // ── Lanzar scraping ─────────────────────────────────────────────────────
     public boolean iniciarScraping(Set<String> sitiosSeleccionados, boolean forceRetrain) {
-        // Con check-then-set entraron dos llamadores el 2026-09-24 11:16:59 y
-        // abrieron las corridas 21 y 22; `runState` sólo puede nombrar una, así
-        // que la 21 quedó RUNNING para siempre.
+        // `runState` sólo puede nombrar una, así que la 21 quedó RUNNING para siempre.
         if (!tomarElTurno()) return false;
         this.forceRetrain = forceRetrain;
         anunciar("Iniciando scrapers...");
@@ -484,13 +413,6 @@ public class ScraperService implements CatalogSnapshotPort {
         ejecutarScraping(sitiosSeleccionados, null);
     }
 
-    /**
-     * @param adoptada cuando no es null, la corrida se RETOMA: no se abre una
-     *                 fila nueva y se conserva su {@code started_at}, que es la
-     *                 cota del lector y el alcance del barrido final. Abrir una
-     *                 corrida nueva haría que las dos nombraran sólo la mitad
-     *                 retomada, y el barrido daría por ausente la primera mitad.
-     */
     private void ejecutarScraping(Set<String> sitiosSeleccionados, RunState adoptada) throws Exception {
         long runStart = System.currentTimeMillis();
         String ts = LocalDateTime.now().format(TS);
@@ -498,9 +420,9 @@ public class ScraperService implements CatalogSnapshotPort {
         List<ScraperConfig.SiteConfig> todos = buildSiteList(sitiosSeleccionados);
         int totalSitios = todos.size();
 
-        // `pendientes` trae `sitio_key` y `buildSiteList` filtra por `nombre`:
-        // si no matchea ninguno, `newFixedThreadPool(0)` tira y la corrida recién
-        // adoptada queda abierta otra vez.
+        // `pendientes` trae `sitio_key` y `buildSiteList` filtra por `nombre`: si no matchea
+        // ninguno, `newFixedThreadPool(0)` tira y la corrida recién adoptada queda abierta otra
+        // vez.
         if (totalSitios == 0) {
             RUN_LOG.warn("[AVISO]   No hay ningún sitio que scrapear ({}). "
                          + "La corrida se cierra sin tocar el catálogo.",
@@ -522,7 +444,6 @@ public class ScraperService implements CatalogSnapshotPort {
             abrirRun(todos);
         }
 
-        // Inicializar progreso
         List<SitioProgress> progSitios = Collections.synchronizedList(new ArrayList<>());
         for (var site : todos) {
             progSitios.add(new SitioProgress(site.nombre(), SitioEstado.ESPERANDO, 0, null, 0));
@@ -538,13 +459,11 @@ public class ScraperService implements CatalogSnapshotPort {
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         ExecutorCompletionService<ScrapeResult> ecs = new ExecutorCompletionService<>(exec);
 
-        // Mapa nombre → índice para actualizar progreso
         Map<String, Integer> idxMap = new LinkedHashMap<>();
         for (int i = 0; i < todos.size(); i++) {
             String nombre = todos.get(i).nombre();
             idxMap.put(nombre, i);
 
-            // Marcar como EN_CURSO al lanzar
             actualizarProgreso(progSitios, i, SitioEstado.EN_CURSO, 0, null, 0);
             registrarSitioEnCurso(nombre);
             progreso(new ProgressData(totalSitios, 0, 0, List.copyOf(progSitios)));
@@ -554,8 +473,8 @@ public class ScraperService implements CatalogSnapshotPort {
             ecs.submit(() -> {
                 try {
                     return withRetry(() -> {
-                        // Registrado ANTES de usarse y sacado en el finally: si
-                        // cancelar llega en el medio, tiene a quién cerrarle.
+                        // Registrado ANTES de usarse y sacado en el finally: si cancelar llega en
+                        // el medio, tiene a quién cerrarle.
                         Playwright pw = Playwright.create();
                         playwrightsVivos.add(pw);
                         try {
@@ -596,8 +515,8 @@ public class ScraperService implements CatalogSnapshotPort {
                     anunciar(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
                     logSitioResult(r);
 
-                    // ── Actualización progresiva ──────────────────────────────
-                    // upsertParcial NO hace soft-delete → todos los sitios acumulan
+                    // ── Actualización progresiva ────────────────────────────── upsertParcial NO
+                    // hace soft-delete → todos los sitios acumulan
                     if (!r.productos().isEmpty()) {
                         try {
                             var normalizados = aggregator.normalizarSolo(r.productos());
@@ -605,9 +524,7 @@ public class ScraperService implements CatalogSnapshotPort {
                             var todosActuales = productos.cargarProductos();
                             if (!todosActuales.isEmpty()) {
                                 // Solo este sitio pudo cambiar algo, así que solo sus URLs
-                                // necesitan re-enriquecerse. Con fromDB completo, cada sitio
-                                // que terminaba volvía a cargar el historial de precios del
-                                // catálogo entero: 23 barridos completos por corrida.
+                                // necesitan re-enriquecerse.
                                 Set<String> urlsDelSitio = normalizados.stream()
                                         .map(Product::url)
                                         .filter(u -> StringUtils.isNotBlank(u))
@@ -626,8 +543,8 @@ public class ScraperService implements CatalogSnapshotPort {
                 });
         exec.shutdownNow();
 
-        // registrarSitioTerminado también acá: sin él, scrape_run_site queda
-        // RUNNING para siempre en una corrida COMPLETED.
+        // registrarSitioTerminado también acá: sin él, scrape_run_site queda RUNNING para siempre
+        // en una corrida COMPLETED.
         if (!cancelado.get()) {
             for (SitioProgress sp : progSitios) {
                 if (sp.estado() == SitioEstado.EN_CURSO || sp.estado() == SitioEstado.ESPERANDO) {
@@ -644,12 +561,9 @@ public class ScraperService implements CatalogSnapshotPort {
         }
 
         if (cancelado.get()) {
-            // `aggregator.agregar` NO corre, y eso es el punto entero. Adentro
-            // vive el soft-delete, que da por ausente todo lo que no vino en
-            // ESTA tanda de resultados — y una corrida cancelada tiene, por
-            // definición, sitios que nunca llegaron a hablar. Agregar acá
-            // desactivaría el catálogo de todos ellos. Cancelar deja el catálogo
-            // exactamente como estaba, que es lo que alguien espera al cancelar.
+            // Adentro vive el soft-delete, que da por ausente todo lo que no vino en ESTA tanda de
+            // resultados — y una corrida cancelada tiene, por definición, sitios que nunca llegaron
+            // a hablar.
             cerrarPlaywrightsHuerfanos();
             cerrarRun("CANCELLED", 0);
             transition(ScraperStatus.DONE, "Cancelado — el catálogo quedó como estaba");
@@ -658,19 +572,16 @@ public class ScraperService implements CatalogSnapshotPort {
             return;
         }
 
-        // ── Agregación ───────────────────────────────────────────────────────
         anunciar("Procesando y agregando resultados...");
-        // Baseline for the yield guard, captured before aggregation overwrites
-        // it. No query needed: cargarDesdeBD() rebuilds this from the database
-        // on startup, so it survives restarts.
+        // Baseline for the yield guard, captured before aggregation overwrites it.
         Map<String, Integer> conteoPrevio = lastResult != null
                 ? lastResult.conteoPorSitio() : Map.of();
         Set<String> sitiosDeEstaCorrida = resultados.stream()
                 .map(ScrapeResult::sitio).collect(Collectors.toSet());
 
-        // El soft-delete se acota al started_at de la corrida, no a este batch:
-        // un resume trae sólo la mitad reanudada (design D4). Sin corrida
-        // persistida el alcance vuelve a derivarse del batch, como antes.
+        // El soft-delete se acota al started_at de la corrida, no a este batch: un resume trae sólo
+        // la mitad reanudada. Sin corrida persistida el alcance vuelve a derivarse del batch, como
+        // antes.
         RunState corrida = runState.get();
         ar.scraper.scrape.CorridaEnCurso enCurso = corrida != null
                 ? new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt())
@@ -682,18 +593,17 @@ public class ScraperService implements CatalogSnapshotPort {
         }
         publicarCambio();
 
-        // Own write path (D11 in pc-builder-gama): a broken parse here can never
-        // take down the run that just aggregated the whole catalog.
+        // Own write path: a broken parse here can never take down the run that just aggregated the
+        // whole catalog.
         try {
             techSpecsIndexer.indexar(lastResult.productos());
         } catch (Exception e) {
             LOG.warn("[TECH-SPECS] No se pudieron indexar las specs de producto: {}", e.getMessage());
         }
 
-        // ── Guardia de rendimiento por sitio ─────────────────────────────────
-        // A broken scraper returns an empty or truncated list without throwing,
-        // so the run reports success either way. Compare each site against its
-        // own previous yield and surface the collapse.
+        // ── Guardia de rendimiento por sitio ───────────────────────────────── A broken scraper
+        // returns an empty or truncated list without throwing, so the run reports success either
+        // way.
         List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
                 conteoPrevio, lastResult.conteoPorSitio(), sitiosDeEstaCorrida);
         if (!alertas.isEmpty()) {
@@ -741,20 +651,7 @@ public class ScraperService implements CatalogSnapshotPort {
         transition(ScraperStatus.DONE, "Completado: " + lastResult.productos().size() + " productos");
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /**
-     * El catálogo entero, no sólo los sitios de esta corrida.
-     *
-     * <p>{@code agregar} sólo conoce los resultados que le pasaron, así que en
-     * una corrida parcial su lista ES el subconjunto: la corrida 22 (5 sitios
-     * tech) cerró con 951 productos sobre 15.907 activos, con {@code 0
-     * desactivados} en la base (2026-09-24).</p>
-     *
-     * <p>Del batch se conservan {@code erroresPorSitio} y {@code statsPorSitio},
-     * que no se derivan de la base. {@code conteoPorSitio} pasa a ser el de
-     * activos, que es contra lo que {@link SiteYieldGuard} ya compara.</p>
-     */
+    /** El catálogo entero, no sólo los sitios de esta corrida. */
     AggregatedResult catalogoEntero(AggregatedResult delBatch) {
         try {
             List<Product> activos = productos.cargarProductos();
@@ -785,12 +682,9 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * La corrida que un proceso muerto dejó abierta, detectada al arrancar.
-     *
-     * <p>Es una BANDERA, no un disparador. Detectar no reanuda: un reinicio que
-     * retomara trabajo solo sería una falla peor que la caída que está
-     * atendiendo — nadie pidió ese scrape, y arrancaría browsers en un servidor
-     * que quizá se reinició justo para dejar de hacerlo.</p>
+     * Detectar no reanuda: un reinicio que retomara trabajo solo sería una falla peor que la caída
+     * que está atendiendo — nadie pidió ese scrape, y arrancaría browsers en un servidor que quizá
+     * se reinició justo para dejar de hacerlo.
      */
     private final java.util.concurrent.atomic.AtomicReference<
             ar.scraper.scrape.CorridaInterrumpida> interrumpida =
@@ -800,20 +694,15 @@ public class ScraperService implements CatalogSnapshotPort {
         return interrumpida.get();
     }
 
-    /**
-     * Retoma la corrida interrumpida: sólo los sitios que faltan.
-     *
-     * @return false si no hay nada que retomar o ya hay un scrape corriendo
-     */
+    /** Retoma la corrida interrumpida: sólo los sitios que faltan.. */
     public boolean reanudar() {
         var det = interrumpida.get();
         if (det == null) return false;
         if (!tomarElTurno()) return false;
 
         try {
-            // Un sitio puede haber salido del registro entre la caída y el
-            // reinicio. Se marca SKIPPED y se NOMBRA: desaparecer en silencio de
-            // una corrida que lo debía es peor que no retomarlo.
+            // Se marca SKIPPED y se NOMBRA: desaparecer en silencio de una corrida que lo debía es
+            // peor que no retomarlo.
             List<String> nombresActuales = buildSiteList(null).stream()
                     .map(ScraperConfig.SiteConfig::nombre).toList();
             scrapeRun.marcarAusentesDelRegistro(det.runId(), nombresActuales);
@@ -849,11 +738,7 @@ public class ScraperService implements CatalogSnapshotPort {
         }
     }
 
-    /**
-     * Cierra como CANCELLED toda corrida interrumpida, sin scrapear ni tocar el
-     * catálogo. {@code cancelar()} no sirve para esto: exige {@code RUNNING}, que
-     * es justo lo que una corrida interrumpida no está.
-     */
+    /** Cierra como CANCELLED toda corrida interrumpida, sin scrapear ni tocar el catálogo. */
     public int descartarInterrumpidas() {
         try {
             List<Long> cerradas = scrapeRun.descartarInterrumpidas(java.time.Instant.now());
@@ -869,22 +754,8 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * El caso que se olvida: la caída fue DESPUÉS de que todos los sitios
-     * terminaron, durante la pasada de ML/agregación. Re-scrapear acá es trabajo
-     * puro perdido — lo único que quedó debiendo es el barrido final.
-     *
-     * <p>Se llama a {@code upsertProductos} con lista VACÍA y el
-     * {@code started_at} de la corrida: con una cota presente el alcance del
-     * barrido se deriva de la base ({@code touched_at >= started_at}), no del
-     * batch, así que una lista vacía barre exactamente lo que la corrida vio en
-     * sus dos mitades. Y se reconstruye {@code lastResult} desde la base en vez
-     * de dejar que {@code agregar} lo arme con un batch vacío, que lo dejaría
-     * VACÍO — o sea, borraría el catálogo en memoria.</p>
-     *
-     * <p><b>Lo que esto NO hace</b>: no vuelve a correr el pipeline de ML. Esa
-     * mitad se recupera sola en la próxima corrida normal. Lo que no se puede
-     * postergar es el barrido: sin él, los productos ausentes quedan activos
-     * para siempre.</p>
+     * El caso que se olvida: la caída fue DESPUÉS de que todos los sitios terminaron, durante la
+     * pasada de ML/agregación. Lo que esto NO hace: no vuelve a correr el pipeline de ML.
      */
     private void soloPasadaFinal(RunState corrida) {
         try {
@@ -907,11 +778,7 @@ public class ScraperService implements CatalogSnapshotPort {
         }
     }
 
-    /**
-     * Asks the running scrape to stop. Idempotent; a no-op when nothing runs.
-     *
-     * @return false when there was nothing to cancel
-     */
+    /** Idempotent; a no-op when nothing runs.. */
     public boolean cancelar() {
         if (status.get() != ScraperStatus.RUNNING) return false;
         cancelado.set(true);
@@ -923,11 +790,9 @@ public class ScraperService implements CatalogSnapshotPort {
     public boolean estaCancelado() { return cancelado.get(); }
 
     /**
-     * Closes whatever browsers outlived the executor.
-     *
-     * <p>The count is logged rather than assumed: this is the one place that can
-     * tell us whether the interrupt-based teardown ever starts working, and a
-     * silent close would hide both the leak and its eventual fix.</p>
+     * The count is logged rather than assumed: this is the one place that can tell us whether the
+     * interrupt-based teardown ever starts working, and a silent close would hide both the leak and
+     * its eventual fix.
      */
     private void cerrarPlaywrightsHuerfanos() {
         int sobrevivientes = playwrightsVivos.size();
@@ -947,15 +812,8 @@ public class ScraperService implements CatalogSnapshotPort {
         playwrightsVivos.clear();
     }
 
-    // ── Bookkeeping de la corrida (V29) ─────────────────────────────────────
-    //
-    // Las cuatro tragan su excepción a propósito. Registrar una corrida es
-    // contabilidad: que la contabilidad falle no puede abortar un scrape que
-    // por lo demás anda. La consecuencia se acepta explícitamente — si `abrirRun`
-    // falla, `runState` queda en null y las otras tres no hacen nada, así que
-    // esa corrida no queda registrada en vez de quedar registrada a medias.
-    // Media fila es peor que ninguna: la detección de interrumpidos la leería
-    // como una corrida viva que nadie va a cerrar nunca.
+    // Registrar una corrida es contabilidad: que la contabilidad falle no puede abortar un scrape
+    // que por lo demás anda.
 
     void abrirRun(List<ScraperConfig.SiteConfig> sitios) {
         try {
@@ -963,10 +821,9 @@ public class ScraperService implements CatalogSnapshotPort {
             java.time.Instant arranque = java.time.Instant.now();
             List<String> nombres = sitios.stream().map(ScraperConfig.SiteConfig::nombre).toList();
             long runId = scrapeRun.crear(uuid, arranque, null, null, nombres);
-            // El started_at que vale es el que quedó EN LA BASE, no el que mandamos:
-            // el repositorio lo trunca al segundo para que la cota de aislamiento
-            // case con la resolución de `touched_at`. Leerlo de vuelta evita que
-            // este objeto y la fila digan cosas distintas.
+            // El started_at que vale es el que quedó EN LA BASE, no el que mandamos: el repositorio
+            // lo trunca al segundo para que la cota de aislamiento case con la resolución de
+            // `touched_at`.
             java.time.Instant persistido = scrapeRun.startedAtDe(runId).orElse(arranque);
             adoptarCorrida(new RunState(runId, uuid, persistido));
             LOG.info("[RUN] corrida {} abierta con {} sitios", runId, nombres.size());
@@ -978,17 +835,8 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * El ÚNICO lugar donde una corrida pasa a ser la corrida en curso.
-     *
-     * <p>Son tres los caminos que abren una: la normal, la retomada, y la que
-     * sólo debe el barrido final. Entran los tres por acá porque de la apertura
-     * cuelga el aislamiento del lector, y tres {@code runState.set()} sueltos
-     * dejarían a dos de ellos sirviendo un catálogo a medio rearmar — justo en
-     * el escenario donde más importa, porque una retoma corre sobre un catálogo
-     * que ya quedó a medias.</p>
-     *
-     * <p>Adoptar la corrida y aislar al lector son <b>una sola operación</b>, no
-     * dos que hay que acordarse de llamar juntas.</p>
+     * Son tres los caminos que abren una: la normal, la retomada, y la que sólo debe el barrido
+     * final.
      */
     private void adoptarCorrida(RunState corrida) {
         runState.set(corrida);
@@ -996,22 +844,17 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * Congela lo que se sirve y arma la cota SQL, las dos mitades del mismo
-     * aislamiento (slice 4).
-     *
-     * <p>La cota se suprime hasta que exista una corrida COMPLETED: puesta antes
-     * de eso, nada cumple {@code touched_at < started_at} y la primera corrida de
-     * una instalación nueva sirve una pantalla vacía. La foto en memoria no
-     * necesita ese guard porque degrada sola — sin catálogo previo queda null y
-     * el lector cae al vivo, que es justamente ver el progreso.</p>
+     * La cota se suprime hasta que exista una corrida COMPLETED: puesta antes de eso, nada cumple
+     * {@code touched_at < started_at} y la primera corrida de una instalación nueva sirve una
+     * pantalla vacía.
      */
     private void aislarLectores(java.time.Instant arranque) {
         boolean hayCorridaCompletada;
         try {
             hayCorridaCompletada = scrapeRun.existeCorridaCompletada();
         } catch (Exception e) {
-            // Sin respuesta no se aísla: servir de más es recuperable, servir una
-            // pantalla vacía por un error de contabilidad no.
+            // Sin respuesta no se aísla: servir de más es recuperable, servir una pantalla vacía
+            // por un error de contabilidad no.
             hayCorridaCompletada = false;
             LOG.warn("[RUN] no se pudo resolver la cota de lectura, se sirve todo: {}",
                     e.getMessage());
@@ -1056,8 +899,8 @@ public class ScraperService implements CatalogSnapshotPort {
 
     void cerrarRun(String status, int productos) {
         RunState estado = runState.getAndSet(null);
-        // Antes del early-return: si la contabilidad falló a mitad, el aislamiento
-        // igual tiene que soltarse o el lector queda congelado para siempre.
+        // Antes del early-return: si la contabilidad falló a mitad, el aislamiento igual tiene que
+        // soltarse o el lector queda congelado para siempre.
         liberarLectores();
         if (estado == null) return;
         try {
@@ -1107,45 +950,23 @@ public class ScraperService implements CatalogSnapshotPort {
         if (s == null) return ""; return s.length() <= max ? s : s.substring(0, max) + "...";
     }
 
-    // ── Retry ────────────────────────────────────────────────────────────────
-
     /**
-     * Executes {@code task} up to {@code maxAttempts} times, sleeping
-     * {@code baseDelayMs * attemptNumber} milliseconds between failures.
-     * Re-throws {@link InterruptedException} immediately to preserve thread
-     * interrupt semantics. On exhaustion returns a {@link ScrapeResult} with
-     * an empty products list and the last exception message as the error field.
-     *
-     * <p>Package-private so {@code ScraperServiceRetryTest} (same package) can
-     * call it directly without exposing it as a public API.</p>
+     * Re-throws {@link InterruptedException} immediately to preserve thread interrupt semantics.
+     * Package-private so {@code ScraperServiceRetryTest} (same package) can call it directly
+     * without exposing it as a public API.
      */
     /**
-     * Waits for one site result, in short hops against an accumulated deadline.
-     *
-     * <p>The budget is unchanged — still per-site, still
-     * {@code min(TIMEOUT_POR_SITIO_S, global remaining)}. What changes is that
-     * the wait is no longer <b>one</b> blocking {@code poll} of up to ten
-     * minutes, so a cancellation flag is seen within a poll window instead of
-     * whenever the current site happens to finish.</p>
-     *
-     * <p><b>Do not "simplify" this back into a single short poll.</b> An empty
-     * poll returning to the caller makes it {@code continue}, and that
-     * {@code continue} advances the outer per-site loop — so every empty poll
-     * would spend a site's slot. At five seconds a run exhausts all 26 slots in
-     * about 130 seconds and finishes having collected almost nothing while every
-     * site is still working. Empty hops must cost nothing; only the deadline
-     * ends the wait. {@code ScraperServicePollGranularityTest} fixes this.</p>
-     *
-     * @return the completed site, or {@code null} if the budget ran out or the
-     *         run was cancelled — the caller distinguishes them by the flag.
+     * The budget is unchanged — still per-site, still
+     * {@code min(TIMEOUT_POR_SITIO_S, global remaining)}. Do not "simplify" this back into a single
+     * short poll.
      */
     static Future<ScrapeResult> esperarResultado(
             ExecutorCompletionService<ScrapeResult> ecs, long deadlineMs,
             long granularidadMs, java.util.concurrent.atomic.AtomicBoolean cancelado)
             throws InterruptedException {
         while (true) {
-            // Checked BEFORE polling, so a cancel arriving between sites is not
-            // made to sit through a poll window it did not need to.
+            // Checked BEFORE polling, so a cancel arriving between sites is not made to sit through
+            // a poll window it did not need to.
             if (cancelado.get()) return null;
 
             long restanteMs = deadlineMs - System.currentTimeMillis();
@@ -1164,18 +985,9 @@ public class ScraperService implements CatalogSnapshotPort {
     }
 
     /**
-     * Same, but abandons the retries once the run is cancelled.
-     *
-     * <p>This overload exists because cancelling closes surviving
-     * {@code Playwright} instances from the outside, which makes the blocking
-     * call in flight throw — and a retry loop reads a throw as "try again". Each
-     * attempt builds a fresh browser, so without this check <b>cancelling would
-     * open up to two more browsers per site instead of closing them</b>, and the
-     * more sites were in flight the worse it would get.</p>
-     *
-     * <p>The flag is read in two places on purpose: before the first attempt, so
-     * a site whose turn comes after the cancel never launches at all; and after a
-     * failure, so a cancellation arriving mid-attempt does not buy a retry.</p>
+     * Each attempt builds a fresh browser, so without this check cancelling would open up to two
+     * more browsers per site instead of closing them, and the more sites were in flight the worse
+     * it would get.
      */
     static ScrapeResult withRetry(java.util.concurrent.Callable<ScrapeResult> task,
                                   int maxAttempts, long baseDelayMs,
@@ -1212,8 +1024,6 @@ public class ScraperService implements CatalogSnapshotPort {
             super(null, null, false, false);
         }
     }
-
-    // ── CSV ──────────────────────────────────────────────────────────────────
 
     public String generarCsv() throws Exception {
         if (lastResult == null) return "";

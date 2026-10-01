@@ -43,26 +43,7 @@ import javax.sql.DataSource;
 import java.util.*;
 
 /**
- * PostgreSQL persistence layer (decouple-services-postgres, Batch 1).
- *
- * Conexión: pool HikariCP administrado por Spring Boot ({@code DataSource}
- * inyectado), apuntando a {@code DATABASE_URL} (env-only, design D6). Cada
- * método de este servicio toma prestada una conexión del pool por llamada
- * (try-with-resources) — ya NO existe una conexión única compartida de
- * escritura/lectura ni el {@code writeLock}/{@code readLock} que la
- * serializaban: Postgres MVCC permite lectores y escritor conviviendo sin
- * el lock-dance que SQLite necesitaba (design D1). El schema (15 tablas +
- * funciones {@code sp_upsert_run}/{@code sp_soft_delete_ausentes}) lo
- * administra Flyway ({@code db/migration/V1__baseline.sql}) — reemplaza el
- * bootstrap runtime que existía en {@code initEn()}/{@code crearTablas()}/
- * {@code migrarColumna()} (removidos, design D3).
- *
- * Upsert logic (preservada exactamente, ahora ejecutada server-side vía
- * {@code sp_upsert_run}, design D2):
- *   - Producto nuevo  → INSERT + historial
- *   - Precio igual    → UPDATE touched_at solamente
- *   - Precio cambió   → UPDATE precio + INSERT en precio_historico
- *   - No apareció     → soft-delete (activo=false) vía {@code sp_soft_delete_ausentes}
+ * Postgres MVCC permite lectores y escritor conviviendo sin el lock-dance que SQLite necesitaba.
  */
 @Service
 public class DatabaseService {
@@ -127,72 +108,58 @@ public class DatabaseService {
         return rubroResolver;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public FavoritosPort favoritos() {
         return favoritosPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public PresetPort presets() {
         return presetPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public HistorialPort historial() {
         return historialPort;
     }
 
-    /** Port handle for tests that build a consumer by hand, e.g. those that drive a whole run lifecycle. */
     public ScrapeRunPort scrapeRun() {
         return scrapeRunPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public SitiosPort sitios() {
         return sitiosPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public CategoriaStatsPort categoriaStats() {
         return categoriaStatsPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public MlOutputPort mlOutput() {
         return mlOutputPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public CatalogQueryPort catalogQuery() {
         return catalogQueryPort;
     }
 
-    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public ProductPort productos() {
         return productPort;
     }
 
-    /** @see #favoritos() */
     public FeedbackPort feedback() {
         return feedbackPort;
     }
 
-    /** @see #favoritos() */
     public SavedOutfitsPort outfitsGuardados() {
         return savedOutfitsPort;
     }
 
-    /** @see #favoritos() */
     public SavedPcsPort pcsGuardadas() {
         return savedPcsPort;
     }
 
-    /** @see #favoritos() */
     public PreferenciaArmadorPort preferenciaArmador() {
         return preferenciaArmadorPort;
     }
 
-    /** @see #favoritos() */
     public PreciosExternosPort preciosExternos() {
         return preciosExternosPort;
     }
@@ -216,23 +183,17 @@ public class DatabaseService {
     }
 
     /**
-     * Cuenta las filas cacheadas en {@code image_embeddings} (fashion-image-
-     * classification PR6, T6.3/T6.4) — respalda {@code embeddingsCount} en
-     * {@code GET /api/ml/estado} para reportar cobertura del índice visual
-     * frente al total de productos activos.
+     * Cuenta las filas cacheadas en {@code image_embeddings} — respalda {@code embeddingsCount} en
+     * {@code GET /api/ml/estado} para reportar cobertura del índice visual frente al total de
+     * productos activos.
      */
     /**
-     * Cuenta las filas cacheadas en {@code image_embeddings} — respalda
-     * {@code embeddingsCount} en {@code GET /api/ml/estado}.
+     * Cuenta las filas cacheadas en {@code image_embeddings} — respalda {@code embeddingsCount} en
+     * {@code GET /api/ml/estado}.
      */
     public long contarEmbeddings() {
         return productPort.contarEmbeddings();
     }
-
-    // ─── Presets de financiación. Bodies in PresetRepository (backlog A3);
-    // this class keeps the public surface and delegates. The Preset record
-    // lives in ar.scraper.financiacion (extract-preset-historial-ports).
-    // ─────────────────────────────────────────────────────────────────────
 
     public List<Preset> listarPresets() {
         return presetPort.listarPresets();
@@ -242,76 +203,38 @@ public class DatabaseService {
         return presetPort.cargarPresetActivo();
     }
 
-    /**
-     * Crea un preset nuevo, inactivo por defecto. Retorna el id generado, o -1 en
-     * error o si {@code cuotas}/{@code recargoPct} son inválidos (mismo criterio
-     * que {@code FinanciacionCalculator.compute}: cuotas&gt;0 y recargoPct&gt;-100).
-     */
     public int crearPreset(String label, double recargoPct, int cuotas) {
         return presetPort.crearPreset(label, recargoPct, cuotas);
     }
 
-    /**
-     * Edita label/recargoPct/cuotas de un preset existente. No altera su estado activo.
-     * Retorna {@code false} sin persistir si {@code cuotas}/{@code recargoPct} son
-     * inválidos, o si ocurre un error.
-     */
     public boolean editarPreset(int id, String label, double recargoPct, int cuotas) {
         return presetPort.editarPreset(id, label, recargoPct, cuotas);
     }
 
-    /**
-     * Activa el preset {@code id} y desactiva todos los demás, de forma transaccional.
-     * Retorna {@code false} (y revierte la desactivación) si {@code id} no existe.
-     */
+    /** Activa el preset {@code id} y desactiva todos los demás, de forma transaccional. */
     public boolean activarPreset(int id) {
         return presetPort.activarPreset(id);
     }
 
-    /**
-     * Elimina un preset. Si era el ÚNICO restante, recrea el preset ilustrativo
-     * activo; si quedan otros, ninguno se auto-activa.
-     *
-     * @return {@code true} si el {@code id} existía y fue borrado.
-     */
     public boolean eliminarPreset(int id) {
         return presetPort.eliminarPreset(id);
     }
 
-    // ─── Productos: write-path del scrape, lecturas del catálogo y caminos
-    // de clasificación. Bodies in ProductRepository (backlog A3); this class
-    // keeps the public surface and delegates.
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Aplica la lógica de merge al dataset completo de un scraping, delegando
-     * la decisión de "cambió el precio" y el insert/upsert/historial a
-     * {@code sp_upsert_run} (server-side, design D2). Retorna estadísticas:
-     * {nuevos, actualizados, sinCambios, desactivados}.
-     */
     public UpsertStats upsertProductos(List<Product> productos) {
         return productPort.upsertProductos(productos);
     }
 
     /**
-     * Igual, pero acotando el soft-delete a lo que tocó la corrida en lugar de
-     * a este batch (design D4). Un resume trae sólo la mitad reanudada, así que
-     * el alcance derivado del batch deja de barrer los sitios que cubrió la
-     * mitad interrumpida.
-     *
-     * @param runStartedAt el {@code started_at} de la corrida; {@code null}
-     *                     vuelve al alcance derivado del batch.
+     * Igual, pero acotando el soft-delete a lo que tocó la corrida en lugar de a este batch. Un
+     * resume trae sólo la mitad reanudada, así que el alcance derivado del batch deja de barrer los
+     * sitios que cubrió la mitad interrumpida..
      */
     public UpsertStats upsertProductos(List<Product> productos,
                                        ar.scraper.scrape.CorridaEnCurso corrida) {
         return productPort.upsertProductos(productos, corrida);
     }
 
-    /**
-     * Upsert parcial durante scraping progresivo. NUNCA hace soft-delete — solo
-     * inserta/actualiza los productos dados. Columnas visuales excluidas a
-     * propósito (VisualAttrs todavía no está poblado en esta etapa).
-     */
+    /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
     public void upsertParcial(List<Product> productos) {
         productPort.upsertParcial(productos);
     }
@@ -321,27 +244,17 @@ public class DatabaseService {
     }
 
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
-    /**
-     * `/api/data` en SQL (`sql-catalog-filtering`): filtra, ordena y pagina en
-     * la base en vez de barrer el catálogo en memoria en cada request. Los
-     * talles y los badges se filtran contra sus tablas hijas — el motivo por el
-     * que V7 las creó.
-     */
     public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size) {
         return catalogQueryPort.buscar(filtro, orden, page, size);
     }
 
-    /** @param cota the open run's started_at; empty serves the whole catalogue. */
     public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size,
                                       java.util.Optional<java.time.Instant> cota) {
         return catalogQueryPort.buscar(filtro, orden, page, size, cota);
     }
 
-    // ── scrape_run / scrape_run_site (V29) ───────────────────────────────────
-    //
-    // Delegates rather than a getter: ScrapeRunRepository is package-private,
-    // like every other repository here, so `ar.scraper.web` cannot name the
-    // type. The facade is the seam.
+    // Delegates rather than a getter: ScrapeRunRepository is package-private, like every other
+    // repository here, so `ar.scraper.web` cannot name the type.
 
     /** Opens a run and enrolls its sites as PENDING, in one transaction. */
     public long crearScrapeRun(java.util.UUID scrapeUuid, java.time.Instant startedAt,
@@ -364,28 +277,23 @@ public class DatabaseService {
         scrapeRunPort.finalizar(runId, status, productosCount, finishedAt);
     }
 
-    /** Marks whatever the previous process left open. Only marks — never starts a scrape. */
     public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) {
         return scrapeRunPort.marcarInterrumpidosAlArrancar(cuando);
     }
 
-    /** La corrida que dejó abierta un proceso muerto, con sus sitios ya separados. */
     public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida() {
         return scrapeRunPort.ultimaInterrumpida();
     }
 
-    /** Reabre una corrida interrumpida EN SU LUGAR, conservando su started_at. */
     public void reabrirScrapeRun(long runId) {
         scrapeRunPort.reabrir(runId);
     }
 
-    /** Marca SKIPPED los sitios pendientes que ya no están en el registro y los devuelve. */
     public java.util.List<String> marcarSitiosAusentesDelRegistro(
             long runId, java.util.Collection<String> nombresActuales) {
         return scrapeRunPort.marcarAusentesDelRegistro(runId, nombresActuales);
     }
 
-    /** The reader-isolation bound for a run. Truncated to the second — see the repository. */
     public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) {
         return scrapeRunPort.startedAtDe(runId);
     }
@@ -395,23 +303,19 @@ public class DatabaseService {
         return scrapeRunPort.existeCorridaCompletada();
     }
 
-    /** Las facetas del catálogo persistido, un GROUP BY por faceta. */
     public Facets facetasCatalogo() {
         return catalogQueryPort.facetas();
     }
 
-    /** @param cota the open run's started_at; empty counts the whole catalogue. */
     public Facets facetasCatalogo(
             java.util.Optional<java.time.Instant> cota) {
         return catalogQueryPort.facetas(cota);
     }
 
-    /** Rango de precios, conteo por sitio/rubro, gymrat y packs del catálogo persistido. */
     public CatalogResumen resumenCatalogo() {
         return catalogQueryPort.resumen();
     }
 
-    /** @param cota the open run's started_at; empty summarises the whole catalogue. */
     public CatalogResumen resumenCatalogo(java.util.Optional<java.time.Instant> cota) {
         return catalogQueryPort.resumen(cota);
     }
@@ -420,22 +324,17 @@ public class DatabaseService {
         return productPort.obtenerProducto(url);
     }
 
-    /** Producto por su handle corto (`producto_key`, V25). Ver ProductRepository. */
     public java.util.Optional<Product> obtenerProductoPorKey(String key) {
         return productPort.obtenerProductoPorKey(key);
     }
 
     /**
-     * Read-side of the manual classification lock (design D3/D4). One entry
-     * per locked product, keyed by url — {@code ResultAggregator.aplicarBloqueos}
-     * reads this ONCE per {@code agregar} call.
+     * Read-side of the manual classification lock. One entry per locked product, keyed by url —
+     * {@code ResultAggregator.aplicarBloqueos} reads this ONCE per {@code agregar} call.
      */
     public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
         return productPort.cargarClasificacionBloqueada();
     }
-
-    // ─── ML Output. Bodies in MlOutputRepository (backlog A3).
-    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarMlOutput(JsonNode mlOutput) {
         mlOutputPort.guardarMlOutput(mlOutput);
@@ -445,16 +344,9 @@ public class DatabaseService {
         return mlOutputPort.cargarMlOutput();
     }
 
-    // ─── Historial de precios (lecturas). Bodies in HistorialRepository
-    // (backlog A3). Las ESCRITURAS viven en el upsert de productos.
-    // ─────────────────────────────────────────────────────────────────────
-
     public List<Map<String, Object>> cargarHistorial(String url) {
         return historialPort.cargarHistorial(url);
     }
-
-    // ─── Sitios dinámicos. Bodies in SitiosRepository (backlog A3).
-    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarSitio(String nombre, String url, String plataforma) {
         sitiosPort.guardarSitio(nombre, url, plataforma);
@@ -468,9 +360,6 @@ public class DatabaseService {
         return sitiosPort.cargarSitiosDinamicos();
     }
 
-    // ─── Categoria Stats. Bodies in CategoriaStatsRepository (backlog A3).
-    // ─────────────────────────────────────────────────────────────────────
-
     public void guardarCategoriaStats(com.fasterxml.jackson.databind.JsonNode statsNode) {
         categoriaStatsPort.guardarCategoriaStats(statsNode);
     }
@@ -478,9 +367,6 @@ public class DatabaseService {
     public java.util.Map<String, CategoriaStats> cargarCategoriaStats() {
         return categoriaStatsPort.cargarCategoriaStats();
     }
-
-    // ─── Precios externos. Bodies in PreciosExternosRepository (backlog A3).
-    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
@@ -491,20 +377,13 @@ public class DatabaseService {
         return preciosExternosPort.cargarPreciosExternos(productoUrl);
     }
 
-    /**
-     * Actualiza la categoría de un producto (corrección por modelo ML).
-     * Camino de MÁQUINA (design D5): lleva {@code AND bloqueado_por IS NULL},
-     * así un producto bloqueado no pierde su categoría humana-confirmada.
-     */
     public void actualizarCategoria(String url, String nuevaCategoria) {
         productPort.actualizarCategoria(url, nuevaCategoria);
     }
 
     /**
-     * Actualiza categoria/marca/genero/talles de un producto ya persistido sin
-     * re-scrapear (bulk re-normalización). Devuelve el row count real del UPDATE
-     * de clasificación — el llamador lo usa para distinguir "escritura intentada"
-     * de "escritura aplicada". Camino de MÁQUINA: respeta el lock.
+     * Actualiza categoria/marca/genero/talles de un producto ya persistido sin re-scrapear (bulk
+     * re-normalización). Camino de MÁQUINA: respeta el lock.
      */
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
@@ -512,11 +391,8 @@ public class DatabaseService {
     }
 
     /**
-     * Camino auditado de reclasificación humana ({@code POST /api/agent/apply}).
-     * Una sola transacción: el UPDATE de clasificación, el UPDATE de rubro/lock
-     * y el INSERT de auditoría se confirman juntos o ninguno de los tres.
-     * Camino HUMANO: NO lleva el guard del lock — una segunda confirmación debe
-     * poder re-lockear un producto ya bloqueado.
+     * Una sola transacción: el UPDATE de clasificación, el UPDATE de rubro/lock y el INSERT de
+     * auditoría se confirman juntos o ninguno de los tres.
      */
     public boolean aplicarReclasificacionAuditada(String url, String categoria, String marca,
                                                    String genero, List<String> talles, String subCategoria,
@@ -525,13 +401,7 @@ public class DatabaseService {
                 url, categoria, marca, genero, talles, subCategoria, previo, actor);
     }
 
-    // ─── Favoritos. Bodies in FavoritosRepository (backlog A3).
-    //
     // Cada método toma usuario_id PRIMERO y no existe ninguna variante sin él.
-    // Esa ausencia es el diseño: una lectura que ramifica por rol es donde una
-    // fuga aparece tarde o temprano, y un método que no existe no se puede
-    // llamar por error. ADMIN y VIEWER corren el mismo SQL con otro parámetro.
-    // ─────────────────────────────────────────────────────────────────────
 
     public void guardarFavorito(UUID usuarioId, String url, String sitio, String nombre) {
         favoritosPort.guardarFavorito(usuarioId, url, sitio, nombre);
@@ -549,15 +419,6 @@ public class DatabaseService {
         favoritosPort.tocarFavorito(usuarioId, url);
     }
 
-    // ─── Outfit feedback + categoria dismiss. Bodies in FeedbackRepository
-    // (backlog A3). OutfitItemRow vive en ar.scraper.feedback.
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Backward-compat overload: persiste con estilo="gym" (comportamiento previo a
-     * la separación de señal por estilo). Se mantiene para callers/tests que no
-     * distinguen estilo.
-     */
     public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url, boolean liked) {
         guardarOutfitFeedbackItem(usuarioId, genero, slot, url, liked, "gym");
     }
@@ -571,36 +432,24 @@ public class DatabaseService {
         return feedbackPort.obtenerOutfitFeedback(usuarioId);
     }
 
-    /**
-     * Marca una categoria como "no me interesa" feed-wide. Idempotente: si la
-     * categoria ya está dismissed, no inserta una fila duplicada.
-     */
+    /** Idempotente: si la categoria ya está dismissed, no inserta una fila duplicada. */
     public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
         feedbackPort.guardarCategoriaDismiss(usuarioId, categoria);
     }
 
-    /**
-     * Borra TODO el historial de feedback (todos los estilos + tabla legacy).
-     * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
-     */
     public void limpiarOutfitFeedback(UUID usuarioId) {
         feedbackPort.limpiarOutfitFeedback(usuarioId);
     }
 
-    /**
-     * Borra el historial de feedback de UN estilo ("gym" | "casual"). estilo
-     * null/blank → no-op.
-     */
     public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
         feedbackPort.limpiarOutfitFeedback(usuarioId, estilo);
     }
 
-    /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
+    /** Safe no-op si no existía. */
     public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
         feedbackPort.borrarCategoriaDismiss(usuarioId, categoria);
     }
 
-    /** Lee todas las categorias dismissed feed-wide. */
     public Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
         return feedbackPort.obtenerCategoriaDismiss(usuarioId);
     }
@@ -610,20 +459,11 @@ public class DatabaseService {
     }
 
     /**
-     * Live single-URL read of the classification lock (review fix F3,
-     * manual-classification-lock). {@code ResultAggregator.renormalizarCatalogo}
-     * snapshots {@link #cargarClasificacionBloqueada()} once at method entry
-     * for the common case, but that snapshot goes stale the moment a product
-     * is locked via {@code POST /api/agent/apply} mid-run — the loop makes one
-     * sequential round-trip per changed product across the whole catalog, a
-     * realistic window. This lets the caller attribute a 0-row guarded write
-     * to "correctly skipped, now locked" from a FRESH read taken right after
-     * the write attempt, instead of trusting the stale snapshot.
-     */
-    /**
-     * Live single-URL read of the classification lock (review fix F3,
-     * manual-classification-lock) — a FRESH read, not the possibly-stale
-     * {@link #cargarClasificacionBloqueada()} snapshot.
+     * {@code ResultAggregator.renormalizarCatalogo} snapshots
+     * {@link #cargarClasificacionBloqueada()} once at method entry for the common case, but that
+     * snapshot goes stale the moment a product is locked via {@code POST /api/agent/apply} mid-run
+     * — the loop makes one sequential round-trip per changed product across the whole catalog, a
+     * realistic window.
      */
     public boolean estaBloqueado(String url) {
         return productPort.estaBloqueado(url);
@@ -639,18 +479,12 @@ public class DatabaseService {
 
     /**
      * Variante batch de {@link #getHistorialPrecios(String)}: una sola consulta
-     * {@code WHERE url IN (...)}, evitando el patrón N+1 (usado por
-     * {@code SenalEnricher} sobre todo el catálogo).
-     *
-     * @param urls URLs de productos a consultar; URLs vacías/blank son ignoradas
-     * @return mapa url -&gt; historial (orden ascendente por fecha); URLs sin
-     *         historial no aparecen como key
+     * {@code WHERE url IN (...)}, evitando el patrón N+1 (usado por {@code SenalEnricher} sobre
+     * todo el catálogo)..
      */
     public Map<String, List<HistorialEntry>> getHistorialPrecios(List<String> urls) {
         return historialPort.getHistorialPrecios(urls);
     }
-
-    // ─── Clear methods ───────────────────────────────────────────────────────
 
     public void limpiarProductos() {
         productPort.limpiarProductos();
@@ -660,60 +494,43 @@ public class DatabaseService {
         mlOutputPort.limpiarMlOutput();
     }
 
-    // ─── Saved Outfits. Bodies in SavedOutfitsRepository (backlog A3).
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Persiste un outfit generado con su nombre, slots y suplementos en JSON, y el
-     * total estimado. Retorna el id generado, o -1 en error.
-     */
     public int guardarOutfit(UUID usuarioId, String nombre, String slotsJson,
                              String suplementosJson, double total) {
         return savedOutfitsPort.guardarOutfit(usuarioId, nombre, slotsJson, suplementosJson, total);
     }
 
-    /** Retorna todos los outfits guardados, ordenados por created_at DESC. */
     public List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
         return savedOutfitsPort.obtenerOutfitsGuardados(usuarioId);
     }
 
-    /** Elimina un outfit guardado por id. Retorna true si existía. */
+    /** Elimina un outfit guardado por id. */
     public boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
         return savedOutfitsPort.eliminarOutfitGuardado(usuarioId, id);
     }
 
-    /** Renombra un outfit guardado. Retorna true si existía. */
+    /** Renombra un outfit guardado. */
     public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
         return savedOutfitsPort.renombrarOutfit(usuarioId, id, nombre);
     }
 
-    // ─── Saved PCs. Bodies in SavedPcsRepository (saved-pcs-armadores).
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Persiste un build de PC con sus picks. Retorna el id generado, o -1 en error. */
     public int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
                          boolean conGpu, double totalEstimado, Gama gama) {
         return savedPcsPort.guardarPc(usuarioId, nombre, picks, presupuesto, conGpu, totalEstimado, gama);
     }
 
-    /** Retorna todos los PCs guardados, ordenados por created_at DESC. */
     public List<Map<String, Object>> obtenerPcsGuardadas(UUID usuarioId) {
         return savedPcsPort.obtenerPcsGuardadas(usuarioId);
     }
 
-    /** Elimina un PC guardado por id. Retorna true si existía. */
+    /** Elimina un PC guardado por id. */
     public boolean eliminarPcGuardada(UUID usuarioId, int id) {
         return savedPcsPort.eliminarPcGuardada(usuarioId, id);
     }
 
-    /** Renombra un PC guardado. Retorna true si existía. */
+    /** Renombra un PC guardado. */
     public boolean renombrarPc(UUID usuarioId, int id, String nombre) {
         return savedPcsPort.renombrarPc(usuarioId, id, nombre);
     }
-
-    // ─── Cron Jobs + Executions. Bodies behind CronPort (extract-database-ports
-    // F2); this class keeps the public surface and delegates.
-    // ─────────────────────────────────────────────────────────────────────
 
     public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
@@ -721,14 +538,12 @@ public class DatabaseService {
                 forceRetrain, useGpu, cronExpr, enabled, nextRunAt);
     }
 
-    /** Retorna {@code false} sin persistir si {@code id} no existe. */
     public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         return cronPort.updateCronJob(id, name, precioMin, precioMax, sitios,
                 forceRetrain, useGpu, cronExpr, enabled, nextRunAt);
     }
 
-    /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
     public boolean deleteCronJob(long id) {
         return cronPort.deleteCronJob(id);
     }
@@ -741,12 +556,17 @@ public class DatabaseService {
         return cronPort.getCronJob(id);
     }
 
-    /** Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un run. */
+    /**
+     * Actualiza SOLO {@code last_run_at} — usado por {@code CronJobRunner} al disparar/skippear un
+     * run.
+     */
     public boolean touchLastRunAt(long jobId, String lastRunAt) {
         return cronPort.touchLastRunAt(jobId, lastRunAt);
     }
 
-    /** Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll. */
+    /**
+     * Actualiza SOLO {@code next_run_at} — usado por {@code CronSchedulerService} tras cada poll.
+     */
     public boolean updateNextRunAt(long jobId, String nextRunAt) {
         return cronPort.updateNextRunAt(jobId, nextRunAt);
     }

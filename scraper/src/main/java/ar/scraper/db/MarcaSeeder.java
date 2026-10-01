@@ -14,20 +14,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 
 /**
- * close-1nf-and-3nf-foundation extension, Phase 2 (design E4). Re-seeds
- * {@code marca} from {@link BrandExtractor#MARCAS} on every boot
- * (`ON CONFLICT DO NOTHING`) — {@code V21}'s static seed only exists to make
- * the {@code fk_productos_marca} constraint VALID at migrate time; this is
- * what lets a future curated brand be a one-line edit to {@code MARCAS}
- * rather than a new migration ({@code CODE-6}: {@code MARCAS} stays the
- * single owner, this table is its projection).
- *
- * <p>{@code @Order(HIGHEST_PRECEDENCE)}: runs before anything else Spring
- * schedules as a runner, so a brand added to {@code MARCAS} is always seeded
- * before a scrape can reach {@code sp_upsert_run} — the FK's own failure
- * mode, if the seed lagged, is the project's signature silent one: a
- * rejected INSERT inside {@code ProductRepository}'s swallowed-error path
- * reads as {@code "0 nuevos"}, never as an error.</p>
+ * {@code @Order(HIGHEST_PRECEDENCE)}: runs before anything else Spring schedules as a runner, so a
+ * brand added to {@code MARCAS} is always seeded before a scrape can reach {@code sp_upsert_run} —
+ * the FK's own failure mode, if the seed lagged, is the project's signature silent one: a rejected
+ * INSERT inside {@code ProductRepository}'s swallowed-error path reads as {@code "0 nuevos"}, never
+ * as an error.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

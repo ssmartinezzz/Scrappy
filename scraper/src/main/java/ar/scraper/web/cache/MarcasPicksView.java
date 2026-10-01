@@ -9,7 +9,6 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The brand browser and the curated "Mejores picks" per category, computed from a snapshot. */
 final class MarcasPicksView {
 
     private static final int MAX_PICKS_POR_CATEGORIA = 10;
@@ -19,8 +18,6 @@ final class MarcasPicksView {
     private static String safe(String s) { return ProductJson.safe(s); }
 
     static List<MarcasPicksDtos.Marca> marcas(AggregatedResult r, String rubro, String q, String sort) {
-        // BrandExtractor abstains to "" instead of falling back to the site name (V19), so a
-        // non-blank marca is always a real BrandExtractor.MARCAS entry.
         var byMarca = r.productos().stream()
             .filter(p -> StringUtils.isNotBlank(p.marca()))
             .filter(p -> StringUtils.isBlank(rubro)
@@ -46,7 +43,7 @@ final class MarcasPicksView {
 
         List<MarcasPicksDtos.Marca> result = new ArrayList<>();
         entries.stream()
-            .filter(e -> e.getValue().size() >= 2)  // al menos 2 productos por marca
+            .filter(e -> e.getValue().size() >= 2)
             .limit(100)
             .forEach(entry -> {
                 String marca = entry.getKey();
@@ -106,14 +103,12 @@ final class MarcasPicksView {
                 var   prods  = entry.getValue();
                 if (prods.isEmpty()) return;
 
-                // 1. Mejor precio/calidad: menor composite score con imagen
                 Product mejor = prods.stream()
                     .filter(p -> p.ml() != null && StringUtils.isNotBlank(p.imagenUrl()))
                     .min(java.util.Comparator.comparingInt(
                         p -> p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
                     .orElse(prods.get(0));
 
-                // 2. Premium accesible: segmento premium o standard, composite 30-65
                 Product premium = prods.stream()
                     .filter(p -> p.ml() != null
                         && ("premium".equals(p.ml().segment()) || "standard".equals(p.ml().segment()))
@@ -121,13 +116,11 @@ final class MarcasPicksView {
                         && StringUtils.isNotBlank(p.imagenUrl()))
                     .findFirst().orElse(null);
 
-                // 3. Mínimo histórico
                 Product histLow = prods.stream()
                     .filter(p -> p.ml() != null && p.ml().badges() != null
                         && p.ml().badges().contains("all_time_low"))
                     .findFirst().orElse(null);
 
-                // 4. Oferta real
                 Product oferta = prods.stream()
                     .filter(p -> p.ml() != null && p.ml().badges() != null
                         && p.ml().badges().contains("verified_deal"))
@@ -142,8 +135,8 @@ final class MarcasPicksView {
 
                 List<MarcasPicksDtos.Pick> picks = new ArrayList<>();
                 java.util.Set<String> incluidos = new java.util.HashSet<>();
-                // Curated highlights first (they keep their label), then fill with the next
-                // best by scoreP so packs with a good unit price are not shut out of "valor".
+                // Curated highlights first (they keep their label), then fill with the next best by
+                // scoreP so packs with a good unit price are not shut out of "valor".
                 addMejorPickDedup(picks, mejor,   "valor",    "Mejor precio/calidad", incluidos);
                 addMejorPickDedup(picks, premium, "premium",  "Premium accesible",    incluidos);
                 addMejorPickDedup(picks, histLow, "histLow",  "Mínimo histórico",     incluidos);
@@ -164,7 +157,6 @@ final class MarcasPicksView {
         return result;
     }
 
-    /** A product may qualify for several highlights; it is shown once, under the first label. */
     private static void addMejorPickDedup(List<MarcasPicksDtos.Pick> picks,
                                    Product p, String tipo, String label,
                                    java.util.Set<String> incluidos) {

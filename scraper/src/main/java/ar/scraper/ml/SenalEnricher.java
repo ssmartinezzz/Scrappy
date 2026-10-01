@@ -18,18 +18,10 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Precompute step for the buy-signal classification (mirrors
- * {@link MlEnricher}'s shape/pattern). Batch-loads price history for the
- * whole product list in a single DB round-trip (avoiding the N+1 that a
- * per-product {@code getHistorialPrecios(String)} call would cause), resolves
- * a date-range deflator per product via {@link IndiceService} (dates from the
- * product's own historial, index chosen by rubro — D1), then delegates the
- * classification itself to the pure {@link SenalCalculator}.
- *
- * <p>Invoked both from {@code ResultAggregator.agregar} (post-scrape, after
- * {@code upsertProductos} so the latest historial row exists) and from the
- * {@code fromDB} startup/restart path — without the latter, the grid badge
- * would stay empty until the next scrape run.</p>
+ * Batch-loads price history for the whole product list in a single DB round-trip (avoiding the N+1
+ * that a per-product {@code getHistorialPrecios(String)} call would cause), resolves a date-range
+ * deflator per product via {@link IndiceService}, then delegates the classification itself to the
+ * pure {@link SenalCalculator}.
  */
 @Component
 public class SenalEnricher {
@@ -73,10 +65,9 @@ public class SenalEnricher {
     }
 
     /**
-     * The anchor is the same {@code sorted.get(max(0, size-13))} point
-     * {@link SenalCalculator} classifies against (D4: its signature/states
-     * stay unchanged) — but here it resolves that point's DATE, not a
-     * months-ago guess from how many rows happen to exist.
+     * The anchor is the same {@code sorted.get(max(0, size-13))} point {@link SenalCalculator}
+     * classifies against — but here it resolves that point's DATE, not a months-ago guess from how
+     * many rows happen to exist.
      */
     private SenalCompra clasificar(List<HistorialEntry> puntos, String rubro) {
         if (puntos == null || puntos.isEmpty()) return SenalCompra.EMPTY;

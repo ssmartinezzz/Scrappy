@@ -16,22 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Startup check: are there personal rows nobody owns?
- *
- * <p>Belt to the adoption braces. {@code AdminSeeder} claims every ownerless row
- * at startup, so in a healthy installation this finds nothing and says nothing.
- * It exists because of what an ownerless row means <b>now that reads are
- * scoped</b>: {@code WHERE usuario_id = :subject} never matches {@code NULL}, so
- * such a row is invisible to <b>everybody</b> rather than visible to everybody.</p>
- *
- * <p>That is the safe direction to fail in — an invisible row can be adopted and
- * reappears, whereas a leaked one cannot be un-leaked — but from the user's chair
- * it looks exactly like their favourites vanished. A WARN naming the counts and
- * the SQL to fix it turns a mystery into a two-minute job.</p>
- *
- * <p><b>A warning, not a failure.</b> Refusing to start over legacy data would be
- * worse than surfacing it: the rows are invisible, not exposed, and an operator
- * locked out of their own application cannot fix anything.</p>
+ * {@code WHERE usuario_id =:subject} never matches {@code NULL}, so such a row is invisible to
+ * everybody rather than visible to everybody. A warning, not a failure.
  */
 @Component
 @Order(100)   // after AdminSeeder, whose adoption is what should have emptied these

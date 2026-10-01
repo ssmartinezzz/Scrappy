@@ -11,25 +11,15 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Reader for Venex, an osCommerce/ZenCart storefront (confirmed live:
- * {@code products_favorite_listing.php}, {@code account_edit.php},
- * {@code shopping_cart.php} signatures) (design D1).
- *
- * <p>Two-level category discovery: top-level slugs from the homepage nav,
- * then LEAF sub-category slugs from each top category's landing page — the
- * landing page itself shows 12 unrepresentative items and is never treated
- * as a yield source, only as a source of leaf links.</p>
- *
- * <p>Pagination ({@code ?page=N}) stops on EITHER an empty page OR a page
- * whose products were all already seen — confirmed live that Venex does
- * the latter past the true last page (it repeats, never goes empty).</p>
+ * Two-level category discovery: top-level slugs from the homepage nav, then LEAF sub-category slugs
+ * from each top category's landing page — the landing page itself shows 12 unrepresentative items
+ * and is never treated as a yield source, only as a source of leaf links.
  */
 public class OsCommercePage extends BasePage {
 
     private static final Logger log = LoggerFactory.getLogger(OsCommercePage.class);
     private static final int MAX_PAGES = 40;
 
-    /** Non-listing pages that legitimately show up in a flat top-level nav link. */
     private static final Set<String> DENYLIST = Set.of(
             "carrito", "mi-cuenta", "checkout", "login", "registro", "contacto", "productos");
 
@@ -46,8 +36,6 @@ public class OsCommercePage extends BasePage {
         this.precioMin = precioMin;
         this.precioMax = precioMax;
     }
-
-    // ─── Entry point ─────────────────────────────────────────────────────────
 
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
@@ -75,7 +63,6 @@ public class OsCommercePage extends BasePage {
         return result;
     }
 
-    /** Package-private: pagination loop for one leaf category, mocked-Page testable (design D6). */
     List<Product> crawlLeafCategory(String leafUrl, String categoriaHint) {
         List<Product> result = new ArrayList<>();
         Set<String> vistas = new HashSet<>();
@@ -89,9 +76,8 @@ public class OsCommercePage extends BasePage {
                 List<Product> nuevos = pagina.stream()
                         .filter(prod -> vistas.add(prod.url()))
                         .toList();
-                // Se detiene tanto en página vacía como en página 100% repetida
-                // (medido en vivo: Venex nunca devuelve vacío pasado el final
-                // real, repite indefinidamente la última página).
+                // Venex nunca devuelve vacío pasado el final real, repite indefinidamente la última
+                // página).
                 if (nuevos.isEmpty()) break;
                 result.addAll(nuevos);
             } catch (Exception e) {
@@ -103,13 +89,9 @@ public class OsCommercePage extends BasePage {
     }
 
     /**
-     * Pure, package-private. A top category with no discoverable leaves is
-     * NOT skipped — measured live (2026-08-13) that flat categories like
-     * {@code /notebooks} serve products directly (12 on page 1, same
+     * A top category with no discoverable leaves is NOT skipped — measured live (2026-08-13) that
+     * flat categories like {@code /notebooks} serve products directly (12 on page 1, same
      * {@code product-box} shape as any leaf) instead of nesting further.
-     * Skipping them silently dropped every product under every top category
-     * that happens to have no sub-categories — discovered by comparing a
-     * real full-site run's category list against its yield, not by design.
      */
     static List<String> resolveCrawlTargets(String baseUrl, String topSlug, List<String> leafSlugs) {
         String base = baseUrl.replaceAll("/+$", "");
@@ -154,38 +136,17 @@ public class OsCommercePage extends BasePage {
         return sb.toString();
     }
 
-    // ─── Pure, package-private: parsing (design D6) ───────────────────────
-
     /**
-     * One product-box block, keyed by its {@code enhancedClick({...})} JSON —
-     * no external parser dependency (project has no Jsoup).
-     *
-     * <p>Two shapes are possible for the SAME markup and both must match:
-     * the raw HTML the server sends over the wire uses
-     * {@code onclick='enhancedClick({"id":...})'} (single-quoted attribute,
-     * literal double quotes inside the JSON) — but {@code BasePage.navigateTo}
-     * + {@code page.content()} return Chromium's RE-SERIALIZED DOM, not the
-     * raw response body: attributes get normalized to double quotes and the
-     * JSON's inner double quotes become the {@code &quot;} entity —
-     * {@code onclick="enhancedClick({&quot;id&quot;:...})"}. Measured live
-     * against venex.com.ar (2026-08-13): a parser that only recognizes the
-     * single-quoted raw form reads 0 products from the page Playwright
-     * actually sees. {@link #normalizeQuotedEntities} folds both shapes onto
-     * one before matching, instead of maintaining two regex sets.</p>
+     * Two shapes are possible for the SAME markup and both must match: the raw HTML the server
+     * sends over the wire uses {@code onclick='enhancedClick({"id":...})'} (single-quoted
+     * attribute, literal double quotes inside the JSON) — but {@code BasePage.navigateTo} +
+     * {@code page.content()} return Chromium's RE-SERIALIZED DOM, not the raw response body:
+     * attributes get normalized to double quotes and the JSON's inner double quotes become the
+     * {@code &quot;} entity — {@code onclick="enhancedClick({&quot;id&quot;:...})"}.
      */
     /**
-     * Captures the whole {@code enhancedClick({...})} argument so Jackson can
-     * read it, instead of picking fields out with a regex per field.
-     *
-     * <p>That field-by-field form is what shipped first, and it lost 41% of the
-     * catalog: {@code "name":"([^"]*)"} cannot survive the escaped inch mark
-     * Venex embeds in almost every notebook and monitor name
-     * ({@code 15.6\"}) — the character class stops at the backslash, the match
-     * fails, and the card was skipped by a bare {@code continue} that never
-     * reached a log. Measured live on {@code /notebooks/} (2026-08-15): 99
-     * cards on the page, 58 parsed, 41 dropped in silence. The argument IS a
-     * JSON object, so the parser that already knows every escape rule should be
-     * the one reading it.</p>
+     * Captures the whole {@code enhancedClick({...})} argument so Jackson can read it, instead of
+     * picking fields out with a regex per field.
      */
     private static final java.util.regex.Pattern ENHANCED_CLICK_ARG = java.util.regex.Pattern.compile(
             "enhancedClick\\((\\{.*?\\})\\)");
@@ -195,7 +156,6 @@ public class OsCommercePage extends BasePage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Folds Chromium's re-serialized-DOM entity form onto the raw-HTML form. */
     private static String normalizeQuotedEntities(String html) {
         return html.replace("&quot;", "\"").replace("&#39;", "'").replace("&apos;", "'");
     }
@@ -244,8 +204,6 @@ public class OsCommercePage extends BasePage {
 
             String categoria = !categoriaJson.isBlank() ? categoriaJson : categoriaHint;
 
-            // Venex no expone un precio tachado/anterior en el listado (CODE-5:
-            // sin señal -> null, nunca inventado).
             result.add(new Product(
                     sitio, nombre, precio, null,
                     url, img, categoria, "",

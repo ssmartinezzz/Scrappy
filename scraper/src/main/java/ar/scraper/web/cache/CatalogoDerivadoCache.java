@@ -11,17 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Views derived from the in-memory snapshot, cached per snapshot version.
- *
- * <p>Only anonymous, catalog-wide views belong here. Anything that reads the authenticated user
- * ({@code Sujeto}/{@code ActorResolver}: recommendations, outfits, PCs, supplements, favoritos) must
- * never be cached, or one user's answer is served to another.
- *
- * <p>A separate bean on purpose: the {@code *Endpoints} helpers are built with {@code new}, so
- * annotations on them do nothing, and a self-invocation would bypass the proxy. Callers read the
- * version BEFORE calling, so an entry is never staler than its key.
- */
+/** Views derived from the in-memory snapshot, cached per snapshot version. */
 @Component
 public class CatalogoDerivadoCache {
 
@@ -44,9 +34,9 @@ public class CatalogoDerivadoCache {
     }
 
     /**
-     * The grouped catalog BEFORE the {@code sitio} filter and paging. Empty when there is no
-     * snapshot: {@code sync=true} forbids {@code unless}, and the entry cannot outlive the
-     * snapshot it was keyed under because loading one bumps the version.
+     * The grouped catalog BEFORE the {@code sitio} filter and paging. {@code sync=true} forbids
+     * {@code unless}, and the entry cannot outlive the snapshot it was keyed under because loading
+     * one bumps the version.
      */
     @Cacheable(cacheNames = CacheNames.GRUPOS, key = "#k", sync = true)
     public List<ProductGroup> grupos(GruposKey k) {
@@ -77,7 +67,6 @@ public class CatalogoDerivadoCache {
         }
     }
 
-    /** Brands with at least two products, at most 100. Empty when there is no snapshot. */
     @Cacheable(cacheNames = CacheNames.MARCAS, key = "#k", sync = true)
     public List<MarcasPicksDtos.Marca> marcas(MarcasKey k) {
         var r = snapshot.getLastResult();
@@ -85,7 +74,6 @@ public class CatalogoDerivadoCache {
         return List.copyOf(MarcasPicksView.marcas(r, k.rubro(), k.q(), k.sort()));
     }
 
-    /** Curated picks for the 40 largest categories. Empty when there is no snapshot. */
     @Cacheable(cacheNames = CacheNames.MEJORES, key = "#k", sync = true)
     public List<MarcasPicksDtos.MejoresCategoria> mejores(MejoresKey k) {
         var r = snapshot.getLastResult();

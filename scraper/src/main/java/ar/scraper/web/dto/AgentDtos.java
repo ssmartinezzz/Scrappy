@@ -7,7 +7,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the catalog agent endpoints (the chat reply itself is {@code AgentChatResponse}). */
 public final class AgentDtos {
 
     private AgentDtos() {}

@@ -26,34 +26,9 @@ import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Persistence for {@code scrape_run} and {@code scrape_run_site} (V29).
- *
- * <p>A run is an addressable entity that outlives the process that started it.
- * Three later slices read what this class writes: {@code started_at} is the
- * reader-isolation bound, the site rows are the authoritative site set for a
- * resume, and a row left {@code RUNNING} with no {@code finished_at} is how a
- * crash is detected on the next boot.</p>
- *
- * <h2>Two things here are deliberate and easy to "clean up" into bugs</h2>
- *
- * <p><b>The site key is normalized in SQL, never in Java.</b> There are already
- * two copies of that normalization — {@code SiteClassification.sitioKey()} and
- * the expression in {@code R__sp_upsert_run.sql:97} — and they are not
- * equivalent: Java lowercases and then filters against {@code [a-z0-9]}, the
- * SQL filters against {@code [a-zA-Z0-9]} and then lowercases. Under a Turkish
- * locale {@code "INPRO".toLowerCase()} is {@code "ınpro"} (dotless i), which
- * fails the Java filter, so Java yields {@code npro} where SQL yields
- * {@code inpro}. Using the SQL expression here does not merely avoid a third
- * copy: it makes it structurally impossible for
- * {@code scrape_run_site.sitio_key} to disagree with
- * {@code productos.sitio_key}, whatever locale the JVM runs under.</p>
- *
- * <p><b>The site rows need a get-or-create.</b> {@code V23}'s FK on
- * {@code productos} only survives because {@code sp_upsert_run} seeds
- * {@code sitio} before inserting the product that references it. These rows go
- * in at run <i>start</i>, before any scraping, so that seeding has not run yet
- * — a site added through {@code /api/sitios} and never scraped would make the
- * run fail to start at all.</p>
+ * {@code started_at} is the reader-isolation bound, the site rows are the authoritative site set
+ * for a resume, and a row left {@code RUNNING} with no {@code finished_at} is how a crash is
+ * detected on the next boot.
  */
 @Repository
 class ScrapeRunRepository implements ScrapeRunPort {
@@ -62,9 +37,7 @@ class ScrapeRunRepository implements ScrapeRunPort {
 
     /**
      * The one spelling of the site-key normalization, byte-identical to
-     * {@code R__sp_upsert_run.sql:97} and to {@code productos.sitio_key}'s
-     * generation expression. Never re-implement this in Java — see the class
-     * javadoc for what the two existing copies disagree about.
+     * {@code R__sp_upsert_run.sql:97} and to {@code productos.sitio_key}'s generation expression.
      */
     private static final String SITIO_KEY_SQL =
             "lower(regexp_replace(?, '[^a-zA-Z0-9]', '', 'g'))";
@@ -76,9 +49,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * Opens a run and enrolls its sites as {@code PENDING}, in one transaction:
-     * a run whose site rows failed to land would report an empty site set to a
-     * later resume, which reads as "nothing left to do".
+     * Opens a run and enrolls its sites as {@code PENDING}, in one transaction: a run whose site
+     * rows failed to land would report an empty site set to a later resume, which reads as "nothing
+     * left to do".
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -119,7 +92,6 @@ class ScrapeRunRepository implements ScrapeRunPort {
         }
     }
 
-    /** Mirrors {@code sp_upsert_run}'s get-or-create, including its untargeted conflict clause. */
     private void asegurarSitio(Connection c, String sitio) throws SQLException {
         String sql = """
             INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
@@ -189,9 +161,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * Closes the run. The terminal status and {@code finished_at} go in the same
-     * statement because {@code ck_scrape_run_running_iff_unfinished} rejects any
-     * row where they disagree — they cannot be written apart even by accident.
+     * The terminal status and {@code finished_at} go in the same statement because
+     * {@code ck_scrape_run_running_iff_unfinished} rejects any row where they disagree — they
+     * cannot be written apart even by accident.
      */
     @Override
     public void finalizar(long runId, String status, int productosCount, Instant finishedAt) {
@@ -214,13 +186,8 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * Marks every run the last process left open as {@code INTERRUPTED} and
-     * returns their ids. Called once at boot.
-     *
-     * <p>This <b>only</b> marks — it never starts a scrape. Marking is also what
-     * keeps the signal single-valued: without it a second restart would find two
-     * runs still claiming to be live, and "the interrupted run" would stop
-     * naming one thing.</p>
+     * Marking is also what keeps the signal single-valued: without it a second restart would find
+     * two runs still claiming to be live, and "the interrupted run" would stop naming one thing.
      */
     @Override
     public List<Long> marcarInterrumpidosAlArrancar(Instant cuando) {
@@ -249,11 +216,8 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * The most recent run marked INTERRUPTED, if any.
-     *
-     * <p>Most recent rather than "all of them": two interrupted runs mean two
-     * crashes, and resuming the older one would re-scrape against a bound a
-     * newer run already moved past.</p>
+     * Most recent rather than "all of them": two interrupted runs mean two crashes, and resuming
+     * the older one would re-scrape against a bound a newer run already moved past.
      */
     @Override
     public Optional<CorridaInterrumpida> ultimaInterrumpida() {
@@ -301,17 +265,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * Puts an interrupted run back to RUNNING, <b>in place</b>.
-     *
-     * <p>{@code started_at} is untouched, and that is the entire point: it is the
-     * reader-isolation bound and the scope of the final soft-delete sweep. A new
-     * run row would make both name only the resumed half — the sweep would then
-     * see the first half's products as absent and deactivate them, which is
-     * strictly worse than the interruption it was meant to repair.</p>
-     *
-     * <p>Sites caught mid-scrape go back to PENDING: their partial result died
-     * with the process, so they are owed exactly as much as one that never
-     * started.</p>
+     * A new run row would make both name only the resumed half — the sweep would then see the first
+     * half's products as absent and deactivate them, which is strictly worse than the interruption
+     * it was meant to repair.
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -337,9 +293,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * {@code finished_at} is filled only when missing. A run marked INTERRUPTED
-     * at boot already has one — the moment the interruption was noticed — and
-     * overwriting it would move the end of a run that ended days ago.
+     * {@code finished_at} is filled only when missing. A run marked INTERRUPTED at boot already has
+     * one — the moment the interruption was noticed — and overwriting it would move the end of a
+     * run that ended days ago.
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -377,15 +333,8 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * Marks as SKIPPED any still-pending site that is no longer in the registry,
-     * and returns which ones.
-     *
-     * <p>The comparison runs <b>in SQL</b>, normalizing the current names with the
-     * same expression that produced the stored keys. Doing it in Java would
-     * reintroduce the divergence this class avoids everywhere else — and here it
-     * would not merely disagree, it would decide: a name that normalizes
-     * differently looks absent from the registry, gets marked SKIPPED, and is
-     * silently dropped from a resume that owed it.</p>
+     * The comparison runs in SQL, normalizing the current names with the same expression that
+     * produced the stored keys.
      */
     @Override
     public List<String> marcarAusentesDelRegistro(long runId, java.util.Collection<String> nombresActuales) {
@@ -419,13 +368,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * Whether any run has ever closed cleanly — the reader bound's on/off switch.
-     *
-     * <p>{@code COMPLETED}, not "any run": on a fresh install the first run is
-     * itself a run, so "any" would apply the bound while nothing can satisfy
-     * {@code touched_at < started_at} and the reader would get an empty screen.
-     * The other terminal states are excluded for the same reason — a cancelled
-     * or interrupted run leaves no clean pre-run catalogue to hold a reader at.</p>
+     * {@code COMPLETED}, not "any run": on a fresh install the first run is itself a run, so "any"
+     * would apply the bound while nothing can satisfy {@code touched_at < started_at} and the
+     * reader would get an empty screen.
      */
     @Override
     public boolean existeCorridaCompletada() {
@@ -460,44 +405,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     /**
-     * The run clock, floored to whole seconds to match what {@code touched_at}
-     * can actually hold.
-     *
-     * <p>{@code productos.touched_at} is a {@code timestamptz} — microseconds —
-     * but every value written into it comes from
-     * {@code LocalDateTime.now().format("yyyy-MM-dd HH:mm:ss")}
-     * ({@code ProductRepository:44}, used at {@code :71} and {@code :213}), so
-     * in practice the column only ever holds {@code .000000}. An untruncated
-     * {@code started_at} would therefore make {@code touched_at >= started_at}
-     * exclude every row touched during the run's own first second — and the
-     * soft-delete union built on that predicate would read those products as
-     * absent and deactivate them.</p>
-     *
-     * <p>This is a method rather than a note on {@code crear} on purpose. The
-     * design's rule — "the same Java clock, never {@code DEFAULT now()}" — can
-     * be obeyed to the letter with {@code Timestamp.from(Instant.now())} and
-     * still ship the bug, so the guarantee lives in code that callers cannot
-     * route around.</p>
-     *
-     * <p><b>What the two predicates do with a first-second row, since it is easy
-     * to get backwards.</b> The soft-delete union is {@code touched_at >=
-     * started_at} and the reader bound is {@code touched_at < started_at}. A row
-     * touched in the run's own first second has {@code touched_at ==
-     * started_at}, so the union <b>includes</b> it and the reader
-     * <b>excludes</b> it. Both are right, and they agree: that row belongs to the
-     * in-flight run, which is exactly what the union has to sweep and exactly
-     * what the reader has to hide. Hiding it is the isolation working, not a
-     * gap — do not "fix" it.</p>
-     *
-     * <p><b>The one genuine asymmetry, accepted deliberately:</b> truncation
-     * WIDENS both predicates by up to a second, so a row written in the same
-     * second but <i>before</i> the run opened is also treated as the run's. For
-     * the union that direction is the safe one — it protects a row from the
-     * sweep, never sweeps an extra one. For the reader it means that row stays
-     * hidden until the run ends: a sub-second-old write, invisible for the
-     * duration. Nobody loses data, and the alternative was a
-     * {@code scrape_run_id} column on {@code productos}, which the design
-     * rejected for touching the hottest table in the schema.</p>
+     * An untruncated {@code started_at} would therefore make {@code touched_at >= started_at}
+     * exclude every row touched during the run's own first second — and the soft-delete union built
+     * on that predicate would read those products as absent and deactivate them.
      */
     private static Instant truncarAlSegundo(Instant instante) {
         return instante.truncatedTo(ChronoUnit.SECONDS);

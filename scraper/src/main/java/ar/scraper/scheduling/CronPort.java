@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence seam for the {@code cron_jobs} / {@code cron_executions} aggregate —
- * lets {@code ar.scraper.cron} depend on this contract instead of {@code ar.scraper.db}.
+ * Persistence seam for the {@code cron_jobs} / {@code cron_executions} aggregate — lets
+ * {@code ar.scraper.cron} depend on this contract instead of {@code ar.scraper.db}.
  */
 public interface CronPort {
 

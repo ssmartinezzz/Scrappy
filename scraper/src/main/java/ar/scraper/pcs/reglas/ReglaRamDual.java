@@ -4,11 +4,8 @@ import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
 
 /**
- * Vetoes a ram candidate that isn't a dual (2x) kit, but only when TRUE was
- * requested — FALSE/null never filter (D1: only TRUE asks for something).
- * {@code modulos()==0} is abstention and vetoes when asked, same as every
- * other D2 axis; the D2 exception documented on {@link ReglaWifi} is about
- * an explicit FALSE assertion, which doesn't apply here.
+ * Vetoes a ram candidate that isn't a dual (2x) kit, but only when TRUE was requested — FALSE/null
+ * never filter.
  */
 public class ReglaRamDual implements ReglaCompatibilidad {
 

@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Run control: start, cancel, resume/discard an interrupted run, and its status. */
 @RestController
 @RequestMapping("/api")
 public class ScrapeController {
@@ -36,8 +35,8 @@ public class ScrapeController {
         var det = service.getInterrumpida();
         var b = ScrapeDtos.Interrumpida.builder().hayInterrumpida(det != null);
         if (det != null) {
-            // Skipped sites are named on purpose: a site removed from the registry
-            // since the crash cannot be resumed, and dropping it silently is worse.
+            // Skipped sites are named on purpose: a site removed from the registry since the crash
+            // cannot be resumed, and dropping it silently is worse.
             b.uuid(det.uuid().toString())
                     .startedAt(det.startedAt().toString())
                     .soloFaltaLaPasadaFinal(det.soloFaltaLaPasadaFinal())
@@ -76,7 +75,6 @@ public class ScrapeController {
     public ResponseEntity<ApiResponse<ScrapeDtos.Iniciar>> scrape(@RequestParam(required=false) Double precioMin,
             @RequestParam(required=false) Double precioMax,
             @RequestParam(required=false) Double precio,
-            // legacy alias of precioMax
             @RequestParam(required=false) List<String> sitios,
             @RequestParam(defaultValue="false") boolean forceRetrain) {
         if (precioMin != null) config.setPrecioMinimo(precioMin);

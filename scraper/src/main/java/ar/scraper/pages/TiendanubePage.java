@@ -22,17 +22,8 @@ public class TiendanubePage extends BasePage {
             "unisex","unisexo","neutro");
 
     /**
-     * Techo de páginas del loop de paginación. ÚNICA definición del número
-     * ({@code CODE-6}): {@code ScraperConfig.getMaxPaginas} no lo conoce, lo
-     * recibe como fallback del scraper, que es quien depende de las dos capas.
-     *
-     * <p>Era 25 y estaba hardcodeado. El catálogo real de Entreno son 53
-     * páginas de 12 productos —la 54 devuelve cero— así que ese techo cortaba
-     * a la mitad y en silencio: ~313 de ~636. Sigue siendo un cinturón de
-     * seguridad, no el límite real; quien corta de verdad es el chequeo de dos
-     * páginas vacías seguidas de {@link #scrapeJs}, que en Tiendanube sí
-     * dispara porque pasado el final sirve una página vacía en vez de repetir
-     * la última como hace osCommerce.
+     * {@code ScraperConfig.getMaxPaginas} no lo conoce, lo recibe como fallback del scraper, que es
+     * quien depende de las dos capas.
      */
     public static final int MAX_PAGINAS_DEFAULT = 60;
 
@@ -40,7 +31,6 @@ public class TiendanubePage extends BasePage {
     private final String baseUrl;
     private final double precioMin;
     private final double precioMax;
-    /** Colecciones adicionales a crawlear bajo el mismo sitio (ver config `urls_extra`). */
     private final List<String> extraUrls;
     private final int maxPaginas;
 
@@ -74,7 +64,7 @@ public class TiendanubePage extends BasePage {
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
 
-        // Catálogo principal: API TN si está disponible, si no JS heurístico.
+        // API TN si está disponible, si no JS heurístico.
         List<Product> api = List.of();
         if (usaApi()) {
             api = scrapeApi(domain(baseUrl));
@@ -93,10 +83,6 @@ public class TiendanubePage extends BasePage {
             }
         }
 
-        // Colecciones extra que el catálogo principal no cubre (ej. Harvey
-        // /otras-temporadas1). Siempre por JS heurístico; el dedup por
-        // sitio+nombre en ResultAggregator colapsa lo que también aparezca en
-        // el catálogo principal, así que no genera duplicados.
         for (String extra : extraUrls) {
             if (StringUtils.isBlank(extra)) continue;
             log.debug("[{}] coleccion extra -> {}", sitio, extra);
@@ -105,9 +91,6 @@ public class TiendanubePage extends BasePage {
         return result;
     }
 
-    // ------------------------------------------------------------------
-    // Estrategia 1: API REST
-    // ------------------------------------------------------------------
     private List<Product> scrapeApi(String homeUrl) {
         List<Product> result = new ArrayList<>();
         try {
@@ -147,19 +130,17 @@ public class TiendanubePage extends BasePage {
         try {
             return (String) page.evaluate(
                 "(function() {" +
-                // Prioridad 1: objeto LS nativo de Tiendanube (mas confiable, no puede estar en CDN)
+                // Prioridad 1: objeto LS nativo de Tiendanube (mas confiable, no puede estar en
+                // CDN)
                 "  try {" +
                 "    if (window.LS && window.LS.store && window.LS.store.id)" +
                 "      return String(window.LS.store.id);" +
                 "  } catch(e2) {}" +
-                // Prioridad 2: data-store-id en body (temas TN modernos)
                 "  var bodyId = document.body.getAttribute('data-store-id')" +
                 "             || document.documentElement.getAttribute('data-store-id');" +
                 "  if (bodyId && /^\\d{5,}$/.test(bodyId.trim())) return bodyId.trim();" +
-                // Prioridad 3: meta tag
                 "  var meta = document.querySelector('meta[name=\"store-id\"],meta[property=\"store:id\"]');" +
                 "  if (meta) { var mc = meta.getAttribute('content'); if (mc && /^\\d{5,}$/.test(mc)) return mc; }" +
-                // Prioridad 4: scripts INLINE (excluye CDN externos que comparten IDs)
                 "  var scripts = Array.from(document.querySelectorAll('script:not([src])'));" +
                 "  var pats = [" +
                 "    /LS\\.store\\s*=\\s*\\{[^}]{0,200}[\"']id[\"']\\s*:\\s*(\\d{5,})/," +
@@ -204,7 +185,6 @@ public class TiendanubePage extends BasePage {
                       prod.path("main_image").asText(""));
             }
             if (img.startsWith("//")) img = "https:" + img;
-            // Limpiar sufijos de miniatura que añade el CDN de TN
             img = img.replaceAll("-\\d+x\\d+\\.(jpe?g|png|webp)", ".$1");
             img = img.replaceAll("-thumb\\.(jpe?g|png|webp)", ".$1");
 
@@ -220,17 +200,14 @@ public class TiendanubePage extends BasePage {
             OptionalDouble compareParsed = PrecioParser.parse(compareStr);
             Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
 
-            // --- Categoría: categories[0].name o tags ---
             String categoria = "";
             JsonNode cats = prod.path("categories");
             if (cats.isArray() && !cats.isEmpty()) {
                 categoria = cats.get(0).path("name").asText("").trim();
             }
 
-            // --- Género: heurístico desde categorías, tags y nombre ---
             String genero = detectarGeneroApi(prod, nombre);
 
-            // --- Talles: variants[].values[] donde attribute.es == "Talle" o similar ---
             List<String> talles = extraerTallesApi(prod, variants);
 
             return Optional.of(new Product(sitio, nombre, precio.get(), compare,
@@ -238,11 +215,7 @@ public class TiendanubePage extends BasePage {
         } catch (Exception e) { return Optional.empty(); }
     }
 
-    // ----------------------------------------------------------------
-    // Extracción de talles — API Tiendanube
-    // ----------------------------------------------------------------
     private List<String> extraerTallesApi(JsonNode prod, JsonNode variants) {
-        // Estrategia 1: attributes del producto (Tiendanube los llama "attributes")
         JsonNode attrs = prod.path("attributes");
         if (attrs.isArray()) {
             for (JsonNode attr : attrs) {
@@ -261,8 +234,6 @@ public class TiendanubePage extends BasePage {
             }
         }
 
-        // Estrategia 2: variants[].values[] — cada variant tiene un array de values
-        // Estructura: [{name: "Talle", value: "M"}, ...]
         Set<String> seen = new LinkedHashSet<>();
         for (JsonNode var : variants) {
             JsonNode values = var.path("values");
@@ -284,7 +255,6 @@ public class TiendanubePage extends BasePage {
             if (values.isArray() && !values.isEmpty()) {
                 String firstVal = values.get(0).path("value").asText("").trim();
                 if (!firstVal.isBlank() && !firstVal.equalsIgnoreCase("unique")) {
-                    // Recolectar todos los primeros valores únicos
                     for (JsonNode v2 : variants) {
                         String t = v2.path("values").isArray() && v2.path("values").size() > 0
                                 ? v2.path("values").get(0).path("value").asText("").trim()
@@ -305,9 +275,6 @@ public class TiendanubePage extends BasePage {
                 || name.equals("tamaño") || name.contains("medida");
     }
 
-    // ----------------------------------------------------------------
-    // Detección de género — API Tiendanube
-    // ----------------------------------------------------------------
     private String detectarGeneroApi(JsonNode prod, String nombre) {
         List<String> fuentes = new ArrayList<>();
         fuentes.add(nombre.toLowerCase());
@@ -339,9 +306,6 @@ public class TiendanubePage extends BasePage {
         return "";
     }
 
-    // ------------------------------------------------------------------
-    // Estrategia 2: JS heurístico
-    // ------------------------------------------------------------------
     private List<Product> scrapeJs(String startUrl) {
         List<Product> result = new ArrayList<>();
         String url = startUrl;
@@ -361,7 +325,7 @@ public class TiendanubePage extends BasePage {
                 if (json == null || json.equals("[]") || json.equals("null")) {
                     log.debug("[{}] JS: 0 en p{}", sitio, pagina);
                     paginasSinProductos++;
-                    if (paginasSinProductos >= 2) break; // 2 páginas vacías seguidas → fin
+                    if (paginasSinProductos >= 2) break;
                 } else {
                     JsonNode arr = MAPPER.readTree(json);
                     List<Product> pageProducts = new ArrayList<>();
@@ -382,17 +346,14 @@ public class TiendanubePage extends BasePage {
                     result.addAll(pageProducts);
                 }
             } catch (Exception e) {
-                // Error transitorio de Playwright (ej. TargetClosedError) en una
-                // página intermedia NO debe descartar los productos ya acumulados
-                // de páginas anteriores — se corta la paginación y se devuelve lo
-                // recolectado hasta el momento.
+                // Error transitorio de Playwright (ej. TargetClosedError) en una página intermedia
+                // NO debe descartar los productos ya acumulados de páginas anteriores — se corta la
+                // paginación y se devuelve lo recolectado hasta el momento.
                 log.warn("[{}] JS error en p{}, se corta paginación conservando {} productos: {}",
                         sitio, pagina, result.size(), e.getMessage());
                 break;
             }
 
-            // Intentar encontrar la siguiente página (paginando sobre startUrl,
-            // no sobre baseUrl — así una colección extra pagina sobre su propia URL)
             String nextUrl = nextPageUrl(startUrl, pagina);
 
             // Fallback: construir URL ?page=N si el DOM no tiene el link
@@ -423,7 +384,6 @@ public class TiendanubePage extends BasePage {
             String img     = n.path("img").asText("").trim();
             if (img.startsWith("//")) img = "https:" + img;
 
-            // Talles desde JS — array si se detectaron
             List<String> talles = new ArrayList<>();
             JsonNode jstalles = n.path("talles");
             if (jstalles.isArray()) {
@@ -440,40 +400,16 @@ public class TiendanubePage extends BasePage {
     }
 
     /**
-     * JS expression that resolves the product-name element from a card element
-     * {@code el}, consumed by {@link #buildExtractorJs()}. Extension seam
-     * (Template Method / Open-Closed): the base returns the generic,
-     * theme-agnostic selector; a per-theme subclass overrides ONLY this to fix
-     * name extraction without touching the shared extractor. Must evaluate to a
-     * DOM Element or {@code null}.
+     * Extension seam (Template Method / Open-Closed): the base returns the generic, theme-agnostic
+     * selector; a per-theme subclass overrides ONLY this to fix name extraction without touching
+     * the shared extractor.
      */
-    /**
-     * URLs por las que arranca el catálogo principal, consumidas por
-     * {@link #scrapeAll()}. Extension seam (Template Method), hermano de
-     * {@link #nombreSelectorJs()}: la base devuelve la {@code baseUrl} sola,
-     * que es lo que sirve para toda tienda TN con una vidriera única.
-     *
-     * <p>Existe porque no todas la tienen. En morashop {@code /productos/} es
-     * una landing del tema con CERO productos y el catálogo real vive repartido
-     * en categorías hoja, así que su subclase devuelve las hojas que descubre.
-     * Distinto de {@code urls_extra}, que suma colecciones ADEMÁS del catálogo
-     * principal; esto ES el catálogo principal.
-     */
+    /** Existe porque no todas la tienen. */
     protected List<String> catalogoUrls() {
         return List.of(baseUrl);
     }
 
-    /**
-     * Si se intenta la API REST de Tiendanube antes de caer al JS heurístico.
-     * La base dice que sí: cuando responde es el camino rápido y completo.
-     *
-     * <p>Una subclase la apaga por CORRECTITUD, no por velocidad. La API
-     * devuelve la tienda ENTERA, sin filtro por sección — en una tienda
-     * multi-rubro como morashop (suplementos, pero también supermercado,
-     * electro-hogar y bodega) eso importaría productos de tres rubros que no
-     * tienen valor en el dominio de {@code rubro}. Hoy ese endpoint da 404 ahí,
-     * pero depender de que siga roto no es un diseño.
-     */
+    /** Si se intenta la API REST de Tiendanube antes de caer al JS heurístico. */
     protected boolean usaApi() {
         return true;
     }
@@ -618,21 +554,14 @@ public class TiendanubePage extends BasePage {
             "return JSON.stringify(results);" +
             "})()";
     }
-    /**
-     * "Todo ya visto" no alcanza: con scroll infinito, p1 ya cargó p2 en el DOM. Una
-     * página vacía tampoco cuenta: eso lo cubre el contador de páginas vacías.
-     */
+    /** "Todo ya visto" no alcanza: con scroll infinito, p1 ya cargó p2 en el DOM. */
     static boolean repiteLaAnterior(List<String> urlsDePagina, Set<String> anterior) {
         Set<String> actual = urlsDePagina.stream()
                 .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
         return !actual.isEmpty() && actual.equals(anterior);
     }
 
-    /**
-     * Pure static helper — extracts the max page number from a list of rendered
-     * hrefs and returns maxN+1 iff maxN > currentPage and maxN < 1000.
-     * No browser dependency; fully unit-testable.
-     */
+    /** No browser dependency; fully unit-testable. */
     public static OptionalInt resolveNextPageFromHrefs(List<String> hrefs, int currentPage) {
         var pat = java.util.regex.Pattern.compile("[?&]page=(\\d+)");
         int maxN = -1;
@@ -645,7 +574,6 @@ public class TiendanubePage extends BasePage {
     }
 
     private String nextPageUrl(String paginBase, int currentPage) {
-        // Prioridad 1: <link rel="next"> en el head — TN lo incluye para SEO
         try {
             String headNext = (String) page.evaluate(
                 "var l=document.querySelector('link[rel=next]');l?l.getAttribute('href'):null");
@@ -653,7 +581,6 @@ public class TiendanubePage extends BasePage {
                 return absoluteUrl(headNext, baseUrl);
         } catch (Exception ignored) {}
 
-        // Prioridad 2: selectores DOM de paginacion
         String[] sels = {
             "a[rel='next']",
             "a[aria-label='Next']", "a[aria-label='Siguiente']",
@@ -672,7 +599,6 @@ public class TiendanubePage extends BasePage {
             } catch (Exception ignored) {}
         }
 
-        // Prioridad 3: escanear hrefs renderizados → buscar max page en el DOM
         try {
             Object raw = page.evaluate("() => Array.from(document.querySelectorAll('a[href]'))" +
                     ".map(a => a.getAttribute('href')).filter(h => h && h.includes('page='))");
@@ -683,7 +609,6 @@ public class TiendanubePage extends BasePage {
             }
         } catch (Exception ignored) {}
 
-        // Prioridad 4 (hint, last resort): window.dataLayer
         try {
             String dl = (String) page.evaluate(
                     "() => { try { return JSON.stringify(window.dataLayer); } catch(e){ return null; } }");
@@ -701,18 +626,15 @@ public class TiendanubePage extends BasePage {
     }
 
     /**
-     * Construye la URL de la pagina N a partir de la URL base. Soporta
-     * ?page=N, /p/N y /page/N.
-     *
-     * <p>Static + package-private: sin dependencia del browser, unit-testeable
-     * ({@code TiendanubePagePaginationTest}).</p>
+     * Static + package-private: sin dependencia del browser, unit-testeable
+     * ({@code TiendanubePagePaginationTest}).
      */
     static String urlPagina(String base, int n) {
         if (n <= 1) return base;
         String b = base.replaceAll("[?&]page=[0-9]+", "")
                        .replaceAll("/page/[0-9]+", "")
                        .replaceAll("/p/[0-9]+$", "")
-                       .replaceAll("[?&]$", "");   // separador colgante tras strip
+                       .replaceAll("[?&]$", "");
         String sep = b.contains("?") ? "&" : "?";
         return b + sep + "page=" + n;
     }
