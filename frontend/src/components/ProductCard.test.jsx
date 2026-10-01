@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import ProductCard from '@/components/ProductCard';
@@ -81,5 +81,42 @@ describe('ProductCard — catStats se busca por categoria canónica, no por norm
     );
 
     expect(document.querySelector('.card-price-bar')).not.toBeNull();
+  });
+});
+
+describe('ProductCard — thumbnail del tamaño de la card', () => {
+  const SHOPIFY = 'https://cdn.shopify.com/s/files/1/a.jpg?v=1';
+
+  it('pide al CDN una miniatura y deja elegir el ancho al browser', () => {
+    renderCard({ img: SHOPIFY });
+
+    const img = screen.getByAltText('Remera Oversize');
+    expect(img.getAttribute('src')).toBe(`${SHOPIFY}&width=480`);
+    expect(img.getAttribute('srcset')).toContain(`${SHOPIFY}&width=240 240w`);
+    expect(img.getAttribute('srcset')).toContain(`${SHOPIFY}&width=720 720w`);
+    expect(img.getAttribute('sizes')).toBeTruthy();
+    expect(img.getAttribute('decoding')).toBe('async');
+  });
+
+  it('usa la imagen original cuando el host no sabe redimensionar', () => {
+    renderCard({ img: 'https://fullh4rd.com.ar/img/a.jpg' });
+
+    const img = screen.getByAltText('Remera Oversize');
+    expect(img.getAttribute('src')).toBe('https://fullh4rd.com.ar/img/a.jpg');
+    expect(img.hasAttribute('srcset')).toBe(false);
+  });
+
+  it('si la miniatura falla, vuelve a la original antes de mostrar el placeholder', () => {
+    renderCard({ img: SHOPIFY });
+
+    const img = screen.getByAltText('Remera Oversize');
+    fireEvent.error(img);
+    expect(img.getAttribute('src')).toBe(SHOPIFY);
+    expect(img.hasAttribute('srcset')).toBe(false);
+    expect(img.style.display).not.toBe('none');
+
+    fireEvent.error(img);
+    expect(img.style.display).toBe('none');
+    expect(document.querySelector('.card-img-placeholder').style.display).toBe('');
   });
 });
