@@ -4,8 +4,8 @@ name: CLI Tests
 # additive and does NOT gate the existing Maven job (backend-tests.yml).
 # The real `_tools/cli-venv` bootstrap (uv-managed CPython, slice 3) is
 # Windows-specific and manual/sandbox-only per design.md risk 4 — this job
-# uses a plain `actions/setup-python` + pip install of cli/requirements.txt
-# instead. That list carries pytest + textual + pytest-asyncio: the headless
+# uses a plain `actions/setup-python` + pip install of cli/requirements-ci.txt (the hashed lock of
+# cli/requirements.txt) instead. That list carries pytest + textual + pytest-asyncio: the headless
 # core/ tests are stdlib-only, but the Textual Pilot tests (tests/cli/
 # test_tui_app.py) need textual and pytest-asyncio to run.
 
@@ -40,7 +40,7 @@ jobs:
 
       - name: Install CLI test dependencies
         if: steps.changes.outputs.cli == 'true'
-        run: python -m pip install -r cli/requirements.txt
+        run: python -m pip install --require-hashes --only-binary :all: -r cli/requirements-ci.txt
 
       - name: Run pytest tests/cli
         if: steps.changes.outputs.cli == 'true'

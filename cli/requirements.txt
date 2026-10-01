@@ -1,5 +1,8 @@
 # Dependency list for the native CLI's Python environment.
 #
+# CI installs cli/requirements-ci.txt, a hashed lock of this file: regenerate it
+# (command in its header) whenever a pin here changes, or CI tests the old one.
+#
 # Consumed later by `uv pip install --python _tools/cli-venv/... -r
 # cli/requirements.txt --offline` (slice 3, task 3.1.5). For now (slice 1)
 # only pytest is needed — the headless `core/` package has zero third-party
