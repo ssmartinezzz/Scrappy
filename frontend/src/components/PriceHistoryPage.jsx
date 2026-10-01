@@ -76,7 +76,8 @@ export default function PriceHistoryPage() {
   // backend ya se abstiene de mandar min/max/avg (ver HistorialJson).
   const haySerie = pts.length >= 2;
   const delta    = hist.deltaPct;
-  const tonoDelta = delta === undefined ? 'text-t4' : delta < 0 ? 'text-success' : 'text-danger';
+  let tonoDelta = 'text-t4';
+  if (delta !== undefined) tonoDelta = delta < 0 ? 'text-success' : 'text-danger';
 
   const serie = pts.map(pt => ({ ...pt, etiqueta: etiquetaFecha(pt.fecha) }));
 

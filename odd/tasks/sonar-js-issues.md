@@ -27,7 +27,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - [x] **T2** Accesibilidad — S1082, S6848, S6819, S6772, S6853, S6845, S6847, S6850, S9379 (55)
 - [x] **T3** React — S6478, S6479, S6481 (32)
 - [x] **T4** Tests — S9020, S9027, S7763 en tests (42)
-- [ ] **T5** Legibilidad — S3358, S3776, S4624 (47)
+- [x] **T5** Legibilidad — S3358, S3776, S4624 (47)
 - [ ] **T6** Limpiezas mecánicas — resto de reglas (~69)
 - [ ] **T7** Verificación final: suite + build + e2e browser + re-análisis Sonar del PR
 
@@ -63,6 +63,14 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - S9020 (40 sitios, 39 listados + uno idéntico): `await waitFor(() => expect(screen.getByX(..)).toBeInTheDocument())` -> `await screen.findByX(..)` en App, AuthGate, ApiDocsPanel, OutfitsPanel, PriceHistoryPage, ForgotPassword, Login, ResetPassword. Mismo timeout por defecto (1000 ms), misma aserción.
 - S9027 (1): `ProductCard.test.jsx` `queryByText` -> `getByText` en la aserción de presencia.
 
+**T5** (47/47). Suite 549 -> 549 tests (60 archivos), build OK. Ningún test existente editado (CODE-2).
+- Verificado con `eslint-plugin-sonarjs` (`no-nested-conditional`, `cognitive-complexity` en 15, `no-nested-template-literals`) sobre `frontend/src`: reproduce los 47 sobre la base y deja 0 después.
+- S3358 (33): if/else o helpers de módulo (`scoreColor`/`gaugeColor`, `gaugeLabel`, `zScoreText`, `mlBannerText`, `rowTone` de GroupCard, `chipSelectedBackground`/`chipTextColor` de SplashPanel, tabla `TENDENCIA_VISUAL`); `HeaderContent` en CronjobsPage y UsuariosAdminPanel; el cuerpo de CronjobsPage pasa de ternario anidado a tres condiciones excluyentes.
+- S3776 (9): DetailPanel `PriceContext` 38 -> seis funciones `*Item`; `reducer` y `buildParams` de AppLayout (`toggleIn`, `filterParams` con el mismo orden de claves y `precioMin: 0` incluido); OutfitsPanel (`buildNoFitMessage`, `NoFitNotice`); PcsPanel `resumenSpecs` en tres tramos; CronJobCard (`SitioChip`, `ExecutionHistory`, `buildPayload`, `initialSelection`); `fetchPcsBuilder` por tabla `[param, viaja, valor]` en el orden de siempre; BuySignal.
+- S4624 (3): api.js, ProductCard, CategoryPicksCarousel.
+- S3782 de DetailPanel (T6) cae acá: `diffPct`/`diffMed` pasan a `Number`; el texto del caso `> 15` conserva el `toFixed(1)` original.
+- `groupByRubro` nuevo en `lib/rubros.js` (usado por CronJobCard y SplashPanel; cierra también sus S1121 de T6).
+
 ## Próximo paso
 
-T5.
+T6.

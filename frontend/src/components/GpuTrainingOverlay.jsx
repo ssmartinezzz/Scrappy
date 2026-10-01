@@ -19,9 +19,9 @@ export default function GpuTrainingOverlay({ training, onClose }) {
   const { running, phase, pct, msg, startedAt, error, success } = training;
   const isError   = !!error || phase === 'error' || phase === 'timeout';
   const phaseLabel = PHASE_LABELS[phase] ?? phase ?? '';
-  const barColor = isError ? SEMANTIC.negative
-    : phase === 'image' || phase === 'image_download' ? SEMANTIC.warn
-    : 'var(--p)';
+  let barColor = 'var(--p)';
+  if (isError) barColor = SEMANTIC.negative;
+  else if (phase === 'image' || phase === 'image_download') barColor = SEMANTIC.warn;
 
   return (
     <div style={{

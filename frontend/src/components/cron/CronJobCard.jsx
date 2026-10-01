@@ -20,6 +20,7 @@ import { fetchSitios, createCronJob, updateCronJob, fetchCronExecutions } from '
 import { useStreamEvent } from '../../hooks/EventStreamProvider';
 import { SEMANTIC } from '../../lib/colors';
 import { formatFechaHora } from '../../lib/fechas';
+import { groupByRubro } from '../../lib/rubros';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
@@ -42,6 +43,68 @@ const EMPTY_FORM = {
   name: '', precioMin: PRECIO_MIN_DEFAULT, precioMax: PRECIO_MAX_DEFAULT, sitios: [],
   forceRetrain: false, useGpu: true, cronExpr: '0 0 3 * * *', enabled: true,
 };
+
+const CHIP_VARIANTS = {
+  hidden: { opacity: 0, scale: 0.85 },
+  visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } },
+};
+
+function SitioChip({ nombre, sel, onToggle, anim }) {
+  return (
+    <motion.button type="button" variants={anim ? CHIP_VARIANTS : undefined}
+      whileHover={anim ? { scale: 1.05, y: -1 } : undefined}
+      whileTap={anim ? { scale: 0.97 } : undefined}
+      onClick={onToggle}
+      aria-pressed={sel}
+      className="cursor-pointer rounded-full border-[1.5px] px-2.5 py-1 text-xs font-semibold transition-colors"
+      style={{
+        background: sel ? 'color-mix(in srgb, var(--p) 15%, transparent)' : 'transparent',
+        borderColor: sel ? 'var(--p)' : 'var(--bd2)',
+        color: sel ? 'var(--p2)' : 'var(--t4)',
+      }}>
+      {nombre}
+    </motion.button>
+  );
+}
+
+function initialSelection(job, all) {
+  return job?.sitios?.length > 0 ? job.sitios : all.map(s => s.nombre);
+}
+
+function buildPayload(form, selected, allSitios) {
+  return {
+    name: form.name.trim(),
+    precioMin: Number(form.precioMin) || 0,
+    precioMax: Number(form.precioMax) || 0,
+    // All known sites selected persists as [] ("todos" server-side), so it
+    // keeps meaning "todos" even if a new site is onboarded later.
+    sitios: selected.length === allSitios.length ? [] : selected,
+    forceRetrain: !!form.forceRetrain,
+    useGpu: !!form.useGpu,
+    cronExpr: form.cronExpr.trim(),
+    enabled: !!form.enabled,
+  };
+}
+
+function ExecutionHistory({ executions, onOpen }) {
+  if (executions.length === 0) return <p className="text-xs text-t4">Sin ejecuciones todavía.</p>;
+  return (
+    <div className="flex max-h-[220px] flex-col gap-1 overflow-y-auto pr-1">
+      {executions.map(ex => {
+        const m = STATUS_META[ex.status] || STATUS_META.skipped;
+        return (
+          <button key={ex.id} type="button" onClick={() => onOpen(ex)}
+            className="flex items-center gap-2 rounded-btn px-2 py-1.5 text-left text-xs transition-colors hover:bg-s3">
+            <m.Icon aria-hidden="true" className={cn('h-3.5 w-3.5 shrink-0', m.tone, m.spin && 'animate-spin')} strokeWidth={2} />
+            <span className={cn('font-semibold', m.tone)}>{m.label}</span>
+            <span className="flex-1 truncate tabular-nums text-t4">{formatFechaHora(ex.startedAt)}</span>
+            <span className="tabular-nums text-t4">{ex.durationMs != null ? `${Math.round(ex.durationMs / 1000)}s` : ''}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function CronJobCard({ job, onClose, onSaved }) {
   const isNew = !job?.id;
@@ -70,7 +133,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
       const all = [...(data.base || []), ...(data.extras || [])];
       setAllSitios(all);
       // job.sitios empty/[] === "todos" server-side -> reflect as all selected.
-      setSelected((job?.sitios && job.sitios.length > 0) ? job.sitios : all.map(s => s.nombre));
+      setSelected(initialSelection(job, all));
     }).catch(() => {
       // Unreachable backend: the picker stays empty; saving still works with the job's own sites.
     });
@@ -93,28 +156,13 @@ export default function CronJobCard({ job, onClose, onSaved }) {
   useStreamEvent('db.changed', d => { if (d.table === 'cron_execution' && d.job === job?.id) refreshExecutions(); });
   useStreamEvent('resync', refreshExecutions);
 
-  const byRubro = allSitios.reduce((acc, s) => {
-    const r = s.rubro || 'indumentaria';
-    (acc[r] = acc[r] || []).push(s);
-    return acc;
-  }, {});
+  const byRubro = groupByRubro(allSitios);
 
   async function handleSave() {
     if (!form.name.trim() || !form.cronExpr.trim() || selected.length === 0) return;
     setSaving(true);
     setError('');
-    const payload = {
-      name: form.name.trim(),
-      precioMin: Number(form.precioMin) || 0,
-      precioMax: Number(form.precioMax) || 0,
-      // All known sites selected persists as [] ("todos" server-side), so it
-      // keeps meaning "todos" even if a new site is onboarded later.
-      sitios: selected.length === allSitios.length ? [] : selected,
-      forceRetrain: !!form.forceRetrain,
-      useGpu: !!form.useGpu,
-      cronExpr: form.cronExpr.trim(),
-      enabled: !!form.enabled,
-    };
+    const payload = buildPayload(form, selected, allSitios);
     const res = isNew ? await createCronJob(payload) : await updateCronJob(job.id, payload);
     setSaving(false);
     if (!res || res.ok === false) { setError(res?.mensaje || 'No se pudo guardar el job.'); return; }
@@ -130,10 +178,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
     hidden: { opacity: 0, x: -20, scale: 0.98, filter: 'blur(4px)' },
     visible: { opacity: 1, x: 0, scale: 1, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 400, damping: 28, mass: 0.6 } },
   };
-  const chip = {
-    hidden: { opacity: 0, scale: 0.85 },
-    visible: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } },
-  };
+  const mv = anim ? { container, item } : {};
   const allSelected = allSitios.length > 0 && selected.length === allSitios.length;
 
   return (
@@ -146,7 +191,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
 
       <motion.div
         role="dialog" aria-modal="true" aria-label={isNew ? 'Nuevo cron job' : `Editar ${job.name}`}
-        variants={anim ? container : undefined}
+        variants={mv.container}
         initial={anim ? 'hidden' : false}
         animate="visible"
         className="relative z-10 flex h-full w-full flex-col overflow-hidden bg-s2 shadow-lg sm:h-auto sm:max-h-[90dvh] sm:max-w-2xl sm:rounded-card sm:border sm:border-border"
@@ -160,7 +205,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
           className="min-h-0 flex-1 overflow-y-auto"
         >
           {/* Header */}
-          <motion.div variants={anim ? item : undefined} className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-s2 p-3 sm:p-4">
+          <motion.div variants={mv.item} className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-s2 p-3 sm:p-4">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn" style={{ backgroundColor: 'color-mix(in srgb, var(--p) 14%, transparent)' }}>
                 <CalendarClock aria-hidden="true" className="h-5 w-5 text-primary" strokeWidth={2} />
@@ -186,7 +231,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
 
           <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2">
             {/* Left column: core fields */}
-            <motion.div variants={anim ? item : undefined} className="flex flex-col gap-3">
+            <motion.div variants={mv.item} className="flex flex-col gap-3">
               <label className="flex flex-col gap-1 text-xs font-medium text-t3">
                 Nombre
                 <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ej: Scraping nocturno" />
@@ -217,7 +262,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
             </motion.div>
 
             {/* Right column: sitios chips + history */}
-            <motion.div variants={anim ? item : undefined} className="flex flex-col gap-3">
+            <motion.div variants={mv.item} className="flex flex-col gap-3">
               {allSitios.length > 0 && (
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -236,25 +281,14 @@ export default function CronJobCard({ job, onClose, onSaved }) {
                       return (
                         <div key={rubro}>
                           <div className="mb-1 text-[.56rem] font-bold uppercase tracking-[.08em]" style={{ color: rm.color }}>{rm.label}</div>
-                          <motion.div variants={anim ? container : undefined} className="flex flex-wrap gap-1.5">
-                            {items.map(s => {
-                              const sel = selected.includes(s.nombre);
-                              return (
-                                <motion.button key={s.nombre} type="button" variants={anim ? chip : undefined}
-                                  whileHover={anim ? { scale: 1.05, y: -1 } : undefined}
-                                  whileTap={anim ? { scale: 0.97 } : undefined}
-                                  onClick={() => setSelected(sel ? selected.filter(x => x !== s.nombre) : [...selected, s.nombre])}
-                                  aria-pressed={sel}
-                                  className="cursor-pointer rounded-full border-[1.5px] px-2.5 py-1 text-xs font-semibold transition-colors"
-                                  style={{
-                                    background: sel ? 'color-mix(in srgb, var(--p) 15%, transparent)' : 'transparent',
-                                    borderColor: sel ? 'var(--p)' : 'var(--bd2)',
-                                    color: sel ? 'var(--p2)' : 'var(--t4)',
-                                  }}>
-                                  {s.nombre}
-                                </motion.button>
-                              );
-                            })}
+                          <motion.div variants={mv.container} className="flex flex-wrap gap-1.5">
+                            {items.map(s => (
+                              <SitioChip key={s.nombre} nombre={s.nombre} anim={anim}
+                                sel={selected.includes(s.nombre)}
+                                onToggle={() => setSelected(selected.includes(s.nombre)
+                                  ? selected.filter(x => x !== s.nombre)
+                                  : [...selected, s.nombre])} />
+                            ))}
                           </motion.div>
                         </div>
                       );
@@ -266,24 +300,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
               {!isNew && (
                 <div className="border-t border-border pt-3">
                   <div className="mb-1.5 text-[.6rem] font-bold uppercase tracking-wide text-t4">Historial de ejecuciones</div>
-                  {executions.length === 0 ? (
-                    <p className="text-xs text-t4">Sin ejecuciones todavía.</p>
-                  ) : (
-                    <div className="flex max-h-[220px] flex-col gap-1 overflow-y-auto pr-1">
-                      {executions.map(ex => {
-                        const m = STATUS_META[ex.status] || STATUS_META.skipped;
-                        return (
-                          <button key={ex.id} type="button" onClick={() => setDetailExec(ex)}
-                            className="flex items-center gap-2 rounded-btn px-2 py-1.5 text-left text-xs transition-colors hover:bg-s3">
-                            <m.Icon aria-hidden="true" className={cn('h-3.5 w-3.5 shrink-0', m.tone, m.spin && 'animate-spin')} strokeWidth={2} />
-                            <span className={cn('font-semibold', m.tone)}>{m.label}</span>
-                            <span className="flex-1 truncate tabular-nums text-t4">{formatFechaHora(ex.startedAt)}</span>
-                            <span className="tabular-nums text-t4">{ex.durationMs != null ? `${Math.round(ex.durationMs / 1000)}s` : ''}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <ExecutionHistory executions={executions} onOpen={setDetailExec} />
                 </div>
               )}
             </motion.div>
@@ -292,7 +309,7 @@ export default function CronJobCard({ job, onClose, onSaved }) {
           {error && <p className="px-4 text-xs text-danger sm:px-5">{error}</p>}
 
           {/* Footer actions */}
-          <motion.div variants={anim ? item : undefined} className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-border bg-s2 p-3 sm:p-4">
+          <motion.div variants={mv.item} className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-border bg-s2 p-3 sm:p-4">
             <Button variant="ghost" onClick={() => onClose?.()}>Cancelar</Button>
             <Button disabled={saving || !form.name.trim() || !form.cronExpr.trim() || selected.length === 0} onClick={handleSave}>
               {saving && <Loader2 aria-hidden="true" className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={2} />}

@@ -97,11 +97,12 @@ export default function FavoritosPanel({
     ];
   }, [items, savedOutfits, savedPcs, onOpenDetail, expandido]);
 
-  const abierto = expandido && (expandido.coleccion === 'outfit'
+  const esOutfit = expandido?.coleccion === 'outfit';
+  const abierto = expandido && (esOutfit
     ? savedOutfits.find(o => o.id === expandido.id)
     : savedPcs.find(p => p.id === expandido.id));
-  const miembrosAbiertos = !abierto ? []
-    : (expandido.coleccion === 'outfit' ? abierto.slots : abierto.picks) || [];
+  let miembrosAbiertos = [];
+  if (abierto) miembrosAbiertos = (esOutfit ? abierto.slots : abierto.picks) || [];
   const hayAlgo = items.length > 0 || savedOutfits.length > 0 || savedPcs.length > 0;
 
   return (

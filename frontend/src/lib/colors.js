@@ -72,7 +72,9 @@ export const SEÑAL_CONFIG = {
 export const SEÑALES_CONFIABLES = Object.keys(SEÑAL_CONFIG).filter(k => k !== 'sin_datos');
 
 export function scoreColor(scoreCompra) {
-  return scoreCompra >= 70 ? SEMANTIC.positive : scoreCompra >= 40 ? SEMANTIC.warn : SEMANTIC.negative;
+  if (scoreCompra >= 70) return SEMANTIC.positive;
+  if (scoreCompra >= 40) return SEMANTIC.warn;
+  return SEMANTIC.negative;
 }
 
 // Financing-signal ("¿conviene en cuotas?") visual config. Independent
@@ -93,5 +95,7 @@ export const FINANCIACION_SEÑALES_CONFIABLES = Object.keys(FINANCIACION_CONFIG)
 
 // Gauge/percentile color ramp (ProductCard PriceBar, DetailPanel Gauge/BoxPlot).
 export function gaugeColor(pct) {
-  return pct <= 33 ? SEMANTIC.positive : pct <= 66 ? SEMANTIC.warn : SEMANTIC.negative;
+  if (pct <= 33) return SEMANTIC.positive;
+  if (pct <= 66) return SEMANTIC.warn;
+  return SEMANTIC.negative;
 }

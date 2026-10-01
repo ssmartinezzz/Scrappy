@@ -532,24 +532,31 @@ export async function fetchPcsBuilder({
   // gama, sólo viaja cuando el pedido difiere del default (UsoWire.parse).
   uso = '',
 } = {}) {
+  // [param, viaja?, valor] en el orden en que siempre viajaron.
+  const campos = [
+    ['presupuesto', presupuesto > 0, presupuesto],
+    ['conGpu', conGpu, 'true'],
+    ['excluir', excluir.length > 0, excluir.join(',')],
+    ['gama', gama, gama],
+    ['ddr', ddr, ddr],
+    ['marcaCpu', marcaCpu, marcaCpu],
+    ['marcaGpu', marcaGpu, marcaGpu],
+    ['tipoAlmacenamiento', tipoAlmacenamiento, tipoAlmacenamiento],
+    ['ramDual', ramDual, 'true'],
+    ['wifi', wifi, 'true'],
+    ['capacidadMinimaGb', capacidadMinimaGb > 0, capacidadMinimaGb],
+    ['tamanioGabinete', tamanioGabinete, tamanioGabinete],
+    ['tipoCooler', tipoCooler, tipoCooler],
+    ['wattsMinimos', wattsMinimos > 0, wattsMinimos],
+    ['uso', uso, uso],
+  ];
   const p = new URLSearchParams();
-  if (presupuesto > 0) p.set('presupuesto', presupuesto);
-  if (conGpu) p.set('conGpu', 'true');
-  if (excluir.length > 0) p.set('excluir', excluir.join(','));
-  if (gama) p.set('gama', gama);
-  if (ddr) p.set('ddr', ddr);
-  if (marcaCpu) p.set('marcaCpu', marcaCpu);
-  if (marcaGpu) p.set('marcaGpu', marcaGpu);
-  if (tipoAlmacenamiento) p.set('tipoAlmacenamiento', tipoAlmacenamiento);
-  if (ramDual) p.set('ramDual', 'true');
-  if (wifi) p.set('wifi', 'true');
-  if (capacidadMinimaGb > 0) p.set('capacidadMinimaGb', capacidadMinimaGb);
-  if (tamanioGabinete) p.set('tamanioGabinete', tamanioGabinete);
-  if (tipoCooler) p.set('tipoCooler', tipoCooler);
-  if (wattsMinimos > 0) p.set('wattsMinimos', wattsMinimos);
-  if (uso) p.set('uso', uso);
+  for (const [param, viaja, valor] of campos) {
+    if (viaja) p.set(param, valor);
+  }
   const qs = p.toString();
-  const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
+  const sufijo = qs ? `?${qs}` : '';
+  const r = await authedFetch(`${BASE}/api/pcs/builder${sufijo}`);
   return softUnwrap(r);
 }
 

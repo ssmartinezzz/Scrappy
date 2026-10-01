@@ -88,15 +88,15 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
           className="picks-rubro-carousel"
           renderItem={r => {
             const { img, categorias, productos } = resumenRubro(byRubro[r.key]);
+            let picksStats = `${categorias} categorías · ${productos.toLocaleString('es-AR')} productos`;
+            if (!categorias) picksStats = cargando ? 'Cargando...' : 'Sin picks todavía';
             return (
               <RubroCard
                 imageUrl={img}
                 icon={r.icon}
                 title={r.label}
                 themeColor={RUBRO_THEME[r.key]}
-                stats={categorias
-                  ? `${categorias} categorías · ${productos.toLocaleString('es-AR')} productos`
-                  : (cargando ? 'Cargando...' : 'Sin picks todavía')}
+                stats={picksStats}
                 onClick={() => onSelect(r.key)}
               />
             );

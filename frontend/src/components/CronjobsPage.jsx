@@ -128,6 +128,25 @@ const COLUMNS = [
   },
 ];
 
+function HeaderContent({ header }) {
+  if (header.isPlaceholder) return null;
+  const content = flexRender(header.column.columnDef.header, header.getContext());
+  if (!header.column.getCanSort()) return content;
+  return (
+    <button
+      type="button"
+      className="flex h-full cursor-pointer select-none items-center gap-1"
+      onClick={header.column.getToggleSortingHandler()}
+    >
+      {content}
+      {{
+        asc: <ChevronUp className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
+        desc: <ChevronDown className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
+      }[header.column.getIsSorted()] ?? null}
+    </button>
+  );
+}
+
 export default function CronjobsPage() {
   const [jobs, setJobs]           = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -224,11 +243,12 @@ export default function CronjobsPage() {
       )}
 
       {/* Body */}
-      {loading ? (
+      {loading && (
         <div className="rounded-card border border-border p-6 text-center text-t4">
           <Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin" strokeWidth={2} />
         </div>
-      ) : jobs.length === 0 ? (
+      )}
+      {!loading && jobs.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-s2 p-6 text-center">
           <Clock aria-hidden="true" className="h-10 w-10 text-t4" strokeWidth={1.5} />
           <div>
@@ -239,7 +259,8 @@ export default function CronjobsPage() {
             <Plus aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2.5} /> Crear el primero
           </Button>
         </div>
-      ) : (
+      )}
+      {!loading && jobs.length > 0 && (
         <>
           <div className="overflow-hidden rounded-card border border-border bg-s2">
             <Table>
@@ -248,21 +269,7 @@ export default function CronjobsPage() {
                   <TableRow key={hg.id} className="bg-s3 hover:bg-s3">
                     {hg.headers.map(header => (
                       <TableHead key={header.id} className="h-11 whitespace-nowrap text-xs uppercase tracking-wide">
-                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                          <button
-                            type="button"
-                            className="flex h-full cursor-pointer select-none items-center gap-1"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <ChevronUp className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
-                              desc: <ChevronDown className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
-                            }[header.column.getIsSorted()] ?? null}
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
+                        <HeaderContent header={header} />
                       </TableHead>
                     ))}
                   </TableRow>

@@ -40,6 +40,12 @@ function MiniSparkline({ url }) {
   );
 }
 
+const TENDENCIA_VISUAL = {
+  bajando:  { color: SEMANTIC.positive, label: '↘ bajando' },
+  subiendo: { color: SEMANTIC.negative, label: '↗ subiendo' },
+  estable:  { color: 'var(--t3)',        label: '→ estable' },
+};
+
 export default function BuySignal({ url }) {
   const [data,    setData]    = useState(null);
   const [indices, setIndices] = useState(null);
@@ -77,15 +83,15 @@ export default function BuySignal({ url }) {
 
   const cfg = SEÑAL_CONFIG[data.senal] || SEÑAL_CONFIG.precio_normal;
   const hasDetail = data.puntosHistorial >= 2;
+  const tendencia = TENDENCIA_VISUAL[data.tendencia] ?? TENDENCIA_VISUAL.estable;
 
   // Which index deflated THIS product (indices-service D1: tecnologia → USD
   // oficial, everything else → IPC) — never the assumption that IPC always
   // applies, now that the deflator is chosen per rubro.
   const deflactorLabel = data.indice === 'USD_OFICIAL' ? 'ajustado por dólar oficial' : 'ajustado por inflación';
-  const confianzaNota =
-    data.confianza === 'sin_datos'   ? 'sin datos de índice' :
-    data.confianza === 'extrapolado' ? `estimado (${data.diasExtrapolados} días proyectados)` :
-    null;
+  let confianzaNota = null;
+  if (data.confianza === 'sin_datos') confianzaNota = 'sin datos de índice';
+  else if (data.confianza === 'extrapolado') confianzaNota = `estimado (${data.diasExtrapolados} días proyectados)`;
 
   return (
     <div style={{
@@ -140,8 +146,8 @@ export default function BuySignal({ url }) {
           </div>
 
           <div style={{ fontSize:'.62rem', color:'var(--t4)', marginTop:6, display:'flex', gap:10, flexWrap:'wrap' }}>
-            <span>Tendencia: <strong style={{ color: data.tendencia==='bajando'?SEMANTIC.positive:data.tendencia==='subiendo'?SEMANTIC.negative:'var(--t3)' }}>
-              {data.tendencia==='bajando'?'↘ bajando':data.tendencia==='subiendo'?'↗ subiendo':'→ estable'}
+            <span>Tendencia: <strong style={{ color: tendencia.color }}>
+              {tendencia.label}
             </strong></span>
             {indices?.ipc?.variacionMensual != null && (
               <span>IPC: <strong style={{ color:'var(--t2)' }}>{indices.ipc.variacionMensual.toFixed(1)}%</strong>/mes
