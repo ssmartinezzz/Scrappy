@@ -701,7 +701,8 @@ Retorna inmediatamente.
   detectado en dos momentos distintos: el `400` es el chequeo previo, el `409`
   es la carrera que ese chequeo no puede cerrar por sí solo.
 
-Progreso via polling de `GET /ml/estado` (`training.phase` pasa por
+El progreso llega como eventos `ml.status` de `GET /events` (la UI ya no pollea); `GET /ml/estado`
+devuelve el mismo estado para quien lo pide una vez (`training.phase` pasa por
 `training` → `embedding` → `idle`/`error`).
 
 ---

@@ -17,7 +17,7 @@ const BASE_PROPS = {
   scrapeMsg: 'Scrapeando entreno',
   progreso: { total: 3, completados: 1, sitios: [] },
   onScrapeStart: vi.fn(),
-  onStartPolling: vi.fn(),
+  onWatchRun: vi.fn(),
   onGoToApp: vi.fn(),
   prods: [],
   totalProds: 0,

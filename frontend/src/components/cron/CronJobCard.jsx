@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchSitios, createCronJob, updateCronJob, fetchCronExecutions } from '../../api';
+import { useStreamEvent } from '../../hooks/EventStreamProvider';
 import { SEMANTIC } from '../../lib/colors';
 import { formatFechaHora } from '../../lib/fechas';
 import { Button } from '../ui/button';
@@ -77,6 +78,12 @@ export default function CronJobCard({ job, onClose, onSaved }) {
     if (isNew) { setExecutions([]); return; }
     fetchCronExecutions(job.id).then(data => setExecutions(data || []));
   }, [job, isNew]);
+
+  const refreshExecutions = () => {
+    if (!isNew) fetchCronExecutions(job.id).then(data => setExecutions(data || []));
+  };
+  useStreamEvent('db.changed', d => { if (d.table === 'cron_execution' && d.job === job?.id) refreshExecutions(); });
+  useStreamEvent('resync', refreshExecutions);
 
   const byRubro = allSitios.reduce((acc, s) => {
     const r = s.rubro || 'indumentaria';
