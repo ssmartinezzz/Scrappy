@@ -580,3 +580,16 @@ describe('authSession — a 5xx during refresh is transient, not a logout', () =
       .toBeNull(); // the backend said who you are is no longer valid — that IS terminal
   });
 });
+
+describe('authSession — tab identity', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('derives the tab id from the CSPRNG, never from Math.random', async () => {
+    const random = vi.spyOn(Math, 'random');
+    vi.resetModules();
+
+    await import('./authSession');
+
+    expect(random).not.toHaveBeenCalled();
+  });
+});
