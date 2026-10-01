@@ -2,16 +2,16 @@
 
 ## Objective
 
-Make the app load, render and respond fast on old phones and old PCs, and make sure it
-**runs at all** on them, with the code optimized end to end (bundle, render, network,
+Make the app load, render and respond fast on phones from 2020 onwards (entry-level to
+flagship) and on old PCs, and make sure it **runs at all** on those PCs, with the code optimized end to end (bundle, render, network,
 API, JVM) under the same ODD rules as backend-hardening.
 
 ## Problem (measured 2026-10-01, master 059e3a9 = v1.0.0)
 
-- **Old browsers cannot run the bundle.** `vite.config.js` sets no `build.target`, so Vite
-  8.3 uses `baseline-widely-available` = Chrome/Edge 111+, Firefox 114+, Safari/iOS 16.4+
-  (Vite docs, v8.0.10). An iPhone stuck on iOS 15 (6s, 7, SE 1st gen) or a Chrome older
-  than March 2023 gets a broken app. The main CSS also uses `oklch` / `color-mix` /
+- **Old desktop browsers cannot run the bundle.** `vite.config.js` sets no `build.target`,
+  so Vite 8.3 uses `baseline-widely-available` = Chrome/Edge 111+, Firefox 114+,
+  Safari/iOS 16.4+ (Vite docs, v8.0.10). A PC browser older than early 2023 gets a broken
+  app. (2020+ phones are expected to be inside that target; see Target devices.) The main CSS also uses `oklch` / `color-mix` /
   `@property` (to verify which, and from where).
 - **JavaScript before the catalog renders:** `index.html` loads 152 KB gzipped of eager +
   modulepreload JS (index 83 KB, `tslib.es6` 43 KB on every page, AuthProvider, lucide,
@@ -35,16 +35,28 @@ API, JVM) under the same ODD rules as backend-hardening.
 Users on old hardware get the slowest experience or none at all; every number above was
 measured on a fast 12-core box.
 
-## Target devices — PROVISIONAL, confirm with the user before T0
+## Target devices
+
+**Phones — decided by the user 2026-10-01:** not "old phones" but good performance on
+phones from 2020 onwards, entry-level to flagship. The profile to optimize for is a 2020
+entry-level Android (Galaxy A11 / Moto E7 class: entry SoC, 2–3 GB RAM); flagships must
+not regress. Measurement proxy: Lighthouse mobile defaults (4x CPU slowdown, Slow 4G
+150 ms RTT / 1.6 Mbps) plus a 6x CPU run for the slowest SoCs.
+
+Browser floor on phones is expected to be a non-issue, **to verify in T0, not assumed**:
+Android Chrome updates through the Play Store and those devices shipped Android 10+; every
+iPhone from 2020 (SE 2nd gen onwards) can run iOS 16.4+, which is inside Vite's default
+target (Safari/iOS 16.4+).
+
+**PCs — still PROVISIONAL, confirm with the user before T1:**
 
 | profile | proposal |
 |---|---|
-| old phone | Lighthouse mobile defaults (Moto G Power class: 4x CPU slowdown, Slow 4G 150 ms RTT / 1.6 Mbps), plus a real floor of iOS 15 Safari and Chrome 90 on Android |
 | old PC (browser) | 2 cores, 4 GB RAM, Chrome 90 / Firefox 90 |
 | old PC (host of the portable install) | 4 GB RAM total for JVM + Postgres + Python + browser |
 
-The browser floor decides the build target (`build.target` and/or `@vitejs/plugin-legacy`)
-and is a product decision, not a technical one.
+The PC browser floor decides whether the build target must go below Vite's default
+(`build.target` and/or `@vitejs/plugin-legacy`); it is a product decision.
 
 ## Constraints (same rules as backend-hardening)
 
@@ -70,9 +82,9 @@ and is a product decision, not a technical one.
   `/login`, `/catalogo`, one armador; CDP-throttled Playwright timing (login -> first card,
   reload -> first card, scroll 3 pages, open detail); bundle report per route; bytes on the
   wire with/without compression; runs-or-not on the browser floor
-- [ ] T1 Browser floor: set the build target / legacy plugin for the confirmed floor; fix
-  any CSS that the floor cannot render (`oklch`, `color-mix`, `@property`); prove it runs
-  on the floor browser
+- [ ] T1 PC browser floor: set the build target / legacy plugin for the confirmed PC floor;
+  fix any CSS that floor cannot render (`oklch`, `color-mix`, `@property`); prove it runs
+  there. Skipped if the confirmed PC floor is already inside Vite's default target
 - [ ] T2 Compression: gzip/brotli for the SPA (nginx + preview) and the API (Spring), with
   the SSE stream excluded from buffering; measure bytes and time on Slow 4G
 - [ ] T3 Critical-path JS: cut what `/login` and `/catalogo` load before first paint
@@ -112,4 +124,4 @@ config); nothing implemented yet.
 
 ## Next step
 
-Confirm the target devices with the user, then T0.
+T0 (phone profile is decided). Confirm the PC profile with the user before T1.
