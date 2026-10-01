@@ -6,7 +6,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 
 import java.awt.Desktop;
@@ -42,9 +42,10 @@ public class App {
      * que ya no hay una página propia útil para abrir por default: sin la
      * variable de entorno, este listener es un no-op. Si se define
      * {@code APP_OPEN_URL} (por ejemplo, apuntando al frontend standalone),
-     * se abre esa URL.
+     * se abre esa URL. Corre en {@code ApplicationReadyEvent}: Tomcat ya acepta
+     * conexiones, sin dormir a ciegas.
      */
-    @EventListener(ContextRefreshedEvent.class)
+    @EventListener(ApplicationReadyEvent.class)
     public void onStart() {
         String url = System.getenv("APP_OPEN_URL");
         if (StringUtils.isBlank(url)) {
@@ -52,7 +53,6 @@ public class App {
             return;
         }
         try {
-            Thread.sleep(500); // esperar que Tomcat este listo
             LOG.info("Abriendo navegador en {}", url);
             if (Desktop.isDesktopSupported()) {
                 Desktop.getDesktop().browse(URI.create(url));

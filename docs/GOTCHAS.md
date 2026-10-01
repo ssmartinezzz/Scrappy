@@ -179,6 +179,23 @@ mockea `useAuth` y fija la baseline en 1 antes de medir.
   rechaza `scripts/hooks/commit-msg`, y `--no-verify` apagaría también el chequeo
   de `COMMIT-3`.
 
+**El stream `/api/events` tiene tres trampas que sólo se ven contra un Tomcat real.**
+MockMvc no las reproduce (`SseRealPortTest` sí).
+
+1. **`DispatcherType.ASYNC` tiene que estar en el `permitAll` de `SecurityConfig`.**
+   Cuando un emitter termina o vence, el contenedor re-despacha el request; la cadena
+   es stateless y no tiene sujeto para reautorizarlo, así que sin esa línea tira
+   `AccessDeniedException` sobre una respuesta ya enviada y el cliente ve el stream
+   cortarse en seco en vez de cerrarse limpio.
+2. **`onTimeout` tiene que completar el emitter sincrónicamente.** Completarlo desde
+   otro hilo (probado con un virtual thread) deja una carrera: Spring ve el callback
+   terminar sin resultado y despacha `AsyncRequestTimeoutException`.
+3. **Un cliente que deja de leer bloquea SÓLO a su propio hilo de escritura**, nunca al
+   bus ni a los demás clientes (su cola es de 64, descarta lo más viejo y deja un
+   `resync`). Pero `complete()` toma el mismo monitor que `send()`, así que el callback
+   de timeout de ese cliente espera hasta que Tomcat le corte la escritura
+   (`server.tomcat.connection-timeout`, 20 s por defecto). Es un tope, no un cuelgue.
+
 ### Entorno, procesos y config
 
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,

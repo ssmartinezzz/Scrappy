@@ -142,6 +142,11 @@ class MlEndpoints {
     }
 
     ResponseEntity<ApiResponse<MlDtos.Estado>> mlEstado() {
+        return ResponseEntity.ok(ApiResponse.ok(estadoDto()));
+    }
+
+    /** What {@code /api/ml/estado} puts inside {@code data}; the event stream's snapshot reuses it. */
+    MlDtos.Estado estadoDto() {
         java.io.File modelsDir = new java.io.File("_models");
         java.io.File textModel = new java.io.File(modelsDir, "text_classifier.pkl");
         java.io.File imgModel  = new java.io.File(modelsDir, "image_model.pt");
@@ -167,7 +172,7 @@ class MlEndpoints {
         estado.setCoveragePct(totalProductos > 0
                 ? Math.round((double) embeddingsCount / totalProductos * 1000.0) / 10.0
                 : 0.0);
-        return ResponseEntity.ok(ApiResponse.ok(estado));
+        return estado;
     }
 
     ResponseEntity<ApiResponse<MlDtos.Started>> mlEntrenar(boolean images, int epochs) {

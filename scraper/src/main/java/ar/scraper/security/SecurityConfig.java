@@ -24,7 +24,9 @@ import org.springframework.security.web.access.AccessDeniedHandler;
  *
  * <p>The {@code /error} forward must be permitted, or every error becomes a 403: Boot forwards unhandled
  * errors to {@code /error}, which matches no policy row. FORWARD/ERROR dispatches cannot be triggered
- * from outside, only by the container.</p>
+ * from outside, only by the container. ASYNC is permitted for the same reason: when an SSE emitter
+ * completes or times out the container re-dispatches the request, and the stateless chain has no
+ * subject to re-authorize it with — the request was already authorized on its first dispatch.</p>
  *
  * <p>Spring's CSRF is off: every route authenticates with a bearer header, which a cross-site page cannot
  * set. The one endpoint with an ambient credential, the refresh cookie, carries its own double-submit
@@ -61,7 +63,7 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> {
-                    auth.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll();
+                    auth.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR, DispatcherType.ASYNC).permitAll();
 
                     for (ApiRoutePolicy.RoutePolicy fila : ApiRoutePolicy.TABLE) {
                         String[] patrones = fila.patterns().toArray(String[]::new);
