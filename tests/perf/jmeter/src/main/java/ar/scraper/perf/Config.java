@@ -83,8 +83,8 @@ public final class Config {
       Endpoint.de("grupos", "/api/grupos?minSitios=2&page=0&size=20", 2, 200),
       // mejor pick por categoría sobre el snapshot — p95 medido 13 ms
       Endpoint.de("mejores", "/api/mejores", 1, 40),
-      // arma el FeedbackModel y pega 2 queries — p95 medido 57 ms. page es BASE 1: con page=0 el endpoint tira 500
-      Endpoint.de("recomendados", "/api/recomendados?page=1&size=24", 2, 120),
+      // arma el FeedbackModel y pega 2 queries — p95 medido 57 ms
+      Endpoint.de("recomendados", "/api/recomendados?page=0&size=24", 2, 120),
       // MCKP con branch-and-bound — p95 medido 7 ms. `categorias` es obligatorio
       Endpoint.de("outfits_builder", "/api/outfits/builder?categorias=Remera,Jean,Zapatilla&presupuesto=150000&estilo=gym", 1, 40),
       // una pasada por precedencia sobre 33 subtipos — p95 medido 11 ms. `tipos` es obligatorio
@@ -160,7 +160,7 @@ public final class Config {
       throw new IllegalStateException(
           "login respondió " + r.statusCode() + " — sin token no hay nada que medir");
     }
-    // El cuerpo es {"accessToken":"...", ...}; alcanza con recortarlo, y así el
+    // El cuerpo es {"data":{"accessToken":"...", ...}}; alcanza con recortarlo, y así el
     // módulo no arrastra una dependencia de JSON para leer un solo campo.
     int desde = r.body().indexOf("\"accessToken\":\"") + 15;
     return r.body().substring(desde, r.body().indexOf('"', desde));

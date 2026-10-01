@@ -53,11 +53,11 @@ def test_rotation_issues_a_fresh_pair(api, sesion, app_origin):
 
     sucesor = r.cookies["refresh"].valor
     assert sucesor != sesion.refresh_token, "the refresh token must rotate"
-    assert r.json()["csrfNonce"] != sesion.nonce, (
+    assert r.data()["csrfNonce"] != sesion.nonce, (
         "the nonce must rotate with the token — a nonce that outlives its "
         "token is a nonce an attacker only has to steal once"
     )
-    assert r.json()["accessToken"], "and a new access token comes with it"
+    assert r.data()["accessToken"], "and a new access token comes with it"
 
 
 def test_within_the_grace_window_the_same_successor_is_replayed(api, sesion, app_origin):
@@ -84,8 +84,8 @@ def test_within_the_grace_window_the_same_successor_is_replayed(api, sesion, app
         "the replay handed back a DIFFERENT refresh token — that is a second "
         "rotation wearing a replay's clothes, and it strands the first successor"
     )
-    assert segunda.json()["csrfNonce"] == primera.json()["csrfNonce"]
-    assert segunda.json()["accessToken"] == primera.json()["accessToken"]
+    assert segunda.data()["csrfNonce"] == primera.data()["csrfNonce"]
+    assert segunda.data()["accessToken"] == primera.data()["accessToken"]
 
 
 @pytest.mark.slow
@@ -104,7 +104,7 @@ def test_after_the_grace_window_reuse_burns_the_whole_family(api, sesion, app_or
     rotacion = _rotar(api, sesion.refresh_token, sesion.nonce, app_origin)
     assert rotacion.status == 200
     sucesor = rotacion.cookies["refresh"].valor
-    nonce_sucesor = rotacion.json()["csrfNonce"]
+    nonce_sucesor = rotacion.data()["csrfNonce"]
 
     time.sleep(GRACIA_SEGUNDOS + 1)
 
@@ -112,7 +112,7 @@ def test_after_the_grace_window_reuse_burns_the_whole_family(api, sesion, app_or
     assert reusado.status == 401, (
         f"reuse outside the window must be 401, got {reusado.status}: {reusado.body!r}"
     )
-    assert reusado.json()["error"] == "sesion_invalidada"
+    assert reusado.error_code() == "sesion_invalidada"
     assert reusado.cookies["refresh"].borrada, (
         "reuse must also clear the cookie — leaving it in place makes the "
         "browser re-present a credential that can only ever fail from here on"
@@ -123,7 +123,7 @@ def test_after_the_grace_window_reuse_burns_the_whole_family(api, sesion, app_or
         "the successor survived reuse detection — the family was not revoked, "
         f"only the presented token was. Got {muerto.status}: {muerto.body!r}"
     )
-    assert muerto.json()["error"] == "refresh_invalido"
+    assert muerto.error_code() == "refresh_invalido"
 
 
 def test_logout_revokes_the_family_and_clears_the_cookie(api, sesion, app_origin):
@@ -139,12 +139,12 @@ def test_logout_revokes_the_family_and_clears_the_cookie(api, sesion, app_origin
         cookies=sesion.cookie(),
         headers={"X-Refresh-CSRF": sesion.nonce, "Origin": app_origin},
     )
-    assert r.status == 200 and r.json()["cerrada"] is True
+    assert r.status == 200 and r.data()["cerrada"] is True
     assert r.cookies["refresh"].borrada
 
     despues = _rotar(api, sesion.refresh_token, sesion.nonce, app_origin)
     assert despues.status == 401, f"the family survived logout: {despues.body!r}"
-    assert despues.json()["error"] == "refresh_invalido"
+    assert despues.error_code() == "refresh_invalido"
 
 
 def test_logout_has_no_bootstrap_carve_out(api, sesion, app_origin):
@@ -161,7 +161,7 @@ def test_logout_has_no_bootstrap_carve_out(api, sesion, app_origin):
         cookies=sesion.cookie(),
         headers={"Origin": app_origin, "Sec-Fetch-Site": SEC_FETCH_SITE_REAL},
     )
-    assert r.json()["cerrada"] is False, "a nonce-less logout must not close the family"
+    assert r.data()["cerrada"] is False, "a nonce-less logout must not close the family"
 
     vive = _rotar(api, sesion.refresh_token, sesion.nonce, app_origin)
     assert vive.status == 200, (

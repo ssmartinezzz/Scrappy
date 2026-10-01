@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -100,9 +101,9 @@ class ApiControllerMejoresInfantilVetoTest {
         Product infantil = producto("https://site.com/infantil", "infantil");
         when(service.getLastResult()).thenReturn(resultFor(infantil));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         // No eligible products remain in "Zapatilla" -> no category card at all.
         boolean tieneZapatillas = false;
         if (body != null) {
@@ -124,9 +125,9 @@ class ApiControllerMejoresInfantilVetoTest {
         Product unisex = producto("https://site.com/unisex", "unisex");
         when(service.getLastResult()).thenReturn(resultFor(hombre, mujer, unisex));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         JsonNode zapatillasNode = null;
         for (JsonNode node : body) {
             if ("Zapatilla".equals(node.path("categoria").asText())) {
@@ -145,9 +146,9 @@ class ApiControllerMejoresInfantilVetoTest {
         Product generoVacio = producto("https://site.com/vacio", "");
         when(service.getLastResult()).thenReturn(resultFor(generoNulo, generoVacio));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         JsonNode zapatillasNode = null;
         for (JsonNode node : body) {
             if ("Zapatilla".equals(node.path("categoria").asText())) {

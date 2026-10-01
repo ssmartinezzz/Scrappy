@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.pcs.Gama;
@@ -99,7 +100,7 @@ class ApiControllerSavedPcsTest {
                 "totalEstimado", 650000.0));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         assertThat(body.path("id").asInt()).isEqualTo(1);
         assertThat(body.path("nombre").asText()).isEqualTo("Mi PC");
@@ -171,11 +172,11 @@ class ApiControllerSavedPcsTest {
         when(pcsGuardadas.guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any()))
                 .thenReturn(-1);
 
-        ResponseEntity<?> resp = controller.savePc(Map.of(
-                "nombre", "x", "picks", List.of(), "presupuesto", 0.0, "conGpu", false, "totalEstimado", 1000.0));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.savePc(Map.of(
+                "nombre", "x", "picks", List.of(), "presupuesto", 0.0, "conGpu", false, "totalEstimado", 1000.0)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -208,12 +209,12 @@ class ApiControllerSavedPcsTest {
 
     @Test
     void savePcWithInvalidGamaReturns400AndNeverPersists() {
-        ResponseEntity<?> resp = controller.savePc(Map.of(
+        ResponseEntity<?> resp = Wire.answer(() -> controller.savePc(Map.of(
                 "nombre", "Mi PC", "picks", List.of(), "presupuesto", 0.0, "conGpu", false,
-                "totalEstimado", 0.0, "gama", "ultra"));
+                "totalEstimado", 0.0, "gama", "ultra")));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(pcsGuardadas, never()).guardarPc(any(), any(), anyList(), anyDouble(), anyBoolean(), anyDouble(), any());
     }
@@ -229,8 +230,7 @@ class ApiControllerSavedPcsTest {
         ResponseEntity<?> resp = controller.getSavedPcs();
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        List<?> body = (List<?>) resp.getBody();
-        assertThat(body).hasSize(2);
+        assertThat(Wire.data(resp)).hasSize(2);
     }
 
     // ── DELETE /api/pcs/saved/{id} ─────────────────────────────────────────
@@ -242,7 +242,7 @@ class ApiControllerSavedPcsTest {
         ResponseEntity<?> resp = controller.deleteSavedPc(3);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
     }
 
@@ -251,10 +251,10 @@ class ApiControllerSavedPcsTest {
         when(pcsGuardadas.eliminarPcGuardada(any(), eq(999))).thenReturn(false);
 
         Allure.parameter("id", 999);
-        ResponseEntity<?> resp = controller.deleteSavedPc(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.deleteSavedPc(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -267,17 +267,17 @@ class ApiControllerSavedPcsTest {
         ResponseEntity<?> resp = controller.renameSavedPc(5, Map.of("nombre", "Mi PC"));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         verify(pcsGuardadas).renombrarPc(any(), eq(5), eq("Mi PC"));
     }
 
     @Test
     void renameSavedPcBlankNombreReturns400() {
-        ResponseEntity<?> resp = controller.renameSavedPc(5, Map.of("nombre", "   "));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.renameSavedPc(5, Map.of("nombre", "   ")));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(pcsGuardadas, never()).renombrarPc(any(), anyInt(), anyString());
     }
@@ -287,10 +287,10 @@ class ApiControllerSavedPcsTest {
         when(pcsGuardadas.renombrarPc(any(), eq(99), eq("x"))).thenReturn(false);
 
         Allure.parameter("id", 99);
-        ResponseEntity<?> resp = controller.renameSavedPc(99, Map.of("nombre", "x"));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.renameSavedPc(99, Map.of("nombre", "x")));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 }

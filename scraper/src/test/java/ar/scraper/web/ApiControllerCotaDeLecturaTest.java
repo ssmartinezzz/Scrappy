@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -91,12 +92,13 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
     void dataRespetaLaCota() {
         hayCorridaEnCurso();
 
-        ObjectNode body = data().getBody();
+        ResponseEntity<?> resp = data();
+        JsonNode body = Wire.data(resp);
         JsonNode meta = body.path("meta");
 
         assertThat(body.path("productos")).hasSize(1);
         assertThat(body.path("productos").get(0).path("url").asText()).isEqualTo(VIEJO);
-        assertThat(meta.path("total").asInt())
+        assertThat(Wire.page(resp).path("total").asInt())
                 .as("el total del pager sale del mismo predicado que la página")
                 .isEqualTo(1);
         assertThat(meta.path("rangMax").asDouble())
@@ -110,7 +112,7 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
     void facetasDeDataRespetanLaCota() {
         hayCorridaEnCurso();
 
-        JsonNode facets = data().getBody().path("meta").path("facets");
+        JsonNode facets = Wire.data(data()).path("meta").path("facets");
 
         assertThat(facets.path("marcas").has("Nike")).isTrue();
         assertThat(facets.path("marcas").has("Adidas")).isFalse();
@@ -121,7 +123,7 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
     void facetsSueltoRespetaLaCota() {
         hayCorridaEnCurso();
 
-        ObjectNode body = controller.facets().getBody();
+        JsonNode body = Wire.data(controller.facets());
 
         assertThat(body.path("marcas").has("Nike")).isTrue();
         assertThat(body.path("marcas").has("Adidas"))
@@ -135,9 +137,10 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
     void sinCotaSeSirveTodo() {
         when(service.cotaDeLectura()).thenReturn(Optional.empty());
 
-        JsonNode meta = data().getBody().path("meta");
+        ResponseEntity<?> resp = data();
+        JsonNode meta = Wire.data(resp).path("meta");
 
-        assertThat(meta.path("total").asInt()).isEqualTo(2);
+        assertThat(Wire.page(resp).path("total").asInt()).isEqualTo(2);
         assertThat(meta.path("rangMax").asDouble()).isEqualTo(2000.0);
     }
 
@@ -150,7 +153,7 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
         // obtenerProductoPorKey, que nunca pasa por CatalogQueryRepository. Este
         // test existe para que agregarle la cota ahí rompa el build.
         String key = productoKeyDe(FRESCO);
-        ResponseEntity<Object> resp = controller.productoDetalle(key);
+        ResponseEntity<?> resp = controller.productoDetalle(key);
 
         assertThat(resp.getStatusCode().value())
                 .as("el producto lo está re-tocando la corrida; el detalle igual responde")
@@ -159,8 +162,8 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private ResponseEntity<ObjectNode> data() {
-        return controller.data(1, 24, null, null, null, null, null, null, null, null,
+    private ResponseEntity<?> data() {
+        return controller.data(0, 24, null, null, null, null, null, null, null, null,
                 null, null, "precio_asc", null, null, null, null, null, null, null, null);
     }
 

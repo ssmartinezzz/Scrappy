@@ -8,15 +8,15 @@ function jsonResponse(body, init = {}) {
 }
 
 function response401() {
-  return { ok: false, status: 401, json: async () => ({ error: 'token_invalido' }) };
+  return { ok: false, status: 401, json: async () => ({ error: { code: 'token_invalido', message: '' } }) };
 }
 
 function response403() {
-  return { ok: false, status: 403, json: async () => ({ error: 'sin_permiso' }) };
+  return { ok: false, status: 403, json: async () => ({ error: { code: 'sin_permiso', message: '' } }) };
 }
 
 function refreshOk(accessToken = 'new-token', csrfNonce = 'new-nonce') {
-  return jsonResponse({ accessToken, csrfNonce, expiresIn: 900, tokenType: 'Bearer' });
+  return jsonResponse({ data: { accessToken, csrfNonce, expiresIn: 900, tokenType: 'Bearer' } });
 }
 
 beforeEach(() => {
@@ -73,7 +73,7 @@ describe('authedFetch — 401 vs 403', () => {
     const original401 = response401();
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) {
-        return { ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }) };
+        return { ok: false, status: 401, json: async () => ({ error: { code: 'refresh_invalido', message: '' } }) };
       }
       return original401;
     });

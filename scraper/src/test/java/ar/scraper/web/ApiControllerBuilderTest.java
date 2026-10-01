@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -125,14 +126,14 @@ class ApiControllerBuilderTest {
 
     @Test
     void missingCategorias_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder(null, 50_000, "hombre", "", "", false, "gym");
+        ResponseEntity<?> resp = Wire.answer(() -> controller.outfitsBuilder(null, 50_000, "hombre", "", "", false, "gym"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void blankCategorias_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("   ", 50_000, "hombre", "", "", false, "gym");
+        ResponseEntity<?> resp = Wire.answer(() -> controller.outfitsBuilder("   ", 50_000, "hombre", "", "", false, "gym"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -140,7 +141,7 @@ class ApiControllerBuilderTest {
     @Test
     void presupuestoZero_returns400() {
         Allure.parameter("presupuesto", 0);
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 0, "hombre", "", "", false, "gym");
+        ResponseEntity<?> resp = Wire.answer(() -> controller.outfitsBuilder("Buzo,Short", 0, "hombre", "", "", false, "gym"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -148,7 +149,7 @@ class ApiControllerBuilderTest {
     @Test
     void presupuestoNegative_returns400() {
         Allure.parameter("presupuesto", -1000);
-        ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", -1000, "hombre", "", "", false, "gym");
+        ResponseEntity<?> resp = Wire.answer(() -> controller.outfitsBuilder("Buzo,Short", -1000, "hombre", "", "", false, "gym"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -159,14 +160,14 @@ class ApiControllerBuilderTest {
         String cats = "Buzo,Remera,Camisa,Short,Jean,Zapatilla,Zapatilla Running," +
                       "Gorra,Medias,Mochila,Puffer,Campera,Sweater,Calza,Baggy," +
                       "Jogging,Bermuda,Pollera,Sneaker,Botines,Borcego";
-        ResponseEntity<?> resp = controller.outfitsBuilder(cats, 500_000, null, "", "", false, "gym");
+        ResponseEntity<?> resp = Wire.answer(() -> controller.outfitsBuilder(cats, 500_000, null, "", "", false, "gym"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
     @Test
     void allUnknownCategories_returns400() {
-        ResponseEntity<?> resp = controller.outfitsBuilder("Zapato,Vestido,Medias Largas", 50_000, null, "", "", false, "gym");
+        ResponseEntity<?> resp = Wire.answer(() -> controller.outfitsBuilder("Zapato,Vestido,Medias Largas", 50_000, null, "", "", false, "gym"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
@@ -194,7 +195,7 @@ class ApiControllerBuilderTest {
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo,Short", 50_000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body).isNotNull();
         assertThat(body.path("status").asText()).isEqualTo("ok");
         assertThat(body.path("slots").isArray()).isTrue();
@@ -221,7 +222,7 @@ class ApiControllerBuilderTest {
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false, "gym");
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body).isNotNull();
         assertThat(body.path("status").asText()).isEqualTo("no-fit");
         assertThat(body.path("slots").size()).isEqualTo(0);
@@ -286,7 +287,7 @@ class ApiControllerBuilderTest {
 
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 5_000, "hombre", "", "", false, "gym");
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body).isNotNull();
         assertThat(body.path("status").asText()).isEqualTo("no-fit");
         assertThat(body.has("minimoBudgetNecesario")).isTrue();
@@ -309,7 +310,7 @@ class ApiControllerBuilderTest {
 
         ResponseEntity<?> resp = controller.outfitsBuilder("Buzo", 50_000, "hombre", "", "", false, "gym");
 
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body).isNotNull();
         assertThat(body.path("status").asText()).isEqualTo("ok");
         // minimoBudgetNecesario should be absent or null for success

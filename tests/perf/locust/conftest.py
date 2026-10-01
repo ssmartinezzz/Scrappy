@@ -144,7 +144,7 @@ def token(host: str, credenciales: tuple[str, str]) -> str:
         f"login como {usuario!r} contestó {r.status_code}: {r.text[:200]} — "
         "sin token no hay nada que medir"
     )
-    carga.TOKEN = r.json()["accessToken"]
+    carga.TOKEN = r.json()["data"]["accessToken"]
     return carga.TOKEN
 
 

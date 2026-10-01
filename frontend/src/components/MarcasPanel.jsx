@@ -110,7 +110,7 @@ function MarcaDetail({ marca, onBack, onProductClick }) {
 
   useEffect(() => {
     setLoading(true);
-    fetchData({ marca: marca.marca, size: 48, page: 1, orden:'precio_asc' })
+    fetchData({ marca: marca.marca, size: 48, page: 0, orden:'precio_asc' })
       .then(d => { setProds(d?.productos || []); setLoading(false); });
   }, [marca.marca]);
 

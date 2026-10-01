@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
@@ -70,8 +71,8 @@ class ApiControllerRecomendadosPackFieldsTest extends PostgresTestBase {
         return result;
     }
 
-    private JsonNode firstItem(ResponseEntity<ObjectNode> resp) {
-        return resp.getBody().get("items").get(0);
+    private JsonNode firstItem(ResponseEntity<?> resp) {
+        return Wire.data(resp).get(0);
     }
 
     @AfterEach
@@ -110,7 +111,7 @@ class ApiControllerRecomendadosPackFieldsTest extends PostgresTestBase {
         AggregatedResult result = resultWith(pack);
         when(service.getLastResult()).thenReturn(result);
 
-        ResponseEntity<ObjectNode> resp = controller.recomendados(1, 24, null, null);
+        ResponseEntity<?> resp = controller.recomendados(0, 24, null, null);
 
         JsonNode item = firstItem(resp);
         assertThat(item.path("esPack").asBoolean()).isTrue();
@@ -125,7 +126,7 @@ class ApiControllerRecomendadosPackFieldsTest extends PostgresTestBase {
         AggregatedResult result = resultWith(single);
         when(service.getLastResult()).thenReturn(result);
 
-        ResponseEntity<ObjectNode> resp = controller.recomendados(1, 24, null, null);
+        ResponseEntity<?> resp = controller.recomendados(0, 24, null, null);
 
         JsonNode item = firstItem(resp);
         assertThat(item.path("esPack").asBoolean()).isFalse();

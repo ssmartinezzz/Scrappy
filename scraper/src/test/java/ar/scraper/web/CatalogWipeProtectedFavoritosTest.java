@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.scrape.ScraperStatus;
 
 import ar.scraper.aggregator.ResultAggregator;
@@ -85,10 +86,10 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
         db.upsertProductos(List.of(producto(url)));
         db.guardarFavorito(yo(), url, "Sitio", "Producto");
 
-        var resp = endpoints.limpiarProductos();
+        var resp = Wire.answer(() -> endpoints.limpiarProductos());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        assertThat(resp.getBody()).contains("1");
+        assertThat(Wire.error(resp).path("message").asText()).contains("1");
 
         assertThat(contar("productos")).isEqualTo(1);
         assertThat(contar("precio_historico")).isEqualTo(1);
@@ -104,7 +105,7 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
         String url = "https://site.com/wipe-clean";
         db.upsertProductos(List.of(producto(url)));
 
-        var resp = endpoints.limpiarProductos();
+        var resp = Wire.answer(() -> endpoints.limpiarProductos());
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(contar("productos")).isZero();

@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -13,7 +14,6 @@ import ar.scraper.db.DatabaseService;
 import ar.scraper.favoritos.FavoritosPort;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
@@ -89,7 +89,7 @@ class ApiControllerFavoritosTest {
         givenNoFavoritos();
 
         var resp = controller.getFavoritos();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.isArray()).isTrue();
@@ -108,7 +108,7 @@ class ApiControllerFavoritosTest {
         givenActiveFavoritoRow(url);
 
         var resp = controller.getFavoritos();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.size()).isEqualTo(1);
         assertThat(body.get(0).get("url").asText()).isEqualTo(url);
@@ -133,7 +133,7 @@ class ApiControllerFavoritosTest {
         givenInactiveFavoritoRow(url);
 
         var resp = controller.getFavoritos();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get(0).get("descontinuado").asBoolean()).isTrue();
     }
@@ -156,10 +156,10 @@ class ApiControllerFavoritosTest {
         Allure.parameter("sitio", "Sporting");
 
         var resp = addFavorito("", "Sporting", null);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("ok").asBoolean()).isFalse();
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
         verify(favoritosPort, never()).guardarFavorito(any(), any(), any(), any());
     }
 
@@ -170,17 +170,17 @@ class ApiControllerFavoritosTest {
         Allure.parameter("sitio", "");
 
         var resp = addFavorito("https://a.com/1", "", null);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("ok").asBoolean()).isFalse();
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
     }
 
     @Test
     @Story("POST /api/favoritos")
     void addFavoritoReturns200AndPersistsWhenValid() {
         var resp = addFavorito("https://a.com/1", "Sporting", "Nike Air Max");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -192,7 +192,7 @@ class ApiControllerFavoritosTest {
         var payload = nombre == null
                 ? Map.of("url", url, "sitio", sitio)
                 : Map.of("url", url, "sitio", sitio, "nombre", nombre);
-        return controller.addFavorito(payload);
+        return Wire.answer(() -> controller.addFavorito(payload));
     }
 
     // ── DELETE /api/favoritos ────────────────────────────────────────────
@@ -201,7 +201,7 @@ class ApiControllerFavoritosTest {
     @Story("DELETE /api/favoritos")
     void deleteFavoritoAlwaysReturnsOkAndCallsDb() {
         var resp = deleteFavorito("https://a.com/1");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ok").asBoolean()).isTrue();
         verify(favoritosPort).eliminarFavorito(any(), eq("https://a.com/1"));
@@ -220,7 +220,7 @@ class ApiControllerFavoritosTest {
         String url = "https://a.com/1";
 
         var resp = controller.eliminarProducto(url);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ok").asBoolean()).isTrue();
         verify(productos).marcarDescontinuado(url);

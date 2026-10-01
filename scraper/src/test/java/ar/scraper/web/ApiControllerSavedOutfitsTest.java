@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -88,7 +89,7 @@ class ApiControllerSavedOutfitsTest {
                 Map.of("nombre", "Test Outfit", "slots", List.of(), "totalEstimado", 50000.0));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         assertThat(body.path("id").asInt()).isEqualTo(1);
         assertThat(body.path("nombre").asText()).isEqualTo("Test Outfit");
@@ -98,11 +99,11 @@ class ApiControllerSavedOutfitsTest {
     void saveOutfitDbFailureReturns500WithOkFalse() {
         when(outfitsGuardados.guardarOutfit(any(), any(), anyString(), any(), anyDouble())).thenReturn(-1);
 
-        ResponseEntity<?> resp = controller.saveOutfit(
-                Map.of("nombre", "x", "slots", List.of(), "totalEstimado", 1000.0));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.saveOutfit(
+                Map.of("nombre", "x", "slots", List.of(), "totalEstimado", 1000.0)));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -115,7 +116,7 @@ class ApiControllerSavedOutfitsTest {
                 Map.of("nombre", "  ", "slots", List.of(), "totalEstimado", 0));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         verify(outfitsGuardados).guardarOutfit(any(), anyString(), anyString(), any(), eq(0.0));
     }
@@ -131,8 +132,7 @@ class ApiControllerSavedOutfitsTest {
         ResponseEntity<?> resp = controller.getSavedOutfits();
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        List<?> body = (List<?>) resp.getBody();
-        assertThat(body).hasSize(2);
+        assertThat(Wire.data(resp)).hasSize(2);
     }
 
     // ── DELETE /api/outfits/saved/{id} ─────────────────────────────────────
@@ -144,7 +144,7 @@ class ApiControllerSavedOutfitsTest {
         ResponseEntity<?> resp = controller.deleteSavedOutfit(3);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         assertThat(body.path("mensaje").asText()).contains("eliminado");
     }
@@ -154,10 +154,10 @@ class ApiControllerSavedOutfitsTest {
         when(outfitsGuardados.eliminarOutfitGuardado(any(), eq(999))).thenReturn(false);
 
         Allure.parameter("id", 999);
-        ResponseEntity<?> resp = controller.deleteSavedOutfit(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.deleteSavedOutfit(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -170,17 +170,17 @@ class ApiControllerSavedOutfitsTest {
         ResponseEntity<?> resp = controller.renameSavedOutfit(5, Map.of("nombre", "Mi Outfit"));
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
         verify(outfitsGuardados).renombrarOutfit(any(), eq(5), eq("Mi Outfit"));
     }
 
     @Test
     void renameSavedOutfitBlankNombreReturns400() {
-        ResponseEntity<?> resp = controller.renameSavedOutfit(5, Map.of("nombre", "   "));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.renameSavedOutfit(5, Map.of("nombre", "   ")));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(outfitsGuardados, never()).renombrarOutfit(any(), anyInt(), anyString());
     }
@@ -190,10 +190,10 @@ class ApiControllerSavedOutfitsTest {
         when(outfitsGuardados.renombrarOutfit(any(), eq(99), eq("x"))).thenReturn(false);
 
         Allure.parameter("id", 99);
-        ResponseEntity<?> resp = controller.renameSavedOutfit(99, Map.of("nombre", "x"));
+        ResponseEntity<?> resp = Wire.answer(() -> controller.renameSavedOutfit(99, Map.of("nombre", "x")));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 }

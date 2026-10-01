@@ -40,5 +40,5 @@ export async function apiLogin(username, password) {
   if (!res.ok) {
     throw new Error(`login as ${username} answered ${res.status}: ${await res.text()}`);
   }
-  return (await res.json()).accessToken;
+  return (await res.json()).data.accessToken;
 }

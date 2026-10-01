@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -66,7 +67,7 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
             assertThat(login("ana", "mal").getStatusCode().value()).isEqualTo(401);
         }
 
-        ResponseEntity<ObjectNode> frenado = login("ana", "mal");
+        ResponseEntity<?> frenado = login("ana", "mal");
 
         assertThat(frenado.getStatusCode().value()).isEqualTo(429);
         assertThat(frenado.getHeaders().getFirst("Retry-After"))
@@ -120,13 +121,13 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
             assertThat(login("nadie", "mal").getStatusCode().value()).isEqualTo(401);
         }
 
-        ResponseEntity<ObjectNode> inexistente = login("nadie", "mal");
-        ResponseEntity<ObjectNode> real = frenar("ana");
+        ResponseEntity<?> inexistente = login("nadie", "mal");
+        ResponseEntity<?> real = frenar("ana");
 
         assertThat(inexistente.getStatusCode().value()).isEqualTo(429);
-        assertThat(inexistente.getBody().toString())
+        assertThat(Wire.body(inexistente).toString())
                 .as("mismo cuerpo para una cuenta real y una inventada")
-                .isEqualTo(real.getBody().toString());
+                .isEqualTo(Wire.body(real).toString());
     }
 
     @Test
@@ -140,20 +141,20 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
                 new RefreshTokenService(new RefreshTokenRepository(dataSource()), tokens, reloj), null);
 
         for (int i = 0; i < LoginRateLimiter.FALLOS_POR_CUENTA + 3; i++) {
-            assertThat(sinLimiter.login(cuerpo("ana", "mal")).getStatusCode().value()).isEqualTo(401);
+            assertThat(Wire.answer(() -> sinLimiter.login(cuerpo("ana", "mal"))).getStatusCode().value()).isEqualTo(401);
         }
     }
 
-    private ResponseEntity<ObjectNode> frenar(String username) {
-        ResponseEntity<ObjectNode> ultima = null;
+    private ResponseEntity<?> frenar(String username) {
+        ResponseEntity<?> ultima = null;
         for (int i = 0; i <= LoginRateLimiter.FALLOS_POR_CUENTA; i++) {
             ultima = login(username, "mal");
         }
         return ultima;
     }
 
-    private ResponseEntity<ObjectNode> login(String username, String password) {
-        return endpoints.login(cuerpo(username, password));
+    private ResponseEntity<?> login(String username, String password) {
+        return Wire.answer(() -> endpoints.login(cuerpo(username, password)));
     }
 
     private static Map<String, String> cuerpo(String username, String password) {

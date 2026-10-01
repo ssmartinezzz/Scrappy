@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -13,7 +14,6 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -81,18 +81,18 @@ class ApiControllerDismissMarcasTest {
 
     @Test
     void dismissCategoriaReturns400WhenCategoriaBlank() {
-        var resp = controller.dismissCategoria(Map.of("categoria", ""));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.dismissCategoria(Map.of("categoria", "")));
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("ok").asBoolean()).isFalse();
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
         verify(feedback, never()).guardarCategoriaDismiss(any(), any());
     }
 
     @Test
     void dismissCategoriaReturns200AndPersistsWhenValid() {
         var resp = controller.dismissCategoria(Map.of("categoria", "Zapatilla"));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -104,7 +104,7 @@ class ApiControllerDismissMarcasTest {
     @Test
     void undismissCategoriaAlwaysReturnsOkAndCallsDb() {
         var resp = controller.undismissCategoria("Remera");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -133,7 +133,7 @@ class ApiControllerDismissMarcasTest {
         when(service.getLastResult()).thenReturn(mockResult(products));
 
         var resp = controller.marcasBrowser(null, null, "count");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.isArray()).isTrue();
@@ -149,7 +149,7 @@ class ApiControllerDismissMarcasTest {
         when(service.getLastResult()).thenReturn(mockResult(products));
 
         var resp = controller.marcasBrowser("indumentaria", null, "count");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         // Only products with rubro=indumentaria are included; the suplementos product is filtered
         assertThat(resp.getStatusCode().value()).isEqualTo(200);

@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.grouping.GroupingService;
@@ -110,18 +111,18 @@ class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("page=0 contesta la primera página en vez de tirar IndexOutOfBounds")
-    void pageCeroNoRevienta() {
+    @DisplayName("page=0 es la primera página y no tira IndexOutOfBounds")
+    void pageCeroEsLaPrimeraPagina() {
         catalogoDeTreinta();
 
         assertThatCode(() -> controller.recomendados(0, 24, null, null))
                 .doesNotThrowAnyException();
 
-        ResponseEntity<ObjectNode> resp = controller.recomendados(0, 24, null, null);
-        assertThat(resp.getBody().get("items")).hasSize(24);
-        // El eco es la página que se SIRVIÓ, no la que se pidió: devolver `page: 0`
-        // junto a la primera página le mentiría al cliente sobre dónde está.
-        assertThat(resp.getBody().get("page").asInt()).isEqualTo(1);
+        ResponseEntity<?> resp = controller.recomendados(0, 24, null, null);
+        assertThat(Wire.data(resp)).hasSize(24);
+        // El eco es la página que se SIRVIÓ, 0-based: devolver `number: 1` junto a la primera
+        // página le mentiría al cliente sobre dónde está.
+        assertThat(Wire.page(resp).get("number").asInt()).isZero();
     }
 
     @Test
@@ -129,19 +130,19 @@ class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
     void pageNegativoNoRevienta() {
         catalogoDeTreinta();
 
-        ResponseEntity<ObjectNode> resp = controller.recomendados(-5, 24, null, null);
+        ResponseEntity<?> resp = controller.recomendados(-5, 24, null, null);
 
-        assertThat(resp.getBody().get("items")).hasSize(24);
-        assertThat(resp.getBody().get("page").asInt()).isEqualTo(1);
+        assertThat(Wire.data(resp)).hasSize(24);
+        assertThat(Wire.page(resp).get("number").asInt()).isZero();
     }
 
     @Test
-    @DisplayName("la semántica base 1 no cambia: page=1 es la primera y page=2 la segunda")
-    void laPaginacionBaseUnoSigueIntacta() {
+    @DisplayName("la paginación es base 0: page=0 es la primera y page=1 la segunda")
+    void laPaginacionEsBaseCero() {
         catalogoDeTreinta();
 
-        assertThat(controller.recomendados(1, 24, null, null).getBody().get("items")).hasSize(24);
-        assertThat(controller.recomendados(2, 24, null, null).getBody().get("items")).hasSize(6);
+        assertThat(Wire.data(controller.recomendados(0, 24, null, null))).hasSize(24);
+        assertThat(Wire.data(controller.recomendados(1, 24, null, null))).hasSize(6);
     }
 
     @Test
@@ -151,8 +152,8 @@ class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
 
         // `hasta = desde + size` con size negativo cae por debajo de `desde`, y
         // subList(0, -1) tira igual que el índice negativo de arriba.
-        assertThat(controller.recomendados(1, 0, null, null).getBody().get("items")).hasSize(1);
-        assertThat(controller.recomendados(1, -1, null, null).getBody().get("items")).hasSize(1);
+        assertThat(Wire.data(controller.recomendados(0, 0, null, null))).hasSize(1);
+        assertThat(Wire.data(controller.recomendados(0, -1, null, null))).hasSize(1);
     }
 
     @Test
@@ -160,9 +161,9 @@ class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
     void pageMasAllaDelFinalEsVacia() {
         catalogoDeTreinta();
 
-        ResponseEntity<ObjectNode> resp = controller.recomendados(99, 24, null, null);
+        ResponseEntity<?> resp = controller.recomendados(99, 24, null, null);
 
-        assertThat(resp.getBody().get("items")).isEmpty();
-        assertThat(resp.getBody().get("total").asInt()).isEqualTo(30);
+        assertThat(Wire.data(resp)).isEmpty();
+        assertThat(Wire.page(resp).get("total").asInt()).isEqualTo(30);
     }
 }

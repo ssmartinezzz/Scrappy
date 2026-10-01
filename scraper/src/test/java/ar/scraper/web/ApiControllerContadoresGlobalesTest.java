@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -109,10 +110,10 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
     }
 
     private JsonNode facetsDeData(String rubroFiltro) {
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp = controller.data(
+        ResponseEntity<?> resp = controller.data(
                 1, 24, null, null, null, null, null, null, null, null, rubroFiltro, null,
                 "precio_asc", null, null, null, null, null, null, null, null);
-        return resp.getBody().path("meta").path("facets");
+        return Wire.data(resp).path("meta").path("facets");
     }
 
     // ─── rubros ──────────────────────────────────────────────────────────────
@@ -200,7 +201,7 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
                  producto("u/2", 200, "indumentaria", true, 1),
                  producto("u/3", 300, "indumentaria", false, 5));
 
-        JsonNode body = controller.facets().getBody();
+        JsonNode body = Wire.data(controller.facets());
         JsonNode deData = facetsDeData(null);
 
         assertThat(body.path("gymratCount").asInt())
@@ -214,7 +215,7 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
     void facetsNoPublicaRubros() {
         publicar(producto("u/1", 100, "indumentaria", false, 1));
 
-        assertThat(controller.facets().getBody().has("rubros")).isFalse();
+        assertThat(Wire.data(controller.facets()).has("rubros")).isFalse();
         assertThat(facetsDeData(null).has("rubros")).isTrue();
     }
 
@@ -226,6 +227,6 @@ class ApiControllerContadoresGlobalesTest extends ar.scraper.db.support.Postgres
         JsonNode facets = facetsDeData(null);
         assertThat(facets.path("gymratCount").asInt()).isZero();
         assertThat(facets.path("packCount").asInt()).isZero();
-        assertThat(controller.facets().getBody().path("gymratCount").asInt()).isZero();
+        assertThat(Wire.data(controller.facets()).path("gymratCount").asInt()).isZero();
     }
 }

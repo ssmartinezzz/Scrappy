@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.identity.ActorResolver;
@@ -66,7 +67,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @Test
     @DisplayName("creating with a valid role hashes the password and grants the role")
     void creatingWithAValidRoleWorks() {
-        ResponseEntity<ObjectNode> resp = crear("ana", "ana@example.com", "una-password-larga", "VIEWER");
+        ResponseEntity<?> resp = crear("ana", "ana@example.com", "una-password-larga", "VIEWER");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(201);
         assertThat(usuarios.rolesDe("ana")).containsExactly("VIEWER");
@@ -74,7 +75,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
         String hash = usuarios.buscarActivaPorUsername("ana").orElseThrow().passwordHash();
         assertThat(hash).startsWith("$argon2id$");
         assertThat(hasher.verify("una-password-larga", hash)).isTrue();
-        assertThat(resp.getBody().toString())
+        assertThat(Wire.body(resp).toString())
                 .as("a creation response is not a place to echo a credential")
                 .doesNotContain("una-password-larga")
                 .doesNotContain(hash);
@@ -83,7 +84,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @Test
     @DisplayName("a role outside the closed vocabulary is rejected and creates nothing")
     void anInventedRoleCreatesNothing() {
-        ResponseEntity<ObjectNode> resp = crear("ana", null, "una-password-larga", "SUPERADMIN");
+        ResponseEntity<?> resp = crear("ana", null, "una-password-larga", "SUPERADMIN");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(usuarios.buscarActivaPorUsername("ana"))
@@ -98,7 +99,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
         crear("ana", null, "una-password-larga", "VIEWER");
         String hashOriginal = usuarios.buscarActivaPorUsername("ana").orElseThrow().passwordHash();
 
-        ResponseEntity<ObjectNode> resp = crear("ana", null, "otra-password-larga", "ADMIN");
+        ResponseEntity<?> resp = crear("ana", null, "otra-password-larga", "ADMIN");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         assertThat(usuarios.buscarActivaPorUsername("ana").orElseThrow().passwordHash())
@@ -117,8 +118,8 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @Test
     @DisplayName("missing fields are refused, not defaulted")
     void missingFieldsAreRefused() {
-        assertThat(endpoints.crear(Map.of()).getStatusCode().value()).isEqualTo(400);
-        assertThat(endpoints.crear(null).getStatusCode().value()).isEqualTo(400);
+        assertThat(Wire.answer(() -> endpoints.crear(Map.of())).getStatusCode().value()).isEqualTo(400);
+        assertThat(Wire.answer(() -> endpoints.crear(null)).getStatusCode().value()).isEqualTo(400);
         assertThat(crear("ana", null, "una-password-larga", null).getStatusCode().value()).isEqualTo(400);
     }
 
@@ -130,12 +131,12 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
         crear("ana", "ana@example.com", "una-password-larga", "VIEWER");
         usuarios.desactivar("ana");
 
-        ResponseEntity<ArrayNode> resp = endpoints.listar();
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.listar());
 
-        assertThat(resp.getBody().toString())
+        assertThat(Wire.body(resp).toString())
                 .as("a hash nobody fetches cannot be leaked by a future serializer")
                 .doesNotContain("$argon2id$");
-        assertThat(resp.getBody().toString())
+        assertThat(Wire.body(resp).toString())
                 .as("hiding the deactivated account would make deactivation look like deletion "
                         + "to the admin who has to undo it")
                 .contains("\"ana\"");
@@ -148,7 +149,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     void changingARoleReplacesIt() {
         crear("ana", null, "una-password-larga", "VIEWER");
 
-        assertThat(endpoints.cambiarRol("ana", Map.of("role", "ADMIN")).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.cambiarRol("ana", Map.of("role", "ADMIN"))).getStatusCode().value())
                 .isEqualTo(200);
 
         assertThat(usuarios.rolesDe("ana"))
@@ -161,9 +162,9 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     void invalidRoleOrUnknownAccountIsRefused() {
         crear("ana", null, "una-password-larga", "VIEWER");
 
-        assertThat(endpoints.cambiarRol("ana", Map.of("role", "SUPERADMIN")).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.cambiarRol("ana", Map.of("role", "SUPERADMIN"))).getStatusCode().value())
                 .isEqualTo(400);
-        assertThat(endpoints.cambiarRol("nadie", Map.of("role", "ADMIN")).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.cambiarRol("nadie", Map.of("role", "ADMIN"))).getStatusCode().value())
                 .isEqualTo(404);
         assertThat(usuarios.rolesDe("ana")).containsExactly("VIEWER");
     }
@@ -175,7 +176,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     void deactivatingIsNeverADelete() {
         crear("ana", null, "una-password-larga", "VIEWER");
 
-        assertThat(endpoints.desactivar("ana").getStatusCode().value()).isEqualTo(200);
+        assertThat(Wire.answer(() -> endpoints.desactivar("ana")).getStatusCode().value()).isEqualTo(200);
 
         assertThat(usuarios.buscarActivaPorUsername("ana"))
                 .as("the lookup excludes disabled accounts — which is what makes the very next "
@@ -191,16 +192,16 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @DisplayName("a deactivated account can be brought back")
     void aDeactivatedAccountCanBeReactivated() {
         crear("ana", null, "una-password-larga", "VIEWER");
-        endpoints.desactivar("ana");
+        Wire.answer(() -> endpoints.desactivar("ana"));
 
-        assertThat(endpoints.reactivar("ana").getStatusCode().value()).isEqualTo(200);
+        assertThat(Wire.answer(() -> endpoints.reactivar("ana")).getStatusCode().value()).isEqualTo(200);
         assertThat(usuarios.buscarActivaPorUsername("ana")).isPresent();
     }
 
     @Test
     @DisplayName("deactivating an unknown account is 404")
     void deactivatingAnUnknownAccountIs404() {
-        assertThat(endpoints.desactivar("nadie").getStatusCode().value()).isEqualTo(404);
+        assertThat(Wire.answer(() -> endpoints.desactivar("nadie")).getStatusCode().value()).isEqualTo(404);
     }
 
     // ── the guard the spec does not ask for ──────────────────────────────────
@@ -209,10 +210,10 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @DisplayName("the last active ADMIN cannot be deactivated")
     void theLastAdminCannotBeDeactivated() {
         // 'jefa' from setUp is the only other ADMIN — remove her first.
-        endpoints.desactivar("jefa");
+        Wire.answer(() -> endpoints.desactivar("jefa"));
         String soloAdmin = soloAdminRestante();
 
-        ResponseEntity<ObjectNode> resp = endpoints.desactivar(soloAdmin);
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.desactivar(soloAdmin));
 
         assertThat(resp.getStatusCode().value())
                 .as("one call would otherwise leave an application nobody can administer, "
@@ -224,10 +225,10 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @Test
     @DisplayName("the last active ADMIN cannot be demoted either")
     void theLastAdminCannotBeDemoted() {
-        endpoints.desactivar("jefa");
+        Wire.answer(() -> endpoints.desactivar("jefa"));
         String soloAdmin = soloAdminRestante();
 
-        ResponseEntity<ObjectNode> resp = endpoints.cambiarRol(soloAdmin, Map.of("role", "VIEWER"));
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.cambiarRol(soloAdmin, Map.of("role", "VIEWER")));
 
         assertThat(resp.getStatusCode().value())
                 .as("demoting is the same trap wearing different clothes")
@@ -238,14 +239,14 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     @Test
     @DisplayName("with a second ADMIN present, either one may be removed")
     void withTwoAdminsEitherCanGo() {
-        assertThat(endpoints.desactivar("jefa").getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.desactivar("jefa")).getStatusCode().value())
                 .as("the guard protects the last one, not the feature")
                 .isEqualTo(200);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private ResponseEntity<ObjectNode> crear(String username, String email, String password, String rol) {
+    private ResponseEntity<?> crear(String username, String email, String password, String rol) {
         java.util.Map<String, String> body = new java.util.HashMap<>();
         body.put("username", username);
         body.put("password", password);
@@ -255,7 +256,7 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
         if (rol != null) {
             body.put("role", rol);
         }
-        return endpoints.crear(body);
+        return Wire.answer(() -> endpoints.crear(body));
     }
 
     /** The test's own subject is the remaining ADMIN once 'jefa' is out. */

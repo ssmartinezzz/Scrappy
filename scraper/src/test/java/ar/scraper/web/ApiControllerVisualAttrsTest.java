@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -123,7 +124,7 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         sembrar(oversize, regular);
 
         ResponseEntity<?> resp = controller.facets();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         // Existing facets remain present/unaffected
@@ -142,10 +143,10 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product oversize = producto("https://site.com/c", new VisualAttrs("oversize", "", "", ""));
         sembrar(oversize);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.path("meta").path("facets").path("fits").get("oversize").asLong()).isEqualTo(1L);
     }
@@ -159,11 +160,11 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         sembrar(estampado, liso);
 
         Allure.parameter("estampado", "estampado");
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 null, "estampado", null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/estampado");
     }
@@ -174,11 +175,11 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product regular   = producto("https://site.com/regular", new VisualAttrs("regular", "", "", ""));
         sembrar(oversize, regular);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 "oversize", null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/oversize");
     }
@@ -189,11 +190,11 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product enV            = producto("https://site.com/v", new VisualAttrs("", "", "en v", ""));
         sembrar(cuelloRedondo, enV);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, "cuello redondo", null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/redondo");
     }
@@ -204,11 +205,11 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product rojo = producto("https://site.com/rojo", new VisualAttrs("", "", "", "rojo"));
         sembrar(azul, rojo);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, "azul");
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
         assertThat(productos.get(0).path("url").asText()).isEqualTo("https://site.com/azul");
     }
@@ -219,11 +220,11 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product b = producto("https://site.com/y", VisualAttrs.EMPTY);
         sembrar(a, b);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
     }
 
@@ -232,11 +233,11 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product azul = producto("https://site.com/azul2", new VisualAttrs("", "", "", "azul"));
         sembrar(azul);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
                 null, null, null, "AZUL");
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
     }
 
@@ -247,10 +248,10 @@ class ApiControllerVisualAttrsTest extends ar.scraper.db.support.PostgresTestBas
         Product nike = producto("https://site.com/nike-legacy", VisualAttrs.EMPTY);
         sembrar(nike);
 
-        ResponseEntity<?> resp = controller.data(1, 24, null, null, null, null, null,
+        ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null);
 
-        JsonNode productos = ((JsonNode) resp.getBody()).path("productos");
+        JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
     }
 }

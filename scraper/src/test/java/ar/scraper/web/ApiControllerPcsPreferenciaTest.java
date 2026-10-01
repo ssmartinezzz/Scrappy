@@ -14,8 +14,10 @@ import ar.scraper.pcs.PreferenciaArmador;
 import ar.scraper.pcs.PreferenciaArmadorPort;
 import ar.scraper.pcs.PreferenciasDeArmado;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import ar.scraper.api.ApiException;
 import ar.scraper.web.support.SujetoDePrueba;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.web.support.Wire;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -77,7 +79,7 @@ class ApiControllerPcsPreferenciaTest {
     void getReturns204WhenNoPreferenceSaved() {
         when(preferenciaArmador.cargar(any())).thenReturn(Optional.empty());
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -87,8 +89,8 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true)));
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
-        ObjectNode body = resp.getBody();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("gama").asText()).isEqualTo("alta");
@@ -101,8 +103,8 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
-        ObjectNode body = resp.getBody();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("gama").asText()).isEqualTo("media");
         assertThat(body.get("presupuesto").isNull()).isTrue();
@@ -113,11 +115,11 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putValidPayloadPersistsAndReturns200() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of(
+        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of(
                 "gama", "alta", "presupuesto", 1500000.0, "conGpu", true));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.get("gama").asText()).isEqualTo("alta");
         assertThat(body.get("presupuesto").asDouble()).isEqualTo(1500000.0);
         assertThat(body.get("conGpu").asBoolean()).isTrue();
@@ -126,7 +128,7 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putAcceptsAccentAndCaseInsensitiveGamaAndDefaultsAbsentFields() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "ECONÓMICA"));
+        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of("gama", "ECONÓMICA"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         verify(preferenciaArmador).guardar(any(), eq(new PreferenciaArmador(Gama.BAJA, null, false)));
@@ -134,19 +136,19 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putMissingGamaReturns400AndNeverPersists() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("conGpu", true));
+        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("conGpu", true)));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
         verifyNoInteractions(preferenciaArmador);
     }
 
     @Test
     void putInvalidGamaReturns400AndNeverPersists() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "ultra"));
+        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("gama", "ultra")));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
         verifyNoInteractions(preferenciaArmador);
     }
 
@@ -159,8 +161,8 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true, prefs)));
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
-        ObjectNode body = resp.getBody();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ddr").asText()).isEqualTo("ddr5");
         assertThat(body.get("marcaCpu").asText()).isEqualTo("amd");
@@ -175,8 +177,8 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
-        ObjectNode body = resp.getBody();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ddr").isNull()).isTrue();
         assertThat(body.get("marcaCpu").isNull()).isTrue();
@@ -188,12 +190,12 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putValidPayloadWithTechnicalPreferencesPersistsAndReturns200() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of(
+        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of(
                 "gama", "alta", "ddr", "ddr4", "marcaCpu", "intel", "marcaGpu", "amd",
                 "tipoAlmacenamiento", "sata", "ramDual", true, "wifi", false));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        ObjectNode body = resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.get("ddr").asText()).isEqualTo("ddr4");
         assertThat(body.get("marcaCpu").asText()).isEqualTo("intel");
         assertThat(body.get("marcaGpu").asText()).isEqualTo("amd");
@@ -206,22 +208,22 @@ class ApiControllerPcsPreferenciaTest {
 
     @Test
     void putInvalidDdrReturns400AndNeverPersists() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "ddr", "ddr3"));
+        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("gama", "alta", "ddr", "ddr3")));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("ddr");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("ddr");
         verifyNoInteractions(preferenciaArmador);
     }
 
     @Test
     void putInvalidTipoAlmacenamientoReturns400AndNeverPersists() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(
-                Map.of("gama", "alta", "tipoAlmacenamiento", "ssd"));
+        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(
+                Map.of("gama", "alta", "tipoAlmacenamiento", "ssd")));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("tipoAlmacenamiento");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("tipoAlmacenamiento");
         verifyNoInteractions(preferenciaArmador);
     }
 
@@ -233,9 +235,9 @@ class ApiControllerPcsPreferenciaTest {
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, 1500000.0, true,
                         PreferenciasDeArmado.NINGUNA, ar.scraper.pcs.Uso.HOMELAB)));
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
 
-        assertThat(resp.getBody().get("uso").asText()).isEqualTo("homelab");
+        assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("homelab");
     }
 
     @Test
@@ -243,36 +245,36 @@ class ApiControllerPcsPreferenciaTest {
         when(preferenciaArmador.cargar(any()))
                 .thenReturn(Optional.of(new PreferenciaArmador(Gama.MEDIA, null, false)));
 
-        ResponseEntity<ObjectNode> resp = controller.getPcsPreferencia();
+        ResponseEntity<?> resp = controller.getPcsPreferencia();
 
-        assertThat(resp.getBody().get("uso").asText()).isEqualTo("gaming");
+        assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("gaming");
     }
 
     @Test
     void putValidPayloadWithUsoPersistsAndReturns200() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "homelab"));
+        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "homelab"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody().get("uso").asText()).isEqualTo("homelab");
+        assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("homelab");
         verify(preferenciaArmador).guardar(any(), eq(new PreferenciaArmador(
                 Gama.ALTA, null, false, PreferenciasDeArmado.NINGUNA, ar.scraper.pcs.Uso.HOMELAB)));
     }
 
     @Test
     void putAbsentUsoDefaultsToGaming() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta"));
+        ResponseEntity<?> resp = controller.putPcsPreferencia(Map.of("gama", "alta"));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody().get("uso").asText()).isEqualTo("gaming");
+        assertThat(Wire.data(resp).get("uso").asText()).isEqualTo("gaming");
     }
 
     @Test
     void putInvalidUsoReturns400AndNeverPersists() {
-        ResponseEntity<ObjectNode> resp = controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "servidor"));
+        ApiException e = Wire.apiError(() -> controller.putPcsPreferencia(Map.of("gama", "alta", "uso", "servidor")));
 
-        assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().get("ok").asBoolean()).isFalse();
-        assertThat(resp.getBody().get("mensaje").asText()).contains("uso");
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("uso");
         verifyNoInteractions(preferenciaArmador);
     }
 }
