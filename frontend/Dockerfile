@@ -20,9 +20,10 @@ COPY . .
 RUN npm run build
 
 # Runtime stage: serve the static build with nginx + SPA fallback.
-FROM nginx:alpine
+# nginx-unprivileged runs as uid 101 and so cannot bind below 1024: it listens on 8080.
+FROM nginxinc/nginx-unprivileged:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
