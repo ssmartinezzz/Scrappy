@@ -329,6 +329,14 @@ async function performRefresh() {
     // newer session while we were waiting for the lock.
     if (session.receivedAt > startedAt) return true;
 
+    // The lock and the broadcast travel on separate channels with no ordering between
+    // them, so the sibling that just refreshed may hold a session we have not heard
+    // about yet. Only a tab with no token asks: an expired token is not a cold start.
+    if (!session.accessToken && await siblingSessionLockKnown() && await probeSiblings()) {
+      await adoptIdentityIfMissing();
+      return true;
+    }
+
     const result = await attemptRefresh();
     if (!result.ok) {
       if (result.networkError || result.transient) {

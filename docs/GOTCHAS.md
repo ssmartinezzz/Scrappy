@@ -227,6 +227,15 @@ MockMvc no las reproduce (`SseRealPortTest` sí).
    de timeout de ese cliente espera hasta que Tomcat le corte la escritura
    (`server.tomcat.connection-timeout`, 20 s por defecto). Es un tope, no un cuelgue.
 
+**El lock de refresh y el BroadcastChannel no tienen orden entre sí.** Son canales
+distintos del browser: un tab puede recibir el lock antes que el mensaje `session` del
+hermano que acaba de refrescar. `authSession.performRefresh` no puede decidir "ya hay
+sesión" sólo por si el broadcast llegó; un tab sin token que ve el lock de sesión de un
+hermano le pregunta (`probeSiblings`) antes de refrescar. Sin eso, dos tabs en cold
+start hacían dos rotaciones válidas en serie: inofensivo para la sesión, pero
+`tabs.spec.js` lo veía como flake (1 de ~33 corridas). El test unitario retrasa la
+entrega del canal para que ese orden sea determinista.
+
 ### Entorno, procesos y config
 
 **Toolchain de esta máquina (Linux):** el Java está partido — compila con JDK 24,

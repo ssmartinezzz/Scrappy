@@ -4,6 +4,7 @@ import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +42,19 @@ class CheckDomainTest extends PostgresTestBase {
             "chk_productos_rubro_domain",
             "chk_productos_ml_segment_domain");
 
+    private static final String CHECK_VIOLATION = "23514";
+
+    // `sitio` is never truncated, so without this every insert below only passed when
+    // another test class happened to leave a 'Sitio' row behind.
+    @BeforeEach
+    void sembrarSitio() throws SQLException {
+        try (Connection c = dataSource().getConnection(); var st = c.createStatement()) {
+            st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
+                    + "VALUES ('Sitio', 'sitio', 'tiendanube', false, NULL, 'historico') "
+                    + "ON CONFLICT DO NOTHING");
+        }
+    }
+
     @Test
     @DisplayName("all three CHECK constraints exist on productos")
     void allThreeCheckConstraintsExist() throws Exception {
@@ -65,7 +79,9 @@ class CheckDomainTest extends PostgresTestBase {
     @DisplayName("genero CHECK rejects an out-of-domain / unnormalised value")
     void generoRejectsOutOfDomainValue() {
         assertThatThrownBy(() -> insertarConGenero("https://check-domain.test/genero-bad", "Mujer"))
-                .isInstanceOf(SQLException.class);
+                .isInstanceOf(SQLException.class)
+                .extracting(e -> ((SQLException) e).getSQLState())
+                .isEqualTo(CHECK_VIOLATION);
     }
 
     @Test
@@ -84,7 +100,9 @@ class CheckDomainTest extends PostgresTestBase {
     @DisplayName("rubro CHECK rejects an out-of-domain value")
     void rubroRejectsOutOfDomainValue() {
         assertThatThrownBy(() -> insertarConRubro("https://check-domain.test/rubro-bad", "ropa"))
-                .isInstanceOf(SQLException.class);
+                .isInstanceOf(SQLException.class)
+                .extracting(e -> ((SQLException) e).getSQLState())
+                .isEqualTo(CHECK_VIOLATION);
     }
 
     @Test
@@ -103,7 +121,9 @@ class CheckDomainTest extends PostgresTestBase {
     @DisplayName("ml_segment CHECK rejects an out-of-domain value")
     void mlSegmentRejectsOutOfDomainValue() {
         assertThatThrownBy(() -> insertarConMlSegment("https://check-domain.test/segment-bad", "ultra"))
-                .isInstanceOf(SQLException.class);
+                .isInstanceOf(SQLException.class)
+                .extracting(e -> ((SQLException) e).getSQLState())
+                .isEqualTo(CHECK_VIOLATION);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
