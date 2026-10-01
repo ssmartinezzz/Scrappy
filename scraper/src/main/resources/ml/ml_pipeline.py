@@ -31,6 +31,10 @@ _TEXT_LABEL_SET: frozenset = frozenset()
 # señal real. Ver `needs_image_fallback()`.
 GENERICAS = frozenset({'indumentaria', 'general', 'ropa', 'pc & tech', 'tecnologia', ''})
 
+# Subtipos de zapatilla, compartidos por las tablas de jerarquía y de tipos.
+ZAPATILLA_SUBTIPOS = ('zapatilla running', 'zapatilla urbana',
+                      'zapatilla entrenamiento', 'zapatilla skate')
+
 
 # ─── Clase estadística por grupo ────────────────────────────────────────────
 
@@ -582,8 +586,7 @@ def main():
     # Jerarquía padre→hijos para subcategorías con pocas muestras
     CAT_PARENTS = {
         # Calzado
-        'zapatilla running': 'zapatilla', 'zapatilla urbana': 'zapatilla',
-        'zapatilla entrenamiento': 'zapatilla', 'zapatilla skate': 'zapatilla',
+        **dict.fromkeys(ZAPATILLA_SUBTIPOS, 'zapatilla'),
         'sneaker': 'zapatilla',
         # Inferior
         'jean': 'pantalon', 'jogging': 'pantalon', 'baggy': 'pantalon',
@@ -1102,8 +1105,7 @@ def main():
             if pred_cat != cat_actual and confianza >= 0.82:
                 # Tipos mutuamente excluyentes — nunca cruzar entre ellos
                 TIPOS = {
-                    'calzado':    {'zapatilla','zapatilla running','zapatilla urbana',
-                                   'zapatilla entrenamiento','zapatilla skate','sneaker',
+                    'calzado':    {'zapatilla',*ZAPATILLA_SUBTIPOS,'sneaker',
                                    'botines','botas','ojotas','borcego','sandalia',
                                    'mocasin','zapato','pantufla'},
                     'superior':   {'remera','musculosa','camisa','chomba','casaca','sweater',
@@ -1134,8 +1136,7 @@ def main():
 
                 # No downgrade: específico → padre genérico del mismo tipo
                 CAT_PADRES = {
-                    'zapatilla running':'zapatilla','zapatilla urbana':'zapatilla',
-                    'zapatilla entrenamiento':'zapatilla','zapatilla skate':'zapatilla',
+                    **dict.fromkeys(ZAPATILLA_SUBTIPOS, 'zapatilla'),
                     'sneaker':'zapatilla','ojotas':'zapatilla',
                     'botines':'calzado','botas':'calzado',
                     'jean':'pantalon','jogging':'pantalon','baggy':'pantalon',

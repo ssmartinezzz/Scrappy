@@ -71,8 +71,9 @@ def test_price_velocity_lets_a_keyboard_interrupt_through(monkeypatch):
 
     monkeypatch.setattr(ml_pipeline, 'datetime', _InterruptingClock)
 
+    analysis = ml_pipeline.HistoricalAnalysis(_serie())
     with pytest.raises(KeyboardInterrupt):
-        ml_pipeline.HistoricalAnalysis(_serie()).price_velocity()
+        analysis.price_velocity()
 
 
 def test_price_velocity_lets_a_system_exit_through(monkeypatch):
@@ -84,8 +85,9 @@ def test_price_velocity_lets_a_system_exit_through(monkeypatch):
 
     monkeypatch.setattr(ml_pipeline, 'datetime', _ExitingClock)
 
+    analysis = ml_pipeline.HistoricalAnalysis(_serie())
     with pytest.raises(SystemExit):
-        ml_pipeline.HistoricalAnalysis(_serie()).price_velocity()
+        analysis.price_velocity()
 
 
 # ─── cargar_historial(): same contract, on the file-load handler ─────────────

@@ -161,8 +161,9 @@ def test_a_failed_login_is_loud_and_names_the_account():
     backend = _Backend()
     backend.login_status = 401
 
+    client = _client(backend)
     with pytest.raises(RestError) as exc:
-        _client(backend).status()
+        client.status()
 
     mensaje = str(exc.value)
     assert USUARIO in mensaje
@@ -269,8 +270,9 @@ def test_an_http_error_carries_the_typed_code_and_message_from_the_error_envelop
     backend = _Backend(fail_next_with=[409])
     backend.error_body = _error_body("scrape_en_curso", "Hay un scraping en curso.")
 
+    client = _client(backend)
     with pytest.raises(RestError) as exc:
-        _client(backend).entrenar()
+        client.entrenar()
 
     assert "[scrape_en_curso] Hay un scraping en curso." in str(exc.value)
 
@@ -280,8 +282,9 @@ def test_a_rejected_login_names_the_typed_code_but_never_the_password():
     backend.login_status = 401
     backend.error_body = _error_body("credenciales_invalidas", "Usuario o contraseña incorrectos.")
 
+    client = _client(backend)
     with pytest.raises(RestError) as exc:
-        _client(backend).status()
+        client.status()
 
     mensaje = str(exc.value)
     assert "credenciales_invalidas" in mensaje
@@ -292,7 +295,8 @@ def test_an_error_body_that_is_not_an_envelope_does_not_break_the_error_path():
     backend = _Backend(fail_next_with=[500])
     backend.error_body = b"<html>Bad gateway</html>"
 
+    client = _client(backend)
     with pytest.raises(RestError) as exc:
-        _client(backend).status()
+        client.status()
 
     assert "500" in str(exc.value)
