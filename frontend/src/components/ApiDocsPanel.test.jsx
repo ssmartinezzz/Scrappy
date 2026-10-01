@@ -40,7 +40,7 @@ describe('ApiDocsPanel', () => {
 
     renderPanel();
 
-    await waitFor(() => expect(screen.getByTestId('swagger-ui-stub')).toBeInTheDocument());
+    await screen.findByTestId('swagger-ui-stub');
 
     expect(swaggerUIMock).toHaveBeenCalledWith(expect.objectContaining({
       spec,
@@ -78,7 +78,7 @@ describe('ApiDocsPanel', () => {
 
     renderPanel();
 
-    await waitFor(() => expect(screen.getByTestId('swagger-ui-stub')).toBeInTheDocument());
+    await screen.findByTestId('swagger-ui-stub');
     expect(screen.getByRole('link', { name: /volver/i })).toHaveAttribute('href', '/catalogo');
   });
 });

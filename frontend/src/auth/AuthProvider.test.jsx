@@ -26,7 +26,7 @@ describe('AuthProvider — a bootstrap that rejects does not strand the gate on 
     authSession.bootstrap.mockRejectedValue(new TypeError('Failed to fetch'));
     render(<AuthProvider><Status /></AuthProvider>);
 
-    await waitFor(() => expect(screen.getByText('anonymous')).toBeInTheDocument());
+    await screen.findByText('anonymous');
     await rejections.settle();
     expect(rejections.seen).toEqual([]);
   });

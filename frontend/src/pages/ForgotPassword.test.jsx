@@ -39,14 +39,14 @@ describe('ForgotPassword — uniform public copy (spec: no account-specific bran
     const { unmount } = renderForgotPassword();
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'existe@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    await screen.findByRole('status');
     const firstMessage = screen.getByRole('status').textContent;
     unmount();
 
     renderForgotPassword();
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'no-existe@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    await screen.findByRole('status');
     const secondMessage = screen.getByRole('status').textContent;
 
     expect(secondMessage).toBe(firstMessage);
@@ -58,7 +58,7 @@ describe('ForgotPassword — uniform public copy (spec: no account-specific bran
     renderForgotPassword();
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'cualquiera@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    await screen.findByRole('status');
 
     const text = screen.getByRole('status').textContent.toLowerCase();
     expect(text).not.toMatch(/admin|bootstrap|no tiene email|no existe|encontr/);
