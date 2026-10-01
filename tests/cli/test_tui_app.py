@@ -323,7 +323,8 @@ async def test_logs_renders_the_service_log_tail(tmp_path):
     async with app.run_test() as pilot:
         await _submit(app, pilot, "logs backend")
         text = _console_text(app)
-    assert "started on :3000" in text and "hit /api/status" in text
+    assert "started on :3000" in text
+    assert "hit /api/status" in text
 
 
 @pytest.mark.asyncio
@@ -508,7 +509,8 @@ def test_status_bar_marks_up_and_down_services():
 def test_status_bar_uses_short_labels():
     """Long names ('frontend build') would wrap a narrow terminal."""
     line = StatusBar.line([Check("frontend build", True, "compilado", short="dist")])
-    assert "dist" in line and "frontend build" not in line
+    assert "dist" in line
+    assert "frontend build" not in line
 
 
 def test_status_bar_falls_back_to_the_full_name_without_a_short_label():
@@ -563,7 +565,8 @@ def test_console_renders_payloads_as_plain_text_not_markup():
 
 def test_console_line_carries_a_timestamp():
     text = Console.build_line("out", "hello")
-    assert text.plain[2] == ":" and text.plain[5] == ":"
+    assert text.plain[2] == ":"
+    assert text.plain[5] == ":"
 
 
 def test_console_marks_errors_differently_from_output():
@@ -662,7 +665,8 @@ async def test_the_first_line_of_a_result_still_carries_the_clock(tmp_path):
         await _submit(app, pilot, "status")
         history = app.query_one("#console", Console).history
         body = next(i for i, ln in enumerate(history) if ln.rstrip().endswith("{"))
-        assert history[body][2] == ":" and history[body][5] == ":"
+        assert history[body][2] == ":"
+        assert history[body][5] == ":"
         assert '"estado"' in history[body + 1]
         assert not history[body + 1].startswith(("0", "1", "2"))
 
