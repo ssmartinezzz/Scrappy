@@ -650,6 +650,7 @@ Dos cosas que se rompen en silencio si se tocan:
 - En `DATABASE_URL` el host es **`postgres`** (nombre del servicio), no `localhost`.
 - Triángulo que tiene que cerrar: `APP_CORS_ALLOWED_ORIGINS` (`:8080`) ↔ `VITE_API_BASE_URL` (`:3000`) ↔ los port mappings.
 - `pgdata`/`models`/`logs` son volúmenes nombrados → sobreviven a `docker compose down`.
+- Backend y frontend corren sin root: el backend como `pwuser` (uid 1000), nginx como uid 101 escuchando en **8080** adentro del contenedor. Un volumen `models`/`logs` creado antes de eso quedó de root y el backend no puede escribirlo; se arregla una vez con `docker compose run --rm --user root --entrypoint chown backend -R pwuser:pwuser /models /app/logs`.
 - Sin Docker en el sandbox de dev: el smoke real se valida en CI (`.github/workflows/docker-smoke.yml`).
 
 ---
