@@ -388,7 +388,8 @@ function OutfitsRoute() {
       favoritos={S.favoritos || []}
       savedOutfits={S.savedOutfits || []}
       onAddFavorito={(item) => {
-        addFavorito(item);
+        // Optimistic: the heart is already filled, and the next favoritos load re-syncs it.
+        Promise.resolve(addFavorito(item)).catch(() => {});
         dispatch({ type: 'ADD_FAVORITO', payload: item });
       }}
       onSaveOutfit={async (payload) => {
@@ -630,7 +631,8 @@ export default function AppLayout() {
       navigate(location.pathname + location.search + location.hash, { replace: true, state: null });
     }
     const statusPromise = hasHandedStatus ? Promise.resolve(location.state.status) : readStatus();
-    statusPromise.then(st => {
+    // Neither side rejects: `readStatus` swallows, and the handed status is already resolved.
+    void statusPromise.then(st => {
       setStatusForBanner(st ?? null);
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
@@ -690,7 +692,8 @@ export default function AppLayout() {
     const justFinished = prev === 'RUNNING' && (S.scrapeStatus === 'DONE' || S.scrapeStatus === 'ERROR');
     if (prev !== undefined && !justFinished) return;
     let cancelled = false;
-    (async () => {
+    // `fetchTendencias` resolves a state for every failure, network included.
+    void (async () => {
       const { state, data } = await fetchTendencias();
       if (!cancelled && state === 'ok' && data?.distribucionCategorias) {
         dispatch({ type: 'SET', payload: { catStats: data.distribucionCategorias } });

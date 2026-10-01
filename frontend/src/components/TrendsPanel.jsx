@@ -60,7 +60,8 @@ const Insights = ({ cats, badges, total }) => {
 export default function TrendsPanel() {
   const [res, setRes] = useState(null);
 
-  useEffect(() => { fetchTendencias().then(setRes); }, []);
+  // `fetchTendencias` resolves a state for every failure, network included.
+  useEffect(() => { void fetchTendencias().then(setRes); }, []);
 
   if (res === null) return (
     <div className="trends-panel">

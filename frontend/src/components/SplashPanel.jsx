@@ -72,6 +72,8 @@ export default function SplashPanel({
       const all = [...(data.base || []), ...(data.extras || [])];
       setSitios(all);
       setSelected(all.map(s => s.nombre));
+    }).catch(() => {
+      // Unreachable backend: the site picker stays empty; the status banner already says so.
     });
   }, []);
 

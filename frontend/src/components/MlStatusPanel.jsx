@@ -35,9 +35,11 @@ export default function MlStatusPanel() {
   const reload = () => fetchMlEstado().then(e => {
     setEstado(e);
     if (e?.training?.running) setRunning(true);
+  }).catch(() => {
+    // Unreachable backend: keep the last estado; the stream pushes a fresh one.
   });
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { void reload(); }, []);
 
   // The stream pushes training progress and, once training ends, a fresh estado
   // (model flags and metadata included), so nothing here asks the backend again.
@@ -88,7 +90,7 @@ export default function MlStatusPanel() {
       return;
     }
     setRunning(true);
-    reload();
+    void reload();
   };
 
   const handleApply = async () => {
@@ -103,7 +105,7 @@ export default function MlStatusPanel() {
       showToast('No se pudo aplicar el modelo ML.', 'error');
       return;
     }
-    setTimeout(() => { setApplying(false); reload(); }, 3000);
+    setTimeout(() => { setApplying(false); void reload(); }, 3000);
   };
 
   return (
