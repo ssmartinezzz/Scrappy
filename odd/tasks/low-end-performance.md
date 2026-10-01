@@ -98,7 +98,8 @@ Execution order after T0: **T5, T2, T6, T3, T1, T4, T10, T8, T7, T9**.
 - [x] T5 Images: thumbnails at the size the card shows (store CDNs that support resize
   params), `decoding="async"`; explicit dimensions not needed (the card box is
   `aspect-[3/4]` with an absolutely positioned image, so the image cannot shift layout)
-- [ ] T6 API payload: fields the grid does not use, page size vs. device, caching headers
+- [x] T6 API payload and caching headers: hashed assets immutable (vite preview + Docker
+  nginx); payload trim and page size measured and rejected (see Progress)
 - [ ] T7 SQL hot paths: `recomendados`, `data_filtrado`, `facets` (EXPLAIN ANALYZE first)
 - [ ] T8 Old-PC host footprint: JVM heap/flags for 4 GB machines, Python/ML memory, Postgres
   settings for the portable install; backend image size
@@ -295,8 +296,59 @@ reaches 180 MB — **windowing would save ~6 MB on a phone under memory pressure
 DOM nodes 6.9k -> 0.5k that the flat append cost says are not hurting. Not done; T4 keeps
 it as "only with a measured need" (e.g. jank on a real device).
 
+### T6 API payload and caching headers — done 2026-10-01
+
+**Waterfall of a reload with session** (A11 profile, 4x CPU + Slow 4G, before): HTML
+0–155 ms; 10 hashed JS/CSS files + `config.js` revalidated with a 304 from 182 to 529 ms
+(two round trips: 6 connections per host); then a serial auth chain `POST /auth/refresh`
+615–770 -> `GET /auth/me` 778–935 -> `/api/data` (48 items, 11 KB gz) 988–1414; card at
+~1.94 s.
+
+**Change:** files under `/assets/` (content-hashed by the build) are sent
+`Cache-Control: public, max-age=31536000, immutable`; `index.html`, `config.js` and the
+SPA fallback stay `no-cache`.
+- `vite preview` (portable/POSIX installs): an `immutable-assets` plugin in
+  `vite.config.js` sets the header before sirv, which keeps a header already on the
+  response. `preview.headers` cannot do it: it applies to every file. Test
+  `src/previewCaching.test.js` runs the real `preview()` with the project config: RED
+  observed (`no-cache` on the asset), plus a guard that a missing chunk's SPA fallback is
+  not cached.
+- Docker nginx: had no `Cache-Control` at all (heuristic caching, including
+  `index.html`). Now `/assets/` immutable with `try_files $uri =404` (a stale chunk
+  reference is a 404, never HTML cached for a year), everything else `no-cache`. Verified
+  on a real `nginx:alpine` container (`nginx -t` ok, headers per path). Not timed: same
+  bytes and headers as the preview.
+
+**Measured** (`t0-timing.mjs a11-4x`, same jar and `dist`, N=5 after 1 warm-up, every run
+within ±10 ms of its p50 except one before outlier at 1692 ms):
+
+| step | before | after |
+|---|---|---|
+| reload with session -> first card | 2022 ms | **1793 ms** |
+| revisit (new navigation to `/catalogo`) -> first card | 2214 ms | **2002 ms** |
+| 304 revalidations per reload | 11 | 1 (`config.js`) |
+| login -> first card (cold, control) | 1398 ms | 1357 ms |
+
+Frontend suite 57 files / 536 tests green; build ok.
+
+**Measured and rejected:**
+- *Fields the grid does not use:* `/api/data` 48 items = 58 KB raw, 10.5 KB gz. Dropping
+  `ml`, `senal` and `senalFinanciacion` entirely (the card and the detail use them) would
+  save 1.6 KB gz, ~8 ms at Slow 4G. Not worth a contract change.
+- *Page size per device:* 48 -> 24 saves ~5 KB gz (~25 ms) and costs an extra fetch
+  sooner when scrolling. Not done.
+- *HTTP caching of API responses:* the browser cache key is the URL, not the bearer
+  token, so per-user endpoints (`/favoritos`, `/*/saved`) could be served to another user
+  of the same browser; the API is ~27 KB gz per reload. Stays `no-store`.
+
+**Open (not in T6's scope, needs a decision):** the auth chain is serial — `/auth/me` waits
+for `/auth/refresh`, and `/api/data` waits for `/auth/me`: three round trips (~480 ms on
+Slow 4G) before the catalog fetch starts. Returning the user in the refresh response would
+remove one (~160 ms); it is an auth contract change and must be verified against a real
+process (`run-e2e.sh`).
+
 ## Next step
 
-T6 API payload and caching headers (reload is bound by `no-cache` revalidation).
+Decide on the auth-chain round trip (above); then T3 critical-path JS.
 Decided by the user 2026-10-01: do **not** resize images of stores without a CDN resize
 parameter ourselves for now; revisit at T9 with new numbers.
