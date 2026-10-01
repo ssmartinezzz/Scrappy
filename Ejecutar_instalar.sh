@@ -60,7 +60,7 @@ require mvn
 require python3
 require node
 JAVA_MAJOR="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/')"
-if [ "${JAVA_MAJOR:-0}" -lt 21 ]; then
+if [[ "${JAVA_MAJOR:-0}" -lt 21 ]]; then
   echo "  [ERROR] Se requiere Java 21+, encontrado: $JAVA_MAJOR" >&2
   exit 1
 fi
@@ -70,7 +70,7 @@ echo
 # ── [3/4] PostgreSQL (system package or already-running instance) ───────
 echo "[3/4] PostgreSQL..."
 if command -v pg_ctl >/dev/null 2>&1 && command -v initdb >/dev/null 2>&1; then
-  if [ ! -f "$PG_DATA/PG_VERSION" ]; then
+  if [[ ! -f "$PG_DATA/PG_VERSION" ]]; then
     echo "       Inicializando data directory en $PG_DATA..."
     mkdir -p "$PG_DATA"
     initdb -D "$PG_DATA" -U "$PG_USER" -A trust --locale=C -E UTF8 >/dev/null
@@ -138,7 +138,7 @@ export UV_PYTHON_INSTALL_DIR="$UV_DIR/python"
 export UV_CACHE_DIR="$UV_DIR/cache"
 mkdir -p "$UV_DIR"
 
-if [ -x "$UV_BIN" ]; then
+if [[ -x "$UV_BIN" ]]; then
   echo "       uv ya instalado."
 else
   UV_ARCH=""
@@ -146,7 +146,7 @@ else
     x86_64|amd64) UV_ARCH="x86_64-unknown-linux-gnu" ;;
     aarch64|arm64) UV_ARCH="aarch64-unknown-linux-gnu" ;;
   esac
-  if [ -z "$UV_ARCH" ]; then
+  if [[ -z "$UV_ARCH" ]]; then
     echo "  [ERROR] Arquitectura no reconocida ($(uname -m)) para descargar uv." >&2
     echo "          El CLI nativo requiere Python/uv — instalacion abortada." >&2
     exit 1
@@ -163,14 +163,14 @@ else
   mv "$UV_DIR/uv-${UV_ARCH}/uv" "$UV_BIN"
   rm -rf "$UV_DIR/uv-${UV_ARCH}" "$UV_TARBALL"
   chmod +x "$UV_BIN"
-  if [ ! -x "$UV_BIN" ]; then
+  if [[ ! -x "$UV_BIN" ]]; then
     echo "  [ERROR] Extraccion de uv fallo. Instalacion abortada." >&2
     exit 1
   fi
   echo "       uv listo."
 fi
 
-if [ -x "$CLI_VENV_PY" ] && "$CLI_VENV_PY" -c "import textual" >/dev/null 2>&1; then
+if [[ -x "$CLI_VENV_PY" ]] && "$CLI_VENV_PY" -c "import textual" >/dev/null 2>&1; then
   echo "       _tools/cli-venv ya provisionado (uv-managed CPython $UV_PY_VER)."
 else
   echo "       Instalando CPython $UV_PY_VER administrado por uv..."

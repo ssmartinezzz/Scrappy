@@ -13,7 +13,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,10 +40,10 @@ class OsCommercePageListingTest {
     private static final double MIN = 0;
     private static final double MAX = 100_000_000;
 
-    private static final String LEAF_PAGE1 = readFixture("leaf-page1.html");
-    private static final String LEAF_PAGE2 = readFixture("leaf-page2.html");
+    private static final String LEAF_PAGE1 = listingPage("", "leaf-page1.tsv");
+    private static final String LEAF_PAGE2 = listingPage("", "leaf-page2.tsv");
     private static final String LEAF_PAGE3_EMPTY = readFixture("leaf-page3-empty.html");
-    private static final String LANDING = readFixture("landing-componentes-de-pc.html");
+    private static final String LANDING = listingPage(readFixture("landing-nav.html"), "leaf-page1.tsv");
     private static final String NAV = readFixture("nav.html");
 
     @Test
@@ -263,6 +265,36 @@ class OsCommercePageListingTest {
     }
 
     // ─── helpers ───────────────────────────────────────────────────────────
+
+    /**
+     * Venex renders every listing item from one template, so the fixtures keep
+     * that template once ({@code product-box.html}) plus one row per product.
+     */
+    private static String listingPage(String beforeListing, String productsTsv) {
+        String box = readFixture("product-box.html");
+        List<String> rows = readFixture(productsTsv).lines()
+                .filter(line -> !line.startsWith("#"))
+                .toList();
+        List<String> boxes = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            String[] f = rows.get(i).split("\t");
+            long price = Long.parseLong(f[2]);
+            boxes.add(box
+                    .replace("{id}", f[0])
+                    .replace("{brand}", f[1])
+                    .replace("{price}", f[2])
+                    .replace("{name}", f[3])
+                    .replace("{url}", f[4])
+                    .replace("{category}", "Placas de Video")
+                    .replace("{position}", String.valueOf(i + 1))
+                    .replace("{priceText}", "$ " + String.format(Locale.ROOT, "%,d", price).replace(',', '.')));
+        }
+        return "<!DOCTYPE html><html lang=\"es\"><head><title>Venex</title></head><body>"
+                + beforeListing
+                + "<div class=\"container\"><div class=\"row\">\n"
+                + String.join("\n\n", boxes)
+                + "</div></div></body></html>";
+    }
 
     private static String readFixture(String name) {
         String path = "/fixtures/venex/" + name;

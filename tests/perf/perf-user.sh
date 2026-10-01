@@ -30,13 +30,13 @@ curl -sf -o /dev/null "$HOST/" || die "no hay backend en $HOST"
 
 ADMIN_USERNAME="${ADMIN_USERNAME:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
-if [ -z "$ADMIN_USERNAME" ] && [ -f "$AQUI/../e2e/.e2e-secrets.env" ]; then
+if [[ -z "$ADMIN_USERNAME" ]] && [[ -f "$AQUI/../e2e/.e2e-secrets.env" ]]; then
   # shellcheck disable=SC1090
   set -a; . "$AQUI/../e2e/.e2e-secrets.env"; set +a
   ADMIN_USERNAME="${ADMIN_BOOTSTRAP_USERNAME:-}"
   ADMIN_PASSWORD="${ADMIN_BOOTSTRAP_PASSWORD:-}"
 fi
-[ -n "$ADMIN_USERNAME" ] && [ -n "$ADMIN_PASSWORD" ] || die \
+[[ -n "$ADMIN_USERNAME" ]] && [[ -n "$ADMIN_PASSWORD" ]] || die \
 "hace falta una cuenta ADMIN para crear la de performance.
 
    ADMIN_USERNAME=<vos> ADMIN_PASSWORD=<tu password> $0
@@ -47,7 +47,7 @@ say "entrando como $ADMIN_USERNAME"
 TOKEN=$(curl -s -X POST "$HOST/api/auth/login" -H 'Content-Type: application/json' \
   -d "$(printf '{"username":"%s","password":"%s"}' "$ADMIN_USERNAME" "$ADMIN_PASSWORD")" \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("data") or d).get("accessToken",""))')
-[ -n "$TOKEN" ] || die "el login de $ADMIN_USERNAME no devolvió token — ¿password correcta?"
+[[ -n "$TOKEN" ]] || die "el login de $ADMIN_USERNAME no devolvió token — ¿password correcta?"
 
 USUARIO="perf-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 PASSWORD="$(head -c 24 /dev/urandom | base64 | tr -d '\n=/+')"
@@ -56,7 +56,7 @@ say "creando $USUARIO (VIEWER)"
 CODIGO=$(curl -s -o /tmp/perf-user-resp.$$ -w '%{http_code}' -X POST "$HOST/api/usuarios" \
   -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
   -d "$(printf '{"username":"%s","password":"%s","role":"VIEWER"}' "$USUARIO" "$PASSWORD")")
-if [ "$CODIGO" != "201" ]; then
+if [[ "$CODIGO" != "201" ]]; then
   RESP=$(cat /tmp/perf-user-resp.$$); rm -f /tmp/perf-user-resp.$$
   die "POST /api/usuarios contestó $CODIGO: $RESP"
 fi
