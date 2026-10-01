@@ -51,20 +51,19 @@ export function CompareModal({ items, onClose }) {
         </div>
         <div style={{ overflowX:'auto' }}>
           <div style={{ display:'grid', gridTemplateColumns:`repeat(${items.length}, minmax(150px, 1fr))` }}>
-            {ROWS.map(row => (
-              items.map((p, pi) => (
-                <div key={`${row.label}-${pi}`}
+            {ROWS.map(row => [
+              <div key={`lbl-${row.label}`}
+                   className="compare-cell label"
+                   style={{ gridColumn: `1/${items.length+1}` }}>
+                {row.label}
+              </div>,
+              ...items.map(p => (
+                <div key={`${row.label}-${p.url}`}
                      className={`compare-cell ${row.hl?.(p, minPrecio) ? 'highlight' : ''}`}>
                   {typeof row.fn(p) === 'object' ? row.fn(p) : String(row.fn(p))}
                 </div>
-              )).concat(
-                <div key={`lbl-${row.label}`}
-                     className="compare-cell label"
-                     style={{ gridColumn: `1/${items.length+1}` }}>
-                  {row.label}
-                </div>
-              )
-            )).reverse()}
+              )),
+            ])}
           </div>
         </div>
       </div>
