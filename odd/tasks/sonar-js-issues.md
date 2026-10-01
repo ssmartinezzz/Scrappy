@@ -93,7 +93,8 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
   Queda S6847 en `CategoryPicksCarousel` (la misma región con flechas ya declarada no arreglable; Sonar lo cuenta nuevo porque cambió el elemento).
 - Hallazgo preexistente, fuera de alcance: la tabla del modal de comparación dibuja cada rótulo debajo de sus valores, así que se lee como si estuviera corrida una fila (la fila PRECIO muestra la tienda). Igual en master.
 - Suite: 63 archivos, 601 tests. Build OK.
+- Re-análisis de Sonar del PR después del arreglo: 1 issue, el S6847 del carrusel. Los dos bugs viejos quedaron en `docs/KNOWN_ISSUES.md`.
 
 ## Próximo paso
 
-Abrir el PR y leer el análisis de Sonar del PR.
+Merge del PR #267. Los issues que quedan abiertos los marca el usuario como *Accepted* en la web.
