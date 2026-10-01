@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table';
 import {
   Clock, Plus, Pencil, Play, Trash2, ChevronUp, ChevronDown,
-  CheckCircle2, XCircle, Loader2, SkipForward, CircleAlert,
+  CheckCircle2, Loader2, CircleAlert,
 } from 'lucide-react';
 import { listCronJobs, updateCronJob, deleteCronJob, runCronNow } from '../api';
 import { useStreamEvent } from '../hooks/EventStreamProvider';

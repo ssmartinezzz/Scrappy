@@ -3,6 +3,7 @@ import { fetchMlEstado, startMlTraining, aplicarModeloML } from '../api';
 import { useMlStatus } from '../hooks/EventStreamProvider';
 import { SEMANTIC } from '../lib/colors';
 import { PHASE_LABELS } from '../lib/mlPhaseLabels';
+import { accuracyFromMsg } from '../lib/mlTrainingMsg';
 
 // ─── Toast helper ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -62,8 +63,8 @@ export default function MlStatusPanel() {
     if (t.phase === 'error') {
       showToast('Entrenamiento ML falló: ' + (t.msg || ''), 'error');
     } else {
-      const accMatch = (t.msg || '').match(/(\d+\.?\d*)\s*%/);
-      const acc = accMatch ? ' — ' + accMatch[1] + '% accuracy' : '';
+      const accuracy = accuracyFromMsg(t.msg);
+      const acc = accuracy ? ' — ' + accuracy + '% accuracy' : '';
       showToast('Modelo ML actualizado' + acc);
     }
   }, [live.training]);

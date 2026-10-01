@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet, useOutletContext } from 'react-router
 import { readStatus } from '../lib/readStatus';
 import { useMlStatus, useScrapeStatus, useStreamEvent } from '../hooks/EventStreamProvider';
 import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
-         fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
+         fetchMlEstado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
          fetchSavedPcs, savePc, deleteSavedPc, renamePc,
          fetchTendencias } from '../api';
@@ -15,8 +15,7 @@ import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
 import RouteFallback from './RouteFallback';
 import GpuTrainingOverlay from './GpuTrainingOverlay';
-import { CompareBar }   from './CompareComponents';
-import { CompareModal } from './CompareComponents';
+import { CompareBar, CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 import { useInterruptedRun } from '../hooks/useInterruptedRun';

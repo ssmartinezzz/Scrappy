@@ -6,7 +6,7 @@ import { denyReasonFor, isDenied, operationKey } from './nonExecutableOperations
 export { operationKey };
 
 export function reasonForProps(props) {
-  if (!props || !props.method || !props.path) return null;
+  if (!props?.method || !props.path) return null;
   return denyReasonFor(props.method, props.path);
 }
 

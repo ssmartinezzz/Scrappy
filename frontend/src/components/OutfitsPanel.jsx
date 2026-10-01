@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { fetchOutfit, sendOutfitFeedback, fetchOutfitBuilder, resetOutfitFeedback, fmt } from '../api';
+import { useEffect, useState, useCallback } from 'react';
+import { sendOutfitFeedback, fetchOutfitBuilder, resetOutfitFeedback, fmt } from '../api';
 import { MultiSelectTags } from './ui/multi-select-tags';
 import { MoneyInput } from './ui/money-input';
 import { cn } from '@/lib/utils';
@@ -393,7 +393,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
     }
   }
 
-  const hasSlots = result && result.slots && result.slots.length > 0;
+  const hasSlots = result?.slots?.length > 0;
   const isNoFit  = result && (!result.slots || result.slots.length === 0);
   const budget   = Number(presupuesto);
 

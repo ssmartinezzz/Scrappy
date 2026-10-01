@@ -65,7 +65,7 @@ async function softUnwrap(response, fallback = null) {
 // Mutations whose callers read `{ ok, mensaje }`: failures become `{ ok:false, mensaje }`.
 async function opResult(response) {
   try {
-    return { ok: true, ...((await unwrap(response)) ?? {}) };
+    return { ok: true, ...(await unwrap(response)) };
   } catch (e) {
     return { ok: false, mensaje: e instanceof ApiError ? e.message : 'Error de red' };
   }
@@ -395,13 +395,13 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
  */
 export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false, pin = [], estilo = 'gym' }) {
   const p = new URLSearchParams();
-  if (categorias && categorias.length) p.set('categorias', categorias.join(','));
+  if (categorias?.length) p.set('categorias', categorias.join(','));
   // presupuesto=0 or empty means no limit → send a large ceiling so the API accepts it
   const budget = presupuesto > 0 ? presupuesto : 100_000_000;
   p.set('presupuesto', budget);
   if (genero) p.set('genero', genero);
-  if (excluir && excluir.length) p.set('excluir', excluir.join(','));
-  if (pin && pin.length) p.set('pin', pin.join(','));
+  if (excluir?.length) p.set('excluir', excluir.join(','));
+  if (pin?.length) p.set('pin', pin.join(','));
   if (greedy) p.set('greedy', 'true');
   if (estilo && estilo !== 'gym') p.set('estilo', estilo);
   const r = await authedFetch(`${BASE}/api/outfits/builder?${p}`);
@@ -687,7 +687,7 @@ export async function applyProposal(proposal) {
   });
   if (r.status === 409) return { scraping: true };
   try {
-    return { ok: true, ...((await unwrap(r)) ?? {}) };
+    return { ok: true, ...(await unwrap(r)) };
   } catch (e) {
     if (!(e instanceof ApiError)) throw e;
     return { ok: false, mensaje: e.message, codigo: e.code, actual: e.details?.actual };

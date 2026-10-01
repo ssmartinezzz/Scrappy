@@ -25,7 +25,6 @@ export default function FavoritosPanel({
   onDeleteSavedPc, onRenameSavedPc,
 }) {
   const items = favoritos || [];
-  const isEmpty = items.length === 0;
 
   // View-mode toggle (design ADR-4): view-local state, NOT lifted to the
   // AppLayout reducer — no other component consumes it. Lazy-initialised

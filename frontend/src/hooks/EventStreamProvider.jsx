@@ -31,11 +31,11 @@ export function reduceStatusEvent(state, action) {
       };
     }
     case 'scrape.progress':
-      return { ...state, scrape: { ...(state.scrape || {}), progreso: data } };
+      return { ...state, scrape: { ...state.scrape, progreso: data } };
     case 'ml.status':
       return data.kind === 'backfill'
         ? { ...state, backfill: trainingOf(data) }
-        : { ...state, estado: { ...(state.estado || {}), training: trainingOf(data) } };
+        : { ...state, estado: { ...state.estado, training: trainingOf(data) } };
     case 'replace-scrape':
       return { ...state, scrape: action.st };
     case 'replace-estado':

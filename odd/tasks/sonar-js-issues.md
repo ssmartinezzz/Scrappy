@@ -28,7 +28,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - [x] **T3** React — S6478, S6479, S6481 (32)
 - [x] **T4** Tests — S9020, S9027, S7763 en tests (42)
 - [x] **T5** Legibilidad — S3358, S3776, S4624 (47)
-- [ ] **T6** Limpiezas mecánicas — resto de reglas (~69)
+- [x] **T6** Limpiezas mecánicas — resto de reglas (69 listados, 67 arreglados)
 - [ ] **T7** Verificación final: suite + build + e2e browser + re-análisis Sonar del PR
 
 ## Criterios de aceptación
@@ -65,12 +65,23 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 
 **T5** (47/47). Suite 549 -> 549 tests (60 archivos), build OK. Ningún test existente editado (CODE-2).
 - Verificado con `eslint-plugin-sonarjs` (`no-nested-conditional`, `cognitive-complexity` en 15, `no-nested-template-literals`) sobre `frontend/src`: reproduce los 47 sobre la base y deja 0 después.
-- S3358 (33): if/else o helpers de módulo (`scoreColor`/`gaugeColor`, `gaugeLabel`, `zScoreText`, `mlBannerText`, `rowTone` de GroupCard, `chipSelectedBackground`/`chipTextColor` de SplashPanel, tabla `TENDENCIA_VISUAL`); `HeaderContent` en CronjobsPage y UsuariosAdminPanel; el cuerpo de CronjobsPage pasa de ternario anidado a tres condiciones excluyentes.
+- S3358 (35): if/else o helpers de módulo (`scoreColor`/`gaugeColor`, `gaugeLabel`, `zScoreText`, `mlBannerText`, `rowTone` de GroupCard, `chipSelectedBackground`/`chipTextColor` de SplashPanel, tabla `TENDENCIA_VISUAL`); `HeaderContent` en CronjobsPage y UsuariosAdminPanel; el cuerpo de CronjobsPage pasa de ternario anidado a tres condiciones excluyentes.
 - S3776 (9): DetailPanel `PriceContext` 38 -> seis funciones `*Item`; `reducer` y `buildParams` de AppLayout (`toggleIn`, `filterParams` con el mismo orden de claves y `precioMin: 0` incluido); OutfitsPanel (`buildNoFitMessage`, `NoFitNotice`); PcsPanel `resumenSpecs` en tres tramos; CronJobCard (`SitioChip`, `ExecutionHistory`, `buildPayload`, `initialSelection`); `fetchPcsBuilder` por tabla `[param, viaja, valor]` en el orden de siempre; BuySignal.
 - S4624 (3): api.js, ProductCard, CategoryPicksCarousel.
 - S3782 de DetailPanel (T6) cae acá: `diffPct`/`diffMed` pasan a `Number`; el texto del caso `> 15` conserva el `toFixed(1)` original.
 - `groupByRubro` nuevo en `lib/rubros.js` (usado por CronJobCard y SplashPanel; cierra también sus S1121 de T6).
 
+**T6** (67/69). Suite 549 -> 599 tests (62 archivos; +50 nuevos), build OK, `playwright test --list` parsea (31 tests). Único test existente tocado: el import sin usar `waitFor` de `AuthProvider.test.jsx` (test propio de T1); ninguna aserción editada.
+- Mecánicos: imports sin usar (AppLayout, CronjobsPage, OutfitsPanel, RecomendadosPanel, Topbar), imports duplicados (AppLayout, Topbar), variables sin usar (FavoritosPanel, GpuTrainingOverlay), cadena opcional x15, `.some`, `export…from` (e2e/helpers, ui/chart), `node:path`/`node:url`, `{}` inútil (api x2, EventStreamProvider x2), `Set` en AuthGate, `startsWith`, `replaceAll` x7, `codePointAt`, `=== undefined` y cuerpos con comentario en `test/setup.js`, S1121 vía `groupByRubro`, S3782 de DetailPanel (ver T5).
+- S1940 (AgentChatPanel): el operador opuesto `>=` cambia el resultado con `NaN` (el `savedAt` corrupto debe contar como vencido); se reescribió como `Number.isNaN(age) || age >= TTL`, mismo comportamiento.
+- S8786 (4/4), cada uno con pin previo observado en verde sobre el original (`src/lib/slowRegexPins.test.jsx`, `src/lib/inlineMatches.test.js`):
+  - `MlStatusPanel` -> `lib/mlTrainingMsg.js`: `(?<!\d)(\d+(?:\.\d*)?)\s*%`. Era cúbico: 4000 dígitos sin `%` tardaban 16 s; ahora lineal.
+  - `cat.js` `slugify`: `/^-+|-+$/` -> `/^-|-$/` (el paso anterior ya colapsa cada corrida a un solo guion).
+  - `richText` viñeta `^\s*[-*]\s+(.*)$` -> `bulletText()` a mano (mismo resultado, incluidos los terminadores de línea).
+  - `richText` INLINE (alternancia de 4 patrones, cuadrática con aperturas sin cerrar: 420k caracteres tardaban 6,6 s) -> `lib/inlineMatches.js`, un escáner de una pasada con memo. Equivalencia contra la regex original con 30.000 líneas aleatorias deterministas + casos fijos; el adversarial queda por debajo de 1 s.
+- **No arreglados** (motivo): `eventStream.js:173` S9382 (`await sleep` dentro del `while` de reconexión: el reintento es secuencial por diseño, la espera ES el backoff); `brandLogos.js:82` S7760 (el parámetro por defecto sólo cubre `undefined`, y `getBrandColor(marca.marca)` puede recibir `null`: pasaría de gris por defecto a un `TypeError`).
+- `S2245` de `authSession.js:46` sigue fuera de alcance (falso positivo aceptado).
+
 ## Próximo paso
 
-T6.
+T7.

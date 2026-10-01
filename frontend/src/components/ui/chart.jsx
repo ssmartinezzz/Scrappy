@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ResponsiveContainer, Tooltip } from 'recharts';
+import { ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 
 /**
@@ -45,4 +45,4 @@ export function ChartContainer({ className, children, ...props }) {
 }
 
 /** Re-export, para que la vista importe el gráfico entero de un solo lugar. */
-export const ChartTooltip = Tooltip;
+export { Tooltip as ChartTooltip } from 'recharts';
