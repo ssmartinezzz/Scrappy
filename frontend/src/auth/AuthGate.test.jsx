@@ -53,7 +53,7 @@ describe('AuthGate — bootstrap ordering (design D5)', () => {
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     resolveFetch(refreshRejected());
-    await waitFor(() => expect(screen.getByText('LOGIN SCREEN')).toBeInTheDocument());
+    await screen.findByText('LOGIN SCREEN');
   });
 
   it('cold load with no valid cookie redirects an anonymous deep link to /login, with no flash of protected content', async () => {
@@ -61,7 +61,7 @@ describe('AuthGate — bootstrap ordering (design D5)', () => {
 
     render(<TestTree initialPath="/protegido" />);
 
-    await waitFor(() => expect(screen.getByText('LOGIN SCREEN')).toBeInTheDocument());
+    await screen.findByText('LOGIN SCREEN');
     expect(screen.queryByText('PROTECTED CONTENT')).not.toBeInTheDocument();
   });
 
@@ -75,7 +75,7 @@ describe('AuthGate — bootstrap ordering (design D5)', () => {
 
     render(<TestTree initialPath="/protegido" />);
 
-    await waitFor(() => expect(screen.getByText('PROTECTED CONTENT')).toBeInTheDocument());
+    await screen.findByText('PROTECTED CONTENT');
     expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe('AuthGate — bootstrap ordering (design D5)', () => {
 
     render(<TestTree initialPath="/login" />);
 
-    await waitFor(() => expect(screen.getByText('LOGIN SCREEN')).toBeInTheDocument());
+    await screen.findByText('LOGIN SCREEN');
   });
 });
 
@@ -110,7 +110,7 @@ describe('AuthGate — Phase 6 password-reset routes are public', () => {
 
     render(<ResetRoutesTree initialPath="/forgot-password" />);
 
-    await waitFor(() => expect(screen.getByText('FORGOT PASSWORD SCREEN')).toBeInTheDocument());
+    await screen.findByText('FORGOT PASSWORD SCREEN');
     expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
   });
 
@@ -119,7 +119,7 @@ describe('AuthGate — Phase 6 password-reset routes are public', () => {
 
     render(<ResetRoutesTree initialPath="/reset-password" />);
 
-    await waitFor(() => expect(screen.getByText('RESET PASSWORD SCREEN')).toBeInTheDocument());
+    await screen.findByText('RESET PASSWORD SCREEN');
     expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
   });
 });
@@ -147,7 +147,7 @@ describe('AuthGate — network error vs rejected session (design D5 point 5)', (
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByText('LOGIN SCREEN')).toBeInTheDocument());
+    await screen.findByText('LOGIN SCREEN');
     expect(capturedFailureReason).toBe('network_error');
   });
 });

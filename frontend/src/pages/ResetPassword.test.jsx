@@ -67,7 +67,7 @@ describe('ResetPassword — absent token (task 6.7: no token in the fragment)', 
 
     renderResetPassword();
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await screen.findByRole('alert');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
@@ -80,7 +80,7 @@ describe('ResetPassword — client-side validation (task 6.5)', () => {
     renderResetPassword();
     await fillAndSubmit('corta1');
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await screen.findByRole('alert');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,7 @@ describe('ResetPassword — client-side validation (task 6.5)', () => {
     renderResetPassword();
     await fillAndSubmit('unapasslarga', 'otradistinta');
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await screen.findByRole('alert');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
@@ -104,9 +104,9 @@ describe('ResetPassword — successful confirm (task 6.6: no auto-login)', () =>
     renderResetPassword();
     await fillAndSubmit('unapasslarga');
 
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    await screen.findByRole('status');
     fireEvent.click(screen.getByRole('link', { name: /ir a iniciar sesión/i }));
-    await waitFor(() => expect(screen.getByText('LOGIN SCREEN')).toBeInTheDocument());
+    await screen.findByText('LOGIN SCREEN');
   });
 });
 
@@ -118,7 +118,7 @@ describe('ResetPassword — token rejected by the backend (expired / used / unkn
     renderResetPassword();
     await fillAndSubmit('unapasslarga');
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await screen.findByRole('alert');
     expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
   });
 });

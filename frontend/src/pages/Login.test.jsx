@@ -40,7 +40,7 @@ describe('Login — username, not email (D7)', () => {
   it('renders a username text field, never an email input', async () => {
     global.fetch = vi.fn().mockResolvedValue(refreshRejected());
     renderLogin();
-    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    await screen.findByLabelText(/usuario/i);
 
     const usernameField = screen.getByLabelText(/usuario/i);
     expect(usernameField).toHaveAttribute('type', 'text');
@@ -53,7 +53,7 @@ describe('Login — forgot password link (task 6.1: always visible, regardless o
   it('always renders a link to /forgot-password', async () => {
     global.fetch = vi.fn().mockResolvedValue(refreshRejected());
     renderLogin();
-    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    await screen.findByLabelText(/usuario/i);
 
     const link = screen.getByRole('link', { name: /olvidé mi contraseña/i });
     expect(link).toHaveAttribute('href', '/forgot-password');
@@ -64,7 +64,7 @@ describe('Login — no OAuth affordance (spec: no functional OAuth affordance)',
   it('never renders a Google/OAuth control', async () => {
     global.fetch = vi.fn().mockResolvedValue(refreshRejected());
     renderLogin();
-    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    await screen.findByLabelText(/usuario/i);
 
     expect(screen.queryByText(/google/i)).not.toBeInTheDocument();
   });
@@ -82,7 +82,7 @@ describe('Login — every failure is indistinguishable', () => {
       return refreshRejected();
     });
     renderLogin();
-    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    await screen.findByLabelText(/usuario/i);
 
     fireEvent.change(screen.getByLabelText(/usuario/i), { target: { value: 'alguien' } });
     fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'lo-que-sea' } });
@@ -103,13 +103,13 @@ describe('Login — successful login navigates past the login route', () => {
       return refreshRejected();
     });
     renderLogin([{ pathname: '/login', state: { from: { pathname: '/catalogo' } } }]);
-    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    await screen.findByLabelText(/usuario/i);
 
     fireEvent.change(screen.getByLabelText(/usuario/i), { target: { value: 'valeria' } });
     fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'correcta' } });
     fireEvent.click(screen.getByRole('button', { name: /ingresar/i }));
 
-    await waitFor(() => expect(screen.getByText('CATALOGO')).toBeInTheDocument());
+    await screen.findByText('CATALOGO');
   });
 
   it('returns to the originally attempted route after re-login', async () => {
@@ -122,13 +122,13 @@ describe('Login — successful login navigates past the login route', () => {
       return refreshRejected();
     });
     renderLogin([{ pathname: '/login', state: { from: { pathname: '/cronjobs' } } }]);
-    await waitFor(() => expect(screen.getByLabelText(/usuario/i)).toBeInTheDocument());
+    await screen.findByLabelText(/usuario/i);
 
     fireEvent.change(screen.getByLabelText(/usuario/i), { target: { value: 'valeria' } });
     fireEvent.change(screen.getByLabelText(/contraseña/i), { target: { value: 'correcta' } });
     fireEvent.click(screen.getByRole('button', { name: /ingresar/i }));
 
-    await waitFor(() => expect(screen.getByText('CRONJOBS')).toBeInTheDocument());
+    await screen.findByText('CRONJOBS');
   });
 });
 

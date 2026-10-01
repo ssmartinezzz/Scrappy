@@ -26,7 +26,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - [x] **T1** Promesas flotantes — S9383 (41)
 - [x] **T2** Accesibilidad — S1082, S6848, S6819, S6772, S6853, S6845, S6847, S6850, S9379 (55)
 - [x] **T3** React — S6478, S6479, S6481 (32)
-- [ ] **T4** Tests — S9020, S9027, S7763 en tests (42)
+- [x] **T4** Tests — S9020, S9027, S7763 en tests (42)
 - [ ] **T5** Legibilidad — S3358, S3776, S4624 (47)
 - [ ] **T6** Limpiezas mecánicas — resto de reglas (~69)
 - [ ] **T7** Verificación final: suite + build + e2e browser + re-análisis Sonar del PR
@@ -59,6 +59,10 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - S6479 (11): clave por dato (`url`, `key`, `text`, `icon`, `slot-url`) en CategoryPicksCarousel, DetailPanel x2, FavoritosPanel, PcsPanel, SuplementosPanel, SavedOutfitCard x2, SavedPcCard, TrendsPanel, outfit-collage.
 - **No arreglados** (motivo): AgentChatPanel:631 (transcripción append-only sin id; la posición *es* la identidad) y richText.jsx x3 (líneas/tokens de un string: la posición es la identidad, y el texto repite líneas en blanco).
 
+**T4** (41/41 listados; el inventario no traía S7763). Suite 549 -> 549 tests (60 archivos), build OK. Ningún test añadido ni quitado.
+- S9020 (40 sitios, 39 listados + uno idéntico): `await waitFor(() => expect(screen.getByX(..)).toBeInTheDocument())` -> `await screen.findByX(..)` en App, AuthGate, ApiDocsPanel, OutfitsPanel, PriceHistoryPage, ForgotPassword, Login, ResetPassword. Mismo timeout por defecto (1000 ms), misma aserción.
+- S9027 (1): `ProductCard.test.jsx` `queryByText` -> `getByText` en la aserción de presencia.
+
 ## Próximo paso
 
-T4.
+T5.
