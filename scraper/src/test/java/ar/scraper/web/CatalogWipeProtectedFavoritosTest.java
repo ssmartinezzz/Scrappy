@@ -38,22 +38,22 @@ import static org.mockito.Mockito.when;
  * favourite count and delete nothing when a {@code favoritos} row still
  * references a live product (no {@code ?force=} override), and MUST
  * otherwise succeed and cascade. Exercises the real
- * {@link DbAdminEndpoints}/{@link DatabaseService} write path against a real
+ * {@link DbAdminController}/{@link DatabaseService} write path against a real
  * Postgres via {@link PostgresTestBase} — only {@link ScraperService} and
  * {@link ResultAggregator} are mocked (same seam as
- * {@code ApiControllerStatusScrapeTest}), so the FK RESTRICT surfaces exactly
+ * {@code ScrapeControllerTest}), so the FK RESTRICT surfaces exactly
  * as it would in production.</p>
  */
 @Epic("REST API")
 @Feature("Sitios / Config / Wiring")
 @Story("DELETE /api/db/productos — protected by live favoritos")
-@DisplayName("DbAdminEndpoints.limpiarProductos — 409 when favoritos block the wipe")
+@DisplayName("DbAdminController.limpiarProductos — 409 when favoritos block the wipe")
 class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
 
     private DatabaseService db;
     private ScraperService service;
     private ResultAggregator aggregator;
-    private DbAdminEndpoints endpoints;
+    private DbAdminController endpoints;
 
     @BeforeEach
     void setUp() {
@@ -61,7 +61,7 @@ class CatalogWipeProtectedFavoritosTest extends PostgresTestBase {
         service = mock(ScraperService.class);
         aggregator = mock(ResultAggregator.class);
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
-        endpoints = new DbAdminEndpoints(service, db.mlOutput(), db.productos(), aggregator);
+        endpoints = new DbAdminController(service, db.mlOutput(), db.productos(), aggregator);
     }
 
     private Product producto(String url) {

@@ -65,7 +65,7 @@ class MlOutputRepository implements MlOutputPort {
 
     /**
      * VALID == tiene un nodo {@code scores} objeto no vacío Y un nodo {@code tendencias}
-     * presente como objeto. Mismo criterio usado por {@code MlEndpoints.tendencias()}
+     * presente como objeto. Mismo criterio usado por {@code TendenciasController.tendencias()}
      * (R1/R3) — garantiza que todo lo que se persiste, se puede servir.
      */
     private boolean esMlOutputValido(JsonNode ml) {

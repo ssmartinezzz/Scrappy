@@ -1,0 +1,166 @@
+package ar.scraper.web;
+
+import ar.scraper.web.support.Wire;
+import ar.scraper.outfits.RecommendationService;
+
+
+import ar.scraper.aggregator.grouping.GroupingService;
+import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.catalog.Facets;
+import ar.scraper.db.DatabaseService;
+import ar.scraper.model.Product;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.qameta.allure.Epic;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Step;
+import io.qameta.allure.Story;
+import ar.scraper.web.support.SujetoDePrueba;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
+
+@Epic("REST API")
+@Feature("Filtros / Facets")
+@Story("Dismiss marcas")
+@DisplayName("RecomendadosController — Dismiss categoria & marcas browser")
+class RecomendadosDismissMarcasTest {
+
+    private ScraperService service;
+    private DatabaseService db;
+    private ar.scraper.feedback.FeedbackPort feedback;
+    private GroupingService grouping;
+    private RecommendationService recommendationService;
+    private RecomendadosController controller;
+    private MarcasPicksController marcas;
+
+    @AfterEach
+    void limpiarContexto() {
+        SujetoDePrueba.salir();
+    }
+
+    @BeforeEach
+    void setUp() {
+        wireController();
+    }
+
+    @Step("Wire RecomendadosController with mocked collaborators")
+    private void wireController() {
+        service               = mock(ScraperService.class);
+        db                    = mock(DatabaseService.class);
+        feedback              = mock(ar.scraper.feedback.FeedbackPort.class);
+        when(db.feedback()).thenReturn(feedback);
+        grouping              = mock(GroupingService.class);
+        recommendationService = mock(RecommendationService.class);
+        SujetoDePrueba.entrar("ADMIN");
+        controller = new RecomendadosController(service, db.feedback(), recommendationService, new ar.scraper.security.ActorResolver());
+        marcas = new MarcasPicksController(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
+    }
+
+    // ── POST /api/recomendados/dismiss-categoria ─────────────────────────
+
+    @Test
+    void dismissCategoriaReturns400WhenCategoriaBlank() {
+        var resp = Wire.answer(() -> controller.dismissCategoria(Map.of("categoria", "")));
+        JsonNode error = Wire.error(resp);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
+        verify(feedback, never()).guardarCategoriaDismiss(any(), any());
+    }
+
+    @Test
+    void dismissCategoriaReturns200AndPersistsWhenValid() {
+        var resp = controller.dismissCategoria(Map.of("categoria", "Zapatilla"));
+        JsonNode body = Wire.data(resp);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("ok").asBoolean()).isTrue();
+        verify(feedback).guardarCategoriaDismiss(any(), eq("Zapatilla"));
+    }
+
+    // ── DELETE /api/recomendados/dismiss-categoria ───────────────────────
+
+    @Test
+    void undismissCategoriaAlwaysReturnsOkAndCallsDb() {
+        var resp = controller.undismissCategoria("Remera");
+        JsonNode body = Wire.data(resp);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.get("ok").asBoolean()).isTrue();
+        verify(feedback).borrarCategoriaDismiss(any(), eq("Remera"));
+    }
+
+    // ── GET /api/marcas-browser ──────────────────────────────────────────
+
+    @Test
+    void marcasBrowserReturns204WhenNoLastResult() {
+        when(service.getLastResult()).thenReturn(null);
+
+        var resp = marcas.marcasBrowser(null, null, "count");
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(204);
+    }
+
+    @Test
+    void marcasBrowserReturns200WhenResultExists() {
+        // Products with a real brand (at least 2 per brand to pass the >=2 filter)
+        var products = List.of(
+                producto("Nike Air Max", "https://a.com/1", "Nike"),
+                producto("Nike Vomero", "https://a.com/2", "Nike"),
+                producto("Adidas Ultraboost", "https://b.com/1", "Adidas"),
+                producto("Adidas Stan Smith", "https://b.com/2", "Adidas"));
+        when(service.getLastResult()).thenReturn(mockResult(products));
+
+        var resp = marcas.marcasBrowser(null, null, "count");
+        JsonNode body = Wire.data(resp);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(body.isArray()).isTrue();
+        assertThat(body.size()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void marcasBrowserFiltersByRubroParam() {
+        var products = List.of(
+                productWithRubro("Nike Tee", "https://a.com/1", "Nike", "indumentaria"),
+                productWithRubro("Nike Protein", "https://a.com/2", "Nike", "suplementos"),
+                productWithRubro("Nike Runner2", "https://a.com/3", "Nike", "indumentaria"));
+        when(service.getLastResult()).thenReturn(mockResult(products));
+
+        var resp = marcas.marcasBrowser("indumentaria", null, "count");
+        JsonNode body = Wire.data(resp);
+
+        // Only products with rubro=indumentaria are included; the suplementos product is filtered
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        // Nike has 2 indumentaria products → passes the >=2 filter
+        assertThat(body.isArray()).isTrue();
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────
+
+    private AggregatedResult mockResult(List<Product> products) {
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        return new AggregatedResult(products, Map.of(), Map.of(), facets, 0, 0);
+    }
+
+    private Product producto(String nombre, String url, String marca) {
+        return new Product("Sporting", nombre, 10000.0, null, url, "img",
+                "Zapatilla", "unisex", List.of(), Product.MlScore.EMPTY, marca,
+                "indumentaria", false, false,
+                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+    }
+
+    private Product productWithRubro(String nombre, String url, String marca, String rubro) {
+        return new Product("Sporting", nombre, 10000.0, null, url, "img",
+                "Zapatilla", "unisex", List.of(), Product.MlScore.EMPTY, marca,
+                rubro, false, false,
+                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+    }
+}

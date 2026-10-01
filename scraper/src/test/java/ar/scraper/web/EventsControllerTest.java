@@ -44,13 +44,14 @@ class EventsControllerTest {
     void setUp() {
         bus = new InProcessStatusEvents();
         streams = new StatusStreams(bus);
-        ApiController api = Mockito.mock(ApiController.class);
-        Mockito.when(api.statusSnapshot()).thenReturn(ScrapeDtos.Status.builder()
+        ScrapeStatusView scrapeStatus = Mockito.mock(ScrapeStatusView.class);
+        Mockito.when(scrapeStatus.snapshot()).thenReturn(ScrapeDtos.Status.builder()
                 .status("IDLE").mensaje("Listo").tieneData(false).build());
         MlDtos.Estado ml = new MlDtos.Estado();
         ml.setTraining(new MlDtos.Training(false, "idle", 0, "", ""));
-        Mockito.when(api.mlEstadoSnapshot()).thenReturn(ml);
-        mvc = MockMvcBuilders.standaloneSetup(new EventsController(streams, api)).build();
+        MlEstadoView mlEstado = Mockito.mock(MlEstadoView.class);
+        Mockito.when(mlEstado.snapshot()).thenReturn(ml);
+        mvc = MockMvcBuilders.standaloneSetup(new EventsController(streams, scrapeStatus, mlEstado)).build();
     }
 
     private static Principal user(String role) {

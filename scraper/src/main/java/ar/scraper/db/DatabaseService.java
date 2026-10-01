@@ -127,60 +127,52 @@ public class DatabaseService {
         return rubroResolver;
     }
 
-    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
-     *  need the port, e.g. {@code ApiController} wiring {@code FavoritosEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public FavoritosPort favoritos() {
         return favoritosPort;
     }
 
-    /** Accessor for {@code web}/{@code ml} consumers built by hand (not Spring beans)
-     *  that still need the port, e.g. {@code ApiController} wiring {@code FinanciacionEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public PresetPort presets() {
         return presetPort;
     }
 
-    /** Accessor for {@code web}/{@code ml} consumers built by hand (not Spring beans)
-     *  that still need the port, e.g. {@code ApiController} wiring {@code FinanciacionEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public HistorialPort historial() {
         return historialPort;
     }
 
-    /** Accessor for consumers built by hand (not Spring beans) that still need
-     *  the port, e.g. the Postgres-backed tests that drive a whole run lifecycle. */
+    /** Port handle for tests that build a consumer by hand, e.g. those that drive a whole run lifecycle. */
     public ScrapeRunPort scrapeRun() {
         return scrapeRunPort;
     }
 
-    /** Accessor for consumers built by hand (not Spring beans) that still need the port. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public SitiosPort sitios() {
         return sitiosPort;
     }
 
-    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
-     *  need the port, e.g. {@code ApiController} wiring {@code MlEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public CategoriaStatsPort categoriaStats() {
         return categoriaStatsPort;
     }
 
-    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
-     *  need the port, e.g. {@code ApiController} wiring {@code DbAdminEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public MlOutputPort mlOutput() {
         return mlOutputPort;
     }
 
-    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
-     *  need the port, e.g. {@code ApiController} wiring {@code CatalogoEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public CatalogQueryPort catalogQuery() {
         return catalogQueryPort;
     }
 
-    /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
-     *  need the port, e.g. {@code ApiController} wiring {@code FavoritosEndpoints}. */
+    /** Port handle for tests that build a consumer by hand; production code injects the port. */
     public ProductPort productos() {
         return productPort;
     }
 
-    /** @see #favoritos() — mismo motivo: los consumidores todavía no son beans. */
+    /** @see #favoritos() */
     public FeedbackPort feedback() {
         return feedbackPort;
     }
@@ -195,7 +187,7 @@ public class DatabaseService {
         return savedPcsPort;
     }
 
-    /** @see #favoritos() — e.g. {@code ApiController} wiring {@code PcsEndpoints} (pc-builder-gama T6). */
+    /** @see #favoritos() */
     public PreferenciaArmadorPort preferenciaArmador() {
         return preferenciaArmadorPort;
     }

@@ -18,7 +18,7 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * Ejecuta UN {@link CronJob} de punta a punta, replicando la receta de
- * {@code /api/scrape} (ver {@code ApiController.scrape}, ~línea 127-146):
+ * {@code /api/scrape} (ver {@code ScrapeController.scrape}):
  * guard RUNNING (skip si ya hay un scraping en curso), captura/aplicación/
  * restauración del rango de precio y del flag GPU (decisiones 5 y ADR-2 de
  * {@code sdd/scraper-cronjobs/design}), disparo de

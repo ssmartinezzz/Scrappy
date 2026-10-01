@@ -95,7 +95,7 @@ Scrappy/
         │   ├── pcs/                        ← área: TechSpecs + specs/ (un lector por categoría, fase 1/6),
         │   │                                  PcBuilder + SlotDeArmado + reglas/ + EjesTecnicos (fases 2/6),
         │   │                                  Gama, GamaWire, PreferenciaArmadorPort, TechSpecsPort,
-        │   │                                  SavedPcsPort (lo sirve PcsEndpoints en web/)
+        │   │                                  SavedPcsPort (lo sirve PcsController en web/)
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
@@ -124,7 +124,7 @@ Scrappy/
         │   │                                  (@Component package-private implementando
         │   │                                  FuenteIndicePort) + HttpJson + FuenteIndiceConfig
         │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
-        │   └── web/                        ← ApiController + *Endpoints (20 clases, transporte)
+        │   └── web/                        ← un @RestController por recurso (Catalogo, Comparador, Outfits, Pcs, Ml…), transporte
         │       ├── cache/                  ← CatalogoDerivadoCache (@Cacheable: grupos, marcas, mejores),
         │       │                                  CatalogCacheEvictor (vacía al publicarse CatalogoActualizado)
         │       └── events/                 ← InProcessStatusEvents (bus en memoria de estado de scrape/ML)

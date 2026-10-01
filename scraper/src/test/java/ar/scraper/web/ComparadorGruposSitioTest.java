@@ -8,6 +8,7 @@ import ar.scraper.aggregator.grouping.JaccardSimilarity;
 import ar.scraper.aggregator.grouping.ProductIdentity;
 import ar.scraper.catalog.PreciosExternosPort;
 import ar.scraper.model.Product;
+import ar.scraper.web.cache.CatalogoDerivadoCache;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -29,8 +30,8 @@ import static org.mockito.Mockito.when;
 /**
  * The {@code sitio} filter on {@code GET /api/grupos}.
  *
- * <p>The parameter was declared in {@code ApiController}, threaded all the way
- * down to {@code ComparadorEndpoints.grupos}, and then never used — a request
+ * <p>The parameter was declared in the old monolithic controller, threaded all the way
+ * down to {@code ComparadorController.grupos}, and then never used — a request
  * with {@code ?sitio=freres} was silently answered as if no filter had been
  * sent at all.</p>
  *
@@ -49,17 +50,17 @@ import static org.mockito.Mockito.when;
 @Epic("REST API")
 @Feature("Comparador multi-sitio")
 @Story("Filtro por sitio")
-@DisplayName("ComparadorEndpoints — /api/grupos?sitio=")
+@DisplayName("ComparadorController — /api/grupos?sitio=")
 class ComparadorGruposSitioTest {
 
     private ScraperService service;
-    private ComparadorEndpoints endpoints;
+    private ComparadorController endpoints;
 
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
-        endpoints = new ComparadorEndpoints(service, mock(PreciosExternosPort.class),
-                new GroupingService(new ProductIdentity(), new JaccardSimilarity()));
+        endpoints = new ComparadorController(service, mock(PreciosExternosPort.class),
+                new CatalogoDerivadoCache(service, new GroupingService(new ProductIdentity(), new JaccardSimilarity())));
     }
 
     private static Product producto(String sitio, String nombre, double precio) {

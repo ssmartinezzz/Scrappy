@@ -335,8 +335,7 @@ o las caches sirven datos viejos hasta que venza el TTL (30 min).** `/api/grupos
 que sólo sube cuando `publicarCambio()` ve que cambió lo que se le sirve a un
 lector. Toda asignación nueva de `lastResult`/`servedResult` va seguida de esa
 llamada, fuera de `catalogLock`. No sirve `catalog_version` (es de SQL). Un
-`@Cacheable` fuera de `CatalogoDerivadoCache` no hace nada (los `*Endpoints` se
-construyen con `new`) y un cacheado que lea al usuario autenticado serviría la
+Las anotaciones de cache viven sólo en `CatalogoDerivadoCache`, y un cacheado que lea al usuario autenticado serviría la
 respuesta de uno a todos. Con `sync=true` no se puede usar `unless`: el método
 devuelve vacío, nunca `null`. Detalle en `docs/ARCHITECTURE.md`.
 
