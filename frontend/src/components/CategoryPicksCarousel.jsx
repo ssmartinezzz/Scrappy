@@ -83,9 +83,10 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
       };
 
   const showHeader = Boolean(subtitle) || showChevrons;
+  const cardClass = ['picks-carousel', className].filter(Boolean).join(' ');
 
   return (
-    <Card className={`picks-carousel${className ? ` ${className}` : ''}`}>
+    <Card className={cardClass}>
       {showHeader && (
         <CardHeader className="picks-carousel-header">
           <div className="picks-carousel-headrow">

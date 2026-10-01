@@ -214,9 +214,9 @@ function TrainingProgress({ ts, tick }) {
   const pct        = ts.pct ?? 0;
   const isError    = ts.phase === 'error' || ts.phase === 'timeout';
 
-  const barColor = isError ? SEMANTIC.negative
-    : ts.phase === 'image' || ts.phase === 'image_download' ? SEMANTIC.warn
-    : 'var(--p)';
+  let barColor = 'var(--p)';
+  if (isError) barColor = SEMANTIC.negative;
+  else if (ts.phase === 'image' || ts.phase === 'image_download') barColor = SEMANTIC.warn;
 
   return (
     <div style={{

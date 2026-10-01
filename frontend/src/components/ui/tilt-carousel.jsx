@@ -92,9 +92,8 @@ function Slide({ slide, index, current, onSlideActivate }) {
   // gated, leaving this transform/transition active under reduced motion.
   // With reduced motion, inactive slides skip the 3D rotateX tilt entirely
   // and the transform change is instant (no transition).
-  const settleTransform = isActive
-    ? 'scale(1) rotateX(0deg)'
-    : reduceMotion ? 'scale(1)' : 'scale(0.98) rotateX(8deg)';
+  let settleTransform = 'scale(1) rotateX(0deg)';
+  if (!isActive) settleTransform = reduceMotion ? 'scale(1)' : 'scale(0.98) rotateX(8deg)';
   const settleTransition = reduceMotion ? 'none' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
 
   // aria-expanded/aria-controls (spec fix): only meaningful for an outfit

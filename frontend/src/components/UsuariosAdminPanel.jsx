@@ -146,6 +146,25 @@ const COLUMNS = [
   },
 ];
 
+function HeaderContent({ header }) {
+  if (header.isPlaceholder) return null;
+  const content = flexRender(header.column.columnDef.header, header.getContext());
+  if (!header.column.getCanSort()) return content;
+  return (
+    <button
+      className="flex cursor-pointer select-none items-center gap-1"
+      onClick={header.column.getToggleSortingHandler()}
+      type="button"
+    >
+      {content}
+      {{
+        asc:  <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
+        desc: <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
+      }[header.column.getIsSorted()] ?? null}
+    </button>
+  );
+}
+
 export default function UsuariosAdminPanel() {
   const [usuarios, setUsuarios] = useState(null);
   const [error, setError]       = useState('');
@@ -370,21 +389,7 @@ export default function UsuariosAdminPanel() {
                   <TableRow key={hg.id}>
                     {hg.headers.map(header => (
                       <TableHead key={header.id}>
-                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                          <button
-                            className="flex cursor-pointer select-none items-center gap-1"
-                            onClick={header.column.getToggleSortingHandler()}
-                            type="button"
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc:  <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
-                              desc: <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
-                            }[header.column.getIsSorted()] ?? null}
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
+                        <HeaderContent header={header} />
                       </TableHead>
                     ))}
                   </TableRow>

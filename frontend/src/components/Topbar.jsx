@@ -8,6 +8,13 @@ import { IpcBadge } from './ui/ipc-badge';
 import UserMenu from './UserMenu';
 
 
+function mlBannerText(mlBanner) {
+  const textMeta = mlBanner.ml?.textMeta;
+  if (!mlBanner.ml?.hasTextModel || !textMeta) return '🧠 ML estadístico';
+  const acc = textMeta.accuracy == null ? '?' : (textMeta.accuracy * 100).toFixed(1);
+  return `🧠 ML ${acc}% acc · ${mlBanner.st?.mlRefinadas || 0} ref.`;
+}
+
 export default function Topbar({
   meta, facets, sitioFiltro, rubroFiltro,
   onSitioChange, onRubroChange, onReScrape,
@@ -132,9 +139,7 @@ export default function Topbar({
         {/* ML Banner — hidden below md (topbar-meta) */}
         {mlBanner && (
           <div className="ml-banner topbar-meta">
-            {mlBanner.ml?.hasTextModel && mlBanner.ml?.textMeta
-              ? `🧠 ML ${(mlBanner.ml.textMeta.accuracy != null ? (mlBanner.ml.textMeta.accuracy * 100).toFixed(1) : '?')}% acc · ${mlBanner.st?.mlRefinadas || 0} ref.`
-              : '🧠 ML estadístico'}
+            {mlBannerText(mlBanner)}
           </div>
         )}
 

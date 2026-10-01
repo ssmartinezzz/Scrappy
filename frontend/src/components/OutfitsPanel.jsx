@@ -202,6 +202,38 @@ const STYLE_CONFIG = {
   casual: { defaultCats: CASUAL_DEFAULT_CATS, estilo: 'casual' },
 };
 
+// No-fit messaging (UOB-11)
+function buildNoFitMessage(result, budget) {
+  if (result.minimoBudgetNecesario != null) {
+    const gap = result.minimoBudgetNecesario - budget;
+    return budget > 0
+      ? `Necesitás al menos $${fmt(gap)} más para armar este outfit.`
+      : `El outfit mínimo cuesta $${fmt(result.minimoBudgetNecesario)}.`;
+  }
+  const emptycat = result.categoriasVacias?.[0];
+  return emptycat
+    ? `Sin productos en catálogo para ${emptycat}.`
+    : 'No se encontraron productos para las categorías seleccionadas.';
+}
+
+function NoFitNotice({ budget, message, onRetry, disabled }) {
+  return (
+    <div style={{ padding:'1.5rem', borderRadius:8, border:'1px solid var(--bd)',
+                  background:'var(--s1)', display:'flex', flexDirection:'column', gap:10 }}>
+      <div style={{ fontWeight:700, color:'var(--t1)', fontSize:'.9rem' }}>
+        No se puede armar el outfit
+        {budget > 0 ? ` dentro de $${fmt(budget)}` : ''}
+      </div>
+      {message && (
+        <div style={{ fontSize:'.82rem', color:'var(--t3)' }}>{message}</div>
+      )}
+      <button className="reroll-btn" onClick={onRetry} disabled={disabled}>
+        Intentar de nuevo
+      </button>
+    </div>
+  );
+}
+
 // ─── OutfitPanel ──────────────────────────────────────────────────────────────
 // Unified outfit component that replaces GymTab + BuilderTab.
 // Renders gender tabs, an editable category picker, budget inputs, and a
@@ -365,21 +397,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
   const isNoFit  = result && (!result.slots || result.slots.length === 0);
   const budget   = Number(presupuesto);
 
-  // No-fit messaging (UOB-11)
-  let noFitMessage = null;
-  if (isNoFit) {
-    if (result.minimoBudgetNecesario != null) {
-      const gap = result.minimoBudgetNecesario - budget;
-      noFitMessage = budget > 0
-        ? `Necesitás al menos $${fmt(gap)} más para armar este outfit.`
-        : `El outfit mínimo cuesta $${fmt(result.minimoBudgetNecesario)}.`;
-    } else {
-      const emptycat = result.categoriasVacias?.[0];
-      noFitMessage = emptycat
-        ? `Sin productos en catálogo para ${emptycat}.`
-        : 'No se encontraron productos para las categorías seleccionadas.';
-    }
-  }
+  const noFitMessage = isNoFit ? buildNoFitMessage(result, budget) : null;
 
   const totalVisibleSlots = hasSlots
     ? (result.slots || []).filter(s => !removedSlots.has(s.slot)).reduce((sum, s) => sum + s.precio, 0)
@@ -519,19 +537,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
 
       {/* No-fit state (UOB-11) */}
       {!loading && !error && isNoFit && (
-        <div style={{ padding:'1.5rem', borderRadius:8, border:'1px solid var(--bd)',
-                      background:'var(--s1)', display:'flex', flexDirection:'column', gap:10 }}>
-          <div style={{ fontWeight:700, color:'var(--t1)', fontSize:'.9rem' }}>
-            No se puede armar el outfit
-            {budget > 0 ? ` dentro de $${fmt(budget)}` : ''}
-          </div>
-          {noFitMessage && (
-            <div style={{ fontSize:'.82rem', color:'var(--t3)' }}>{noFitMessage}</div>
-          )}
-          <button className="reroll-btn" onClick={handleReroll} disabled={loading}>
-            Intentar de nuevo
-          </button>
-        </div>
+        <NoFitNotice budget={budget} message={noFitMessage} onRetry={handleReroll} disabled={loading} />
       )}
 
       {/* Success state */}

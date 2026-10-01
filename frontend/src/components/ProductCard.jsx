@@ -43,7 +43,8 @@ function PackBadge({ product: p, catStats, compact }) {
     const pct = Math.round((st.median - p.precioUnitario) / st.median * 100);
     if (pct > 5) ahorro = pct;
   }
-  const title = `Pack x${p.cantidadUnidades}${ahorro ? ` · precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : ''}`;
+  const ahorroTxt = ahorro ? ` · precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : '';
+  const title = `Pack x${p.cantidadUnidades}${ahorroTxt}`;
   if (compact) {
     return <span className="badge-compact" title={title}>📦{ahorro ? ` -${ahorro}%` : ''}</span>;
   }
@@ -79,11 +80,9 @@ function PriceBar({ precio, catStats, categoria }) {
 function BadgeCluster({ p, ml, badge, catStats }) {
   const hasSenal = p.senal?.senal && p.senal.senal !== 'sin_datos' && SEÑAL_CONFIG[p.senal.senal];
 
-  const primary = badge
-    ? <span key="ml" className={`badge-ml badge-${ml.badge}`}>{badge}</span>
-    : hasSenal
-      ? <SenalBadge key="senal" senal={p.senal} />
-      : null;
+  let primary = null;
+  if (badge) primary = <span key="ml" className={`badge-ml badge-${ml.badge}`}>{badge}</span>;
+  else if (hasSenal) primary = <SenalBadge key="senal" senal={p.senal} />;
 
   // Secondary ML badge (badges-oportunidades-revamp — spec "Multi-Badge
   // Display Rules": card shows the principal badge + at most 1 secondary).

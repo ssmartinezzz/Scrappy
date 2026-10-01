@@ -4,12 +4,29 @@ import { cn } from '../lib/utils';
 import MlStatusPanel from './MlStatusPanel';
 import { SEMANTIC } from '../lib/colors';
 import { PRECIO_MIN_DEFAULT, PRECIO_MAX_DEFAULT } from '../lib/scrapeDefaults';
+import { groupByRubro } from '../lib/rubros';
 
 const RUBRO_META = {
   indumentaria: { icon:'👕', color: 'var(--p)',       label:'Indumentaria' },
   tecnologia:   { icon:'💻', color: 'var(--p2)',       label:'Tecnología'   },
   suplementos:  { icon:'💊', color: SEMANTIC.positive, label:'Nutrición'    },
 };
+
+function clearErrorText(status) {
+  return status === 409 ? 'Esperá a que termine el scraping.' : `Error ${status}`;
+}
+
+function chipSelectedBackground(state) {
+  if (state === 'done') return `color-mix(in srgb, ${SEMANTIC.positive} 15%, transparent)`;
+  if (state === 'error') return `color-mix(in srgb, ${SEMANTIC.negative} 10%, transparent)`;
+  if (state === 'running') return `color-mix(in srgb, ${SEMANTIC.warn} 15%, transparent)`;
+  return 'color-mix(in srgb, var(--p) 15%, transparent)';
+}
+
+function chipTextColor(sel, state, stateColor) {
+  if (!sel) return 'var(--t4)';
+  return state === 'idle' ? 'var(--p2)' : stateColor;
+}
 
 function RubroLabel({ r }) {
   const m = RUBRO_META[r] || { icon:'🛍', color:'var(--t4)', label:r };
@@ -108,7 +125,7 @@ export default function SplashPanel({
   async function handleBorrarCatalogo() {
     if (!window.confirm('¿Seguro? Esto borra todos los productos, el historial de precios y las estadísticas de categorías. No se puede deshacer.')) return;
     const r = await limpiarCatalogo();
-    const txt = r.ok ? '✓ Catálogo borrado.' : (r.status === 409 ? 'Esperá a que termine el scraping.' : `Error ${r.status}`);
+    const txt = r.ok ? '✓ Catálogo borrado.' : clearErrorText(r.status);
     setClearMsg(txt); setClearOk(r.ok);
     setTimeout(() => { setClearMsg(''); setClearOk(null); }, 5000);
   }
@@ -116,16 +133,12 @@ export default function SplashPanel({
   async function handleBorrarMl() {
     if (!window.confirm('¿Seguro? Esto borra los scores, badges y tendencias ML. Los productos quedan intactos.')) return;
     const r = await limpiarMl();
-    const txt = r.ok ? '✓ Datos ML borrados.' : (r.status === 409 ? 'Esperá a que termine el scraping.' : `Error ${r.status}`);
+    const txt = r.ok ? '✓ Datos ML borrados.' : clearErrorText(r.status);
     setClearMsg(txt); setClearOk(r.ok);
     setTimeout(() => { setClearMsg(''); setClearOk(null); }, 5000);
   }
 
-  const byRubro = sitios.reduce((acc, s) => {
-    const r = s.rubro || 'indumentaria';
-    (acc[r] = acc[r] || []).push(s);
-    return acc;
-  }, {});
+  const byRubro = groupByRubro(sitios);
 
   // Sitio chip status
   const getSitioState = (nombre) => {
@@ -250,16 +263,9 @@ export default function SplashPanel({
                                 isRunning ? 'cursor-default' : 'cursor-pointer'
                               )}
                               style={{
-                                background: sel
-                                  ? (state === 'done' ? `color-mix(in srgb, ${SEMANTIC.positive} 15%, transparent)` :
-                                     state === 'error' ? `color-mix(in srgb, ${SEMANTIC.negative} 10%, transparent)` :
-                                     state === 'running' ? `color-mix(in srgb, ${SEMANTIC.warn} 15%, transparent)` :
-                                     'color-mix(in srgb, var(--p) 15%, transparent)')
-                                  : 'transparent',
+                                background: sel ? chipSelectedBackground(state) : 'transparent',
                                 borderColor: sel ? (stateColor || 'var(--p)') : 'var(--s3)',
-                                color: sel
-                                  ? (state !== 'idle' ? stateColor : 'var(--p2)')
-                                  : 'var(--t4)',
+                                color: chipTextColor(sel, state, stateColor),
                               }}>
                               {state === 'done'    && '✓ '}
                               {state === 'error'   && '✗ '}

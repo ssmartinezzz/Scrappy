@@ -27,3 +27,14 @@ export function rubroLabel(key) {
   const found = RUBROS.find((r) => r.key === key);
   return found ? found.label : key;
 }
+
+/** Agrupa sitios por `rubro`; un sitio sin rubro cae en indumentaria. */
+export function groupByRubro(sitios) {
+  const byRubro = {};
+  for (const s of sitios) {
+    const r = s.rubro || 'indumentaria';
+    byRubro[r] ??= [];
+    byRubro[r].push(s);
+  }
+  return byRubro;
+}
