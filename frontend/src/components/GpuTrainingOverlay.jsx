@@ -16,7 +16,7 @@ function elapsed(startedAt) {
 export default function GpuTrainingOverlay({ training, onClose }) {
   if (!training) return null;
 
-  const { running, phase, pct, msg, startedAt, error, success } = training;
+  const { phase, pct, msg, startedAt, error, success } = training;
   const isError   = !!error || phase === 'error' || phase === 'timeout';
   const phaseLabel = PHASE_LABELS[phase] ?? phase ?? '';
   let barColor = 'var(--p)';

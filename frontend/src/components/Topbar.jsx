@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMlStatus } from '../hooks/EventStreamProvider';
 import { fetchMlResultado, fetchIndices } from '../api';
-import { fmt } from '../api';
 import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
 import { IpcBadge } from './ui/ipc-badge';

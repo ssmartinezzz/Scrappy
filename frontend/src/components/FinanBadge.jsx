@@ -9,7 +9,7 @@ import { FINANCIACION_CONFIG } from '../financiacionConfig';
 // SenalBadge, which hides on sin_datos) — sin_preset_activo is actionable
 // ("configure a preset"), not just "no data yet".
 export default function FinanBadge({ finan, compact }) {
-  if (!finan || !finan.senal) return null;
+  if (!finan?.senal) return null;
   const cfg = FINANCIACION_CONFIG[finan.senal];
   if (!cfg) return null;
 

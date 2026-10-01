@@ -268,8 +268,9 @@ function loadPersisted() {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed !== 'object') return null;
-    // Negated form so a missing/corrupt savedAt (NaN) also counts as expired.
-    if (!(Date.now() - parsed.savedAt < STORAGE_TTL_MS)) {
+    // A missing/corrupt savedAt (NaN age) also counts as expired.
+    const age = Date.now() - parsed.savedAt;
+    if (Number.isNaN(age) || age >= STORAGE_TTL_MS) {
       sessionStorage.removeItem(STORAGE_KEY);
       return null;
     }

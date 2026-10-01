@@ -22,7 +22,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
     e.preventDefault();
     setError('');
     const res = await onSubmit({ label, recargoPct: Number(recargoPct), cuotas: Number(cuotas) });
-    if (res && res.ok === false) setError(res.mensaje || 'Error al guardar');
+    if (res?.ok === false) setError(res.mensaje || 'Error al guardar');
   }
 
   return (
@@ -86,7 +86,7 @@ function PresetRow({ preset, onActivar, onEliminar, onGuardarEdicion, canEdit })
         onCancel={() => setEditando(false)}
         onSubmit={async (vals) => {
           const res = await onGuardarEdicion(preset.id, vals);
-          if (!res || res.ok !== false) setEditando(false);
+          if (res?.ok !== false) setEditando(false);
           return res;
         }}
       />
@@ -189,26 +189,26 @@ export default function FinanPanel() {
   async function handleActivar(id) {
     setError('');
     const res = await activarFinanciacionPreset(id);
-    if (res && res.ok === false) setError(res.mensaje || 'Error al activar el preset');
+    if (res?.ok === false) setError(res.mensaje || 'Error al activar el preset');
     else void reload();
   }
 
   async function handleEliminar(id) {
     setError('');
     const res = await eliminarFinanciacionPreset(id);
-    if (res && res.ok === false) setError(res.mensaje || 'Error al eliminar el preset');
+    if (res?.ok === false) setError(res.mensaje || 'Error al eliminar el preset');
     else void reload();
   }
 
   async function handleEditar(id, vals) {
     const res = await editarFinanciacionPreset(id, vals);
-    if (!res || res.ok !== false) void reload();
+    if (res?.ok !== false) void reload();
     return res;
   }
 
   async function handleCrear(vals) {
     const res = await crearFinanciacionPreset(vals);
-    if (res && res.ok) { setCreando(false); void reload(); }
+    if (res?.ok) { setCreando(false); void reload(); }
     return res;
   }
 

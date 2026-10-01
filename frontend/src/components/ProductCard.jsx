@@ -11,14 +11,14 @@ const CARD_IMG_SIZES = '(min-width: 900px) 260px, (min-width: 560px) 220px, 50vw
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
 function gymSubcat(product) {
-  if (!product || !product.gymrat) return null;
+  if (!product?.gymrat) return null;
   return (product.categoria ? product.categoria : 'Ropa') + ' Gym';
 }
 
 // Badge compacto de señal de compra — sourced del precompute embebido en /api/data.
 // Sin request adicional. Oculto cuando no hay señal confiable (null/sin_datos).
 function SenalBadge({ senal, compact }) {
-  if (!senal || !senal.senal || senal.senal === 'sin_datos') return null;
+  if (!senal?.senal || senal.senal === 'sin_datos') return null;
   const cfg = SEÑAL_CONFIG[senal.senal];
   if (!cfg) return null;
   return (

@@ -72,7 +72,7 @@ export default function BuySignal({ url }) {
       Analizando precio...
     </div>
   );
-  if (!data || !data.senal || data.senal === 'sin_datos') return (
+  if (!data?.senal || data.senal === 'sin_datos') return (
     <div style={{
       fontSize:'.68rem', color:'var(--t4)', padding:'6px 8px',
       background:'var(--s3)', borderRadius:8, marginTop:8, fontStyle:'italic',
