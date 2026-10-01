@@ -62,7 +62,7 @@ jobs:
 
       - name: Install test dependencies
         if: steps.changes.outputs.ml == 'true'
-        run: python -m pip install --quiet --upgrade pip pytest numpy psycopg2-binary
+        run: python -m pip install --quiet --require-hashes --only-binary :all: -r ml-tests/requirements-ci.txt
 
       - name: Run pytest
         if: steps.changes.outputs.ml == 'true'
