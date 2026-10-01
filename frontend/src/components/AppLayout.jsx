@@ -719,21 +719,26 @@ export default function AppLayout() {
   // instant that read resolves; keying this effect on [S.scrapeStatus] alone
   // made that arrival look like a second transition and fired this twice on
   // every cold load (perf/dedupe-load-requests).
+  //
+  // A status change must not cancel the fetch in flight: the mount status read
+  // usually lands first, and cancelling there meant catStats never loaded. Only
+  // the newest request may apply, and nothing applies after unmount.
   const prevScrapeStatusRef = useRef();
+  const tendenciasSeqRef = useRef(0);
+  useEffect(() => () => { tendenciasSeqRef.current = -1; }, []);
   useEffect(() => {
     const prev = prevScrapeStatusRef.current;
     prevScrapeStatusRef.current = S.scrapeStatus;
     const justFinished = prev === 'RUNNING' && (S.scrapeStatus === 'DONE' || S.scrapeStatus === 'ERROR');
     if (prev !== undefined && !justFinished) return;
-    let cancelled = false;
+    const seq = ++tendenciasSeqRef.current;
     // `fetchTendencias` resolves a state for every failure, network included.
     void (async () => {
       const { state, data } = await fetchTendencias();
-      if (!cancelled && state === 'ok' && data?.distribucionCategorias) {
+      if (seq === tendenciasSeqRef.current && state === 'ok' && data?.distribucionCategorias) {
         dispatch({ type: 'SET', payload: { catStats: data.distribucionCategorias } });
       }
     })();
-    return () => { cancelled = true; };
   }, [S.scrapeStatus]);
 
   useEffect(() => {
