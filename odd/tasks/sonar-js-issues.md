@@ -93,8 +93,12 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
   Queda S6847 en `CategoryPicksCarousel` (la misma región con flechas ya declarada no arreglable; Sonar lo cuenta nuevo porque cambió el elemento).
 - Hallazgo preexistente, fuera de alcance: la tabla del modal de comparación dibuja cada rótulo debajo de sus valores, así que se lee como si estuviera corrida una fila (la fila PRECIO muestra la tienda). Igual en master.
 - Suite: 63 archivos, 601 tests. Build OK.
-- Re-análisis de Sonar del PR después del arreglo: 1 issue, el S6847 del carrusel. Los dos bugs viejos quedaron en `docs/KNOWN_ISSUES.md`.
+- Re-análisis de Sonar del PR después del arreglo: 1 issue, el S6847 del carrusel.
+- Los dos bugs preexistentes, arreglados en este PR a pedido del usuario (y sacados de `docs/KNOWN_ISSUES.md`):
+  - Barra de precio: un cambio de `scrapeStatus` ya no cancela el fetch de tendencias en vuelo; aplica sólo la respuesta más nueva y nada después del unmount. Test en `AppLayout.test.jsx`: rojo contra el código viejo (`cats:1` nunca aparece), verde después. En el browser: 48 barras de 48 tarjetas en 6 de 6 cargas de `/catalogo` (antes 0 en 8).
+  - Modal de comparación: el rótulo va antes de sus valores y las filas siguen el orden de `ROWS` (sin `.reverse()`); keys por `url`. Test en `CompareComponents.test.jsx`: rojo (`'Abrir ↗'` en vez de `'Imagen'`), verde después. En la app real: Imagen, Nombre, Marca, Precio, cada uno sobre sus valores.
+  - Suite 603/603, build OK, e2e browser 31/31 sobre ese bundle.
 
 ## Próximo paso
 
-Merge del PR #267. Los issues que quedan abiertos los marca el usuario como *Accepted* en la web.
+Merge del PR #267 cuando CI pase.
