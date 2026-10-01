@@ -29,7 +29,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - [x] **T4** Tests — S9020, S9027, S7763 en tests (42)
 - [x] **T5** Legibilidad — S3358, S3776, S4624 (47)
 - [x] **T6** Limpiezas mecánicas — resto de reglas (69 listados, 67 arreglados)
-- [ ] **T7** Verificación final: suite + build + e2e browser + re-análisis Sonar del PR
+- [x] **T7** Verificación final: suite + build + e2e browser + re-análisis Sonar del PR
 
 ## Criterios de aceptación
 
@@ -82,6 +82,13 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - **No arreglados** (motivo): `eventStream.js:173` S9382 (`await sleep` dentro del `while` de reconexión: el reintento es secuencial por diseño, la espera ES el backoff); `brandLogos.js:82` S7760 (el parámetro por defecto sólo cubre `undefined`, y `getBrandColor(marca.marca)` puede recibir `null`: pasaría de gris por defecto a un `TypeError`).
 - `S2245` de `authSession.js:46` sigue fuera de alcance (falso positivo aceptado).
 
+**T7** Verificación final (sin cambios de código).
+- `npx vitest run`: 62 archivos, 599 tests verdes. Build OK.
+- `tests/e2e/run-e2e.sh --browser` contra la rama (dist recién construido, crons 3 y 4 apagados y restaurados sin deriva): **31/31**.
+- Visual, master vs rama, mismo backend y misma base, capturas 1366x900 de `/catalogo`, `/picks`, `/marcas`, detalle de marca, `/analisis/oportunidades`, `/favoritos`: diferencia de 0 a 23 píxeles por pantalla, que varía entre corridas (antialiasing de texto). Ningún cambio de layout por `btn-reset`.
+- Hallazgo preexistente, fuera de alcance: la barra de precio de las tarjetas (`catStats`) a veces no aparece nunca, en master y en la rama; el efecto de `fetchTendencias` se cancela cuando `readStatus` cambia `scrapeStatus` antes de que llegue la respuesta. En una corrida de la rama apareció y en las otras 8 (4 master, 4 rama) no.
+- Pendiente: análisis de Sonar sobre el PR.
+
 ## Próximo paso
 
-T7.
+Abrir el PR y leer el análisis de Sonar del PR.
