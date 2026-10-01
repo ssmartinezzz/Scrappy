@@ -69,6 +69,20 @@ function Pill({ label, count, active, color, onClick, size }) {
 // needed besides `hidden` (scroll-direction visibility, computed by the
 // caller's useStickyFilterBar so the hero-height ResizeObserver can share a
 // single wrapping ref around <SearchHero/>).
+function CatGroup({ title, items, selected, onToggle }) {
+  if (!items.length) return null;
+  return (
+    <div className="cat-group">
+      <div className="cat-group-title">{title}</div>
+      {items.slice(0, 12).map(([cat, n]) => (
+        <Pill key={cat} label={cat} count={n} size="lg"
+          active={selected?.includes(cat)}
+          onClick={() => onToggle(cat)} />
+      ))}
+    </div>
+  );
+}
+
 export default function CatalogoFilterBar({ hidden }) {
   const { S, setFilter, set, dispatch } = useOutletContext();
 
@@ -153,20 +167,6 @@ export default function CatalogoFilterBar({ hidden }) {
     return { calzado, superior, inferior, tech, suppl, accesorio, otros };
   }, [cats]);
 
-  const CatGroup = ({ title, items }) => {
-    if (!items.length) return null;
-    return (
-      <div className="cat-group">
-        <div className="cat-group-title">{title}</div>
-        {items.slice(0, 12).map(([cat, n]) => (
-          <Pill key={cat} label={cat} count={n} size="lg"
-            active={S.categorias?.includes(cat)}
-            onClick={() => onToggleCat(cat)} />
-        ))}
-      </div>
-    );
-  };
-
   const panelTitle = { cat: 'Categoría', marca: 'Marca', mas: 'Más filtros' }[activePanel] || 'Filtros';
 
   return (
@@ -226,13 +226,13 @@ export default function CatalogoFilterBar({ hidden }) {
           <div className="cfb-sheet-body">
             {activePanel === 'cat' && (
               <>
-                <CatGroup title="Calzado"    items={calzado} />
-                <CatGroup title="Superior"   items={superior} />
-                <CatGroup title="Inferior"   items={inferior} />
-                <CatGroup title="Tech"       items={tech} />
-                <CatGroup title="Nutrición"  items={suppl} />
-                <CatGroup title="Accesorios" items={accesorio} />
-                {otros.length > 0 && <CatGroup title="Otros" items={otros.slice(0, 8)} />}
+                <CatGroup title="Calzado"    items={calzado} selected={S.categorias} onToggle={onToggleCat} />
+                <CatGroup title="Superior"   items={superior} selected={S.categorias} onToggle={onToggleCat} />
+                <CatGroup title="Inferior"   items={inferior} selected={S.categorias} onToggle={onToggleCat} />
+                <CatGroup title="Tech"       items={tech} selected={S.categorias} onToggle={onToggleCat} />
+                <CatGroup title="Nutrición"  items={suppl} selected={S.categorias} onToggle={onToggleCat} />
+                <CatGroup title="Accesorios" items={accesorio} selected={S.categorias} onToggle={onToggleCat} />
+                {otros.length > 0 && <CatGroup title="Otros" items={otros.slice(0, 8)} selected={S.categorias} onToggle={onToggleCat} />}
               </>
             )}
 

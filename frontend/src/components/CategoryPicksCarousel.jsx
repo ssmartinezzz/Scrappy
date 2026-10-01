@@ -122,7 +122,7 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
         >
           <div className="picks-carousel-track" style={trackStyle}>
             {safeItems.map((item, i) => (
-              <div key={i} className="picks-carousel-item">
+              <div key={item.key ?? item.url} className="picks-carousel-item">
                 {renderItem(item, i)}
               </div>
             ))}

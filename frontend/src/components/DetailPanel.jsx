@@ -191,10 +191,10 @@ function PreciosExternos({ product }) {
                 <strong className="text-t1">${fmt(precio)}</strong>
               </div>
 
-              {items.map((item, i) => {
+              {items.map(item => {
                 const d = delta(item.precio);
                 return (
-                  <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                  <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
                      aria-label={`Ver "${item.titulo}" en MercadoLibre (se abre en una pestaña nueva)`}
                      className="flex items-center gap-2.5 rounded-lg border border-border bg-s2 px-[.75rem] py-[.5rem] no-underline">
                     {item.thumbnail && (
@@ -318,11 +318,11 @@ function PriceContext({ product: p, st }) {
     <div>
       <div className="detail-section-title">🧠 Contexto de precio</div>
       <div className="flex flex-col gap-1.5">
-        {items.slice(0, 4).map((item, i) => (
+        {items.slice(0, 4).map(item => (
           // border color is per-item runtime data (item.color comes from the ML
           // context computation above) — not a static design token, kept inline
           // per the established Pill/chip exception.
-          <div key={i} style={{ border: `1px solid ${item.color}22` }}
+          <div key={item.text} style={{ border: `1px solid ${item.color}22` }}
                className="flex items-start gap-2.5 rounded-lg bg-s2 px-[.75rem] py-[.5rem] text-[.73rem] text-t3">
             <span className="flex-shrink-0 text-[.85rem]">{item.icon}</span>
             <span>{highlightPrices(item.text, item.color)}</span>

@@ -26,9 +26,9 @@ export function OutfitCollage({ members, dimmed }) {
           <ShoppingBag aria-hidden="true" className="h-10 w-10" strokeWidth={1.5} />
         </div>
       )}
-      {tiles.map((m, i) => (
+      {tiles.map(m => (
         <ImageWithFallback
-          key={i}
+          key={m.url ?? m.nombre}
           src={m.img}
           alt={m.nombre || 'Prenda del outfit'}
           loading="lazy"
