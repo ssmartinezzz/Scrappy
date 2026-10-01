@@ -127,12 +127,20 @@ class ProductoTechSpecsSchemaTest extends PostgresTestBase {
 
     private String insertarProducto(String slug) throws Exception {
         String url = "https://tech-specs-schema.test/" + slug;
-        try (Connection c = dataSource().getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "INSERT INTO productos (url, sitio, nombre, precio, rubro) "
-                             + "VALUES (?, 'Sitio', 'Producto', 1000, 'tecnologia')")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
+        try (Connection c = dataSource().getConnection()) {
+            try (Statement seed = c.createStatement()) {
+                // `sitio` is never truncated, so without this the insert only passed
+                // when another test class happened to leave a 'Sitio' row behind.
+                seed.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
+                        + "VALUES ('Sitio', 'sitio', 'tiendanube', false, NULL, 'historico') "
+                        + "ON CONFLICT DO NOTHING");
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO productos (url, sitio, nombre, precio, rubro) "
+                            + "VALUES (?, 'Sitio', 'Producto', 1000, 'tecnologia')")) {
+                ps.setString(1, url);
+                ps.executeUpdate();
+            }
         }
         return url;
     }
