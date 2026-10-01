@@ -23,6 +23,7 @@ import AppLayout, {
 import RouteFallback from './components/RouteFallback';
 import NotFound from './components/NotFound';
 import { CONFIG_DEFAULT } from './lib/scrapeDefaults';
+import { EventStreamProvider } from './hooks/EventStreamProvider';
 import { useScrapeStatusPolling } from './hooks/useScrapeStatusPolling';
 import { readStatus } from './lib/readStatus';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
@@ -78,26 +79,18 @@ export function SplashRoute() {
   // SplashPanel's only action is POST /api/scrape (ADMIN). A VIEWER on a
   // fresh install would otherwise land on a screen whose one button 403s.
   const { isAdmin } = useAuth();
-  // scrape-run-persistence-and-resume slice 0: the whole status state machine
-  // (mount read, interval, unreachable backend) lives in the hook now. What
-  // was here recreated `pollingRef = {current:null}` on EVERY render, so the
-  // clearInterval that was supposed to replace an interval read a fresh null
-  // and left the old one running; nothing cleaned up on unmount either.
   const {
     status: scrapeStatus, mensaje: scrapeMsg, progreso, totalProds,
-    backendUnreachable, tieneData, pollingNeeded, startPolling, markRunning,
+    backendUnreachable, tieneData, runInFlightAtMount, watchRun, markRunning,
   } = useScrapeStatusPolling();
   const [prods] = useState([]);
   const config = CONFIG_DEFAULT;
 
-  // slice 6 (task 6.3): a run this tab never launched — landed on after a
-  // resume, or after a reload mid-run. Only handleScrape used to arm the
-  // poller, so the mount read wrote RUNNING to the screen and stopped there.
-  // `pollingNeeded` is raised once by that mount read and never again, so
-  // this cannot re-arm the interval on every render that sees a live run.
+  // A run this tab never launched (landed on after a resume or a reload mid-run):
+  // nobody called watchRun for it, so the hook reports it once at mount.
   useEffect(() => {
-    if (pollingNeeded) startPolling(() => navigate('/catalogo'));
-  }, [pollingNeeded, startPolling, navigate]);
+    if (runInFlightAtMount) watchRun(() => navigate('/catalogo'));
+  }, [runInFlightAtMount, watchRun, navigate]);
 
   if (!isAdmin) {
     return (
@@ -120,7 +113,7 @@ export function SplashRoute() {
       backendUnreachable={backendUnreachable}
       tieneData={tieneData}
       onScrapeStart={markRunning}
-      onStartPolling={startPolling}
+      onWatchRun={done => watchRun(done, { reconcile: true })}
       onGoToApp={() => navigate('/catalogo')}
       prods={prods}
       totalProds={totalProds}
@@ -137,6 +130,7 @@ export default function App() {
   return (
     <AuthProvider>
       <AuthGate>
+        <EventStreamProvider>
         <Routes>
           <Route path="/login" element={<Login/>}/>
           <Route path="/forgot-password" element={<ForgotPassword/>}/>
@@ -180,6 +174,7 @@ export default function App() {
             <Route path="*" element={<NotFound/>}/>
           </Route>
         </Routes>
+        </EventStreamProvider>
       </AuthGate>
     </AuthProvider>
   );

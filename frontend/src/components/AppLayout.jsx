@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useLayoutEffect, useCallback, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate, useLocation, Outlet, useOutletContext } from 'react-router-dom';
 import { readStatus } from '../lib/readStatus';
+import { useMlStatus, useScrapeStatus, useStreamEvent } from '../hooks/EventStreamProvider';
 import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
          fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
@@ -485,7 +486,6 @@ export default function AppLayout() {
   const [S, dispatch] = useReducer(reducer, init);
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
-  const pollingRef = useRef(null);
   const loadingRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -495,7 +495,7 @@ export default function AppLayout() {
   // GPU fine-tuning blocking overlay state — separate useState (not the main
   // reducer) so it stays isolated from the catalog/filter state machine above.
   const [gpuTraining, setGpuTraining] = useState(null);
-  const gpuPollingRef = useRef(null);
+  const gpuWatching = useRef(false);
 
   // perf/dedupe-load-requests: Topbar used to fetch GET /api/status + GET
   // /api/ml/estado itself, on its own mount, purely for this ML banner — both
@@ -505,49 +505,36 @@ export default function AppLayout() {
   // settled — same timing Topbar's own Promise.all used to give it.
   const [statusForBanner, setStatusForBanner] = useState();
   const [mlEstado, setMlEstado] = useState();
+  const liveScrape = useScrapeStatus();
+  const liveMl = useMlStatus();
   const mlBanner = (statusForBanner !== undefined && mlEstado !== undefined)
-    ? { st: statusForBanner, ml: mlEstado }
+    ? { st: liveScrape ?? statusForBanner, ml: liveMl.estado ?? mlEstado }
     : null;
 
-  const stopGpuPolling = useCallback(() => {
-    if (gpuPollingRef.current) { clearInterval(gpuPollingRef.current); gpuPollingRef.current = null; }
-  }, []);
-
-  // Polling pattern mirrors MlStatusPanel.jsx lines 43-76: poll fetchMlEstado
-  // + fetchMlResultado every 2s while training is running, stop when
-  // !training.running, differentiate success vs error via phase==='error'.
-  const startGpuPolling = useCallback(() => {
-    stopGpuPolling();
-    gpuPollingRef.current = setInterval(async () => {
-      const [e, res] = await Promise.all([
-        fetchMlEstado().catch(() => null),
-        fetchMlResultado().catch(() => null),
-      ]);
-      if (!e) return;
-      const ts = e.training || {};
-      if (ts.running) {
-        setGpuTraining(prev => ({
-          ...prev, running:true, phase:ts.phase, pct:ts.pct,
-          msg:ts.msg, startedAt:ts.startedAt, error:null, success:false,
-        }));
-        return;
-      }
-      // Training finished — differentiate success vs error
-      stopGpuPolling();
-      const isError = res?.phase === 'error' || ts.phase === 'error';
-      if (isError) {
-        setGpuTraining(prev => ({
-          ...prev, running:false, phase:ts.phase || res?.phase,
-          msg: res?.msg || ts.msg, error: res?.msg || ts.msg || 'Error desconocido', success:false,
-        }));
-      } else {
-        setGpuTraining(prev => ({
-          ...prev, running:false, phase:ts.phase, msg: res?.msg || ts.msg,
-          error:null, success:true,
-        }));
-      }
-    }, 2000);
-  }, [stopGpuPolling]);
+  // Training is read off the stream: every ml.status event, and the snapshot or
+  // resync read after a reconnect, arrives as a 'training' event.
+  useStreamEvent('training', ts => {
+    if (!gpuWatching.current) return;
+    if (ts.running) {
+      setGpuTraining(prev => ({
+        ...prev, running:true, phase:ts.phase, pct:ts.pct,
+        msg:ts.msg, startedAt:ts.startedAt, error:null, success:false,
+      }));
+      return;
+    }
+    gpuWatching.current = false;
+    if (ts.phase === 'error') {
+      setGpuTraining(prev => ({
+        ...prev, running:false, phase:ts.phase,
+        msg: ts.msg, error: ts.msg || 'Error desconocido', success:false,
+      }));
+    } else {
+      setGpuTraining(prev => ({
+        ...prev, running:false, phase:ts.phase, msg: ts.msg,
+        error:null, success:true,
+      }));
+    }
+  });
 
   const triggerGpuTraining = useCallback(async () => {
     if (gpuTraining?.running) return; // guard against double-trigger; backend also rejects with 400
@@ -558,25 +545,28 @@ export default function AppLayout() {
       // categoria/marca stale dejadas por reglas viejas de NormalizerService.
       await renormalizarCatalogo();
       setGpuTraining(prev => ({ ...prev, phase:'starting', msg:'' }));
+      // Armed before the POST: the training event can arrive ahead of its response.
+      gpuWatching.current = true;
       const started = await startMlTraining(true, 8);
       if (!started) {
-        // POST rejected (400/409/500) — don't enter the polling/"starting" state,
+        // POST rejected (400/409/500) — don't enter the "starting" state,
         // surface the error immediately instead.
+        gpuWatching.current = false;
         setGpuTraining(prev => ({ ...prev, running:false, error:'No se pudo iniciar el entrenamiento (el backend rechazó la solicitud).' }));
         return;
       }
-      startGpuPolling();
     } catch {
+      gpuWatching.current = false;
       // Network failure on renormalización o en el POST inicial — surface the
       // error escape hatch instead of leaving the blocking overlay stuck.
       setGpuTraining(prev => ({ ...prev, running:false, error:'No se pudo iniciar el entrenamiento (error de red).' }));
     }
-  }, [gpuTraining, startGpuPolling]);
+  }, [gpuTraining]);
 
   const closeGpuOverlay = useCallback(() => {
-    stopGpuPolling();
+    gpuWatching.current = false;
     setGpuTraining(null);
-  }, [stopGpuPolling]);
+  }, []);
 
   // Auto-hide overlay shortly after a successful run completes (no click needed)
   useEffect(() => {
@@ -585,8 +575,6 @@ export default function AppLayout() {
       return () => clearTimeout(t);
     }
   }, [gpuTraining?.success]);
-
-  useEffect(() => () => stopGpuPolling(), [stopGpuPolling]);
 
   // ResizeObserver — keeps --topbar-h / --tabbar-h / --sticky-offset in sync before paint
   // useLayoutEffect fires synchronously after DOM mutations and before the browser paints,
@@ -658,7 +646,7 @@ export default function AppLayout() {
       if (e?.training?.running) {
         const ts = e.training;
         setGpuTraining({ running:true, phase:ts.phase, pct:ts.pct, msg:ts.msg, startedAt:ts.startedAt, error:null, success:false });
-        startGpuPolling();
+        gpuWatching.current = true;
       }
     }).catch(() => setMlEstado(null));
   }, []);
@@ -689,7 +677,7 @@ export default function AppLayout() {
   // /api/tendencias.distribucionCategorias (ML pipeline, computed on unit price).
   //
   // Fetched once on mount, then refetched only on a genuine RUNNING -> finished
-  // transition (DONE/ERROR, the same terminal check startPolling makes above)
+  // transition (DONE/ERROR)
   // — NOT on the initial status read. `S.scrapeStatus` seeds at 'IDLE' and the
   // mount effect above sets it to whatever the backend actually reports the
   // instant that read resolves; keying this effect on [S.scrapeStatus] alone
@@ -710,6 +698,11 @@ export default function AppLayout() {
     })();
     return () => { cancelled = true; };
   }, [S.scrapeStatus]);
+
+  useEffect(() => {
+    if (!liveScrape) return;
+    set({ scrapeStatus: liveScrape.status, scrapeMsg: liveScrape.mensaje, progreso: liveScrape.progreso });
+  }, [liveScrape?.status, liveScrape?.mensaje, liveScrape?.progreso]);
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,
@@ -760,25 +753,6 @@ export default function AppLayout() {
     }
   }, [buildParams, S.pag, S.hasMore]);
 
-  // Polling during scraping
-  const startPolling = useCallback((onDone) => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    pollingRef.current = setInterval(async () => {
-      // `readStatus` and not `fetchStatus`: this is the SECOND poller in the
-      // app, and the first copy of this fix only reached the splash one. A bare
-      // await here died with an unhandled rejection on every tick against a
-      // dead backend, and the interval kept firing and kept dying.
-      const st = await readStatus();
-      if (!st) return;
-      set({ scrapeStatus:st.status, scrapeMsg:st.mensaje, progreso:st.progreso });
-      if (st.status === 'RUNNING' && st.tieneData) loadFirstPage();
-      if (st.status === 'DONE' || st.status === 'ERROR') {
-        clearInterval(pollingRef.current); pollingRef.current = null;
-        loadFirstPage(); loadFacets(); onDone?.();
-      }
-    }, 1800);
-  }, [loadFirstPage, loadFacets]);
-
   // Topbar re-scrape → navigate to /splash + reset scrape status
   const onReScrape = useCallback(() => {
     set({ scrapeStatus:'IDLE' });
@@ -819,7 +793,7 @@ export default function AppLayout() {
 
           <Suspense fallback={<RouteFallback/>}>
             <Outlet context={{
-              S, set, setFilter, dispatch, loadNextPage, startPolling,
+              S, set, setFilter, dispatch, loadNextPage,
               loadFavoritos,
               gpuTraining, triggerGpuTraining,
               isAdmin,

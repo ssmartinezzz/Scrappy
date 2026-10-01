@@ -45,7 +45,7 @@ function Disclosure({ title, children, defaultOpen = false }) {
 
 export default function SplashPanel({
   config, scrapeStatus, scrapeMsg, progreso, backendUnreachable = false,
-  onScrapeStart, onStartPolling, onGoToApp, prods, totalProds, tieneData,
+  onScrapeStart, onWatchRun, onGoToApp, prods, totalProds, tieneData,
 }) {
   const [sitios,    setSitios]    = useState([]);
   const [selected,  setSelected]  = useState([]);
@@ -58,7 +58,7 @@ export default function SplashPanel({
   const [clearOk,      setClearOk]      = useState(null);
   const pctRef    = useRef(5);
   // `scrapeStatus` mirrors the backend's own ScraperStatus, so this component
-  // never invents a value for it: when the poller cannot reach the backend, the
+  // never invents a value for it: when the stream cannot reach the backend, the
   // last thing it said is still RUNNING. What that costs us is the right to
   // keep DISPLAYING progress — an advancing bar over a backend that stopped
   // answering is a screen that lies, which is the bug this slice closes. The
@@ -97,9 +97,9 @@ export default function SplashPanel({
     // (2026-08-26 it did). The backend's status is the truth, not this response.
     try {
       await startScrape({ precioMin, precioMax, sitios: selected, forceRetrain });
-    } catch { /* the poll reports what actually happened */ }
+    } catch { /* the status read in onWatchRun reports what actually happened */ }
     finally {
-      onStartPolling(() => onGoToApp());
+      onWatchRun(() => onGoToApp());
     }
   }
 

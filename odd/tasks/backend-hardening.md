@@ -93,7 +93,7 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T4 ACID: `TransactionAwareDataSourceProxy` + `@Transactional` replace manual commit/rollback (12 files)
 - [x] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
 - [x] T3a Push instead of poll, backend: Hikari/Flyway boot retries, V41 `pg_notify` triggers, status bus, cron wait on the bus, Resilience4j `withRetry`, LISTEN listener with backoff, `GET /api/events` SSE
-- [ ] T3b Push instead of poll, frontend: fetch-stream reader through `authedFetch` replaces the 1.8 s / 2 s / 4 s polls; unit tests + `tests/e2e` (see "T3b handoff")
+- [x] T3b Push instead of poll, frontend: fetch-stream reader through `authedFetch` replaces the 1.8 s / 2 s / 4 s polls; unit tests + `tests/e2e` (see "T3b handoff")
 - [ ] T7 SOLID: split `ApiController` (65 handlers) by resource
 - [ ] T1 Final comment sweep across `ar.scraper`
 - [x] ~~T2 Remove unused Lombok dependency~~ — dropped: user wants Lombok DTOs
@@ -364,9 +364,46 @@ For the frontend writer. Contract source of truth: `docs/openapi.yaml` (`/api/ev
 - **Replace**: the 1.8 s `/api/status` poll (`useScrapeStatusPolling`, `readStatus`), the 2 s and 4 s ML polls (`MlStatusPanel`, Topbar/splash), keeping a one-shot fetch on mount and on `resync` as fallback. The CLI keeps polling `/api/status` (contract unchanged).
 - **Tests**: unit-test the parser with split chunks, comments, multi-event chunks and CRLF; e2e (`tests/e2e/run-e2e.sh`, never `vite dev`) must assert the banner/progress update without a poll and that the stream survives a forced token refresh. `scrape-poller.spec.js` stubs `/api/status`; it needs a stub for `/api/events` or the reader falls back to polling.
 
+### T3b evidence
+
+Frontend unit baseline 49 files / 427 tests (HEAD a5b9fda). `npm test` before each commit; `npm run build` (VITE_API_BASE_URL=http://localhost:3000) green.
+
+| Commit | Hash | Files / tests |
+|---|---|---|
+| 1 `feat(frontend): read status events from a server stream` | 29ad528 | 51 / 479 (+32 `eventStream.test.js`, +20 `EventStreamProvider.test.jsx`) |
+| 2 `refactor(frontend): replace status polling with the event stream` | 31ca1ab | 55 / 511 |
+| fix `ignore a status read older than a pushed event` | 974322c | 55 / 512 |
+| fix `open the status stream once per session` | d3407ef | 55 / 513 |
+| 3 `test(e2e): drive the scrape UI from a stubbed event stream` | 1c43c0c | unit unchanged (513); e2e below |
+| 4 `docs(frontend): document the status stream` | 92ebbc7 | docs only |
+
+Final: 55 files / 513 tests (+86). `useScrapeStatusPolling.test.js` went 15 -> 24 tests and `SplashRoute.test.jsx` kept 3; every removed interval assertion has a stream counterpart with the same intent (see the test names). No assertion was skipped or deleted; the only edits to existing test files are `SplashPanel.test.jsx` (prop `onStartPolling` -> `onWatchRun`), `App.test.jsx` (an `/api/events` stub in `authedRouter` + 2 new tests) and `tabs.spec.js` (below).
+
+**Negative controls** (break, run, restore): parser without the CR-then-LF skip -> CRLF and split-CRLF tests red; watchdog not re-armed per chunk -> heartbeat test red; 403 retried -> red; no backoff reset after a frame -> red; training watch armed after the POST instead of before -> "terminal event beats the launch response" red; Topbar ignoring the stream -> red; MlStatusPanel toasting without having been running -> red; provider keyed on the username -> "one connection" red; reconcile guard removed -> "never overwrites a newer push" red; e2e: the hook re-reading `/api/status` on every push -> `scrape-stream.spec.js` "the poll is back" red.
+
+**E2E** (`tests/e2e/run-e2e.sh`, fresh `clean package` jar from HEAD 31ca1ab's backend, fresh `npm run build` bundle, JRE 21, profile dev, dev DB; cron jobs 3 and 4 disabled for the runs and back to `enabled=true` after, `last_run_at`/`next_run_at`/`cron_executions` unchanged; no scrape started, 0 RUNNING/INTERRUPTED runs): final full run = pytest 51 passed + Playwright 31 passed (26 before: `scrape-poller` 1 -> `scrape-stream` 2, +4 `event-stream.spec.js`). Four more consecutive full browser runs on a warm stack and five on a cold boot: 31/31 each.
+
+**Deviations from the plan**
+- Provider mounted in commit 2, not commit 1 (commit 1 leaves it unmounted so the old polls stay green; mounting needed the App tests adapted, which is commit 2's scope).
+- Two extra `fix` commits, both found by the e2e run: (a) a reconcile read that answered after a newer push overwrote it (splash stuck on the old message); (b) the provider keyed on `identity.username`, so `/api/auth/me` arriving after the session closed the first stream and opened a second at every login.
+- No `route.fulfill` for `/api/events`: a fulfilled body ends at once, so the client reconnects after its backoff and every assertion races it. `e2e/event-stream-stub.js` wraps `window.fetch` for that one URL and keeps the stream open; the app's parser/reconnect code is unchanged. The real endpoint is covered by the new `event-stream.spec.js` (200 + `text/event-stream` + `X-Accel-Buffering: no`, none for anonymous, 401 -> one refresh -> stream, logout closes it).
+- The watchdog (45 s) is unit-tested only; an e2e for it would outlive the 45 s test timeout. The backend-cut variant asserts the UI leaves RUNNING within the backoff (<= 6 s) and recovers after restore.
+- `tabs.spec.js` "two tabs cold-starting": `waitForLoadState('networkidle')` can never fire while a session holds a stream open; it now waits for each tab's `/api/events` response (opened only after the session settled). The claim (exactly one refresh) is unchanged.
+- `useScrapeStatusPolling` keeps its name (the task names the file) although it no longer polls; its API changed: `pollingNeeded`/`startPolling`/`stopPolling`/`POLL_INTERVAL_MS` -> `runInFlightAtMount`/`watchRun(done, { reconcile })`; `SplashPanel` prop `onStartPolling` -> `onWatchRun`.
+- `AppLayout`'s own `startPolling` was dead code (no route used it); it was deleted. The stream now mirrors the status into the reducer (`scrapeStatus`/`scrapeMsg`/`progreso`), so the existing "refetch tendencias on RUNNING -> finished" effect finally fires on a real scrape end. It does NOT reload the first page on progress (the dead poller did, every 1.8 s, while RUNNING).
+- `/api/ml/resultado` is never fetched for a result: it is a pure function of the training status (`running, phase, pct, msg, done = !running && phase != idle`), derived from `ml.status`. Topbar keeps ONE read on mount as a fallback. After training ends the provider refetches `/api/ml/estado` once (model flags/metadata).
+- Cron (optional item done): `CronjobsPage` re-lists and `CronJobCard` re-reads its executions on `db.changed` of `cron_execution` (and on `resync`).
+- "Create no user rows" cannot hold for this suite: `global-setup.js` and the pytest `conftest.py` each create disposable accounts through `POST /api/usuarios` (deactivated, never deleted, by design). The 14 runs left 232 inactive `e2e-viewer-*` / `e2e-ui-viewer-*` rows (+ their 1094 refresh tokens, 15 reset tokens, 232 role rows); I deleted exactly those in one transaction (created after 20:30 UTC, inactive, e2e prefix). `usuario` = 222 before and after. `refresh_token` 10573 -> 10796 (logins by the existing `e2e-admin`, same as any run).
+
+**Polls left in place** (none hits the API on a timer): `MlStatusPanel` `setInterval(2000)` only bumps a local `tick` to redraw the elapsed time; `SplashPanel` `setInterval(600)` animates the bar; `MlStatusPanel.handleApply` waits a fixed 3 s and then reads `/api/ml/estado` once (the "aplicar" scoring emits no event; not a loop). The CLI still polls `/api/status` by contract.
+
+**Not observed / caveats**
+- One failure in ~33 full-suite runs: `tabs.spec.js` "two tabs cold-starting" saw 2 refreshes instead of 1 on the first run after a fresh backend boot. The artifact was overwritten by the next run, and it did not reproduce in 12 isolated runs, 60 `--repeat-each`, 13 full runs or 5 cold boots. It is the race-sensitive cold-start spec and I could not attribute it (the stream opens only after the session settles, so it should not add refreshes); treat it as open.
+- No real scrape ran, so a live `scrape.progress`/`ml.status` stream into the browser was verified only by unit tests and the stubbed-stream e2e, not by the real backend.
+
 ## Next step
 
-T3b (frontend stream reader), then T7, T1.
+T7, then T1. (T3 done: T3a + T3b.)
 
 ### Upsert sentinel decision APPLIED (user, 2026-09-30) in 6f15a11
 
