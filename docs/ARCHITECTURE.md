@@ -272,7 +272,7 @@ Igual que F3, **esta extracción SÍ refrescó el store**: los seis constructore
 
 **`CategoriaStatsPort`/`MlOutputPort`/`ScrapeRunPort`/`SitiosPort`, del séptimo al décimo (extract-ml-persistence-ports).** Cuatro puertos en un commit porque son un cluster de consumo, no de implementación: son exactamente los que le quedaban a `MlEndpoints`, `AgentEndpoints`, `DbAdminEndpoints`, `ScraperService` y `ResultAggregator`, las cinco clases cuya dependencia dual el párrafo anterior declaraba. Las cinco dejan `DatabaseService` **por completo**. Cada puerto vive en el área dueña del tipo que devuelve: `CategoriaStatsPort` en `catalog` porque `CategoriaStats` ya estaba ahí, `ScrapeRunPort` en `scrape` por `CorridaInterrumpida`, y `SitiosPort` en `classification` por `SiteRegistry`.
 
-`MlOutputPort` es el único que no tuvo un tipo que lo ubicara —su payload es un `JsonNode` pelado— y **no** se le hizo un área `ml` propia: `ar.scraper.ml` ya existe y es infraestructura (el runner del subproceso Python, los enrichers), tanto que `areasSonSumideros` la lista entre los paquetes de los que un área NO puede depender. Un área homónima al lado de un paquete de infraestructura con el mismo nombre habría sido una trampa para el próximo lector. Va a `catalog`, que es de lo que el payload habla.
+`MlOutputPort` y `CategoriaStatsPort` llevan un `JsonNode` en su firma, y el dominio no importa Jackson (backend-hardening T8): viven hoy en `ar.scraper.ml`, el paquete de infraestructura del subproceso Python, junto a sus consumidores. Los serializadores `ProductJson`, `HistorialJson` y `PcBuildJson` viven en `ar.scraper.json`, que un área tampoco puede nombrar.
 
 `SitiosPort` arrastra un contrato que no se ve en la firma: **toda escritura termina en un `SiteRegistry.reload()`**, porque el registry cachea la tabla `sitio` y sin ese reload queda stale detrás de una escritura. Por eso el puerto recibe el `SiteRegistry`, y por eso una implementación que se saltee el reload está mal aunque compile. Lo que **no** subió al puerto es `PLATAFORMAS_VALIDAS`: `PlatformVocabularySyncTest` la alcanza por acceso de paquete para probar que coincide con el CHECK de SQL, y subirla la convertiría en API pública en vez de un invariante chequeado.
 
@@ -292,7 +292,7 @@ de vida. `ar.scraper.outfits.SavedOutfitsPort` (4 firmas) es `saved_outfits` y
 sus items. `ar.scraper.catalog.PreciosExternosPort` (2 firmas) es
 `precios_externos`, y **no** tuvo un área propia: su payload es
 `List<Map<String,Object>>`, sin ningún tipo que lo ubique, así que va a `catalog`
-porque de eso habla — el mismo criterio con el que `MlOutputPort` quedó ahí.
+porque de eso habla.
 `cargarPreciosExternos` entra a la regla ArchUnit aunque hoy no tenga un solo
 consumidor fuera de `db`: la regla describe el agregado, no el conteo de llamadas
 del commit que la escribe.
@@ -322,7 +322,7 @@ mockear el puerto y stubear el accessor. Y `SiteRegistrySingletonWiringTest` arm
 su contexto Spring **a mano**, clase por clase: un `@Repository` nuevo no aparece
 ahí solo.
 
-`AgentEndpoints` sale de la fachada por una vía distinta a las demás: sólo usaba `db.siteRegistry()`, o sea que siempre quiso el `@Component`, no la fachada. `ApiController` se lo pasa directo. La regla de sitios **no** prohíbe `siteRegistry()` a propósito: es un accessor, de la misma forma que `db.productos()`/`db.presets()`/`db.favoritos()`, y retirar esos accessors es trabajo de F4 —cuando los endpoints pasen a beans— no de esta slice. Prohibirlo acá habría ensanchado el constructor de `ApiController`, embebido 19 veces en el store congelado y armado a mano por 29 tests, sin retirar un solo repositorio.
+`AgentEndpoints` sale de la fachada por una vía distinta a las demás: sólo usaba el `SiteRegistry` para armar un `RubroResolver`, o sea que siempre quiso el bean, no la fachada. `ApiController` le pasa `db.rubroResolver()`. La regla de sitios **no** prohíbe `siteRegistry()` a propósito: es un accessor, de la misma forma que `db.productos()`/`db.presets()`/`db.favoritos()`, y retirar esos accessors es trabajo de F4 —cuando los endpoints pasen a beans— no de esta slice. Prohibirlo acá habría ensanchado el constructor de `ApiController`, embebido 19 veces en el store congelado y armado a mano por 29 tests, sin retirar un solo repositorio.
 
 Las cuatro reglas nuevas son las primeras que **no** se acotan a `ar.scraper.web..`: `ResultAggregator` vive en `aggregator`, así que una regla web-only se habría puesto verde con la mitad de la extracción todavía llamando a la fachada. Nacieron RED con 2, 4, 11 y 1 violaciones. El store se refrescó por tercera vez en la cadena: 7 ciclos antes y después, y de las 69 líneas que cambiaron, 23 son drift puro de número de línea y 12 son cambios reales de firma.
 
@@ -403,6 +403,8 @@ entre los paquetes prohibidos. `dbNoDependeDeCron` **no se puede reapuntar** a
 `scheduling`: `db.CronRepository` implementa `scheduling.CronPort`, así que esa
 arista es legítima y deseada. Reapuntarla habría prohibido justo el patrón que
 F2 construyó.
+
+**El dominio no importa herramientas (backlog `backend-hardening`, T8).** `dominioSinHerramientas` prohíbe a las áreas, a `model` y a `health` nombrar Spring, Jackson, `java.sql`/`javax.sql`, Playwright o servlet. Lo que había: `SiteRegistry` leía JDBC, cuatro puertos lanzaban `SQLException`, el JSON de borde vivía en `catalog`/`pcs` y los servicios de dominio llevaban `@Component`/`@Scheduled`. Hoy: los adaptadores traducen `SQLException` a `model.PersistenciaException` (`FavoritosProtegidosException` la extiende), `SiteRegistry` lee por `classification.SiteSource` (`db.JdbcSiteSource`), los serializadores están en `ar.scraper.json` y los puertos con `JsonNode` en `ar.scraper.ml`, cada servicio de dominio se arma con `@Bean` en `config/*Config`, y lo que necesita Spring en runtime (`@Scheduled`, `ApplicationRunner`, `CronExpression`) es un adaptador en `config` (`CronTicker`, `IndiceRefreshRunner`, `SpringCronSchedule` detrás de `scheduling.CronSchedule`). `SpringWiringTest` reconoce como resolubles los tipos que devuelve un `@Bean`.
 
 ---
 

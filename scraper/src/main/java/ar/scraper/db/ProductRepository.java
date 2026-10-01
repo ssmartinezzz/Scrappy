@@ -51,15 +51,12 @@ class ProductRepository implements ProductPort {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final DataSource dataSource;
-    // Not Spring-managed (constructed directly by DatabaseService, same rationale
-    // as before the split, manual-classification-lock Phase 3) — takes the shared
-    // SiteRegistry passed down from DatabaseService instead of resolving its own.
     private final RubroResolver rubroResolver;
     private final SiteRegistry siteRegistry;
 
-    ProductRepository(DataSource dataSource, SiteRegistry siteRegistry) {
+    ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver) {
         this.dataSource = dataSource;
-        this.rubroResolver = new RubroResolver(siteRegistry);
+        this.rubroResolver = rubroResolver;
         this.siteRegistry = siteRegistry;
     }
 
@@ -651,7 +648,7 @@ class ProductRepository implements ProductPort {
      * persiste junto con el lock ({@code bloqueado_por}/{@code bloqueado_at})
      * en la MISMA transacción, así {@code sp_upsert_run} lo congela como al
      * resto de las columnas bloqueadas. {@code actor} viene de
-     * {@link ar.scraper.identity.ActorResolver#current()} — nunca leído
+     * {@link ar.scraper.security.ActorResolver#current()} — nunca leído
      * inline. IMPORTANTE (Phase 4): este es un método PÚBLICO llamado por el
      * camino humano; NO lleva el guard {@code AND bloqueado_por IS NULL} —
      * una segunda confirmación humana debe poder re-lockear (con un actor
@@ -782,7 +779,11 @@ class ProductRepository implements ProductPort {
      * CASCADE} on {@code precio_historico.url} covers it.
      */
     @Override
-    public void limpiarProductos() throws SQLException {
+    public void limpiarProductos() {
+        Sql.traducir(() -> limpiarProductosSql());
+    }
+
+    private void limpiarProductosSql() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {
@@ -798,7 +799,7 @@ class ProductRepository implements ProductPort {
                 st.execute("DELETE FROM categoria_stats");
                 c.commit();
                 LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
-            } catch (SQLException e) {
+            } catch (SQLException | RuntimeException e) {
                 c.rollback();
                 throw e;
             }

@@ -40,7 +40,7 @@ class SavedOutfitItemsTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         db.upsertProductos(List.of(
                 producto("https://s.com/remera", "Remera", 15000),
                 producto("https://s.com/short", "Short", 8000)));

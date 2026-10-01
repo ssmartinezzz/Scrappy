@@ -80,8 +80,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * later resume, which reads as "nothing left to do".
      */
     @Override
-    public long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId,
-               Collection<String> sitios) throws SQLException {
+    public long crear(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId, Collection<String> sitios) {
+        return Sql.traducir(() -> crearSql(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios));
+    }
+
+    private long crearSql(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId, Collection<String> sitios) throws SQLException {
         Instant arranque = truncarAlSegundo(startedAt);
 
         try (Connection c = dataSource.getConnection()) {
@@ -151,7 +154,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     @Override
-    public void marcarSitioEnCurso(long runId, String sitio, Instant cuando) throws SQLException {
+    public void marcarSitioEnCurso(long runId, String sitio, Instant cuando) {
+        Sql.traducir(() -> marcarSitioEnCursoSql(runId, sitio, cuando));
+    }
+
+    private void marcarSitioEnCursoSql(long runId, String sitio, Instant cuando) throws SQLException {
         String sql = """
             UPDATE scrape_run_site SET status = 'RUNNING', started_at = ?
             WHERE scrape_run_id = ? AND sitio_key = %s
@@ -166,8 +173,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     @Override
-    public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
-                              String error, Instant cuando) throws SQLException {
+    public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount, String error, Instant cuando) {
+        Sql.traducir(() -> marcarSitioTerminadoSql(runId, sitio, status, productosCount, error, cuando));
+    }
+
+    private void marcarSitioTerminadoSql(long runId, String sitio, String status, int productosCount, String error, Instant cuando) throws SQLException {
         String sql = """
             UPDATE scrape_run_site
                SET status = ?, productos_count = ?, error = ?, finished_at = ?
@@ -191,8 +201,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * row where they disagree — they cannot be written apart even by accident.
      */
     @Override
-    public void finalizar(long runId, String status, int productosCount, Instant finishedAt)
-            throws SQLException {
+    public void finalizar(long runId, String status, int productosCount, Instant finishedAt) {
+        Sql.traducir(() -> finalizarSql(runId, status, productosCount, finishedAt));
+    }
+
+    private void finalizarSql(long runId, String status, int productosCount, Instant finishedAt) throws SQLException {
         String sql = """
             UPDATE scrape_run SET status = ?, productos_count = ?, finished_at = ?
              WHERE id = ?
@@ -217,7 +230,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * naming one thing.</p>
      */
     @Override
-    public List<Long> marcarInterrumpidosAlArrancar(Instant cuando) throws SQLException {
+    public List<Long> marcarInterrumpidosAlArrancar(Instant cuando) {
+        return Sql.traducir(() -> marcarInterrumpidosAlArrancarSql(cuando));
+    }
+
+    private List<Long> marcarInterrumpidosAlArrancarSql(Instant cuando) throws SQLException {
         String sql = """
             UPDATE scrape_run SET status = 'INTERRUPTED', finished_at = ?
              WHERE status = 'RUNNING' AND finished_at IS NULL
@@ -246,7 +263,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * newer run already moved past.</p>
      */
     @Override
-    public Optional<CorridaInterrumpida> ultimaInterrumpida() throws SQLException {
+    public Optional<CorridaInterrumpida> ultimaInterrumpida() {
+        return Sql.traducir(() -> ultimaInterrumpidaSql());
+    }
+
+    private Optional<CorridaInterrumpida> ultimaInterrumpidaSql() throws SQLException {
         String sql = """
             SELECT id, scrape_uuid, started_at FROM scrape_run
              WHERE status = 'INTERRUPTED'
@@ -300,7 +321,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * started.</p>
      */
     @Override
-    public void reabrir(long runId) throws SQLException {
+    public void reabrir(long runId) {
+        Sql.traducir(() -> reabrirSql(runId));
+    }
+
+    private void reabrirSql(long runId) throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -332,7 +357,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * overwriting it would move the end of a run that ended days ago.
      */
     @Override
-    public List<Long> descartarInterrumpidas(Instant cuando) throws SQLException {
+    public List<Long> descartarInterrumpidas(Instant cuando) {
+        return Sql.traducir(() -> descartarInterrumpidasSql(cuando));
+    }
+
+    private List<Long> descartarInterrumpidasSql(Instant cuando) throws SQLException {
         List<Long> ids = new ArrayList<>();
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
@@ -382,8 +411,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * silently dropped from a resume that owed it.</p>
      */
     @Override
-    public List<String> marcarAusentesDelRegistro(long runId, java.util.Collection<String> nombresActuales)
-            throws SQLException {
+    public List<String> marcarAusentesDelRegistro(long runId, java.util.Collection<String> nombresActuales) {
+        return Sql.traducir(() -> marcarAusentesDelRegistroSql(runId, nombresActuales));
+    }
+
+    private List<String> marcarAusentesDelRegistroSql(long runId, java.util.Collection<String> nombresActuales) throws SQLException {
         String sql = """
             UPDATE scrape_run_site SET status = 'SKIPPED'
              WHERE scrape_run_id = ?
@@ -419,7 +451,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
      * or interrupted run leaves no clean pre-run catalogue to hold a reader at.</p>
      */
     @Override
-    public boolean existeCorridaCompletada() throws SQLException {
+    public boolean existeCorridaCompletada() {
+        return Sql.traducir(() -> existeCorridaCompletadaSql());
+    }
+
+    private boolean existeCorridaCompletadaSql() throws SQLException {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT EXISTS (SELECT 1 FROM scrape_run WHERE status = 'COMPLETED')");
@@ -429,7 +465,11 @@ class ScrapeRunRepository implements ScrapeRunPort {
     }
 
     @Override
-    public Optional<Instant> startedAtDe(long runId) throws SQLException {
+    public Optional<Instant> startedAtDe(long runId) {
+        return Sql.traducir(() -> startedAtDeSql(runId));
+    }
+
+    private Optional<Instant> startedAtDeSql(long runId) throws SQLException {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT started_at FROM scrape_run WHERE id = ?")) {

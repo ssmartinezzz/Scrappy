@@ -1,6 +1,6 @@
 package ar.scraper.db;
 
-import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.ml.MlOutputPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -96,7 +96,11 @@ class MlOutputRepository implements MlOutputPort {
     }
 
     @Override
-    public void limpiarMlOutput() throws SQLException {
+    public void limpiarMlOutput() {
+        Sql.traducir(() -> limpiarMlOutputSql());
+    }
+
+    private void limpiarMlOutputSql() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (var st = c.createStatement()) {

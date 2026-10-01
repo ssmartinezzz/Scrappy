@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
@@ -84,7 +85,7 @@ class ApiControllerFinanciacionDataTest extends PostgresTestBase {
         // spy sobre el DatabaseService REAL: las consultas pegan contra Postgres
         // y además se puede verificar cuántas veces se llamó a un método, que es
         // lo que sostiene el guard de N+1 de abajo.
-        db = spy(new DatabaseService(dataSource()));
+        db = spy(TestDatabaseServices.create(dataSource()));
         // spy sobre el PresetPort real (delegatesTo) para verificar cuántas veces
         // FinanciacionEndpoints/CatalogoEndpoints lo llaman, ahora que ya no pasan
         // por db.cargarPresetActivo() directo (extract-preset-historial-ports).

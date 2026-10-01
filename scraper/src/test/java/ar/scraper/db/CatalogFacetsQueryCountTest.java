@@ -43,7 +43,7 @@ class CatalogFacetsQueryCountTest extends PostgresTestBase {
     void setUp() {
         scansSobreProductos = new AtomicInteger();
         DataSource counting = countingDataSource(dataSource(), scansSobreProductos);
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         repo = new CatalogQueryRepository(counting, db.siteRegistry());
         db.upsertProductos(List.of(
                 producto("https://s.com/1", "Remera", "Freres", "Remera", "hombre", "Nike", "Basicas"),

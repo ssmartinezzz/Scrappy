@@ -1,6 +1,5 @@
 package ar.scraper.classification;
 
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -18,7 +17,6 @@ import org.apache.commons.lang3.StringUtils;
  * chain to delegate to {@link ar.scraper.aggregator.text.AccentStripper}
  * here — see migration tracker for this design-vs-actual-code note.</p>
  */
-@Component
 public class BrandExtractor {
 
     // ══════════════════════════════════════════════════════════════════

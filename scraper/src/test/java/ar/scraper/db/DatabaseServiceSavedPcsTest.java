@@ -35,7 +35,7 @@ class DatabaseServiceSavedPcsTest extends PostgresTestBase {
 
     @Step("Open temp-file SQLite DB and initialize schema")
     private void abrirBaseDeDatosTemporal() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     private PcPick pick(String slot, String url) {

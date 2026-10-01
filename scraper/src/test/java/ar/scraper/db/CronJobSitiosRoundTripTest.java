@@ -35,7 +35,7 @@ class CronJobSitiosRoundTripTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     private long crear(List<String> sitios) {

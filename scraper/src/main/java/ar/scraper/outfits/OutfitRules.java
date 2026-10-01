@@ -10,7 +10,7 @@ import org.apache.commons.lang3.StringUtils;
  * budget builder.
  *
  * <p>Extracted verbatim from {@link OutfitService} (backlog A3). Like
- * {@link FeedbackModels} and {@link ProductJson}, these live on their own
+ * {@link FeedbackModels}, these live on their own
  * because MORE THAN ONE collaborator needs them: {@code armar} and
  * {@code armarPorCategorias} both filter by genero, both apply the style gate
  * and both build {@code SlotPick}s. All three are pure functions of their

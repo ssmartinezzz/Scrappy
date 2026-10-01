@@ -1,7 +1,7 @@
 package ar.scraper.web.dto;
 
 import ar.scraper.catalog.Facets;
-import ar.scraper.catalog.ProductJson;
+import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductKey;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.annotation.JsonInclude;

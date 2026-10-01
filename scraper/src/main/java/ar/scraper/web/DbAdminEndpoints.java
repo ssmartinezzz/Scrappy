@@ -12,12 +12,12 @@ import org.springframework.http.ResponseEntity;
 class DbAdminEndpoints {
 
     private final ScraperService service;
-    private final ar.scraper.catalog.MlOutputPort mlOutput;
+    private final ar.scraper.ml.MlOutputPort mlOutput;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
 
     DbAdminEndpoints(ScraperService service,
-                     ar.scraper.catalog.MlOutputPort mlOutput,
+                     ar.scraper.ml.MlOutputPort mlOutput,
                      ar.scraper.catalog.ProductPort productos,
                      ar.scraper.aggregator.ResultAggregator aggregator) {
         this.service = service;
@@ -38,18 +38,12 @@ class DbAdminEndpoints {
             throw new ApiException(HttpStatus.CONFLICT, "conflicto",
                     "No se puede vaciar el catálogo: " + e.getFavoritosBloqueantes()
                             + " producto(s) favorito(s) todavía existen.");
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException("No se pudo limpiar el catálogo", e);
         }
     }
 
     ResponseEntity<ApiResponse<MensajeDto>> limpiarMl() {
         rechazarSiHayScraping();
-        try {
-            mlOutput.limpiarMlOutput();
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException("No se pudo limpiar los datos ML", e);
-        }
+        mlOutput.limpiarMlOutput();
         aggregator.clearMlOutput();
         return ResponseEntity.ok(ApiResponse.ok(new MensajeDto("Datos ML eliminados.")));
     }

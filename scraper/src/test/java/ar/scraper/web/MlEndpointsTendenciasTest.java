@@ -49,7 +49,7 @@ import static org.mockito.Mockito.when;
 class MlEndpointsTendenciasTest {
 
     private DatabaseService db;
-    private ar.scraper.catalog.CategoriaStatsPort categoriaStats;
+    private ar.scraper.ml.CategoriaStatsPort categoriaStats;
     private ApiController controller;
 
     @BeforeEach
@@ -59,7 +59,7 @@ class MlEndpointsTendenciasTest {
         ScraperConfig config                 = mock(ScraperConfig.class);
         ResultAggregator aggregator          = mock(ResultAggregator.class);
         db                                    = mock(DatabaseService.class);
-        categoriaStats                        = mock(ar.scraper.catalog.CategoriaStatsPort.class);
+        categoriaStats                        = mock(ar.scraper.ml.CategoriaStatsPort.class);
         when(db.categoriaStats()).thenReturn(categoriaStats);
         GroupingService grouping             = mock(GroupingService.class);
         PythonRunner pythonRunner            = mock(PythonRunner.class);

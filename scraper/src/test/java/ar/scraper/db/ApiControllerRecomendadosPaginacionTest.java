@@ -98,7 +98,7 @@ class ApiControllerRecomendadosPaginacionTest extends PostgresTestBase {
     @BeforeEach
     @Step("Wire ApiController with a real DatabaseService and mocked collaborators")
     void setUp() {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         service = mock(ScraperService.class);
         RecommendationService recommendationService = new RecommendationService();
 

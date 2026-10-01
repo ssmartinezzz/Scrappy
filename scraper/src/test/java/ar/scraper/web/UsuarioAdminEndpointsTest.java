@@ -3,7 +3,7 @@ package ar.scraper.web;
 import ar.scraper.web.support.Wire;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
-import ar.scraper.identity.ActorResolver;
+import ar.scraper.security.ActorResolver;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.web.support.SujetoDePrueba;
 import com.fasterxml.jackson.databind.node.ArrayNode;

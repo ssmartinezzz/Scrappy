@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
@@ -63,7 +64,7 @@ class ApiControllerCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestB
         service = mock(ScraperService.class);
         ScraperConfig config = mock(ScraperConfig.class);
         when(config.getMoneda()).thenReturn("ARS");
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         IndiceService indiceService = mock(IndiceService.class);
         // Every seeded product gets a real precio_historico row, so SenalEnricher
         // always resolves a deflactor for it; this test doesn't care about senal.

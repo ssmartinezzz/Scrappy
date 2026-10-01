@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -108,7 +109,8 @@ class SiteRegistrySingletonWiringTest {
     @DisplayName("context.getBean(SiteRegistry.class) es exactamente db.siteRegistry()")
     void databaseServiceSiteRegistryIsTheSameSpringSingleton() {
         try (var context = new AnnotationConfigApplicationContext(
-                UnreachableDataSourceConfig.class, SiteRegistry.class, CronRepository.class,
+                UnreachableDataSourceConfig.class, SiteRegistry.class, JdbcSiteSource.class, RubroResolver.class,
+                CronRepository.class,
                 FavoritosRepository.class, PresetRepository.class, HistorialRepository.class,
                 CatalogQueryRepository.class, ProductRepository.class,
                 CategoriaStatsRepository.class, MlOutputRepository.class,
@@ -123,8 +125,7 @@ class SiteRegistrySingletonWiringTest {
             DatabaseService db = context.getBean(DatabaseService.class);
 
             assertThat(db.siteRegistry())
-                    .as("DatabaseService must be wired through the @Autowired 2-arg constructor, "
-                            + "not the 1-arg backward-compat overload that builds its own SiteRegistry")
+                    .as("DatabaseService must receive the Spring-managed SiteRegistry, not build its own")
                     .isSameAs(theSingleton);
         }
     }
