@@ -4,7 +4,7 @@
 // the user supplied (sortable headers, numeric pagination, page-size select),
 // ported to JSX + project tokens. Create/edit opens CronJobCard (the animated
 // coach-card-style detail card) in a modal overlay.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
 } from '@tanstack/react-table';
@@ -57,6 +57,77 @@ function estadoBadge(job) {
   return <Badge variant="warning">Sin próxima</Badge>;
 }
 
+// Static column defs: handlers and the running id reach the cells through `table.options.meta`.
+const COLUMNS = [
+  {
+    header: 'Nombre',
+    accessorKey: 'name',
+    cell: ({ row }) => <div className="font-medium text-t1">{row.getValue('name')}</div>,
+  },
+  {
+    header: 'Cron',
+    accessorKey: 'cronExpr',
+    enableSorting: false,
+    cell: ({ row }) => <code className="font-mono text-xs text-t3">{row.getValue('cronExpr')}</code>,
+  },
+  {
+    header: 'Estado',
+    id: 'estado',
+    enableSorting: false,
+    cell: ({ row }) => estadoBadge(row.original),
+  },
+  {
+    header: 'Próxima',
+    accessorKey: 'nextRunAt',
+    cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t2">{fmtFecha(row.getValue('nextRunAt'))}</span>,
+  },
+  {
+    header: 'Última',
+    accessorKey: 'lastRunAt',
+    cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t3">{fmtFecha(row.getValue('lastRunAt'))}</span>,
+  },
+  {
+    header: 'Activo',
+    id: 'activo',
+    enableSorting: false,
+    cell: ({ row, table }) => (
+      <EnabledSwitch
+        checked={row.original.enabled}
+        onChange={() => table.options.meta.onToggle(row.original)}
+        label={row.original.enabled ? 'Deshabilitar job' : 'Habilitar job'}
+      />
+    ),
+  },
+  {
+    header: () => <span className="sr-only">Acciones</span>,
+    id: 'acciones',
+    enableSorting: false,
+    cell: ({ row, table }) => {
+      const { onEdit, onRunNow, onDelete, runningId } = table.options.meta;
+      const job = row.original;
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="outline" size="sm" onClick={() => onEdit(job)}>
+            <Pencil aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Editar
+          </Button>
+          <Button variant="ghost" size="sm" disabled={runningId === job.id} onClick={() => onRunNow(job)}>
+            <Play aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Ejecutar
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Eliminar ${job.name}`}
+            className="h-7 w-7 text-t4 hover:border-danger hover:text-danger"
+            onClick={() => onDelete(job)}
+          >
+            <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+          </Button>
+        </div>
+      );
+    },
+  },
+];
+
 export default function CronjobsPage() {
   const [jobs, setJobs]           = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -104,78 +175,10 @@ export default function CronjobsPage() {
     load();
   }, [load]);
 
-  const columns = useMemo(() => [
-    {
-      header: 'Nombre',
-      accessorKey: 'name',
-      cell: ({ row }) => <div className="font-medium text-t1">{row.getValue('name')}</div>,
-    },
-    {
-      header: 'Cron',
-      accessorKey: 'cronExpr',
-      enableSorting: false,
-      cell: ({ row }) => <code className="font-mono text-xs text-t3">{row.getValue('cronExpr')}</code>,
-    },
-    {
-      header: 'Estado',
-      id: 'estado',
-      enableSorting: false,
-      cell: ({ row }) => estadoBadge(row.original),
-    },
-    {
-      header: 'Próxima',
-      accessorKey: 'nextRunAt',
-      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t2">{fmtFecha(row.getValue('nextRunAt'))}</span>,
-    },
-    {
-      header: 'Última',
-      accessorKey: 'lastRunAt',
-      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t3">{fmtFecha(row.getValue('lastRunAt'))}</span>,
-    },
-    {
-      header: 'Activo',
-      id: 'activo',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <EnabledSwitch
-          checked={row.original.enabled}
-          onChange={() => handleToggle(row.original)}
-          label={row.original.enabled ? 'Deshabilitar job' : 'Habilitar job'}
-        />
-      ),
-    },
-    {
-      header: () => <span className="sr-only">Acciones</span>,
-      id: 'acciones',
-      enableSorting: false,
-      cell: ({ row }) => {
-        const job = row.original;
-        return (
-          <div className="flex items-center justify-end gap-1">
-            <Button variant="outline" size="sm" onClick={() => setEditingJob(job)}>
-              <Pencil aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Editar
-            </Button>
-            <Button variant="ghost" size="sm" disabled={runningId === job.id} onClick={() => handleRunNow(job)}>
-              <Play aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Ejecutar
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Eliminar ${job.name}`}
-              className="h-7 w-7 text-t4 hover:border-danger hover:text-danger"
-              onClick={() => handleDelete(job)}
-            >
-              <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
-            </Button>
-          </div>
-        );
-      },
-    },
-  ], [handleToggle, handleRunNow, handleDelete, runningId]);
-
   const table = useReactTable({
     data: jobs,
-    columns,
+    columns: COLUMNS,
+    meta: { onToggle: handleToggle, onEdit: setEditingJob, onRunNow: handleRunNow, onDelete: handleDelete, runningId },
     state: { sorting, pagination },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,

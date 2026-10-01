@@ -25,7 +25,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 
 - [x] **T1** Promesas flotantes — S9383 (41)
 - [x] **T2** Accesibilidad — S1082, S6848, S6819, S6772, S6853, S6845, S6847, S6850, S9379 (55)
-- [ ] **T3** React — S6478, S6479, S6481 (32)
+- [x] **T3** React — S6478, S6479, S6481 (32)
 - [ ] **T4** Tests — S9020, S9027, S7763 en tests (42)
 - [ ] **T5** Legibilidad — S3358, S3776, S4624 (47)
 - [ ] **T6** Limpiezas mecánicas — resto de reglas (~69)
@@ -53,6 +53,12 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - Tests: `src/keyboardOperable.test.jsx` (6: Tab + Enter/Espacio sobre PickCard, Oportunidades, MarcasPanel). Rojo observado 6/6 (no había rol button) y verde después.
 - **No arreglados** (motivo): ProductCard:168, FavoritosPanel:276 (S1082+S6848) y SavedOutfitCard:47 (S1082+S6848) son filas clickeables que contienen botones propios (favorito, comparar, borrar, renombrar): un `<button>` anidado es HTML inválido y rehacerlas como "stretched link" cambia el layout. SavedOutfitCard:52 y SavedPcCard:52 (S9379): el `autoFocus` es el foco deliberado del input de renombrar al entrar en edición. CategoryPicksCarousel:116 S6847 y :121 S6845: el viewport del carrusel es un único tab-stop con flechas (patrón de región desplazable); se arregló el S6819. ui/label.jsx:9 (S6853): es el primitivo genérico, la asociación la hace cada llamador con `htmlFor`.
 
+**T3** (28/32). Línea base 549 tests; después 549, build OK. Ningún test existente editado (CODE-2).
+- S6481 (1): `AuthProvider` memoiza `value` con `useMemo([state, logout])`.
+- S6478 (16): `CronjobsPage` y `UsuariosAdminPanel` -> `COLUMNS` a nivel de módulo; handlers y `runningId`/`ocupado` viajan por `table.options.meta`. `CompareComponents` -> `ROWS` a módulo (`hl(p, minPrecio)`). `CatalogoFilterBar` -> `CatGroup` a módulo con `selected`/`onToggle`.
+- S6479 (11): clave por dato (`url`, `key`, `text`, `icon`, `slot-url`) en CategoryPicksCarousel, DetailPanel x2, FavoritosPanel, PcsPanel, SuplementosPanel, SavedOutfitCard x2, SavedPcCard, TrendsPanel, outfit-collage.
+- **No arreglados** (motivo): AgentChatPanel:631 (transcripción append-only sin id; la posición *es* la identidad) y richText.jsx x3 (líneas/tokens de un string: la posición es la identidad, y el texto repite líneas en blanco).
+
 ## Próximo paso
 
-T3.
+T4.

@@ -22,22 +22,24 @@ export function CompareBar({ items, onRemove, onClear, onCompare }) {
   );
 }
 
+// `hl` gets the cheapest price so the row table needs no per-render closure.
+const ROWS = [
+  { label: 'Imagen',       fn: p => p.img ? <img src={p.img} alt={p.nombre} style={{ width:'100%', aspectRatio:'1', objectFit:'cover' }} /> : null },
+  { label: 'Nombre',       fn: p => <strong>{p.nombre}</strong> },
+  { label: 'Marca',        fn: p => p.marca || p.sitio || '—' },
+  { label: 'Precio',       fn: p => `ARS $${fmt(p.precio)}`, hl: (p, minPrecio) => p.precio === minPrecio },
+  { label: 'Precio orig',  fn: p => p.precioOrig != null ? `ARS $${fmt(p.precioOrig)}` : '—' },
+  { label: 'Categoría',    fn: p => p.categoria || '—' },
+  { label: 'Género',       fn: p => p.genero || '—' },
+  { label: 'Talles',       fn: p => (p.talles||[]).join(', ') || '—' },
+  { label: 'Badge ML',     fn: p => p.ml?.badge || '—' },
+  { label: 'Tienda',       fn: p => p.sitio },
+  { label: 'Link',         fn: p => p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color:'var(--p2)' }}>Abrir ↗</a> : '—' },
+];
+
 // CompareModal.jsx
 export function CompareModal({ items, onClose }) {
   const minPrecio = Math.min(...items.map(p => p.precio));
-  const rows = [
-    { label: 'Imagen',       fn: p => p.img ? <img src={p.img} alt={p.nombre} style={{ width:'100%', aspectRatio:'1', objectFit:'cover' }} /> : null },
-    { label: 'Nombre',       fn: p => <strong>{p.nombre}</strong> },
-    { label: 'Marca',        fn: p => p.marca || p.sitio || '—' },
-    { label: 'Precio',       fn: p => `ARS $${fmt(p.precio)}`, hl: p => p.precio === minPrecio },
-    { label: 'Precio orig',  fn: p => p.precioOrig != null ? `ARS $${fmt(p.precioOrig)}` : '—' },
-    { label: 'Categoría',    fn: p => p.categoria || '—' },
-    { label: 'Género',       fn: p => p.genero || '—' },
-    { label: 'Talles',       fn: p => (p.talles||[]).join(', ') || '—' },
-    { label: 'Badge ML',     fn: p => p.ml?.badge || '—' },
-    { label: 'Tienda',       fn: p => p.sitio },
-    { label: 'Link',         fn: p => p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color:'var(--p2)' }}>Abrir ↗</a> : '—' },
-  ];
   return (
     // Both wrappers only dismiss on a pointer click; the keyboard path is the close button below.
     <div className="compare-modal-backdrop" role="presentation" onClick={onClose}>
@@ -48,10 +50,10 @@ export function CompareModal({ items, onClose }) {
         </div>
         <div style={{ overflowX:'auto' }}>
           <div style={{ display:'grid', gridTemplateColumns:`repeat(${items.length}, minmax(150px, 1fr))` }}>
-            {rows.map(row => (
+            {ROWS.map(row => (
               items.map((p, pi) => (
                 <div key={`${row.label}-${pi}`}
-                     className={`compare-cell ${row.hl?.(p) ? 'highlight' : ''}`}>
+                     className={`compare-cell ${row.hl?.(p, minPrecio) ? 'highlight' : ''}`}>
                   {typeof row.fn(p) === 'object' ? row.fn(p) : String(row.fn(p))}
                 </div>
               )).concat(

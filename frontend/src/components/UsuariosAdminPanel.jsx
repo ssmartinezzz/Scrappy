@@ -52,6 +52,100 @@ function Avatar({ username }) {
   );
 }
 
+// Static column defs: `ejecutar` and the in-flight username reach the cells through `table.options.meta`.
+const COLUMNS = [
+  {
+    id: 'username',
+    accessorKey: 'username',
+    header: 'Cuenta',
+    cell: ({ row }) => {
+      const u = row.original;
+      return (
+        <div className="flex items-center gap-2">
+          <Avatar username={u.username} />
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-medium text-t1">{u.username}</span>
+            <span className="truncate text-t3 text-xs">{u.email || 'sin email'}</span>
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'rol',
+    accessorFn: rolDe,
+    header: 'Rol',
+    cell: ({ row }) => (
+      <div className="flex flex-wrap items-center gap-1">
+        <Badge variant={rolDe(row.original) === 'ADMIN' ? 'default' : 'secondary'}>
+          {rolDe(row.original)}
+        </Badge>
+        {row.original.esServicio && <Badge variant="warning">servicio</Badge>}
+      </div>
+    ),
+  },
+  {
+    id: 'estado',
+    accessorFn: u => (u.activo ? 'Activa' : 'Inactiva'),
+    header: 'Estado',
+    cell: ({ row }) => (
+      <Badge variant={row.original.activo ? 'success' : 'outline'}>
+        {row.original.activo ? 'Activa' : 'Inactiva'}
+      </Badge>
+    ),
+  },
+  {
+    id: 'acciones',
+    header: () => <span className="sr-only">Acciones</span>,
+    enableSorting: false,
+    cell: ({ row, table }) => {
+      const { ejecutar, ocupado } = table.options.meta;
+      const u = row.original;
+      const enVuelo = ocupado === u.username;
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          <Label className="sr-only" htmlFor={`rol-${u.id}`}>Rol de {u.username}</Label>
+          <Select
+            disabled={enVuelo}
+            onValueChange={v => ejecutar(u.username,
+              () => cambiarRolUsuario(u.username, v), 'Rol actualizado.')}
+            value={rolDe(u)}
+          >
+            <SelectTrigger className="h-7 w-fit whitespace-nowrap text-xs" id={`rol-${u.id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {u.activo ? (
+            <Button
+              className="text-danger hover:border-danger hover:text-danger"
+              disabled={enVuelo}
+              onClick={() => ejecutar(u.username,
+                () => desactivarUsuario(u.username), 'Cuenta desactivada.')}
+              size="sm"
+              variant="ghost"
+            >
+              Desactivar
+            </Button>
+          ) : (
+            <Button
+              disabled={enVuelo}
+              onClick={() => ejecutar(u.username,
+                () => reactivarUsuario(u.username), 'Cuenta reactivada.')}
+              size="sm"
+              variant="ghost"
+            >
+              Reactivar
+            </Button>
+          )}
+        </div>
+      );
+    },
+  },
+];
+
 export default function UsuariosAdminPanel() {
   const [usuarios, setUsuarios] = useState(null);
   const [error, setError]       = useState('');
@@ -112,100 +206,9 @@ export default function UsuariosAdminPanel() {
     [usuarios, verInactivas],
   );
 
-  const columns = useMemo(() => [
-    {
-      id: 'username',
-      accessorKey: 'username',
-      header: 'Cuenta',
-      cell: ({ row }) => {
-        const u = row.original;
-        return (
-          <div className="flex items-center gap-2">
-            <Avatar username={u.username} />
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium text-t1">{u.username}</span>
-              <span className="truncate text-t3 text-xs">{u.email || 'sin email'}</span>
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      id: 'rol',
-      accessorFn: rolDe,
-      header: 'Rol',
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <Badge variant={rolDe(row.original) === 'ADMIN' ? 'default' : 'secondary'}>
-            {rolDe(row.original)}
-          </Badge>
-          {row.original.esServicio && <Badge variant="warning">servicio</Badge>}
-        </div>
-      ),
-    },
-    {
-      id: 'estado',
-      accessorFn: u => (u.activo ? 'Activa' : 'Inactiva'),
-      header: 'Estado',
-      cell: ({ row }) => (
-        <Badge variant={row.original.activo ? 'success' : 'outline'}>
-          {row.original.activo ? 'Activa' : 'Inactiva'}
-        </Badge>
-      ),
-    },
-    {
-      id: 'acciones',
-      header: () => <span className="sr-only">Acciones</span>,
-      enableSorting: false,
-      cell: ({ row }) => {
-        const u = row.original;
-        const enVuelo = ocupado === u.username;
-        return (
-          <div className="flex flex-wrap items-center justify-end gap-1">
-            <Label className="sr-only" htmlFor={`rol-${u.id}`}>Rol de {u.username}</Label>
-            <Select
-              disabled={enVuelo}
-              onValueChange={v => ejecutar(u.username,
-                () => cambiarRolUsuario(u.username, v), 'Rol actualizado.')}
-              value={rolDe(u)}
-            >
-              <SelectTrigger className="h-7 w-fit whitespace-nowrap text-xs" id={`rol-${u.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {u.activo ? (
-              <Button
-                className="text-danger hover:border-danger hover:text-danger"
-                disabled={enVuelo}
-                onClick={() => ejecutar(u.username,
-                  () => desactivarUsuario(u.username), 'Cuenta desactivada.')}
-                size="sm"
-                variant="ghost"
-              >
-                Desactivar
-              </Button>
-            ) : (
-              <Button
-                disabled={enVuelo}
-                onClick={() => ejecutar(u.username,
-                  () => reactivarUsuario(u.username), 'Cuenta reactivada.')}
-                size="sm"
-                variant="ghost"
-              >
-                Reactivar
-              </Button>
-            )}
-          </div>
-        );
-      },
-    },
-  ], [ejecutar, ocupado]);
-
   const table = useReactTable({
-    columns,
+    columns: COLUMNS,
+    meta: { ejecutar, ocupado },
     data: filtradas,
     state: { sorting, pagination },
     onSortingChange: setSorting,
@@ -400,7 +403,7 @@ export default function UsuariosAdminPanel() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-t4" colSpan={columns.length}>
+                    <TableCell className="h-24 text-center text-t4" colSpan={COLUMNS.length}>
                       {busqueda
                         ? 'Ninguna cuenta coincide con la búsqueda.'
                         : 'No hay cuentas activas.'}

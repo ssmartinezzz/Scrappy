@@ -521,7 +521,7 @@ export default function PcsPanel({ onSavePc } = {}) {
             <div className="mb-[24px] grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-[16px]">
               {picks.map((pick, i) => (
                 <motion.a
-                  key={i}
+                  key={pick.url}
                   href={pick.url}
                   target="_blank"
                   rel="noopener noreferrer"

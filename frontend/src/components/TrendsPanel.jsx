@@ -38,8 +38,8 @@ const Insights = ({ cats, badges, total }) => {
         highCV.length > 0 && { icon:'⚠️', text: <>Alta variabilidad en: <strong>{highCV.map(c=>c.categoria).join(', ')}</strong> — conviene comparar bien</> },
         ofertaCount > 0 && { icon:'✅', text: <>Hay <strong>{ofertaCount}</strong> ofertas reales detectadas estadísticamente ({(ofertaCount/total*100).toFixed(1)}% del catálogo)</> },
         histLow > 0 && { icon:'🏆', text: <><strong>{histLow}</strong> productos están en su mínimo histórico de precio</> },
-      ].filter(Boolean).map((ins, i) => (
-        <div key={i} style={{
+      ].filter(Boolean).map(ins => (
+        <div key={ins.icon} style={{
           display:'flex', gap:10, alignItems:'flex-start',
           background:'var(--s2)', borderRadius:8, padding:'.5rem .75rem',
           border:'1px solid var(--bd)', fontSize:'.75rem', color:'var(--t3)',

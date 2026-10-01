@@ -187,9 +187,9 @@ export default function FavoritosPanel({
                 <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--t3)' }}>
                   {expandido.coleccion === 'outfit' ? 'Prendas' : 'Componentes'} de "{abierto.nombre || 'Guardado'}"
                 </div>
-                {miembrosAbiertos.map((m, i) => (
+                {miembrosAbiertos.map(m => (
                   <button
-                    key={i}
+                    key={m.url}
                     type="button"
                     className="favoritos-outfit-member"
                     onClick={() => onOpenDetail?.(m)}
