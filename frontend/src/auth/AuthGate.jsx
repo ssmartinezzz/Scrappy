@@ -14,7 +14,7 @@ import RouteFallback from '../components/RouteFallback';
 // so there is nothing there an anonymous visitor may not see; without this
 // entry the redirect below would bounce them to /login and the public route
 // would be public in name only.
-const PUBLIC_ROUTES = ['/login', '/forgot-password', '/reset-password', '/apidocs'];
+const PUBLIC_ROUTES = new Set(['/login', '/forgot-password', '/reset-password', '/apidocs']);
 
 export default function AuthGate({ children }) {
   const { status } = useAuth();
@@ -22,7 +22,7 @@ export default function AuthGate({ children }) {
 
   if (status === 'booting') return <RouteFallback />;
 
-  if (status === 'anonymous' && !PUBLIC_ROUTES.includes(location.pathname)) {
+  if (status === 'anonymous' && !PUBLIC_ROUTES.has(location.pathname)) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

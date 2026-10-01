@@ -22,14 +22,14 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
     e.preventDefault();
     setError('');
     const res = await onSubmit({ label, recargoPct: Number(recargoPct), cuotas: Number(cuotas) });
-    if (res && res.ok === false) setError(res.mensaje || 'Error al guardar');
+    if (res?.ok === false) setError(res.mensaje || 'Error al guardar');
   }
 
   return (
     <form onSubmit={handleSubmit} className="finan-preset-form"
       style={{ border:'1px solid var(--bd)', borderRadius:8, background:'var(--s2)', marginTop:8 }}>
       <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
-        Nombre
+        Nombre{' '}
         <input value={label} onChange={e => setLabel(e.target.value)}
           placeholder="Ej: 12 cuotas sin interés"
           style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
@@ -37,14 +37,14 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
       </label>
       <div className="finan-field-row">
         <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
-          Recargo (%)
+          Recargo (%){' '}
           <input type="number" step="0.1" min="0" value={recargoPct}
             onChange={e => setRecargoPct(e.target.value)}
             style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
                       border:'1px solid var(--bd)', background:'var(--s1)', color:'var(--t1)' }} />
         </label>
         <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
-          Cuotas
+          Cuotas{' '}
           <input type="number" step="1" min="1" value={cuotas}
             onChange={e => setCuotas(e.target.value)}
             style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
@@ -86,7 +86,7 @@ function PresetRow({ preset, onActivar, onEliminar, onGuardarEdicion, canEdit })
         onCancel={() => setEditando(false)}
         onSubmit={async (vals) => {
           const res = await onGuardarEdicion(preset.id, vals);
-          if (!res || res.ok !== false) setEditando(false);
+          if (res?.ok !== false) setEditando(false);
           return res;
         }}
       />
@@ -169,7 +169,14 @@ export default function FinanPanel() {
   const [error, setError]       = useState('');
 
   async function reload() {
-    const data = await fetchFinanciacionPresets();
+    let data;
+    try {
+      data = await fetchFinanciacionPresets();
+    } catch {
+      // Unreachable backend: keep whatever is on screen (and the loading state, if
+      // nothing was ever read); the next action re-reads.
+      return;
+    }
     if (data) {
       setPresets(data.presets || []);
       setActivo(data.activo || null);
@@ -177,31 +184,31 @@ export default function FinanPanel() {
     setLoading(false);
   }
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { void reload(); }, []);
 
   async function handleActivar(id) {
     setError('');
     const res = await activarFinanciacionPreset(id);
-    if (res && res.ok === false) setError(res.mensaje || 'Error al activar el preset');
-    else reload();
+    if (res?.ok === false) setError(res.mensaje || 'Error al activar el preset');
+    else void reload();
   }
 
   async function handleEliminar(id) {
     setError('');
     const res = await eliminarFinanciacionPreset(id);
-    if (res && res.ok === false) setError(res.mensaje || 'Error al eliminar el preset');
-    else reload();
+    if (res?.ok === false) setError(res.mensaje || 'Error al eliminar el preset');
+    else void reload();
   }
 
   async function handleEditar(id, vals) {
     const res = await editarFinanciacionPreset(id, vals);
-    if (!res || res.ok !== false) reload();
+    if (res?.ok !== false) void reload();
     return res;
   }
 
   async function handleCrear(vals) {
     const res = await crearFinanciacionPreset(vals);
-    if (res && res.ok) { setCreando(false); reload(); }
+    if (res?.ok) { setCreando(false); void reload(); }
     return res;
   }
 

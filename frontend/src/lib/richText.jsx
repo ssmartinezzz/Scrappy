@@ -15,6 +15,7 @@
  * rule is more surface for little gain): headings, tables, images, blockquotes,
  * nested lists, and multi-line fenced code blocks.
  */
+import { inlineMatches } from './inlineMatches';
 
 /** Only http/https may become a real link. */
 const safeHref = (raw) => {
@@ -25,15 +26,15 @@ const safeHref = (raw) => {
   }
 };
 
-// Order matters: links are matched before bare URLs so the URL inside
-// [texto](url) is not also picked up as standalone text.
+// Tokens come from inlineMatches (lib/inlineMatches.js). Links are matched
+// before bare URLs so the URL inside [texto](url) is not also picked up as
+// standalone text.
 //
 // The href part excludes `(` as well as `)`: a URL containing parentheses would
 // otherwise match only up to the inner `)` and yield a silently truncated —
 // therefore broken — link. Excluding `(` makes such a case fail to match at
 // all, so it degrades to literal text instead of a link that looks fine and
 // goes nowhere.
-const INLINE = /(\*\*[^*\n]+\*\*)|(`[^`\n]+`)|(\[[^\]\n]+\]\([^)\s(]+\))|(https?:\/\/[^\s<>()[\]]+)/g;
 
 const linkClass =
   'font-semibold underline decoration-dotted underline-offset-2 hover:decoration-solid';
@@ -50,13 +51,10 @@ function Link({ href, children }) {
 function parseInline(line, keyPrefix) {
   const nodes = [];
   let lastIndex = 0;
-  let match;
-  INLINE.lastIndex = 0;
 
-  while ((match = INLINE.exec(line)) !== null) {
-    if (match.index > lastIndex) nodes.push(line.slice(lastIndex, match.index));
-    const [token] = match;
-    const key = `${keyPrefix}-${match.index}`;
+  for (const { index, token } of inlineMatches(line)) {
+    if (index > lastIndex) nodes.push(line.slice(lastIndex, index));
+    const key = `${keyPrefix}-${index}`;
 
     if (token.startsWith('**')) {
       nodes.push(<strong key={key} className="font-bold">{token.slice(2, -2)}</strong>);
@@ -76,7 +74,7 @@ function parseInline(line, keyPrefix) {
       const href = safeHref(token);
       nodes.push(href ? <Link key={key} href={href}>{token}</Link> : token);
     }
-    lastIndex = match.index + token.length;
+    lastIndex = index + token.length;
   }
 
   if (lastIndex < line.length) nodes.push(line.slice(lastIndex));
@@ -119,6 +117,23 @@ export function highlightPrices(text, color) {
   return nodes;
 }
 
+const BULLET_START = /^\s*[-*]\s/;
+// What `.` refuses to match, minus `\n` (the text is already split on it).
+const LINE_TERMINATOR = /[\r\u2028\u2029]/;
+
+/**
+ * The text of a `- `/`* ` bullet line, or null when `line` is not one.
+ *
+ * Done by hand instead of `/^\s*[-*]\s+(.*)$/`: there `\s+` and `.*` overlap, so
+ * a long whitespace run that cannot match makes the engine retry every split.
+ */
+function bulletText(line) {
+  const start = BULLET_START.exec(line);
+  if (!start) return null;
+  const text = line.slice(start[0].length).trimStart();
+  return LINE_TERMINATOR.test(text) ? null : text;
+}
+
 /**
  * Renders `text` as React nodes, preserving line breaks and rendering
  * `- `/`* ` prefixed lines as bullets.
@@ -130,12 +145,12 @@ export function renderRichText(text) {
   if (typeof text !== 'string' || !text) return text ?? null;
 
   return text.split('\n').map((line, i) => {
-    const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
-    if (bullet) {
+    const bullet = bulletText(line);
+    if (bullet !== null) {
       return (
         <span key={i} className="flex gap-1.5">
           <span aria-hidden="true">•</span>
-          <span>{parseInline(bullet[1], i)}</span>
+          <span>{parseInline(bullet, i)}</span>
         </span>
       );
     }

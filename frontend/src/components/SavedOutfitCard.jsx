@@ -89,9 +89,9 @@ export default function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDeta
           -> placeholder icon, never a silently-skipped or hidden <img>) */}
       {!expanded && slots.length > 0 && (
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {slots.map((s, i) => (
+          {slots.map(s => (
             <ImageWithFallback
-              key={i}
+              key={s.url ?? s.nombre}
               src={s.img}
               alt={s.nombre}
               loading="lazy"
@@ -107,8 +107,8 @@ export default function SavedOutfitCard({ outfit, onDelete, onRename, onOpenDeta
       {/* Expanded: full slot list */}
       {expanded && slots.length > 0 && (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {slots.map((s, i) => (
-            <div key={i} style={{
+          {slots.map(s => (
+            <div key={s.url ?? s.nombre} style={{
               display:'flex', gap:10, alignItems:'center',
               background:'var(--s1)', borderRadius:8, padding:'.5rem .65rem',
               border:'1px solid var(--bd)',

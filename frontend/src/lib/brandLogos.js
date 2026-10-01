@@ -82,7 +82,7 @@ export function getBrandColor(marca) {
   const str = marca || '';
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+    hash = (hash * 31 + str.codePointAt(i)) >>> 0;
   }
   const hue = hash % 360;
   return `hsl(${hue}, 58%, 38%)`;

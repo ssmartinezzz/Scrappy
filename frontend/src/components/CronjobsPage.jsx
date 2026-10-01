@@ -4,13 +4,13 @@
 // the user supplied (sortable headers, numeric pagination, page-size select),
 // ported to JSX + project tokens. Create/edit opens CronJobCard (the animated
 // coach-card-style detail card) in a modal overlay.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
 } from '@tanstack/react-table';
 import {
   Clock, Plus, Pencil, Play, Trash2, ChevronUp, ChevronDown,
-  CheckCircle2, XCircle, Loader2, SkipForward, CircleAlert,
+  CheckCircle2, Loader2, CircleAlert,
 } from 'lucide-react';
 import { listCronJobs, updateCronJob, deleteCronJob, runCronNow } from '../api';
 import { useStreamEvent } from '../hooks/EventStreamProvider';
@@ -57,6 +57,96 @@ function estadoBadge(job) {
   return <Badge variant="warning">Sin próxima</Badge>;
 }
 
+// Static column defs: handlers and the running id reach the cells through `table.options.meta`.
+const COLUMNS = [
+  {
+    header: 'Nombre',
+    accessorKey: 'name',
+    cell: ({ row }) => <div className="font-medium text-t1">{row.getValue('name')}</div>,
+  },
+  {
+    header: 'Cron',
+    accessorKey: 'cronExpr',
+    enableSorting: false,
+    cell: ({ row }) => <code className="font-mono text-xs text-t3">{row.getValue('cronExpr')}</code>,
+  },
+  {
+    header: 'Estado',
+    id: 'estado',
+    enableSorting: false,
+    cell: ({ row }) => estadoBadge(row.original),
+  },
+  {
+    header: 'Próxima',
+    accessorKey: 'nextRunAt',
+    cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t2">{fmtFecha(row.getValue('nextRunAt'))}</span>,
+  },
+  {
+    header: 'Última',
+    accessorKey: 'lastRunAt',
+    cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t3">{fmtFecha(row.getValue('lastRunAt'))}</span>,
+  },
+  {
+    header: 'Activo',
+    id: 'activo',
+    enableSorting: false,
+    cell: ({ row, table }) => (
+      <EnabledSwitch
+        checked={row.original.enabled}
+        onChange={() => table.options.meta.onToggle(row.original)}
+        label={row.original.enabled ? 'Deshabilitar job' : 'Habilitar job'}
+      />
+    ),
+  },
+  {
+    header: () => <span className="sr-only">Acciones</span>,
+    id: 'acciones',
+    enableSorting: false,
+    cell: ({ row, table }) => {
+      const { onEdit, onRunNow, onDelete, runningId } = table.options.meta;
+      const job = row.original;
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="outline" size="sm" onClick={() => onEdit(job)}>
+            <Pencil aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Editar
+          </Button>
+          <Button variant="ghost" size="sm" disabled={runningId === job.id} onClick={() => onRunNow(job)}>
+            <Play aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Ejecutar
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Eliminar ${job.name}`}
+            className="h-7 w-7 text-t4 hover:border-danger hover:text-danger"
+            onClick={() => onDelete(job)}
+          >
+            <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
+          </Button>
+        </div>
+      );
+    },
+  },
+];
+
+function HeaderContent({ header }) {
+  if (header.isPlaceholder) return null;
+  const content = flexRender(header.column.columnDef.header, header.getContext());
+  if (!header.column.getCanSort()) return content;
+  return (
+    <button
+      type="button"
+      className="flex h-full cursor-pointer select-none items-center gap-1"
+      onClick={header.column.getToggleSortingHandler()}
+    >
+      {content}
+      {{
+        asc: <ChevronUp className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
+        desc: <ChevronDown className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
+      }[header.column.getIsSorted()] ?? null}
+    </button>
+  );
+}
+
 export default function CronjobsPage() {
   const [jobs, setJobs]           = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -76,7 +166,11 @@ export default function CronjobsPage() {
   useEffect(() => { load(); }, [load]);
 
   // A run starting or ending changes the last-run columns; re-read quietly, without the loading state.
-  const refresh = useCallback(() => { listCronJobs().then(data => setJobs(data || [])); }, []);
+  const refresh = useCallback(() => {
+    listCronJobs().then(data => setJobs(data || [])).catch(() => {
+      // Keep the rows on screen; the next execution event or resync re-reads.
+    });
+  }, []);
   useStreamEvent('db.changed', d => { if (d.table === 'cron_execution') refresh(); });
   useStreamEvent('resync', refresh);
 
@@ -100,78 +194,10 @@ export default function CronjobsPage() {
     load();
   }, [load]);
 
-  const columns = useMemo(() => [
-    {
-      header: 'Nombre',
-      accessorKey: 'name',
-      cell: ({ row }) => <div className="font-medium text-t1">{row.getValue('name')}</div>,
-    },
-    {
-      header: 'Cron',
-      accessorKey: 'cronExpr',
-      enableSorting: false,
-      cell: ({ row }) => <code className="font-mono text-xs text-t3">{row.getValue('cronExpr')}</code>,
-    },
-    {
-      header: 'Estado',
-      id: 'estado',
-      enableSorting: false,
-      cell: ({ row }) => estadoBadge(row.original),
-    },
-    {
-      header: 'Próxima',
-      accessorKey: 'nextRunAt',
-      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t2">{fmtFecha(row.getValue('nextRunAt'))}</span>,
-    },
-    {
-      header: 'Última',
-      accessorKey: 'lastRunAt',
-      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-t3">{fmtFecha(row.getValue('lastRunAt'))}</span>,
-    },
-    {
-      header: 'Activo',
-      id: 'activo',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <EnabledSwitch
-          checked={row.original.enabled}
-          onChange={() => handleToggle(row.original)}
-          label={row.original.enabled ? 'Deshabilitar job' : 'Habilitar job'}
-        />
-      ),
-    },
-    {
-      header: () => <span className="sr-only">Acciones</span>,
-      id: 'acciones',
-      enableSorting: false,
-      cell: ({ row }) => {
-        const job = row.original;
-        return (
-          <div className="flex items-center justify-end gap-1">
-            <Button variant="outline" size="sm" onClick={() => setEditingJob(job)}>
-              <Pencil aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Editar
-            </Button>
-            <Button variant="ghost" size="sm" disabled={runningId === job.id} onClick={() => handleRunNow(job)}>
-              <Play aria-hidden="true" className="mr-1 h-3.5 w-3.5" strokeWidth={2} /> Ejecutar
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Eliminar ${job.name}`}
-              className="h-7 w-7 text-t4 hover:border-danger hover:text-danger"
-              onClick={() => handleDelete(job)}
-            >
-              <Trash2 aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
-            </Button>
-          </div>
-        );
-      },
-    },
-  ], [handleToggle, handleRunNow, handleDelete, runningId]);
-
   const table = useReactTable({
     data: jobs,
-    columns,
+    columns: COLUMNS,
+    meta: { onToggle: handleToggle, onEdit: setEditingJob, onRunNow: handleRunNow, onDelete: handleDelete, runningId },
     state: { sorting, pagination },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
@@ -217,11 +243,12 @@ export default function CronjobsPage() {
       )}
 
       {/* Body */}
-      {loading ? (
+      {loading && (
         <div className="rounded-card border border-border p-6 text-center text-t4">
           <Loader2 aria-hidden="true" className="mx-auto h-6 w-6 animate-spin" strokeWidth={2} />
         </div>
-      ) : jobs.length === 0 ? (
+      )}
+      {!loading && jobs.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-s2 p-6 text-center">
           <Clock aria-hidden="true" className="h-10 w-10 text-t4" strokeWidth={1.5} />
           <div>
@@ -232,7 +259,8 @@ export default function CronjobsPage() {
             <Plus aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2.5} /> Crear el primero
           </Button>
         </div>
-      ) : (
+      )}
+      {!loading && jobs.length > 0 && (
         <>
           <div className="overflow-hidden rounded-card border border-border bg-s2">
             <Table>
@@ -241,21 +269,7 @@ export default function CronjobsPage() {
                   <TableRow key={hg.id} className="bg-s3 hover:bg-s3">
                     {hg.headers.map(header => (
                       <TableHead key={header.id} className="h-11 whitespace-nowrap text-xs uppercase tracking-wide">
-                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                          <button
-                            type="button"
-                            className="flex h-full cursor-pointer select-none items-center gap-1"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <ChevronUp className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
-                              desc: <ChevronDown className="h-3.5 w-3.5 opacity-60" strokeWidth={2} aria-hidden="true" />,
-                            }[header.column.getIsSorted()] ?? null}
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
+                        <HeaderContent header={header} />
                       </TableHead>
                     ))}
                   </TableRow>

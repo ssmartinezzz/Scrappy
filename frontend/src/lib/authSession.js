@@ -467,6 +467,8 @@ if (typeof window !== 'undefined') {
     probeSiblings().then(adopted => {
       if (!adopted) return ensureFreshSession({ reason: 'bfcache' });
       return adoptIdentityIfMissing();
+    }).catch(() => {
+      // Best-effort revalidation: the next authedFetch refreshes on a 401 anyway.
     });
   });
 
@@ -479,6 +481,8 @@ if (typeof window !== 'undefined') {
           return ensureFreshSession({ reason: 'wake' });
         }
         return undefined;
+      }).catch(() => {
+        // Best-effort revalidation: the next authedFetch refreshes on a 401 anyway.
       });
     });
   }

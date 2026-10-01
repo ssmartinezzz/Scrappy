@@ -41,7 +41,7 @@ function resizerFor(url) {
 
 export function thumbUrl(url, width) {
   const r = resizerFor(url);
-  if (!r || !r.widths.includes(width)) return null;
+  if (!r?.widths.includes(width)) return null;
   return r.resize(new URL(url), width)?.toString() ?? null;
 }
 

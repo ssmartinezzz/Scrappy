@@ -33,14 +33,16 @@ const TopDeals = ({ productos, onProductClick }) => {
             </div>
             <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:4 }}>
               {ps.slice(0,8).map((p, i) => (
-                <div key={p.url || i} onClick={() => onProductClick(p)}
+                <button key={p.url || i} type="button" className="btn-reset" onClick={() => onProductClick(p)}
                      style={{
                        flex:'0 0 140px', background:'var(--s2)', borderRadius:8,
                        border:'1px solid var(--bd)', cursor:'pointer',
                        transition:'border-color .15s', overflow:'hidden',
                      }}
                      onMouseOver={e=>e.currentTarget.style.borderColor='var(--p)'}
+                     onFocus={e=>e.currentTarget.style.borderColor='var(--p)'}
                      onMouseOut={e=>e.currentTarget.style.borderColor='var(--bd)'}
+                     onBlur={e=>e.currentTarget.style.borderColor='var(--bd)'}
                 >
                   {p.img && (
                     <img src={p.img} alt={p.nombre} loading="lazy"
@@ -61,7 +63,7 @@ const TopDeals = ({ productos, onProductClick }) => {
                       {p.marca || p.sitio}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -81,7 +83,8 @@ export default function OportunidadesPanel({ onProductClick }) {
   const [res, setRes] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => { fetchTendencias().then(setRes); }, []);
+  // `fetchTendencias` resolves a state for every failure, network included.
+  useEffect(() => { void fetchTendencias().then(setRes); }, []);
 
   if (res === null) return (
     <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', fontSize:'.9rem' }}>

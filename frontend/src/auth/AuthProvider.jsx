@@ -2,7 +2,7 @@
 // authSession.js holds the truth (module scope, no React); this context only
 // re-renders components when that truth changes. Never the other way
 // around: nothing in this file owns state authSession.js doesn't already own.
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import * as authSession from '../lib/authSession';
 
@@ -39,11 +39,14 @@ export function AuthProvider({ children }) {
       setState(deriveState(snapshot, authSession.getLastFailureReason()));
     });
 
-    authSession.bootstrap().then(() => {
+    // A bootstrap that rejects must still leave `booting`: the snapshot says what the
+    // session is (no token -> unauthenticated), and a stuck gate renders nothing at all.
+    const settle = () => {
       booted = true;
       if (cancelled) return;
       setState(deriveState(authSession.getSnapshot(), authSession.getLastFailureReason()));
-    });
+    };
+    authSession.bootstrap().then(settle, settle);
 
     return () => {
       cancelled = true;
@@ -53,7 +56,10 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => authSession.logout(), []);
 
-  const value = { ...state, authenticated: state.status === 'authenticated', logout };
+  const value = useMemo(
+    () => ({ ...state, authenticated: state.status === 'authenticated', logout }),
+    [state, logout],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -48,7 +48,7 @@ describe('ProductCard — precioOrig numérico', () => {
   it('no renderiza precio original cuando precioOrig es null', () => {
     renderCard({ precioOrig: null });
 
-    expect(screen.queryByText(/^ARS \$/)).toBeInTheDocument(); // el precio actual sigue ahí
+    expect(screen.getByText(/^ARS \$/)).toBeInTheDocument(); // el precio actual sigue ahí
     const origEl = document.querySelector('.card-price-orig');
     expect(origEl).toBeNull();
   });

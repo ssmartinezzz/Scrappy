@@ -40,7 +40,7 @@ export function createSseParser(onMessage) {
       buffer += chunk;
       if (first && buffer.length) {
         first = false;
-        if (buffer[0] === '\uFEFF') buffer = buffer.slice(1);
+        if (buffer.startsWith('\uFEFF')) buffer = buffer.slice(1);
       }
       let start = 0;
       for (let i = 0; i < buffer.length; i++) {
@@ -157,7 +157,8 @@ export function connectEventStream({
     }
   }
 
-  (async () => {
+  // `attempt` turns every failure into an outcome, so the loop itself does not reject.
+  void (async () => {
     onState({ phase: 'connecting' });
     while (!lifetime.signal.aborted) {
       const outcome = await attempt();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchRecomendados, sendRecomendadosFeedback, dismissCategoria, fmt } from '../api';
+import { fetchRecomendados, sendRecomendadosFeedback, dismissCategoria } from '../api';
 import ProductCard from './ProductCard';
 
 const PAGE_SIZE = 24;

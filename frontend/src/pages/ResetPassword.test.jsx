@@ -67,7 +67,7 @@ describe('ResetPassword — absent token (task 6.7: no token in the fragment)', 
 
     renderResetPassword();
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
@@ -80,7 +80,7 @@ describe('ResetPassword — client-side validation (task 6.5)', () => {
     renderResetPassword();
     await fillAndSubmit('corta1');
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,7 @@ describe('ResetPassword — client-side validation (task 6.5)', () => {
     renderResetPassword();
     await fillAndSubmit('unapasslarga', 'otradistinta');
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
@@ -104,9 +104,9 @@ describe('ResetPassword — successful confirm (task 6.6: no auto-login)', () =>
     renderResetPassword();
     await fillAndSubmit('unapasslarga');
 
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(await screen.findByRole('status')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: /ir a iniciar sesión/i }));
-    await waitFor(() => expect(screen.getByText('LOGIN SCREEN')).toBeInTheDocument());
+    expect(await screen.findByText('LOGIN SCREEN')).toBeInTheDocument();
   });
 });
 
@@ -118,7 +118,7 @@ describe('ResetPassword — token rejected by the backend (expired / used / unkn
     renderResetPassword();
     await fillAndSubmit('unapasslarga');
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByText('LOGIN SCREEN')).not.toBeInTheDocument();
   });
 });

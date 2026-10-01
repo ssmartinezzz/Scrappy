@@ -22,7 +22,7 @@ export function useInterruptedRun(enabled) {
     // non-ok response, but `authedFetch` calls bare fetch, which REJECTS when
     // nothing is listening — an uncaught one here would take down the page
     // this notice merely sits on top of.
-    fetchInterrumpida()
+    void fetchInterrumpida()
       .catch(() => null)
       .then(r => {
         if (!alive) return;

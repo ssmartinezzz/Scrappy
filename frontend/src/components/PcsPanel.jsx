@@ -104,10 +104,7 @@ const WATTS = [
 const TIER_CHIPSET_LABEL = { 1: 'X/Z', 2: 'B', 3: 'A/H' };
 const TAMANIO_GABINETE_LABEL = { MINI: 'mini tower', MID: 'mid tower', FULL: 'full tower' };
 
-/** Une solo los campos con dato — un clasificador que se abstiene deja "" / 0. */
-function resumenSpecs(specs) {
-  if (!specs) return '';
-  const partes = [];
+function specsBasicos(specs, partes) {
   if (specs.socket) partes.push(specs.socket);
   if (specs.ddr) partes.push(specs.ddr);
   if (specs.formFactor) partes.push(specs.formFactor);
@@ -115,6 +112,9 @@ function resumenSpecs(specs) {
   if (specs.capacidadGb) partes.push(`${specs.capacidadGb} GB`);
   if (specs.tipoMemoria) partes.push(specs.tipoMemoria);
   if (specs.marcaChip) partes.push(specs.marcaChip);
+}
+
+function specsDeChip(specs, partes) {
   // Una sola grafía por marca (no por slot): Intel es "gen N", todo lo demás
   // (AMD, y cualquier GPU) es "serie N000".
   if (specs.generacion) {
@@ -122,6 +122,9 @@ function resumenSpecs(specs) {
   }
   if (specs.tierChipset) partes.push(TIER_CHIPSET_LABEL[specs.tierChipset]);
   if (specs.modulos) partes.push(`${specs.modulos}x`);
+}
+
+function specsFisicos(specs, partes) {
   if (specs.wifi) partes.push('WiFi');
   if (specs.tipoCooler === 'LIQUIDO') partes.push('AIO');
   if (specs.tipoCooler === 'AIRE') partes.push('aire');
@@ -129,6 +132,15 @@ function resumenSpecs(specs) {
   if (TAMANIO_GABINETE_LABEL[specs.tamanioGabinete]) {
     partes.push(TAMANIO_GABINETE_LABEL[specs.tamanioGabinete]);
   }
+}
+
+/** Une solo los campos con dato — un clasificador que se abstiene deja "" / 0. */
+function resumenSpecs(specs) {
+  if (!specs) return '';
+  const partes = [];
+  specsBasicos(specs, partes);
+  specsDeChip(specs, partes);
+  specsFisicos(specs, partes);
   return partes.join(' · ');
 }
 
@@ -136,7 +148,7 @@ function ChipGroup({ label, options, value, onChange }) {
   return (
     <div>
       <p className="mb-[6px] text-[.8rem] font-semibold text-t3">{label}</p>
-      <div className="flex flex-wrap items-center gap-[8px]" role="group" aria-label={label}>
+      <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-[8px] border-0 p-0" aria-label={label}>
         {options.map(o => (
           <button
             key={o.value}
@@ -154,7 +166,7 @@ function ChipGroup({ label, options, value, onChange }) {
             {o.label}
           </button>
         ))}
-      </div>
+      </fieldset>
     </div>
   );
 }
@@ -232,7 +244,10 @@ export default function PcsPanel({ onSavePc } = {}) {
         // no traer el campo — cualquier otra cosa que no sea "homelab" cae
         // al default, igual que UsoWire.parse.
         const miniPc = pref.uso === 'homelab' && pref.tamanioGabinete === 'mini';
-        setUso(miniPc ? 'minipc' : pref.uso === 'homelab' ? 'homelab' : '');
+        let usoPref = '';
+        if (miniPc) usoPref = 'minipc';
+        else if (pref.uso === 'homelab') usoPref = 'homelab';
+        setUso(usoPref);
         setPresupuesto(pref.presupuesto != null ? String(pref.presupuesto) : '');
         setConGpu(Boolean(pref.conGpu));
         setDdr(pref.ddr ?? '');
@@ -364,7 +379,7 @@ export default function PcsPanel({ onSavePc } = {}) {
           <ChipGroup label="Uso" options={USOS} value={uso} onChange={elegirUso} />
         </div>
 
-        <div className="mb-[16px] flex flex-wrap items-center gap-[8px]" role="group" aria-label="Gama">
+        <fieldset className="m-0 mb-[16px] flex min-w-0 flex-wrap items-center gap-[8px] border-0 p-0" aria-label="Gama">
           {GAMAS.map(g => (
             <button
               key={g.value}
@@ -382,7 +397,7 @@ export default function PcsPanel({ onSavePc } = {}) {
               {g.label}
             </button>
           ))}
-        </div>
+        </fieldset>
 
         <div className="mb-[24px] flex flex-col gap-[14px]">
           {/* Un mini PC trae CPU, RAM, fuente y gabinete: sólo gama y disco de datos filtran (D6). */}
@@ -469,7 +484,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                 }}
                 className="h-[18px] w-[18px] cursor-pointer accent-primary"
               />
-              Incluir placa de video
+              {' '}Incluir placa de video
             </label>
           )}
           <button
@@ -521,7 +536,7 @@ export default function PcsPanel({ onSavePc } = {}) {
             <div className="mb-[24px] grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-[16px]">
               {picks.map((pick, i) => (
                 <motion.a
-                  key={i}
+                  key={pick.url}
                   href={pick.url}
                   target="_blank"
                   rel="noopener noreferrer"

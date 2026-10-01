@@ -83,9 +83,10 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
       };
 
   const showHeader = Boolean(subtitle) || showChevrons;
+  const cardClass = ['picks-carousel', className].filter(Boolean).join(' ');
 
   return (
-    <Card className={`picks-carousel${className ? ` ${className}` : ''}`}>
+    <Card className={cardClass}>
       {showHeader && (
         <CardHeader className="picks-carousel-header">
           <div className="picks-carousel-headrow">
@@ -113,9 +114,8 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
       )}
 
       <CardContent className="picks-carousel-content">
-        <div
+        <section
           className={`picks-carousel-viewport${mobile ? ' picks-carousel-viewport-snap' : ''}`}
-          role="region"
           aria-roledescription="carousel"
           aria-label={title}
           tabIndex={0}
@@ -123,12 +123,12 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
         >
           <div className="picks-carousel-track" style={trackStyle}>
             {safeItems.map((item, i) => (
-              <div key={i} className="picks-carousel-item">
+              <div key={item.key ?? item.url} className="picks-carousel-item">
                 {renderItem(item, i)}
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </CardContent>
     </Card>
   );
