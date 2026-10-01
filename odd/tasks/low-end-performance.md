@@ -95,8 +95,9 @@ Execution order after T0: **T5, T2, T6, T3, T1, T4, T10, T8, T7, T9**.
 - [ ] T4 Render cost on a 4x-6x slower CPU: product grid (memo, `content-visibility`, or
   windowing if measured necessary), animations gated by `prefers-reduced-motion` and by
   device capability; INP/long tasks measured
-- [ ] T5 Images: thumbnails at the size the card shows (store CDNs that support resize
-  params), `decoding="async"`, explicit dimensions to avoid layout shift
+- [x] T5 Images: thumbnails at the size the card shows (store CDNs that support resize
+  params), `decoding="async"`; explicit dimensions not needed (the card box is
+  `aspect-[3/4]` with an absolutely positioned image, so the image cannot shift layout)
 - [ ] T6 API payload: fields the grid does not use, page size vs. device, caching headers
 - [ ] T7 SQL hot paths: `recomendados`, `data_filtrado`, `facets` (EXPLAIN ANALYZE first)
 - [ ] T8 Old-PC host footprint: JVM heap/flags for 4 GB machines, Python/ML memory, Postgres
@@ -215,7 +216,44 @@ numbers; JS (T3) is 153 KB and already off the scroll path; render (T4) is small
 by the user; T7 (SQL ~30–80 ms server-side) is invisible next to 150 ms RTT and seconds of
 images, so it moves after T10, which may change that.
 
+### T5 images — done 2026-10-01
+
+**Change:** `frontend/src/lib/thumb.js` rewrites a product image URL to a CDN-resized copy
+for the three stores whose CDN supports it — Shopify (`?width=`), VTEX (`/ids/<id>-W-auto/`),
+Tiendanube (`-W-0`, only 240/320/480/640 exist; any other width answers 403). `ProductCard`
+gets `src` = 480 px, `srcset` with the host's widths, `sizes` per `.grid` breakpoint,
+`decoding="async"`. `ImageWithFallback` gained an optional `originalSrc`: a failed
+thumbnail retries the original before the placeholder. Coverage: 11,654 of 22,141 active
+products (Sporting 7,147; Vcp/Freres/Forever 989; 17 Tiendanube stores 3,518). Every
+srcset URL of 60 random products (20 per CDN, 240 URLs) answered an image. Visual check
+at DPR 2: sharp.
+
+**Cost:** `ProductCard` chunk 2.15 -> 2.63 KB gz; 21 new unit tests; suite 56 files /
+531 tests green.
+
+**Measured** (harness `t5.mjs`: 4x CPU + Slow 4G, cold cache, site filter injected into
+`/api/data`, median of 3 after 1 discarded warm-up). Target profile = 2020 entry Android,
+360x780 CSS px at DPR 2 (picks the 360/480 variants):
+
+| view | first-screen images | scroll 3 pages | image bytes / images completed |
+|---|---|---|---|
+| Sporting (VTEX) | 3.87 -> **2.05 s** | 17.6 -> **5.5 s** | 4.76 MB -> **1.02 MB** / 114 -> 114 |
+| Vcp (Shopify) | **41.7 -> 2.4 s** | 28.3 -> **10.9 s** | 4.6 MB for 10 images -> 2.4 MB for 116 |
+| Entreno (Tiendanube) | 4.34 -> 3.51 s | 26.7 -> 15.5 s (see note) | 8.3 MB / 107 -> 3.8 MB / 116 |
+
+Entreno's before is bimodal (runs 26.7 s / 107 images and 9.7 s / 43 images: when the
+images never finish, the next pages arrive sooner); the after is stable at 15.5–16.2 s
+with every image loaded. The comparable before run is quoted.
+
+Same harness on the Pixel 5 profile (DPR 2.75, picks 720): Sporting scroll 17.7 -> 11.5 s,
+Vcp first screen 31.7 -> 4.0 s, Entreno 7.8 -> 5.5 MB. **The default "Todas" view does not
+improve** (scroll 21.2 -> 21.9 s, 6.4 MB both): its first pages are dominated by stores
+without a resize parameter (fullh4rd 610 px, compragamer 750 px, contabilium up to
+1000 px, maximus 600 px, venex). Shrinking those needs the images resized by us (a
+backend proxy/cache), which is a separate decision with a CPU and disk cost on the old-PC
+host — not done here.
+
 ## Next step
 
-PC browser floor confirmed (Chrome 109). Next: T5 images. Host RAM profile (4 GB) to
-confirm before T8.
+T2 compression. Open question for the user: whether to resize images of stores without a
+CDN resize parameter ourselves (default catalog view is still image-bound).
