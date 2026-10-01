@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.config.ScraperConfig;
@@ -41,7 +42,7 @@ class ScrapeRunDiscardTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         ResultAggregator aggregator = Mockito.mock(ResultAggregator.class);
         Mockito.when(aggregator.fromDB(Mockito.anyList()))
                 .thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(),

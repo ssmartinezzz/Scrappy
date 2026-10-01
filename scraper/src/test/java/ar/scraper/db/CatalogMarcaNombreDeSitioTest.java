@@ -44,7 +44,7 @@ class CatalogMarcaNombreDeSitioTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         repo = new CatalogQueryRepository(dataSource(), db.siteRegistry());
         db.upsertProductos(List.of(
                 // Sold by Midway, no curated brand in the name -> abstains.

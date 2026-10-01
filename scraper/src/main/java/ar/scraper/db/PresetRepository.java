@@ -51,7 +51,11 @@ class PresetRepository implements PresetPort {
      * que el usuario configure nada manualmente.
      */
     @Override
-    public void seedPresetIlustrativoSiVacio() throws SQLException {
+    public void seedPresetIlustrativoSiVacio() {
+        Sql.traducir(() -> seedPresetIlustrativoSiVacioSql());
+    }
+
+    private void seedPresetIlustrativoSiVacioSql() throws SQLException {
         try (Connection c = dataSource.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {

@@ -2,7 +2,7 @@ package ar.scraper.web.api;
 
 import ar.scraper.api.ApiError;
 import ar.scraper.api.ApiException;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.security.Sujeto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;

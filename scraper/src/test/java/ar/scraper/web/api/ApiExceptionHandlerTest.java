@@ -2,8 +2,8 @@ package ar.scraper.web.api;
 
 import ar.scraper.api.ApiError;
 import ar.scraper.api.ApiException;
-import ar.scraper.identity.ActorResolver;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.security.ActorResolver;
+import ar.scraper.security.Sujeto;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import org.junit.jupiter.api.BeforeEach;

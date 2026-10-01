@@ -89,7 +89,7 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T6a Backend envelope: `ApiResponse<T>`, `PageResponse<T>`, `ApiError`, Lombok DTOs, `@RestControllerAdvice`, SecurityConfig 401/403, all 87 handlers typed
 - [x] T6b Consumers: frontend `unwrap()`/`ApiError` + 5 raw fetches + components reading `.error`/`.mensaje`, CLI `rest.py`, `tests/e2e`, perf suites, `docs/openapi.yaml`, `docs/API_REFERENCE.md`, `docs/FRONTEND_AUTH_CONTRACT.md`
 - [x] T6c Adapt Java + frontend tests to the envelope; suite green; commit T6
-- [ ] T8 Domain free of tooling + ArchUnit rule
+- [x] T8 Domain free of tooling + ArchUnit rule
 - [ ] T4 ACID: `DataSourceUtils` in adapters, `@Transactional` replaces manual commit/rollback (12 files)
 - [ ] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
 - [ ] T3 Push instead of poll: V41 triggers, LISTEN listener + Resilience4j backoff, status bus, SSE, frontend stream reader, remove hand-rolled sleeps, Hikari boot timeout
@@ -212,6 +212,29 @@ Builds: backend `clean compile` exit 0 (0 `ERROR]`), `VITE_API_BASE_URL=http://l
 
 **Commits**: 8373b10 `feat(api)`, e155d05 `feat(frontend)`, 8f1cdda `chore(api-consumers)`, 86d9bce `docs(api)` (`docs/openapi.yaml` is in the first commit because backend tests read it).
 
+### T8 evidence
+
+Baseline 3119 / 0 / 0 / 7. `mvn clean test` after each unit (BUILD SUCCESS every time):
+
+| Unit | Commit | Tests |
+|---|---|---|
+| 1 `refactor(ports): translate SQLException into a domain exception` | 99a0546 | 3119 / 0 / 0 / 7 |
+| 2 `refactor(json): move Jackson mappers out of the domain` | 06b762f | 3119 / 0 / 0 / 7 |
+| 3 `refactor(classification): load sites through a port` | ba3e0a1 | 3119 / 0 / 0 / 7 |
+| 4 `refactor(config): wire domain services as beans and schedulers as adapters` | 45c0a8a | 3120 / 0 / 0 / 7 (+1: `ningunMetodoBeanPideUnNoBean`) |
+| 5 `test(arch): forbid tooling imports in domain packages` | ccdfefc | 3121 / 0 / 0 / 7 (+1: `dominioSinHerramientas`) |
+
+`dominioSinHerramientas` found zero violations after unit 4; negative control: an `@Component` on `model.PersistenciaException` turns it red, reverted. No assertion was deleted, weakened or `@Disabled`.
+
+**Boot check** (after unit 4; `clean package -DskipTests`, `java -jar` on JRE 21, profile `dev`, dev DB): `Started App in 4.803 seconds`; the only WARN is `UserDetailsServiceAutoConfiguration`; no ERROR; `GET /` 200 `{"data":{"service":"fashion-scraper-api","status":"ok"}}`; `GET /api/status` without a token 401. The first two attempts died on missing env (`AUTH_JWT_SECRET`, then `ADMIN_BOOTSTRAP_USERNAME`), not on code; the run used throwaway secrets and the existing `admin`/`cli` accounts (seeding is `ON CONFLICT DO NOTHING`, no new usuario rows). Cron jobs 3 and 4 were set `enabled=false` for the boot and back to `true` afterwards; their `last_run_at`/`next_run_at` are unchanged; no scrape_run was created (latest ids 33/34 still CANCELLED).
+
+**Deviations from the plan**
+- Unit 1: adapters translate through a private `xxxSql` method plus a public wrapper using the new `db.Sql.traducir` helper, instead of editing every body. `DbAdminEndpoints` does not catch `PersistenciaException`: only `FavoritosProtegidosException` is caught, any other one propagates to the advice as the generic 500 (same result as the old `IllegalStateException`). `limpiarProductos` now rolls back on `SQLException | RuntimeException`.
+- Unit 3: `SiteRegistry` kept `@Component` until unit 4 (it moved to `ClassificationConfig` there). `forTesting` builds the registry over a fixed `SiteSource`.
+- Unit 4: the DatabaseService fixture is `ar.scraper.db.TestDatabaseServices` (src/test, same package, not `db.support`) because the repositories are package-private. `DatabaseService` gained a `RubroResolver` ctor param and a `rubroResolver()` accessor; `ProductRepository` takes the bean; `AgentEndpoints` receives `db.rubroResolver()` from `ApiController` (the existing accessor pattern) and no longer builds it lazily. `ApiControllerAgentTest` stubs `db.rubroResolver()` instead of `db.siteRegistry()`. `CronApiControllerTest` was left mocking `CronJobService` (still works). `unBeanConVariosConstructoresMarcaCual` needed no skip: it only scans `@Component` classes, and `@Bean`-produced classes are not in that list. Added one more wiring test (`ningunMetodoBeanPideUnNoBean`). `identity/` moved to `security/` (arch lists still name `ar.scraper.identity..` as forbidden, harmless).
+- Docs updated in the same commits: `docs/STRUCTURE.md`, `docs/ARCHITECTURE.md`, `docs/LLM_EMBED.md`.
+- `ar.scraper.json` and `ar.scraper.ml` (the two moved ports) are outside the domain list; `CronJobRunner` still imports logback (not in the banned set).
+
 ## Next step
 
-T8: domain free of tooling + ArchUnit rule.
+T4: ACID with `DataSourceUtils` in adapters and `@Transactional` (12 files).

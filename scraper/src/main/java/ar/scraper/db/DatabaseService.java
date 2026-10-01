@@ -1,11 +1,12 @@
 package ar.scraper.db;
 
+import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.CategoriaStats;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
-import ar.scraper.catalog.CategoriaStatsPort;
-import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.ml.CategoriaStatsPort;
+import ar.scraper.ml.MlOutputPort;
 import ar.scraper.classification.SitiosPort;
 import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.catalog.CatalogQueryPort;
@@ -36,11 +37,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
-import java.sql.SQLException;
 import java.util.*;
 
 /**
@@ -88,43 +87,10 @@ public class DatabaseService {
     private final CatalogQueryPort catalogQueryPort;
     private final ScrapeRunPort scrapeRunPort;
     private final SiteRegistry siteRegistry;
+    private final RubroResolver rubroResolver;
 
-    /**
-     * Backward-compatible overload for the ~46 existing test call sites that
-     * construct {@code DatabaseService} without a {@link SiteRegistry} — each
-     * gets its own private instance, backed by the same {@code DataSource},
-     * rather than the single Spring-managed singleton production wiring
-     * shares (close-1nf-and-3nf-foundation extension, design E1). None of
-     * those tests exercise cross-refresh behavior (a POST/DELETE
-     * {@code /api/sitios} elsewhere becoming visible here), so a private
-     * instance is behaviorally identical to them.
-     */
-    public DatabaseService(DataSource dataSource) {
-        this(dataSource, new SiteRegistry(dataSource));
-    }
-
-    /**
-     * Delegating ctor: builds {@code CatalogQueryRepository}/{@code ProductRepository}
-     * here, sharing the ONE {@link SiteRegistry} the 1-arg overload just created,
-     * instead of each repository resolving its own (extract-catalog-query-port).
-     */
-    private DatabaseService(DataSource dataSource, SiteRegistry siteRegistry) {
-        this(dataSource, siteRegistry, new CronRepository(dataSource),
-                new FavoritosRepository(dataSource), new PresetRepository(dataSource),
-                new HistorialRepository(dataSource),
-                new CatalogQueryRepository(dataSource, siteRegistry),
-                new ProductRepository(dataSource, siteRegistry),
-                new CategoriaStatsRepository(dataSource), new MlOutputRepository(dataSource),
-                new ScrapeRunRepository(dataSource),
-                new SitiosRepository(dataSource, siteRegistry),
-                new FeedbackRepository(dataSource), new SavedOutfitsRepository(dataSource),
-                new SavedPcsRepository(dataSource),
-                new PreferenciaArmadorRepository(dataSource),
-                new PreciosExternosRepository(dataSource));
-    }
-
-    @Autowired
-    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, CronPort cronPort,
+    public DatabaseService(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
+            CronPort cronPort,
             FavoritosPort favoritosPort, PresetPort presetPort, HistorialPort historialPort,
             CatalogQueryPort catalogQueryPort, ProductPort productPort,
             CategoriaStatsPort categoriaStatsPort, MlOutputPort mlOutputPort,
@@ -135,6 +101,7 @@ public class DatabaseService {
             PreciosExternosPort preciosExternosPort) {
         this.dataSource = dataSource;
         this.siteRegistry = siteRegistry;
+        this.rubroResolver = rubroResolver;
         this.cronPort = cronPort;
         this.favoritosPort = favoritosPort;
         this.presetPort = presetPort;
@@ -154,6 +121,10 @@ public class DatabaseService {
 
     public SiteRegistry siteRegistry() {
         return siteRegistry;
+    }
+
+    public RubroResolver rubroResolver() {
+        return rubroResolver;
     }
 
     /** Accessor for {@code web} consumers built by hand (not Spring beans) that still
@@ -383,54 +354,52 @@ public class DatabaseService {
     /** Opens a run and enrolls its sites as PENDING, in one transaction. */
     public long crearScrapeRun(java.util.UUID scrapeUuid, java.time.Instant startedAt,
                                java.util.UUID triggeredBy, Long cronJobId,
-                               java.util.Collection<String> sitios) throws SQLException {
+                               java.util.Collection<String> sitios) {
         return scrapeRunPort.crear(scrapeUuid, startedAt, triggeredBy, cronJobId, sitios);
     }
 
-    public void marcarSitioEnCurso(long runId, String sitio, java.time.Instant cuando)
-            throws SQLException {
+    public void marcarSitioEnCurso(long runId, String sitio, java.time.Instant cuando) {
         scrapeRunPort.marcarSitioEnCurso(runId, sitio, cuando);
     }
 
     public void marcarSitioTerminado(long runId, String sitio, String status, int productosCount,
-                                     String error, java.time.Instant cuando) throws SQLException {
+                                     String error, java.time.Instant cuando) {
         scrapeRunPort.marcarSitioTerminado(runId, sitio, status, productosCount, error, cuando);
     }
 
     public void finalizarScrapeRun(long runId, String status, int productosCount,
-                                   java.time.Instant finishedAt) throws SQLException {
+                                   java.time.Instant finishedAt) {
         scrapeRunPort.finalizar(runId, status, productosCount, finishedAt);
     }
 
     /** Marks whatever the previous process left open. Only marks — never starts a scrape. */
-    public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) throws SQLException {
+    public java.util.List<Long> marcarRunsInterrumpidos(java.time.Instant cuando) {
         return scrapeRunPort.marcarInterrumpidosAlArrancar(cuando);
     }
 
     /** La corrida que dejó abierta un proceso muerto, con sus sitios ya separados. */
-    public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida()
-            throws SQLException {
+    public java.util.Optional<CorridaInterrumpida> ultimaCorridaInterrumpida() {
         return scrapeRunPort.ultimaInterrumpida();
     }
 
     /** Reabre una corrida interrumpida EN SU LUGAR, conservando su started_at. */
-    public void reabrirScrapeRun(long runId) throws SQLException {
+    public void reabrirScrapeRun(long runId) {
         scrapeRunPort.reabrir(runId);
     }
 
     /** Marca SKIPPED los sitios pendientes que ya no están en el registro y los devuelve. */
     public java.util.List<String> marcarSitiosAusentesDelRegistro(
-            long runId, java.util.Collection<String> nombresActuales) throws SQLException {
+            long runId, java.util.Collection<String> nombresActuales) {
         return scrapeRunPort.marcarAusentesDelRegistro(runId, nombresActuales);
     }
 
     /** The reader-isolation bound for a run. Truncated to the second — see the repository. */
-    public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) throws SQLException {
+    public java.util.Optional<java.time.Instant> startedAtDeRun(long runId) {
         return scrapeRunPort.startedAtDe(runId);
     }
 
     /** Whether the reader bound may apply at all — see the repository for why COMPLETED. */
-    public boolean existeCorridaCompletada() throws SQLException {
+    public boolean existeCorridaCompletada() {
         return scrapeRunPort.existeCorridaCompletada();
     }
 
@@ -691,11 +660,11 @@ public class DatabaseService {
 
     // ─── Clear methods ───────────────────────────────────────────────────────
 
-    public void limpiarProductos() throws SQLException {
+    public void limpiarProductos() {
         productPort.limpiarProductos();
     }
 
-    public void limpiarMlOutput() throws SQLException {
+    public void limpiarMlOutput() {
         mlOutputPort.limpiarMlOutput();
     }
 

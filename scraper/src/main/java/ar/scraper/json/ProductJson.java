@@ -1,5 +1,6 @@
-package ar.scraper.catalog;
+package ar.scraper.json;
 
+import ar.scraper.catalog.ProductKey;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;

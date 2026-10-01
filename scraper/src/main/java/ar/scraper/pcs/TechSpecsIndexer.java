@@ -1,7 +1,6 @@
 package ar.scraper.pcs;
 
 import ar.scraper.model.Product;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
@@ -13,7 +12,6 @@ import org.apache.commons.lang3.StringUtils;
  * reads through here — it keeps reading specs off the snapshot (D3d); this
  * class only feeds the future {@code /catalogo} specs filter (D3c).
  */
-@Component
 public class TechSpecsIndexer {
 
     private final TechSpecsPort port;

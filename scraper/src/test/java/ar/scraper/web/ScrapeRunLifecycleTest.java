@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.scrape.ScraperStatus;
 
 import ar.scraper.aggregator.ResultAggregator;
@@ -54,7 +55,7 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         service = new ScraperService(
                 Mockito.mock(ScraperConfig.class),
                 Mockito.mock(ResultAggregator.class),
@@ -124,7 +125,7 @@ class ScrapeRunLifecycleTest extends PostgresTestBase {
                 Mockito.mock(ScraperConfig.class), Mockito.mock(ResultAggregator.class),
                 Mockito.mock(ar.scraper.scrape.ScrapeRunPort.class),
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
-                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.ml.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class),
                 Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));

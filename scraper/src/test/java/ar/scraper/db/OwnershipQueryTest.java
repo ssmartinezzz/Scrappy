@@ -47,7 +47,7 @@ class OwnershipQueryTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() throws Exception {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
         usuarios = new UsuarioRepository(dataSource());
 
         ana = crear("ana", "VIEWER");

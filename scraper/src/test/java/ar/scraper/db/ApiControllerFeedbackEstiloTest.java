@@ -71,7 +71,7 @@ class ApiControllerFeedbackEstiloTest extends PostgresTestBase {
 
     @Step("Wire ApiController with a real temp-file DatabaseService and mocked collaborators")
     private void wireController() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
 
         service                                     = mock(ScraperService.class);
         IndiceService indiceService           = mock(IndiceService.class);

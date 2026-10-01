@@ -2,8 +2,8 @@ package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.ProductPort;
-import ar.scraper.catalog.CategoriaStatsPort;
-import ar.scraper.catalog.MlOutputPort;
+import ar.scraper.ml.CategoriaStatsPort;
+import ar.scraper.ml.MlOutputPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
 import ar.scraper.ml.PythonRunner;

@@ -39,7 +39,7 @@ class DatabaseServiceBadgeRoundTripTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        db = new DatabaseService(dataSource());
+        db = TestDatabaseServices.create(dataSource());
     }
 
     private Product productoConBadges(String url, List<String> badges) {

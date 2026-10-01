@@ -1,5 +1,6 @@
 package ar.scraper.db.migration;
 
+import ar.scraper.db.TestDatabaseServices;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.db.support.PostgresTestBase;
@@ -141,7 +142,7 @@ class V40CatalogVersionTest extends PostgresTestBase {
     @Test
     @DisplayName("El upsert sigue reportando nuevos() > 0 — el trigger no lo swallowea como '0 nuevos'")
     void elUpsertSigueReportandoNuevos() {
-        DatabaseService db = new DatabaseService(dataSource());
+        DatabaseService db = TestDatabaseServices.create(dataSource());
         UpsertStats stats = db.upsertProductos(
                 List.of(productoConTallesYBadges("https://v40.test/nuevos", "Remera", "Sitio40")), null);
         assertThat(stats.nuevos()).isGreaterThan(0);
@@ -170,7 +171,7 @@ class V40CatalogVersionTest extends PostgresTestBase {
     }
 
     private void upsert(Product... productos) {
-        new DatabaseService(dataSource()).upsertProductos(List.of(productos), null);
+        TestDatabaseServices.create(dataSource()).upsertProductos(List.of(productos), null);
     }
 
     private Product producto(String url, String nombre, String sitio) {

@@ -2,9 +2,6 @@ package ar.scraper.scheduling;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.scheduling.support.CronExpression;
-import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -25,16 +22,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code ScheduledFuture}s, así que un reinicio del proceso es transparente
  * (ver ADR-1, {@code sdd/scraper-cronjobs/design}).
  *
- * <p>{@link #tick()} corre cada 30s ({@code @Scheduled(fixedDelay = 30000)}).
+ * <p>{@link #tick()} lo invoca cada 30s el adaptador {@code config.CronTicker}.
  * NO bloquea: cada job vencido se despacha en un hilo virtual vía
  * {@link #dispatchAsync(CronJob)}, así que {@code tick()} retorna de
  * inmediato y el único hilo scheduler de Spring queda libre para las demás
- * tareas {@code @Scheduled} (p.ej. el fetch diario de las 8am de
+ * tareas programadas (p.ej. el fetch diario de las 8am de
  * {@code IndiceRefreshJob}) sin que un scraping largo las retrase.
  * {@code next_run_at} se recalcula/persiste dentro de ese mismo hilo virtual,
  * al terminar cada job (éxito, error o excepción).</p>
  */
-@Service
 public class CronJobService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CronJobService.class);
@@ -50,45 +46,39 @@ public class CronJobService {
     private final CronPort db;
     private final CronJobRunner runner;
     private final Clock clock;
+    private final CronSchedule schedule;
 
     /** Evita disparar el mismo job dos veces si un tick tarda más que el intervalo. */
     private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
 
-    public CronJobService(CronPort db, CronJobRunner runner, Clock clock) {
+    public CronJobService(CronPort db, CronJobRunner runner, Clock clock, CronSchedule schedule) {
         this.db = db;
         this.runner = runner;
         this.clock = clock;
+        this.schedule = schedule;
     }
 
     // ── nextRunAt (pure) ─────────────────────────────────────────────────────
 
     /**
      * Calcula el próximo disparo ISO ({@code LocalDateTime.toString()}) para
-     * {@code cronExpr} (formato Spring de 6 campos, igual que
-     * {@code @Scheduled(cron=...)}) a partir de {@code from}. Lanza
-     * {@link IllegalArgumentException} si {@code cronExpr} es inválido
-     * (comportamiento nativo de {@link CronExpression#parse}).
+     * {@code cronExpr} (formato Spring de 6 campos) a partir de {@code from}.
+     * Lanza {@link IllegalArgumentException} si {@code cronExpr} es inválido.
      */
     public String computeNextRun(String cronExpr, ZonedDateTime from) {
-        CronExpression expr = CronExpression.parse(cronExpr);
-        ZonedDateTime next = expr.next(from);
+        ZonedDateTime next = schedule.nextRun(cronExpr, from);
         return next != null ? next.toLocalDateTime().format(ISO_SECONDS) : null;
     }
 
     /**
-     * Versión no-throwing de {@link CronExpression#parse} — usada por
+     * Versión no-throwing de {@link #computeNextRun} — usada por
      * {@code CronApiController} para validar {@code cronExpr} en create/update
      * y devolver 400 en vez de dejar propagar un {@link IllegalArgumentException}
      * como 500. Válido independientemente de {@code enabled} (un job deshabilitado
      * puede habilitarse más adelante con la misma expresión).
      */
     public boolean isValidCronExpr(String cronExpr) {
-        try {
-            CronExpression.parse(cronExpr);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        return schedule.isValid(cronExpr);
     }
 
     // ── CRUD facade ──────────────────────────────────────────────────────────
@@ -109,7 +99,6 @@ public class CronJobService {
 
     // ── Poller ───────────────────────────────────────────────────────────────
 
-    @Scheduled(fixedDelay = 30_000)
     public void tick() {
         ZonedDateTime now = ZonedDateTime.now(clock);
         for (CronJob job : dueJobs(db.listCronJobs(), now)) {

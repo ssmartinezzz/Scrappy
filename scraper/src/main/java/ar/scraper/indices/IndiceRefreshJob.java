@@ -1,14 +1,6 @@
 package ar.scraper.indices;
 
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-
-// ApplicationRunner, not @PostConstruct: DatabaseService owns its own pool, so it is
-// the only hook Spring guarantees to run after Flyway has applied V33.
-@Component
-public class IndiceRefreshJob implements ApplicationRunner {
+public class IndiceRefreshJob {
 
     private final IndiceService service;
 
@@ -16,13 +8,11 @@ public class IndiceRefreshJob implements ApplicationRunner {
         this.service = service;
     }
 
-    @Override
-    public void run(ApplicationArguments args) {
+    public void alArrancar() {
         service.cargarDesdeDB();
         Thread.ofVirtual().start(service::refrescar);
     }
 
-    @Scheduled(cron = "0 0 8 * * *")
     public void diario() {
         Thread.ofVirtual().start(service::refrescar);
     }

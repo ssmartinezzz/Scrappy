@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.web.support.Wire;
+import ar.scraper.model.PersistenciaException;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -27,7 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +45,7 @@ class ApiControllerStatusScrapeTest {
     private ScraperConfig config;
     private ResultAggregator aggregator;
     private DatabaseService db;
-    private ar.scraper.catalog.MlOutputPort mlOutput;
+    private ar.scraper.ml.MlOutputPort mlOutput;
     private ProductPort productos;
     private GroupingService grouping;
     private PythonRunner pythonRunner;
@@ -65,7 +65,7 @@ class ApiControllerStatusScrapeTest {
         config                = mock(ScraperConfig.class);
         aggregator            = mock(ResultAggregator.class);
         db                    = mock(DatabaseService.class);
-        mlOutput              = mock(ar.scraper.catalog.MlOutputPort.class);
+        mlOutput              = mock(ar.scraper.ml.MlOutputPort.class);
         when(db.mlOutput()).thenReturn(mlOutput);
         productos             = mock(ProductPort.class);
         when(db.productos()).thenReturn(productos);
@@ -208,7 +208,7 @@ class ApiControllerStatusScrapeTest {
     @Test
     void limpiarProductosReturns500OnDbException() throws Exception {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
-        doThrow(new SQLException("DB error")).when(productos).limpiarProductos();
+        doThrow(new PersistenciaException("DB error")).when(productos).limpiarProductos();
 
         var resp = Wire.answer(() -> controller.limpiarProductos());
 
@@ -243,7 +243,7 @@ class ApiControllerStatusScrapeTest {
     @Test
     void limpiarMlReturns500OnDbException() throws Exception {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
-        doThrow(new SQLException("DB error")).when(mlOutput).limpiarMlOutput();
+        doThrow(new PersistenciaException("DB error")).when(mlOutput).limpiarMlOutput();
 
         var resp = Wire.answer(() -> controller.limpiarMl());
 

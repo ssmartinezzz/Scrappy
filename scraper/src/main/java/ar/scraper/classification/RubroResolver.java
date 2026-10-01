@@ -1,7 +1,6 @@
 package ar.scraper.classification;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Component;
 
 /**
  * Determina el rubro (tecnologia/suplementos/oficina/indumentaria) de un producto.
@@ -36,7 +35,6 @@ import org.springframework.stereotype.Component;
  * {@code esCategoriaSuplemento}, donde la categoría sí manda porque un
  * suplemento es un suplemento lo venda quien lo venda.</p>
  */
-@Component
 public class RubroResolver {
 
     private final SiteRegistry siteRegistry;

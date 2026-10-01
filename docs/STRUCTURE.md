@@ -52,15 +52,15 @@ Scrappy/
     └── src/main/
         ├── java/ar/scraper/
         │   ├── App.java                    ← Entry point Spring Boot
-        │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard
+        │   ├── config/                     ← ScraperConfig, RequiredEnvVarsGuard, un *Config por área que
+        │   │                                  arma sus servicios de dominio con @Bean, y los adaptadores
+        │   │                                  de Spring (CronTicker, IndiceRefreshRunner, SpringCronSchedule)
         │   ├── model/Product.java          ← Record de 19 campos (kernel compartido)
         │   ├── catalog/                    ← área: CatalogFilter/Page/Resumen, Facets, TalleOrder,
         │   │                                  HistorialEntry, HistorialPort, UpsertStats,
-        │   │                                  CatalogQueryPort, ProductPort, CategoriaStatsPort,
-        │   │                                  MlOutputPort, PreciosExternosPort (los seis puertos
-        │   │                                  los implementan @Repository package-private en db/)
-        │   │                                  + ProductJson, ProductKey, HistorialJson (json de borde,
-        │   │                                  movidos de web/ en F3b)
+        │   │                                  CatalogQueryPort, ProductPort,
+        │   │                                  PreciosExternosPort (los puertos los implementan
+        │   │                                  @Repository package-private en db/) + ProductKey
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
         │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
         │   │                                  implementa un @Repository package-private en db/)
@@ -77,8 +77,9 @@ Scrappy/
         │   │                                  @Repository package-private en db/)
         │   ├── indices/                    ← área: Indice, PuntoIndice, Confianza, Deflactor, Serie,
         │   │                                  DeflactorPorRubro, Extrapolador, IndiceService (único
-        │   │                                  entry point para ml/ y web/) + IndiceRefreshJob (ApplicationRunner,
-        │   │                                  NUNCA @PostConstruct: corre después de Flyway),
+        │   │                                  entry point para ml/ y web/) + IndiceRefreshJob (lo dispara
+        │   │                                  config.IndiceRefreshRunner, un ApplicationRunner: NUNCA
+        │   │                                  @PostConstruct, corre después de Flyway),
         │   │                                  ResumenIndice, IndicePort/FuenteIndicePort — reemplaza a
         │   │                                  InflacionService (ver Gotchas → Índices y señales)
         │   ├── feedback/                    ← área: OutfitItemRow, FeedbackPort — outfit_feedback_item
@@ -89,7 +90,6 @@ Scrappy/
         │   │                                  SupplementCombo, SupplementSizeParser (movidos de web/
         │   │                                  en F3b) + SavedOutfitsPort (lo implementa un
         │   │                                  @Repository package-private en db/)
-        │   ├── identity/                   ← área: ActorResolver + Sujeto (movido de web/ en F3b)
         │   ├── pcs/                        ← área: TechSpecs + specs/ (un lector por categoría, fase 1/6),
         │   │                                  PcBuilder + SlotDeArmado + reglas/ + EjesTecnicos (fases 2/6),
         │   │                                  Gama, GamaWire, PreferenciaArmadorPort, TechSpecsPort,
@@ -103,12 +103,16 @@ Scrappy/
         │   │   │                               SubcategoryResolver, GymratTagger
         │   │   ├── grouping/               ←   GroupingService, ProductIdentity, JaccardSimilarity
         │   │   └── text/AccentStripper     ←   hot path: 10 clases lo usan
-        │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator
+        │   ├── json/                       ← ProductJson, HistorialJson, PcBuildJson (Jackson de borde;
+        │   │                                  el dominio no importa Jackson)
+        │   ├── ml/                         ← PythonRunner, MlEnricher, SenalCalculator, MlOutputPort,
+        │   │                                  CategoriaStatsPort (puertos con JsonNode)
         │   ├── agent/                      ← LLM Catalog Agent (ChatProvider + tools)
         │   ├── health/SiteYieldGuard       ← detecta colapso por sitio vs. la corrida previa
         │   ├── security/                   ← PasswordHasher (Argon2id), TokenService (HS256),
         │   │                                  RefreshTokenService (rotación + reuso), RefreshCookie,
         │   │                                  AdminSeeder (siembra + adopción)
+        │   │                                  ActorResolver + Sujeto (quién actúa; ex identity/),
         │   │                                  ApiRoutePolicy (la matriz, como dato),
         │   │                                  SecurityConfig + JwtAuthFilter (el gate)
         │   │   └── reset/                 ←   PasswordResetService, ResetRateLimiter,

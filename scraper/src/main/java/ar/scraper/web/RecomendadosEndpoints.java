@@ -2,8 +2,8 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.model.Product;
-import ar.scraper.catalog.ProductJson;
-import ar.scraper.identity.Sujeto;
+import ar.scraper.json.ProductJson;
+import ar.scraper.security.Sujeto;
 import ar.scraper.outfits.FeedbackModels;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.api.ApiException;
@@ -32,12 +32,12 @@ class RecomendadosEndpoints {
     private final ScraperService service;
     private final ar.scraper.feedback.FeedbackPort feedback;
     private final RecommendationService recommendationService;
-    private final ar.scraper.identity.ActorResolver actorResolver;
+    private final ar.scraper.security.ActorResolver actorResolver;
 
     RecomendadosEndpoints(ScraperService service,
                           ar.scraper.feedback.FeedbackPort feedback,
                           RecommendationService recommendationService,
-                          ar.scraper.identity.ActorResolver actorResolver) {
+                          ar.scraper.security.ActorResolver actorResolver) {
         this.service = service;
         this.feedback = feedback;
         this.recommendationService = recommendationService;

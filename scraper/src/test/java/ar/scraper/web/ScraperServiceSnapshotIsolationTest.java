@@ -65,7 +65,7 @@ class ScraperServiceSnapshotIsolationTest {
         return new ScraperService(Mockito.mock(ScraperConfig.class), aggregator,
                 scrapeRun,
                 Mockito.mock(ar.scraper.classification.SitiosPort.class),
-                Mockito.mock(ar.scraper.catalog.MlOutputPort.class),
+                Mockito.mock(ar.scraper.ml.MlOutputPort.class),
                 Mockito.mock(ar.scraper.classification.SiteRegistry.class),
                 Mockito.mock(ar.scraper.catalog.ProductPort.class),
                 Mockito.mock(ar.scraper.pcs.TechSpecsIndexer.class));
