@@ -43,7 +43,7 @@ if (hasBroadcastChannel) {
   }
 }
 
-const tabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const tabId = `${Date.now()}-${crypto.getRandomValues(new Uint32Array(2)).join('')}`;
 // This tab's own advertisement, held for as long as it has a session. The
 // name carries only tabId — never token data — so query() can tell "someone
 // holds a session" from the name alone, without reading lock contents (Web
