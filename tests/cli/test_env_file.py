@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import pytest
+
 from cli.core.env_file import SECRET_KEYS, generate_env, parse_env
 
 EXAMPLE = """\
@@ -166,3 +168,13 @@ def test_secrets_never_echoed_in_logs(tmp_path: Path, caplog):
     for record in caplog.records:
         assert secret_value not in record.getMessage()
     assert "DATABASE_PASSWORD" in SECRET_KEYS
+
+
+def test_refuses_to_write_an_env_outside_the_example_directory(tmp_path: Path):
+    example = _write_example(tmp_path)
+    fuera = tmp_path.parent / f"{tmp_path.name}-fuera" / ".env"
+
+    with pytest.raises(ValueError):
+        generate_env(example, fuera, COMPUTED, force=True)
+
+    assert not fuera.exists()

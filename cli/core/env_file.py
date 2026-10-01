@@ -153,6 +153,8 @@ def generate_env(
       schema but absent from `.env`; every existing key/value is left
       byte-identical (never touched, never reordered, never rewritten).
     """
+    if env_path.resolve().parent != example_path.resolve().parent:
+        raise ValueError(f"{env_path} is not next to its template {example_path}")
     schema = parse_keys(example_path)
 
     if force or not env_path.is_file():
