@@ -6,7 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Error envelope: {@code {"error": {"code", "message"}}}. */
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,7 +29,9 @@ public class ApiError {
     public static class Detail {
         private String code;
         private String message;
-        /** Optional machine-readable context (e.g. the current state on a stale-write conflict). */
+        /**
+         * Optional machine-readable context (e.g. the current state on a stale-write conflict).
+         */
         private Object details;
     }
 }

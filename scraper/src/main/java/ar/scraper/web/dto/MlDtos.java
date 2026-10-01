@@ -7,7 +7,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Payloads of the ML pipeline and training endpoints. */
 public final class MlDtos {
 
     private MlDtos() {}
@@ -24,7 +23,6 @@ public final class MlDtos {
     public static class Estado {
         private boolean hasTextModel;
         private boolean hasImageModel;
-        /** Contents of {@code _models/text_meta.json}, produced by the Python trainer. */
         private JsonNode textMeta;
         private Training training;
         private long embeddingsCount;

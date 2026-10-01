@@ -3,12 +3,7 @@ package ar.scraper.pcs.reglas;
 import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
 
-/**
- * SODIMM is notebook memory. Unlike every other rule here, {@code
- * tipoMemoria} is never an abstention (D6, pc-builder-deep-taxonomy) — {@link
- * ar.scraper.pcs.specs.RamSpecsReader} always asserts "SODIMM" or "DIMM" — so
- * this vetoes unconditionally, with no both-sides-parsed guard.
- */
+/** SODIMM is notebook memory. */
 public class ReglaSodimm implements ReglaCompatibilidad {
 
     @Override

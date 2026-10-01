@@ -30,8 +30,8 @@ public class ResultAggregator {
     private final MlEnricher           mlEnricher;
     private final SenalEnricher        senalEnricher;
     private final FinanciacionEnricher financiacionEnricher;
-    // Declared dual dependency (extract-catalog-query-port, D6): guardarMlOutput/
-    // guardarCategoriaStats below belong to repositories out of this slice's scope.
+    // Declared dual dependency: guardarMlOutput/ guardarCategoriaStats below belong to repositories
+    // out of this slice's scope.
     // upsertProductos/cargarClasificacionBloqueada/actualizarCategoria/cargarProductos/
     // actualizarNormalizacion/estaBloqueado go through ProductPort instead.
     private final MlOutputPort         mlOutput;
@@ -60,8 +60,6 @@ public class ResultAggregator {
         this.productos           = productos;
     }
 
-    // ─── Accessors ───────────────────────────────────────────────────────────
-
     public JsonNode             getLastMlOutput()    { return lastMlOutput; }
     public void                 setLastMlOutput(JsonNode n) { lastMlOutput = n; }
     public void                 clearMlOutput()      { this.lastMlOutput = null; }
@@ -70,9 +68,6 @@ public class ResultAggregator {
     public PythonRunner         getPythonRunner()    { return pythonRunner; }
     public FinanciacionEnricher financiacionEnricher() { return financiacionEnricher; }
 
-    // ─── Records ─────────────────────────────────────────────────────────────
-
-    /** Per-site extraction quality counters produced by {@link #agregar}. */
     public record ExtractionStats(String sitio, int total, int valid, int misses) {}
 
     public record AggregatedResult(
@@ -84,7 +79,6 @@ public class ResultAggregator {
             double                       maxPrecio,
             Map<String, ExtractionStats> statsPorSitio
     ) {
-        /** Legacy 6-arg constructor — defaults statsPorSitio to empty map for backward compatibility. */
         public AggregatedResult(List<Product> productos, Map<String, Integer> conteoPorSitio,
                                 Map<String, String> erroresPorSitio, Facets facets,
                                 double minPrecio, double maxPrecio) {
@@ -92,16 +86,12 @@ public class ResultAggregator {
         }
     }
 
-    // ─── Aggregation ─────────────────────────────────────────────────────────
-
-    /** A product is valid iff nombre is non-blank, precio > 0, and url is non-blank. */
     private static boolean isValid(Product p) {
         return StringUtils.isNotBlank(p.nombre())
                 && p.precio() > 0
                 && StringUtils.isNotBlank(p.url());
     }
 
-    /** Output of {@link #validarYContar}: per-site raw counts, errors, extraction stats, and the flattened list of valid products. */
     private record ValidationResult(
             Map<String, Integer>         conteo,
             Map<String, String>          errores,
@@ -109,7 +99,10 @@ public class ResultAggregator {
             List<Product>                todos
     ) {}
 
-    /** Output of {@link #ejecutarPipelineMl}: the pre-ML normalized list, the post-ML enriched list, and the raw ML output node. */
+    /**
+     * Output of {@link #ejecutarPipelineMl}: the pre-ML normalized list, the post-ML enriched list,
+     * and the raw ML output node.
+     */
     private record MlPipelineResult(
             List<Product> normalizados,
             List<Product> enriquecidos,
@@ -121,15 +114,8 @@ public class ResultAggregator {
     }
 
     /**
-     * Igual, informando el {@code started_at} de la corrida para que el
-     * soft-delete se acote a lo que ella tocó y no a este batch (design D4).
-     *
-     * <p>El batch es la mitad reanudada cuando la corrida se retoma, así que
-     * sin este dato el barrido deja de cubrir los sitios de la mitad
-     * interrumpida y sus filas viejas quedan activas para siempre.</p>
-     *
-     * @param corrida {@code null} cuando no hay corrida persistida — el
-     *                alcance vuelve a derivarse del batch, como antes.
+     * Igual, informando el {@code started_at} de la corrida para que el soft-delete se acote a lo
+     * que ella tocó y no a este batch.
      */
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain,
                                     ar.scraper.scrape.CorridaEnCurso corrida) {
@@ -147,23 +133,18 @@ public class ResultAggregator {
 
         List<Product> conFinanciacion = enriquecerSenalYFinanciacion(pipeline.enriquecidos());
 
-        // Facets, stats
         Facets facets = calcularFacets(conFinanciacion);
         double minP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
         double maxP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
 
         LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", validacion.todos().size(), conFinanciacion.size());
 
-        // Entrenamiento background post-scraping. No filesystem DB path to
-        // resolve anymore (decouple-services-postgres Batch 3, task 3.6) —
-        // the subprocess reads DATABASE_URL from its own env.
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(forceRetrain);
 
         return new AggregatedResult(conFinanciacion, validacion.conteo(), validacion.errores(), facets, minP, maxP, validacion.stats());
     }
 
-    /** Filters valid products per site, tallies raw counts/errors/extraction stats, and flattens the valid subset. */
     private ValidationResult validarYContar(List<ScrapeResult> resultados) {
         Map<String, Integer>         conteo  = new LinkedHashMap<>();
         Map<String, String>          errores = new LinkedHashMap<>();
@@ -173,7 +154,7 @@ public class ResultAggregator {
         for (ScrapeResult r : resultados) {
             List<Product> valid  = r.productos().stream().filter(ResultAggregator::isValid).toList();
             int           misses = r.productos().size() - valid.size();
-            conteo.put(r.sitio(), r.productos().size());   // RAW count unchanged
+            conteo.put(r.sitio(), r.productos().size());
             stats.put(r.sitio(), new ExtractionStats(r.sitio(), r.productos().size(), valid.size(), misses));
             if (misses > 0)
                 LOG.warn("[METRICS] {}: {}/{} válidos ({} misses)", r.sitio(), valid.size(), r.productos().size(), misses);
@@ -184,7 +165,9 @@ public class ResultAggregator {
         return new ValidationResult(conteo, errores, stats, todos);
     }
 
-    /** Dedups by sitio + normalized nombre (first occurrence wins), then sorts ascending by precio. */
+    /**
+     * Dedups by sitio + normalized nombre (first occurrence wins), then sorts ascending by precio.
+     */
     private List<Product> deduplicarYOrdenar(List<Product> todos) {
         Map<String, Product> deduped = new LinkedHashMap<>();
         for (Product p : todos) {
@@ -197,20 +180,7 @@ public class ResultAggregator {
     }
 
     /**
-     * Runs Java-side normalization, then the Python ML pipeline (scoring +
-     * category refinement).
-     *
-     * <p>manual-classification-lock (design D4/D5, "Data Flow"): the lock map
-     * is read ONCE per run and applied via {@link #aplicarBloqueos} at TWO
-     * points — (1) before ML scoring, so a locked product is scored inside
-     * the human's own category peer group and
-     * {@link #persistirCategoriasRefinadas}'s diff stays truthful; (2) after
-     * stage-1b, because the visual classifier can override {@code categoria}
-     * on its own. SQL enforcement ({@code sp_upsert_run}'s CASE guards) is
-     * authoritative for persistence — this closes the separate gap where the
-     * in-memory {@code lastResult} snapshot (served directly by
-     * {@code GET /api/data}/{@code GET /api/mejores}) would otherwise show a
-     * reverted classification until the next restart.</p>
+     * (2) after stage-1b, because the visual classifier can override {@code categoria} on its own.
      */
     private MlPipelineResult ejecutarPipelineMl(List<Product> sorted) {
         Map<String, ClasificacionBloqueada> bloqueos = productos.cargarClasificacionBloqueada();
@@ -229,14 +199,9 @@ public class ResultAggregator {
     }
 
     /**
-     * Pure function: overrides {@code categoria}/{@code subCategoria}/
-     * {@code marca}/{@code genero}/{@code rubro} for every product whose
-     * {@code url} appears in {@code bloqueos}, keyed by url — every other
-     * field (precio, nombre, talles, ml, visual, etc.) is preserved verbatim.
-     * A {@code null} or empty lock map is a no-op (returns {@code productos}
-     * unchanged) — this keeps every {@code agregar()} call site backward
-     * compatible with a mocked {@code DatabaseService} that never stubs
-     * {@code cargarClasificacionBloqueada()}.
+     * A {@code null} or empty lock map is a no-op (returns {@code productos} unchanged) — this
+     * keeps every {@code agregar()} call site backward compatible with a mocked
+     * {@code DatabaseService} that never stubs {@code cargarClasificacionBloqueada()}.
      */
     static List<Product> aplicarBloqueos(List<Product> productos, Map<String, ClasificacionBloqueada> bloqueos) {
         if (bloqueos == null || bloqueos.isEmpty() || productos == null || productos.isEmpty()) {
@@ -259,11 +224,9 @@ public class ResultAggregator {
     }
 
     /**
-     * Snapshots pre-ML categoria from {@code normalizados} and diffs it against
-     * post-ML categoria in {@code enriquecidos} by url; persists only the deltas
-     * and updates {@link #lastCatRefinadas}. {@code Product} is immutable, so
-     * {@code normalizados} still holds pre-ML categorias after ML enrichment
-     * returns a new list — ordering is load-bearing (ADR-3).
+     * Snapshots pre-ML categoria from {@code normalizados} and diffs it against post-ML categoria
+     * in {@code enriquecidos} by url; persists only the deltas and updates
+     * {@link #lastCatRefinadas}.
      */
     private void persistirCategoriasRefinadas(List<Product> normalizados, List<Product> enriquecidos) {
         Map<String, String> catOriginal = new HashMap<>();
@@ -286,12 +249,10 @@ public class ResultAggregator {
         LOG.info("[ML] Categorías persistidas en DB: {}", catRefinadas);
     }
 
-    /** Precomputes buy-signal, then financing-signal (independent of buy-signal). */
     private List<Product> enriquecerSenalYFinanciacion(List<Product> enriquecidos) {
-        // Precompute señal de compra (post-upsert: requiere que el historial de
-        // precios de este run ya esté persistido en precio_historico)
+        // Precompute señal de compra (post-upsert: requiere que el historial de precios de este run
+        // ya esté persistido en precio_historico)
         List<Product> conSenal = senalEnricher.enriquecer(enriquecidos);
-        // Precompute señal de financiación (independiente de señal de compra)
         return financiacionEnricher.enriquecer(conSenal);
     }
 
@@ -299,14 +260,10 @@ public class ResultAggregator {
         return agregar(resultados, false);
     }
 
-    // ─── Facets ──────────────────────────────────────────────────────────────
-
     /**
-     * Delegates to {@link FacetCalculator} (Work Unit 9 extraction). Kept as a
-     * thin public static forward — not a "permanent test-only facade" in the
-     * ADR-2 sense, since it preserves a genuine external contract (~10 call
-     * sites across {@code ar.scraper.web} tests build {@link AggregatedResult}
-     * fixtures against this exact signature).
+     * Kept as a thin public static forward — not a "permanent test-only facade" in the ADR-2 sense,
+     * since it preserves a genuine external contract (~10 call sites across {@code ar.scraper.web}
+     * tests build {@link AggregatedResult} fixtures against this exact signature).
      */
     public static Facets calcularFacets(List<Product> productos) {
         return FacetCalculator.calcular(productos);
@@ -318,13 +275,8 @@ public class ResultAggregator {
     }
 
     /**
-     * Re-aplica las reglas actuales de {@link NormalizerService} sobre el
-     * catálogo YA persistido en la DB, sin re-scrapear (no toca internet, no
-     * usa Playwright). Cierra el gap entre "arreglamos una regla de
-     * clasificación" y "el catálogo guardado sigue con valores viejos hasta
-     * el próximo scrape". Pensado para correr automáticamente antes de cada
-     * entrenamiento de imagen con GPU, así el clasificador no aprende de
-     * etiquetas stale.
+     * Re-aplica las reglas actuales de {@link NormalizerService} sobre el catálogo YA persistido en
+     * la DB, sin re-scrapear (no toca internet, no usa Playwright).
      */
     public Map<String, Integer> renormalizarCatalogo() {
         List<Product> actuales      = productos.cargarProductos();
@@ -335,29 +287,19 @@ public class ResultAggregator {
         int categoriaCambiada = 0;
         int marcaCambiada     = 0;
 
-        // agent-chat-finetune WU2: escrituras* miden lo que REALMENTE se
-        // persistió (el row count real de actualizarNormalizacion), separado
-        // de categoriaCambiada/marcaCambiada arriba, que siguen siendo el
-        // diff INTENCIONAL detectado por NormalizerService (significado
-        // preservado a propósito — redefinir esas claves en silencio sería un
-        // defecto de silent-change nuevo). Antes de este fix, una excepción
-        // en el write se tragaba sin contarla en ningún lado, y un UPDATE de
-        // 0 filas no se distinguía de uno exitoso.
+        // Antes de este fix, una excepción en el write se tragaba sin contarla en ningún lado, y un
+        // UPDATE de 0 filas no se distinguía de uno exitoso.
         int escriturasIntentadas = 0;
         int escriturasAplicadas  = 0;
         int escriturasFallidas   = 0;
-        // manual-classification-lock: un producto bloqueado nunca llega a intentar
-        // el UPDATE — sp_upsert_run ya lo protege (backstop), pero sin este skip
-        // acá actualizarNormalizacion devolvería 0 filas y el WARN de arriba
-        // reportaría "escritura fallida" sobre algo que en realidad es el
-        // comportamiento CORRECTO (D5). Contado aparte, nunca en escriturasFallidas.
+        // Contado aparte, nunca en escriturasFallidas.
         int escriturasOmitidasPorBloqueo = 0;
 
         int n = Math.min(actuales.size(), renormalizados.size());
         for (int i = 0; i < n; i++) {
             Product antes  = actuales.get(i);
             Product ahora  = renormalizados.get(i);
-            if (antes.url() == null || !antes.url().equals(ahora.url())) continue; // safety: mismo índice, misma URL
+            if (antes.url() == null || !antes.url().equals(ahora.url())) continue;
 
             totalRevisados++;
             String catAntes = antes.categoria() != null ? antes.categoria() : "";
@@ -391,13 +333,9 @@ public class ResultAggregator {
                     if (rows > 0) {
                         escriturasAplicadas++;
                     } else if (productos.estaBloqueado(ahora.url())) {
-                        // review fix F3: the entry snapshot (bloqueos, above) is stale by
-                        // design — a product can get locked via POST /api/agent/apply after
-                        // that snapshot but before this row is reached (one sequential
-                        // round-trip per changed product across the whole catalog). A 0-row
-                        // guarded write in that window is a correct lock skip, not a write
-                        // failure; attribute it from a LIVE read taken right now, never from
-                        // the stale snapshot.
+                        // A 0-row guarded write in that window is a correct lock skip, not a write
+                        // failure; attribute it from a LIVE read taken right now, never from the
+                        // stale snapshot.
                         escriturasOmitidasPorBloqueo++;
                     } else {
                         escriturasFallidas++;
@@ -433,12 +371,9 @@ public class ResultAggregator {
     }
 
     /**
-     * Reconstruye un {@link AggregatedResult} desde productos cargados de la DB
-     * (startup/restart o tras el upsert parcial de un sitio). A diferencia de
-     * {@link #agregar}, este camino NO corre el pipeline ML — pero SÍ debe correr
-     * {@link SenalEnricher} y {@link FinanciacionEnricher}, porque de lo
-     * contrario sus badges quedarían vacíos en el grid hasta el próximo
-     * scrape completo.
+     * A diferencia de {@link #agregar}, este camino NO corre el pipeline ML — pero SÍ debe correr
+     * {@link SenalEnricher} y {@link FinanciacionEnricher}, porque de lo contrario sus badges
+     * quedarían vacíos en el grid hasta el próximo scrape completo.
      */
     public AggregatedResult fromDB(List<Product> productos) {
         List<Product> conSenal = senalEnricher.enriquecer(productos);
@@ -447,42 +382,10 @@ public class ResultAggregator {
     }
 
     /**
-     * Variante incremental de {@link #fromDB} para el refresco progresivo que
-     * {@code ScraperService.ejecutarScraping} dispara cada vez que termina un
-     * sitio.
-     *
-     * <p>El problema que resuelve es de costo, no de resultado. Ese refresco
-     * llamaba a {@link #fromDB}, que re-enriquece el catálogo ENTERO: {@link
-     * SenalEnricher} carga de una el historial de precios de cada producto
-     * vivo, y eso se repetía una vez por sitio terminado — 23 barridos
-     * completos por corrida cuando, en cada uno, lo único que pudo haber
-     * cambiado son los productos del sitio que acaba de cerrar.</p>
-     *
-     * <p>Acá se re-enriquecen únicamente los productos en {@code
-     * urlsRefrescadas} (más los que no existían en el snapshot anterior), y
-     * para el resto se reusa la señal ya calculada. Reusarla es correcto
-     * porque ambas señales son funciones puras de datos que no se movieron:
-     * la de compra depende del historial del producto — y en esta corrida
-     * solo se insertaron filas de historial para el sitio que terminó — y la
-     * de financiación depende del precio más el preset activo. Un producto
-     * cuyo precio no cambió no puede tener una señal distinta.</p>
-     *
-     * <p><b>Los productos siguen viniendo de la base.</b> Lo único que se
-     * reusa del snapshot anterior son los dos campos derivados
-     * ({@code senal}/{@code finan}); {@code precio}, {@code categoria} y todo
-     * el resto salen de la fila recién leída, así que una reclasificación o un
-     * cambio de precio hecho por fuera de esta corrida se ve igual que antes.</p>
-     *
-     * <p>Degrada a {@link #fromDB} completo si no hay snapshot previo (primer
-     * refresco de la corrida), si {@code urlsRefrescadas} es {@code null} (no
-     * se sabe qué cambió, así que se recalcula todo — {@code null} nunca
-     * significa "nada cambió"), o si algún enricher devuelve una lista de
-     * tamaño distinto al que recibió, que rompería el emparejamiento posicional.</p>
-     *
-     * @param productos       catálogo activo recién leído de la DB, en el mismo
-     *                        orden que devuelve {@code cargarProductos()} (precio ascendente)
-     * @param previo          snapshot en memoria del refresco anterior, o {@code null}
-     * @param urlsRefrescadas URLs que este sitio acaba de escribir, o {@code null} para forzar refresco completo
+     * Reusarla es correcto porque ambas señales son funciones puras de datos que no se movieron: la
+     * de compra depende del historial del producto — y en esta corrida solo se insertaron filas de
+     * historial para el sitio que terminó — y la de financiación depende del precio más el preset
+     * activo.
      */
     public AggregatedResult fromDBParcial(List<Product> productos,
                                           AggregatedResult previo,
@@ -495,8 +398,8 @@ public class ResultAggregator {
         for (Product p : previo.productos())
             if (StringUtils.isNotBlank(p.url())) anteriorPorUrl.putIfAbsent(p.url(), p);
 
-        // Emparejamiento POSICIONAL, no por URL: un producto sin URL no tiene
-        // clave de reuso y tiene que enriquecerse igual, como haría fromDB.
+        // Emparejamiento POSICIONAL, no por URL: un producto sin URL no tiene clave de reuso y
+        // tiene que enriquecerse igual, como haría fromDB.
         List<Product>  resultado   = new ArrayList<>(Collections.nCopies(productos.size(), null));
         List<Integer>  posiciones  = new ArrayList<>();
         List<Product>  aEnriquecer = new ArrayList<>();
@@ -528,10 +431,9 @@ public class ResultAggregator {
     }
 
     /**
-     * Arma el {@link AggregatedResult} a partir de la lista ya enriquecida.
-     * Compartido por {@link #fromDB} y {@link #fromDBParcial} para que las dos
-     * no puedan divergir en conteo, facets ni rango de precios. Asume la lista
-     * ordenada por precio ascendente, como la devuelve {@code cargarProductos()}.
+     * Compartido por {@link #fromDB} y {@link #fromDBParcial} para que las dos no puedan divergir
+     * en conteo, facets ni rango de precios. Asume la lista ordenada por precio ascendente, como la
+     * devuelve {@code cargarProductos()}.
      */
     private AggregatedResult snapshot(List<Product> conFinanciacion) {
         Map<String, Integer> conteo = new LinkedHashMap<>();

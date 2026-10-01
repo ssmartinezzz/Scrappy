@@ -19,25 +19,8 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * {@link ChatProvider} adapter for the OpenAI-compatible {@code
- * /chat/completions} + {@code /models} wire protocol (llm-catalog-nlp,
- * design D2/D8) — works against both a local Ollama instance and any remote
- * OpenAI-compatible endpoint. Matches the project's existing HTTP
- * convention ({@code java.net.http.HttpClient} + Jackson, see
- * {@code ar.scraper.fuentes.HttpJson}/{@code PythonRunner}) — no new HTTP dependency.
- *
- * <p>Sends {@code "think": false} on every chat request (qwen3 "thinking"
- * models otherwise burn tokens on a hidden reasoning phase before replying)
- * and uses a ~120s request timeout (a 14b model partially spilled to CPU can
- * be slow). {@link #listModels()} discovers the currently available model
- * ids from {@code GET {baseUrl}/models} — the D8 runtime model selector.</p>
- *
- * <p>The {@link HttpClient} is constructor-injected so unit tests can supply
- * a mock and assert on the exact {@link HttpRequest} built (timeout, body
- * shape) without any real network call; the wire↔domain mapping methods
- * ({@link #buildChatRequestBody}, {@link #parseChatResponse},
- * {@link #parseModelsResponse}) are package-private statics, unit-testable
- * directly against JSON fixtures.</p>
+ * Sends {@code "think": false} on every chat request and uses a ~120s request timeout (a 14b model
+ * partially spilled to CPU can be slow).
  */
 @Component
 public class OpenAiCompatProvider implements ChatProvider {

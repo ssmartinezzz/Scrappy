@@ -4,10 +4,9 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Projects a {@link Serie} beyond its last observed point. The two indices
- * extrapolate differently on purpose: a currency peg does not drift between
- * two BCRA-set values, an inflation index does — carry-forward is correct for
- * one and wrong for the other.
+ * The two indices extrapolate differently on purpose: a currency peg does not drift between two
+ * BCRA-set values, an inflation index does — carry-forward is correct for one and wrong for the
+ * other.
  */
 public final class Extrapolador {
 

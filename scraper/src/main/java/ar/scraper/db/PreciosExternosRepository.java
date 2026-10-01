@@ -14,15 +14,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 
-/**
- * Persistence for the {@code precios_externos} aggregate (MercadoLibre and
- * other off-catalog comparisons).
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). {@code fecha}
- * is bound as {@link LocalDate} (design D6, normalize-db-schema-fks-1nf slice
- * A.2) — the column is {@code DATE} as of V5, and {@code ps.setString} binds a
- * varchar-typed parameter that has no operator against {@code date}.</p>
- */
 @Repository
 class PreciosExternosRepository implements PreciosExternosPort {
 
@@ -43,9 +34,6 @@ class PreciosExternosRepository implements PreciosExternosPort {
         try (Connection c = dataSource.getConnection()) {
             try (PreparedStatement del = c.prepareStatement(
                     "DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?")) {
-                // fecha is DATE (design D6) — ps.setString binds varchar and
-                // "date = character varying" has no operator; setObject(LocalDate)
-                // binds it as a real date parameter.
                 del.setString(1, productoUrl); del.setString(2, sitio); del.setObject(3, hoy);
                 del.executeUpdate();
             }

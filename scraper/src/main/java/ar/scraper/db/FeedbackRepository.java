@@ -22,12 +22,8 @@ import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Persistence for taste signal: {@code outfit_feedback_item} (per-item likes and
- * dislikes, scoped by estilo) and {@code categoria_dismiss} (feed-wide "not
- * interested").
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3). El récord
- * {@link OutfitItemRow} vive en {@code ar.scraper.feedback}.</p>
+ * {@code outfit_feedback_item} (per-item likes and dislikes, scoped by estilo) and
+ * {@code categoria_dismiss} (feed-wide "not interested").
  */
 @Repository
 class FeedbackRepository implements FeedbackPort {
@@ -40,13 +36,6 @@ class FeedbackRepository implements FeedbackPort {
         this.dataSource = dataSource;
     }
 
-    /**
-     * Persiste un único veredicto (slot, url, liked, estilo) en outfit_feedback_item —
-     * una fila por item calificado (ADR-1 de outfit-per-item-feedback). El estilo
-     * ("gym" | "casual" | "catalog") separa la señal de gusto por superficie: el
-     * builder gym y casual leen buckets distintos, el feed usa "catalog" (ver
-     * FeedbackModels.build).
-     */
     @Override
     public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url,
                                    boolean liked, String estilo) {
@@ -70,11 +59,8 @@ class FeedbackRepository implements FeedbackPort {
     }
 
     /**
-     * Lee todas las filas de outfit_feedback_item (con su estilo). Sin filtro por
-     * genero ni estilo — el filtrado por estilo lo hace el caller
-     * (FeedbackModels.build) según la superficie. El caller también hace
-     * el join url→Product contra el catálogo vivo, ya que esta clase no conoce el
-     * AggregatedResult en memoria.
+     * Sin filtro por genero ni estilo — el filtrado por estilo lo hace el caller
+     * (FeedbackModels.build) según la superficie.
      */
     @Override
     public List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
@@ -99,16 +85,10 @@ class FeedbackRepository implements FeedbackPort {
         return result;
     }
 
-    /**
-     * Borra TODO el historial de feedback (todos los estilos + tabla legacy).
-     * Backward-compat: el reset scoped por estilo usa {@link #limpiarOutfitFeedback(String)}.
-     */
     @Override
     public void limpiarOutfitFeedback(UUID usuarioId) {
         try (Connection c = dataSource.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                // outfit_feedback (el modelo legacy por-outfit) se borró en V15:
-                // estaba muerta y era la última violación de 1FN del esquema.
                 "DELETE FROM outfit_feedback_item WHERE usuario_id=?")) {
             ps.setObject(1, usuarioId);
             ps.executeUpdate();
@@ -118,10 +98,9 @@ class FeedbackRepository implements FeedbackPort {
     }
 
     /**
-     * Borra el historial de feedback de UN estilo ("gym" | "casual"). No toca las
-     * filas de otros estilos ni las del feed ("catalog") — el reset de gustos de
-     * cada superficie del builder es independiente. estilo null/blank → no-op
-     * (evita borrar todo por accidente; para eso está el overload sin argumentos).
+     * No toca las filas de otros estilos ni las del feed ("catalog") — el reset de gustos de cada
+     * superficie del builder es independiente. estilo null/blank → no-op (evita borrar todo por
+     * accidente; para eso está el overload sin argumentos).
      */
     @Override
     public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
@@ -137,11 +116,7 @@ class FeedbackRepository implements FeedbackPort {
         }
     }
 
-    /**
-     * Marca una categoria como "no me interesa" feed-wide (Decision 1 de
-     * design.md, personalized-recommendations-feed). Idempotente: si la
-     * categoria ya está dismissed, no inserta una fila duplicada.
-     */
+    /** Idempotente: si la categoria ya está dismissed, no inserta una fila duplicada. */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
@@ -170,7 +145,7 @@ class FeedbackRepository implements FeedbackPort {
         }
     }
 
-    /** Revierte el dismiss de una categoria (undo). Safe no-op si no existía. */
+    /** Safe no-op si no existía. */
     @Override
     public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
         if (StringUtils.isBlank(categoria)) return;
@@ -185,7 +160,6 @@ class FeedbackRepository implements FeedbackPort {
         }
     }
 
-    /** Las categorías que ESTE usuario descartó. Feed-wide para él, invisible para el resto. */
     @Override
     public Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
         Set<String> result = new HashSet<>();

@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Reads socket + DDR + form factor off a Motherboard's name. Unchanged from phase 1. */
 public final class MotherboardSpecsReader implements LectorDeSpecs {
 
     @Override
@@ -43,12 +42,6 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
         return "";
     }
 
-    // Chipset -> socket. Every key is exactly 4 characters: a motherboard
-    // token equals the chipset bare ("z890"), plus a tier letter ("x670e",
-    // "Extreme"), plus a size letter ("z890m", "b650i"), or both combined
-    // ("b650em", "a620am" — measured against the real catalog, see
-    // pc-builder-specs.md: naive 4-or-5-char matching missed every X670E/
-    // X870E/B650E board and every "AM"/"EM" compound suffix).
     private static final Map<String, String> CHIPSET_SOCKET = Map.ofEntries(
             Map.entry("a620", "AM5"), Map.entry("b650", "AM5"), Map.entry("b840", "AM5"),
             Map.entry("b850", "AM5"), Map.entry("x670", "AM5"), Map.entry("x870", "AM5"),
@@ -97,18 +90,15 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     private static String motherboardFormFactor(Tokens tokens, String chipsetToken) {
         String suffix = (chipsetToken != null && chipsetToken.length() > 4) ? chipsetToken.substring(4) : "";
         if (suffix.indexOf('i') >= 0) return "ITX";
-        if (suffix.indexOf('m') >= 0) return "MATX"; // covers bare "m" and the "em"/"am" (Extreme+Micro) combo
+        if (suffix.indexOf('m') >= 0) return "MATX";
 
         String explicit = explicitFormFactor(tokens.padded());
         if (!explicit.isEmpty()) return explicit;
-        // A recognized chipset with no size suffix (bare, or an "e"-only
-        // Extreme tier) and no explicit form-factor word is a full-size
-        // board — the modal default in this catalog.
+        // A recognized chipset with no size suffix (bare, or an "e"-only Extreme tier) and no
+        // explicit form-factor word is a full-size board — the modal default in this catalog.
         if (chipsetToken != null) return "ATX";
         return "";
     }
-
-    // ── marcaChip + tierChipset + wifi (T3b, pc-builder-deep-taxonomy) ───
 
     private static String marcaChip(String socket) {
         if (socket.startsWith("AM")) return "AMD";
@@ -116,7 +106,7 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
         return "";
     }
 
-    /** Menor es mejor, como el resto de EjesTecnicos: X/Z=1 (top), B=2, A/H=3, sin chipset legible=0 (abstención). */
+    /** X/Z=1 (top), B=2, A/H=3, sin chipset legible=0 (abstención). */
     private static int tierChipset(String chipsetToken) {
         if (chipsetToken == null) return 0;
         return switch (chipsetToken.charAt(0)) {

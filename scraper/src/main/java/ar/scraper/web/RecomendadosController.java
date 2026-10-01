@@ -24,9 +24,9 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * "Para ti" personalized feed. The shared taste signal lives in the outfit_feedback_item table
- * (slot="catalog" here), which {@link FeedbackModels#build} reads regardless of slot, so it is
- * shared with the outfit builder without extra wiring.
+ * The shared taste signal lives in the outfit_feedback_item table (slot="catalog" here), which
+ * {@link FeedbackModels#build} reads regardless of slot, so it is shared with the outfit builder
+ * without extra wiring.
  */
 @RestController
 @RequestMapping("/api")
@@ -49,9 +49,7 @@ public class RecomendadosController {
 
     /**
      * Duplicates the unisex-bridge + relaxation SHAPE of OutfitService.armar()/generoElegible() on
-     * purpose (OutfitService is not reused); keep in sync. Per categoria, each step only applies
-     * when the previous one yields nothing: own genero + unisex, then unisex-only, then opposite genero.
-     * Infantil is never re-admitted: RecommendationService.rank() vetoes it.
+     * purpose (OutfitService is not reused); keep in sync.
      */
     private List<Product> broadenGenero(List<Product> base, String generoSolicitado) {
         Map<String, List<Product>> byCategoria = base.stream()
@@ -84,7 +82,6 @@ public class RecomendadosController {
         return result;
     }
 
-    /** Step 1 match: blank/null genero, "unisex" genero, blank/null/"unisex" pedido, or exact match. */
     private boolean generoBridgeMatch(Product p, String generoSolicitado) {
         String g = p.genero() != null ? p.genero().trim() : "";
         if (g.isEmpty()) return true;
@@ -94,7 +91,6 @@ public class RecomendadosController {
         return g.equalsIgnoreCase(generoSolicitado);
     }
 
-    // Items are ProductJson rows (dynamic shape shared with /api/data), hence ObjectNode.
     @GetMapping("/recomendados")
     public ResponseEntity<ApiResponse<List<ObjectNode>>> recomendados(@RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "24") int size,

@@ -31,17 +31,7 @@ public class ScraperConfig {
         this.props.putAll(seed);
     }
 
-    /**
-     * Techo de precio, GLOBAL para los 24 sitios — no hay override por sitio.
-     *
-     * <p>El default tiene que decir lo mismo que {@code config.properties}: es
-     * el valor que rige si el archivo llega truncado, y si discrepan la banda
-     * cambia sin que nadie lo haya pedido.</p>
-     *
-     * <p>{@link #setPrecioMaximo} sólo toca el {@code Properties} en memoria —
-     * {@code PUT /api/config} NO persiste, se pierde al reiniciar. El valor
-     * durable es el del archivo.</p>
-     */
+    /** Techo de precio, GLOBAL para los 24 sitios — no hay override por sitio. */
     public double getPrecioMaximo() {
         return Double.parseDouble(props.getProperty("precio.maximo", "5000000"));
     }
@@ -75,23 +65,7 @@ public class ScraperConfig {
         return list;
     }
 
-    /**
-     * Tope de páginas para el sitio, desde {@code sitio.<nombre>.max_paginas}.
-     * Opcional: casi ningún sitio lo define y el {@code fallback} alcanza.
-     *
-     * <p>El default NO vive acá a propósito. Lo dueña la página que consume el
-     * tope ({@code TiendanubePage.MAX_PAGINAS_DEFAULT}) y el llamador lo pasa,
-     * así {@code ar.scraper.config} no depende de {@code ar.scraper.pages} y
-     * el número sigue teniendo UNA sola definición ({@code CODE-6}).
-     *
-     * <p>Un valor no numérico o {@code < 1} cae al fallback con un warning en
-     * vez de romper: un typo en config.properties no debe abortar un scrape, y
-     * un cap de 0 no traería ningún producto.
-     *
-     * @param nombreSitio nombre del sitio; se acepta el display name porque
-     *                    {@code ScraperFactory} lo deriva capitalizando la
-     *                    clave en minúscula, así que bajar a minúscula es exacto
-     */
+    /** Opcional: casi ningún sitio lo define y el {@code fallback} alcanza. */
     public int getMaxPaginas(String nombreSitio, int fallback) {
         String key = (nombreSitio != null ? nombreSitio : "").toLowerCase();
         String raw = props.getProperty("sitio." + key + ".max_paginas");
@@ -109,12 +83,6 @@ public class ScraperConfig {
         }
     }
 
-    /**
-     * URLs adicionales a crawlear bajo el mismo sitio, desde
-     * {@code sitio.<nombre>.urls_extra} (separadas por coma). Sirve para sumar
-     * colecciones que el catálogo principal no cubre (ej. Harvey Willys
-     * {@code /otras-temporadas1}). Vacío si la propiedad no existe.
-     */
     private List<String> parseExtraUrls(String nombre) {
         String raw = props.getProperty("sitio." + nombre + ".urls_extra", "");
         if (StringUtils.isBlank(raw)) return List.of();
@@ -127,7 +95,6 @@ public class ScraperConfig {
     }
 
     public record SiteConfig(String nombre, String url, String rubro, List<String> extraUrls) {
-        /** Constructor compacto sin colecciones extra (retrocompatibilidad). */
         public SiteConfig(String nombre, String url, String rubro) {
             this(nombre, url, rubro, List.of());
         }

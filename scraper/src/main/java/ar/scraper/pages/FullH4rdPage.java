@@ -14,11 +14,7 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/**
- * fullh4rd.com.ar after its redesign: {@code /productos?page=N} lists the whole
- * catalog (1918 products, 12/page on 2026-09-28) as {@code article.results-card}.
- * {@code curl} gets a 403 here, so it stays a browser page.
- */
+/** . fullh4rd.com.ar after its redesign: */
 public class FullH4rdPage extends BasePage {
 
     private static final Logger log = LoggerFactory.getLogger(FullH4rdPage.class);
@@ -41,8 +37,6 @@ public class FullH4rdPage extends BasePage {
         this.precioMin = precioMin;
         this.precioMax = precioMax;
     }
-
-    // ─── Entry point ─────────────────────────────────────────────────────────
 
     public List<Product> scrapeAll() {
         List<Product> result = new ArrayList<>();
@@ -74,10 +68,8 @@ public class FullH4rdPage extends BasePage {
     }
 
     /**
-     * Una página sin cards antes del total declarado es un bloqueo o un error del
-     * sitio, no el fin: se reintenta con espera creciente.
-     *
-     * @return {@code null} si la navegación falló en todos los intentos
+     * Una página sin cards antes del total declarado es un bloqueo o un error del sitio, no el fin:
+     * se reintenta con espera creciente..
      */
     private String fetchHtml(String url, int pagina, OptionalInt total) {
         String html = null;
@@ -113,8 +105,6 @@ public class FullH4rdPage extends BasePage {
     static int contarCards(String html) {
         return html == null ? 0 : html.split(CARD, -1).length - 1;
     }
-
-    // ─── Pure, package-private: parsing ────────────────────────────────────
 
     private static final String CARD = "<article class=\"results-card\"";
     private static final Pattern TITLE_URL = Pattern.compile(
@@ -173,7 +163,7 @@ public class FullH4rdPage extends BasePage {
         return result;
     }
 
-    /** Chromium's serializer escapes exactly these in text nodes; {@code &amp;} goes last. */
+    /** Chromium's serializer escapes exactly these in text nodes; */
     private static String decodeText(String s) {
         return s.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">")
                 .replace("&amp;", "&").replaceAll("\\s+", " ").trim();

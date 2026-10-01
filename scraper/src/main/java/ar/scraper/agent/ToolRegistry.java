@@ -9,16 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Registers the exactly-4 read-only catalog tools (llm-catalog-nlp, task
- * 4.1/4.2 — design D3/D4; propose_pc added in pc-builder-agent-tool):
- * {@link SearchProductsTool}, {@link ViewProductTool}, {@link
- * ProposeReclassifyTool}, {@link ProposePcTool}. {@link #execute} is a
- * second line of defense on top of each tool's own boundary validation
- * (Safeguard A) — an unknown tool name or an unexpected exception inside a
- * tool NEVER escapes as an uncaught exception/500, always as an {@code
- * is_error} {@link ToolResult} the loop can feed back to the model.
- */
+/** Registers the exactly-4 read-only catalog tools: */
 @Component
 public class ToolRegistry {
 
@@ -39,12 +30,10 @@ public class ToolRegistry {
     }
 
     /**
-     * Whether {@code name} is one of the registered tools. Used when replaying
-     * a client-supplied trace (agent-chat-continuity): an unknown name there is
-     * dropped BEFORE execution rather than run through {@link #execute}, whose
-     * "Herramienta desconocida" error is meant for a model self-correcting
-     * inside the loop — injecting it into a replayed transcript would teach the
-     * model a failure it never actually made.
+     * Used when replaying a client-supplied trace: an unknown name there is dropped BEFORE
+     * execution rather than run through {@link #execute}, whose "Herramienta desconocida" error is
+     * meant for a model self-correcting inside the loop — injecting it into a replayed transcript
+     * would teach the model a failure it never actually made.
      */
     public boolean knows(String name) {
         return tools.containsKey(name);

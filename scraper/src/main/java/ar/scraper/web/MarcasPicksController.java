@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/** Brand browser and the curated "Mejores picks" per category. */
 @RestController
 @RequestMapping("/api")
 public class MarcasPicksController {

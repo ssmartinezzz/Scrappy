@@ -3,9 +3,9 @@ package ar.scraper.indices;
 import java.util.List;
 
 /**
- * Tries each source in order and returns the first usable series. A source
- * that comes back with fewer than {@value #PUNTOS_MINIMOS} points is a
- * failure, not a series — one point cannot support a date-range factor.
+ * Tries each source in order and returns the first usable series. A source that comes back with
+ * fewer than {@value #PUNTOS_MINIMOS} points is a failure, not a series — one point cannot support
+ * a date-range factor.
  */
 public final class FuenteIndiceEncadenada implements FuenteIndicePort {
 

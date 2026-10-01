@@ -12,7 +12,6 @@ public class ShopifyPage extends BasePage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // Tags / product_type que indican género
     private static final Set<String> PALABRAS_HOMBRE  = Set.of(
             "hombre","hombres","masculino","masculina","men","man","male","caballero","varones");
     private static final Set<String> PALABRAS_MUJER   = Set.of(
@@ -86,13 +85,10 @@ public class ShopifyPage extends BasePage {
             OptionalDouble compareParsed = PrecioParser.parse(compareStr);
             Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
 
-            // --- Categoría: product_type ---
             String categoria = prod.path("product_type").asText("").trim();
 
-            // --- Género: product_type + tags ---
             String genero = detectarGenero(prod, nombre);
 
-            // --- Talles: opciones del producto ---
             List<String> talles = extraerTalles(prod, variants);
 
             return Optional.of(new Product(sitio, nombre, precio.get(), compare,
@@ -100,11 +96,7 @@ public class ShopifyPage extends BasePage {
         } catch (Exception e) { return Optional.empty(); }
     }
 
-    // ----------------------------------------------------------------
-    // Extracción de talles
-    // ----------------------------------------------------------------
     private List<String> extraerTalles(JsonNode prod, JsonNode variants) {
-        // Estrategia 1: buscar en options[] el que se llame "talle", "size", etc.
         JsonNode options = prod.path("options");
         if (options.isArray()) {
             for (JsonNode opt : options) {
@@ -123,7 +115,6 @@ public class ShopifyPage extends BasePage {
             }
         }
 
-        // Estrategia 2: todos los option1 de las variantes (primer option visible)
         Set<String> seen = new LinkedHashSet<>();
         for (JsonNode var : variants) {
             String opt1 = var.path("option1").asText("").trim();
@@ -155,11 +146,7 @@ public class ShopifyPage extends BasePage {
                 || name.equals("s") || name.equals("m") || name.equals("l");
     }
 
-    // ----------------------------------------------------------------
-    // Detección de género
-    // ----------------------------------------------------------------
     private String detectarGenero(JsonNode prod, String nombre) {
-        // Fuentes: product_type, tags, título
         List<String> fuentes = new ArrayList<>();
         fuentes.add(prod.path("product_type").asText("").toLowerCase());
         fuentes.add(nombre.toLowerCase());
@@ -167,7 +154,6 @@ public class ShopifyPage extends BasePage {
         if (tags.isArray()) {
             for (JsonNode t : tags) fuentes.add(t.asText("").toLowerCase());
         } else if (tags.isTextual()) {
-            // A veces es un string separado por comas
             Arrays.stream(tags.asText("").split(","))
                     .map(String::trim).map(String::toLowerCase)
                     .forEach(fuentes::add);

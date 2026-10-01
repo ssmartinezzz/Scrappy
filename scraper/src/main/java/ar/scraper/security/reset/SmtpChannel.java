@@ -13,30 +13,7 @@ import jakarta.annotation.PostConstruct;
 import java.util.Properties;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * Opt-in SMTP delivery, selected with {@code PASSWORD_RESET_CHANNEL=smtp}.
- *
- * <p><b>It builds its own {@link JavaMailSenderImpl} instead of using Boot's
- * mail auto-configuration, on purpose.</b> Auto-configuration reads
- * {@code spring.mail.*} and quietly defaults the host to {@code localhost}. On a
- * machine with no mail server that produces a connection refused per send —
- * inside an async task, where nobody is watching — and on a machine that happens
- * to run one, it silently relays through it. Neither is a behaviour anyone asked
- * for. Requiring the variables explicitly, and failing startup when they are
- * missing, is the same fail-fast posture the rest of this configuration has.</p>
- *
- * <p><b>The from/username mismatch is a warning, not a failure.</b> Plenty of
- * relays authenticate with an API key rather than an address, so treating a
- * mismatch as an error would reject a correct configuration. The check only
- * fires when the username looks like an email — the shape where a mismatch
- * really does usually mean a mistake — and even then it warns. This project's
- * fail-fast posture is about <i>absent</i> variables, not about second-guessing
- * present ones.</p>
- *
- * <p><b>Bounces are invisible.</b> The ERROR log below covers synchronous
- * rejection only; a message accepted by the relay and bounced later produces no
- * line anywhere, because nothing in this design receives mail.</p>
- */
+/** Opt-in SMTP delivery, selected with {@code PASSWORD_RESET_CHANNEL=smtp}. */
 @Component
 @ConditionalOnProperty(name = "password.reset.channel", havingValue = "smtp")
 public class SmtpChannel implements PasswordResetChannel {
@@ -84,8 +61,6 @@ public class SmtpChannel implements PasswordResetChannel {
                     + "Si no pediste esto, ignorá el mensaje: tu contraseña no cambió.\n");
             sender().send(mensaje);
         } catch (Exception e) {
-            // Masked: an error log naming who asked for a reset is the same
-            // disclosure the uniform response exists to prevent, moved to a file.
             LOG.error("[RESET] no se pudo enviar el mail a {}: {}", enmascarar(destino), e.getMessage());
         }
     }
@@ -103,7 +78,7 @@ public class SmtpChannel implements PasswordResetChannel {
         return impl;
     }
 
-    /** {@code ana@example.com} → {@code a**@example.com}. Enough to debug, not enough to identify. */
+    /** Enough to debug, not enough to identify. */
     static String enmascarar(String direccion) {
         if (StringUtils.isBlank(direccion)) {
             return "(vacío)";

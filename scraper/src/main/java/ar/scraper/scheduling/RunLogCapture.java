@@ -6,10 +6,8 @@ public interface RunLogCapture {
     Handle start(String loggerName);
 
     interface Handle {
-        /** Lines captured so far, one per event, newline-terminated. */
         String lines();
 
-        /** Stops capturing; {@link #lines()} stays readable. */
         void close();
     }
 

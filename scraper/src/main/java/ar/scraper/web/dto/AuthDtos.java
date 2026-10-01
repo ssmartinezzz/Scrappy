@@ -8,7 +8,7 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the authentication endpoints. The refresh token itself only ever travels in a cookie. */
+/** The refresh token itself only ever travels in a cookie. */
 public final class AuthDtos {
 
     private AuthDtos() {}

@@ -15,17 +15,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Precompute step for the financing signal ("¿conviene en cuotas?"). Mirrors
- * {@link SenalEnricher}'s shape/pattern: reads the active financing preset
- * once, reads {@link IndiceService#variacionMensual(Indice)} once, then
- * delegates the per-product math to the pure {@link FinanciacionCalculator}.
- *
- * <p>Invoked both from {@code ResultAggregator.agregar} (post-scrape) and
- * from the {@code fromDB} startup/restart path — without the latter, the
- * financing badge would stay empty until the next scrape run.</p>
- *
- * <p>Fully independent from {@link SenalEnricher}/{@code SenalCompra}/{@code
- * scoreCompra} — never merged into the same field or badge.</p>
+ * Invoked both from {@code ResultAggregator.agregar} (post-scrape) and from the {@code fromDB}
+ * startup/restart path — without the latter, the financing badge would stay empty until the next
+ * scrape run.
  */
 @Component
 public class FinanciacionEnricher {
@@ -50,8 +42,8 @@ public class FinanciacionEnricher {
         }
 
         Preset preset = activo.get();
-        // Empty IPC data is fine for cuotas math: it just means 0% monthly
-        // inflation is assumed (D-note in feature doc, "keep it simple").
+        // Empty IPC data is fine for cuotas math: it just means 0% monthly inflation is assumed
+        // (D-note in feature doc, "keep it simple").
         double iMensual = indiceService.variacionMensual(Indice.IPC).orElse(0.0) / 100.0;
 
         List<Product> result = new ArrayList<>(productos.size());
@@ -78,8 +70,8 @@ public class FinanciacionEnricher {
 
     /**
      * Fallback value when no preset is active — distinct {@code senal} from
-     * {@link SenalFinanciacion#EMPTY}'s {@code "sin_datos"} so the UI can
-     * tell apart "no active preset configured" from "calculation guard hit".
+     * {@link SenalFinanciacion#EMPTY}'s {@code "sin_datos"} so the UI can tell apart "no active
+     * preset configured" from "calculation guard hit".
      */
     private static final SenalFinanciacion SIN_PRESET_ACTIVO =
             new SenalFinanciacion("sin_preset_activo", 0, 0, 0, 0, 0);

@@ -20,27 +20,8 @@ import java.util.function.Predicate;
 
 /**
  * {@code search_products(query?, categoria?, genero?, excluir?, precioMin?, precioMax?, enOferta?, limit=10)}
- * — queries the REAL current catalog snapshot ({@link CatalogSnapshotPort#getLastResult()}),
- * never fabricated data (llm-catalog-nlp, task 3.1/3.2).
- *
- * <h2>Why the structured filters exist</h2>
- *
- * <p>The tool used to take a free-text {@code query} only, matched as a substring over
- * {@code nombre}/{@code marca}. That left an ordinary request — "musculosas que no sean
- * de fútbol y por menos de $50.000" — unanswerable for two independent reasons:</p>
- *
- * <ul>
- *   <li>a CATEGORY is not a word in the name. A product classified {@code Musculosa} and
- *       named "Remera sin mangas Dry Fit" was invisible to {@code query=musculosa} — and
- *       a product whose name disagrees with its category is precisely the one worth
- *       reviewing, so the blind spot lined up exactly with the tool's purpose;</li>
- *   <li>substring matching cannot express "not", or a price ceiling.</li>
- * </ul>
- *
- * <p>Handing the model an unfiltered result and letting it narrow in prose is worse than
- * it looks: the grounding gate in {@link CatalogAgentService} sees a real tool call with
- * real rows and passes the turn, so a prose-filtered answer is indistinguishable from a
- * fetched one. Every criterion the user states has to be a criterion the catalog applies.</p>
+ * — queries the REAL current catalog snapshot ({@link CatalogSnapshotPort#getLastResult()}), never
+ * fabricated data.
  */
 @Component
 public class SearchProductsTool implements CatalogTool {
@@ -48,18 +29,13 @@ public class SearchProductsTool implements CatalogTool {
     public static final String NAME = "search_products";
     private static final int DEFAULT_LIMIT = 10;
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    /** "1 tb" → "1tb": un número separado de su unidad es el mismo término que el pegado. */
     private static final Pattern NUMERO_UNIDAD = Pattern.compile("(\\d) +(?=[a-z])");
 
-    /** Tope de términos de contenido por consulta (la máscara de coincidencia es un int). */
     static final int MAX_TERMINOS = 16;
-    /** Con al menos esta fracción de los términos, una fila entra en el modo relajado. */
     private static final double COBERTURA_MINIMA = 0.5;
-    /** Con enOferta=true estas palabras ya están expresadas por el parámetro: no son términos de búsqueda. */
     static final Set<String> PALABRAS_OFERTA = Set.of(
             "descuento", "oferta", "rebaja", "rebajado", "promo", "promocion");
 
-    /** Las claves que declara {@link #spec()}; cualquier otra es un error. */
     private static final List<String> ARGUMENTOS = List.of(
             "query", "categoria", "genero", "excluir", "precioMin", "precioMax", "enOferta", "limit");
 
@@ -78,8 +54,6 @@ public class SearchProductsTool implements CatalogTool {
 
         props.putObject("query").put("type", "string");
 
-        // Closed enum, same idiom as propose_reclassify (CODE-6): the canon is the one
-        // owner of the vocabulary, so the model cannot ask for a category that cannot exist.
         ObjectNode categoria = props.putObject("categoria");
         categoria.put("type", "string");
         ArrayNode cats = categoria.putArray("enum");
@@ -145,12 +119,10 @@ public class SearchProductsTool implements CatalogTool {
         boolean enOferta = args.path("enOferta").asBoolean(false);
 
         List<QueryTokenizer.Token> tokens = new ArrayList<>(QueryTokenizer.contentTokens(query));
-        // Con enOferta=true "en descuento" dentro de la query es redundante: ya lo expresa el parámetro.
         if (enOferta) tokens.removeIf(t -> PALABRAS_OFERTA.contains(t.stem()));
         if (tokens.size() > MAX_TERMINOS) tokens = tokens.subList(0, MAX_TERMINOS);
 
-        // `excluir` (y `enOferta`) on its own is not a criterion: "todo menos X" / "todo lo
-        // rebajado" is the whole catalog arbitrarily truncated, which reads to the model as a real answer.
+        // `excluir` (y `enOferta`) on its own is not a criterion:
         boolean hayCriterio = !tokens.isEmpty() || !categoria.isBlank() || !genero.isBlank()
                 || precioMin != null || precioMax != null;
         if (!hayCriterio) {
@@ -180,7 +152,8 @@ public class SearchProductsTool implements CatalogTool {
                     "No hay datos de catálogo disponibles todavía — ejecutá un scraping primero.");
         }
 
-        // Filtros duros primero (categoría o su familia, género, precio, excluir, oferta); recién después el texto.
+        // Filtros duros primero (categoría o su familia, género, precio, excluir, oferta); recién
+        // después el texto.
         List<Product> productos = result.productos();
         Predicate<Product> filtro = filtroDuro(categoria, genero, excluir, precioMin, precioMax, enOferta);
         List<Integer> candidatos = new ArrayList<>();
@@ -212,15 +185,13 @@ public class SearchProductsTool implements CatalogTool {
             }
         }
 
-        // El orden va ANTES del límite: si no, "las mejores ofertas" serían las primeras N del catálogo.
-        // List.sort es estable: los empates conservan el orden del catálogo.
+        // El orden va ANTES del límite: si no, "las mejores ofertas" serían las primeras N del
+        // catálogo. List.sort es estable: los empates conservan el orden del catálogo.
         final double[] sc = score;
         Comparator<Integer> orden = null;
         if (sc != null) orden = Comparator.comparingDouble((Integer i) -> sc[i]).reversed();
         if (enOferta) {
             Comparator<Integer> porDescuento =
-                    // Por el % redondeado que ve el usuario: la fracción cruda ordena por ruido de
-                    // redondeo del sitio y le gana a la relevancia en los empates reales.
                     Comparator.comparingLong((Integer i) -> Math.round(descuento(productos.get(i)) * 100))
                             .reversed();
             orden = orden == null ? porDescuento : porDescuento.thenComparing(orden);
@@ -235,11 +206,10 @@ public class SearchProductsTool implements CatalogTool {
             n.put("nombre", p.nombre());
             n.put("sitio", p.sitio());
             n.put("categoria", p.categoria());
-            // Con categoria+subCategoria+marca+genero en el resultado, reclasificar no exige view_product.
             n.put("subCategoria", p.subCategoria());
             n.put("marca", p.marca());
-            // genero viaja en el resultado desde que se puede filtrar por él: sin esto el
-            // modelo no puede reportar sobre qué filtró, ni verificar lo que devolvió.
+            // genero viaja en el resultado desde que se puede filtrar por él: sin esto el modelo no
+            // puede reportar sobre qué filtró, ni verificar lo que devolvió.
             n.put("genero", p.genero());
             n.put("precio", p.precio());
             if (enDescuento(p)) {
@@ -261,7 +231,6 @@ public class SearchProductsTool implements CatalogTool {
         return ToolResult.ok("", arr.toString());
     }
 
-    /** Todos los criterios presentes se aplican en conjunción; los ausentes no filtran. El texto va aparte (ranking). */
     private static Predicate<Product> filtroDuro(String categoria, String genero,
                                                  List<String> excluir, Double precioMin, Double precioMax,
                                                  boolean enOferta) {
@@ -270,9 +239,9 @@ public class SearchProductsTool implements CatalogTool {
 
         return p -> {
             if (enOferta && !enDescuento(p)) return false;
-            // Familia, no substring: "Zapatilla" abarca "Zapatilla Running/Urbana…" (el modelo pide el
-            // tipo genérico y la taxonomía lo subdivide), pero el prefijo termina en palabra completa —
-            // "Remera" no se lleva "Buzo Remera" ni "Remerón". Antes era igualdad exacta y daba falsos "no hay".
+            // "Zapatilla" abarca "Zapatilla Running/Urbana…" (el modelo pide el tipo genérico y la
+            // taxonomía lo subdivide), pero el prefijo termina en palabra completa — "Remera" no se
+            // lleva "Buzo Remera" ni "Remerón".
             if (!categoria.isBlank() && !enFamilia(categoria, nullToEmpty(p.categoria()))) return false;
             if (!genero.isBlank() && !genero.equalsIgnoreCase(nullToEmpty(p.genero()))) return false;
             if (precioMin != null && p.precio() < precioMin) return false;

@@ -24,9 +24,8 @@ public class TiendanubeScraper extends BaseScraper {
     }
 
     /**
-     * Factory Method (Open/Closed): construye la {@link TiendanubePage} a usar.
-     * Las subclases por-tema (ej. {@code MonkyforceScraper}) la overridean para
-     * devolver una page especializada sin tocar {@link #scrape(Page)}.
+     * Las subclases por-tema (ej. {@code MonkyforceScraper}) la overridean para devolver una page
+     * especializada sin tocar {@link #scrape(Page)}.
      */
     protected TiendanubePage crearPage(Page page) {
         return new TiendanubePage(page, config.getTimeoutMs(),
@@ -37,12 +36,6 @@ public class TiendanubeScraper extends BaseScraper {
                 maxPaginas());
     }
 
-    /**
-     * El scraper es quien une las dos capas: {@code ScraperConfig} parsea el
-     * override opcional por sitio y {@code TiendanubePage} es dueña del default,
-     * así ninguna de las dos depende de la otra y el número sigue definido una
-     * sola vez ({@code CODE-6}).
-     */
     protected int maxPaginas() {
         return config.getMaxPaginas(sitio, TiendanubePage.MAX_PAGINAS_DEFAULT);
     }

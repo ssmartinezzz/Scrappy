@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.util.List;
 
-/** Payloads of the brand browser and "mejores picks" endpoints. */
 public final class MarcasPicksDtos {
 
     private MarcasPicksDtos() {}

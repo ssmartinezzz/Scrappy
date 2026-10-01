@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/** Supplement subtypes and the supplement builder. */
 @RestController
 @RequestMapping("/api")
 public class SuplementosController {
@@ -30,11 +29,7 @@ public class SuplementosController {
         this.outfitService = outfitService;
     }
 
-    /**
-     * Supplement subtypes in combo-assembly order. Pure taxonomy, so it answers before the first
-     * scrape and the frontend selector no longer hard-codes the list. Goes straight to
-     * {@link SupplementCombo}: it needs no instance state.
-     */
+    /** Supplement subtypes in combo-assembly order. */
     @GetMapping("/suplementos/tipos")
     public ResponseEntity<ApiResponse<OutfitsDtos.SuplementoTipos>> suplementosTipos() {
         List<OutfitsDtos.Tipo> tipos = new ArrayList<>();
@@ -44,10 +39,6 @@ public class SuplementosController {
         return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.SuplementoTipos(tipos)));
     }
 
-    /**
-     * One product per requested supplement type. {@code excluir} holds URLs already shown, so
-     * "Regenerar" offers the next candidate. 204 when no scrape data exists, 400 when tipos is blank.
-     */
     @GetMapping("/suplementos/builder")
     public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(@RequestParam(required = false) String tipos,
             @RequestParam(defaultValue = "0") double presupuesto,

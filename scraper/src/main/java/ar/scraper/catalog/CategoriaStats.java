@@ -1,12 +1,8 @@
 package ar.scraper.catalog;
 
 /**
- * Per-category price stats — {@code categoria_stats}, flattened to 12 typed
- * columns since V16 (design DD6). Mirrors {@code PriceStats.to_dict()}
- * ({@code ml_pipeline.py:283-290}) field for field: {@code n} is a raw count
- * (never rounded), the other 11 are the pipeline's own {@code round()}'d
- * values — this record does not re-round anything, it carries what Python
- * already decided.
+ * {@code n} is a raw count (never rounded), the other 11 are the pipeline's own {@code round()}'d
+ * values — this record does not re-round anything, it carries what Python already decided.
  */
 public record CategoriaStats(
         int n,

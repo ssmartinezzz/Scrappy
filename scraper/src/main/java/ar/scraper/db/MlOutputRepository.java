@@ -16,11 +16,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/**
- * Persistence for the {@code ml_output} aggregate (last pipeline payload).
- *
- * <p>Extracted verbatim from {@link DatabaseService} (backlog A3).</p>
- */
 @Repository
 class MlOutputRepository implements MlOutputPort {
 
@@ -63,11 +58,6 @@ class MlOutputRepository implements MlOutputPort {
         }
     }
 
-    /**
-     * VALID == tiene un nodo {@code scores} objeto no vacío Y un nodo {@code tendencias}
-     * presente como objeto. Mismo criterio usado por {@code TendenciasController.tendencias()}
-     * (R1/R3) — garantiza que todo lo que se persiste, se puede servir.
-     */
     private boolean esMlOutputValido(JsonNode ml) {
         if (ml == null || ml.isNull() || !ml.isObject()) return false;
         JsonNode scores = ml.path("scores");

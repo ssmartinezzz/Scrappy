@@ -12,9 +12,8 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Renders a {@code search_products} result as the chat answer. The model's own prose about
- * those rows proved unreliable (ignored them, invented advice), so the listing is built here
- * from the rows themselves. Only the markdown subset the chat renders: list items, links, bold.
+ * The model's own prose about those rows proved unreliable (ignored them, invented advice), so the
+ * listing is built here from the rows themselves.
  */
 final class SearchAnswerRenderer {
 
@@ -22,7 +21,9 @@ final class SearchAnswerRenderer {
 
     private SearchAnswerRenderer() {}
 
-    /** The answer, or {@code null} when there is nothing to list (empty, malformed or not an array). */
+    /**
+     * The answer, or {@code null} when there is nothing to list (empty, malformed or not an array).
+     */
     static String render(String searchJson) {
         return render(null, searchJson);
     }
@@ -57,9 +58,8 @@ final class SearchAnswerRenderer {
     }
 
     /**
-     * The criteria the search applied, read from its ARGUMENTS (never from the model's prose), so an
-     * invented constraint is visible. The query is shown as the content terms the tool searched
-     * (after stopwords, offer words dropped under enOferta, same cap), not the raw text.
+     * The criteria the search applied, read from its ARGUMENTS (never from the model's prose), so
+     * an invented constraint is visible.
      */
     private static String filters(JsonNode args) {
         if (args == null) return "";
@@ -111,7 +111,6 @@ final class SearchAnswerRenderer {
         return sb.toString();
     }
 
-    /** es-AR: dot thousands, no decimals. */
     private static String pesos(double value) {
         DecimalFormatSymbols sym = DecimalFormatSymbols.getInstance(Locale.ROOT);
         sym.setGroupingSeparator('.');

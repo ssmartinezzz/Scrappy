@@ -6,11 +6,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/**
- * Serializes a {@link PcBuild} to the JSON shape {@code GET /api/pcs/builder}
- * serves — extracted from {@code PcsController.builder} so the endpoint and
- * {@code agent/ProposePcTool} share one shape (DOC-1 for code).
- */
 public class PcBuildJson {
 
     private static String safe(String s) { return s != null ? s : ""; }

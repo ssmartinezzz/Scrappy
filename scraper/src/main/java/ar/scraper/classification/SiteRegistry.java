@@ -5,25 +5,10 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
-/**
- * Sole reader of the {@code sitio} table (close-1nf-and-3nf-foundation
- * extension, design E1). Loaded once at startup, refreshed by
- * {@code POST}/{@code DELETE /api/sitios} — every other reader (
- * {@link RubroResolver}, {@code ScraperFactory}, {@code NormalizerService})
- * goes through this instead of a name-set copy of the same knowledge
- * ({@code CODE-6}).
- *
- * <p>A miss ABSTAINS rather than guesses ({@code CODE-5}): the same defaults
- * an unmatched name got before this table existed — {@code plataforma}
- * defaults to {@code "tiendanube"} (the fallback branch of
- * {@code ScraperFactory.crear}), {@code esPremium} to {@code false}, and
- * {@code rubroForzado} to {@code null} (no rule forces a rubro).</p>
- */
 public final class SiteRegistry {
 
     private static final Logger LOG = LoggerFactory.getLogger(SiteRegistry.class);
 
-    /** Abstention defaults for a {@code sitioKey} the table has no row for. */
     private static final String ABSTENCION_PLATAFORMA = "tiendanube";
 
     public record Sitio(String nombre, String sitioKey, String plataforma,
@@ -44,13 +29,7 @@ public final class SiteRegistry {
         return new SiteRegistry(() -> copia);
     }
 
-    /**
-     * Re-reads {@code sitio} in full and swaps the cache atomically. Called at
-     * construction time and again whenever {@code POST}/{@code DELETE
-     * /api/sitios} changes the table, so a dashboard-added or -removed site is
-     * visible without a restart. A transient read failure keeps the previous
-     * cache rather than wiping it.
-     */
+    /** Re-reads {@code sitio} in full and swaps the cache atomically. */
     public void reload() {
         try {
             this.porSitioKey = Map.copyOf(source.cargar());
@@ -59,7 +38,7 @@ public final class SiteRegistry {
         }
     }
 
-    /** Sole lookup. A miss returns the abstention defaults, never a guess. */
+    /** A miss returns the abstention defaults, never a guess. */
     public Sitio porKey(String sitioKey) {
         Sitio found = porSitioKey.get(sitioKey);
         if (found != null) return found;

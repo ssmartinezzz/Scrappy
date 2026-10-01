@@ -7,7 +7,7 @@ public record Product(
         String sitio,
         String nombre,
         double precio,
-        Double precioOriginal, // D1: unparseable/absent original price is NULL, never a sentinel string
+        Double precioOriginal,
         String url,
         String imagenUrl,
         String categoria,
@@ -15,13 +15,13 @@ public record Product(
         List<String> talles,
         MlScore ml,
         String marca,
-        String rubro,         // "indumentaria" | "tecnologia" | "suplementos" | "oficina"
-        boolean gymrat,       // tag transversal aditivo (no altera categoria/rubro)
-        boolean marcaPremium, // tag transversal aditivo (no altera categoria/rubro/badge)
-        SenalCompra senal,    // precomputed buy-signal (mirrors MlScore precompute pattern)
-        SenalFinanciacion finan, // precomputed financing signal (independent from senal/scoreCompra)
+        String rubro,
+        boolean gymrat,
+        boolean marcaPremium,
+        SenalCompra senal,
+        SenalFinanciacion finan,
         int cantidadUnidades,  // unit count detected from nombre (pack/combo); 1 = single unit
-        String subCategoria,   // activity/sport-based sub-dimension; "" when none resolved
+        String subCategoria,
         VisualAttrs visual     // image-derived attributes (fit/estampado/escote/color); fill-only,
                                // additive PER FIELD — MlEnricher/DatabaseService only overwrite a
                                // field when the ML score/upsert value is non-blank, else the prior
@@ -29,7 +29,6 @@ public record Product(
                                // that didn't gate this product into image classification)
 ) implements Comparable<Product> {
 
-    // ── Constructors legacy (retrocompatibles) ──────────────────────────────
     public Product(String sitio, String nombre, double precio, Double precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
                    List<String> talles) {
@@ -60,11 +59,8 @@ public record Product(
     }
 
     /**
-     * Legacy 15-arg shape (the canonical constructor BEFORE {@code finan} was
-     * added as the 16th component). Preserves source compatibility for the
-     * ~12 call sites that build a {@code Product} up to {@code senal} only;
-     * defaults the new financing signal to {@link SenalFinanciacion#EMPTY}
-     * and {@code cantidadUnidades} to 1 (single unit).
+     * Legacy 15-arg shape (the canonical constructor BEFORE {@code finan} was added as the 16th
+     * component).
      */
     public Product(String sitio, String nombre, double precio, Double precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
@@ -76,10 +72,8 @@ public record Product(
     }
 
     /**
-     * Legacy 16-arg shape (the canonical constructor BEFORE
-     * {@code cantidadUnidades} was added as the 17th component). Preserves
-     * source compatibility for call sites built against the {@code finan}
-     * tail; defaults {@code cantidadUnidades} to 1 (single unit).
+     * Legacy 16-arg shape (the canonical constructor BEFORE {@code cantidadUnidades} was added as
+     * the 17th component).
      */
     public Product(String sitio, String nombre, double precio, Double precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
@@ -92,11 +86,8 @@ public record Product(
     }
 
     /**
-     * Legacy 17-arg shape (the canonical constructor BEFORE
-     * {@code subCategoria} was added as the 18th component). Preserves
-     * source compatibility for call sites built against the
-     * {@code cantidadUnidades} tail; defaults {@code subCategoria} to
-     * {@code ""} (no activity sub-dimension resolved).
+     * Legacy 17-arg shape (the canonical constructor BEFORE {@code subCategoria} was added as the
+     * 18th component).
      */
     public Product(String sitio, String nombre, double precio, Double precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
@@ -109,11 +100,8 @@ public record Product(
     }
 
     /**
-     * Legacy 18-arg shape (the canonical constructor BEFORE {@code visual}
-     * was added as the 19th component). Preserves source compatibility for
-     * call sites built against the {@code subCategoria} tail; defaults
-     * {@code visual} to {@link VisualAttrs#EMPTY} (no image-derived
-     * attributes resolved — text-only classification unaffected).
+     * Legacy 18-arg shape (the canonical constructor BEFORE {@code visual} was added as the 19th
+     * component).
      */
     public Product(String sitio, String nombre, double precio, Double precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,
@@ -136,7 +124,7 @@ public record Product(
 
     public record MlScore(
             int          scoreP,
-            List<String> badges,        // ordered, principal-first (badges-oportunidades-revamp D3)
+            List<String> badges,
             boolean      ofertaReal,
             String       tendencia,
             int          pctilCategoria,
@@ -146,14 +134,11 @@ public record Product(
         public static final MlScore EMPTY =
             new MlScore(50, List.of(), false, "estable", 50, 0.0, "standard");
 
-        /** Principal badge convenience — the highest-priority badge in {@link #badges}, or "" if none. */
         public String badge() { return badges.isEmpty() ? "" : badges.get(0); }
 
         /**
-         * Legacy single-badge shape (pre multi-badge). Preserves source
-         * compatibility for call sites built before {@code badges} replaced
-         * the single {@code badge} string component; a non-blank badge
-         * becomes a one-element list.
+         * Preserves source compatibility for call sites built before {@code badges} replaced the
+         * single {@code badge} string component; a non-blank badge becomes a one-element list.
          */
         public MlScore(int scoreP, String badge, boolean ofertaReal,
                        String tendencia, int pctilCategoria, double zScore, String segment) {
@@ -161,40 +146,25 @@ public record Product(
                  ofertaReal, tendencia, pctilCategoria, zScore, segment);
         }
 
-        /** Legacy 5-arg shape (pre zScore/segment, pre multi-badge). */
         public MlScore(int scoreP, String badge, boolean ofertaReal,
                        String tendencia, int pctilCategoria) {
             this(scoreP, badge, ofertaReal, tendencia, pctilCategoria, 0.0, "standard");
         }
     }
 
-    /**
-     * Precomputed buy-signal classification (mirrors {@link MlScore}'s
-     * precompute-at-scrape-time pattern). Produced by
-     * {@code ar.scraper.ml.SenalCalculator}, the same classification logic
-     * previously inline in {@code FinanciacionController.recomendacion}.
-     */
     public record SenalCompra(
             String senal,
             int    scoreCompra,
-            ar.scraper.indices.Confianza confianzaDeflactor // confidence of the deflator the classification used
+            ar.scraper.indices.Confianza confianzaDeflactor
     ) {
         public static final SenalCompra EMPTY =
                 new SenalCompra("sin_datos", 50, ar.scraper.indices.Confianza.SIN_DATOS);
 
-        /** Copy with a different {@code confianzaDeflactor} — set by the caller that resolved the deflator. */
         public SenalCompra conConfianza(ar.scraper.indices.Confianza confianza) {
             return new SenalCompra(senal, scoreCompra, confianza);
         }
     }
 
-    /**
-     * Precomputed financing signal ("¿conviene en cuotas?") — fully
-     * independent from {@link SenalCompra}/{@code scoreCompra}. Produced by
-     * {@code ar.scraper.ml.FinanciacionCalculator} from the active
-     * financing preset's surcharge/installment count and the current
-     * monthly inflation rate.
-     */
     public record SenalFinanciacion(
             String senal,
             double ahorroReal,
@@ -208,19 +178,15 @@ public record Product(
     }
 
     /**
-     * Image-derived visual attributes (mirrors {@link MlScore}'s
-     * precompute-at-scrape-time pattern). Produced by the Marqo-FashionSigLIP
-     * zero-shot classification pipeline ({@code ml_embeddings.py}) and
-     * applied by {@code ar.scraper.ml.MlEnricher}. All values are Spanish
-     * labels from a closed set, or {@code ""} when the model abstains
-     * (low confidence) or image classification was unavailable/skipped —
-     * text classification is never overridden by these fields.
+     * All values are Spanish labels from a closed set, or {@code ""} when the model abstains (low
+     * confidence) or image classification was unavailable/skipped — text classification is never
+     * overridden by these fields.
      */
     public record VisualAttrs(
-            String fit,            // "oversize" | "entallado" | "regular" | ""
-            String estampado,      // "estampado" | "liso" | ""
-            String escote,         // "cuello redondo" | "en v" | "capucha" | "con cuello" | ""
-            String colorDominante  // fixed Spanish palette (e.g. "azul", "rojo") | ""
+            String fit,
+            String estampado,
+            String escote,
+            String colorDominante
     ) {
         public static final VisualAttrs EMPTY = new VisualAttrs("", "", "", "");
     }

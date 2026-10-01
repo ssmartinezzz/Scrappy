@@ -25,15 +25,7 @@ import java.sql.Statement;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Hears the database's own status notifications ({@code V41}) and republishes them on the status
- * bus. The database pushes; this class never queries it for state.
- *
- * <p>One dedicated connection opened through {@link DriverManager}, outside Hikari on purpose: a
- * LISTEN connection is held for the life of the process and must not take a slot from the pool
- * that serves requests. Notifications are not durable, so every (re)connect publishes a
- * {@link StatusEvent.Resync}: whatever happened while it was down is re-read by the clients.
- */
+/** The database pushes; this class never queries it for state. */
 @Component
 public class DbNotificationListener implements SmartLifecycle {
 

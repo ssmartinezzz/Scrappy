@@ -2,12 +2,6 @@ package ar.scraper.aggregator.grouping;
 
 import java.util.Set;
 
-/**
- * Shared stop-word set for identity/similarity tokenization, hoisted from
- * the byte-identical private {@code STOP} constants previously duplicated
- * in {@link JaccardSimilarity} and {@link ProductIdentity} (post-review
- * cleanup, no behavior change — entry set and order preserved exactly).
- */
 final class StopWords {
 
     private StopWords() {}

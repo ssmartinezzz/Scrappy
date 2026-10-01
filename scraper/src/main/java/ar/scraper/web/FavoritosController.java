@@ -19,7 +19,6 @@ import ar.scraper.security.Sujeto;
 
 import java.util.Map;
 
-/** Saved products ("favoritos"). */
 @RestController
 @RequestMapping("/api")
 public class FavoritosController {
@@ -35,7 +34,6 @@ public class FavoritosController {
         this.actorResolver = actorResolver;
     }
 
-    // Items are ProductJson rows (dynamic shape shared with /api/data), hence ObjectNode.
     @GetMapping("/favoritos")
     public ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {
         List<ObjectNode> arr = new ArrayList<>();
@@ -43,7 +41,6 @@ public class FavoritosController {
             String url = f.get("url");
             ObjectNode n = JsonNodeFactory.instance.objectNode();
             arr.add(n);
-            // Same shape as /api/data so DetailPanel needs no extra request.
             productos.obtenerProducto(url).ifPresent(p -> ProductJson.escribir(n, p));
             n.put("url",    url);
             n.put("sitio",  ProductJson.safe(f.get("sitio")));

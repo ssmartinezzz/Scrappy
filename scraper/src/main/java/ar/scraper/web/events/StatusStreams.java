@@ -16,13 +16,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * Opens one SSE stream per client on the status bus.
- *
- * <p>Every client owns a bounded queue and a virtual thread that does the blocking socket writes,
- * so a slow reader can never stall the bus or the publishers: when its queue is full the oldest
- * events are dropped and a {@code resync} is queued at the tail, telling the client to re-read
- * whatever it cares about. The emitter times out before the 15-minute access token does; the client
- * reconnects through its authenticated fetch.
+ * Every client owns a bounded queue and a virtual thread that does the blocking socket writes, so a
+ * slow reader can never stall the bus or the publishers: when its queue is full the oldest events
+ * are dropped and a {@code resync} is queued at the tail, telling the client to re-read whatever it
+ * cares about.
  */
 @Component
 public class StatusStreams {
@@ -57,9 +54,7 @@ public class StatusStreams {
 
     /**
      * Subscribes FIRST, then sends the snapshot, then drains: an event that happens while the
-     * snapshot is being built is queued behind it instead of being lost.
-     *
-     * @param admin whether the subject may see {@code cron_execution} changes
+     * snapshot is being built is queued behind it instead of being lost..
      */
     public SseEmitter open(boolean admin, Supplier<Object> snapshot) {
         Client client = new Client(admin);

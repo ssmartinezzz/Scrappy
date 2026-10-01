@@ -10,11 +10,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The only entry point consumers ({@code ml/}, {@code web/}) use to read a
- * macro index. Holds the loaded {@link Serie} per {@link Indice} in a
- * volatile map so a read never blocks on a network refresh; {@link #refrescar()}
- * builds the next map fully before publishing it, so a reader never observes
- * a state where one index updated and another did not.
+ * The only entry point consumers ({@code ml/}, {@code web/}) use to read a macro index. Holds the
+ * loaded {@link Serie} per {@link Indice} in a volatile map so a read never blocks on a network
+ * refresh;
  */
 public class IndiceService {
 

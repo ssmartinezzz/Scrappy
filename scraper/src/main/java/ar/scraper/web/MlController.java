@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-/** ML pipeline operations: re-apply, renormalise, training and its status. */
 @RestController
 @RequestMapping("/api")
 public class MlController {
@@ -39,10 +38,8 @@ public class MlController {
     }
 
     /**
-     * Re-applies the ML pipeline over the in-memory catalog in the background.
-     * Scoring is not re-entrant: PythonRunner resolves ml_productos.json / ml_output.json in the
-     * process cwd, so concurrent runs overwrite each other silently. The scrape owns the slot;
-     * atomic exclusion lives in {@code PythonRunner.conReservaDeScoring}.
+     * Re-applies the ML pipeline over the in-memory catalog in the background. Scoring is not
+     * re-entrant:
      */
     @PostMapping("/ml/aplicar")
     public ResponseEntity<ApiResponse<MlDtos.Started>> mlAplicar() {
@@ -104,14 +101,12 @@ public class MlController {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ml_en_curso", "Entrenamiento ya en curso");
         }
 
-        // Manual "Construir índice visual": text re-train first, then the embeddings backfill,
-        // on one background thread. Both are forced: an explicit click is a deliberate full rebuild.
-        // entrenarEnBackground stays live as the post-scrape auto-training path; do not delete it.
+        // Manual "Construir índice visual": text re-train first, then the embeddings backfill, on
+        // one background thread.
         boolean forceRetrainTexto = true;
         boolean forceBackfillEmbeddings = true;
         boolean iniciado = pythonRunner.construirIndiceVisualEnBackground(
                 forceRetrainTexto, images, epochs, forceBackfillEmbeddings);
-        // Two near-simultaneous POSTs can both pass the pre-check; the runner's CAS picks one winner.
         if (!iniciado) {
             throw new ApiException(HttpStatus.CONFLICT, "ml_en_curso", "Entrenamiento ya en curso");
         }

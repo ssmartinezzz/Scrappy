@@ -17,14 +17,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Ejecuta UN {@link CronJob} de punta a punta, replicando la receta de
- * {@code /api/scrape} (ver {@code ScrapeController.scrape}):
- * guard RUNNING (skip si ya hay un scraping en curso), captura/aplicación/
- * restauración del rango de precio y del flag GPU (decisiones 5 y ADR-2 de
- * {@code sdd/scraper-cronjobs/design}), disparo de
- * {@link ScrapeControlPort#iniciar} SIN CAMBIOS, espera bloqueante
- * acotada hasta que el scraping termine, captura del logger
- * {@code ar.scraper.run} para esa ventana, y registro/retención de la
+ * Ejecuta UN {@link CronJob} de punta a punta, replicando la receta de {@code /api/scrape} (ver
+ * {@code ScrapeController.scrape}): guard RUNNING (skip si ya hay un scraping en curso),
+ * captura/aplicación/ restauración del rango de precio y del flag GPU, disparo de
+ * {@link ScrapeControlPort#iniciar} SIN CAMBIOS, espera bloqueante acotada hasta que el scraping
+ * termine, captura del logger {@code ar.scraper.run} para esa ventana, y registro/retención de la
  * ejecución en {@code cron_executions}.
  */
 public class CronJobRunner {
@@ -34,7 +31,7 @@ public class CronJobRunner {
     private static final int KEEP_EXECUTIONS = 50;
     /** The bus is the wake-up; this in-memory re-read only guards against a lost event. */
     private static final long RECHECK_INTERVAL_MS = 60_000L;
-    private static final long MAX_WAIT_MS = 2L * 60 * 60 * 1000; // 2h, cota generosa
+    private static final long MAX_WAIT_MS = 2L * 60 * 60 * 1000;
     private static final DateTimeFormatter ISO_SECONDS = CronJobService.ISO_SECONDS;
 
     private final ScrapeControlPort scrape;
@@ -68,11 +65,9 @@ public class CronJobRunner {
     }
 
     /**
-     * Expone el guard RUNNING para que {@code CronJobService.triggerNow}
-     * (run-now manual vía REST) pueda devolver un 409 limpio ANTES de
-     * despachar, en vez de dejar que {@link #runJob} registre una ejecución
-     * "skipped" silenciosa. Mantiene la dependencia de {@link ScrapeControlPort}
-     * donde ya vive (este runner), en vez de duplicarla en el service.
+     * Expone el guard RUNNING para que {@code CronJobService.triggerNow} (run-now manual vía REST)
+     * pueda devolver un 409 limpio ANTES de despachar, en vez de dejar que {@link #runJob} registre
+     * una ejecución "skipped" silenciosa.
      */
     public boolean isScraperBusy() {
         return scrape.estado() == ScraperStatus.RUNNING;
@@ -81,9 +76,9 @@ public class CronJobRunner {
     public void runJob(CronJob job) {
         String now = LocalDateTime.now(clock).format(ISO_SECONDS);
 
-        // Guard RUNNING: si ya hay un scraping en curso (manual o de otro cron
-        // job), no lo pisamos — registramos "skipped" y salimos sin tocar
-        // precio/GPU (nada que restaurar, no llegamos a aplicarlos).
+        // Guard RUNNING: si ya hay un scraping en curso (manual o de otro cron job), no lo pisamos
+        // — registramos "skipped" y salimos sin tocar precio/GPU (nada que restaurar, no llegamos a
+        // aplicarlos).
         if (scrape.estado() == ScraperStatus.RUNNING) {
             db.insertCronExecution(job.id(), now, "skipped", "scraper busy");
             db.touchLastRunAt(job.id(), now);
@@ -123,7 +118,6 @@ public class CronJobRunner {
             skippedReason = "excepción: " + e.getMessage();
             LOG.warn("[CRON] Job {} ({}) terminó con excepción: {}", job.id(), job.name(), e.getMessage());
         } finally {
-            // Restaurar SIEMPRE, incluso si iniciarScraping/awaitTerminal explotó.
             scrape.aplicarBandaDePrecio(prevMin, prevMax);
             scrape.usarGpu(true);
             capture.close();
@@ -137,8 +131,8 @@ public class CronJobRunner {
     }
 
     /**
-     * Blocks (bounded) until the scrape leaves RUNNING. Subscribes BEFORE reading the state, so a
-     * run that finishes in between is still seen; the periodic re-read covers a lost event.
+     * Subscribes BEFORE reading the state, so a run that finishes in between is still seen; the
+     * periodic re-read covers a lost event.
      */
     private String awaitTerminal() {
         CompletableFuture<ScraperStatus> terminal = new CompletableFuture<>();

@@ -10,7 +10,6 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-/** Payloads of the run-control and site/config endpoints. */
 public final class ScrapeDtos {
 
     private ScrapeDtos() {}
@@ -60,7 +59,6 @@ public final class ScrapeDtos {
         private long durMs;
         private String error;
 
-        /** The shape {@code /api/status} and the event stream both serve: lower-case state, error cut at 60. */
         public static SitioProgreso desde(String nombre, String estado, int productos, long durMs, String error) {
             String corto = error != null && !error.isBlank()
                     ? (error.length() > 60 ? error.substring(0, 60) + "..." : error)

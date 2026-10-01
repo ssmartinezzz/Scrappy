@@ -11,9 +11,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads power tier off a GPU's name, by family + model number band — not a
- * closed model list, so a new generation doesn't fall to DESCONOCIDA just
- * for being unlisted. Phase 1 abstained GPU entirely.
+ * Reads power tier off a GPU's name, by family + model number band — not a closed model list, so a
+ * new generation doesn't fall to DESCONOCIDA just for being unlisted.
  */
 public final class GpuSpecsReader implements LectorDeSpecs {
 
@@ -35,8 +34,8 @@ public final class GpuSpecsReader implements LectorDeSpecs {
     }
 
     private static Gama gama(Tokens tokens) {
-        if (tokens.has("gtx")) return Gama.BAJA;   // cualquier GTX
-        if (tokens.has("arc")) return Gama.BAJA;   // cualquier ARC
+        if (tokens.has("gtx")) return Gama.BAJA;
+        if (tokens.has("arc")) return Gama.BAJA;
 
         String padded = tokens.padded();
 
@@ -52,13 +51,8 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         Matcher rx = RX_MODEL.matcher(padded);
         if (rx.find()) {
             int modelo = Integer.parseInt(rx.group(1));
-            // Radeon numera de DOS maneras y las dos estan vivas en el
-            // catalogo (medido en pc-builder-gama): RX 9000 (RDNA4) numera
-            // por DECENA, como Nvidia (9070 -> ALTA), mientras que RX
+            // RX 9000 (RDNA4) numera por DECENA, como Nvidia (9070 -> ALTA), mientras que RX
             // 5000-7000 numera por CENTENA (6900 -> ALTA, 7600 -> MEDIA).
-            // Una sola regla numerica se come una de las dos series, asi que
-            // se ramifica por el primer digito del modelo antes de mirar el
-            // tier — nunca un umbral crudo sobre el valor completo.
             if (modelo / 1000 == 9) {
                 int decena = modelo % 100;
                 if (decena == 90 || decena == 80 || decena == 70) return Gama.ALTA;
@@ -70,8 +64,8 @@ public final class GpuSpecsReader implements LectorDeSpecs {
             int centena = modelo % 1000;
             if (centena == 900 || centena == 800) return Gama.ALTA;
             if (centena == 700 || centena == 600) return Gama.MEDIA;
-            // "x500 y abajo": solo los multiplos de cien legados (500/400/…) —
-            // no un umbral numerico crudo.
+            // "x500 y abajo": solo los multiplos de cien legados (500/400/…) — no un umbral
+            // numerico crudo.
             if (centena == 500 || centena == 400 || centena == 300 || centena == 200 || centena == 100) {
                 return Gama.BAJA;
             }
@@ -81,8 +75,6 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         return Gama.DESCONOCIDA;
     }
 
-    // ── marcaChip + generacion + VRAM (T3b, pc-builder-deep-taxonomy) ────
-
     private static String marcaChip(Tokens tokens) {
         if (tokens.has("nvidia") || tokens.has("geforce") || tokens.has("rtx") || tokens.has("gtx")) return "NVIDIA";
         if (tokens.has("radeon") || tokens.has("rx")) return "AMD";
@@ -90,12 +82,6 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         return "";
     }
 
-    /**
-     * El escalon del modelo (90|80|70|60|50), que es lo que hace comparable
-     * una RTX 5080 con una RX 9080. Ramifica por serie igual que {@link
-     * #gama(Tokens)}: RX 9000 y todo Nvidia numeran por DECENA, RX 5000-7000
-     * por CENTENA. Ver odd/tasks/pc-builder-top-tier.md D1.
-     */
     private static int nivel(Tokens tokens) {
         String padded = tokens.padded();
 
@@ -114,7 +100,10 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         return 0;
     }
 
-    /** El digito de los miles del modelo — RTX/GTX/RX numeran distinto (ver gama()), pero la generacion es siempre esa posicion. */
+    /**
+     * El digito de los miles del modelo — RTX/GTX/RX numeran distinto (ver gama()), pero la
+     * generacion es siempre esa posicion.
+     */
     private static int generacion(Tokens tokens) {
         String padded = tokens.padded();
 

@@ -23,9 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Financing presets, the per-product buy recommendation and the macro indices feed.
- * Activate/edit/delete of the active preset trigger a SYNCHRONOUS in-memory recompute
- * (cheap O(n) arithmetic, not a subprocess).
+ * Activate/edit/delete of the active preset trigger a SYNCHRONOUS in-memory recompute (cheap O(n)
+ * arithmetic, not a subprocess).
  */
 @RestController
 @RequestMapping("/api")
