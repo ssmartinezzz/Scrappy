@@ -341,7 +341,7 @@ Frontend suite 57 files / 536 tests green; build ok.
   token, so per-user endpoints (`/favoritos`, `/*/saved`) could be served to another user
   of the same browser; the API is ~27 KB gz per reload. Stays `no-store`.
 
-**Open (not in T6's scope, needs a decision):** the auth chain is serial — `/auth/me` waits
+**Declined by the user 2026-10-01 (not done):** the auth chain is serial — `/auth/me` waits
 for `/auth/refresh`, and `/api/data` waits for `/auth/me`: three round trips (~480 ms on
 Slow 4G) before the catalog fetch starts. Returning the user in the refresh response would
 remove one (~160 ms); it is an auth contract change and must be verified against a real
@@ -349,6 +349,7 @@ process (`run-e2e.sh`).
 
 ## Next step
 
-Decide on the auth-chain round trip (above); then T3 critical-path JS.
+T3 critical-path JS. T0–T6 shipped together in one PR (production code ~110 lines; the
+rest is tests and this document).
 Decided by the user 2026-10-01: do **not** resize images of stores without a CDN resize
 parameter ourselves for now; revisit at T9 with new numbers.
