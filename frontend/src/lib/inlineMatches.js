@@ -68,7 +68,8 @@ export function* inlineMatches(line) {
     return q > p + 3 ? q : -1;
   };
 
-  for (let i = 0; i < n; i++) {
+  let i = 0;
+  while (i < n) {
     const c = line[i];
     let end = -1;
     if (c === '*') end = bold(i);
@@ -77,7 +78,9 @@ export function* inlineMatches(line) {
     else if (c === 'h') end = url(i);
     if (end > i) {
       yield { index: i, token: line.slice(i, end) };
-      i = end - 1;
+      i = end;
+    } else {
+      i++;
     }
   }
 }
