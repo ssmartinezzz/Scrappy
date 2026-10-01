@@ -189,7 +189,8 @@ def test_a_revoked_token_is_401_even_with_perfect_bootstrap_headers(
         cookies=sesion_fresca.cookie(),
         headers={"X-Refresh-CSRF": sesion_fresca.nonce, "Origin": app_origin},
     )
-    assert cerrado.status == 200 and cerrado.data()["cerrada"] is True
+    assert cerrado.status == 200
+    assert cerrado.data()["cerrada"] is True
 
     r = _refresh(api, sesion_fresca, Origin=app_origin, **{"Sec-Fetch-Site": SEC_FETCH_SITE_REAL})
     assert r.status == 401, f"a revoked token must be 401, got {r.status}: {r.body!r}"

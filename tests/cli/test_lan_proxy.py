@@ -45,7 +45,8 @@ class FakeDocker:
 def test_detect_lan_ip_skips_loopback():
     ip = detect_lan_ip()
 
-    assert ip and not ip.startswith("127.")
+    assert ip
+    assert not ip.startswith("127.")
 
 
 def test_the_conf_routes_each_tls_port_at_its_service(cfg):
@@ -87,7 +88,8 @@ def test_start_runs_the_proxy_on_the_host_network(cfg):
     start_proxy(cfg, ip="192.0.2.10", runner=docker)
 
     run = next(c for c in docker.calls if c[1] == "run")
-    assert "--network" in run and run[run.index("--network") + 1] == "host"
+    assert "--network" in run
+    assert run[run.index("--network") + 1] == "host"
 
 
 def test_start_replaces_a_previous_container(cfg):
@@ -119,7 +121,8 @@ def test_ensure_cert_writes_a_cert_and_key(cfg):
 
     bundle = ensure_cert(cfg, ip="192.0.2.10")
 
-    assert bundle.cert.is_file() and bundle.key.is_file()
+    assert bundle.cert.is_file()
+    assert bundle.key.is_file()
     assert bundle.cert.parent == state
 
 

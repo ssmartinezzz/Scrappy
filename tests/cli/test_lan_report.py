@@ -29,7 +29,8 @@ def test_trusted_lan_orders_frontend_then_ios_then_android_urls_then_trust_step_
 
     assert report is not None
     assert report.index(FRONTEND) < report.index(ca.ios) < report.index(ca.android)
-    assert "Ajustes" in report and "Ajustes de confianza de certificados" in report
+    assert "Ajustes" in report
+    assert "Ajustes de confianza de certificados" in report
     assert report.index(ca.android) < report.index("Ajustes")
     assert "stop" in report
     assert report.index("Ajustes") < report.index("stop")
@@ -66,7 +67,8 @@ def test_self_signed_lan_warns_once_then_names_both_ports_then_stop_then_doc_poi
     assert report is not None
     warning_idx = report.index("advertir")
     assert report.index(FRONTEND) < warning_idx
-    assert "8443" in report and "8444" in report
+    assert "8443" in report
+    assert "8444" in report
     ports_idx = max(report.index("8443"), report.index("8444"))
     assert warning_idx < ports_idx
     stop_idx = report.index("stop")
@@ -76,4 +78,5 @@ def test_self_signed_lan_warns_once_then_names_both_ports_then_stop_then_doc_poi
     assert stop_idx < report.index(last_line)
     # No CA URL at all: with no CA there is nothing behind them.
     assert "8081" not in report
-    assert ".cer" not in report and "rootCA.pem" not in report
+    assert ".cer" not in report
+    assert "rootCA.pem" not in report
