@@ -3,6 +3,11 @@ import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
 import { SEÑAL_CONFIG, gaugeColor } from '../lib/colors';
 import FinanBadge from './FinanBadge';
 import { ImageWithFallback } from './ui/image-with-fallback';
+import { thumbSrcSet, thumbUrl } from '../lib/thumb';
+
+// Rendered card width per .grid breakpoint in styles.css (2 columns on phones,
+// minmax(150px) from 560px, minmax(200px) from 900px).
+const CARD_IMG_SIZES = '(min-width: 900px) 260px, (min-width: 560px) 220px, 50vw';
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
 function gymSubcat(product) {
@@ -166,9 +171,13 @@ const ProductCard = memo(function ProductCard({
           + site-name so the card stays usable even with a broken image. */}
       <div className="card-img-wrap aspect-[3/4]">
         <ImageWithFallback
-          src={p.img}
+          src={thumbUrl(p.img, 480) ?? p.img}
+          srcSet={thumbSrcSet(p.img)}
+          sizes={CARD_IMG_SIZES}
+          originalSrc={p.img}
           alt={p.nombre}
           loading="lazy"
+          decoding="async"
           className="card-img"
           fallbackClassName="card-img-placeholder"
           fallback={<><span>👕</span><span className="text-[.6rem] text-t4">{p.sitio}</span></>}

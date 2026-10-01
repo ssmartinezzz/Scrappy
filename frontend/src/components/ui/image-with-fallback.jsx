@@ -9,7 +9,9 @@
 // placeholder's centering.
 import * as React from 'react';
 
-function ImageWithFallback({ src, alt, className, fallback, fallbackClassName, ...imgProps }) {
+// `originalSrc`: when `src`/`srcSet` point at a CDN-resized copy, the first
+// error retries the untouched original before giving up on the image.
+function ImageWithFallback({ src, alt, className, fallback, fallbackClassName, originalSrc, ...imgProps }) {
   return (
     <>
       {src && (
@@ -18,6 +20,12 @@ function ImageWithFallback({ src, alt, className, fallback, fallbackClassName, .
           alt={alt}
           className={className}
           onError={e => {
+            if (originalSrc && !e.target.dataset.original) {
+              e.target.dataset.original = '1';
+              e.target.removeAttribute('srcset');
+              e.target.src = originalSrc;
+              return;
+            }
             e.target.style.display = 'none';
             const fb = e.target.nextSibling;
             if (fb) fb.style.display = '';
