@@ -153,7 +153,7 @@ else
   fi
   echo "       Descargando uv ($UV_ARCH)..."
   UV_TARBALL="$UV_DIR/uv.tar.gz"
-  if ! curl -fsSL --max-time 60 -o "$UV_TARBALL" \
+  if ! curl --proto "=https" --tlsv1.2 -fsSL --max-time 60 -o "$UV_TARBALL" \
       "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_ARCH}.tar.gz"; then
     echo "  [ERROR] Descarga de uv fallo. El CLI nativo requiere Python/uv —" >&2
     echo "          instalacion abortada." >&2
