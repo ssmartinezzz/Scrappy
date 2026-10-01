@@ -92,7 +92,7 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
 
     renderApp('/catalogo');
 
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
     expect(screen.queryByText('Cronjobs')).not.toBeInTheDocument();
     expect(screen.queryByText(/nuevo scraping/i)).not.toBeInTheDocument();
     expect(screen.queryByTitle('Ask Agent')).not.toBeInTheDocument();
@@ -103,7 +103,7 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
 
     renderApp('/catalogo');
 
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
     expect(screen.getByText('Cronjobs')).toBeInTheDocument();
     expect(screen.getByText(/nuevo scraping/i)).toBeInTheDocument();
     // AgentChatPanel is lazy: the FAB mounts one tick after the layout.
@@ -232,7 +232,7 @@ describe('App — AuthGate wraps the tree above <Routes> (design D5)', () => {
 
     renderApp('/catalogo');
 
-    await screen.findByLabelText(/usuario/i);
+    expect(await screen.findByLabelText(/usuario/i)).toBeInTheDocument();
   });
 
   it('an anonymous visitor landing on /login sees the login form directly', async () => {
@@ -240,7 +240,7 @@ describe('App — AuthGate wraps the tree above <Routes> (design D5)', () => {
 
     renderApp('/login');
 
-    await screen.findByLabelText(/usuario/i);
+    expect(await screen.findByLabelText(/usuario/i)).toBeInTheDocument();
   });
 });
 
@@ -263,7 +263,7 @@ describe('App — the interrupted-run banner is ADMIN-only (slice 6, task 6.1/6.
     global.fetch = authedRouter({ roles: ['VIEWER'], tieneData: true, interrumpida: CON_INTERRUMPIDA });
 
     renderApp('/catalogo');
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
 
     // Hidden, not disabled — and not even asked. GET /api/scrape/interrupted
     // is ADMIN in ApiRoutePolicy.TABLE, so a VIEWER asking buys a 403 for a
@@ -277,7 +277,7 @@ describe('App — the interrupted-run banner is ADMIN-only (slice 6, task 6.1/6.
     global.fetch = authedRouter({ roles: ['ADMIN'], tieneData: true });
 
     renderApp('/catalogo');
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
 
     expect(screen.queryByText(/quedó una corrida sin terminar/i)).not.toBeInTheDocument();
   });
@@ -290,7 +290,7 @@ describe('App — the interrupted-run banner is ADMIN-only (slice 6, task 6.1/6.
 
     renderApp('/catalogo');
 
-    await screen.findByText(/quedó una corrida sin terminar/i);
+    expect(await screen.findByText(/quedó una corrida sin terminar/i)).toBeInTheDocument();
     expect(screen.getByText('Catálogo')).toBeInTheDocument();
     expect(screen.queryByText(/iniciar scraping/i)).not.toBeInTheDocument();
   });
@@ -324,7 +324,7 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
 
     renderApp('/');
 
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
 
     const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
     expect(statusCalls).toHaveLength(1);
@@ -338,7 +338,7 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
 
     renderApp('/catalogo');
 
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
 
     const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
     expect(statusCalls).toHaveLength(1);
@@ -371,7 +371,7 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
 
     renderApp('/');
 
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
 
     const mlEstadoCalls   = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/ml/estado'));
     const tendenciasCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/tendencias'));
@@ -388,7 +388,7 @@ describe('App — one status stream for the whole session', () => {
 
     renderApp('/catalogo');
 
-    await screen.findByText('Catálogo');
+    expect(await screen.findByText('Catálogo')).toBeInTheDocument();
     await waitFor(() => expect(eventCalls()).toHaveLength(1));
     const headers = new Headers(eventCalls()[0][1].headers);
     expect(headers.get('Authorization')).toBe('Bearer tok');
@@ -401,7 +401,7 @@ describe('App — one status stream for the whole session', () => {
 
     renderApp('/login');
 
-    await screen.findByLabelText(/usuario/i);
+    expect(await screen.findByLabelText(/usuario/i)).toBeInTheDocument();
     expect(eventCalls()).toHaveLength(0);
   });
 });

@@ -276,9 +276,12 @@ function percentilItem(ml, p) {
   return { icon:'📈', color: SEMANTIC.negative, text: `Precio alto — percentil ${pct}°, más caro que el ${pct}% del mercado` };
 }
 
+// False for 0, negatives, NaN, null and undefined alike.
+const esPositivo = v => v > 0;
+
 // 2. Vs media de la categoría
 function mediaItem(st, precioComp, p) {
-  if (!st?.mean || !(precioComp > 0)) return null;
+  if (!st?.mean || !esPositivo(precioComp)) return null;
   const diffTxt = ((precioComp - st.mean) / st.mean * 100).toFixed(1);
   const diffPct = Number(diffTxt);
   const mediaTxt = Math.round(st.mean).toLocaleString('es-AR');
@@ -293,7 +296,7 @@ function mediaItem(st, precioComp, p) {
 
 // 3. Vs mediana
 function medianaItem(st, precioComp, p) {
-  if (!st?.median || !(precioComp > 0)) return null;
+  if (!st?.median || !esPositivo(precioComp)) return null;
   const diffMed = Number(((precioComp - st.median) / st.median * 100).toFixed(1));
   if (Math.abs(diffMed) <= 5) return null;
   const dir = diffMed < 0 ? 'por debajo' : 'por encima';

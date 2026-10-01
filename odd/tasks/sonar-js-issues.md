@@ -87,7 +87,12 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - `tests/e2e/run-e2e.sh --browser` contra la rama (dist recién construido, crons 3 y 4 apagados y restaurados sin deriva): **31/31**.
 - Visual, master vs rama, mismo backend y misma base, capturas 1366x900 de `/catalogo`, `/picks`, `/marcas`, detalle de marca, `/analisis/oportunidades`, `/favoritos`: diferencia de 0 a 23 píxeles por pantalla, que varía entre corridas (antialiasing de texto). Ningún cambio de layout por `btn-reset`.
 - Hallazgo preexistente, fuera de alcance: la barra de precio de las tarjetas (`catStats`) a veces no aparece nunca, en master y en la rama; el efecto de `fetchTendencias` se cancela cuando `readStatus` cambia `scrapeStatus` antes de que llegue la respuesta. En una corrida de la rama apareció y en las otras 8 (4 master, 4 rama) no.
-- Pendiente: análisis de Sonar sobre el PR.
+- Análisis de Sonar sobre el PR #267: 12 issues nuevos introducidos por la limpieza, arreglados en un commit aparte:
+  6× S2699 (`findBy*` sin `expect` tras T4: vuelven a `expect(await screen.findBy…).toBeInTheDocument()`, lo que afirmaban en master); 2× S1940 (`!(precioComp > 0)` → helper `esPositivo`, misma semántica con NaN/null/undefined); S2310 (`inlineMatches`: `for` con `i = end - 1` → `while`; el fuzz de 30.000 líneas sigue verde); 2× S6819 (`role="presentation"` del modal de comparación → botón nativo `compare-modal-scrim` "Cerrar comparación" detrás del panel).
+  Test nuevo `CompareModal.test.jsx`: rojo observado contra el código anterior (no había botón), verde después. En el browser (1366 y 390 px), el click afuera cierra y el click en el panel no.
+  Queda S6847 en `CategoryPicksCarousel` (la misma región con flechas ya declarada no arreglable; Sonar lo cuenta nuevo porque cambió el elemento).
+- Hallazgo preexistente, fuera de alcance: la tabla del modal de comparación dibuja cada rótulo debajo de sus valores, así que se lee como si estuviera corrida una fila (la fila PRECIO muestra la tienda). Igual en master.
+- Suite: 63 archivos, 601 tests. Build OK.
 
 ## Próximo paso
 

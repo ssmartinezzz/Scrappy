@@ -98,7 +98,7 @@ describe('PriceHistoryPage', () => {
   it('sin handle en la ruta no pide nada', async () => {
     renderPage('/historial');
 
-    await screen.findByText(/No encontramos ese producto/);
+    expect(await screen.findByText(/No encontramos ese producto/)).toBeInTheDocument();
     expect(fetchProductoDetalle).not.toHaveBeenCalled();
   });
 });

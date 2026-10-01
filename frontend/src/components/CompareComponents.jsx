@@ -41,9 +41,10 @@ const ROWS = [
 export function CompareModal({ items, onClose }) {
   const minPrecio = Math.min(...items.map(p => p.precio));
   return (
-    // Both wrappers only dismiss on a pointer click; the keyboard path is the close button below.
-    <div className="compare-modal-backdrop" role="presentation" onClick={onClose}>
-      <div className="compare-modal-inner" role="presentation" onClick={e => e.stopPropagation()}>
+    <div className="compare-modal-backdrop">
+      {/* Clicking outside the panel closes it; a real button, so it is reachable without a mouse too. */}
+      <button type="button" className="compare-modal-scrim" aria-label="Cerrar comparación" onClick={onClose} />
+      <div className="compare-modal-inner">
         <div className="compare-modal-header">
           <h2 style={{ fontSize:'1rem', fontWeight:700 }}>⚖ Comparación</h2>
           <button className="detail-close" onClick={onClose}>✕</button>
