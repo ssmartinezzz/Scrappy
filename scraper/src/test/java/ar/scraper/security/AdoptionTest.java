@@ -1,6 +1,7 @@
 package ar.scraper.security;
 
 import ar.scraper.db.UsuarioRepository;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -48,7 +49,7 @@ class AdoptionTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        repo = new UsuarioRepository(dataSource());
+        repo = TestRepositories.usuarios(dataSource());
         seeder = new AdminSeeder(repo, new PasswordHasher(),
                 "admin", "una-password-de-verdad", "cli", "otra-password-de-verdad");
     }
@@ -131,7 +132,7 @@ class AdoptionTest extends PostgresTestBase {
             listos.countDown();
             try {
                 largada.await(5, TimeUnit.SECONDS);
-                new AdminSeeder(new UsuarioRepository(dataSource()), new PasswordHasher(),
+                new AdminSeeder(TestRepositories.usuarios(dataSource()), new PasswordHasher(),
                         "admin", "una-password-de-verdad", "cli", "otra-password-de-verdad").run(null);
             } catch (Throwable t) {
                 fallas.add(t);

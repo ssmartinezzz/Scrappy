@@ -1,6 +1,8 @@
 package ar.scraper.security.reset;
 
 import ar.scraper.db.PasswordResetRepository;
+import ar.scraper.db.support.TestRepositories;
+import ar.scraper.db.support.TestTransactions;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -52,9 +54,9 @@ class PasswordResetFlowTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        usuarios = new UsuarioRepository(dataSource());
-        tokens = new PasswordResetRepository(dataSource());
-        refrescos = new RefreshTokenRepository(dataSource());
+        usuarios = TestRepositories.usuarios(dataSource());
+        tokens = TestRepositories.passwordResets(dataSource());
+        refrescos = TestRepositories.refreshTokens(dataSource());
         hasher = new PasswordHasher();
         canal = new CanalDePrueba();
         service = nuevoServicio(canal);
@@ -64,9 +66,9 @@ class PasswordResetFlowTest extends PostgresTestBase {
     }
 
     private PasswordResetService nuevoServicio(PasswordResetChannel canal) {
-        return new PasswordResetService(dataSource(), usuarios, tokens, refrescos, hasher, canal,
+        return TestTransactions.proxy(new PasswordResetService(usuarios, tokens, refrescos, hasher, canal,
                 new ResetRateLimiter(Clock.systemUTC()), Clock.systemUTC(),
-                "http://localhost:5173", INLINE);
+                "http://localhost:5173", INLINE), TestTransactions.manager(dataSource()));
     }
 
     // ── enumeration ──────────────────────────────────────────────────────────

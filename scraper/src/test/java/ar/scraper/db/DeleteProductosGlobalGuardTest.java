@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.catalog.FavoritosProtegidosException;
+import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.support.PostgresTestBase;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -53,7 +54,7 @@ class DeleteProductosGlobalGuardTest extends PostgresTestBase {
     @BeforeEach
     void setUp() throws Exception {
         db = TestDatabaseServices.create(dataSource());
-        UsuarioRepository usuarios = new UsuarioRepository(dataSource());
+        UsuarioRepository usuarios = TestRepositories.usuarios(dataSource());
 
         usuarios.crear("jefa", null, "$argon2id$x", false);
         usuarios.asignarRol("jefa", "ADMIN");

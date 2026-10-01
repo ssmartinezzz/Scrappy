@@ -3,6 +3,7 @@ package ar.scraper.db;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ar.scraper.outfits.SavedOutfitsPort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,39 +44,34 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
      * detalle de este método en vez de la estructura de la tabla.</p>
      *
      * <p>Cabecera e ítems se escriben en UNA transacción: un outfit a medias
-     * —guardado pero sin prendas— es peor que no haberlo guardado.</p>
+     * —guardado pero sin prendas— es peor que no haberlo guardado. El {@code catch}
+     * devuelve {@code -1}, así que marca rollback a mano.</p>
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int guardarOutfit(UUID usuarioId, String nombre, String slotsJson, String suplementosJson, double total) {
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                int id;
-                try (PreparedStatement ps = c.prepareStatement("""
-                        INSERT INTO saved_outfits (usuario_id, nombre, total_estimado, created_at)
-                        VALUES (?, ?, ?, ?)
-                        """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setObject(1, usuarioId);
-                    ps.setString(2, nombre != null ? nombre : "Outfit");
-                    ps.setDouble(3, total);
-                    ps.setObject(4, Timestamps.now());
-                    ps.executeUpdate();
-                    try (ResultSet keys = ps.getGeneratedKeys()) {
-                        if (!keys.next()) { c.rollback(); return -1; }
-                        id = keys.getInt(1);
-                    }
+            int id;
+            try (PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO saved_outfits (usuario_id, nombre, total_estimado, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, nombre != null ? nombre : "Outfit");
+                ps.setDouble(3, total);
+                ps.setObject(4, Timestamps.now());
+                ps.executeUpdate();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    if (!keys.next()) { Sql.marcarRollback(); return -1; }
+                    id = keys.getInt(1);
                 }
-                insertarItems(c, id, "slot", "slot", slotsJson);
-                insertarItems(c, id, "suplemento", "tipo", suplementosJson);
-                c.commit();
-                return id;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error guardando outfit, rollback: {}", e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-                return -1;
             }
+            insertarItems(c, id, "slot", "slot", slotsJson);
+            insertarItems(c, id, "suplemento", "tipo", suplementosJson);
+            return id;
         } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit: {}", e.getMessage());
+            LOG.warn("[DB] Error guardando outfit, rollback: {}", e.getMessage());
+            Sql.marcarRollback();
             return -1;
         }
     }

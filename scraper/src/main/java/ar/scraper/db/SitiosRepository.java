@@ -7,6 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -65,65 +68,77 @@ class SitiosRepository implements SitiosPort {
         this.siteRegistry = siteRegistry;
     }
 
+    /**
+     * Both tables change together; the registry reloads only after the commit, otherwise it
+     * would read the table before the new rows are visible and keep serving the old ones.
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void guardarSitio(String nombre, String url, String plataforma) {
         Objects.requireNonNull(nombre, "nombre must not be null");
-        // sitios_dinamicos.plataforma was dropped by V20 — sitio.plataforma
-        // (below) is the only copy now (design E1). sitios_dinamicos keeps
-        // (nombre, url, created_at): its remaining job is "the URL to scrape".
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        String plataformaValida = PLATAFORMAS_VALIDAS.contains(plataforma) ? plataforma : "tiendanube";
+        try (Connection c = dataSource.getConnection()) {
+            // sitios_dinamicos.plataforma was dropped by V20 — sitio.plataforma
+            // is the only copy now (design E1). sitios_dinamicos keeps
+            // (nombre, url, created_at): its remaining job is "the URL to scrape".
+            try (PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO sitios_dinamicos (nombre, url, created_at)
                     VALUES (?, ?, ?)
                     ON CONFLICT(nombre) DO UPDATE SET url=excluded.url
                     """)) {
-            ps.setString(1, nombre);
-            ps.setString(2, url);
-            ps.setObject(3, Timestamps.now());
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
-        }
-
-        String plataformaValida = PLATAFORMAS_VALIDAS.contains(plataforma) ? plataforma : "tiendanube";
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+                ps.setString(1, nombre);
+                ps.setString(2, url);
+                ps.setObject(3, Timestamps.now());
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
                     VALUES (?, ?, ?, false, NULL, 'dinamico')
                     ON CONFLICT (nombre) DO UPDATE SET plataforma = EXCLUDED.plataforma
                     """)) {
-            ps.setString(1, nombre);
-            ps.setString(2, SiteClassification.sitioKey(nombre));
-            ps.setString(3, plataformaValida);
-            ps.executeUpdate();
+                ps.setString(1, nombre);
+                ps.setString(2, SiteClassification.sitioKey(nombre));
+                ps.setString(3, plataformaValida);
+                ps.executeUpdate();
+            }
         } catch (Exception e) {
-            LOG.warn("[DB] Error guardando sitio (tabla sitio): {}", e.getMessage());
+            LOG.warn("[DB] Error guardando sitio: {}", e.getMessage());
+            Sql.marcarRollback();
         }
-
-        siteRegistry.reload();
+        recargarTrasCommit();
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void eliminarSitio(String nombre) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM sitios_dinamicos WHERE nombre=?")) {
-            ps.setString(1, nombre);
-            ps.executeUpdate();
+        try (Connection c = dataSource.getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM sitios_dinamicos WHERE nombre=?")) {
+                ps.setString(1, nombre);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "UPDATE sitio SET origen = 'historico' WHERE nombre = ? AND origen = 'dinamico'")) {
+                ps.setString(1, nombre);
+                ps.executeUpdate();
+            }
         } catch (Exception e) {
             LOG.warn("[DB] Error eliminando sitio: {}", e.getMessage());
+            Sql.marcarRollback();
         }
+        recargarTrasCommit();
+    }
 
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE sitio SET origen = 'historico' WHERE nombre = ? AND origen = 'dinamico'")) {
-            ps.setString(1, nombre);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            LOG.warn("[DB] Error actualizando origen de sitio: {}", e.getMessage());
+    private void recargarTrasCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            siteRegistry.reload();
+            return;
         }
-
-        siteRegistry.reload();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                siteRegistry.reload();
+            }
+        });
     }
 
     @Override

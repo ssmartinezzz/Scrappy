@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.TestTransactions;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -38,7 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScrapeRunResumeRepositoryTest extends PostgresTestBase {
 
     private ScrapeRunRepository repo() {
-        return new ScrapeRunRepository(dataSource());
+        return TestTransactions.proxy(new ScrapeRunRepository(TestTransactions.aware(dataSource())),
+                TestTransactions.manager(dataSource()));
     }
 
     @Test

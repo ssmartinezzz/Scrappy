@@ -1,6 +1,7 @@
 package ar.scraper.db;
 
 import ar.scraper.db.support.PostgresTestBase;
+import ar.scraper.db.support.TestRepositories;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -40,7 +41,7 @@ class UsuarioRepositoryTest extends PostgresTestBase {
 
     @BeforeEach
     void setUp() {
-        repo = new UsuarioRepository(dataSource());
+        repo = TestRepositories.usuarios(dataSource());
     }
 
     @Test

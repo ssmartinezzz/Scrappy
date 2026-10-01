@@ -5,6 +5,7 @@ import ar.scraper.financiacion.PresetPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -178,30 +179,24 @@ class PresetRepository implements PresetPort {
      * evita quedar sin ningún preset activo por un id inválido/obsoleto.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean activarPreset(int id) {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (PreparedStatement psOff = c.prepareStatement(
-                    "UPDATE financiacion_presets SET activo=false WHERE activo");
-                 PreparedStatement psOn = c.prepareStatement(
-                    "UPDATE financiacion_presets SET activo=true WHERE id=?")) {
-                psOff.executeUpdate();
-                psOn.setInt(1, id);
-                int filasActivadas = psOn.executeUpdate();
-                if (filasActivadas == 0) {
-                    LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
-                    c.rollback();
-                    return false;
-                }
-                c.commit();
-                return true;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement psOff = c.prepareStatement(
+                "UPDATE financiacion_presets SET activo=false WHERE activo");
+             PreparedStatement psOn = c.prepareStatement(
+                "UPDATE financiacion_presets SET activo=true WHERE id=?")) {
+            psOff.executeUpdate();
+            psOn.setInt(1, id);
+            if (psOn.executeUpdate() == 0) {
+                LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
+                Sql.marcarRollback();
                 return false;
             }
+            return true;
         } catch (SQLException e) {
             LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
+            Sql.marcarRollback();
             return false;
         }
     }
@@ -222,38 +217,32 @@ class PresetRepository implements PresetPort {
      *         borrado; {@code false} si no existía (no-op) o si ocurrió un error.
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean eliminarPreset(int id) {
         try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                int total;
-                try (Statement st = c.createStatement();
-                     ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
-                    total = rs.next() ? rs.getInt(1) : 0;
-                }
-
-                int filasBorradas;
-                try (PreparedStatement ps = c.prepareStatement(
-                        "DELETE FROM financiacion_presets WHERE id=?")) {
-                    ps.setInt(1, id);
-                    filasBorradas = ps.executeUpdate();
-                }
-
-                if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
-                    crearPresetInterno(c, PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
-                            PRESET_ILUSTRATIVO_CUOTAS, true);
-                    LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
-                }
-
-                c.commit();
-                return filasBorradas > 0;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-                return false;
+            int total;
+            try (Statement st = c.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
+                total = rs.next() ? rs.getInt(1) : 0;
             }
-        } catch (SQLException e) {
+
+            int filasBorradas;
+            try (PreparedStatement ps = c.prepareStatement(
+                    "DELETE FROM financiacion_presets WHERE id=?")) {
+                ps.setInt(1, id);
+                filasBorradas = ps.executeUpdate();
+            }
+
+            if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
+                crearPresetInterno(c, PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                        PRESET_ILUSTRATIVO_CUOTAS, true);
+                LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
+            }
+
+            return filasBorradas > 0;
+        } catch (Exception e) {
             LOG.warn("[DB] Error eliminando preset {}: {}", id, e.getMessage());
+            Sql.marcarRollback();
             return false;
         }
     }

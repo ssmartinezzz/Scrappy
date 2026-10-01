@@ -247,6 +247,40 @@ devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error.
 Todo test de round-trip afirma `nuevos()` **antes** que cualquier valor de
 columna, porque `0` es la firma exacta de un fallo tragado.
 
+### Transacciones
+
+Las unidades de escritura son atómicas **por declaración** (`backend-hardening` T4):
+`@Transactional(rollbackFor = Exception.class)` en el método público del adaptador,
+nunca `setAutoCommit(false)` a mano. `TransactionConfig` declara el pool Hikari
+(mismo binding `spring.datasource.*`), un `DataSourceTransactionManager` sobre el pool
+crudo y un `TransactionAwareDataSourceProxy` como `DataSource` primario: adentro de una
+transacción `getConnection()` devuelve la conexión de la transacción, afuera se comporta
+como el pool. Flyway usa el pool crudo (`@FlywayDataSource`).
+
+| Unidad | Método |
+|---|---|
+| PC / outfit guardado | `guardarPc`, `guardarOutfit` (cabecera + ítems) |
+| Presets | `activarPreset`, `eliminarPreset` |
+| Cron | `insertCronJob`, `updateCronJob` (job + sitios), `deleteCronJob` (ejecuciones + job) |
+| Sitios | `guardarSitio`, `eliminarSitio` (dos tablas; `SiteRegistry.reload()` corre **después** del commit) |
+| Catálogo | `upsertProductos`, `upsertParcial`, `aplicarReclasificacionAuditada`, `actualizarNormalizacion`, `limpiarProductos` |
+| Corrida | `ScrapeRunRepository.crear`, `reabrir`, `descartarInterrumpidas` |
+| Otros | `guardarPreciosExternos`, `guardarCategoriaStats`, `guardarMlOutput`, `guardarCategoriaDismiss` |
+| Cuentas | `UsuarioRepository.crearConRol`, `reemplazarRol`, `sembrarAdministracion`; `PasswordResetService.confirmar` |
+
+⚠️ **Un método que devuelve un centinela (`-1`, `false`, `UpsertStats(0,0,0,0)`) se
+traga la excepción, y una excepción tragada COMMITEA.** Por eso el `catch` llama a
+`Sql.marcarRollback()` (rollback-only) antes de devolver el centinela. `confirmar` hace
+lo mismo en sus ramas `false`: un token consumido con la password sin cambiar no puede
+sobrevivir. Consecuencia: si ni siquiera se puede *abrir* la transacción (base caída),
+la excepción sale en vez del centinela.
+
+**Quedan fuera de toda transacción, a propósito:** el commit por sitio de `upsertParcial`
+(el alcance del soft-delete lo lee de vuelta), `ResultAggregator.agregar`, el scoring ML,
+`CronJobRunner.runJob`, los inserts/updates del log de ejecución de cron (tienen que
+persistir aunque el job falle), los seeders de arranque y `PasswordResetService.despachar`
+(token + mail).
+
 ### Lecturas
 
 **`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`:

@@ -1,6 +1,7 @@
 package ar.scraper.db.support;
 
 import ar.scraper.db.UsuarioRepository;
+import ar.scraper.db.support.TestRepositories;
 
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -34,7 +35,7 @@ public final class UsuarioDePrueba {
      * meant to check.</p>
      */
     public static UUID crear(DataSource dataSource, String username, String rol) {
-        UsuarioRepository repo = new UsuarioRepository(dataSource);
+        UsuarioRepository repo = TestRepositories.usuarios(dataSource);
         repo.crear(username, null, "$argon2id$de-prueba", false);
         repo.asignarRol(username, rol);
         return repo.buscarActivaPorUsername(username).orElseThrow().id();

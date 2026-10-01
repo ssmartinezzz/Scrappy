@@ -90,7 +90,7 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T6b Consumers: frontend `unwrap()`/`ApiError` + 5 raw fetches + components reading `.error`/`.mensaje`, CLI `rest.py`, `tests/e2e`, perf suites, `docs/openapi.yaml`, `docs/API_REFERENCE.md`, `docs/FRONTEND_AUTH_CONTRACT.md`
 - [x] T6c Adapt Java + frontend tests to the envelope; suite green; commit T6
 - [x] T8 Domain free of tooling + ArchUnit rule
-- [ ] T4 ACID: `DataSourceUtils` in adapters, `@Transactional` replaces manual commit/rollback (12 files)
+- [x] T4 ACID: `TransactionAwareDataSourceProxy` + `@Transactional` replace manual commit/rollback (12 files)
 - [ ] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
 - [ ] T3 Push instead of poll: V41 triggers, LISTEN listener + Resilience4j backoff, status bus, SSE, frontend stream reader, remove hand-rolled sleeps, Hikari boot timeout
 - [ ] T7 SOLID: split `ApiController` (65 handlers) by resource
@@ -235,6 +235,43 @@ Baseline 3119 / 0 / 0 / 7. `mvn clean test` after each unit (BUILD SUCCESS every
 - Docs updated in the same commits: `docs/STRUCTURE.md`, `docs/ARCHITECTURE.md`, `docs/LLM_EMBED.md`.
 - `ar.scraper.json` and `ar.scraper.ml` (the two moved ports) are outside the domain list; `CronJobRunner` still imports logback (not in the banned set).
 
+### T4 evidence
+
+Baseline 3121 / 0 / 0 / 7 (HEAD 410e0c9). `mvn clean test` before each commit, BUILD SUCCESS every time, 0 `ERROR]` lines.
+
+| Commit | Hash | Tests |
+|---|---|---|
+| prelude `refactor(scheduling): capture cron run logs through a port` | a53cce2 | 3121 / 0 / 0 / 7 |
+| 1 `feat(db): route JDBC connections through Spring transactions` | f05d7c8 | 3125 / 0 / 0 / 7 (+4 `TransactionWiringTest`) |
+| 2 `feat(db): make repository write units atomic by declaration` | 4d91b0e | 3140 / 0 / 0 / 7 (+3 `TransactionalBeansTest`, +12 `TransactionalUnitsRollbackTest`) |
+| 3 `feat(db): make scrape-run and product writes atomic by declaration` | c4505a1 | 3147 / 0 / 0 / 7 (+7 rollback tests) |
+| 4 `refactor(security): replace hand-rolled user transactions` | b043d53 | 3151 / 0 / 0 / 7 (+3 `PasswordResetRollbackTest`, +1 `AdminSeederRollbackTest`) |
+| 5 `docs(db): document declarative transactions` | 1f73a2c | 3151 / 0 / 0 / 7 |
+
+**Boot check** (`clean package -DskipTests`, `java -jar` on JRE 21, profile `dev`, dev DB, env: throwaway `AUTH_JWT_SECRET`/`ADMIN_BOOTSTRAP_*`/`CLI_SERVICE_ACCOUNT_*` with the existing `admin`/`cli` accounts; `CLI_SERVICE_ACCOUNT_USERNAME` is also required; cron jobs 3 and 4 disabled for the boot and back to `true`). After commit 1 and after commit 4:
+- `HikariConfig maximumPoolSize.................10`, `After adding stats (total=10, active=1, idle=9, waiting=0)` (configured `spring.datasource.hikari.maximum-pool-size=10`).
+- `o.f.c.i.c.DbValidate Successfully validated 42 migrations`.
+- `ar.scraper.App Started App in 4.771 seconds` (commit 1), `Started App in 4.039 seconds` (commit 4).
+- Only WARN: `UserDetailsServiceAutoConfiguration` (generated password notice); no ERROR.
+- `GET /` 200 `{"data":{"service":"fashion-scraper-api","status":"ok"}}`; `GET /api/status` without token 401.
+- `usuario` count 222 before and after (no rows created); latest scrape_run ids 32-34 still CANCELLED, no run created.
+- A first attempt with a 1 s kill logged `ProxyConnection ... marked as broken SQLSTATE(08006)` from `IndiceRepository.guardar`: the boot-time INDEC refresh interrupted by the kill, not the change. Later runs wait 12-20 s.
+
+**Negative controls** (annotation removed, rollback test run, annotation restored): `SavedPcsRepository.guardarPc` -> `guardarPcLeavesNoHeader` red; both `ProductRepository.upsertProductos` overloads -> `upsertProductosFailureIsAllOrNothing` and `perSiteRowsSurviveAFailedFinalUpsert` red; `PasswordResetService.confirmar` -> all 3 `PasswordResetRollbackTest` red.
+
+**Mechanics**: `TransactionConfig` declares `HikariDataSource` (`@FlywayDataSource`, `@ConfigurationProperties("spring.datasource.hikari")`), a `DataSourceTransactionManager` on the raw pool and a `@Primary TransactionAwareDataSourceProxy`; `@EnableTransactionManagement(proxyTargetClass = true)` (an explicit annotation makes Boot's auto-config back off and the default would be JDK proxies). Tests: `TestTransactions` (proxy + manager + aware DS), `TestRepositories`, `FaultInjection` (a trigger raises or skips a statement), `TestDatabaseServices` proxies each transactional repository; `TransactionalBeansTest` checks declarations, real-config context proxies and fixture proxies. `Sql.marcarRollback()` marks rollback-only on sentinel branches.
+
+**Deviations from the plan**
+- Prelude: `CronJobRunner` keeps its 3-arg constructor (defaults to `RunLogCapture.NONE`) so `CronJobRunnerTest` compiles untouched; `SchedulingConfig` uses the 4-arg one. Stale `ar.scraper.identity..` removed from the two arch lists.
+- Commit 2 also covers `SitiosRepository.guardarSitio/eliminarSitio` (atomic; `SiteRegistry.reload()` registered as `afterCommit`), not listed in the plan's commit 2 but implied by the registry rule. `guardarSitio` previously swallowed each of its two statements independently.
+- Commit 2/3 carry their own rollback tests (COMMIT-5) instead of deferring all of them to commit 5, so commit 5 is docs only and is named `docs(db): ...`, not `test(db): ...`.
+- `actualizarCategoria` is a single statement and was left untouched (the plan listed it via `updateNormalizacion`, which it does not use).
+- Commit 4: the bootstrap transaction is `UsuarioRepository.sembrarAdministracion` (a repository method, not a new service class); `sembrarCuenta`/`adoptarFilasSinDueno` became private. `PasswordResetService` lost its `DataSource` constructor parameter (both constructors). `PasswordResetRepositoryTest`: two tests that passed a `Connection` now use a `TransactionTemplate` rolling back / the no-connection overload, same assertions.
+- Test edits that were not assertion changes: ~14 test files build account repositories through `TestRepositories` instead of `new`; `ScrapeRunRepositoryTest` and `ScrapeRunResumeRepositoryTest` build the repository through the transactional proxy.
+- `guardarSitioWritesNeitherTable` (commit 2) read leftover `sitio` rows from other tests and was order-dependent; it passed in commits 2-3 by ordering luck and is fixed in commit 4.
+- Behavior change to know: a failure to OPEN a transaction (database down) now throws instead of returning the sentinel (`-1`, `false`, `UpsertStats(0,0,0,0)`). Sentinel returns after a failure inside the unit are unchanged.
+- `ScraperService` per-site loops, `ResultAggregator.agregar`, ML scoring, `CronJobRunner`, cron execution-log writes, startup seeders and `PasswordResetService.despachar` stay non-transactional.
+
 ## Next step
 
-T4: ACID with `DataSourceUtils` in adapters and `@Transactional` (12 files).
+T5: Caffeine + `@Cacheable` for `/api/grupos` and other per-request re-derivations.

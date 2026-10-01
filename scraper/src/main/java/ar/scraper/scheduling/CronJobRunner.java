@@ -2,9 +2,6 @@ package ar.scraper.scheduling;
 
 import ar.scraper.scrape.ScrapeControlPort;
 import ar.scraper.scrape.ScraperStatus;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
@@ -27,6 +24,7 @@ import java.util.Set;
 public class CronJobRunner {
 
     private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(CronJobRunner.class);
+    private static final String RUN_LOGGER = "ar.scraper.run";
     private static final int KEEP_EXECUTIONS = 50;
     private static final long POLL_INTERVAL_MS = 5_000L;
     private static final long MAX_WAIT_MS = 2L * 60 * 60 * 1000; // 2h, cota generosa
@@ -35,11 +33,17 @@ public class CronJobRunner {
     private final ScrapeControlPort scrape;
     private final CronPort db;
     private final Clock clock;
+    private final RunLogCapture logCapture;
 
     public CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock) {
+        this(scrape, db, clock, RunLogCapture.NONE);
+    }
+
+    public CronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock, RunLogCapture logCapture) {
         this.scrape = scrape;
         this.db = db;
         this.clock = clock;
+        this.logCapture = logCapture;
     }
 
     /**
@@ -70,7 +74,7 @@ public class CronJobRunner {
         long execId = db.insertCronExecution(job.id(), now, "running", null);
         db.touchLastRunAt(job.id(), now);
 
-        RunLogCapture capture = attachRunLogAppender();
+        RunLogCapture.Handle capture = logCapture.start(RUN_LOGGER);
 
         double prevMin = scrape.precioMinimo();
         double prevMax = scrape.precioMaximo();
@@ -101,12 +105,12 @@ public class CronJobRunner {
             // Restaurar SIEMPRE, incluso si iniciarScraping/awaitTerminal explotó.
             scrape.aplicarBandaDePrecio(prevMin, prevMax);
             scrape.usarGpu(true);
-            detachRunLogAppender(capture);
+            capture.close();
         }
 
         String finishedAt = LocalDateTime.now(clock).format(ISO_SECONDS);
         int durationMs = (int) (clock.millis() - startMillis);
-        String logOutput = drain(capture);
+        String logOutput = capture.lines();
         db.updateCronExecution(execId, finishedAt, status, skippedReason, logOutput, durationMs);
         db.pruneCronExecutions(job.id(), KEEP_EXECUTIONS);
     }
@@ -127,33 +131,5 @@ public class CronJobRunner {
             }
         }
         return scrape.estado() == ScraperStatus.ERROR ? "error" : "success";
-    }
-
-    /** Par logger/appender de una ventana de captura (ver ADR-4 del design). */
-    private record RunLogCapture(Logger logger, ListAppender<ILoggingEvent> appender) {}
-
-    /** Adjunta un {@link ListAppender} al logger {@code ar.scraper.run} para esta corrida. */
-    private RunLogCapture attachRunLogAppender() {
-        org.slf4j.Logger raw = LoggerFactory.getLogger("ar.scraper.run");
-        if (!(raw instanceof Logger runLogger)) return new RunLogCapture(null, null); // no es logback-classic
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        runLogger.addAppender(appender);
-        return new RunLogCapture(runLogger, appender);
-    }
-
-    private void detachRunLogAppender(RunLogCapture capture) {
-        if (capture.logger() == null || capture.appender() == null) return;
-        capture.logger().detachAppender(capture.appender());
-        capture.appender().stop();
-    }
-
-    private String drain(RunLogCapture capture) {
-        if (capture.appender() == null) return "";
-        StringBuilder sb = new StringBuilder();
-        for (ILoggingEvent evt : capture.appender().list) {
-            sb.append(evt.getFormattedMessage()).append('\n');
-        }
-        return sb.toString();
     }
 }

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -45,7 +46,9 @@ class CronRepository implements CronPort {
 
     // ─── Cron Jobs ───────────────────────────────────────────────────────────
 
+    /** Job y lista de sitios se escriben juntos: un job sin sus sitios scrapearía todo el catálogo. */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public long insertCronJob(String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
@@ -68,19 +71,21 @@ class CronRepository implements CronPort {
             ps.setString(10, nextRunAt);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (!keys.next()) return -1;
+                if (!keys.next()) { Sql.marcarRollback(); return -1; }
                 long id = keys.getLong(1);
                 reemplazarSitios(c, id, sitios);
                 return id;
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error creando cron job: {}", e.getMessage());
+            Sql.marcarRollback();
             return -1;
         }
     }
 
     /** Retorna {@code false} sin persistir si {@code id} no existe. */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean updateCronJob(long id, String name, double precioMin, double precioMax, List<String> sitios,
             boolean forceRetrain, boolean useGpu, String cronExpr, boolean enabled, String nextRunAt) {
         try (Connection c = dataSource.getConnection();
@@ -104,31 +109,26 @@ class CronRepository implements CronPort {
             return true;
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando cron job {}: {}", id, e.getMessage());
+            Sql.marcarRollback();
             return false;
         }
     }
 
     /** Elimina el job y (cascada manual) sus ejecuciones. Retorna {@code false} si {@code id} no existía. */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean deleteCronJob(long id) {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try (PreparedStatement delExec = c.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
-                 PreparedStatement delJob  = c.prepareStatement("DELETE FROM cron_jobs WHERE id=?")) {
-                delExec.setLong(1, id);
-                delExec.executeUpdate();
-                delJob.setLong(1, id);
-                int rows = delJob.executeUpdate();
-                if (rows == 0) { c.rollback(); return false; }
-                c.commit();
-                return true;
-            } catch (Exception e) {
-                LOG.warn("[DB] Error eliminando cron job {}: {}", id, e.getMessage());
-                try { c.rollback(); } catch (Exception ignored) {}
-                return false;
-            }
+        try (Connection c = dataSource.getConnection();
+             PreparedStatement delExec = c.prepareStatement("DELETE FROM cron_executions WHERE job_id=?");
+             PreparedStatement delJob  = c.prepareStatement("DELETE FROM cron_jobs WHERE id=?")) {
+            delExec.setLong(1, id);
+            delExec.executeUpdate();
+            delJob.setLong(1, id);
+            if (delJob.executeUpdate() == 0) { Sql.marcarRollback(); return false; }
+            return true;
         } catch (SQLException e) {
             LOG.warn("[DB] Error eliminando cron job {}: {}", id, e.getMessage());
+            Sql.marcarRollback();
             return false;
         }
     }
@@ -179,7 +179,6 @@ class CronRepository implements CronPort {
         }
     }
 
-    /** Los sitios llegan ya leídos de {@code cron_job_sitio}, ordenados por posicion (V9). */
     /** Los sitios de UN job, en orden. */
     private List<String> sitiosDe(Connection c, long jobId) throws SQLException {
         List<String> sitios = new ArrayList<>();
