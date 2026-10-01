@@ -54,9 +54,8 @@ ENDPOINTS = [
     ("grupos", "/api/grupos?minSitios=2&page=0&size=20", 2, 200),
     # mejor pick por categoría sobre el snapshot — p95 medido 13 ms
     ("mejores", "/api/mejores", 1, 40),
-    # arma el FeedbackModel y pega 2 queries — p95 medido 57 ms.
-    # `page` es BASE 1: hasta 2026-09-22 un page=0 tiraba 500
-    ("recomendados", "/api/recomendados?page=1&size=24", 2, 120),
+    # arma el FeedbackModel y pega 2 queries — p95 medido 57 ms
+    ("recomendados", "/api/recomendados?page=0&size=24", 2, 120),
     # MCKP con branch-and-bound — p95 medido 7 ms. `categorias` es obligatorio
     ("outfits_builder",
      "/api/outfits/builder?categorias=Remera,Jean,Zapatilla&presupuesto=150000&estilo=gym",

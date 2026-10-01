@@ -9,12 +9,17 @@ info:
     against `ApiRoutePolicy` by `OpenApiRouteCoverageTest`.
 
 
+    Envelope: every JSON success is `{ "data": T }` (lists add `"page":
+    { number, size, total, totalPages }`, 0-based) and every error is
+    `{ "error": { code, message, details? } }`. Not wrapped: `GET /api/csv`
+    and `GET /api/openapi.yaml`. A body-less `204` stays body-less. The
+    per-operation `data` shape is described in each response's description.
+
+
     Guard limit — read this before trusting a green build for more than it
     proves: this contract and its test guarantee path, method and access-level
-    parity ONLY. They never assert response-shape accuracy. Every handler in
-    this codebase returns an untyped `ObjectNode`/`Object`, so no test can
-    check that a response actually matches what is written here — only a
-    human review of the shapes below can. Rationale (the "why" behind auth
+    parity ONLY. They never assert response-shape accuracy — only a human
+    review of the shapes below can. Rationale (the "why" behind auth
     semantics, per-owner scoping, and specific status codes) lives in
     `docs/API_REFERENCE.md`, not here.
 servers:
@@ -42,6 +47,46 @@ tags:
   - name: LLM Agent
   - name: Docs
 components:
+  schemas:
+    PageMeta:
+      type: object
+      required: [number, size, total, totalPages]
+      properties:
+        number: { type: integer, minimum: 0, description: Zero-based page index actually served. }
+        size: { type: integer }
+        total: { type: integer, format: int64, description: Total matching items across all pages. }
+        totalPages: { type: integer }
+    ApiResponse:
+      type: object
+      description: Success envelope. `data` holds the operation's payload.
+      required: [data]
+      properties:
+        data: {}
+    ApiPagedResponse:
+      type: object
+      description: Success envelope of a list; `data` is the page's items.
+      required: [data, page]
+      properties:
+        data: {}
+        page: { $ref: "#/components/schemas/PageMeta" }
+    ApiErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable code (`no_autenticado`, `sin_permiso`, `solicitud_invalida`, `no_encontrado`, ...).
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional structured context, e.g. `{ actual }` for `conflicto_stale`.
+    ApiError:
+      type: object
+      description: Error envelope, used by every non-2xx JSON response.
+      required: [error]
+      properties:
+        error: { $ref: "#/components/schemas/ApiErrorBody" }
   securitySchemes:
     bearerAuth:
       type: http
@@ -66,8 +111,8 @@ components:
     Page:
       name: page
       in: query
-      schema: { type: integer, default: 1 }
-      description: Page number.
+      schema: { type: integer, minimum: 0, default: 0 }
+      description: Zero-based page index, matching `page.number` in the response.
     Size:
       name: size
       in: query
@@ -169,21 +214,45 @@ components:
         `docs/API_REFERENCE.md`.
   responses:
     Unauthorized:
-      description: Missing, expired or invalid access token.
+      description: Missing, expired or invalid access token (`no_autenticado`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
     Forbidden:
-      description: Valid token, but the resolved role does not satisfy `x-access`.
+      description: Valid token, but the resolved role does not satisfy `x-access` (`sin_permiso`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
     NotFound:
       description: The referenced resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
     Conflict:
       description: >-
         The request conflicts with current state (a business rule, or a
         scrape run in progress gating this route).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
     Gone:
       description: >-
         Retired permanently. Use `pg_dump`/`pg_restore` against
         `DATABASE_URL` instead.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
     TooManyRequests:
       description: Rate limit exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
 paths:
   # ── Auth ────────────────────────────────────────────────────────────────
 
@@ -195,7 +264,11 @@ paths:
       security: []
       responses:
         "200":
-          description: "`{ service, status }`"
+          description: "`data`: `{ service, status }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /**:
     options:
@@ -230,11 +303,19 @@ paths:
                 password: { type: string }
       responses:
         "200":
-          description: "`{ accessToken, tokenType, expiresIn }`"
+          description: "`data`: `{ accessToken, tokenType, expiresIn }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "401":
           description: >-
             Same status and body for wrong credential, unknown user,
             deactivated account, or malformed body — never distinguished.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
@@ -249,11 +330,23 @@ paths:
         - $ref: "#/components/parameters/RefreshCsrf"
       responses:
         "200":
-          description: "`{ accessToken, tokenType, expiresIn, csrfNonce }` + `Set-Cookie`"
+          description: "`data`: `{ accessToken, tokenType, expiresIn, csrfNonce }` + `Set-Cookie`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "401":
           description: "`refresh_invalido` or `sesion_invalidada`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "403":
           description: "`csrf_invalido` — missing/mismatched nonce; the presented token is left intact."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     delete:
       tags: [Auth]
       summary: Logout — revokes the entire refresh-token family.
@@ -265,8 +358,16 @@ paths:
       responses:
         "200":
           description: Cookie cleared unconditionally, even for an unknown token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "403":
           description: "`csrf_invalido`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/auth/me:
     get:
@@ -275,7 +376,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`{ username, roles: string[] }`"
+          description: "`data`: `{ username, roles: string[] }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -295,6 +400,10 @@ paths:
       responses:
         "202":
           description: Identical body for a real, unknown, malformed or service-account address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/auth/password-reset/confirm:
     post:
@@ -314,8 +423,16 @@ paths:
       responses:
         "200":
           description: Password changed; every session for the user is revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`reseteo_invalido` — unknown, used, expired token, or password under 8 chars."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # ── Usuarios ────────────────────────────────────────────────────────────
 
@@ -327,6 +444,10 @@ paths:
       responses:
         "200":
           description: Array of account records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     post:
       tags: [Usuarios]
       summary: Create an account (atomic with its role).
@@ -345,10 +466,22 @@ paths:
       responses:
         "201":
           description: Account created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`faltan_campos` · `password_corta` · `rol_invalido`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: "`username_tomado`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/usuarios/{username}/rol:
     put:
@@ -371,12 +504,24 @@ paths:
       responses:
         "200":
           description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`rol_invalido`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           description: "`ultimo_admin` — would leave zero active ADMIN accounts."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/usuarios/{username}:
     delete:
@@ -391,10 +536,18 @@ paths:
       responses:
         "200":
           description: Deactivated; the account's next request is refused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           description: "`ultimo_admin`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/usuarios/{username}/activar:
     put:
@@ -409,6 +562,10 @@ paths:
       responses:
         "200":
           description: Reactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -421,7 +578,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`{ status, mensaje, tieneData, total, run? }`"
+          description: "`data`: `{ status, mensaje, tieneData, total, run? }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/scrape:
     post:
@@ -447,7 +608,11 @@ paths:
           schema: { type: boolean, default: false }
       responses:
         "200":
-          description: "`{ iniciado: true, mensaje }`"
+          description: "`data`: `{ iniciado: true, mensaje }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/scrape/cancel:
     post:
@@ -456,7 +621,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ cancelando, mensaje }`"
+          description: "`data`: `{ cancelando, mensaje }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/scrape/interrupted:
     get:
@@ -465,7 +634,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ hayInterrumpida, uuid, atendidos, pendientes, salteados, soloFaltaLaPasadaFinal }`"
+          description: "`data`: `{ hayInterrumpida, uuid, atendidos, pendientes, salteados, soloFaltaLaPasadaFinal }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/scrape/discard:
     post:
@@ -474,7 +647,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ descartadas: integer, mensaje }`"
+          description: "`data`: `{ descartadas: integer, mensaje }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/scrape/resume:
     post:
@@ -483,7 +660,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ retomando: boolean, mensaje }`"
+          description: "`data`: `{ retomando: boolean, mensaje }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Catálogo ────────────────────────────────────────────────────────────
 
@@ -516,7 +697,11 @@ paths:
         - $ref: "#/components/parameters/ColorDominante"
       responses:
         "200":
-          description: "`{ meta, productos[] }`"
+          description: "`data`: `{ meta, productos[] }` plus `page`. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiPagedResponse"
     delete:
       tags: [Catálogo]
       summary: Soft-delete a catalog product (shared data, not personal).
@@ -529,6 +714,10 @@ paths:
       responses:
         "200":
           description: Product marked absent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/facets:
     get:
@@ -537,7 +726,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: Same shape as `/api/data`'s `meta.facets`.
+          description: "`data`: same shape as `/api/data`'s `meta.facets`; empty maps on an empty catalog."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/csv:
     get:
@@ -561,7 +754,11 @@ paths:
           description: 16-hex `producto_key`, not the raw URL.
       responses:
         "200":
-          description: "`{ producto, historial }`"
+          description: "`data`: `{ producto, historial }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -574,7 +771,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`{ categoriaStats, topProductos, trendingClusters, totalProductos, fecha }`"
+          description: "`data`: `{ categoriaStats, topProductos, trendingClusters, totalProductos, fecha }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/historial:
     get:
@@ -588,7 +789,11 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: "`{ puntos[], min, max, avg, deltaPct }`"
+          description: "`data`: `{ puntos[], min, max, avg, deltaPct }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "204":
           description: No price points recorded yet.
 
@@ -599,7 +804,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`{ hasTextModel, hasImageModel, training, embeddingsCount, totalProductos, coveragePct }`"
+          description: "`data`: `{ hasTextModel, hasImageModel, training, embeddingsCount, totalProductos, coveragePct }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/ml/resultado:
     get:
@@ -608,7 +817,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`{ running, phase, pct, msg, done }`"
+          description: "`data`: `{ running, phase, pct, msg, done }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/ml/aplicar:
     post:
@@ -618,14 +831,26 @@ paths:
       responses:
         "200":
           description: Started in the background.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: No catalog loaded yet — run a scrape first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: >-
             A scrape or another scoring run is already in flight. The scoring
             pipeline is not reentrant: it resolves `ml_productos.json` and
             `ml_output.json` in the process cwd, so two concurrent runs
             overwrite each other's files.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/ml/renormalizar:
     post:
@@ -634,7 +859,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ totalRevisados, categoriaCambiada, marcaCambiada, escrituras* }`"
+          description: "`data`: `{ totalRevisados, categoriaCambiada, marcaCambiada, escrituras* }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/ml/entrenar:
     post:
@@ -650,11 +879,23 @@ paths:
           schema: { type: integer, default: 8 }
       responses:
         "200":
-          description: "`{ status: \"started\" }`"
+          description: "`data`: `{ status: \"started\" }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Training already running (pre-check).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: Lost the race against a simultaneous POST — nothing started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # ── Comparador ──────────────────────────────────────────────────────────
 
@@ -688,6 +929,10 @@ paths:
       responses:
         "200":
           description: Grouped products.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiPagedResponse"
 
   /api/buscar-externo:
     get:
@@ -708,6 +953,10 @@ paths:
       responses:
         "200":
           description: External search results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Financiación ────────────────────────────────────────────────────────
 
@@ -719,6 +968,10 @@ paths:
       responses:
         "200":
           description: Preset array.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     post:
       tags: [Financiación]
       summary: Create a financing preset.
@@ -730,6 +983,10 @@ paths:
       responses:
         "200":
           description: Preset created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/financiacion/presets/{id}:
     put:
@@ -748,6 +1005,10 @@ paths:
       responses:
         "200":
           description: Preset updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     delete:
       tags: [Financiación]
       summary: Delete a financing preset.
@@ -760,6 +1021,10 @@ paths:
       responses:
         "200":
           description: Preset removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/financiacion/presets/{id}/activar:
     put:
@@ -776,6 +1041,10 @@ paths:
       responses:
         "200":
           description: Preset activated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/recomendacion:
     get:
@@ -790,6 +1059,10 @@ paths:
       responses:
         "200":
           description: Recommendation payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/indices:
     get:
@@ -799,6 +1072,10 @@ paths:
       responses:
         "200":
           description: "{ ipc: ResumenIndice, usd: ResumenIndice, actualizado }."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Outfits ─────────────────────────────────────────────────────────────
 
@@ -823,6 +1100,10 @@ paths:
       responses:
         "200":
           description: Assembled outfit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/outfits/builder:
     get:
@@ -863,8 +1144,16 @@ paths:
       responses:
         "200":
           description: Assembled outfit under budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`categorias` missing/blank, or `presupuesto` not positive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/suplementos/tipos:
     get:
@@ -874,6 +1163,10 @@ paths:
       responses:
         "200":
           description: Subtype list. Responds without a loaded catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/suplementos/builder:
     get:
@@ -899,8 +1192,16 @@ paths:
       responses:
         "200":
           description: Assembled combo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`tipos` missing or blank."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/pcs/builder:
     get:
@@ -980,8 +1281,16 @@ paths:
       responses:
         "200":
           description: Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Invalid gama, uso, or technical-preference value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/pcs/preferencia:
     get:
@@ -994,6 +1303,10 @@ paths:
       responses:
         "200":
           description: Saved preference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "204":
           description: No preference saved yet.
     put:
@@ -1010,8 +1323,16 @@ paths:
       responses:
         "200":
           description: Preference saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Missing or invalid gama, uso, or an invalid technical-preference value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/pcs/save:
     post:
@@ -1025,6 +1346,10 @@ paths:
       responses:
         "200":
           description: PC saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/pcs/saved:
     get:
@@ -1034,6 +1359,10 @@ paths:
       responses:
         "200":
           description: Saved PC array.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/pcs/saved/{id}:
     delete:
@@ -1048,6 +1377,10 @@ paths:
       responses:
         "200":
           description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/pcs/saved/{id}/nombre:
     patch:
@@ -1066,6 +1399,10 @@ paths:
       responses:
         "200":
           description: Renamed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/outfits/feedback:
     post:
@@ -1079,6 +1416,10 @@ paths:
       responses:
         "200":
           description: Feedback recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     delete:
       tags: [Outfits]
       summary: Reset outfit feedback for a style.
@@ -1090,6 +1431,10 @@ paths:
       responses:
         "200":
           description: Feedback reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/outfits/save:
     post:
@@ -1103,6 +1448,10 @@ paths:
       responses:
         "200":
           description: Outfit saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/outfits/saved:
     get:
@@ -1112,6 +1461,10 @@ paths:
       responses:
         "200":
           description: Saved outfit array.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/outfits/saved/{id}:
     delete:
@@ -1126,6 +1479,10 @@ paths:
       responses:
         "200":
           description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/outfits/saved/{id}/nombre:
     patch:
@@ -1144,6 +1501,10 @@ paths:
       responses:
         "200":
           description: Renamed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Para ti ─────────────────────────────────────────────────────────────
 
@@ -1164,6 +1525,10 @@ paths:
       responses:
         "200":
           description: Recommended product feed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiPagedResponse"
 
   /api/recomendados/feedback:
     post:
@@ -1177,6 +1542,10 @@ paths:
       responses:
         "200":
           description: Feedback recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/recomendados/dismiss-categoria:
     post:
@@ -1193,6 +1562,10 @@ paths:
       responses:
         "200":
           description: Category dismissed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     delete:
       tags: [Para ti]
       summary: Un-dismiss a category. Own rows only.
@@ -1205,6 +1578,10 @@ paths:
       responses:
         "200":
           description: Category restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Favoritos ───────────────────────────────────────────────────────────
 
@@ -1216,6 +1593,10 @@ paths:
       responses:
         "200":
           description: Favorite array.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     post:
       tags: [Favoritos]
       summary: Add a favorite. Own rows only.
@@ -1230,6 +1611,10 @@ paths:
       responses:
         "200":
           description: Favorite added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     delete:
       tags: [Favoritos]
       summary: Remove a favorite. Own rows only.
@@ -1242,6 +1627,10 @@ paths:
       responses:
         "200":
           description: Favorite removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Picks/Marcas ────────────────────────────────────────────────────────
 
@@ -1257,6 +1646,10 @@ paths:
       responses:
         "200":
           description: Picks by category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/marcas-browser:
     get:
@@ -1276,6 +1669,10 @@ paths:
       responses:
         "200":
           description: Brand list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Sitios ──────────────────────────────────────────────────────────────
 
@@ -1286,7 +1683,11 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`{ base, extras, precioMinimo, precioMaximo, moneda }`"
+          description: "`data`: `{ base, extras, precioMinimo, precioMaximo, moneda }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     post:
       tags: [Sitios]
       summary: Add a dynamic site (persisted in DB).
@@ -1303,6 +1704,10 @@ paths:
       responses:
         "200":
           description: Site added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/sitios/{nombre}:
     delete:
@@ -1317,6 +1722,10 @@ paths:
       responses:
         "200":
           description: Site removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Config ──────────────────────────────────────────────────────────────
 
@@ -1336,6 +1745,10 @@ paths:
       responses:
         "200":
           description: Configuration updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── Cron ────────────────────────────────────────────────────────────────
 
@@ -1346,7 +1759,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ jobs: [] }`"
+          description: "`data`: array of job records."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
     post:
       tags: [Cron]
       summary: Create a cron job.
@@ -1358,8 +1775,16 @@ paths:
       responses:
         "200":
           description: Job created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Missing fields, or `cronExpr` does not parse.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/cron/{id}:
     get:
@@ -1374,6 +1799,10 @@ paths:
       responses:
         "200":
           description: Job detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
@@ -1392,8 +1821,16 @@ paths:
       responses:
         "200":
           description: Job updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Missing fields, or `cronExpr` does not parse.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -1408,6 +1845,10 @@ paths:
       responses:
         "200":
           description: Job deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -1426,7 +1867,11 @@ paths:
           schema: { type: integer, default: 50 }
       responses:
         "200":
-          description: "`{ executions: [] }`"
+          description: "`data`: array of execution records."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/cron/{id}/run-now:
     post:
@@ -1443,10 +1888,18 @@ paths:
       responses:
         "202":
           description: Execution started.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           description: A scrape is already running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # ── DB ──────────────────────────────────────────────────────────────────
 
@@ -1486,10 +1939,18 @@ paths:
       responses:
         "200":
           description: Catalog cleared.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "409":
           description: >-
             Blocking favorites exist, named with a count. No `?force=`
             override — the user must unmark them first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/db/ml:
     delete:
@@ -1499,6 +1960,10 @@ paths:
       responses:
         "200":
           description: ML data cleared.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   # ── LLM Agent ───────────────────────────────────────────────────────────
 
@@ -1520,13 +1985,29 @@ paths:
                 model: { type: string }
       responses:
         "200":
-          description: "`{ assistantText, outcome, proposals, trace }`"
+          description: "`data`: `{ assistantText, outcome, proposals, trace }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Empty/missing `messages`, or unknown `model`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: A scrape is running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "502":
           description: "`proveedor_no_disponible` — the LLM provider is down."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/agent/models:
     get:
@@ -1535,7 +2016,11 @@ paths:
       x-access: ADMIN
       responses:
         "200":
-          description: "`{ available: string[], default }`"
+          description: "`data`: `{ available: string[], default }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/agent/apply:
     post:
@@ -1560,15 +2045,35 @@ paths:
                 generoPropuesto: { type: string }
       responses:
         "200":
-          description: "`{ ok: true, applied, mensaje }`"
+          description: "`data`: `{ ok: true, applied, mensaje }`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         "400":
           description: Missing required field, invalid category, or unknown URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "409":
           description: A scrape is running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "422":
           description: "`conflicto_stale` — the product changed since the proposal was generated."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           description: The write failed (0 rows affected, or an exception). Never reported as applied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # ── Docs ────────────────────────────────────────────────────────────────
 

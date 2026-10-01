@@ -6,9 +6,13 @@ import ar.scraper.catalog.ProductJson;
 import ar.scraper.identity.Sujeto;
 import ar.scraper.outfits.FeedbackModels;
 import ar.scraper.outfits.RecommendationService;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.api.PageMeta;
+import ar.scraper.web.dto.OpResult;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
@@ -19,17 +23,9 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * "Para ti" personalized feed.
- *
- * <p>design.md (personalized-recommendations-feed) Decision 2: additive endpoints,
- * /api/outfits/feedback stays untouched. The shared taste signal lives in the
- * outfit_feedback_item TABLE (slot="catalog" sentinel here), not a shared URL —
- * {@link FeedbackModels#build} already reads ALL rows regardless of slot, so
- * bidirectional sharing with the outfit-builder requires no extra wiring here.</p>
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
+ * "Para ti" personalized feed. The shared taste signal lives in the outfit_feedback_item table
+ * (slot="catalog" here), which {@link FeedbackModels#build} reads regardless of slot, so it is
+ * shared with the outfit builder without extra wiring. Mappings live in {@link ApiController}.
  */
 class RecomendadosEndpoints {
 
@@ -49,18 +45,10 @@ class RecomendadosEndpoints {
     }
 
     /**
-     * Self-contained duplication of the unisex-bridge + relaxation SHAPE from
-     * OutfitService.armar() (steps 0/2, L397-408) and generoElegible()
-     * (L325-333). OutfitService is intentionally NOT reused/extracted (locked
-     * scope for mejores-picks-fixes). Keep in sync if that pattern changes.
-     *
-     * Relaxation order per categoria (only advances when the prior step
-     * yields zero candidates FOR THAT categoria):
-     *   1. own genero (or blank/unisex) + unisex — always eligible.
-     *   2. unisex-only (own-genero-exact dropped).
-     *   3. opposite-genero (last resort).
-     * Infantil is never re-admitted here — RecommendationService.rank()
-     * vetoes it unconditionally before/after this relaxation runs.
+     * Duplicates the unisex-bridge + relaxation SHAPE of OutfitService.armar()/generoElegible() on
+     * purpose (OutfitService is not reused); keep in sync. Per categoria, each step only applies
+     * when the previous one yields nothing: own genero + unisex, then unisex-only, then opposite genero.
+     * Infantil is never re-admitted: RecommendationService.rank() vetoes it.
      */
     private List<Product> broadenGenero(List<Product> base, String generoSolicitado) {
         Map<String, List<Product>> byCategoria = base.stream()
@@ -72,7 +60,6 @@ class RecomendadosEndpoints {
         for (Map.Entry<String, List<Product>> entry : byCategoria.entrySet()) {
             List<Product> productosCategoria = entry.getValue();
 
-            // Paso 1: propio genero (o sin pedido / unisex) + unisex.
             List<Product> step1 = productosCategoria.stream()
                     .filter(p -> generoBridgeMatch(p, generoSolicitado))
                     .collect(Collectors.toList());
@@ -81,7 +68,6 @@ class RecomendadosEndpoints {
                 continue;
             }
 
-            // Paso 2: relajar a unisex-only.
             List<Product> step2 = productosCategoria.stream()
                     .filter(p -> "unisex".equalsIgnoreCase(p.genero() != null ? p.genero().trim() : ""))
                     .collect(Collectors.toList());
@@ -90,7 +76,6 @@ class RecomendadosEndpoints {
                 continue;
             }
 
-            // Paso 3: relajar a genero opuesto (ultimo recurso).
             result.addAll(productosCategoria);
         }
         return result;
@@ -106,9 +91,10 @@ class RecomendadosEndpoints {
         return g.equalsIgnoreCase(generoSolicitado);
     }
 
-    ResponseEntity<ObjectNode> recomendados(int page, int size, String genero, String categoria) {
+    // Items are ProductJson rows (dynamic shape shared with /api/data), hence ObjectNode.
+    ResponseEntity<ApiResponse<List<ObjectNode>>> recomendados(int page, int size, String genero, String categoria) {
         AggregatedResult r = service.getLastResult();
-        if (r == null) return ResponseEntity.noContent().build();
+        if (r == null) return ResponseEntity.ok(ApiResponse.page(List.of(), PageMeta.of(Math.max(0, page), Math.max(1, size), 0)));
 
         java.util.UUID sujeto = Sujeto.de(actorResolver);
         var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
@@ -128,41 +114,26 @@ class RecomendadosEndpoints {
 
         int total = ranked.size();
 
-        // `page` es base 1 y `size` un tamaño, pero los dos llegan de un query
-        // param y nada garantiza que respeten eso. Acotar sólo por arriba —que
-        // es lo que hacía `Math.min` sola— deja pasar un `page` <= 0 a un índice
-        // NEGATIVO: `subList(-24, 0)` tira `IndexOutOfBoundsException`, o sea un
-        // HTTP 500 con stack trace disparado desde la URL. Lo mismo un `size`
-        // <= 0, por el otro extremo del rango.
-        //
-        // Se acota en vez de rechazar con 400 porque `/api/data` ya recibe el
-        // mismo `page=0` fuera de contrato y sirve la primera página: dos
-        // endpoints que leen el mismo parámetro no pueden estar en desacuerdo
-        // sobre qué significa un valor inválido, y de las dos conductas la que
-        // ya está en producción es la que no se cae.
-        int paginaPedida = Math.max(1, page);
+        // Clamp instead of rejecting: a negative page or size <= 0 would reach subList with a
+        // negative index and surface as a 500.
+        int paginaPedida = Math.max(0, page);
         int tamanio      = Math.max(1, size);
 
-        int desde = Math.min((paginaPedida - 1) * tamanio, total);
+        int desde = Math.min(paginaPedida * tamanio, total);
         int hasta = Math.min(desde + tamanio, total);
         List<Product> pagina = ranked.subList(desde, hasta);
 
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        // El eco es lo que se SIRVIÓ, no lo que se pidió: devolver `page: 0`
-        // junto a la primera página le mentiría al cliente sobre dónde está.
-        root.put("page",  paginaPedida);
-        root.put("size",  tamanio);
-        root.put("total", total);
-        ArrayNode items = root.putArray("items");
+        List<ObjectNode> items = new ArrayList<>();
         for (Product p : pagina) {
-            ObjectNode n = items.addObject();
+            ObjectNode n = JsonNodeFactory.instance.objectNode();
             ProductJson.escribir(n, p);
+            items.add(n);
         }
-        return ResponseEntity.ok(root);
+        // Echoes what was SERVED, not what was requested.
+        return ResponseEntity.ok(ApiResponse.page(items, PageMeta.of(paginaPedida, tamanio, total)));
     }
 
-    ResponseEntity<ObjectNode> recomendadosFeedback(Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> recomendadosFeedback(Map<String, Object> body) {
         String genero = String.valueOf(body.getOrDefault("genero", ""));
 
         Object itemsObj = body.get("items");
@@ -171,7 +142,7 @@ class RecomendadosEndpoints {
                 if (o instanceof Map<?, ?> m) {
                     Object url   = m.get("url");
                     Object liked = m.get("liked");
-                    if (url == null || liked == null) continue; // skip silencioso, mirrors outfits/feedback guard style
+                    if (url == null || liked == null) continue; // silent skip, same as outfits/feedback
                     boolean likedBool = Boolean.parseBoolean(String.valueOf(liked));
                     feedback.guardarOutfitFeedbackItem(Sujeto.de(actorResolver), genero, "catalog",
                             String.valueOf(url), likedBool, "catalog");
@@ -179,27 +150,20 @@ class RecomendadosEndpoints {
             }
         }
 
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ObjectNode> dismissCategoria(Map<String, String> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> dismissCategoria(Map<String, String> body) {
         String categoria = body.getOrDefault("categoria", "").trim();
         if (categoria.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "categoria es obligatoria");
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "categoria es obligatoria");
         }
         feedback.guardarCategoriaDismiss(Sujeto.de(actorResolver), categoria);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ObjectNode> undismissCategoria(String categoria) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> undismissCategoria(String categoria) {
         feedback.borrarCategoriaDismiss(Sujeto.de(actorResolver), categoria);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 }

@@ -1,9 +1,3 @@
-// decouple-services-postgres, Batch 3 (task 3.5, design D6): the backend is
-// now an API-only service on its own origin (SpaController/static/ removed),
-// so the frontend can no longer assume same-origin '' relative paths in
-// production. VITE_API_BASE_URL is the env-driven base; it defaults to ''
-// (relative) so local dev keeps using Vite's `/api` proxy (vite.config.js)
-// unless the var is explicitly set.
 import { authedFetch } from './lib/authedFetch';
 
 // Runtime first, build-time second. `window.__API_BASE__` is set by /config.js,
@@ -17,9 +11,79 @@ export const BASE =
   import.meta.env.VITE_API_BASE_URL ||
   '';
 
+export class ApiError extends Error {
+  constructor({ code, message, details, status }) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.details = details;
+    this.status = status;
+  }
+}
+
+async function readBody(response) {
+  try { return await response.json(); } catch { return null; }
+}
+
+async function parse(response) {
+  const body = await readBody(response);
+  if (!response.ok) {
+    const e = body?.error;
+    throw new ApiError({
+      code: e?.code ?? `http_${response.status}`,
+      message: e?.message ?? `HTTP ${response.status}`,
+      details: e?.details,
+      status: response.status,
+    });
+  }
+  return body;
+}
+
+/** `body.data` of a JSON envelope; null for 204 or an empty body. Throws ApiError on a non-ok status. */
+export async function unwrap(response) {
+  if (response.status === 204) return null;
+  return (await parse(response))?.data ?? null;
+}
+
+/** Like unwrap, for lists: `{ data, page }` where page is `{number,size,total,totalPages}` (0-based). */
+export async function unwrapPage(response) {
+  if (response.status === 204) return { data: null, page: null };
+  const body = await parse(response);
+  return { data: body?.data ?? null, page: body?.page ?? null };
+}
+
+// Callers that treat any failed call as "nothing to show" get `fallback`; network errors still reject.
+async function softUnwrap(response, fallback = null) {
+  try {
+    return (await unwrap(response)) ?? fallback;
+  } catch (e) {
+    if (e instanceof ApiError) return fallback;
+    throw e;
+  }
+}
+
+// Mutations whose callers read `{ ok, mensaje }`: failures become `{ ok:false, mensaje }`.
+async function opResult(response) {
+  try {
+    return { ok: true, ...((await unwrap(response)) ?? {}) };
+  } catch (e) {
+    return { ok: false, mensaje: e instanceof ApiError ? e.message : 'Error de red' };
+  }
+}
+
+async function unwrapCatalogPage(response) {
+  try {
+    const { data, page } = await unwrapPage(response);
+    return { data, page };
+  } catch (e) {
+    if (e instanceof ApiError) return { data: null, page: null };
+    throw e;
+  }
+}
+
 export async function fetchStatus() {
   const r = await authedFetch(`${BASE}/api/status`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function startScrape({ precioMin, precioMax, sitios, forceRetrain = false }) {
@@ -27,30 +91,26 @@ export async function startScrape({ precioMin, precioMax, sitios, forceRetrain =
   sitios.forEach(s => p.append('sitios', s));
   if (forceRetrain) p.set('forceRetrain', 'true');
   const r = await authedFetch(`${BASE}/api/scrape?${p}`, { method: 'POST' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
-// scrape-run-persistence-and-resume slice 6. Both routes are ADMIN in
-// ApiRoutePolicy.TABLE, so a VIEWER gets 403 and an expired token 401 —
-// neither is an interrupted run, and neither may take down the page the
-// banner sits on. Null means "no offer to show", same as an empty one.
+// Both routes are ADMIN: a VIEWER gets 403 and an expired token 401 — neither is an
+// interrupted run, and neither may take down the page the banner sits on.
 export async function fetchInterrumpida() {
   const r = await authedFetch(`${BASE}/api/scrape/interrupted`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
-// Answers 200 with `retomando:false` when there is nothing to resume or a
-// scrape is already running. Reading only r.ok would send the user to a
-// progress screen for a run that never started.
+// Answers 200 with `retomando:false` when there is nothing to resume or a scrape is
+// already running; callers must read `retomando`, not just success.
 export async function retomarScrape() {
   const r = await authedFetch(`${BASE}/api/scrape/resume`, { method: 'POST' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
-// Closes the interrupted run(s) as CANCELLED without scraping anything.
 export async function descartarInterrumpida() {
   const r = await authedFetch(`${BASE}/api/scrape/discard`, { method: 'POST' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function limpiarCatalogo() {
@@ -68,7 +128,18 @@ export async function fetchData(filters) {
     else if (v !== '' && v !== null && v !== undefined) p.set(k, String(v));
   });
   const r = await authedFetch(`${BASE}/api/data?${p}`);
-  return r.ok ? r.json() : null;
+  const { data, page } = await unwrapCatalogPage(r);
+  if (!data) return null;
+  return {
+    ...data,
+    meta: {
+      ...data.meta,
+      total: page?.total ?? 0,
+      pagina: page?.number ?? 0,
+      pageSize: page?.size ?? 0,
+      totalPaginas: page?.totalPages ?? 0,
+    },
+  };
 }
 
 export async function deleteProducto(url) {
@@ -78,7 +149,7 @@ export async function deleteProducto(url) {
 
 export async function fetchFacets() {
   const r = await authedFetch(`${BASE}/api/facets`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function fetchTendencias() {
@@ -86,7 +157,7 @@ export async function fetchTendencias() {
     const r = await authedFetch(`${BASE}/api/tendencias`);
     if (r.status === 204) return { state: 'empty', data: null };
     if (r.status === 503) return { state: 'failed', data: null }; // pipeline ML falló
-    if (r.ok) return { state: 'ok', data: await r.json() };
+    if (r.ok) return { state: 'ok', data: await unwrap(r) };
     console.error('[fetchTendencias] respuesta inesperada:', r.status);
     return { state: 'failed', data: null }; // cualquier otro no-ok
   } catch (err) {
@@ -97,8 +168,7 @@ export async function fetchTendencias() {
 
 export async function fetchHistorial(url) {
   const r = await authedFetch(`${BASE}/api/historial?url=${encodeURIComponent(url)}`);
-  if (r.status === 204) return null;
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 /**
@@ -116,26 +186,23 @@ export async function fetchHistorial(url) {
  */
 export async function fetchProductoDetalle(key) {
   const r = await authedFetch(`${BASE}/api/producto/${encodeURIComponent(key)}`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
-// { ipc: Resumen, usd: Resumen, actualizado } — replaces the removed
-// GET /api/inflacion (indices-service). Resumen shape: { indice, ultimoValor,
-// ultimaFecha, variacionMensual, variacionInteranual, variacion3m, confianza
-// (lowercase), ultimos }. See FinanciacionEndpoints.indices/resumenJson.
+// { ipc: Resumen, usd: Resumen, actualizado }
 export async function fetchIndices() {
   const r = await authedFetch(`${BASE}/api/indices`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function fetchRecomendacion(url) {
   const r = await authedFetch(`${BASE}/api/recomendacion?url=${encodeURIComponent(url)}`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function fetchSitios() {
   const r = await authedFetch(`${BASE}/api/sitios`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function addSitio(body) {
@@ -165,7 +232,7 @@ export async function updateConfig(cfg) {
 
 export async function fetchFinanciacionPresets() {
   const r = await authedFetch(`${BASE}/api/financiacion/presets`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function crearFinanciacionPreset({ label, recargoPct, cuotas }) {
@@ -174,7 +241,7 @@ export async function crearFinanciacionPreset({ label, recargoPct, cuotas }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ label, recargoPct, cuotas }),
   });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export async function editarFinanciacionPreset(id, { label, recargoPct, cuotas }) {
@@ -183,17 +250,17 @@ export async function editarFinanciacionPreset(id, { label, recargoPct, cuotas }
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ label, recargoPct, cuotas }),
   });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export async function activarFinanciacionPreset(id) {
   const r = await authedFetch(`${BASE}/api/financiacion/presets/${id}/activar`, { method: 'PUT' });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export async function eliminarFinanciacionPreset(id) {
   const r = await authedFetch(`${BASE}/api/financiacion/presets/${id}`, { method: 'DELETE' });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export function fmt(n) {
@@ -201,17 +268,15 @@ export function fmt(n) {
   return Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 }
 
-// Re-exported from lib/colors.js's BADGE_META (single source of truth for
-// the 7 badge keys — badges-oportunidades-revamp) so existing `import {
-// BADGE_LABELS } from '../api'` call sites keep working unchanged.
+// Re-exported so existing `import { BADGE_LABELS } from '../api'` call sites keep working.
 export { BADGE_LABELS } from './lib/colors';
 
 export async function buscarExterno(nombre, productoUrl) {
   const p = new URLSearchParams({ q: nombre });
   if (productoUrl) p.set('url', productoUrl);
   const r = await authedFetch(`${BASE}/api/buscar-externo?${p}`);
-  if (!r.ok) return { resultados: [], searchUrl: EXTERNAL_SEARCH.mercadolibre(nombre), queryUsada: nombre };
-  const data = await r.json();
+  const data = await softUnwrap(r);
+  if (!data) return { resultados: [], searchUrl: EXTERNAL_SEARCH.mercadolibre(nombre), queryUsada: nombre };
   // Compatibilidad: si el backend devuelve array (legacy) o el nuevo objeto
   if (Array.isArray(data)) return { resultados: data, searchUrl: EXTERNAL_SEARCH.mercadolibre(nombre), queryUsada: nombre };
   return data;
@@ -223,71 +288,63 @@ export const EXTERNAL_SEARCH = {
   google:       q => `https://www.google.com.ar/search?q=${encodeURIComponent(q)}+precio+argentina&tbm=shop`,
 };
 
-// Note (decouple-services-postgres, task 4.10): the file-based DB
-// export/import helpers (exportarDB/importarDB) were removed — persistence
-// moved to PostgreSQL (no scraper.db file to download/upload). The backend
-// endpoints they called (`GET /api/db/export`, `POST /api/db/import`) now
-// answer `410 Gone`. Use `pg_dump`/`pg_restore` directly against
-// `DATABASE_URL` for backup/restore.
-
 export async function fetchGrupos(filters = {}) {
   const p = new URLSearchParams();
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== '' && v != null) p.set(k, v);
   });
   const r = await authedFetch(`${BASE}/api/grupos?${p}`);
-  if (r.status === 204) return null;
-  return r.ok ? r.json() : null;
+  const { data, page } = await unwrapCatalogPage(r);
+  if (!data) return null;
+  return { grupos: data, total: page?.total ?? 0, page: page?.number ?? 0, size: page?.size ?? 0 };
 }
 
 export async function fetchMejores(rubro = '') {
   const p = new URLSearchParams();
   if (rubro) p.set('rubro', rubro);
   const r = await authedFetch(`${BASE}/api/mejores?${p}`);
-  if (r.status === 204) return [];
-  return r.ok ? r.json() : [];
+  return softUnwrap(r, []);
 }
 
 export async function fetchMarcasBrowser(params = {}) {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
   const r = await authedFetch(`${BASE}/api/marcas-browser?${p}`);
-  if (r.status === 204) return [];
-  return r.ok ? r.json() : [];
+  return softUnwrap(r, []);
 }
 
 // ─── ML Training ─────────────────────────────────────────────────────────────
 export async function fetchMlEstado() {
   const r = await authedFetch(`${BASE}/api/ml/estado`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function startMlTraining(images = false, epochs = 8) {
   const p = new URLSearchParams({ images, epochs });
   const r = await authedFetch(`${BASE}/api/ml/entrenar?${p}`, { method: 'POST' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function fetchMlResultado() {
   const r = await authedFetch(`${BASE}/api/ml/resultado`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function aplicarModeloML() {
   const r = await authedFetch(`${BASE}/api/ml/aplicar`, { method: 'POST' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function renormalizarCatalogo() {
   const r = await authedFetch(`${BASE}/api/ml/renormalizar`, { method: 'POST' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 // ─── Favoritos ─────────────────────────────────────────────────────────────
 
 export async function fetchFavoritos() {
   const r = await authedFetch(`${BASE}/api/favoritos`);
-  return r.ok ? r.json() : [];
+  return softUnwrap(r, []);
 }
 
 export async function addFavorito({ url, sitio, nombre }) {
@@ -313,8 +370,7 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
   if (excluirUrls.length) p.set('excluir', excluirUrls.join(','));
   if (presupuestoSuplementos > 0) p.set('presupuestoSuplementos', presupuestoSuplementos);
   const r = await authedFetch(`${BASE}/api/outfits?${p}`);
-  if (r.status === 204) return null;
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 // ─── Budget-Aware Outfit Builder ─────────────────────────────────────────────
@@ -343,9 +399,7 @@ export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excl
   if (greedy) p.set('greedy', 'true');
   if (estilo && estilo !== 'gym') p.set('estilo', estilo);
   const r = await authedFetch(`${BASE}/api/outfits/builder?${p}`);
-  if (r.status === 204) return null;
-  if (!r.ok) return null;
-  return r.json();
+  return softUnwrap(r);
 }
 
 // ─── Saved Outfits ───────────────────────────────────────────────────────────
@@ -356,12 +410,12 @@ export async function saveOutfit(body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function fetchSavedOutfits() {
   const r = await authedFetch(`${BASE}/api/outfits/saved`);
-  return r.ok ? r.json() : [];
+  return softUnwrap(r, []);
 }
 
 export async function deleteSavedOutfit(id) {
@@ -394,19 +448,20 @@ export async function sendOutfitFeedback(body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 // ─── Recomendados ("Para ti" feed) ───────────────────────────────────────────
 
-export async function fetchRecomendados(page = 1, size = 24, filters = {}) {
+export async function fetchRecomendados(page = 0, size = 24, filters = {}) {
   const p = new URLSearchParams({ page, size });
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== '' && v !== null && v !== undefined) p.set(k, String(v));
   });
   const r = await authedFetch(`${BASE}/api/recomendados?${p}`);
-  if (r.status === 204) return null;
-  return r.ok ? r.json() : null;
+  const { data, page: meta } = await unwrapCatalogPage(r);
+  if (!data) return null;
+  return { items: data, total: meta?.total ?? 0, page: meta?.number ?? 0, size: meta?.size ?? 0 };
 }
 
 // body shape: { genero, items: [{ url, liked }] } — per-card like/dislike,
@@ -417,7 +472,7 @@ export async function sendRecomendadosFeedback(genero, items) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ genero, items })
   });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function dismissCategoria(categoria) {
@@ -426,13 +481,13 @@ export async function dismissCategoria(categoria) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ categoria })
   });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function undismissCategoria(categoria) {
   const r = await authedFetch(`${BASE}/api/recomendados/dismiss-categoria?categoria=${encodeURIComponent(categoria)}`,
     { method: 'DELETE' });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 // ─── Supplement Builder ───────────────────────────────────────────────────────
@@ -443,8 +498,7 @@ export async function undismissCategoria(categoria) {
  */
 export async function fetchSuplementosTipos() {
   const r = await authedFetch(`${BASE}/api/suplementos/tipos`);
-  if (!r.ok) return [];
-  const body = await r.json();
+  const body = await softUnwrap(r);
   return Array.isArray(body?.tipos) ? body.tipos : [];
 }
 
@@ -456,9 +510,7 @@ export async function fetchSuplementosBuilder({ tipos, presupuesto = 0, excluir 
   // "Regenerar" repite la misma respuesta.
   if (excluir.length > 0) p.set('excluir', excluir.join(','));
   const r = await authedFetch(`${BASE}/api/suplementos/builder?${p}`);
-  if (r.status === 204) return null;
-  if (!r.ok) return null;
-  return r.json();
+  return softUnwrap(r);
 }
 
 // ─── PC Builder ───────────────────────────────────────────────────────────────
@@ -492,16 +544,13 @@ export async function fetchPcsBuilder({
   if (uso) p.set('uso', uso);
   const qs = p.toString();
   const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
-  if (r.status === 204) return null;
-  if (!r.ok) return null;
-  return r.json();
+  return softUnwrap(r);
 }
 
 /** null when the user never saved one (204) or on error. */
 export async function fetchPcPreferencia() {
   const r = await authedFetch(`${BASE}/api/pcs/preferencia`);
-  if (r.status === 204 || !r.ok) return null;
-  return r.json();
+  return softUnwrap(r);
 }
 
 export async function savePcPreferencia(body) {
@@ -510,7 +559,7 @@ export async function savePcPreferencia(body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 // ─── Saved PCs ──────────────────────────────────────────────────────────────
@@ -521,12 +570,12 @@ export async function savePc(body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function fetchSavedPcs() {
   const r = await authedFetch(`${BASE}/api/pcs/saved`);
-  return r.ok ? r.json() : [];
+  return softUnwrap(r, []);
 }
 
 export async function deleteSavedPc(id) {
@@ -544,17 +593,16 @@ export async function renamePc(id, nombre) {
 }
 
 // ─── Cron Jobs (panel de administración /cronjobs) ───────────────────────────
-// No hay endpoint de detalle de ejecución individual — /executions ya trae
-// logOutput embebido por fila (ver ar.scraper.web.CronApiController).
+// /executions ya trae logOutput embebido por fila.
 
 export async function listCronJobs() {
   const r = await authedFetch(`${BASE}/api/cron`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function getCronJob(id) {
   const r = await authedFetch(`${BASE}/api/cron/${id}`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function createCronJob(job) {
@@ -563,7 +611,7 @@ export async function createCronJob(job) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(job),
   });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export async function updateCronJob(id, job) {
@@ -572,26 +620,24 @@ export async function updateCronJob(id, job) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(job),
   });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export async function deleteCronJob(id) {
   const r = await authedFetch(`${BASE}/api/cron/${id}`, { method: 'DELETE' });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
-// Fire-and-forget trigger — backend dispatches on a virtual thread and
-// responds immediately: 202 {ok:true,...} started, 409 {ok:false,...} scraper
-// busy or job already in-flight, 404 {ok:false,...} job no longer exists.
+// Fire-and-forget: 202 started, 409 scraper busy or job in flight, 404 job gone.
 export async function runCronNow(id) {
   const r = await authedFetch(`${BASE}/api/cron/${id}/run-now`, { method: 'POST' });
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  return opResult(r);
 }
 
 export async function fetchCronExecutions(id, limit = 50) {
   const p = new URLSearchParams({ limit });
   const r = await authedFetch(`${BASE}/api/cron/${id}/executions?${p}`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 // ─── LLM Catalog Agent (llm-catalog-nlp) ─────────────────────────────────────
@@ -602,7 +648,7 @@ export async function fetchCronExecutions(id, limit = 50) {
 
 export async function fetchAgentModels() {
   const r = await authedFetch(`${BASE}/api/agent/models`);
-  return r.ok ? r.json() : null;
+  return softUnwrap(r);
 }
 
 export async function askAgent(messages, model) {
@@ -612,15 +658,12 @@ export async function askAgent(messages, model) {
     body: JSON.stringify(model ? { messages, model } : { messages }),
   });
   if (r.status === 409) return { scraping: true };
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    return {
-      error: true,
-      mensaje: body.mensaje || 'No se pudo consultar al agente.',
-      codigo: body.codigo,
-    };
+  try {
+    return await unwrap(r);
+  } catch (e) {
+    if (!(e instanceof ApiError)) throw e;
+    return { error: true, mensaje: e.message || 'No se pudo consultar al agente.', codigo: e.code };
   }
-  return r.json();
 }
 
 export async function applyProposal(proposal) {
@@ -630,20 +673,26 @@ export async function applyProposal(proposal) {
     body: JSON.stringify(proposal),
   });
   if (r.status === 409) return { scraping: true };
-  return r.json().catch(() => ({ ok: false, mensaje: 'Error de red' }));
+  try {
+    return { ok: true, ...((await unwrap(r)) ?? {}) };
+  } catch (e) {
+    if (!(e instanceof ApiError)) throw e;
+    return { ok: false, mensaje: e.message, codigo: e.code, actual: e.details?.actual };
+  }
 }
 
 // ─── Administración de cuentas (ADMIN) ──────────────────────────────────────
-// Estas devuelven el body en el ÉXITO Y EN EL ERROR, a diferencia del
-// `r.ok ? r.json() : null` del resto del archivo. No es inconsistencia por
-// descuido: UsuarioAdminEndpoints responde 409 `ultimo_admin` con un mensaje
-// que explica por qué se negó y qué hacer antes de reintentar. Colapsarlo a
-// null convertiría la única guarda no recuperable por API en un error mudo.
+// Estas devuelven `body` en el éxito Y en el error (`{ error: code, mensaje }`), a
+// diferencia del resto del archivo: el 409 `ultimo_admin` trae un mensaje que explica
+// por qué se negó y qué hacer antes de reintentar; colapsarlo a null lo volvería mudo.
 async function usuariosFetch(path, init) {
   const r = await authedFetch(`${BASE}/api/usuarios${path}`, init);
-  let body = null;
-  try { body = await r.json(); } catch { /* sin cuerpo, o no es JSON */ }
-  return { ok: r.ok, status: r.status, body };
+  try {
+    return { ok: true, status: r.status, body: await unwrap(r) };
+  } catch (e) {
+    if (!(e instanceof ApiError)) throw e;
+    return { ok: false, status: r.status, body: { error: e.code, mensaje: e.message } };
+  }
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };

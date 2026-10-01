@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -86,11 +87,11 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     void aValidRefreshRotates() {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
 
-        ResponseEntity<ObjectNode> resp = endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce());
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(tokens.verificar(resp.getBody().get("accessToken").asText())).contains(ana);
-        assertThat(resp.getBody().get("csrfNonce").asText())
+        assertThat(tokens.verificar(Wire.data(resp).get("accessToken").asText())).contains(ana);
+        assertThat(Wire.data(resp).get("csrfNonce").asText())
                 .as("a nonce that survived the rotation would outlive the token it protects")
                 .isNotEqualTo(sesion.csrfNonce());
         assertThat(cookieDe(resp)).contains("HttpOnly").contains("Path=" + RefreshCookie.PATH);
@@ -101,11 +102,11 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     void theNewRefreshTokenStaysInTheCookie() {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
 
-        ResponseEntity<ObjectNode> resp = endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce());
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()));
 
         String cookie = cookieDe(resp);
         String valor = cookie.substring(cookie.indexOf('=') + 1, cookie.indexOf(';'));
-        assertThat(resp.getBody().toString()).doesNotContain(valor);
+        assertThat(Wire.body(resp).toString()).doesNotContain(valor);
     }
 
     // ── 4.10 · the ordering property ─────────────────────────────────────────
@@ -115,10 +116,10 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     void aForgedNonceLeavesTheRefreshTokenIntact() {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
 
-        ResponseEntity<ObjectNode> forjado = endpoints.refresh(sesion.refreshToken(), "nonce-inventado");
+        ResponseEntity<?> forjado = Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), "nonce-inventado"));
 
         assertThat(forjado.getStatusCode().value()).isEqualTo(403);
-        assertThat(endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce())).getStatusCode().value())
                 .as("if the token had been consumed first, the real client's next refresh would "
                         + "trip reuse detection — a blocked attack turned into a forced logout")
                 .isEqualTo(200);
@@ -129,15 +130,15 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     void aMissingNonceIsRejected() {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
 
-        assertThat(endpoints.refresh(sesion.refreshToken(), null).getStatusCode().value()).isEqualTo(403);
-        assertThat(endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), null)).getStatusCode().value()).isEqualTo(403);
+        assertThat(Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce())).getStatusCode().value())
                 .isEqualTo(200);
     }
 
     @Test
     @DisplayName("no cookie at all is 401, not 403 — there is no session to protect")
     void noCookieIsUnauthorized() {
-        assertThat(endpoints.refresh(null, "cualquiera").getStatusCode().value()).isEqualTo(401);
+        assertThat(Wire.answer(() -> endpoints.refresh(null, "cualquiera")).getStatusCode().value()).isEqualTo(401);
     }
 
     // ── reuse, seen from the endpoint ────────────────────────────────────────
@@ -146,12 +147,12 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     @DisplayName("a token reused past the grace window returns 401 and clears the cookie")
     void reuseIsAnsweredWithACleanSlate() throws Exception {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
-        endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce());
+        Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()));
 
         // Age the row past the grace window without sleeping.
         envejecerRotacion();
 
-        ResponseEntity<ObjectNode> resp = endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce());
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(401);
         assertThat(cookieDe(resp))
@@ -167,10 +168,10 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     void logoutRevokesAndClears() {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
 
-        ResponseEntity<ObjectNode> resp = endpoints.logout(sesion.refreshToken(), sesion.csrfNonce());
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.logout(sesion.refreshToken(), sesion.csrfNonce()));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody().get("cerrada").asBoolean()).isTrue();
+        assertThat(Wire.data(resp).get("cerrada").asBoolean()).isTrue();
         assertThat(cookieDe(resp))
                 .as("a cookie is identified by name+path: clearing it on another path deletes "
                         + "nothing and looks like it worked")
@@ -178,7 +179,7 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
                 .contains("Path=" + RefreshCookie.PATH)
                 .contains("Max-Age=0");
 
-        assertThat(endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce())).getStatusCode().value())
                 .as("the server-side revocation is the real work; clearing the cookie is hygiene")
                 .isEqualTo(401);
     }
@@ -188,27 +189,27 @@ class AuthEndpointsRefreshTest extends PostgresTestBase {
     void logoutIsNonceProtectedToo() {
         RefreshTokenService.Sesion sesion = sesiones.abrir(ana);
 
-        ResponseEntity<ObjectNode> resp = endpoints.logout(sesion.refreshToken(), "nonce-inventado");
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.logout(sesion.refreshToken(), "nonce-inventado"));
 
-        assertThat(resp.getBody().get("cerrada").asBoolean())
+        assertThat(Wire.data(resp).get("cerrada").asBoolean())
                 .as("otherwise any cross-site page could log the user out at will")
                 .isFalse();
-        assertThat(endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce()).getStatusCode().value())
+        assertThat(Wire.answer(() -> endpoints.refresh(sesion.refreshToken(), sesion.csrfNonce())).getStatusCode().value())
                 .isEqualTo(200);
     }
 
     @Test
     @DisplayName("logout still clears the browser's cookie even when the token is unknown")
     void logoutAlwaysClearsTheCookie() {
-        ResponseEntity<ObjectNode> resp = endpoints.logout("un-token-desconocido", "x");
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.logout("un-token-desconocido", "x"));
 
-        assertThat(resp.getBody().get("cerrada").asBoolean()).isFalse();
+        assertThat(Wire.data(resp).get("cerrada").asBoolean()).isFalse();
         assertThat(cookieDe(resp)).contains("Max-Age=0");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private static String cookieDe(ResponseEntity<ObjectNode> resp) {
+    private static String cookieDe(ResponseEntity<?> resp) {
         String cookie = resp.getHeaders().getFirst("Set-Cookie");
         assertThat(cookie).as("la respuesta trae Set-Cookie").isNotNull();
         return cookie;

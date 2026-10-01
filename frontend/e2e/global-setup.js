@@ -36,7 +36,7 @@ export default async function globalSetup() {
   const yo = await fetch(`${API_ORIGIN}/api/auth/me`, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
-  const identidad = await yo.json();
+  const identidad = (await yo.json()).data;
   if (!identidad.roles?.includes('ADMIN')) {
     throw new Error(
       `${adminUsername} is not an ADMIN (roles=${JSON.stringify(identidad.roles)}). ` +

@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -94,7 +95,7 @@ class ApiControllerProductoDetalleTest {
     void unknownProductIsA404() {
         when(productos.obtenerProductoPorKey(KEY)).thenReturn(Optional.empty());
 
-        var resp = controller.productoDetalle(KEY);
+        var resp = Wire.answer(() -> controller.productoDetalle(KEY));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
         verify(historial, never()).cargarHistorial(anyString());
@@ -111,7 +112,7 @@ class ApiControllerProductoDetalleTest {
         var resp = controller.productoDetalle(KEY);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("producto").path("nombre").asText()).isEqualTo("Remera Negra");
         assertThat(body.path("producto").path("url").asText()).isEqualTo(URL);
         assertThat(body.path("historial").path("puntos")).isEmpty();
@@ -123,7 +124,7 @@ class ApiControllerProductoDetalleTest {
         when(productos.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
         when(historial.cargarHistorial(URL)).thenReturn(List.of(punto("2026-05-20", 15990)));
 
-        JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
+        JsonNode body = Wire.data(controller.productoDetalle(KEY));
 
         assertThat(body.path("historial").path("puntos")).hasSize(1);
         assertThat(body.path("historial").has("min")).isFalse();
@@ -140,7 +141,7 @@ class ApiControllerProductoDetalleTest {
                 punto("2026-05-28", 15000),
                 punto("2026-06-04", 16000)));
 
-        JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
+        JsonNode body = Wire.data(controller.productoDetalle(KEY));
         JsonNode hist = body.path("historial");
 
         assertThat(body.path("producto").path("precio").asDouble()).isEqualTo(15990);
@@ -159,7 +160,7 @@ class ApiControllerProductoDetalleTest {
         when(productos.obtenerProductoPorKey(KEY)).thenReturn(Optional.of(producto()));
         when(historial.cargarHistorial(URL)).thenReturn(List.of());
 
-        JsonNode body = (JsonNode) controller.productoDetalle(KEY).getBody();
+        JsonNode body = Wire.data(controller.productoDetalle(KEY));
 
         assertThat(body.path("producto").path("key").asText()).isEqualTo(KEY);
         assertThat(KEY).hasSize(16);
@@ -182,7 +183,7 @@ class ApiControllerProductoDetalleTest {
                 punto("2026-05-20", 20000),
                 punto("2026-06-04", 16000)));
 
-        JsonNode body = (JsonNode) controller.historial(URL).getBody();
+        JsonNode body = Wire.data(controller.historial(URL));
 
         assertThat(body.path("puntos")).hasSize(2);
         assertThat(body.path("min").asDouble()).isEqualTo(16000);

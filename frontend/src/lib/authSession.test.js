@@ -11,7 +11,7 @@ function jsonResponse(body, init = {}) {
 }
 
 function refreshOk(accessToken, csrfNonce, expiresIn = 900) {
-  return jsonResponse({ accessToken, csrfNonce, expiresIn, tokenType: 'Bearer' });
+  return jsonResponse({ data: { accessToken, csrfNonce, expiresIn, tokenType: 'Bearer' } });
 }
 
 /** Fresh, isolated module instance (own closure state) — used to simulate a second tab. */
@@ -33,7 +33,7 @@ describe('authSession — no coordination primitives available', () => {
 
   it('still refreshes and grants a session in degraded (per-tab-only) mode', async () => {
     global.fetch.mockResolvedValueOnce(refreshOk('tok-degraded', 'nonce-degraded'));
-    global.fetch.mockResolvedValueOnce(jsonResponse({ username: 'valeria', roles: ['VIEWER'] }));
+    global.fetch.mockResolvedValueOnce(jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } }));
 
     const authSession = await import('./authSession');
     const ok = await authSession.ensureFreshSession({ reason: 'test' });
@@ -44,7 +44,7 @@ describe('authSession — no coordination primitives available', () => {
 
   it('a reuse-detection 401 (sesion_invalidada) still performs a clean local logout with no retry', async () => {
     global.fetch.mockResolvedValueOnce({
-      ok: false, status: 401, json: async () => ({ error: 'sesion_invalidada' }),
+      ok: false, status: 401, json: async () => ({ error: { code: 'sesion_invalidada', message: '' } }),
     });
 
     const authSession = await import('./authSession');
@@ -120,7 +120,7 @@ describe('authSession — cross-tab coordination', () => {
   it('two real module instances: a refresh in tab A is observed and adopted by tab B, with zero network calls from B', async () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -149,7 +149,7 @@ describe('authSession — cross-tab coordination', () => {
     // and reads as a demotion rather than a bug.
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'e2e-admin', roles: ['ADMIN'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'e2e-admin', roles: ['ADMIN'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -210,7 +210,7 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
   it('a lone tab with locks available goes straight to the network refresh, well under the 150ms probe timeout', async () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokSolo', 'nonceSolo');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -229,7 +229,7 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
   it('a sibling holding a session lock is discovered via query(), so the probe runs and the joining tab makes zero network calls', async () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -251,7 +251,7 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
   it('ending a session releases its lock, so a later tab does not wait on a dead sibling', async () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokA', 'nonceA');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -263,7 +263,7 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
     global.fetch.mockClear();
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokC', 'nonceC');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'carla', roles: ['VIEWER'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'carla', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -286,7 +286,7 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
 
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokNoLocks', 'nonceNoLocks');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -315,7 +315,7 @@ describe('authSession — role is fetched from /me, never decoded from the token
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/api/auth/refresh')) return refreshOk('tok', 'nonce');
-      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['ADMIN'] });
+      if (u.includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['ADMIN'] } });
       throw new Error(`unexpected fetch: ${u}`);
     });
 
@@ -332,7 +332,7 @@ describe('authSession — role is fetched from /me, never decoded from the token
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/api/auth/refresh')) return refreshOk('tok2', 'nonce2');
-      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'valeria', roles: ['VIEWER'] });
+      if (u.includes('/api/auth/me')) return jsonResponse({ data: { username: 'valeria', roles: ['VIEWER'] } });
       throw new Error(`unexpected fetch: ${u}`);
     });
 
@@ -349,7 +349,7 @@ describe('authSession — role is fetched from /me, never decoded from the token
     global.fetch = vi.fn().mockImplementation(async (url) => {
       const u = String(url);
       if (u.includes('/api/auth/login')) return refreshOk('tok3', 'nonce3');
-      if (u.includes('/api/auth/me')) return jsonResponse({ username: 'admin', roles: ['ADMIN'] });
+      if (u.includes('/api/auth/me')) return jsonResponse({ data: { username: 'admin', roles: ['ADMIN'] } });
       throw new Error(`unexpected fetch: ${u}`);
     });
 
@@ -390,7 +390,7 @@ describe('authSession — network error vs rejected session', () => {
 
   it('a rejected refresh (refresh_invalido) is reported with its own reason, not network_error', async () => {
     global.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }),
+      ok: false, status: 401, json: async () => ({ error: { code: 'refresh_invalido', message: '' } }),
     });
     const authSession = await import('./authSession');
 
@@ -433,7 +433,7 @@ describe('authSession — a tab resumed from bfcache or from the background reva
   it('a restored tab with no live sibling refreshes rather than presenting its stale token', async () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokFresco', 'nonceFresco');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'e2e-admin', roles: ['ADMIN'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'e2e-admin', roles: ['ADMIN'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -479,7 +479,7 @@ describe('authSession — a tab resumed from bfcache or from the background reva
   it('waking with a token about to expire refreshes it', async () => {
     global.fetch = vi.fn().mockImplementation(async (url) => {
       if (String(url).includes('/api/auth/refresh')) return refreshOk('tokRenovado', 'nonceRenovado');
-      if (String(url).includes('/api/auth/me')) return jsonResponse({ username: 'e2e-admin', roles: ['ADMIN'] });
+      if (String(url).includes('/api/auth/me')) return jsonResponse({ data: { username: 'e2e-admin', roles: ['ADMIN'] } });
       throw new Error(`unexpected fetch: ${url}`);
     });
 
@@ -515,7 +515,7 @@ describe('authSession — a 5xx during refresh is transient, not a logout', () =
     global.fetch = vi.fn()
       .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
       .mockResolvedValueOnce(refreshOk('tokDespuesDelHipo', 'nonceNuevo'))
-      .mockResolvedValueOnce(jsonResponse({ username: 'ana', roles: ['ADMIN'] }));
+      .mockResolvedValueOnce(jsonResponse({ data: { username: 'ana', roles: ['ADMIN'] } }));
 
     const authSession = await import('./authSession');
     authSession.__test.setSession({
@@ -534,7 +534,7 @@ describe('authSession — a 5xx during refresh is transient, not a logout', () =
 
   it('still ends the session on a 401 — a real auth verdict is terminal', async () => {
     global.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 401, json: async () => ({ error: 'refresh_invalido' }),
+      ok: false, status: 401, json: async () => ({ error: { code: 'refresh_invalido', message: '' } }),
     });
 
     const authSession = await import('./authSession');

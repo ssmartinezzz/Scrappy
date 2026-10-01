@@ -20,6 +20,7 @@ is the one thing somebody upgrading actually needs to read.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import urllib.error
@@ -49,8 +50,13 @@ class _FakeResponse:
         return False
 
 
-def _http_error(code: int, url: str = "http://localhost:3000/api/status"):
-    return urllib.error.HTTPError(url, code, "no", hdrs=None, fp=None)
+def _http_error(code: int, url: str = "http://localhost:3000/api/status", body: bytes | None = None):
+    fp = io.BytesIO(body) if body is not None else None
+    return urllib.error.HTTPError(url, code, "no", hdrs=None, fp=fp)
+
+
+def _error_body(code: str, message: str) -> bytes:
+    return json.dumps({"error": {"code": code, "message": message}}).encode()
 
 
 class _Backend:
@@ -62,20 +68,26 @@ class _Backend:
         self.emitidos: list[str] = []
         self.fail_next_with = list(fail_next_with or [])
         self.login_status = 200
+        self.responder = None
+        self.error_body: bytes | None = None
 
     def __call__(self, request: urllib.request.Request, timeout=None):
         self.requests.append(request)
         if request.full_url.endswith("/api/auth/login"):
             if self.login_status != 200:
-                raise _http_error(self.login_status, request.full_url)
+                raise _http_error(self.login_status, request.full_url, self.error_body)
             token = self.tokens[len(self.emitidos) % len(self.tokens)]
             self.emitidos.append(token)
             return _FakeResponse(
-                json.dumps({"accessToken": token, "tokenType": "Bearer", "expiresIn": 900}).encode()
+                json.dumps(
+                    {"data": {"accessToken": token, "tokenType": "Bearer", "expiresIn": 900}}
+                ).encode()
             )
         if self.fail_next_with:
-            raise _http_error(self.fail_next_with.pop(0), request.full_url)
-        return _FakeResponse(b'{"ok": true}')
+            raise _http_error(self.fail_next_with.pop(0), request.full_url, self.error_body)
+        if self.responder is not None:
+            return _FakeResponse(self.responder(request))
+        return _FakeResponse(b'{"data": {"ok": true}}')
 
     @property
     def logins(self) -> list[urllib.request.Request]:
@@ -244,3 +256,43 @@ def test_an_unconfigured_client_gets_a_useful_message_now_that_the_api_is_gated(
     )
     assert "CLI_SERVICE_ACCOUNT_USERNAME" in mensaje
     assert backend.logins == [], "with nothing configured there is nothing to log in with"
+
+
+def test_success_bodies_are_unwrapped_from_the_data_envelope():
+    backend = _Backend()
+    backend.responder = lambda request: b'{"data": {"status": "IDLE", "tieneData": true}}'
+
+    assert _client(backend).status() == {"status": "IDLE", "tieneData": True}
+
+
+def test_an_http_error_carries_the_typed_code_and_message_from_the_error_envelope():
+    backend = _Backend(fail_next_with=[409])
+    backend.error_body = _error_body("scrape_en_curso", "Hay un scraping en curso.")
+
+    with pytest.raises(RestError) as exc:
+        _client(backend).entrenar()
+
+    assert "[scrape_en_curso] Hay un scraping en curso." in str(exc.value)
+
+
+def test_a_rejected_login_names_the_typed_code_but_never_the_password():
+    backend = _Backend()
+    backend.login_status = 401
+    backend.error_body = _error_body("credenciales_invalidas", "Usuario o contraseña incorrectos.")
+
+    with pytest.raises(RestError) as exc:
+        _client(backend).status()
+
+    mensaje = str(exc.value)
+    assert "credenciales_invalidas" in mensaje
+    assert PASSWORD not in mensaje
+
+
+def test_an_error_body_that_is_not_an_envelope_does_not_break_the_error_path():
+    backend = _Backend(fail_next_with=[500])
+    backend.error_body = b"<html>Bad gateway</html>"
+
+    with pytest.raises(RestError) as exc:
+        _client(backend).status()
+
+    assert "500" in str(exc.value)

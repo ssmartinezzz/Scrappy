@@ -2,43 +2,28 @@ package ar.scraper.web;
 
 import ar.scraper.catalog.ProductJson;
 import org.apache.commons.lang3.StringUtils;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.api.PageMeta;
+import ar.scraper.web.dto.ComparadorDtos;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Multi-site price comparison: article groups from the live catalog and the
- * external MercadoLibre lookup.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
- */
+import java.util.ArrayList;
+import java.util.List;
+
+/** Multi-site price comparison and the external MercadoLibre lookup. Mappings live in {@link ApiController}. */
 class ComparadorEndpoints {
 
     private static final org.slf4j.Logger LOG =
         org.slf4j.LoggerFactory.getLogger(ComparadorEndpoints.class);
 
-    /**
-     * Un solo cliente HTTP para toda la vida del proceso, misma convención que
-     * {@code OpenAiCompatProvider}.
-     *
-     * <p>Antes se construía uno por request con {@code HttpClient.newHttpClient()}.
-     * Medido: 5,2 ms y UN HILO VIVO extra por llamada — cada cliente trae su
-     * selector y su executor, y como nadie los cierra viven hasta que el GC los
-     * junte. Eso se pagaba antes de empezar la request de red. Encima, un cliente
-     * nuevo por llamada tira a la basura el pool de conexiones, así que cada
-     * consulta a MercadoLibre rehacía DNS + TCP + handshake TLS desde cero.</p>
-     *
-     * <p>{@code HttpClient} es thread-safe y está pensado para compartirse.</p>
-     */
+    /** One shared client: a per-request one cost 5.2 ms and a live thread each, and discarded the connection pool. */
     private static final java.net.http.HttpClient HTTP = java.net.http.HttpClient.newBuilder()
         .connectTimeout(java.time.Duration.ofSeconds(8))
         .build();
 
-    /** {@code ObjectMapper} es thread-safe una vez configurado; se instanciaba por request. */
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
         new com.fasterxml.jackson.databind.ObjectMapper();
 
-    // Patrones del slug de búsqueda, compilados una vez.
     private static final java.util.regex.Pattern SLUG_NO_PERMITIDO =
         java.util.regex.Pattern.compile("[^a-z0-9\\s-]");
     private static final java.util.regex.Pattern SLUG_ESPACIOS =
@@ -58,15 +43,12 @@ class ComparadorEndpoints {
 
     private String safe(String s) { return ProductJson.safe(s); }
 
-    // ─── Grupos de comparativa por artículo ─────────────────────────────────────
-
-    ResponseEntity<Object> grupos(String q, String sitio, String categoria, String rubro,
-                                  int minSitios, int page, int size) {
-
+    /** {@code page} is 0-based here (unlike /api/data and /api/recomendados). */
+    ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(String q, String sitio, String categoria,
+                                                                   String rubro, int minSitios, int page, int size) {
         var r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        // Filtrar y agrupar
         var filtered = r.productos().stream()
             .filter(p -> StringUtils.isBlank(q)
                 || p.nombre().toLowerCase().contains(q.toLowerCase())
@@ -79,13 +61,9 @@ class ComparadorEndpoints {
 
         var grupos = grouping.agrupar(filtered, minSitios >= 2);
 
-        // Filtro por sitio — POST-agrupado, a diferencia de q/categoria/rubro.
-        // Este endpoint existe para comparar el mismo artículo ENTRE sitios y
-        // arranca en minSitios=2: recortar los productos a un solo sitio antes
-        // de agrupar dejaría todos los grupos con un único sitio y la respuesta
-        // sería siempre vacía. Post-filtrando, "?sitio=freres" responde lo que
-        // el usuario quiere decir — las comparaciones donde freres participa.
-        // Va antes de paginar para que `total` cuente lo filtrado.
+        // Site filter runs AFTER grouping, unlike q/categoria/rubro: this endpoint compares one
+        // article across sites (minSitios=2), so trimming to one site first would empty every group.
+        // Before paging so `total` counts the filtered set.
         if (StringUtils.isNotBlank(sitio)) {
             grupos = grupos.stream()
                 .filter(g -> g.getProductos().stream()
@@ -93,68 +71,43 @@ class ComparadorEndpoints {
                 .collect(java.util.stream.Collectors.toList());
         }
 
-        // Paginación
         int total     = grupos.size();
         int fromIdx   = Math.min(page * size, total);
         int toIdx     = Math.min(fromIdx + size, total);
         var paginated = grupos.subList(fromIdx, toIdx);
 
-        // Serializar
-        var result = MAPPER.createObjectNode();
-        result.put("total", total);
-        result.put("page", page);
-        result.put("size", size);
-        var gruposArr = result.putArray("grupos");
-
+        List<ComparadorDtos.Grupo> items = new ArrayList<>();
         for (var grupo : paginated) {
-            var gNode = gruposArr.addObject();
-            gNode.put("nombre",    grupo.getNombre());
-            gNode.put("categoria", grupo.getCategoria());
-            gNode.put("img",       grupo.getImg());
-            gNode.put("sitios",    grupo.sitiosDistintos());
-            gNode.put("precioMin", grupo.precioMinimo());
-            gNode.put("precioMax", grupo.precioMaximo());
-            gNode.put("ahorroPct", Math.round(grupo.ahorroPct() * 10.0) / 10.0);
-            var precsArr = gNode.putArray("precios");
+            List<ComparadorDtos.Precio> precios = new ArrayList<>();
             for (var p : grupo.getProductos()) {
-                var pNode = precsArr.addObject();
-                pNode.put("sitio",  safe(p.sitio()));
-                pNode.put("precio", p.precio());
-                pNode.put("url",    safe(p.url()));
-                pNode.put("img",    safe(p.imagenUrl()));
-                if (p.precioOriginal() != null)
-                    pNode.put("precioOrig", p.precioOriginal());
-                if (p.ml() != null && !p.ml().badge().isBlank())
-                    pNode.put("badge", p.ml().badge());
+                precios.add(new ComparadorDtos.Precio(safe(p.sitio()), p.precio(), safe(p.url()),
+                        safe(p.imagenUrl()), p.precioOriginal(),
+                        p.ml() != null && !p.ml().badge().isBlank() ? p.ml().badge() : null));
             }
+            items.add(new ComparadorDtos.Grupo(grupo.getNombre(), grupo.getCategoria(), grupo.getImg(),
+                    grupo.sitiosDistintos(), grupo.precioMinimo(), grupo.precioMaximo(),
+                    Math.round(grupo.ahorroPct() * 10.0) / 10.0, precios));
         }
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.page(items, PageMeta.of(page, size, total)));
     }
 
-    // ─── Búsqueda precios externos (MercadoLibre API pública) ──────────────────
-
-    ResponseEntity<Object> buscarExterno(String q, String url, String sitio) {
+    ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(String q, String url, String sitio) {
         try {
-            // Limpiar query: quitar talle, color, genero, codigos — deja marca+modelo
+            // Strip size/colour/gender/SKU codes: keep brand + model.
             String cleanQ = limpiarQueryBusqueda(q);
             LOG.info("[API] buscarExterno q='{}' → limpia='{}'", q, cleanQ);
 
-            var results  = new java.util.ArrayList<java.util.Map<String,Object>>();
-            var response = new java.util.LinkedHashMap<String,Object>();
+            var results  = new ArrayList<ComparadorDtos.ResultadoExterno>();
+            var persistir = new ArrayList<java.util.Map<String, Object>>();
 
-            // Siempre devolver la searchUrl para que el frontend pueda mostrar el link
-            // Usar listado.mercadolibre.com.ar — URL canónica de Argentina, no redirige
-            // AccentStripper hace exactamente el mismo mapeo que la cadena de seis
-            // replaceAll que vivía acá: este era el call site que ADR-4 no llegó a
-            // unificar cuando extrajo el resto.
+            // The searchUrl is always returned so the frontend can show the link;
+            // listado.mercadolibre.com.ar is the canonical AR URL and does not redirect.
             String mlSlug = SLUG_ESPACIOS.matcher(
                     SLUG_NO_PERMITIDO.matcher(
                             ar.scraper.aggregator.text.AccentStripper.strip(cleanQ.toLowerCase()))
                         .replaceAll("").trim())
                 .replaceAll("-");
             String searchUrl = "https://listado.mercadolibre.com.ar/" + mlSlug;
-            response.put("searchUrl", searchUrl);
-            response.put("queryUsada", cleanQ);
 
             if ("mercadolibre".equals(sitio)) {
                 String enc = java.net.URLEncoder.encode(cleanQ, java.nio.charset.StandardCharsets.UTF_8);
@@ -168,66 +121,49 @@ class ComparadorEndpoints {
                     if (root.isArray()) for (var item : root) {
                         double precio = item.path("price").asDouble(0);
                         if (precio <= 0) continue;
-                        var row = new java.util.LinkedHashMap<String,Object>();
-                        row.put("titulo",    item.path("title").asText(""));
-                        row.put("precio",    precio);
-                        row.put("url",       item.path("permalink").asText(""));
-                        row.put("thumbnail", item.path("thumbnail").asText(""));
-                        row.put("condicion", item.path("condition").asText("new"));
-                        row.put("sitio",     "mercadolibre");
-                        row.put("fecha",     java.time.LocalDate.now().toString());
+                        var row = new ComparadorDtos.ResultadoExterno(
+                                item.path("title").asText(""), precio,
+                                item.path("permalink").asText(""),
+                                item.path("thumbnail").asText(""),
+                                item.path("condition").asText("new"),
+                                "mercadolibre", java.time.LocalDate.now().toString());
                         results.add(row);
+                        var m = new java.util.LinkedHashMap<String, Object>();
+                        m.put("titulo",    row.getTitulo());
+                        m.put("precio",    row.getPrecio());
+                        m.put("url",       row.getUrl());
+                        m.put("thumbnail", row.getThumbnail());
+                        m.put("condicion", row.getCondicion());
+                        m.put("sitio",     row.getSitio());
+                        m.put("fecha",     row.getFecha());
+                        persistir.add(m);
                     }
                 }
             }
-            response.put("resultados", results);
             if (StringUtils.isNotBlank(url) && !results.isEmpty())
-                preciosExternos.guardarPreciosExternos(url, sitio, results);
-            return ResponseEntity.ok(response);
+                preciosExternos.guardarPreciosExternos(url, sitio, persistir);
+            return ResponseEntity.ok(ApiResponse.ok(
+                    new ComparadorDtos.BusquedaExterna(searchUrl, cleanQ, results)));
         } catch (Exception e) {
             LOG.warn("[API] buscarExterno error: {}", e.getMessage());
-            var fallback = new java.util.LinkedHashMap<String,Object>();
-            fallback.put("searchUrl", "https://www.mercadolibre.com.ar/search?q="
-                + java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8));
-            fallback.put("queryUsada", q);
-            fallback.put("resultados", java.util.List.of());
-            return ResponseEntity.ok(fallback);
+            return ResponseEntity.ok(ApiResponse.ok(new ComparadorDtos.BusquedaExterna(
+                    "https://www.mercadolibre.com.ar/search?q="
+                            + java.net.URLEncoder.encode(q, java.nio.charset.StandardCharsets.UTF_8),
+                    q, List.of())));
         }
     }
 
     /**
-     * Limpia el nombre de producto para generar una buena search query.
-     * Elimina: talles, colores, género, códigos SKU, preposiciones.
-     * Mantiene: marca + nombre del modelo.
-     */
-    /**
-     * Flags de los patrones de limpieza.
-     *
-     * <p>{@code UNICODE_CHARACTER_CLASS} es el que arregla un bug real, no un
-     * detalle de estilo. Por defecto el {@code \b} de Java se define sobre
-     * {@code \w = [a-zA-Z0-9_]}, y las vocales acentuadas NO son caracteres de
-     * palabra. En "Móvil" había entonces un borde entre la M y la ó: la M
-     * quedaba como palabra suelta, el filtro de talles la tomaba por un talle y
-     * se la llevaba. Lo mismo con "Azulón", donde el filtro de colores
-     * matcheaba "azul" y dejaba "ón".</p>
-     *
-     * <p>Estos patrones corren sobre el nombre CRUDO del producto — a
-     * diferencia de {@code PackQuantityDetector}, que normaliza acentos antes
-     * de matchear y por eso nunca tuvo el problema. El catálogo es en español,
-     * así que acá los bordes de palabra tienen que ser conscientes de Unicode.</p>
-     *
-     * <p>{@code UNICODE_CHARACTER_CLASS} ya implica {@code UNICODE_CASE}; se
-     * nombra igual para que no haya que saberlo de memoria. Sobre los patrones
-     * numéricos amplía {@code \d} a cualquier dígito decimal Unicode, que es
-     * justo lo que un filtro de "sacar números" quiere decir.</p>
+     * UNICODE_CHARACTER_CLASS fixes a real bug: Java's default {@code \b} treats accented vowels as
+     * non-word characters, so in "Móvil" the "M" became a stray size token and was stripped ("Azulón"
+     * left "ón"). These patterns run over the RAW product name, so word boundaries must be Unicode-aware.
      */
     private static final int FLAGS_LIMPIEZA =
         java.util.regex.Pattern.CASE_INSENSITIVE
         | java.util.regex.Pattern.UNICODE_CASE
         | java.util.regex.Pattern.UNICODE_CHARACTER_CLASS;
 
-    // Los patrones de limpieza, compilados una vez en vez de en cada llamada.
-    // El orden de aplicación importa (talles ANTES que colores) y se conserva.
+    // Application order matters (sizes BEFORE colours).
     private static final java.util.regex.Pattern Q_TALLE_ETIQUETADO =
         java.util.regex.Pattern.compile("\\b(talle|talla|size)[:\\s]*\\S+", FLAGS_LIMPIEZA);
     private static final java.util.regex.Pattern Q_TALLE_SUELTO =
@@ -255,28 +191,21 @@ class ComparadorEndpoints {
         if (StringUtils.isBlank(nombre)) return "";
         String q = nombre;
 
-        // 1. Quitar talles alfabeticos sueltos (XL, XXL, S, M, L, etc.)
         q = Q_TALLE_ETIQUETADO.matcher(q).replaceAll("");
         q = Q_TALLE_SUELTO.matcher(q).replaceAll("");
         q = Q_NUMERO_CORTO.matcher(q).replaceAll("");
 
-        // 2. Quitar colores
         q = Q_COLOR.matcher(q).replaceAll("");
 
-        // 3. Quitar genero
         q = Q_GENERO.matcher(q).replaceAll("");
 
-        // 4. Quitar descriptores genericos
         q = Q_DESCRIPTOR.matcher(q).replaceAll("");
 
-        // 5. Quitar codigos SKU largos (5+ digitos)
         q = Q_SKU_LARGO.matcher(q).replaceAll("");
 
-        // 6. Limpiar puntuacion y espacios
         q = Q_PUNTUACION.matcher(q).replaceAll(" ");
         q = Q_ESPACIOS.matcher(q).replaceAll(" ").trim();
 
-        // 7. Truncar a 60 chars en limite de palabra
         if (q.length() > 60) {
             int cut = q.lastIndexOf(' ', 60);
             q = (cut > 15 ? q.substring(0, cut) : q.substring(0, 60)).trim();

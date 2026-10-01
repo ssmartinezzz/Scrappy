@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.scheduling.CronExecution;
 import ar.scraper.scheduling.CronJob;
 import ar.scraper.scheduling.CronJobService;
@@ -82,11 +83,11 @@ class CronApiControllerTest {
         ResponseEntity<?> resp = controller.listar();
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
-        assertThat(body.path("jobs")).hasSize(2);
-        assertThat(body.path("jobs").get(0).path("id").asLong()).isEqualTo(1L);
-        assertThat(body.path("jobs").get(0).path("name").asText()).isEqualTo("Nightly");
-        assertThat(body.path("jobs").get(0).path("sitios")).hasSize(2);
+        JsonNode body = Wire.data(resp);
+        assertThat(body).hasSize(2);
+        assertThat(body.get(0).path("id").asLong()).isEqualTo(1L);
+        assertThat(body.get(0).path("name").asText()).isEqualTo("Nightly");
+        assertThat(body.get(0).path("sitios")).hasSize(2);
     }
 
     // ── GET /api/cron/{id} ───────────────────────────────────────────────────
@@ -98,7 +99,7 @@ class CronApiControllerTest {
         ResponseEntity<?> resp = controller.obtener(1);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("id").asLong()).isEqualTo(1L);
         assertThat(body.path("cronExpr").asText()).isEqualTo("0 0 3 * * *");
         assertThat(body.path("useGpu").asBoolean()).isFalse();
@@ -109,10 +110,10 @@ class CronApiControllerTest {
         Allure.parameter("id", 999);
         when(db.getCronJob(999)).thenReturn(Optional.empty());
 
-        ResponseEntity<?> resp = controller.obtener(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.obtener(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -127,7 +128,7 @@ class CronApiControllerTest {
         ResponseEntity<?> resp = controller.crear(jobPayload());
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("id").asLong()).isEqualTo(42L);
         verify(cronJobService).createJob("Nightly", 1000.0, 50000.0, List.of("Freres", "VCP"),
                 true, false, "0 0 3 * * *", true);
@@ -140,10 +141,10 @@ class CronApiControllerTest {
         Map<String, Object> payload = new java.util.HashMap<>(jobPayload());
         payload.put("cronExpr", "bogus");
 
-        ResponseEntity<?> resp = controller.crear(payload);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crear(payload));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
         verify(cronJobService, never()).createJob(any(), anyDouble(), anyDouble(), any(),
                 anyBoolean(), anyBoolean(), any(), anyBoolean());
@@ -155,7 +156,7 @@ class CronApiControllerTest {
         Map<String, Object> payload = new java.util.HashMap<>(jobPayload());
         payload.put("name", "  ");
 
-        ResponseEntity<?> resp = controller.crear(payload);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.crear(payload));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verify(cronJobService, never()).createJob(any(), anyDouble(), anyDouble(), any(),
@@ -183,7 +184,7 @@ class CronApiControllerTest {
         Allure.parameter("id", 999);
         when(db.getCronJob(999L)).thenReturn(Optional.empty());
 
-        ResponseEntity<?> resp = controller.actualizar(999, jobPayload());
+        ResponseEntity<?> resp = Wire.answer(() -> controller.actualizar(999, jobPayload()));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
         verify(cronJobService, never()).updateJob(anyLong(), any(), anyDouble(), anyDouble(),
@@ -198,7 +199,7 @@ class CronApiControllerTest {
         Map<String, Object> payload = new java.util.HashMap<>(jobPayload());
         payload.put("cronExpr", "bogus");
 
-        ResponseEntity<?> resp = controller.actualizar(1, payload);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.actualizar(1, payload));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verify(cronJobService, never()).updateJob(anyLong(), any(), anyDouble(), anyDouble(),
@@ -214,7 +215,7 @@ class CronApiControllerTest {
         ResponseEntity<?> resp = controller.eliminar(1);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
     }
 
@@ -223,7 +224,7 @@ class CronApiControllerTest {
         Allure.parameter("id", 999);
         when(db.deleteCronJob(999)).thenReturn(false);
 
-        ResponseEntity<?> resp = controller.eliminar(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.eliminar(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
     }
@@ -239,14 +240,14 @@ class CronApiControllerTest {
         ResponseEntity<?> resp = controller.listarEjecuciones(7, 50);
 
         assertThat(resp.getStatusCode().is2xxSuccessful()).isTrue();
-        JsonNode body = (JsonNode) resp.getBody();
-        assertThat(body.path("executions")).hasSize(1);
-        assertThat(body.path("executions").get(0).path("status").asText()).isEqualTo("success");
-        assertThat(body.path("executions").get(0).path("durationMs").asInt()).isEqualTo(300000);
+        JsonNode body = Wire.data(resp);
+        assertThat(body).hasSize(1);
+        assertThat(body.get(0).path("status").asText()).isEqualTo("success");
+        assertThat(body.get(0).path("durationMs").asInt()).isEqualTo(300000);
         // No separate execution-detail endpoint exists in this batch (out of scope,
         // see apply-progress), so logOutput is included directly in the list —
         // otherwise it would be permanently unreachable via REST.
-        assertThat(body.path("executions").get(0).path("logOutput").asText()).isEqualTo("some captured log");
+        assertThat(body.get(0).path("logOutput").asText()).isEqualTo("some captured log");
     }
 
     // ── POST /api/cron/{id}/run-now ──────────────────────────────────────────
@@ -256,10 +257,10 @@ class CronApiControllerTest {
         Allure.parameter("id", 999);
         when(cronJobService.triggerNow(999)).thenReturn(CronJobService.RunNowResult.NOT_FOUND);
 
-        ResponseEntity<?> resp = controller.runNow(999);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.runNow(999));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(404);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -267,10 +268,10 @@ class CronApiControllerTest {
     void runNowReturns409WhenScraperBusyOrAlreadyInFlight() {
         when(cronJobService.triggerNow(1)).thenReturn(CronJobService.RunNowResult.BUSY);
 
-        ResponseEntity<?> resp = controller.runNow(1);
+        ResponseEntity<?> resp = Wire.answer(() -> controller.runNow(1));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isFalse();
     }
 
@@ -281,7 +282,7 @@ class CronApiControllerTest {
         ResponseEntity<?> resp = controller.runNow(1);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(202);
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         assertThat(body.path("ok").asBoolean()).isTrue();
     }
 }

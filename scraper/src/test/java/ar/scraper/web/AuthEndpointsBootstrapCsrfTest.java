@@ -139,7 +139,7 @@ class AuthEndpointsBootstrapCsrfTest {
     void missingOriginIsRejected() throws Exception {
         mockMvc.perform(refreshCon(null, "same-origin"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("csrf_invalido"));
+                .andExpect(jsonPath("$.error.code").value("csrf_invalido"));
     }
 
     @Test
@@ -147,7 +147,7 @@ class AuthEndpointsBootstrapCsrfTest {
     void missingSecFetchSiteIsRejected() throws Exception {
         mockMvc.perform(refreshCon("http://localhost:5173", null))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("csrf_invalido"));
+                .andExpect(jsonPath("$.error.code").value("csrf_invalido"));
     }
 
     @Test
@@ -155,7 +155,7 @@ class AuthEndpointsBootstrapCsrfTest {
     void crossSiteSecFetchSiteIsRejected() throws Exception {
         mockMvc.perform(refreshCon("http://localhost:5173", "cross-site"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("csrf_invalido"));
+                .andExpect(jsonPath("$.error.code").value("csrf_invalido"));
     }
 
     @Test
@@ -163,7 +163,7 @@ class AuthEndpointsBootstrapCsrfTest {
     void noneSecFetchSiteIsRejected() throws Exception {
         mockMvc.perform(refreshCon("http://localhost:5173", "none"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("csrf_invalido"));
+                .andExpect(jsonPath("$.error.code").value("csrf_invalido"));
     }
 
     @Test
@@ -172,6 +172,6 @@ class AuthEndpointsBootstrapCsrfTest {
         mockMvc.perform(refreshCon("http://localhost:5173", "same-origin")
                         .header(AuthEndpoints.CSRF_HEADER, "nonce-equivocado"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("csrf_invalido"));
+                .andExpect(jsonPath("$.error.code").value("csrf_invalido"));
     }
 }

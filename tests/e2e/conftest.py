@@ -156,7 +156,7 @@ class Sesion:
 def login(api: ApiClient, username: str, password: str) -> Sesion:
     r = api.post("/api/auth/login", json_body={"username": username, "password": password})
     assert r.status == 200, f"login as {username!r} answered {r.status}: {r.body!r}"
-    cuerpo = r.json()
+    cuerpo = r.data()
     galleta = r.cookies.get("refresh")
     return Sesion(
         username=username,
@@ -183,8 +183,8 @@ def admin(api: ApiClient) -> Sesion:
     sesion = login(api, usuario, password)
     yo = api.get("/api/auth/me", token=sesion.access_token)
     assert yo.status == 200, f"GET /api/auth/me as the admin answered {yo.status}"
-    assert "ADMIN" in yo.json()["roles"], (
-        f"{usuario!r} is not an ADMIN — it answered roles={yo.json()['roles']}. "
+    assert "ADMIN" in yo.data()["roles"], (
+        f"{usuario!r} is not an ADMIN — it answered roles={yo.data()['roles']}. "
         "The runner seeds e2e-admin via ADMIN_BOOTSTRAP_USERNAME; if that "
         "username already existed with another role, AdminSeeder left it alone."
     )
@@ -256,4 +256,4 @@ def esperar(condicion, *, timeout: float = 5.0, intervalo: float = 0.1):
 
 
 def cuerpo_de_error(r: Respuesta) -> str:
-    return r.json().get("error", "")
+    return r.error_code()

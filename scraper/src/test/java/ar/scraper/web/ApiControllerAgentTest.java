@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.web.api.ApiExceptionHandler;
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -114,6 +116,7 @@ class ApiControllerAgentTest {
 
         objectMapper = new ObjectMapper();
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();
     }
@@ -131,7 +134,7 @@ class ApiControllerAgentTest {
         var resp = controller.agentChat(body);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(resp.getBody()).isEqualTo(expected);
+        assertThat(resp.getBody().getData()).isEqualTo(expected);
     }
 
     @Test
@@ -140,11 +143,11 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
 
         var bodyMissing = Map.<String, Object>of();
-        var respMissing = controller.agentChat(bodyMissing);
+        var respMissing = Wire.answer(() -> controller.agentChat(bodyMissing));
         assertThat(respMissing.getStatusCode().is4xxClientError()).isTrue();
 
         var bodyEmpty = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "")));
-        var respEmpty = controller.agentChat(bodyEmpty);
+        var respEmpty = Wire.answer(() -> controller.agentChat(bodyEmpty));
         assertThat(respEmpty.getStatusCode().is4xxClientError()).isTrue();
 
         verifyNoInteractions(catalogAgentService);
@@ -156,7 +159,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         var body = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "hola")));
-        var resp = controller.agentChat(body);
+        var resp = Wire.answer(() -> controller.agentChat(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         verifyNoInteractions(catalogAgentService);
@@ -348,12 +351,10 @@ class ApiControllerAgentTest {
                         ProviderUnavailableException.Reason.UNREACHABLE, "No se pudo contactar al proveedor LLM."));
 
         var body = Map.<String, Object>of("messages", List.of(Map.of("role", "user", "text", "hola")));
-        var resp = controller.agentChat(body);
+        var resp = Wire.answer(() -> controller.agentChat(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(502);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
-        assertThat(respBody.get("codigo")).isEqualTo("proveedor_no_disponible");
+        assertThat(Wire.error(resp).get("code").asText()).isEqualTo("proveedor_no_disponible");
     }
 
     // ── 5.11-5.13: model override ───────────────────────────────────────
@@ -397,10 +398,10 @@ class ApiControllerAgentTest {
         var body = Map.<String, Object>of(
                 "messages", List.of(Map.of("role", "user", "text", "hola")),
                 "model", "does-not-exist:1b");
-        var resp = controller.agentChat(body);
+        var resp = Wire.answer(() -> controller.agentChat(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().toString()).contains("does-not-exist:1b");
+        assertThat(Wire.body(resp).toString()).contains("does-not-exist:1b");
         verify(catalogAgentService, never()).run(anyList(), any());
     }
 
@@ -415,10 +416,10 @@ class ApiControllerAgentTest {
         var resp = controller.agentModels();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) resp.getBody();
-        assertThat(body.get("available")).isEqualTo(List.of("qwen3:14b", "llama3.1:8b"));
-        assertThat(body.get("default")).isEqualTo("qwen3:14b");
+        var body = Wire.data(resp);
+        assertThat(objectMapper.convertValue(body.get("available"), List.class))
+                .isEqualTo(List.of("qwen3:14b", "llama3.1:8b"));
+        assertThat(body.get("default").asText()).isEqualTo("qwen3:14b");
     }
 
     @Test
@@ -467,7 +468,7 @@ class ApiControllerAgentTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of()));
 
         ReclassifyProposal body = proposal("https://nope.com/x", "Zapatilla Running", "Buzo");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(db);
@@ -481,7 +482,7 @@ class ApiControllerAgentTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Frisa");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(db);
@@ -504,10 +505,10 @@ class ApiControllerAgentTest {
 
         ReclassifyProposal body = new ReclassifyProposal(
                 "https://a.com/1", "Producto", "Zapatilla Running", "Buzo", "", "", "Mujer");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(resp.getBody().toString()).contains("Mujer");
+        assertThat(Wire.body(resp).toString()).contains("Mujer");
         verifyNoInteractions(db);
     }
 
@@ -560,10 +561,10 @@ class ApiControllerAgentTest {
                 .thenReturn(false);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isNotEqualTo(200);
-        assertThat(resp.getBody().toString()).doesNotContain("Reclasificación aplicada");
+        assertThat(Wire.body(resp).toString()).doesNotContain("Reclasificación aplicada");
     }
 
     @Test
@@ -626,7 +627,7 @@ class ApiControllerAgentTest {
                 .thenReturn(false);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
-        controller.agentApply(body);
+        Wire.answer(() -> controller.agentApply(body));
 
         verify(service, never()).actualizarProductoEnMemoria(any(), any(), any(), any(), any(), any());
     }
@@ -637,7 +638,7 @@ class ApiControllerAgentTest {
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Buzo");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         verifyNoInteractions(db);
@@ -657,13 +658,11 @@ class ApiControllerAgentTest {
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.of(enDb));
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(422);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
-        assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
-        assertThat(respBody.get("actual")).isNotNull();
+        assertThat(Wire.error(resp).get("code").asText()).isEqualTo("conflicto_stale");
+        assertThat(Wire.error(resp).path("details").path("actual").isMissingNode()).isFalse();
         verify(productos, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -676,12 +675,10 @@ class ApiControllerAgentTest {
         when(productos.obtenerProducto("https://a.com/1")).thenReturn(Optional.empty());
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Musculosa");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(422);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> respBody = (Map<String, Object>) resp.getBody();
-        assertThat(respBody.get("codigo")).isEqualTo("conflicto_stale");
+        assertThat(Wire.error(resp).get("code").asText()).isEqualTo("conflicto_stale");
         verify(productos, never()).aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -693,7 +690,7 @@ class ApiControllerAgentTest {
         when(service.getLastResult()).thenReturn(mockResult(List.of(enMemoria)));
 
         ReclassifyProposal body = proposal("https://a.com/1", "Zapatilla Running", "Frisa");
-        var resp = controller.agentApply(body);
+        var resp = Wire.answer(() -> controller.agentApply(body));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(db);

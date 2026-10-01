@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
@@ -72,24 +73,24 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
     @Test
     @DisplayName("correct credentials return a token that verifies back to the account")
     void correctCredentialsReturnAUsableToken() {
-        ResponseEntity<ObjectNode> resp = login("ana", PASSWORD);
+        ResponseEntity<?> resp = login("ana", PASSWORD);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        String token = resp.getBody().get("accessToken").asText();
+        String token = Wire.data(resp).get("accessToken").asText();
         UUID esperado = repo.buscarActivaPorUsername("ana").orElseThrow().id();
 
         assertThat(tokens.verificar(token)).contains(esperado);
-        assertThat(resp.getBody().get("tokenType").asText()).isEqualTo("Bearer");
-        assertThat(resp.getBody().get("expiresIn").asInt()).isEqualTo(900);
+        assertThat(Wire.data(resp).get("tokenType").asText()).isEqualTo("Bearer");
+        assertThat(Wire.data(resp).get("expiresIn").asInt()).isEqualTo(900);
     }
 
     @Test
     @DisplayName("a wrong password returns 401 and no token")
     void wrongPasswordIsRejected() {
-        ResponseEntity<ObjectNode> resp = login("ana", "la-password-equivocada");
+        ResponseEntity<?> resp = login("ana", "la-password-equivocada");
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(resp.getBody().has("accessToken")).isFalse();
+        assertThat(Wire.body(resp).toString()).doesNotContain("accessToken");
     }
 
     @Test
@@ -97,12 +98,12 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
     void disabledAccountIsRejected() {
         repo.desactivar("ana");
 
-        ResponseEntity<ObjectNode> resp = login("ana", PASSWORD);
+        ResponseEntity<?> resp = login("ana", PASSWORD);
 
         assertThat(resp.getStatusCode())
                 .as("activo=FALSE is a revocation switch, and login is where it has to bite first")
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(resp.getBody().has("accessToken")).isFalse();
+        assertThat(Wire.body(resp).toString()).doesNotContain("accessToken");
     }
 
     @Test
@@ -122,9 +123,9 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
     @Test
     @DisplayName("the failure body is the same for a wrong password and an unknown user")
     void failuresAreIndistinguishable() {
-        assertThat(login("ana", "mal").getBody().toString())
+        assertThat(Wire.body(login("ana", "mal")).toString())
                 .as("a different message per branch tells an attacker which usernames exist")
-                .isEqualTo(login("nadie", "mal").getBody().toString());
+                .isEqualTo(Wire.body(login("nadie", "mal")).toString());
     }
 
     @Test
@@ -133,21 +134,21 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
         assertThat(login(null, PASSWORD).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(login("ana", null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(login("", "").getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(endpoints.login(Map.of()).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(Wire.answer(() -> endpoints.login(Map.of())).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
     @DisplayName("the response never echoes the password back")
     void theResponseNeverEchoesTheCredential() {
-        assertThat(login("ana", PASSWORD).getBody().toString()).doesNotContain(PASSWORD);
-        assertThat(login("ana", "mal").getBody().toString()).doesNotContain("mal");
+        assertThat(Wire.body(login("ana", PASSWORD)).toString()).doesNotContain(PASSWORD);
+        assertThat(Wire.body(login("ana", "mal")).toString()).doesNotContain("mal");
     }
 
 
     @Test
     @DisplayName("login opens a session: the refresh token rides a scoped HttpOnly cookie, never the body")
     void loginOpensASessionInACookieNotInTheBody() {
-        ResponseEntity<ObjectNode> resp = login("ana", PASSWORD);
+        ResponseEntity<?> resp = login("ana", PASSWORD);
 
         String setCookie = resp.getHeaders().getFirst("Set-Cookie");
         assertThat(setCookie)
@@ -160,11 +161,11 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
                 .contains("Path=" + RefreshCookie.PATH);
 
         String valor = setCookie.substring(setCookie.indexOf('=') + 1, setCookie.indexOf(';'));
-        assertThat(resp.getBody().toString())
+        assertThat(Wire.body(resp).toString())
                 .as("a refresh token in the JSON body is readable by script, which is the whole "
                         + "thing the cookie exists to prevent")
                 .doesNotContain(valor);
-        assertThat(resp.getBody().get("csrfNonce").asText()).isNotBlank();
+        assertThat(Wire.data(resp).get("csrfNonce").asText()).isNotBlank();
     }
 
     @Test
@@ -173,21 +174,21 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
         PasswordHasher hasher = new PasswordHasher();
         repo.crear("cli", null, hasher.hash(PASSWORD), true);
 
-        ResponseEntity<ObjectNode> resp = login("cli", PASSWORD);
+        ResponseEntity<?> resp = login("cli", PASSWORD);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(resp.getBody().get("accessToken").asText()).isNotBlank();
+        assertThat(Wire.data(resp).get("accessToken").asText()).isNotBlank();
         assertThat(resp.getHeaders().getFirst("Set-Cookie"))
                 .as("a fourteen-day credential for a client that re-authenticates from .env is "
                         + "a credential lying around for nothing")
                 .isNull();
-        assertThat(resp.getBody().has("csrfNonce")).isFalse();
+        assertThat(Wire.body(resp).toString()).doesNotContain("csrfNonce");
     }
 
-    private ResponseEntity<ObjectNode> login(String username, String password) {
+    private ResponseEntity<?> login(String username, String password) {
         java.util.Map<String, String> body = new java.util.HashMap<>();
         body.put("username", username);
         body.put("password", password);
-        return endpoints.login(body);
+        return Wire.answer(() -> endpoints.login(body));
     }
 }

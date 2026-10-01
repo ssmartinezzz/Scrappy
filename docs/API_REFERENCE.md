@@ -19,12 +19,36 @@ hay comando que lo regenere — y lo sostiene `OpenApiRouteCoverageTest`, que lo
 contrasta contra los `@*Mapping` reales en las dos direcciones
 (documentado-pero-denegado, y vivo-pero-no-documentado). **Ese guard prueba
 únicamente path + método + nivel de acceso — nunca la forma de la respuesta.**
-Todo handler de este backend devuelve un `ObjectNode`/`Object` sin tipar, así
-que ningún test puede confirmar que una respuesta documentada coincide con lo
-que el handler realmente emite; eso se revisa a ojo. Lo que queda en este
+Ningún test confirma que una respuesta documentada coincide con lo que el
+handler realmente emite; eso se revisa a ojo. Lo que queda en este
 archivo es el "por qué" que ningún contrato generado puede cargar: semántica
 de auth, decisiones de diseño, y los casos borde que un test de forma no
 puede expresar.
+
+## Envelope de respuestas
+
+Toda respuesta JSON usa el mismo envelope (`ar.scraper.api`; el mapeo de errores vive en `ar.scraper.web.api`):
+
+```json
+{ "data": { } }
+{ "data": [ ], "page": { "number": 0, "size": 24, "total": 130, "totalPages": 6 } }
+{ "error": { "code": "no_encontrado", "message": "El producto no existe.", "details": { } } }
+```
+
+- Éxito: `data` lleva el payload; las listas paginadas agregan `page`.
+  `page.number` es **base 0** y el query param `page` también: `?page=0` es la
+  primera página (`/data`, `/recomendados`, `/grupos`). Un `page` negativo se
+  trata como `0`.
+- Error: `error.code` es estable y es lo que el cliente ramifica; `message` es
+  para mostrar; `details` es opcional (`conflicto_stale` trae `{ actual }`).
+  Vale para los controllers, el 401/403 de Spring Security, los 400/404/405/413
+  del framework y `/error`.
+- Un catálogo vacío responde **200** con items vacíos y `page.total = 0`
+  (`/data`, `/facets`, `/recomendados`), no `204`. Los demás `204` sin cuerpo
+  (`/historial`, `/tendencias`, builders sin snapshot, `/pcs/preferencia`) no
+  cambian.
+- No van envueltos: `GET /csv` (`text/csv`) y `GET /openapi.yaml`.
+- Los `Set-Cookie`, `Retry-After` y demás headers no cambian.
 
 ## Postura de seguridad, en general
 
@@ -111,7 +135,7 @@ venza, así que el rol se relee de la base en cada request (fase 2).
 inexistente, cuenta con `activo=FALSE` y body malformado:
 
 ```json
-{ "error": "credenciales_invalidas", "mensaje": "Usuario o contraseña incorrectos" }
+{ "error": { "code": "credenciales_invalidas", "message": "Usuario o contraseña incorrectos" } }
 ```
 
 Distinguirlos convertiría al endpoint en un oráculo de qué usuarios existen. Por
@@ -180,7 +204,7 @@ exitosa.
 
 **`POST /auth/refresh`** — cookie + `X-Refresh-CSRF`
 
-- **200**: `{ "accessToken", "tokenType", "expiresIn", "csrfNonce" }` + `Set-Cookie` con el token sucesor. El refresh token **nunca** aparece en el body.
+- **200**: `{ "data": { "accessToken", "tokenType", "expiresIn", "csrfNonce" } }` + `Set-Cookie` con el token sucesor. El refresh token **nunca** aparece en el body.
 - **403** `csrf_invalido`: falta o no coincide el nonce. El token presentado **queda intacto**.
 - **401** `refresh_invalido`: desconocido, vencido o revocado. Limpia la cookie.
 - **401** `sesion_invalidada`: el token se presentó dos veces pasada la ventana de gracia. **Toda la familia queda revocada** — no se puede saber cuál de los dos presentadores es el ladrón, así que ninguno conserva la sesión.
@@ -448,7 +472,7 @@ puro perdido.
 ## POST /scrape/discard
 
 **ADMIN.** Descarta la oferta: cierra como `CANCELLED` toda corrida
-`INTERRUPTED` y **no scrapea nada**. Responde `{ descartadas: N, mensaje }`.
+`INTERRUPTED` y **no scrapea nada**. Responde `data: { descartadas: N, mensaje }`.
 
 Es la contraparte de `/scrape/resume`, y no existía: la única forma de sacar
 una corrida interrumpida del camino era retomarla — correr un scrape que nadie
@@ -689,12 +713,14 @@ excepción deliberada a la regla de que todo dato personal se lee y escribe
 scopeado por dueño.
 
 **Response (409, favoritos bloqueantes):**
-```
-No se puede vaciar el catálogo: 3 producto(s) favorito(s) todavía existen.
+```json
+{ "error": { "code": "conflicto", "message": "No se puede vaciar el catálogo: 3 producto(s) favorito(s) todavía existen." } }
 ```
 
+En éxito responde `{ "data": { "mensaje": "..." } }` (antes `text/plain`).
+
 Gateado por scraping igual que el resto de `/db/*`: **409** mientras
-`GET /status` está `RUNNING`.
+`GET /status` está `RUNNING` (`scrape_en_curso`).
 
 ---
 
@@ -799,7 +825,8 @@ Claves desconocidas se ignoran — `@JsonIgnoreProperties(ignoreUnknown = true)`
 
 **`422` `conflicto_stale`** — staleness guard: el producto cambió desde que se
 generó la propuesta; la respuesta trae los valores reales (`actual`) para que
-el cliente los muestre sin un segundo round-trip.
+el cliente los muestre sin un segundo round-trip. Viajan en
+`error.details.actual`.
 
 **`500`** — el write falló (0 filas afectadas o excepción); nunca se reporta
 como aplicado.

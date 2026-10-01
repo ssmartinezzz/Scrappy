@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -13,7 +14,6 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
@@ -106,7 +106,7 @@ class ApiControllerOutfitsGymTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble())).thenReturn(List.of());
 
         var resp = controller.outfits("hombre", 0, "", 0);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("genero").asText()).isEqualTo("hombre");
@@ -129,7 +129,7 @@ class ApiControllerOutfitsGymTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble())).thenReturn(List.of());
 
         var resp = controller.outfits("hombre", 10000, "", 0);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("totalEstimado").asDouble()).isEqualTo(8000.0);
         assertThat(body.get("slots").size()).isEqualTo(1);

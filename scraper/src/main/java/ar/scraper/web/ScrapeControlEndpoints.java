@@ -1,25 +1,22 @@
 package ar.scraper.web;
 
 import ar.scraper.config.ScraperConfig;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.OpResult;
+import ar.scraper.web.dto.ScrapeDtos;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.commons.lang3.StringUtils;
 
-/**
- * Run control and configuration: scrape status/progress, launching a run, the
- * site registry and the price-range config.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
- */
+/** Run control, site registry and price-range config. Mappings live in {@link ApiController}. */
 class ScrapeControlEndpoints {
 
     private final ScraperService service;
@@ -30,137 +27,89 @@ class ScrapeControlEndpoints {
         this.config = config;
     }
 
-    // ---------------------------------------------------------------
-    // Status
-    // ---------------------------------------------------------------
-    ResponseEntity<ObjectNode> status() {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
-        b.put("status",    service.getStatus().name());
-        b.put("mensaje",   service.getStatusMsg());
+    ResponseEntity<ApiResponse<ScrapeDtos.Status>> status() {
+        var b = ScrapeDtos.Status.builder()
+                .status(service.getStatus().name())
+                .mensaje(service.getStatusMsg());
         var lr = service.getLastResult();
-        b.put("tieneData", lr != null);
+        b.tieneData(lr != null);
         if (lr != null) {
-            b.put("total", lr.productos().size());
-            // Stats ML del último scraping
-            b.put("mlRefinadas", service.getUltimasCategoriasRefinadas());
-            b.put("mlModeloActivo", new java.io.File("_models/text_classifier.pkl").exists());
-            // Extraction quality stats — additive, does not change existing keys
+            b.total(lr.productos().size());
+            b.mlRefinadas(service.getUltimasCategoriasRefinadas());
+            b.mlModeloActivo(new java.io.File("_models/text_classifier.pkl").exists());
             var st = lr.statsPorSitio();
             if (st != null && !st.isEmpty()) {
-                ObjectNode sNode = b.putObject("extractionStats");
-                st.forEach((sitio, s) -> {
-                    ObjectNode sn = sNode.putObject(sitio);
-                    sn.put("total",  s.total());
-                    sn.put("valid",  s.valid());
-                    sn.put("misses", s.misses());
-                });
+                Map<String, ScrapeDtos.ExtractionStats> stats = new LinkedHashMap<>();
+                st.forEach((sitio, s) ->
+                        stats.put(sitio, new ScrapeDtos.ExtractionStats(s.total(), s.valid(), s.misses())));
+                b.extractionStats(stats);
             }
         }
 
-        // El run persistido (V29), ADITIVO: `status` sigue siendo IDLE|RUNNING|
-        // DONE|ERROR y una corrida cancelada reporta DONE. Meter CANCELLED en el
-        // enum cambiaría la superficie del contrato del CLI (`cli/core/rest.py`)
-        // sin ganar nada funcional; un campo nuevo es invisible para los
-        // consumidores viejos y le da `run.status` al que lo quiera.
+        // `run` is additive: `status` stays IDLE|RUNNING|DONE|ERROR (a cancelled run reports
+        // DONE) so the CLI contract in cli/core/rest.py does not gain an enum value.
         var rs = service.getRunState();
         if (rs != null) {
-            ObjectNode run = b.putObject("run");
-            run.put("uuid",      rs.scrapeUuid().toString());
-            run.put("startedAt", rs.startedAt().toString());
-            run.put("cancelando", service.estaCancelado());
+            b.run(new ScrapeDtos.RunInfo(rs.scrapeUuid().toString(), rs.startedAt().toString(),
+                    service.estaCancelado()));
         }
 
-        // Progreso en tiempo real
         ScraperService.ProgressData pd = service.getProgressData();
         if (pd != null) {
-            ObjectNode prog = b.putObject("progreso");
-            prog.put("total",       pd.total());
-            prog.put("completados", pd.completados());
-            prog.put("productos",   pd.productosAcumulados());
-            ArrayNode sitiosArr = prog.putArray("sitios");
+            List<ScrapeDtos.SitioProgreso> sitios = new ArrayList<>();
             for (var sp : pd.sitios()) {
-                ObjectNode sn = sitiosArr.addObject();
-                sn.put("nombre",  sp.nombre());
-                sn.put("estado",  sp.estado().name().toLowerCase());
-                sn.put("count",   sp.productos());
-                sn.put("durMs",   sp.duracionMs());
-                if (StringUtils.isNotBlank(sp.error()))
-                    sn.put("error", sp.error().length() > 60
-                            ? sp.error().substring(0, 60) + "..." : sp.error());
+                String err = StringUtils.isNotBlank(sp.error())
+                        ? (sp.error().length() > 60 ? sp.error().substring(0, 60) + "..." : sp.error())
+                        : null;
+                sitios.add(new ScrapeDtos.SitioProgreso(sp.nombre(),
+                        sp.estado().name().toLowerCase(), sp.productos(), sp.duracionMs(), err));
             }
+            b.progreso(new ScrapeDtos.Progreso(pd.total(), pd.completados(),
+                    pd.productosAcumulados(), sitios));
         }
-        return ResponseEntity.ok(b);
+        return ResponseEntity.ok(ApiResponse.ok(b.build()));
     }
 
-    // ---------------------------------------------------------------
-    // Corrida interrumpida: ofrecerla y retomarla
-    // ---------------------------------------------------------------
-
-    /**
-     * Qué dejó abierto el proceso anterior. Sólo informa: detectar no reanuda.
-     */
-    ResponseEntity<ObjectNode> interrumpida() {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
+    /** Informs only: detecting an interrupted run does not resume it. */
+    ResponseEntity<ApiResponse<ScrapeDtos.Interrumpida>> interrumpida() {
         var det = service.getInterrumpida();
-        b.put("hayInterrumpida", det != null);
+        var b = ScrapeDtos.Interrumpida.builder().hayInterrumpida(det != null);
         if (det != null) {
-            b.put("uuid",      det.uuid().toString());
-            b.put("startedAt", det.startedAt().toString());
-            b.put("soloFaltaLaPasadaFinal", det.soloFaltaLaPasadaFinal());
-            ArrayNode at = b.putArray("atendidos");
-            det.atendidos().forEach(at::add);
-            ArrayNode pe = b.putArray("pendientes");
-            det.pendientes().forEach(pe::add);
-            // Los salteados se nombran a propósito: un sitio que salió del
-            // registro entre la caída y el reinicio no se puede retomar, y que
-            // desaparezca en silencio de una corrida que lo debía es peor que
-            // no retomarlo.
-            ArrayNode sk = b.putArray("salteados");
-            det.salteados().forEach(sk::add);
+            // Skipped sites are named on purpose: a site removed from the registry
+            // since the crash cannot be resumed, and dropping it silently is worse.
+            b.uuid(det.uuid().toString())
+                    .startedAt(det.startedAt().toString())
+                    .soloFaltaLaPasadaFinal(det.soloFaltaLaPasadaFinal())
+                    .atendidos(det.atendidos())
+                    .pendientes(det.pendientes())
+                    .salteados(det.salteados());
         }
-        return ResponseEntity.ok(b);
+        return ResponseEntity.ok(ApiResponse.ok(b.build()));
     }
 
-    ResponseEntity<ObjectNode> retomar() {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<ScrapeDtos.Retomar>> retomar() {
         boolean ok = service.reanudar();
-        b.put("retomando", ok);
-        b.put("mensaje", ok
+        return ResponseEntity.ok(ApiResponse.ok(new ScrapeDtos.Retomar(ok, ok
                 ? "Retomando la corrida interrumpida"
-                : "No hay corrida interrumpida, o ya hay un scraping en curso");
-        return ResponseEntity.ok(b);
+                : "No hay corrida interrumpida, o ya hay un scraping en curso")));
     }
 
-    /** La contraparte de {@link #retomar()}: cierra la oferta sin scrapear nada. */
-    ResponseEntity<ObjectNode> descartar() {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<ScrapeDtos.Descartar>> descartar() {
         int cerradas = service.descartarInterrumpidas();
-        b.put("descartadas", cerradas);
-        b.put("mensaje", cerradas > 0
+        return ResponseEntity.ok(ApiResponse.ok(new ScrapeDtos.Descartar(cerradas, cerradas > 0
                 ? cerradas + " corrida(s) interrumpida(s) descartada(s). El catálogo queda como está."
-                : "No había ninguna corrida interrumpida que descartar");
-        return ResponseEntity.ok(b);
+                : "No había ninguna corrida interrumpida que descartar")));
     }
 
-    // ---------------------------------------------------------------
-    // Cancelar
-    // ---------------------------------------------------------------
-    ResponseEntity<ObjectNode> cancelar() {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<ScrapeDtos.Cancelar>> cancelar() {
         boolean ok = service.cancelar();
-        b.put("cancelando", ok);
-        b.put("mensaje", ok
+        return ResponseEntity.ok(ApiResponse.ok(new ScrapeDtos.Cancelar(ok, ok
                 ? "Cancelando: se deja de esperar sitios y el catálogo queda como está"
-                : "No hay ningún scraping en curso");
-        return ResponseEntity.ok(b);
+                : "No hay ningún scraping en curso")));
     }
 
-    // ---------------------------------------------------------------
-    // Lanzar scraping
-    // ---------------------------------------------------------------
-    ResponseEntity<ObjectNode> scrape(Double precioMin, Double precioMax, Double precio,
-                                      List<String> sitios, boolean forceRetrain) {
-        ObjectNode b = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<ScrapeDtos.Iniciar>> scrape(Double precioMin, Double precioMax, Double precio,
+                                                            List<String> sitios, boolean forceRetrain) {
         if (precioMin != null) config.setPrecioMinimo(precioMin);
         if (precioMax != null) config.setPrecioMaximo(precioMax);
         if (precio    != null) config.setPrecioMaximo(precio);
@@ -169,76 +118,56 @@ class ScrapeControlEndpoints {
                 ? new HashSet<>(sitios) : null;
 
         boolean ok = service.iniciarScraping(seleccion, forceRetrain);
-        b.put("iniciado", ok);
-        b.put("mensaje", ok ? "Scraping iniciado" : "Ya hay un scraping en curso");
-        return ResponseEntity.ok(b);
+        return ResponseEntity.ok(ApiResponse.ok(new ScrapeDtos.Iniciar(ok,
+                ok ? "Scraping iniciado" : "Ya hay un scraping en curso")));
     }
 
-    // ---------------------------------------------------------------
-    // Gestión de sitios
-    // ---------------------------------------------------------------
-    ResponseEntity<ObjectNode> getSitios() {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ArrayNode base = root.putArray("base");
+    ResponseEntity<ApiResponse<ScrapeDtos.Sitios>> getSitios() {
+        List<ScrapeDtos.SitioBase> base = new ArrayList<>();
         for (var s : config.getSitiosActivos()) {
-            ObjectNode n = base.addObject();
-            n.put("nombre", s.nombre());
-            n.put("url", s.url());
-            n.put("tipo", "config");
-            n.put("rubro", s.rubro());
+            base.add(new ScrapeDtos.SitioBase(s.nombre(), s.url(), "config", s.rubro()));
         }
-        ArrayNode extras = root.putArray("extras");
+        List<ScrapeDtos.SitioExtra> extras = new ArrayList<>();
         for (var s : service.getSitiosExtras()) {
-            ObjectNode n = extras.addObject();
-            n.put("nombre", s.nombre());
-            n.put("url", s.url());
-            n.put("plataforma", s.plataforma());
-            n.put("tipo", "dinamico");
+            extras.add(new ScrapeDtos.SitioExtra(s.nombre(), s.url(), s.plataforma(), "dinamico"));
         }
-        root.put("precioMinimo", config.getPrecioMinimo());
-        root.put("precioMaximo", config.getPrecioMaximo());
-        root.put("moneda", config.getMoneda());
-        return ResponseEntity.ok(root);
+        return ResponseEntity.ok(ApiResponse.ok(new ScrapeDtos.Sitios(base, extras,
+                config.getPrecioMinimo(), config.getPrecioMaximo(), config.getMoneda())));
     }
 
-    ResponseEntity<ObjectNode> agregarSitio(Map<String, String> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> agregarSitio(Map<String, String> body) {
         String nombre     = body.getOrDefault("nombre", "").trim();
         String url        = body.getOrDefault("url", "").trim();
         String plataforma = body.getOrDefault("plataforma", "tiendanube").trim();
         if (nombre.isBlank() || url.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "nombre y url son obligatorios");
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "nombre y url son obligatorios");
         }
         if (!url.startsWith("http")) url = "https://" + url;
         service.agregarSitio(nombre, url, plataforma);
-        resp.put("ok", true);
-        resp.put("mensaje", "Sitio '" + nombre + "' agregado. Corré el scraper para incluirlo.");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true,
+                "Sitio '" + nombre + "' agregado. Corré el scraper para incluirlo.")));
     }
 
-    ResponseEntity<ObjectNode> eliminarSitio(String nombre) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> eliminarSitio(String nombre) {
         boolean ok = service.eliminarSitio(nombre);
-        resp.put("ok", ok);
-        resp.put("mensaje", ok ? "Sitio eliminado" : "Sitio no encontrado");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(ok,
+                ok ? "Sitio eliminado" : "Sitio no encontrado")));
     }
 
-    ResponseEntity<ObjectNode> updateConfig(Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<ScrapeDtos.ConfigResult>> updateConfig(Map<String, Object> body) {
+        var resp = new ScrapeDtos.ConfigResult();
         if (body.containsKey("precioMinimo")) {
             double v = Double.parseDouble(body.get("precioMinimo").toString());
             config.setPrecioMinimo(v);
-            resp.put("precioMinimo", v);
+            resp.setPrecioMinimo(v);
         }
         if (body.containsKey("precioMaximo")) {
             double v = Double.parseDouble(body.get("precioMaximo").toString());
             config.setPrecioMaximo(v);
-            resp.put("precioMaximo", v);
+            resp.setPrecioMaximo(v);
         }
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        resp.setOk(true);
+        return ResponseEntity.ok(ApiResponse.ok(resp));
     }
 }

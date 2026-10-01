@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -111,8 +112,8 @@ class ApiControllerMejoresPackUnitPriceTest {
                 ResultAggregator.calcularFacets(lista), min, max);
     }
 
-    private JsonNode zapatillasNode(ResponseEntity<Object> resp) {
-        JsonNode body = (JsonNode) resp.getBody();
+    private JsonNode zapatillasNode(ResponseEntity<?> resp) {
+        JsonNode body = Wire.data(resp);
         for (JsonNode node : body) {
             if ("Zapatilla".equals(node.path("categoria").asText())) return node;
         }
@@ -149,7 +150,7 @@ class ApiControllerMejoresPackUnitPriceTest {
         Product pack = producto("https://site.com/pack", 15000, 3); // unit = 5000
         when(service.getLastResult()).thenReturn(resultFor(a, b, c, pack));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
@@ -166,7 +167,7 @@ class ApiControllerMejoresPackUnitPriceTest {
         Product p3 = producto("https://site.com/p3", 30000, 2); // unit 15000
         when(service.getLastResult()).thenReturn(resultFor(p1, p2, p3));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
@@ -182,7 +183,7 @@ class ApiControllerMejoresPackUnitPriceTest {
         Product pack = producto("https://site.com/pack", 15000, 3, goodScore);
         when(service.getLastResult()).thenReturn(resultFor(pack));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
@@ -198,7 +199,7 @@ class ApiControllerMejoresPackUnitPriceTest {
         Product single = producto("https://site.com/single", 9000);
         when(service.getLastResult()).thenReturn(resultFor(single));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
@@ -231,7 +232,7 @@ class ApiControllerMejoresPackUnitPriceTest {
                 withImage(a), withImage(b), withImage(c), withImage(pack));
         when(service.getLastResult()).thenReturn(resultFor(withImages.toArray(new Product[0])));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
@@ -250,7 +251,7 @@ class ApiControllerMejoresPackUnitPriceTest {
         Product other = producto("https://site.com/other", 9000);
         when(service.getLastResult()).thenReturn(resultFor(best, other));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
@@ -278,7 +279,7 @@ class ApiControllerMejoresPackUnitPriceTest {
         productos.add(pack);
         when(service.getLastResult()).thenReturn(resultFor(productos.toArray(new Product[0])));
 
-        ResponseEntity<Object> resp = controller.mejoresPorCategoria(null);
+        ResponseEntity<?> resp = controller.mejoresPorCategoria(null);
 
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();

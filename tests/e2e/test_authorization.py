@@ -58,7 +58,7 @@ SIN_FILA = ["/api/scrape", "/api/no-existe-esta-ruta"]
 def test_no_token_on_a_protected_route_is_401(api):
     r = api.get("/api/status")
     assert r.status == 401, f"anonymous must be 401, not {r.status} — got {r.body!r}"
-    assert r.json()["error"] == "no_autenticado"
+    assert r.error_code() == "no_autenticado"
 
 
 def test_a_garbage_token_is_401_not_403(api):
@@ -96,7 +96,7 @@ def test_a_viewer_on_an_admin_route_is_403_not_401(api, viewer):
     """
     r = api.get("/api/usuarios", token=viewer.access_token)
     assert r.status == 403, f"a VIEWER on an ADMIN route must be 403, got {r.status}"
-    assert r.json()["error"] == "sin_permiso"
+    assert r.error_code() == "sin_permiso"
 
 
 def test_401_and_403_are_actually_distinguishable(api, viewer):
@@ -109,7 +109,7 @@ def test_401_and_403_are_actually_distinguishable(api, viewer):
     sin_permiso = api.get("/api/usuarios", token=viewer.access_token)
 
     assert (sin_credencial.status, sin_permiso.status) == (401, 403)
-    assert sin_credencial.json()["error"] != sin_permiso.json()["error"]
+    assert sin_credencial.error_code() != sin_permiso.error_code()
 
 
 # ── The bands ───────────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ def test_every_login_failure_looks_identical(api, cuerpo):
     """Same status, same body — no oracle for which usernames exist."""
     r = api.post("/api/auth/login", json_body=cuerpo)
     assert r.status == 401, f"{cuerpo} answered {r.status}: {r.body!r}"
-    assert r.json()["error"] == "credenciales_invalidas"
+    assert r.error_code() == "credenciales_invalidas"
 
 
 def test_a_wrong_password_for_a_real_account_looks_the_same(api, crear_usuario):
@@ -214,7 +214,7 @@ def test_a_wrong_password_for_a_real_account_looks_the_same(api, crear_usuario):
         json_body={"username": cuenta["username"], "password": "definitivamente-no-es"},
     )
     assert r.status == 401
-    assert r.json()["error"] == "credenciales_invalidas"
+    assert r.error_code() == "credenciales_invalidas"
 
     bien = api.post(
         "/api/auth/login",
@@ -239,4 +239,4 @@ def test_a_deactivated_account_cannot_log_in(api, admin, crear_usuario):
         json_body={"username": cuenta["username"], "password": cuenta["password"]},
     )
     assert r.status == 401
-    assert r.json()["error"] == "credenciales_invalidas"
+    assert r.error_code() == "credenciales_invalidas"

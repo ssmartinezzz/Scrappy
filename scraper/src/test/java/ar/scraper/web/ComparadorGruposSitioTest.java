@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.grouping.GroupingService;
@@ -78,8 +79,8 @@ class ComparadorGruposSitioTest {
     }
 
     private JsonNode consultar(String sitio, int minSitios) {
-        ResponseEntity<Object> resp = endpoints.grupos(null, sitio, null, null, minSitios, 0, 20);
-        return (JsonNode) resp.getBody();
+        ResponseEntity<?> resp = endpoints.grupos(null, sitio, null, null, minSitios, 0, 20);
+        return Wire.body(resp);
     }
 
     /**
@@ -107,7 +108,7 @@ class ComparadorGruposSitioTest {
 
     private static List<String> nombresDe(JsonNode body) {
         List<String> out = new ArrayList<>();
-        body.path("grupos").forEach(g -> out.add(g.path("nombre").asText()));
+        body.path("data").forEach(g -> out.add(g.path("nombre").asText()));
         return out;
     }
 
@@ -124,7 +125,7 @@ class ComparadorGruposSitioTest {
         assertThat(nombresDe(body))
                 .allSatisfy(n -> assertThat(n).doesNotContain("Superstar"))
                 .hasSize(2);
-        assertThat(body.path("total").asInt()).isEqualTo(2);
+        assertThat(body.path("page").path("total").asInt()).isEqualTo(2);
     }
 
     @Test
@@ -145,8 +146,8 @@ class ComparadorGruposSitioTest {
     void esCaseInsensitive() {
         publicarCatalogoDeTresArticulos();
 
-        assertThat(consultar("FRERES", 2).path("total").asInt())
-                .isEqualTo(consultar("freres", 2).path("total").asInt())
+        assertThat(consultar("FRERES", 2).path("page").path("total").asInt())
+                .isEqualTo(consultar("freres", 2).path("page").path("total").asInt())
                 .isEqualTo(2);
     }
 
@@ -156,8 +157,8 @@ class ComparadorGruposSitioTest {
         publicarCatalogoDeTresArticulos();
 
         JsonNode body = consultar("no-existe", 2);
-        assertThat(body.path("total").asInt()).isZero();
-        assertThat(body.path("grupos")).isEmpty();
+        assertThat(body.path("page").path("total").asInt()).isZero();
+        assertThat(body.path("data")).isEmpty();
     }
 
     @Test
@@ -165,9 +166,9 @@ class ComparadorGruposSitioTest {
     void sinSitioNoFiltra() {
         publicarCatalogoDeTresArticulos();
 
-        assertThat(consultar(null, 2).path("total").asInt()).isEqualTo(3);
-        assertThat(consultar("", 2).path("total").asInt()).isEqualTo(3);
-        assertThat(consultar("   ", 2).path("total").asInt()).isEqualTo(3);
+        assertThat(consultar(null, 2).path("page").path("total").asInt()).isEqualTo(3);
+        assertThat(consultar("", 2).path("page").path("total").asInt()).isEqualTo(3);
+        assertThat(consultar("   ", 2).path("page").path("total").asInt()).isEqualTo(3);
     }
 
     // ─── Interaction with the rest of the endpoint ───────────────────────────
@@ -181,10 +182,10 @@ class ComparadorGruposSitioTest {
                 // Solo freres: sobrevive con minSitios=1, no con minSitios=2
                 producto("freres", "Nike Pegasus Running", 80000));
 
-        assertThat(consultar("freres", 2).path("total").asInt())
+        assertThat(consultar("freres", 2).path("page").path("total").asInt())
                 .as("con minSitios=2 solo pasa el articulo que esta en dos sitios")
                 .isEqualTo(1);
-        assertThat(consultar("freres", 1).path("total").asInt())
+        assertThat(consultar("freres", 1).path("page").path("total").asInt())
                 .as("con minSitios=1 pasan los dos articulos de freres")
                 .isEqualTo(2);
     }
@@ -194,11 +195,11 @@ class ComparadorGruposSitioTest {
     void elTotalReflejaElFiltroNoElCatalogoCompleto() {
         publicarCatalogoDeTresArticulos();
 
-        ResponseEntity<Object> resp = endpoints.grupos(null, "freres", null, null, 2, 0, 1);
-        JsonNode body = (JsonNode) resp.getBody();
+        ResponseEntity<?> resp = endpoints.grupos(null, "freres", null, null, 2, 0, 1);
+        JsonNode body = Wire.body(resp);
 
-        assertThat(body.path("total").asInt()).as("total filtrado, no 3").isEqualTo(2);
-        assertThat(body.path("grupos")).hasSize(1);   // recortado por size=1
+        assertThat(body.path("page").path("total").asInt()).as("total filtrado, no 3").isEqualTo(2);
+        assertThat(body.path("data")).hasSize(1);   // recortado por size=1
     }
 
     @Test

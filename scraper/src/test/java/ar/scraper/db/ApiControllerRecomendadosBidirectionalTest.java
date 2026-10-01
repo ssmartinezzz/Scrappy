@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.ResultAggregator;
@@ -104,10 +105,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
                 "items", List.of(Map.of("url", "https://t/puma-buzo", "liked", false))
         ));
 
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> outfitsResp =
+        ResponseEntity<?> outfitsResp =
                 controller.outfits("hombre", 0.0, "", 0.0);
 
-        JsonNode slots = outfitsResp.getBody().get("slots");
+        JsonNode slots = Wire.data(outfitsResp).get("slots");
         boolean pumaBuzoPresent = false;
         for (JsonNode slot : slots) {
             if ("Puma".equals(slot.get("marca").asText()) && "Buzo".equals(slot.get("categoria").asText())) {
@@ -130,10 +131,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
                 "items", List.of(Map.of("slot", "calzado", "url", "https://t/nike-zap", "liked", true))
         ));
 
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> recoResp =
-                controller.recomendados(1, 24, null, null);
+        ResponseEntity<?> recoResp =
+                controller.recomendados(0, 24, null, null);
 
-        JsonNode items = recoResp.getBody().get("items");
+        JsonNode items = Wire.data(recoResp);
         // Nike|Zapatilla boosted -> must rank first (equal base ML score otherwise).
         assertThat(items.get(0).get("marca").asText()).isEqualTo("Nike");
     }
@@ -146,10 +147,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(service.getLastResult()).thenReturn(result);
 
         Allure.parameter("genero", "mujer");
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "mujer", "Remera");
+        ResponseEntity<?> resp =
+                controller.recomendados(0, 24, "mujer", "Remera");
 
-        JsonNode items = resp.getBody().get("items");
+        JsonNode items = Wire.data(resp);
         assertThat(items).hasSize(1);
         assertThat(items.get(0).get("nombre").asText()).isEqualTo("Producto https://t/unisex-remera");
     }
@@ -164,10 +165,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(result.productos()).thenReturn(List.of(hombre, mujer, unisex, infantil));
         when(service.getLastResult()).thenReturn(result);
 
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, null, "Zapatilla");
+        ResponseEntity<?> resp =
+                controller.recomendados(0, 24, null, "Zapatilla");
 
-        JsonNode items = resp.getBody().get("items");
+        JsonNode items = Wire.data(resp);
         List<String> nombres = new java.util.ArrayList<>();
         for (JsonNode n : items) nombres.add(n.get("nombre").asText());
 
@@ -187,10 +188,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(result.productos()).thenReturn(productos);
         when(service.getLastResult()).thenReturn(result);
 
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "mujer", "Camperas");
+        ResponseEntity<?> resp =
+                controller.recomendados(0, 24, "mujer", "Camperas");
 
-        JsonNode items = resp.getBody().get("items");
+        JsonNode items = Wire.data(resp);
         // Step 1 and step 2 both yield zero -> step 3 fallback admits hombre stock.
         assertThat(items).hasSize(3);
     }
@@ -208,10 +209,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(result.productos()).thenReturn(productos);
         when(service.getLastResult()).thenReturn(result);
 
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "mujer", "Pantalón");
+        ResponseEntity<?> resp =
+                controller.recomendados(0, 24, "mujer", "Pantalón");
 
-        JsonNode items = resp.getBody().get("items");
+        JsonNode items = Wire.data(resp);
         for (JsonNode n : items) {
             assertThat(n.get("marca").asText()).isNotEqualTo("Nike");
         }
@@ -228,10 +229,10 @@ class ApiControllerRecomendadosBidirectionalTest extends PostgresTestBase {
         when(service.getLastResult()).thenReturn(result);
 
         Allure.parameter("genero", "hombre");
-        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> resp =
-                controller.recomendados(1, 24, "hombre", "Zapatilla");
+        ResponseEntity<?> resp =
+                controller.recomendados(0, 24, "hombre", "Zapatilla");
 
-        JsonNode items = resp.getBody().get("items");
+        JsonNode items = Wire.data(resp);
         assertThat(items).isEmpty();
     }
 }

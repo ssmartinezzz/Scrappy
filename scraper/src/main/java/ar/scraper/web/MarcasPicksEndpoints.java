@@ -3,22 +3,16 @@ package ar.scraper.web;
 import ar.scraper.catalog.ProductJson;
 import ar.scraper.model.Product;
 import org.apache.commons.lang3.StringUtils;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.MarcasPicksDtos;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Brand browser and the curated "Mejores picks" per category.
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
- *
- * <p>{@code precioUnitario} is NOT moved here — it stays as a static delegate on
- * {@link ApiController} because a test calls it directly. The implementation
- * lives in {@link ProductJson}, which is what this class calls.</p>
- */
+import java.util.ArrayList;
+import java.util.List;
+
+/** Brand browser and the curated "Mejores picks" per category. Mappings live in {@link ApiController}. */
 class MarcasPicksEndpoints {
 
-    /** Máximo de productos mostrados por categoría en Mejores Picks. */
     private static final int MAX_PICKS_POR_CATEGORIA = 10;
 
     private final ScraperService service;
@@ -29,20 +23,12 @@ class MarcasPicksEndpoints {
 
     private String safe(String s) { return ProductJson.safe(s); }
 
-    // ─── Marcas browser ──────────────────────────────────────────────────────────
-
-    ResponseEntity<Object> marcasBrowser(String rubro, String q, String sort) {
-
+    ResponseEntity<ApiResponse<List<MarcasPicksDtos.Marca>>> marcasBrowser(String rubro, String q, String sort) {
         var r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
-        var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
 
-        // Agrupar por marca — BrandExtractor ya abstiene a "" en vez de caer
-        // al nombre del sitio (V19, design DD8), así que las tres capas que
-        // vivían acá para filtrar ESE fallback (marca==sitio exacto, un set
-        // de 18 sitios hardcodeado, un mínimo de 2 caracteres) son código
-        // muerto: marca ya sólo puede ser "" (filtrado abajo) o una entrada
-        // real de BrandExtractor.MARCAS — nunca un nombre de sitio.
+        // BrandExtractor abstains to "" instead of falling back to the site name (V19), so a
+        // non-blank marca is always a real BrandExtractor.MARCAS entry.
         var byMarca = r.productos().stream()
             .filter(p -> StringUtils.isNotBlank(p.marca()))
             .filter(p -> StringUtils.isBlank(rubro)
@@ -66,7 +52,7 @@ class MarcasPicksEndpoints {
                     e.getValue().size()).reversed();
         });
 
-        var result = MAPPER.createArrayNode();
+        List<MarcasPicksDtos.Marca> result = new ArrayList<>();
         entries.stream()
             .filter(e -> e.getValue().size() >= 2)  // al menos 2 productos por marca
             .limit(100)
@@ -97,41 +83,23 @@ class MarcasPicksEndpoints {
                 String img = best.imagenUrl() != null ? best.imagenUrl() : "";
                 if (img.startsWith("//")) img = "https:" + img;
 
-                var node = result.addObject();
-                node.put("marca",     marca);
-                node.put("count",     prods.size());
-                node.put("rubro",     rubroVal);
-                node.put("img",       img);
-                node.put("mediana",   (long) mediana);
-                node.put("precioMin", (long) sortedP[0]);
-                node.put("precioMax", (long) sortedP[sortedP.length-1]);
-                node.put("topCats",   topCats);
-
-                var pNode = node.putObject("bestPick");
-                pNode.put("nombre", safe(best.nombre()));
-                pNode.put("precio", best.precio());
-                pNode.put("url",    safe(best.url()));
                 String pImg = safe(best.imagenUrl());
                 if (pImg.startsWith("//")) pImg = "https:" + pImg;
-                pNode.put("img",    pImg);
-                if (best.ml() != null) {
-                    pNode.put("badge",  safe(best.ml().badge()));
-                    pNode.put("scoreP", best.ml().scoreP());
-                }
+                var pick = new MarcasPicksDtos.BestPick(safe(best.nombre()), best.precio(),
+                        safe(best.url()), pImg,
+                        best.ml() != null ? safe(best.ml().badge()) : null,
+                        best.ml() != null ? best.ml().scoreP() : null);
+                result.add(new MarcasPicksDtos.Marca(marca, prods.size(), rubroVal, img,
+                        (long) mediana, (long) sortedP[0], (long) sortedP[sortedP.length - 1],
+                        topCats, pick));
             });
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    // ─── Mejores picks por categoría ─────────────────────────────────────────────
-
-    ResponseEntity<Object> mejoresPorCategoria(String rubro) {
-
+    ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(String rubro) {
         var r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-
-        // Agrupar productos por categoría
         java.util.Map<String, java.util.List<Product>> byCat = r.productos().stream()
             .filter(p -> StringUtils.isNotBlank(p.categoria()))
             .filter(p -> StringUtils.isBlank(rubro)
@@ -139,7 +107,7 @@ class MarcasPicksEndpoints {
             .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
             .collect(java.util.stream.Collectors.groupingBy(Product::categoria));
 
-        var result = MAPPER.createArrayNode();
+        List<MarcasPicksDtos.MejoresCategoria> result = new ArrayList<>();
 
         byCat.entrySet().stream()
             .sorted((a,b) -> b.getValue().size() - a.getValue().size())
@@ -176,32 +144,21 @@ class MarcasPicksEndpoints {
                         && p.ml().badges().contains("verified_deal"))
                     .findFirst().orElse(null);
 
-                // Stats de la categoría — computado sobre precio unitario (pack-aware),
-                // no sobre precio de estantería, para no penalizar packs genuinos.
+                // Unit price (pack-aware), not shelf price, so genuine packs are not penalised.
                 double mediana = prods.stream().mapToDouble(ProductJson::precioUnitario)
                     .sorted().skip(prods.size()/2).findFirst().orElse(0);
                 String imgCat = mejor.imagenUrl() != null ? mejor.imagenUrl() : "";
                 if (imgCat.startsWith("//")) imgCat = "https:" + imgCat;
                 String rubroVal = mejor.rubro() != null ? mejor.rubro() : "indumentaria";
 
-                var node = result.addObject();
-                node.put("categoria", cat);
-                node.put("count",     prods.size());
-                node.put("rubro",     rubroVal);
-                node.put("imgCat",    imgCat);
-                node.put("mediana",   Math.round(mediana));
-
-                var picks = node.putArray("picks");
+                List<MarcasPicksDtos.Pick> picks = new ArrayList<>();
                 java.util.Set<String> incluidos = new java.util.HashSet<>();
-                // Highlights curados primero (preservan su etiqueta semántica).
+                // Curated highlights first (they keep their label), then fill with the next
+                // best by scoreP so packs with a good unit price are not shut out of "valor".
                 addMejorPickDedup(picks, mejor,   "valor",    "Mejor precio/calidad", incluidos);
                 addMejorPickDedup(picks, premium, "premium",  "Premium accesible",    incluidos);
                 addMejorPickDedup(picks, histLow, "histLow",  "Mínimo histórico",     incluidos);
                 addMejorPickDedup(picks, oferta,  "oferta",   "Oferta real",          incluidos);
-                // Rellenar hasta MAX_PICKS_POR_CATEGORIA con los siguientes mejores por
-                // scoreP (con imagen). Así los packs con buen precio unitario entran
-                // integrados en la categoría en vez de quedar afuera por el único cupo
-                // de "valor" (scoreP ya es unit-price-aware en ml_pipeline).
                 java.util.List<Product> ordenados = prods.stream()
                     .filter(p -> p.ml() != null && StringUtils.isNotBlank(p.imagenUrl()))
                     .sorted(java.util.Comparator.comparingInt(
@@ -211,48 +168,45 @@ class MarcasPicksEndpoints {
                     if (picks.size() >= MAX_PICKS_POR_CATEGORIA) break;
                     addMejorPickDedup(picks, p, "top", "Buena compra", incluidos);
                 }
+                result.add(new MarcasPicksDtos.MejoresCategoria(cat, prods.size(), rubroVal, imgCat,
+                        Math.round(mediana), picks));
             });
 
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    /**
-     * Agrega un pick evitando duplicados por URL (un producto puede calificar para
-     * varios highlights, p.ej. ser el "valor" y además "oferta_real"; se muestra
-     * una sola vez con la primera etiqueta que le tocó). Ignora {@code null}.
-     */
-    private void addMejorPickDedup(com.fasterxml.jackson.databind.node.ArrayNode arr,
+    /** A product may qualify for several highlights; it is shown once, under the first label. */
+    private void addMejorPickDedup(List<MarcasPicksDtos.Pick> picks,
                                    Product p, String tipo, String label,
                                    java.util.Set<String> incluidos) {
         if (p == null) return;
         String url = p.url() != null ? p.url() : "";
-        if (!url.isBlank() && !incluidos.add(url)) return; // ya incluido
-        addMejorPick(arr, p, tipo, label);
+        if (!url.isBlank() && !incluidos.add(url)) return;
+        picks.add(toPick(p, tipo, label));
     }
 
-    private void addMejorPick(com.fasterxml.jackson.databind.node.ArrayNode arr,
-                              Product p, String tipo, String label) {
-        var n = arr.addObject();
-        n.put("tipo",   tipo);
-        n.put("label",  label);
-        n.put("nombre", safe(p.nombre()));
-        n.put("precio", p.precio());
-        n.put("cantidadUnidades", p.cantidadUnidades());
-        n.put("esPack",     p.esPack());
-        n.put("precioUnitario", ProductJson.precioUnitario(p));
-        n.put("url",    safe(p.url()));
+    private MarcasPicksDtos.Pick toPick(Product p, String tipo, String label) {
         String img = safe(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
-        n.put("img",    img);
-        n.put("sitio",  safe(p.sitio()));
-        n.put("marca",  safe(p.marca()));
+        var n = new MarcasPicksDtos.Pick();
+        n.setTipo(tipo);
+        n.setLabel(label);
+        n.setNombre(safe(p.nombre()));
+        n.setPrecio(p.precio());
+        n.setCantidadUnidades(p.cantidadUnidades());
+        n.setEsPack(p.esPack());
+        n.setPrecioUnitario(ProductJson.precioUnitario(p));
+        n.setUrl(safe(p.url()));
+        n.setImg(img);
+        n.setSitio(safe(p.sitio()));
+        n.setMarca(safe(p.marca()));
         if (p.ml() != null) {
-            n.put("scoreP",  p.ml().scoreP());
-            n.put("badge",   safe(p.ml().badge()));
-            n.put("segment", safe(p.ml().segment()));
-            n.put("pctil",   p.ml().pctilCategoria());
+            n.setScoreP(p.ml().scoreP());
+            n.setBadge(safe(p.ml().badge()));
+            n.setSegment(safe(p.ml().segment()));
+            n.setPctil(p.ml().pctilCategoria());
         }
-        if (p.precioOriginal() != null)
-            n.put("precioOrig", p.precioOriginal());
+        n.setPrecioOrig(p.precioOriginal());
+        return n;
     }
 }

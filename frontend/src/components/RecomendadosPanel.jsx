@@ -35,7 +35,7 @@ function FeedbackRow({ product: p, sent, onFeedback, onDismissCategoria }) {
 export default function RecomendadosPanel({ catStats = {} }) {
   const [genero, setGenero] = useState('');
   const [prods, setProds] = useState([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -67,9 +67,9 @@ export default function RecomendadosPanel({ catStats = {} }) {
   }, [genero, prods.length]);
 
   useEffect(() => {
-    setPage(1);
+    setPage(0);
     setSentUrls(new Set());
-    load(1, true);
+    load(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genero]);
 

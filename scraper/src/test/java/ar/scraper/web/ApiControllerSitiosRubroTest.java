@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -86,7 +87,7 @@ class ApiControllerSitiosRubroTest {
     @Test
     void sitiosBaseEntriesAllIncludeRubroField() {
         ResponseEntity<?> resp = controller.getSitios();
-        JsonNode body = (JsonNode) resp.getBody();
+        JsonNode body = Wire.data(resp);
         JsonNode base = body.path("base");
 
         assertThat(base.isArray()).isTrue();
@@ -104,7 +105,7 @@ class ApiControllerSitiosRubroTest {
     @Test
     void maximusSiteHasTecnologiaRubro() {
         ResponseEntity<?> resp = controller.getSitios();
-        JsonNode base = ((JsonNode) resp.getBody()).path("base");
+        JsonNode base = Wire.data(resp).path("base");
 
         JsonNode maximus = null;
         for (JsonNode site : base) {
@@ -120,7 +121,7 @@ class ApiControllerSitiosRubroTest {
     @Test
     void barnesSiteHasIndumentariaRubro() {
         ResponseEntity<?> resp = controller.getSitios();
-        JsonNode base = ((JsonNode) resp.getBody()).path("base");
+        JsonNode base = Wire.data(resp).path("base");
 
         JsonNode barnes = null;
         for (JsonNode site : base) {

@@ -9,27 +9,22 @@ import ar.scraper.indices.IndiceService;
 import ar.scraper.indices.PuntoIndice;
 import ar.scraper.indices.ResumenIndice;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.FinanciacionDtos;
+import ar.scraper.web.dto.OpResult;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Financing presets ("¿conviene en cuotas?"), the per-product buy recommendation
- * and the macro indices feed (IPC + USD oficial).
- *
- * <p>Endpoints mirroring /api/sitios + /api/config shapes (ADR-5 of
- * financing-buy-signal design). Activate/edit/delete of the active preset
- * trigger a SYNCHRONOUS in-memory recompute via ScraperService — no
- * async/background job, since this is cheap O(n) arithmetic, not a
- * subprocess call like MlEnricher/PythonRunner.</p>
- *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). This class holds
- * no request mappings: {@link ApiController} keeps them and delegates here, so
- * the routes and every existing caller are untouched.</p>
+ * Financing presets, the per-product buy recommendation and the macro indices feed.
+ * Activate/edit/delete of the active preset trigger a SYNCHRONOUS in-memory recompute
+ * (cheap O(n) arithmetic, not a subprocess). Mappings live in {@link ApiController}.
  */
 class FinanciacionEndpoints {
 
@@ -54,133 +49,86 @@ class FinanciacionEndpoints {
         this.aggregator = aggregator;
     }
 
-    ResponseEntity<ObjectNode> listarPresets() {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ArrayNode arr = root.putArray("presets");
+    ResponseEntity<ApiResponse<FinanciacionDtos.Presets>> listarPresets() {
+        List<FinanciacionDtos.Preset> lista = new ArrayList<>();
         for (var preset : presets.listarPresets()) {
-            ObjectNode n = arr.addObject();
-            n.put("id",         preset.id());
-            n.put("label",      preset.label());
-            n.put("recargoPct", preset.recargoPct());
-            n.put("cuotas",     preset.cuotas());
-            n.put("activo",     preset.activo());
+            lista.add(new FinanciacionDtos.Preset(preset.id(), preset.label(),
+                    preset.recargoPct(), preset.cuotas(), preset.activo()));
         }
-        var activo = presets.cargarPresetActivo();
-        if (activo.isPresent()) {
-            ObjectNode a = root.putObject("activo");
-            a.put("id",         activo.get().id());
-            a.put("label",      activo.get().label());
-            a.put("recargoPct", activo.get().recargoPct());
-            a.put("cuotas",     activo.get().cuotas());
-            a.put("activo",     true);
-        } else {
-            root.putNull("activo");
-        }
-        return ResponseEntity.ok(root);
+        var activo = presets.cargarPresetActivo()
+                .map(a -> new FinanciacionDtos.Preset(a.id(), a.label(), a.recargoPct(), a.cuotas(), true))
+                .orElse(null);
+        return ResponseEntity.ok(ApiResponse.ok(new FinanciacionDtos.Presets(lista, activo)));
     }
 
-    ResponseEntity<ObjectNode> crearPreset(Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperStatus.RUNNING) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
-            return ResponseEntity.status(409).body(resp);
-        }
+    ResponseEntity<ApiResponse<OpResult>> crearPreset(Map<String, Object> body) {
+        rechazarSiHayScraping();
         String label = String.valueOf(body.getOrDefault("label", "")).trim();
         Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
         Integer cuotas = parseIntOrNull(body.get("cuotas"));
-
-        if (label.isBlank() || recargoPct == null || recargoPct < 0 || cuotas == null || cuotas <= 0) {
-            resp.put("ok", false);
-            resp.put("mensaje", "label, recargoPct (>=0) y cuotas (>0) son obligatorios");
-            return ResponseEntity.badRequest().body(resp);
-        }
+        validar(label, recargoPct, cuotas);
 
         int id = presets.crearPreset(label, recargoPct, cuotas);
         if (id < 0) {
-            resp.put("ok", false);
-            resp.put("mensaje", "No se pudo crear el preset");
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "No se pudo crear el preset");
         }
-        resp.put("ok", true);
-        resp.put("mensaje", "Preset creado");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Preset creado")));
     }
 
-    ResponseEntity<ObjectNode> activarPreset(int id) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperStatus.RUNNING) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
-            return ResponseEntity.status(409).body(resp);
-        }
-        boolean ok = presets.activarPreset(id);
-        if (!ok) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Preset no encontrado");
-            return ResponseEntity.status(404).body(resp);
+    ResponseEntity<ApiResponse<OpResult>> activarPreset(int id) {
+        rechazarSiHayScraping();
+        if (!presets.activarPreset(id)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "Preset no encontrado");
         }
         service.recomputarFinanciacion(aggregator);
-        resp.put("ok", true);
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.ok()));
     }
 
-    ResponseEntity<ObjectNode> editarPreset(int id, Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperStatus.RUNNING) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
-            return ResponseEntity.status(409).body(resp);
-        }
+    ResponseEntity<ApiResponse<OpResult>> editarPreset(int id, Map<String, Object> body) {
+        rechazarSiHayScraping();
         String label = String.valueOf(body.getOrDefault("label", "")).trim();
         Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
         Integer cuotas = parseIntOrNull(body.get("cuotas"));
+        validar(label, recargoPct, cuotas);
 
-        if (label.isBlank() || recargoPct == null || recargoPct < 0 || cuotas == null || cuotas <= 0) {
-            resp.put("ok", false);
-            resp.put("mensaje", "label, recargoPct (>=0) y cuotas (>0) son obligatorios");
-            return ResponseEntity.badRequest().body(resp);
-        }
-
-        // Detectar si el preset editado es el activo ANTES de editar — editar
-        // no cambia el estado activo, solo label/recargoPct/cuotas.
+        // Editing does not change which preset is active, only its label/recargoPct/cuotas.
         boolean eraActivo = presets.cargarPresetActivo()
                 .map(p -> p.id() == id).orElse(false);
 
-        boolean ok = presets.editarPreset(id, label, recargoPct, cuotas);
-        if (!ok) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Preset no encontrado o datos inválidos");
-            return ResponseEntity.badRequest().body(resp);
+        if (!presets.editarPreset(id, label, recargoPct, cuotas)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "Preset no encontrado o datos inválidos");
         }
 
         if (eraActivo) service.recomputarFinanciacion(aggregator);
-        resp.put("ok", true);
-        resp.put("mensaje", "Preset actualizado");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Preset actualizado")));
     }
 
-    ResponseEntity<ObjectNode> eliminarPreset(int id) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        if (service.getStatus() == ScraperStatus.RUNNING) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Hay un scraping en curso. Esperá a que termine.");
-            return ResponseEntity.status(409).body(resp);
-        }
+    ResponseEntity<ApiResponse<OpResult>> eliminarPreset(int id) {
+        rechazarSiHayScraping();
         boolean eraActivo = presets.cargarPresetActivo()
                 .map(p -> p.id() == id).orElse(false);
 
-        boolean borrado = presets.eliminarPreset(id);
-        if (!borrado) {
-            resp.put("ok", false);
-            resp.put("mensaje", "Preset no encontrado");
-            return ResponseEntity.status(404).body(resp);
+        if (!presets.eliminarPreset(id)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "Preset no encontrado");
         }
 
         if (eraActivo) service.recomputarFinanciacion(aggregator);
-        resp.put("ok", true);
-        resp.put("mensaje", "Preset eliminado");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "Preset eliminado")));
+    }
+
+    private void rechazarSiHayScraping() {
+        if (service.getStatus() == ScraperStatus.RUNNING) {
+            throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
+                    "Hay un scraping en curso. Esperá a que termine.");
+        }
+    }
+
+    private static void validar(String label, Double recargoPct, Integer cuotas) {
+        if (label.isBlank() || recargoPct == null || recargoPct < 0 || cuotas == null || cuotas <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "label, recargoPct (>=0) y cuotas (>0) son obligatorios");
+        }
     }
 
     private Double parseDoubleOrNull(Object v) {
@@ -195,16 +143,13 @@ class FinanciacionEndpoints {
         catch (Exception e) { return null; }
     }
 
-    // ─── Recomendacion de compra ─────────────────────────────────────────────────
-
-    ResponseEntity<Object> recomendacion(String url) {
-        var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-        var root   = MAPPER.createObjectNode();
+    ResponseEntity<ApiResponse<FinanciacionDtos.Recomendacion>> recomendacion(String url) {
+        var root = new FinanciacionDtos.Recomendacion();
         var hist = historial.getHistorialPrecios(url);
         if (hist == null || hist.isEmpty()) {
-            root.put("senal",   "sin_datos");
-            root.put("mensaje", "Sin historial suficiente para analizar");
-            return ResponseEntity.ok(root);
+            root.setSenal("sin_datos");
+            root.setMensaje("Sin historial suficiente para analizar");
+            return ResponseEntity.ok(ApiResponse.ok(root));
         }
         hist.sort(java.util.Comparator.comparing(h -> h.fecha()));
         double precioActual = hist.get(hist.size()-1).precio();
@@ -251,51 +196,40 @@ class FinanciacionEndpoints {
             senal = "precio_normal"; emoji = "📊"; scoreCompra = 50;
             mensaje = "Precio en rango habitual sin senal fuerte";
         }
-        root.put("senal",      senal);
-        root.put("emoji",      emoji);
-        root.put("mensaje",    mensaje);
-        root.put("scoreCompra", scoreCompra);
-        root.put("cambioReal",  Math.round(cambioReal * 10.0) / 10.0);
-        root.put("pctDelMin",   (int) Math.round(pctDelMin));
-        root.put("precioMin",   precioMin);
-        root.put("precioMax",   precioMax);
-        root.put("tendencia",   tendencia);
-        root.put("indice",      indice.name());
-        root.put("confianza",   deflactor.confianza().name().toLowerCase());
-        root.put("diasExtrapolados", deflactor.diasExtrapolados());
         ResumenIndice ipc = indiceService.resumen(Indice.IPC);
-        root.put("inflacionMensual",    ipc.variacionMensual() != null ? ipc.variacionMensual() : 0.0);
-        root.put("inflacionInteranual", ipc.variacionInteranual() != null ? ipc.variacionInteranual() : 0.0);
-        root.put("puntosHistorial",     hist.size());
-        return ResponseEntity.ok(root);
+        root.setSenal(senal);
+        root.setEmoji(emoji);
+        root.setMensaje(mensaje);
+        root.setScoreCompra(scoreCompra);
+        root.setCambioReal(Math.round(cambioReal * 10.0) / 10.0);
+        root.setPctDelMin((int) Math.round(pctDelMin));
+        root.setPrecioMin(precioMin);
+        root.setPrecioMax(precioMax);
+        root.setTendencia(tendencia);
+        root.setIndice(indice.name());
+        root.setConfianza(deflactor.confianza().name().toLowerCase());
+        root.setDiasExtrapolados(deflactor.diasExtrapolados());
+        root.setInflacionMensual(ipc.variacionMensual() != null ? ipc.variacionMensual() : 0.0);
+        root.setInflacionInteranual(ipc.variacionInteranual() != null ? ipc.variacionInteranual() : 0.0);
+        root.setPuntosHistorial(hist.size());
+        return ResponseEntity.ok(ApiResponse.ok(root));
     }
 
-    // ─── Índices macro (IPC + USD oficial) ────────────────────────────────────────
-
-    ResponseEntity<Object> indices() {
-        var MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-        var root = MAPPER.createObjectNode();
-        root.set("ipc", resumenJson(MAPPER, indiceService.resumen(Indice.IPC)));
-        root.set("usd", resumenJson(MAPPER, indiceService.resumen(Indice.USD_OFICIAL)));
-        root.put("actualizado", indiceService.ultimaActualizacion());
-        return ResponseEntity.ok(root);
+    ResponseEntity<ApiResponse<FinanciacionDtos.Indices>> indices() {
+        return ResponseEntity.ok(ApiResponse.ok(new FinanciacionDtos.Indices(
+                resumen(indiceService.resumen(Indice.IPC)),
+                resumen(indiceService.resumen(Indice.USD_OFICIAL)),
+                indiceService.ultimaActualizacion())));
     }
 
-    private static ObjectNode resumenJson(com.fasterxml.jackson.databind.ObjectMapper mapper, ResumenIndice r) {
-        var n = mapper.createObjectNode();
-        n.put("indice",              r.indice().name());
-        n.put("ultimoValor",         r.ultimoValor());
-        n.put("ultimaFecha",         r.ultimaFecha() != null ? r.ultimaFecha().toString() : null);
-        n.put("variacionMensual",    r.variacionMensual());
-        n.put("variacionInteranual", r.variacionInteranual());
-        n.put("variacion3m",        r.variacion3m());
-        n.put("confianza",          r.confianza().name().toLowerCase());
-        var ultimos = n.putArray("ultimos");
+    private static FinanciacionDtos.Resumen resumen(ResumenIndice r) {
+        List<FinanciacionDtos.Punto> ultimos = new ArrayList<>();
         for (PuntoIndice p : r.ultimos()) {
-            var pn = ultimos.addObject();
-            pn.put("fecha", p.fecha().toString());
-            pn.put("valor", p.valor());
+            ultimos.add(new FinanciacionDtos.Punto(p.fecha().toString(), p.valor()));
         }
-        return n;
+        return new FinanciacionDtos.Resumen(r.indice().name(), r.ultimoValor(),
+                r.ultimaFecha() != null ? r.ultimaFecha().toString() : null,
+                r.variacionMensual(), r.variacionInteranual(), r.variacion3m(),
+                r.confianza().name().toLowerCase(), ultimos);
     }
 }

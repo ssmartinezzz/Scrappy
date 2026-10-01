@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -10,7 +11,6 @@ import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -67,28 +67,28 @@ class ApiControllerSitiosConfigTest {
 
     @Test
     void agregarSitioReturns400WhenNombreBlank() {
-        var resp = controller.agregarSitio(Map.of("nombre", "", "url", "http://x.com"));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.agregarSitio(Map.of("nombre", "", "url", "http://x.com")));
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("ok").asBoolean()).isFalse();
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
         verify(service, never()).agregarSitio(any(), any(), any());
     }
 
     @Test
     void agregarSitioReturns400WhenUrlBlank() {
-        var resp = controller.agregarSitio(Map.of("nombre", "MiSitio", "url", ""));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.agregarSitio(Map.of("nombre", "MiSitio", "url", "")));
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("ok").asBoolean()).isFalse();
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
     }
 
     @Test
     void agregarSitioReturns200AndDelegatesToServiceWhenValid() {
         var resp = controller.agregarSitio(
                 Map.of("nombre", "MiSitio", "url", "https://misitiio.com", "plataforma", "shopify"));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -114,7 +114,7 @@ class ApiControllerSitiosConfigTest {
         when(service.eliminarSitio("eldon")).thenReturn(true);
 
         var resp = controller.eliminarSitio("eldon");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ok").asBoolean()).isTrue();
         assertThat(body.get("mensaje").asText()).contains("eliminado");
@@ -125,7 +125,7 @@ class ApiControllerSitiosConfigTest {
         when(service.eliminarSitio("inexistente")).thenReturn(false);
 
         var resp = controller.eliminarSitio("inexistente");
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("ok").asBoolean()).isFalse();
         assertThat(body.get("mensaje").asText()).contains("no encontrado");
@@ -136,7 +136,7 @@ class ApiControllerSitiosConfigTest {
     @Test
     void updateConfigSetsPrecioMinimo() {
         var resp = controller.updateConfig(Map.of("precioMinimo", 1500));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         verify(config).setPrecioMinimo(1500.0);
         assertThat(body.get("ok").asBoolean()).isTrue();
@@ -146,7 +146,7 @@ class ApiControllerSitiosConfigTest {
     @Test
     void updateConfigSetsPrecioMaximo() {
         var resp = controller.updateConfig(Map.of("precioMaximo", 99999));
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         verify(config).setPrecioMaximo(99999.0);
         assertThat(body.get("ok").asBoolean()).isTrue();

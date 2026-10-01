@@ -16,8 +16,12 @@ import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.Uso;
 import ar.scraper.pcs.UsoWire;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.OpResult;
+import ar.scraper.web.dto.PcsDtos;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
@@ -29,15 +33,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
-/**
- * PC builder endpoint + saved PCs, same delegation shape as
- * {@link OutfitsEndpoints}: this class holds no request mapping,
- * {@link ApiController} keeps them and delegates here.
- */
+/** PC builder endpoint + saved PCs. Mappings live in {@link ApiController}. */
 class PcsEndpoints {
-
-    private static final org.slf4j.Logger LOG =
-        org.slf4j.LoggerFactory.getLogger(PcsEndpoints.class);
 
     private final ScraperService service;
     private final PcBuilder pcBuilder;
@@ -57,29 +54,20 @@ class PcsEndpoints {
     private String safe(String s) { return s != null ? s : ""; }
 
     /** {@code gama} is the wire value ("economica"/"media"/"alta"); blank/absent means no tier filter. */
-    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
+    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
     }
 
-    /**
-     * {@code ddr}/{@code marcaCpu}/{@code marcaGpu}/{@code tipoAlmacenamiento} are wire values
-     * (pc-builder-deep-taxonomy D8), blank/absent meaning "not requested" — same contract as
-     * {@code gama}. {@code ramDual}/{@code wifi} are {@code null} when absent. Pre-fase-9 shape:
-     * none of the four newer preferences requested.
-     */
-    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+    /** Wire values (blank/absent = not requested); {@code ramDual}/{@code wifi} are null when absent. */
+    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi) {
         return builder(presupuesto, conGpu, excluir, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento,
                 ramDual, wifi, null, "", "", null);
     }
 
-    /**
-     * Fase 9: {@code capacidadMinimaGb}/{@code wattsMinimos} are FLOORS in their own unit
-     * ({@code null} = not requested), {@code tamanioGabinete}/{@code tipoCooler} are wire
-     * words ("mini"/"mid"/"full", "liquido"/"aire"), blank/absent meaning "not requested".
-     */
-    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+    /** {@code capacidadMinimaGb}/{@code wattsMinimos} are floors (null = not requested). */
+    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi,
             Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos) {
@@ -87,13 +75,8 @@ class PcsEndpoints {
                 ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, "");
     }
 
-    /**
-     * pc-builder-homelab T5: {@code uso} is a wire word ("gaming"/"homelab"),
-     * blank/absent meaning {@link ar.scraper.pcs.Uso#GAMING} — the default,
-     * not "not requested" ({@link Uso} has no such state, see
-     * {@link UsoWire#parse}).
-     */
-    ResponseEntity<ObjectNode> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+    /** {@code uso} blank/absent means {@link Uso#GAMING}, the default ({@link UsoWire#parse}). */
+    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
             String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
             Boolean ramDual, Boolean wifi,
             Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos,
@@ -107,10 +90,7 @@ class PcsEndpoints {
                     capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);
             usoPedido = UsoWire.parse(uso);
         } catch (IllegalArgumentException e) {
-            ObjectNode resp = JsonNodeFactory.instance.objectNode();
-            resp.put("ok", false);
-            resp.put("mensaje", e.getMessage());
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", e.getMessage());
         }
 
         AggregatedResult r = service.getLastResult();
@@ -124,19 +104,17 @@ class PcsEndpoints {
                         .collect(Collectors.toSet());
 
         PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido);
-        return ResponseEntity.ok(PcBuildJson.toJson(build));
+        // PcBuildJson is a dynamic JSON builder shared with the agent tool, hence ObjectNode.
+        return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
     }
 
-    // ─── Preferencia del armador ────────────────────────────────────────────
-
-    ResponseEntity<ObjectNode> getPreferencia() {
+    ResponseEntity<ApiResponse<PcsDtos.Preferencia>> getPreferencia() {
         Optional<PreferenciaArmador> pref = preferenciaArmador.cargar(Sujeto.de(actorResolver));
         if (pref.isEmpty()) return ResponseEntity.noContent().build();
-        return ResponseEntity.ok(preferenciaJson(pref.get()));
+        return ResponseEntity.ok(ApiResponse.ok(preferencia(pref.get())));
     }
 
-    ResponseEntity<ObjectNode> putPreferencia(Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<PcsDtos.Preferencia>> putPreferencia(Map<String, Object> body) {
         Object gamaRaw = body.get("gama");
         Gama gama;
         PreferenciasDeArmado prefs;
@@ -150,20 +128,16 @@ class PcsEndpoints {
                     stringDe(body, "tipoCooler"), enteroDe(body, "wattsMinimos"));
             uso = UsoWire.parse(stringDe(body, "uso"));
         } catch (IllegalArgumentException e) {
-            resp.put("ok", false);
-            resp.put("mensaje", e.getMessage());
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", e.getMessage());
         }
         if (gama == null) {
-            resp.put("ok", false);
-            resp.put("mensaje", "gama es obligatoria");
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "gama es obligatoria");
         }
         Double presupuesto = body.get("presupuesto") != null ? asDouble(body.get("presupuesto")) : null;
         boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
         PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu, prefs, uso);
         preferenciaArmador.guardar(Sujeto.de(actorResolver), preferencia);
-        return ResponseEntity.ok(preferenciaJson(preferencia));
+        return ResponseEntity.ok(ApiResponse.ok(preferencia(preferencia)));
     }
 
     private static String stringDe(Map<String, Object> body, String clave) {
@@ -176,10 +150,7 @@ class PcsEndpoints {
         return valor != null ? Boolean.parseBoolean(String.valueOf(valor)) : null;
     }
 
-    /**
-     * Un piso ausente o ilegible es "no pedido", no un cero: un {@code 0} sí
-     * llegaría a {@link PreferenciasDeArmado}, que lo rechaza a propósito.
-     */
+    /** An absent floor is "not requested", not zero: a {@code 0} would reach PreferenciasDeArmado, which rejects it. */
     private static Integer enteroDe(Map<String, Object> body, String clave) {
         Object valor = body.get(clave);
         if (valor == null) return null;
@@ -191,74 +162,43 @@ class PcsEndpoints {
         }
     }
 
-    private ObjectNode preferenciaJson(PreferenciaArmador p) {
-        ObjectNode json = JsonNodeFactory.instance.objectNode();
-        json.put("gama", GamaWire.wire(p.gama()));
-        if (p.presupuesto() != null) json.put("presupuesto", p.presupuesto()); else json.putNull("presupuesto");
-        json.put("conGpu", p.conGpu());
+    private PcsDtos.Preferencia preferencia(PreferenciaArmador p) {
         PreferenciasDeArmado prefs = p.preferencias();
-        putNullableString(json, "ddr", PreferenciasWire.wireDdr(prefs.ddr()));
-        putNullableString(json, "marcaCpu", PreferenciasWire.wireMarcaCpu(prefs.marcaCpu()));
-        putNullableString(json, "marcaGpu", PreferenciasWire.wireMarcaGpu(prefs.marcaGpu()));
-        putNullableString(json, "tipoAlmacenamiento", PreferenciasWire.wireTipoAlmacenamiento(prefs.tipoAlmacenamiento()));
-        json.put("ramDual", Boolean.TRUE.equals(prefs.ramDual()));
-        json.put("wifi", Boolean.TRUE.equals(prefs.wifi()));
-        putNullableInt(json, "capacidadMinimaGb", prefs.capacidadMinimaGb());
-        putNullableString(json, "tamanioGabinete", PreferenciasWire.wireTamanioGabinete(prefs.tamanioGabinete()));
-        putNullableString(json, "tipoCooler", PreferenciasWire.wireTipoCooler(prefs.tipoCooler()));
-        putNullableInt(json, "wattsMinimos", prefs.wattsMinimos());
-        json.put("uso", UsoWire.wire(p.uso()));
-        return json;
+        return new PcsDtos.Preferencia(
+                GamaWire.wire(p.gama()), p.presupuesto(), p.conGpu(),
+                PreferenciasWire.wireDdr(prefs.ddr()),
+                PreferenciasWire.wireMarcaCpu(prefs.marcaCpu()),
+                PreferenciasWire.wireMarcaGpu(prefs.marcaGpu()),
+                PreferenciasWire.wireTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
+                Boolean.TRUE.equals(prefs.ramDual()), Boolean.TRUE.equals(prefs.wifi()),
+                prefs.capacidadMinimaGb(),
+                PreferenciasWire.wireTamanioGabinete(prefs.tamanioGabinete()),
+                PreferenciasWire.wireTipoCooler(prefs.tipoCooler()),
+                prefs.wattsMinimos(), UsoWire.wire(p.uso()));
     }
 
-    private static void putNullableString(ObjectNode json, String campo, String valor) {
-        if (valor != null) json.put(campo, valor); else json.putNull(campo);
-    }
-
-    private static void putNullableInt(ObjectNode json, String campo, Integer valor) {
-        if (valor != null) json.put(campo, valor); else json.putNull(campo);
-    }
-
-    // ─── PCs guardadas ───────────────────────────────────────────────────────
-
-    ResponseEntity<ObjectNode> savePc(Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<PcsDtos.Guardada>> savePc(Map<String, Object> body) {
+        String nombre = String.valueOf(body.getOrDefault("nombre", "PC")).trim();
+        double presupuesto = asDouble(body.get("presupuesto"));
+        boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
+        double totalEstimado = asDouble(body.get("totalEstimado"));
+        List<PcPick> picks = convertirPicks(body.get("picks"));
+        Object gamaRaw = body.get("gama");
+        Gama gama;
         try {
-            String nombre = String.valueOf(body.getOrDefault("nombre", "PC")).trim();
-            double presupuesto = asDouble(body.get("presupuesto"));
-            boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
-            double totalEstimado = asDouble(body.get("totalEstimado"));
-            List<PcPick> picks = convertirPicks(body.get("picks"));
-            Object gamaRaw = body.get("gama");
-            Gama gama;
-            try {
-                gama = GamaWire.parse(gamaRaw != null ? String.valueOf(gamaRaw) : null);
-            } catch (IllegalArgumentException e) {
-                resp.put("ok", false);
-                resp.put("mensaje", "gama inválida: " + gamaRaw);
-                return ResponseEntity.badRequest().body(resp);
-            }
-            int id = pcsGuardadas.guardarPc(Sujeto.de(actorResolver), nombre, picks, presupuesto, conGpu,
-                    totalEstimado, gama);
-            if (id < 0) {
-                resp.put("ok", false);
-                resp.put("mensaje", "No se pudo guardar el PC");
-                return ResponseEntity.internalServerError().body(resp);
-            }
-            resp.put("ok", true);
-            resp.put("id", id);
-            resp.put("nombre", nombre);
-            resp.put("totalEstimado", totalEstimado);
-            return ResponseEntity.ok(resp);
-        } catch (Exception e) {
-            LOG.warn("[API] savePc error: {}", e.getMessage());
-            resp.put("ok", false);
-            resp.put("mensaje", e.getMessage());
-            return ResponseEntity.internalServerError().body(resp);
+            gama = GamaWire.parse(gamaRaw != null ? String.valueOf(gamaRaw) : null);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "gama inválida: " + gamaRaw);
         }
+        int id = pcsGuardadas.guardarPc(Sujeto.de(actorResolver), nombre, picks, presupuesto, conGpu,
+                totalEstimado, gama);
+        if (id < 0) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "error_interno", "No se pudo guardar el PC");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(new PcsDtos.Guardada(true, id, nombre, totalEstimado)));
     }
 
-    /** Un pick sin url se descarta — sin ella el pick no apunta a nada (mismo criterio que {@code saveOutfit}). */
+    /** A pick without url is dropped: it would point at nothing (same as {@code saveOutfit}). */
     private List<PcPick> convertirPicks(Object picksRaw) {
         List<PcPick> picks = new ArrayList<>();
         if (!(picksRaw instanceof List<?> lista)) return picks;
@@ -295,31 +235,28 @@ class PcsEndpoints {
         }
     }
 
-    ResponseEntity<Object> getSavedPcs() {
-        return ResponseEntity.ok(pcsGuardadas.obtenerPcsGuardadas(Sujeto.de(actorResolver)));
+    // Rows come from SavedPcsPort as maps; typing them is a persistence-layer change.
+    ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSavedPcs() {
+        return ResponseEntity.ok(ApiResponse.ok(pcsGuardadas.obtenerPcsGuardadas(Sujeto.de(actorResolver))));
     }
 
-    ResponseEntity<ObjectNode> deleteSavedPc(int id) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        // 404 cubre "no existe" Y "es de otro usuario": distinguirlos confirmaría
-        // que existe una fila de otro usuario.
-        boolean ok = pcsGuardadas.eliminarPcGuardada(Sujeto.de(actorResolver), id);
-        resp.put("ok", ok);
-        resp.put("mensaje", ok ? "PC eliminado" : "PC no encontrado");
-        return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
+    ResponseEntity<ApiResponse<OpResult>> deleteSavedPc(int id) {
+        // 404 covers "does not exist" AND "belongs to someone else": telling them apart would
+        // confirm another user's row exists.
+        if (!pcsGuardadas.eliminarPcGuardada(Sujeto.de(actorResolver), id)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "PC no encontrado");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "PC eliminado")));
     }
 
-    ResponseEntity<ObjectNode> renameSavedPc(int id, Map<String, Object> body) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
+    ResponseEntity<ApiResponse<OpResult>> renameSavedPc(int id, Map<String, Object> body) {
         String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
         if (nombre.isBlank()) {
-            resp.put("ok", false);
-            resp.put("mensaje", "nombre es obligatorio");
-            return ResponseEntity.badRequest().body(resp);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");
         }
-        boolean ok = pcsGuardadas.renombrarPc(Sujeto.de(actorResolver), id, nombre);
-        resp.put("ok", ok);
-        resp.put("mensaje", ok ? "PC renombrado" : "PC no encontrado");
-        return ok ? ResponseEntity.ok(resp) : ResponseEntity.status(404).body(resp);
+        if (!pcsGuardadas.renombrarPc(Sujeto.de(actorResolver), id, nombre)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "PC no encontrado");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true, "PC renombrado")));
     }
 }

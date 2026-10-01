@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -13,7 +14,6 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.model.Product;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Allure;
 import io.qameta.allure.Epic;
@@ -74,7 +74,7 @@ class ApiControllerSuplementosBuilderTest {
     @Test
     void suplementosTipos_listsEverySubtypeWithItsGroup() {
         var resp = controller.suplementosTipos();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("tipos").isArray()).isTrue();
@@ -90,7 +90,7 @@ class ApiControllerSuplementosBuilderTest {
         // The order is the order the combo is assembled in, which is also the order the
         // budget is consumed in — the UI must not reshuffle it.
         var resp = controller.suplementosTipos();
-        JsonNode tipos = AllureSteps.toJson(resp.getBody()).get("tipos");
+        JsonNode tipos = Wire.data(resp).get("tipos");
 
         assertThat(tipos.get(0).get("tipo").asText()).isEqualTo("Proteína en Polvo");
     }
@@ -107,7 +107,7 @@ class ApiControllerSuplementosBuilderTest {
     void suplementosTipos_coversEveryTypeTheBuilderCanReturn() {
         // The guard that makes this endpoint worth having: a subtype the builder can pick
         // but the list never advertises is unselectable in the UI.
-        JsonNode tipos = AllureSteps.toJson(controller.suplementosTipos().getBody()).get("tipos");
+        JsonNode tipos = Wire.data(controller.suplementosTipos()).get("tipos");
         Set<String> expuestos = new java.util.HashSet<>();
         tipos.forEach(t -> expuestos.add(t.get("tipo").asText()));
 
@@ -127,7 +127,7 @@ class ApiControllerSuplementosBuilderTest {
     @Test
     void suplementosBuilder_returns400WhenTiposIsBlank() {
         Allure.parameter("tipos", "");
-        var resp = controller.suplementosBuilder("", 0);
+        var resp = Wire.answer(() -> controller.suplementosBuilder("", 0));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(outfitService);
@@ -135,7 +135,7 @@ class ApiControllerSuplementosBuilderTest {
 
     @Test
     void suplementosBuilder_returns400WhenTiposIsNull() {
-        var resp = controller.suplementosBuilder(null, 0);
+        var resp = Wire.answer(() -> controller.suplementosBuilder(null, 0));
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         verifyNoInteractions(outfitService);
@@ -147,7 +147,7 @@ class ApiControllerSuplementosBuilderTest {
         when(outfitService.armarComboSuplementos(any(), anyDouble(), any(), any())).thenReturn(List.of());
 
         var resp = controller.suplementosBuilder("Proteína", 0);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("picks").isArray()).isTrue();
@@ -166,7 +166,7 @@ class ApiControllerSuplementosBuilderTest {
                 .thenReturn(List.of(pick1, pick2));
 
         var resp = controller.suplementosBuilder("Proteína en Polvo,Creatina", 0);
-        JsonNode picks = AllureSteps.toJson(resp.getBody()).get("picks");
+        JsonNode picks = Wire.data(resp).get("picks");
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(picks.size()).isEqualTo(2);

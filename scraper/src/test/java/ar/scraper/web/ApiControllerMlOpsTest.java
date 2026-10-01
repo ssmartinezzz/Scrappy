@@ -1,5 +1,6 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.RecommendationService;
 
@@ -16,7 +17,6 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.PythonRunner.TrainingStatus;
 import ar.scraper.scrape.ScraperStatus;
 import ar.scraper.model.Product;
-import ar.scraper.testsupport.AllureSteps;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -83,7 +83,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(new TrainingStatus(false, "idle", 0, "", null));
 
         var resp = controller.mlEstado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.has("hasTextModel")).isTrue();
@@ -98,7 +98,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(new TrainingStatus(true, "training", 45, "Epoch 4/8", "2026-01-01T10:00"));
 
         var resp = controller.mlEstado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.path("training").get("running").asBoolean()).isTrue();
         assertThat(body.path("training").get("pct").asInt()).isEqualTo(45);
@@ -124,7 +124,7 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(result);
 
         var resp = controller.mlEstado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         // Existing fields remain intact
@@ -144,7 +144,7 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(null);
 
         var resp = controller.mlEstado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("embeddingsCount").asLong()).isEqualTo(0L);
         assertThat(body.get("totalProductos").asInt()).isEqualTo(0);
@@ -159,7 +159,7 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(null);
 
         var resp = controller.mlEstado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.path("training").get("phase").asText()).isEqualTo("embedding");
         assertThat(body.path("training").get("running").asBoolean()).isTrue();
@@ -173,7 +173,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(new TrainingStatus(false, "done", 100, "Completado", "2026-01-01T10:00"));
 
         var resp = controller.mlResultado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("done").asBoolean()).isTrue();
         assertThat(body.get("running").asBoolean()).isFalse();
@@ -185,7 +185,7 @@ class ApiControllerMlOpsTest {
         when(pythonRunner.getTrainingStatus()).thenReturn(TrainingStatus.idle());
 
         var resp = controller.mlResultado();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(body.get("done").asBoolean()).isFalse();
         assertThat(body.get("phase").asText()).isEqualTo("idle");
@@ -197,11 +197,12 @@ class ApiControllerMlOpsTest {
     void mlEntrenarReturns400WhenTrainingAlreadyRunning() {
         when(pythonRunner.isTrainingRunning()).thenReturn(true);
 
-        var resp = controller.mlEntrenar(false, 8);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.mlEntrenar(false, 8));
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("error").asText()).contains("curso");
+        assertThat(error.get("code").asText()).isEqualTo("ml_en_curso");
+        assertThat(error.get("message").asText()).contains("curso");
         verify(pythonRunner, never())
                 .construirIndiceVisualEnBackground(anyBoolean(), anyBoolean(), anyInt(), anyBoolean());
     }
@@ -218,7 +219,7 @@ class ApiControllerMlOpsTest {
                 .thenReturn(true);
 
         var resp = controller.mlEntrenar(false, 8);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
@@ -236,11 +237,12 @@ class ApiControllerMlOpsTest {
         when(pythonRunner.construirIndiceVisualEnBackground(anyBoolean(), anyBoolean(), anyInt(), anyBoolean()))
                 .thenReturn(false);
 
-        var resp = controller.mlEntrenar(false, 8);
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.mlEntrenar(false, 8));
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        assertThat(body.get("error").asText()).contains("curso");
+        assertThat(error.get("code").asText()).isEqualTo("ml_en_curso");
+        assertThat(error.get("message").asText()).contains("curso");
     }
 
     @Test
@@ -268,11 +270,12 @@ class ApiControllerMlOpsTest {
     void mlAplicarReturns400WhenNoDataLoaded() {
         when(service.getLastResult()).thenReturn(null);
 
-        var resp = controller.mlAplicar();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.mlAplicar());
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
-        assertThat(body.get("error").asText()).contains("scraping");
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
+        assertThat(error.get("message").asText()).contains("scraping");
     }
 
     @Test
@@ -282,7 +285,7 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(result);
 
         var resp = controller.mlAplicar();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(body.get("status").asText()).isEqualTo("started");
@@ -294,13 +297,14 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(), facets, 0, 0));
         when(service.getStatus()).thenReturn(ScraperStatus.RUNNING);
 
-        var resp = controller.mlAplicar();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.mlAplicar());
+        JsonNode error = Wire.error(resp);
 
         // El scrape es el dueño prioritario del pipeline: comparten los tres
         // archivos fijos del cwd, así que aplicar NO puede colarse encima.
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        assertThat(body.get("error").asText()).contains("scraping");
+        assertThat(error.get("code").asText()).isEqualTo("scrape_en_curso");
+        assertThat(error.get("message").asText()).contains("scraping");
         verify(pythonRunner, never()).ejecutar(any());
     }
 
@@ -310,11 +314,12 @@ class ApiControllerMlOpsTest {
         when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(), facets, 0, 0));
         when(pythonRunner.isScoringEnCurso()).thenReturn(true);
 
-        var resp = controller.mlAplicar();
-        JsonNode body = AllureSteps.toJson(resp.getBody());
+        var resp = Wire.answer(() -> controller.mlAplicar());
+        JsonNode error = Wire.error(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
-        assertThat(body.get("error").asText()).contains("ML");
+        assertThat(error.get("code").asText()).isEqualTo("ml_en_curso");
+        assertThat(error.get("message").asText()).contains("ML");
         verify(pythonRunner, never()).ejecutar(any());
     }
 

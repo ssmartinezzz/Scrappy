@@ -9,14 +9,17 @@ import ar.scraper.security.RefreshCookie;
 import ar.scraper.security.RefreshTokenService;
 import ar.scraper.security.TokenService;
 import ar.scraper.security.reset.PasswordResetService;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import ar.scraper.api.ApiException;
+import ar.scraper.api.ApiResponse;
+import ar.scraper.web.dto.AuthDtos;
+import ar.scraper.web.dto.MensajeDto;
+import ar.scraper.web.dto.OpResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -31,49 +34,26 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Authentication endpoints: login, refresh, logout.
+ * Authentication endpoints: login, refresh, logout, me, password reset.
  *
- * <p><b>A controller of its own</b>, following {@code CronApiController} rather
- * than the {@code ApiController}-delegates-to-{@code *Endpoints} shape used by
- * the catalogue surfaces. Authentication has no dependency on the scraper, the
- * aggregator or the catalogue, and threading it through a constructor that
- * already takes twelve collaborators would couple it to all of them for nothing.</p>
+ * <p>A controller of its own (like {@code CronApiController}): auth has no dependency on the scraper
+ * or the catalogue. It gates everything: {@link ar.scraper.security.SecurityConfig} and {@code JwtAuthFilter}
+ * gate every {@code /api/*} route through {@link ar.scraper.security.ApiRoutePolicy#TABLE}, which ends
+ * in {@code denyAll()}. The browser client ({@code frontend/src/lib/authSession.js}) uses refresh and
+ * logout; the CLI re-authenticates from its own {@code .env} and never holds a refresh token.</p>
  *
- * <p><b>This gates everything now.</b> When this class was first written nothing
- * checked a token, and the paragraph here said so; that stopped being true two
- * slices later and the comment did not follow. {@link ar.scraper.security.SecurityConfig}
- * and {@code JwtAuthFilter} now gate every {@code /api/*} route through
- * {@link ar.scraper.security.ApiRoutePolicy#TABLE}, which ends in
- * {@code denyAll()} — a route with no row is refused, not allowed.</p>
- *
- * <p>The refresh surface <b>has a consumer</b>: the browser client at
- * {@code frontend/src/lib/authSession.js} calls {@code POST} and
- * {@code DELETE /api/auth/refresh}. What remains true is the CLI half — it
- * re-authenticates from its own {@code .env} and never holds a refresh token.</p>
- *
- * <p>Kept as a warning rather than deleted: on an auth file, a comment that
- * misdescribes the present is not a cosmetic problem. "None of this gates
- * anything" makes deleting {@code SecurityConfig} look harmless to whoever
- * refactors next.</p>
- *
- * <h3>Why every login failure looks identical</h3>
- *
- * <p>Unknown username, wrong password, disabled account and malformed body all
- * return the same 401 with the same body. Distinguishing them would turn the
- * endpoint into an oracle for which usernames exist. The same reasoning extends
- * to <b>timing</b>: an unknown username is verified against a fixed decoy hash
- * instead of returning early, so "no such user" costs the same Argon2id work as
- * "wrong password" — otherwise the two branches differ by ~22 ms (re-measured
- * 2026-09-22; see {@code PasswordHasher}), comfortably measurable over a
- * network, and an identical body would not hide it. The gap got smaller than
- * the 76 ms first documented, not harmless: 22 ms still stands well clear of
- * the jitter on a LAN, which is where this oracle would be read from.</p>
+ * <p>Every login failure looks identical (unknown username, wrong password, disabled account, malformed
+ * body): distinguishing them would make the endpoint an oracle for which usernames exist. Timing too:
+ * an unknown username is verified against a fixed decoy hash so "no such user" costs the same Argon2id
+ * work as "wrong password" (the gap was ~22 ms, measurable over a LAN; see {@code PasswordHasher}).</p>
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -93,28 +73,17 @@ public class AuthEndpoints {
     private final RefreshTokenService sesiones;
     private final PasswordResetService reseteos;
     private final AllowedOrigins allowedOrigins;
-    /** Ausente en los slices de @WebMvcTest que no lo registran: ahí no hay freno. */
+    /** Absent in @WebMvcTest slices that do not register it: no throttle there. */
     private final LoginRateLimiter limiteLogin;
 
-    /**
-     * A real Argon2id hash of a value nobody knows, verified against when the
-     * account does not exist. Computed once at construction: it is the cost of
-     * the comparison that has to match, not the cost of producing the hash.
-     */
+    /** A real Argon2id hash of a value nobody knows, verified against when the account does not exist. */
     private final String hashSenuelo;
 
     /**
-     * The sole Spring-managed constructor — {@code SpringWiringTest} enforces
-     * exactly one {@code @Autowired} constructor per bean, so a second
-     * {@code @Autowired(required = false)} overload (the earlier shape of this
-     * change) is not an option here. {@code AllowedOrigins} arrives via
-     * {@link ObjectProvider} instead of directly: several existing
-     * {@code @WebMvcTest} slices (predating frontend-auth-ui Phase 2) construct
-     * this controller with no {@code AllowedOrigins} bean registered at all, and
-     * {@code ObjectProvider} is always resolvable — {@link ObjectProvider#getIfAvailable()}
-     * simply returns {@code null} where the bean is absent, which
-     * {@link #esBootstrapAdmitido} already treats as "never admit". A direct
-     * {@code AllowedOrigins} parameter would instead fail those slices outright.
+     * The sole Spring-managed constructor (SpringWiringTest enforces one {@code @Autowired} constructor
+     * per bean). {@code AllowedOrigins} arrives via {@link ObjectProvider} because several older
+     * {@code @WebMvcTest} slices register no such bean; absent means "never admit" in
+     * {@link #esBootstrapAdmitido}.
      */
     @Autowired
     public AuthEndpoints(UsuarioRepository usuarios,
@@ -134,15 +103,7 @@ public class AuthEndpoints {
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
-    /**
-     * Legacy 5-arg convenience overload, kept for the tests that predate the
-     * bootstrap-CSRF check and construct this class directly in plain Java (not
-     * through Spring). Not {@code @Autowired} — Spring never sees it as a
-     * candidate — so it exists purely so those call sites keep compiling
-     * unedited. With no allow-list to consult, a nonce-less refresh is never
-     * admitted through the bootstrap path — exactly this class's behaviour
-     * before Phase 2, not a new leniency.
-     */
+    /** Plain-Java overload for tests that predate the bootstrap-CSRF check; with no allow-list a nonce-less refresh is never admitted. */
     public AuthEndpoints(UsuarioRepository usuarios,
                          PasswordHasher hasher,
                          TokenService tokens,
@@ -158,76 +119,57 @@ public class AuthEndpoints {
         this.hashSenuelo = hasher.hash(java.util.UUID.randomUUID().toString());
     }
 
-    // ── login ────────────────────────────────────────────────────────────────
-
     @PostMapping("/login")
-    public ResponseEntity<ObjectNode> login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<ApiResponse<AuthDtos.Token>> login(@RequestBody Map<String, String> body) {
         String username = body == null ? null : body.get("username");
         String password = body == null ? null : body.get("password");
 
         if (StringUtils.isBlank(username) || StringUtils.isEmpty(password)) {
-            // Still pay the verification cost: an empty body returning instantly
-            // would be its own, smaller, oracle.
+            // Still pay the verification cost: an instant reply to an empty body is a smaller oracle.
             hasher.verify("", hashSenuelo);
-            return rechazar();
+            throw rechazar();
         }
 
         if (limiteLogin != null && !limiteLogin.permitir(username)) {
             LOG.info("[AUTH] login frenado por rate limit");
-            return demasiadosIntentos();
+            throw demasiadosIntentos();
         }
 
         Optional<UsuarioRepository.Cuenta> cuenta = usuarios.buscarActivaPorUsername(username);
 
-        // The lookup already excludes activo = FALSE, so a disabled account is
-        // indistinguishable from an unknown one here — by construction, not by
-        // a branch somebody has to remember to write.
+        // The lookup already excludes activo = FALSE, so a disabled account is indistinguishable
+        // from an unknown one by construction.
         String hashGuardado = cuenta.map(UsuarioRepository.Cuenta::passwordHash).orElse(hashSenuelo);
         boolean coincide = hasher.verify(password, hashGuardado);
 
         if (cuenta.isEmpty() || !coincide) {
             LOG.info("[AUTH] login rechazado para '{}'", username);
-            // Se cuenta el username enviado exista o no la cuenta: contar sólo
-            // las reales haría del 429 un oráculo de qué cuentas existen.
+            // Counted whether or not the account exists: counting only real ones would make the 429 an oracle.
             if (limiteLogin != null) limiteLogin.registrarFallo(username);
-            return rechazar();
+            throw rechazar();
         }
 
         UsuarioRepository.Cuenta usuario = cuenta.get();
         if (limiteLogin != null) limiteLogin.limpiarCuenta(username);
-        ObjectNode resp = cuerpoDeAcceso(tokens.emitir(usuario.id()));
+        AuthDtos.Token resp = cuerpoDeAcceso(tokens.emitir(usuario.id()));
 
-        // A service account gets no rotating session: the CLI re-authenticates
-        // from .env, so a fourteen-day credential would sit there unused.
+        // A service account gets no rotating session: the CLI re-authenticates from .env.
         Optional<RefreshTokenService.Sesion> sesion =
                 sesiones.abrirSiCorresponde(usuario.id(), usuario.esServicio());
         if (sesion.isEmpty()) {
-            return ResponseEntity.ok(resp);
+            return ResponseEntity.ok(ApiResponse.ok(resp));
         }
         return conSesion(resp, sesion.get());
     }
 
-    // ── refresh ──────────────────────────────────────────────────────────────
-
     /**
-     * Rotates the session.
-     *
-     * <p>The refresh token arrives only as a cookie and the nonce only as a
-     * header, and that split is the CSRF defence: a cross-site page can make the
-     * browser send the cookie, but it cannot set a custom header.</p>
-     *
-     * <h3>The bootstrap path — no nonce at all</h3>
-     *
-     * <p>A cold page load holds no nonce in memory yet, so its first refresh
-     * necessarily omits {@link #CSRF_HEADER}. {@link #esBootstrapAdmitido} decides
-     * whether that absence is forgiven, from {@code Origin} and
-     * {@code Sec-Fetch-Site} alone — never from anything the client could not be
-     * trusted to send honestly. The verdict is threaded into
-     * {@link RefreshTokenService#rotar} as an explicit argument; this method does
-     * not otherwise change what "valid" means.</p>
+     * Rotates the session. The refresh token arrives only as a cookie and the nonce only as a header:
+     * that split is the CSRF defence (a cross-site page can make the browser send the cookie, not set a
+     * custom header). A cold page load holds no nonce, so {@link #esBootstrapAdmitido} decides from
+     * {@code Origin} and {@code Sec-Fetch-Site} alone whether its absence is forgiven.
      */
     @PostMapping("/refresh")
-    public ResponseEntity<ObjectNode> refresh(
+    public ResponseEntity<ApiResponse<AuthDtos.Token>> refresh(
             @CookieValue(name = RefreshCookie.NOMBRE, required = false) String refreshToken,
             @RequestHeader(name = CSRF_HEADER, required = false) String nonce,
             @RequestHeader(name = "Origin", required = false) String origin,
@@ -243,44 +185,28 @@ public class AuthEndpoints {
             return conSesion(cuerpoDeAcceso(replay.accessToken()), replay.sesion());
         }
         if (resultado instanceof RefreshTokenService.CsrfInvalido) {
-            return error(403, "csrf_invalido", "Falta o no coincide el nonce de refresco");
+            throw error(403, "csrf_invalido", "Falta o no coincide el nonce de refresco");
         }
         if (resultado instanceof RefreshTokenService.ReusoDetectado) {
-            // The family is already revoked. Clearing the cookie stops the
-            // browser from re-presenting a token that can only fail from here on.
-            return ResponseEntity.status(401)
-                    .header(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString())
-                    .body(cuerpoDeError("sesion_invalidada",
-                            "La sesión fue invalidada por reuso del token. Volvé a iniciar sesión."));
+            // The family is already revoked; clearing the cookie stops the browser re-presenting a dead token.
+            throw error(401, "sesion_invalidada",
+                    "La sesión fue invalidada por reuso del token. Volvé a iniciar sesión.")
+                    .withHeader(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString());
         }
-        return ResponseEntity.status(401)
-                .header(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString())
-                .body(cuerpoDeError("refresh_invalido", "Volvé a iniciar sesión."));
+        throw error(401, "refresh_invalido", "Volvé a iniciar sesión.")
+                .withHeader(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString());
     }
 
-    /**
-     * Legacy 2-arg overload for tests that construct calls directly (bypassing
-     * HTTP) and predate the bootstrap-CSRF headers. No {@code Origin} or
-     * {@code Sec-Fetch-Site} means {@link #esBootstrapAdmitido} answers
-     * {@code false} regardless — identical to this endpoint's behaviour before
-     * Phase 2, not a shortcut around it.
-     */
-    public ResponseEntity<ObjectNode> refresh(String refreshToken, String nonce) {
+    /** Plain-Java overload for tests that predate the bootstrap headers; without them the bootstrap is never admitted. */
+    public ResponseEntity<ApiResponse<AuthDtos.Token>> refresh(String refreshToken, String nonce) {
         return refresh(refreshToken, nonce, null, null);
     }
 
     /**
-     * The bootstrap-CSRF admission check (frontend-auth-ui, design D1).
-     *
-     * <p>Admits a nonce-less refresh only when <b>both</b> hold: {@code Origin}
-     * is present and an exact match of a configured allow-listed origin — port
-     * included, unlike {@code SameSite}/cookie scoping — and
-     * {@code Sec-Fetch-Site} is present and is {@code same-origin} or
-     * {@code same-site}. Either header missing, or {@code Origin} not an exact
-     * match, fails closed. {@code Sec-Fetch-Site} alone cannot discriminate a
-     * legitimate cross-origin deployment (this application's own topology sends
-     * {@code same-site} in both shipped installs) from a foreign {@code
-     * localhost} port, which is why {@code Origin} carries the real weight here.
+     * Admits a nonce-less refresh only when BOTH hold: {@code Origin} is an exact match (port included)
+     * of a configured allow-listed origin, and {@code Sec-Fetch-Site} is {@code same-origin} or
+     * {@code same-site}. Either header missing fails closed. {@code Sec-Fetch-Site} alone cannot tell a
+     * legitimate cross-origin deployment from a foreign localhost port, so {@code Origin} carries the weight.
      */
     private boolean esBootstrapAdmitido(String origin, String secFetchSite) {
         if (allowedOrigins == null) {
@@ -295,148 +221,97 @@ public class AuthEndpoints {
         return SEC_FETCH_SITE_CONFIABLE.contains(secFetchSite);
     }
 
-    // ── me ───────────────────────────────────────────────────────────────────
-
     /**
-     * Who the caller is, per the current filter chain's own read.
-     *
-     * <p>Reached only after {@link ar.scraper.security.SecurityConfig}'s chain
-     * has already required a valid, authenticated subject for this route (its
-     * {@link ar.scraper.security.ApiRoutePolicy} row is {@code AUTHENTICATED},
-     * deliberately not on the permit list — see that table's comment). This
-     * handler therefore never runs for an anonymous caller; the entry point
-     * answers 401 first. Zero new queries: {@link ar.scraper.security.JwtAuthFilter}
-     * already read the username and roles from the database for this exact
-     * request, and this method only reads what it already put in the security
-     * context.</p>
-     *
-     * <p>{@code roles} is a JSON array, never a scalar — {@code usuario_rol} is a
-     * join table that admits more than one, and collapsing it here would bake in
-     * an assumption the schema does not make.</p>
+     * Who the caller is. Reached only after the chain required an authenticated subject; JwtAuthFilter
+     * already read username and roles for this request, so this adds no query. {@code roles} is an array
+     * because {@code usuario_rol} admits more than one.
      */
     @GetMapping("/me")
-    public ResponseEntity<ObjectNode> me() {
+    public ResponseEntity<ApiResponse<AuthDtos.Me>> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         AuthenticatedSubject subject = (AuthenticatedSubject) auth.getPrincipal();
 
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        resp.put("username", subject.username());
-        ArrayNode roles = resp.putArray("roles");
+        List<String> roles = new ArrayList<>();
         for (GrantedAuthority authority : auth.getAuthorities()) {
             String nombre = authority.getAuthority();
             roles.add(nombre.startsWith("ROLE_") ? nombre.substring("ROLE_".length()) : nombre);
         }
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(new AuthDtos.Me(subject.username(), roles)));
     }
 
-    // ── logout ───────────────────────────────────────────────────────────────
-
     /**
-     * Logout, as {@code DELETE /api/auth/refresh} rather than
-     * {@code POST /api/auth/logout}.
-     *
-     * <p>Not a stylistic choice: the cookie's {@code Path} is
-     * {@code /api/auth/refresh}, so the browser would not attach it to any other
-     * path — and without the cookie the server cannot tell which family to
-     * revoke. Logging out somewhere else would clear the browser's copy while
-     * leaving the session alive on the server, which is the opposite of what
-     * logout means.</p>
+     * Logout is {@code DELETE /api/auth/refresh} because the cookie's Path is {@code /api/auth/refresh}:
+     * on any other path the browser would not send it and the server could not tell which family to
+     * revoke, clearing the browser copy while leaving the session alive.
      */
     @DeleteMapping("/refresh")
-    public ResponseEntity<ObjectNode> logout(
+    public ResponseEntity<ApiResponse<AuthDtos.Logout>> logout(
             @CookieValue(name = RefreshCookie.NOMBRE, required = false) String refreshToken,
             @RequestHeader(name = CSRF_HEADER, required = false) String nonce) {
 
         boolean cerrada = sesiones.cerrar(refreshToken, nonce);
 
-        // The cookie is cleared either way. A caller holding a token we do not
-        // recognise still wants it gone from their browser, and refusing to
-        // clear it would leave them re-presenting something that can never work.
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        resp.put("cerrada", cerrada);
+        // The cookie is cleared either way: a caller holding an unrecognised token still wants it gone.
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, RefreshCookie.limpiar().toString())
-                .body(resp);
+                .body(ApiResponse.ok(new AuthDtos.Logout(cerrada)));
     }
 
-    // ── password reset ───────────────────────────────────────────────────────
-
     /**
-     * Accepts a reset request and says nothing about the address.
-     *
-     * <p>Always 202, always the same body, always at the same speed. The
-     * uniformity is not politeness: a form that answers differently for a known
-     * address is a list of this system's users, handed out for free to anybody
-     * with a wordlist. See {@link PasswordResetService} for how the timing half
-     * is achieved.</p>
+     * Always 202, same body, same speed: answering differently for a known address would hand out a
+     * list of this system's users. See {@link PasswordResetService} for the timing half.
      */
     @PostMapping("/password-reset/request")
-    public ResponseEntity<ObjectNode> pedirReseteo(@RequestBody(required = false) Map<String, String> body,
-                                                   HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<MensajeDto>> pedirReseteo(@RequestBody(required = false) Map<String, String> body,
+                                                                HttpServletRequest request) {
         String direccion = body == null ? null : body.get("email");
         reseteos.solicitar(direccion, request == null ? null : request.getRemoteAddr());
 
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        resp.put("mensaje", "Si la dirección corresponde a una cuenta, va a recibir un enlace.");
-        return ResponseEntity.accepted().body(resp);
+        return ResponseEntity.accepted().body(ApiResponse.ok(new MensajeDto(
+                "Si la dirección corresponde a una cuenta, va a recibir un enlace.")));
     }
 
     /** Consumes the token and sets the new password, or refuses without saying why. */
     @PostMapping("/password-reset/confirm")
-    public ResponseEntity<ObjectNode> confirmarReseteo(@RequestBody(required = false) Map<String, String> body) {
+    public ResponseEntity<ApiResponse<OpResult>> confirmarReseteo(@RequestBody(required = false) Map<String, String> body) {
         String token = body == null ? null : body.get("token");
         String nueva = body == null ? null : body.get("password");
 
         if (!reseteos.confirmar(token, nueva)) {
-            return error(400, "reseteo_invalido",
+            throw error(400, "reseteo_invalido",
                     "El enlace no sirve, ya fue usado o venció, o la contraseña es muy corta "
                             + "(mínimo 8 caracteres). Pedí uno nuevo.");
         }
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        resp.put("ok", true);
-        resp.put("mensaje", "Contraseña cambiada. Todas las sesiones abiertas fueron cerradas.");
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true,
+                "Contraseña cambiada. Todas las sesiones abiertas fueron cerradas.")));
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    private static ObjectNode cuerpoDeAcceso(String accessToken) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        resp.put("accessToken", accessToken);
-        resp.put("tokenType", "Bearer");
-        resp.put("expiresIn", TokenService.TTL.toSeconds());
-        return resp;
+    private static AuthDtos.Token cuerpoDeAcceso(String accessToken) {
+        return new AuthDtos.Token(accessToken, "Bearer", TokenService.TTL.toSeconds(), null);
     }
 
     /** The refresh token goes in the cookie and NEVER in the body; the nonce goes in the body only. */
-    private static ResponseEntity<ObjectNode> conSesion(ObjectNode resp, RefreshTokenService.Sesion sesion) {
-        resp.put("csrfNonce", sesion.csrfNonce());
+    private static ResponseEntity<ApiResponse<AuthDtos.Token>> conSesion(AuthDtos.Token resp,
+                                                                        RefreshTokenService.Sesion sesion) {
+        resp.setCsrfNonce(sesion.csrfNonce());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
                         RefreshCookie.emitir(sesion.refreshToken(), RefreshTokenService.VIDA).toString())
-                .body(resp);
+                .body(ApiResponse.ok(resp));
     }
 
-    private static ResponseEntity<ObjectNode> rechazar() {
+    private static ApiException rechazar() {
         return error(401, "credenciales_invalidas", "Usuario o contraseña incorrectos");
     }
 
-    private static ResponseEntity<ObjectNode> demasiadosIntentos() {
-        return ResponseEntity.status(429)
-                .header("Retry-After", String.valueOf(LoginRateLimiter.VENTANA.toSeconds()))
-                .body(cuerpoDeError("demasiados_intentos",
-                        "Demasiados intentos fallidos. Probá de nuevo en "
-                        + LoginRateLimiter.VENTANA.toMinutes() + " minutos."));
+    private static ApiException demasiadosIntentos() {
+        return error(429, "demasiados_intentos",
+                "Demasiados intentos fallidos. Probá de nuevo en "
+                        + LoginRateLimiter.VENTANA.toMinutes() + " minutos.")
+                .withHeader(HttpHeaders.RETRY_AFTER, String.valueOf(LoginRateLimiter.VENTANA.toSeconds()));
     }
 
-    private static ResponseEntity<ObjectNode> error(int status, String codigo, String mensaje) {
-        return ResponseEntity.status(status).body(cuerpoDeError(codigo, mensaje));
-    }
-
-    private static ObjectNode cuerpoDeError(String codigo, String mensaje) {
-        ObjectNode resp = JsonNodeFactory.instance.objectNode();
-        resp.put("error", codigo);
-        resp.put("mensaje", mensaje);
-        return resp;
+    private static ApiException error(int status, String codigo, String mensaje) {
+        return new ApiException(HttpStatus.valueOf(status), codigo, mensaje);
     }
 }

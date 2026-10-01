@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.web.support.Wire;
+import com.fasterxml.jackson.databind.JsonNode;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.catalog.PreciosExternosPort;
 import io.qameta.allure.Epic;
@@ -49,14 +51,13 @@ class ComparadorBuscarExternoTest {
     }
 
     /** Runs the endpoint on the no-network path and returns its body. */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> responder(String q) {
-        ResponseEntity<Object> resp = endpoints.buscarExterno(q, null, "otro-sitio");
-        return (Map<String, Object>) resp.getBody();
+    private JsonNode responder(String q) {
+        ResponseEntity<?> resp = endpoints.buscarExterno(q, null, "otro-sitio");
+        return Wire.data(resp);
     }
 
-    private String queryUsada(String q)  { return (String) responder(q).get("queryUsada"); }
-    private String searchUrl(String q)   { return (String) responder(q).get("searchUrl"); }
+    private String queryUsada(String q)  { return responder(q).path("queryUsada").asText(); }
+    private String searchUrl(String q)   { return responder(q).path("searchUrl").asText(); }
 
     /** The slug portion of searchUrl, i.e. everything after the ML listing host. */
     private String slug(String q) {
@@ -179,15 +180,17 @@ class ComparadorBuscarExternoTest {
     @Test
     @DisplayName("una query vacía o nula no rompe el endpoint")
     void queryVaciaNoRompe() {
-        assertThat(responder("")).containsKey("searchUrl");
-        assertThat((java.util.List<?>) responder("").get("resultados")).isEmpty();
+        assertThat(responder("").has("searchUrl")).isTrue();
+        assertThat(responder("").path("resultados")).isEmpty();
     }
 
     @Test
     @DisplayName("sin sitio mercadolibre no hay llamada externa: resultados vacíos")
     void sinSitioMercadolibreNoHayLlamadaExterna() {
-        Map<String, Object> body = responder("Nike Air Force");
-        assertThat((java.util.List<?>) body.get("resultados")).isEmpty();
-        assertThat(body).containsKeys("searchUrl", "queryUsada", "resultados");
+        JsonNode body = responder("Nike Air Force");
+        assertThat(body.path("resultados")).isEmpty();
+        assertThat(body.has("searchUrl")).isTrue();
+        assertThat(body.has("queryUsada")).isTrue();
+        assertThat(body.has("resultados")).isTrue();
     }
 }

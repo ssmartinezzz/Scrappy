@@ -88,10 +88,10 @@ class AuthEndpointsMeTest {
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("valeria"))
-                .andExpect(jsonPath("$.roles").isArray())
-                .andExpect(jsonPath("$.roles[0]").value("VIEWER"))
-                .andExpect(jsonPath("$.roles.length()").value(1));
+                .andExpect(jsonPath("$.data.username").value("valeria"))
+                .andExpect(jsonPath("$.data.roles").isArray())
+                .andExpect(jsonPath("$.data.roles[0]").value("VIEWER"))
+                .andExpect(jsonPath("$.data.roles.length()").value(1));
     }
 
     @Test
@@ -104,7 +104,7 @@ class AuthEndpointsMeTest {
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles[0]").value("ADMIN"));
+                .andExpect(jsonPath("$.data.roles[0]").value("ADMIN"));
     }
 
     @Test
