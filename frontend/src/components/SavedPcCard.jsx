@@ -85,8 +85,8 @@ export default function SavedPcCard({ pc, onDelete, onRename }) {
 
       {picks.length > 0 && (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {picks.map((p, i) => (
-            <div key={i} style={{
+          {picks.map(p => (
+            <div key={`${p.slot}-${p.url ?? p.nombre}`} style={{
               display:'flex', gap:10, alignItems:'center',
               background:'var(--s1)', borderRadius:8, padding:'.5rem .65rem',
               border:'1px solid var(--bd)',

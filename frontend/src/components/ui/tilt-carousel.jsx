@@ -92,9 +92,8 @@ function Slide({ slide, index, current, onSlideActivate }) {
   // gated, leaving this transform/transition active under reduced motion.
   // With reduced motion, inactive slides skip the 3D rotateX tilt entirely
   // and the transform change is instant (no transition).
-  const settleTransform = isActive
-    ? 'scale(1) rotateX(0deg)'
-    : reduceMotion ? 'scale(1)' : 'scale(0.98) rotateX(8deg)';
+  let settleTransform = 'scale(1) rotateX(0deg)';
+  if (!isActive) settleTransform = reduceMotion ? 'scale(1)' : 'scale(0.98) rotateX(8deg)';
   const settleTransition = reduceMotion ? 'none' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
 
   // aria-expanded/aria-controls (spec fix): only meaningful for an outfit
@@ -295,10 +294,9 @@ export function TiltCarousel({ slides, className }) {
 
   return (
     <div className={cn('relative w-full overflow-hidden', className)} style={{ height: outerHeight }}>
-      <div
+      <section
         className="tilt-carousel relative mx-auto"
         style={{ '--tc-slide-size': SLIDE_SIZE_CSS, width: 'var(--tc-slide-size)', height: 'var(--tc-slide-size)' }}
-        role="region"
         aria-roledescription="carousel"
         aria-labelledby={`tilt-carousel-heading-${id}`}
       >
@@ -325,7 +323,7 @@ export function TiltCarousel({ slides, className }) {
             <CarouselControl direction="next" label="Ver favorito siguiente" onClick={goNext} />
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

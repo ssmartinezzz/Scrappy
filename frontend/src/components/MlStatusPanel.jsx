@@ -3,6 +3,7 @@ import { fetchMlEstado, startMlTraining, aplicarModeloML } from '../api';
 import { useMlStatus } from '../hooks/EventStreamProvider';
 import { SEMANTIC } from '../lib/colors';
 import { PHASE_LABELS } from '../lib/mlPhaseLabels';
+import { accuracyFromMsg } from '../lib/mlTrainingMsg';
 
 // ─── Toast helper ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -35,9 +36,11 @@ export default function MlStatusPanel() {
   const reload = () => fetchMlEstado().then(e => {
     setEstado(e);
     if (e?.training?.running) setRunning(true);
+  }).catch(() => {
+    // Unreachable backend: keep the last estado; the stream pushes a fresh one.
   });
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { void reload(); }, []);
 
   // The stream pushes training progress and, once training ends, a fresh estado
   // (model flags and metadata included), so nothing here asks the backend again.
@@ -60,8 +63,8 @@ export default function MlStatusPanel() {
     if (t.phase === 'error') {
       showToast('Entrenamiento ML falló: ' + (t.msg || ''), 'error');
     } else {
-      const accMatch = (t.msg || '').match(/(\d+\.?\d*)\s*%/);
-      const acc = accMatch ? ' — ' + accMatch[1] + '% accuracy' : '';
+      const accuracy = accuracyFromMsg(t.msg);
+      const acc = accuracy ? ' — ' + accuracy + '% accuracy' : '';
       showToast('Modelo ML actualizado' + acc);
     }
   }, [live.training]);
@@ -88,7 +91,7 @@ export default function MlStatusPanel() {
       return;
     }
     setRunning(true);
-    reload();
+    void reload();
   };
 
   const handleApply = async () => {
@@ -103,7 +106,7 @@ export default function MlStatusPanel() {
       showToast('No se pudo aplicar el modelo ML.', 'error');
       return;
     }
-    setTimeout(() => { setApplying(false); reload(); }, 3000);
+    setTimeout(() => { setApplying(false); void reload(); }, 3000);
   };
 
   return (
@@ -212,9 +215,9 @@ function TrainingProgress({ ts, tick }) {
   const pct        = ts.pct ?? 0;
   const isError    = ts.phase === 'error' || ts.phase === 'timeout';
 
-  const barColor = isError ? SEMANTIC.negative
-    : ts.phase === 'image' || ts.phase === 'image_download' ? SEMANTIC.warn
-    : 'var(--p)';
+  let barColor = 'var(--p)';
+  if (isError) barColor = SEMANTIC.negative;
+  else if (ts.phase === 'image' || ts.phase === 'image_download') barColor = SEMANTIC.warn;
 
   return (
     <div style={{

@@ -13,12 +13,15 @@ export default function PickCard({ pick, mediana, onClick }) {
     : null;
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => onClick(pick)}
-      className="picks-pick-item"
+      className="btn-reset picks-pick-item"
       style={{ borderColor: `${m.color}33` }}
       onMouseOver={e => e.currentTarget.style.borderColor = m.color}
-      onMouseOut={e => e.currentTarget.style.borderColor = `${m.color}33`}>
+      onFocus={e => e.currentTarget.style.borderColor = m.color}
+      onMouseOut={e => e.currentTarget.style.borderColor = `${m.color}33`}
+      onBlur={e => e.currentTarget.style.borderColor = `${m.color}33`}>
 
       {/* Imagen grande arriba + rank en overlay */}
       <div className="picks-pick-imgwrap">
@@ -67,6 +70,6 @@ export default function PickCard({ pick, mediana, onClick }) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }

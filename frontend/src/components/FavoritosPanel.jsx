@@ -25,7 +25,6 @@ export default function FavoritosPanel({
   onDeleteSavedPc, onRenameSavedPc,
 }) {
   const items = favoritos || [];
-  const isEmpty = items.length === 0;
 
   // View-mode toggle (design ADR-4): view-local state, NOT lifted to the
   // AppLayout reducer — no other component consumes it. Lazy-initialised
@@ -97,11 +96,12 @@ export default function FavoritosPanel({
     ];
   }, [items, savedOutfits, savedPcs, onOpenDetail, expandido]);
 
-  const abierto = expandido && (expandido.coleccion === 'outfit'
+  const esOutfit = expandido?.coleccion === 'outfit';
+  const abierto = expandido && (esOutfit
     ? savedOutfits.find(o => o.id === expandido.id)
     : savedPcs.find(p => p.id === expandido.id));
-  const miembrosAbiertos = !abierto ? []
-    : (expandido.coleccion === 'outfit' ? abierto.slots : abierto.picks) || [];
+  let miembrosAbiertos = [];
+  if (abierto) miembrosAbiertos = (esOutfit ? abierto.slots : abierto.picks) || [];
   const hayAlgo = items.length > 0 || savedOutfits.length > 0 || savedPcs.length > 0;
 
   return (
@@ -123,7 +123,7 @@ export default function FavoritosPanel({
         </div>
 
         {hayAlgo && (
-          <div role="group" aria-label="Modo de vista de favoritos" style={{ display:'flex', gap:8, marginLeft:'auto' }}>
+          <fieldset aria-label="Modo de vista de favoritos" style={{ display:'flex', gap:8, margin:'0 0 0 auto', padding:0, border:0, minWidth:0 }}>
             <button
               type="button"
               className="favoritos-toggle-btn"
@@ -154,7 +154,7 @@ export default function FavoritosPanel({
               }}>
               <List size={18} aria-hidden="true" />
             </button>
-          </div>
+          </fieldset>
         )}
       </div>
 
@@ -177,9 +177,8 @@ export default function FavoritosPanel({
             <TiltCarousel slides={slides} />
 
             {abierto && (
-              <div
+              <section
                 id={miembrosId(expandido.coleccion, abierto.id)}
-                role="region"
                 aria-label={`Componentes de ${abierto.nombre || 'Guardado'}`}
                 style={{
                   marginTop:20, display:'flex', flexDirection:'column', gap:8,
@@ -188,9 +187,9 @@ export default function FavoritosPanel({
                 <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--t3)' }}>
                   {expandido.coleccion === 'outfit' ? 'Prendas' : 'Componentes'} de "{abierto.nombre || 'Guardado'}"
                 </div>
-                {miembrosAbiertos.map((m, i) => (
+                {miembrosAbiertos.map(m => (
                   <button
-                    key={i}
+                    key={m.url}
                     type="button"
                     className="favoritos-outfit-member"
                     onClick={() => onOpenDetail?.(m)}
@@ -221,7 +220,7 @@ export default function FavoritosPanel({
                     )}
                   </button>
                 ))}
-              </div>
+              </section>
             )}
           </>
         )}
@@ -274,15 +273,13 @@ export default function FavoritosPanel({
           <div style={{ display:'flex', flexDirection:'column', gap:10, maxWidth:680 }}>
             {items.map(f => (
               <div key={f.url}
+                className="fav-row"
                 onClick={() => onOpenDetail?.(f)}
                 style={{
                   display:'flex', gap:10, alignItems:'flex-start',
                   background:'var(--s2)', borderRadius:10, padding:'.75rem',
-                  border:'1.5px solid var(--bd)', cursor:'pointer',
-                  transition:'border-color .15s',
-                }}
-                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--p2)'}
-                onMouseOut={e => e.currentTarget.style.borderColor = 'var(--bd)'}>
+                  border:'1.5px solid', cursor:'pointer',
+                }}>
 
                 <ImageWithFallback
                   src={f.img}

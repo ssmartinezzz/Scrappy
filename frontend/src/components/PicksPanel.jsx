@@ -88,15 +88,15 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
           className="picks-rubro-carousel"
           renderItem={r => {
             const { img, categorias, productos } = resumenRubro(byRubro[r.key]);
+            let picksStats = `${categorias} categorías · ${productos.toLocaleString('es-AR')} productos`;
+            if (!categorias) picksStats = cargando ? 'Cargando...' : 'Sin picks todavía';
             return (
               <RubroCard
                 imageUrl={img}
                 icon={r.icon}
                 title={r.label}
                 themeColor={RUBRO_THEME[r.key]}
-                stats={categorias
-                  ? `${categorias} categorías · ${productos.toLocaleString('es-AR')} productos`
-                  : (cargando ? 'Cargando...' : 'Sin picks todavía')}
+                stats={picksStats}
                 onClick={() => onSelect(r.key)}
               />
             );
@@ -193,6 +193,8 @@ export default function PicksPanel({ onProductClick }) {
       if (cancelled) return;
       setByRubro(prev => ({ ...Object.fromEntries(pares), ...prev }));
       setResumenListo(true);
+    }).catch(() => {
+      // Unreachable backend: the entry cards stay in their loading state; a reload retries.
     });
     return () => { cancelled = true; };
   }, []);
@@ -205,6 +207,8 @@ export default function PicksPanel({ onProductClick }) {
       if (cancelled) return;
       setByRubro(prev => ({ ...prev, [rubro]: Array.isArray(d) ? d : [] }));
       setLoading(false);
+    }).catch(() => {
+      // Unreachable backend: keep the loading state for this rubro.
     });
     return () => { cancelled = true; };
   }, [rubro, byRubro]);

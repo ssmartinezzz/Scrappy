@@ -19,15 +19,28 @@ function ExternalCue() {
   return <span aria-hidden="true" className="text-[.85em]">↗</span>;
 }
 
+function zScoreText(zScore) {
+  if (zScore === undefined) return '—';
+  const sign = zScore > 0 ? '+' : '';
+  return `${sign}${Number(zScore).toFixed(2)}`;
+}
+
 // ─── Gauge ───────────────────────────────────────────────────────────────────
+function gaugeLabel(c) {
+  if (c <= 20) return 'Muy barato';
+  if (c <= 40) return 'Barato';
+  if (c <= 60) return 'Normal';
+  if (c <= 80) return 'Caro';
+  return 'Muy caro';
+}
+
 function Gauge({ score = 50 }) {
   const c = Math.min(100, Math.max(0, score));
   const r = 52, cx = 70, cy = 70;
   const rad = ((c / 100) * 180 - 180) * Math.PI / 180;
   const x = cx + r * Math.cos(rad), y = cy + r * Math.sin(rad);
   const color = gaugeColor(c);
-  const label = c <= 20 ? 'Muy barato' : c <= 40 ? 'Barato' :
-                c <= 60 ? 'Normal' : c <= 80 ? 'Caro' : 'Muy caro';
+  const label = gaugeLabel(c);
   return (
     <svg width="140" height="85" viewBox="0 0 140 85">
       <path d={`M18,70 A${r},${r} 0 0,1 122,70`} fill="none" stroke="var(--s3)" strokeWidth="10" strokeLinecap="round"/>
@@ -71,7 +84,8 @@ function Sparkline({ hist }) {
   const d    = pts.map((p,i) => `${i===0?'M':'L'}${sx(i).toFixed(1)},${sy(p.precio).toFixed(1)}`).join(' ');
   const fill = `${d} L${sx(pts.length-1).toFixed(1)},${H} L${sx(0).toFixed(1)},${H} Z`;
   const delta = hist?.deltaPct;
-  const dc = delta === undefined ? 'var(--t4)' : delta < 0 ? 'var(--g)' : 'var(--r)';
+  let dc = 'var(--t4)';
+  if (delta !== undefined) dc = delta < 0 ? 'var(--g)' : 'var(--r)';
   return (
     <div>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
@@ -113,7 +127,10 @@ function PreciosExternos({ product }) {
   const delta = (mlPrecio) => {
     if (!precio || !mlPrecio) return null;
     const d = ((mlPrecio - precio) / precio * 100).toFixed(1);
-    return { d, color: +d < 0 ? 'var(--g)' : +d > 5 ? 'var(--r)' : 'var(--t3)' };
+    let color = 'var(--t3)';
+    if (+d < 0) color = 'var(--g)';
+    else if (+d > 5) color = 'var(--r)';
+    return { d, color };
   };
 
   const items     = data?.resultados || [];
@@ -191,10 +208,10 @@ function PreciosExternos({ product }) {
                 <strong className="text-t1">${fmt(precio)}</strong>
               </div>
 
-              {items.map((item, i) => {
+              {items.map(item => {
                 const d = delta(item.precio);
                 return (
-                  <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                  <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
                      aria-label={`Ver "${item.titulo}" en MercadoLibre (se abre en una pestaña nueva)`}
                      className="flex items-center gap-2.5 rounded-lg border border-border bg-s2 px-[.75rem] py-[.5rem] no-underline">
                     {item.thumbnail && (
@@ -242,75 +259,98 @@ function PreciosExternos({ product }) {
 
 
 // ─── Contexto estadístico en lenguaje natural ────────────────────────────────
+const cat = p => p.categoria || 'su categoría';
+
+// 1. Percentil
+function percentilItem(ml, p) {
+  if (ml.pctil === undefined) return null;
+  const pct = ml.pctil;
+  if (pct <= 10)
+    return { icon:'🏆', color: SEMANTIC.positive, text: `Está en el ${pct}° percentil — uno de los más baratos de su categoría` };
+  if (pct <= 25)
+    return { icon:'💚', color: SEMANTIC.positive, text: `Precio en el cuartil inferior — más barato que el ${100-pct}% del mercado` };
+  if (pct <= 50)
+    return { icon:'◉', color:'var(--p2)', text: `Por debajo de la mediana — más barato que la mitad del catálogo en ${cat(p)}` };
+  if (pct <= 75)
+    return { icon:'⚠️', color: SEMANTIC.warn, text: `Precio por encima de la mediana (percentil ${pct}°) en ${cat(p)}` };
+  return { icon:'📈', color: SEMANTIC.negative, text: `Precio alto — percentil ${pct}°, más caro que el ${pct}% del mercado` };
+}
+
+// False for 0, negatives, NaN, null and undefined alike.
+const esPositivo = v => v > 0;
+
+// 2. Vs media de la categoría
+function mediaItem(st, precioComp, p) {
+  if (!st?.mean || !esPositivo(precioComp)) return null;
+  const diffTxt = ((precioComp - st.mean) / st.mean * 100).toFixed(1);
+  const diffPct = Number(diffTxt);
+  const mediaTxt = Math.round(st.mean).toLocaleString('es-AR');
+  if (diffPct < -15)
+    return { icon:'💰', color: SEMANTIC.positive, text: `${Math.abs(diffPct)}% más barato que la media de ${cat(p)} ($${mediaTxt})` };
+  if (diffPct < 0)
+    return { icon:'◎', color:'var(--t3)', text: `Ligeramente por debajo de la media ($${mediaTxt}) de ${cat(p)}` };
+  if (diffPct > 15)
+    return { icon:'💎', color: SEMANTIC.warn, text: `${diffTxt}% más caro que la media — podría ser premium o tener características especiales` };
+  return null;
+}
+
+// 3. Vs mediana
+function medianaItem(st, precioComp, p) {
+  if (!st?.median || !esPositivo(precioComp)) return null;
+  const diffMed = Number(((precioComp - st.median) / st.median * 100).toFixed(1));
+  if (Math.abs(diffMed) <= 5) return null;
+  const dir = diffMed < 0 ? 'por debajo' : 'por encima';
+  const col = diffMed < 0 ? SEMANTIC.positive : SEMANTIC.warn;
+  return { icon: diffMed < 0 ? '📉' : '📊', color: col,
+    text: `${Math.abs(diffMed)}% ${dir} de la mediana ($${Math.round(st.median).toLocaleString('es-AR')}) de ${cat(p)}` };
+}
+
+// 4. Z-score
+function zScoreItem(ml) {
+  if (ml.zScore === undefined) return null;
+  const z = ml.zScore;
+  if (z <= -2)
+    return { icon:'⚡', color: SEMANTIC.positive, text: `Z-score ${z.toFixed(2)}: estadísticamente muy barato — posible error de precio o promoción especial` };
+  if (z <= -1)
+    return { icon:'✅', color: SEMANTIC.positive, text: `Z-score ${z.toFixed(2)}: precio bien por debajo del promedio ajustado` };
+  if (z >= 2)
+    return { icon:'🔴', color: SEMANTIC.negative, text: `Z-score ${z.toFixed(2)}: estadísticamente caro — outlier superior` };
+  return null;
+}
+
+// 5. CV de la categoría — qué tan fiable es la comparación
+function cvItem(st, p) {
+  if (st?.cv === undefined) return null;
+  if (st.cv > 80)
+    return { icon:'ℹ️', color:'var(--t4)', text: `La categoría ${p.categoria||''} tiene alta variabilidad (CV=${st.cv}%) — los precios varían mucho, comparar individualmente` };
+  if (st.cv < 30)
+    return { icon:'📌', color:'var(--t4)', text: `Categoría homogénea (CV=${st.cv}%) — los precios son consistentes, esta comparación es muy confiable` };
+  return null;
+}
+
+// 6. Historial
+function tendenciaItem(ml) {
+  if (ml.tendencia === 'bajando')
+    return { icon:'📉', color: SEMANTIC.positive, text: 'El precio viene bajando en los últimos días — buena oportunidad' };
+  if (ml.tendencia === 'subiendo')
+    return { icon:'📈', color: SEMANTIC.warn, text: 'El precio está subiendo — conviene comprar pronto' };
+  return null;
+}
+
 function PriceContext({ product: p, st }) {
   const ml  = p.ml || {};
-  const items = [];
   // Category stats (st) are unit-price-based (ml_pipeline `stats_cats` uses
   // precio_unitario); for packs compare their unit price, not the shelf price,
   // so the mean/median text agrees with the pack savings badge.
   const precioComp = p.precioUnitario ?? p.precio;
-
-  // 1. Percentil
-  if (ml.pctil !== undefined) {
-    const pct = ml.pctil;
-    if (pct <= 10)
-      items.push({ icon:'🏆', color: SEMANTIC.positive, text: `Está en el ${pct}° percentil — uno de los más baratos de su categoría` });
-    else if (pct <= 25)
-      items.push({ icon:'💚', color: SEMANTIC.positive, text: `Precio en el cuartil inferior — más barato que el ${100-pct}% del mercado` });
-    else if (pct <= 50)
-      items.push({ icon:'◉', color:'var(--p2)', text: `Por debajo de la mediana — más barato que la mitad del catálogo en ${p.categoria||'su categoría'}` });
-    else if (pct <= 75)
-      items.push({ icon:'⚠️', color: SEMANTIC.warn, text: `Precio por encima de la mediana (percentil ${pct}°) en ${p.categoria||'su categoría'}` });
-    else
-      items.push({ icon:'📈', color: SEMANTIC.negative, text: `Precio alto — percentil ${pct}°, más caro que el ${pct}% del mercado` });
-  }
-
-  // 2. Vs media de la categoría
-  if (st?.mean && precioComp > 0) {
-    const diffPct = ((precioComp - st.mean) / st.mean * 100).toFixed(1);
-    if (diffPct < -15)
-      items.push({ icon:'💰', color: SEMANTIC.positive, text: `${Math.abs(diffPct)}% más barato que la media de ${p.categoria||'su categoría'} ($${Math.round(st.mean).toLocaleString('es-AR')})` });
-    else if (diffPct < 0)
-      items.push({ icon:'◎', color:'var(--t3)', text: `Ligeramente por debajo de la media ($${Math.round(st.mean).toLocaleString('es-AR')}) de ${p.categoria||'su categoría'}` });
-    else if (diffPct > 15)
-      items.push({ icon:'💎', color: SEMANTIC.warn, text: `${diffPct}% más caro que la media — podría ser premium o tener características especiales` });
-  }
-
-  // 3. Vs mediana
-  if (st?.median && precioComp > 0) {
-    const diffMed = ((precioComp - st.median) / st.median * 100).toFixed(1);
-    if (Math.abs(diffMed) > 5) {
-      const dir = diffMed < 0 ? 'por debajo' : 'por encima';
-      const col = diffMed < 0 ? SEMANTIC.positive : SEMANTIC.warn;
-      items.push({ icon: diffMed < 0 ? '📉' : '📊', color: col,
-        text: `${Math.abs(diffMed)}% ${dir} de la mediana ($${Math.round(st.median).toLocaleString('es-AR')}) de ${p.categoria||'su categoría'}` });
-    }
-  }
-
-  // 4. Z-score
-  if (ml.zScore !== undefined) {
-    const z = ml.zScore;
-    if (z <= -2)
-      items.push({ icon:'⚡', color: SEMANTIC.positive, text: `Z-score ${z.toFixed(2)}: estadísticamente muy barato — posible error de precio o promoción especial` });
-    else if (z <= -1)
-      items.push({ icon:'✅', color: SEMANTIC.positive, text: `Z-score ${z.toFixed(2)}: precio bien por debajo del promedio ajustado` });
-    else if (z >= 2)
-      items.push({ icon:'🔴', color: SEMANTIC.negative, text: `Z-score ${z.toFixed(2)}: estadísticamente caro — outlier superior` });
-  }
-
-  // 5. CV de la categoría — qué tan fiable es la comparación
-  if (st?.cv !== undefined) {
-    if (st.cv > 80)
-      items.push({ icon:'ℹ️', color:'var(--t4)', text: `La categoría ${p.categoria||''} tiene alta variabilidad (CV=${st.cv}%) — los precios varían mucho, comparar individualmente` });
-    else if (st.cv < 30)
-      items.push({ icon:'📌', color:'var(--t4)', text: `Categoría homogénea (CV=${st.cv}%) — los precios son consistentes, esta comparación es muy confiable` });
-  }
-
-  // 6. Historial
-  if (ml.tendencia === 'bajando')
-    items.push({ icon:'📉', color: SEMANTIC.positive, text: 'El precio viene bajando en los últimos días — buena oportunidad' });
-  else if (ml.tendencia === 'subiendo')
-    items.push({ icon:'📈', color: SEMANTIC.warn, text: 'El precio está subiendo — conviene comprar pronto' });
+  const items = [
+    percentilItem(ml, p),
+    mediaItem(st, precioComp, p),
+    medianaItem(st, precioComp, p),
+    zScoreItem(ml),
+    cvItem(st, p),
+    tendenciaItem(ml),
+  ].filter(Boolean);
 
   if (!items.length) return null;
 
@@ -318,11 +358,11 @@ function PriceContext({ product: p, st }) {
     <div>
       <div className="detail-section-title">🧠 Contexto de precio</div>
       <div className="flex flex-col gap-1.5">
-        {items.slice(0, 4).map((item, i) => (
+        {items.slice(0, 4).map(item => (
           // border color is per-item runtime data (item.color comes from the ML
           // context computation above) — not a static design token, kept inline
           // per the established Pill/chip exception.
-          <div key={i} style={{ border: `1px solid ${item.color}22` }}
+          <div key={item.text} style={{ border: `1px solid ${item.color}22` }}
                className="flex items-start gap-2.5 rounded-lg bg-s2 px-[.75rem] py-[.5rem] text-[.73rem] text-t3">
             <span className="flex-shrink-0 text-[.85rem]">{item.icon}</span>
             <span>{highlightPrices(item.text, item.color)}</span>
@@ -363,6 +403,9 @@ export default function DetailPanel({ product, catStats, onClose }) {
   const p = vivo ? { ...vivo, ...product } : product;
 
   const ml  = p.ml || {};
+  let badgeList = [];
+  if (ml.badges?.length) badgeList = ml.badges;
+  else if (ml.badge) badgeList = [ml.badge];
   // catStats está keyeado por la categoria CANÓNICA desde V16 (design DD6),
   // no por la salida de normCat — normCat sigue vivo solo para slugify/URLs.
   const st  = catStats?.[p.categoria];
@@ -455,9 +498,9 @@ export default function DetailPanel({ product, catStats, onClose }) {
           {/* Detail view shows ALL badges the product holds (spec "Multi-Badge
               Display Rules" — card shows principal+1, detail shows the full set).
               Falls back to [ml.badge] when 'badges' is absent (older cached data). */}
-          {(ml.badges?.length ? ml.badges : ml.badge ? [ml.badge] : []).length > 0 && (
+          {badgeList.length > 0 && (
             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-              {(ml.badges?.length ? ml.badges : [ml.badge]).map(b => (
+              {badgeList.map(b => (
                 BADGE_LABELS[b] && (
                   <span key={b} className={`badge-ml badge-${b}`}>{BADGE_LABELS[b]}</span>
                 )
@@ -489,7 +532,7 @@ export default function DetailPanel({ product, catStats, onClose }) {
             </div>
             <div className="detail-stat">
               <div className="detail-stat-val">
-                {ml.zScore !== undefined ? `${ml.zScore>0?'+':''}${Number(ml.zScore).toFixed(2)}` : '—'}
+                {zScoreText(ml.zScore)}
               </div>
               <div className="detail-stat-lbl">Z-score</div>
             </div>

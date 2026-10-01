@@ -44,7 +44,7 @@ export function useScrapeStatusPolling() {
 
   useEffect(() => {
     let alive = true;
-    readStatus().then(st => {
+    void readStatus().then(st => {
       // A snapshot that beat this read is newer than it.
       if (!alive || streamSeen.current) return;
       if (!st) { setReadFailed(true); return; }
@@ -78,7 +78,7 @@ export function useScrapeStatusPolling() {
     onDone.current = done;
     if (!reconcile) return;
     const pushesBefore = pushes.current;
-    readStatus().then(st => {
+    void readStatus().then(st => {
       // Anything the server pushed while this read was in flight is newer than its answer.
       if (pushes.current !== pushesBefore) return;
       if (!st) { setReadFailed(true); return; }

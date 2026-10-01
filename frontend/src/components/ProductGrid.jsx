@@ -52,6 +52,8 @@ export default function ProductGrid({
     Promise.resolve(onLoadMoreRef.current?.()).finally(() => {
       setLoading(false);
       pendingRef.current = false;
+    }).catch(() => {
+      // The loader reports its own failure; the guard above is already released.
     });
   }, []);
 

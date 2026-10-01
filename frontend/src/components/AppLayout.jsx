@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet, useOutletContext } from 'react-router
 import { readStatus } from '../lib/readStatus';
 import { useMlStatus, useScrapeStatus, useStreamEvent } from '../hooks/EventStreamProvider';
 import { fetchData, fetchFacets, fetchFavoritos, addFavorito, removeFavorito, deleteProducto,
-         fetchMlEstado, fetchMlResultado, startMlTraining, renormalizarCatalogo,
+         fetchMlEstado, startMlTraining, renormalizarCatalogo,
          fetchSavedOutfits, saveOutfit, deleteSavedOutfit, renameOutfit,
          fetchSavedPcs, savePc, deleteSavedPc, renamePc,
          fetchTendencias } from '../api';
@@ -15,8 +15,7 @@ import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
 import RouteFallback from './RouteFallback';
 import GpuTrainingOverlay from './GpuTrainingOverlay';
-import { CompareBar }   from './CompareComponents';
-import { CompareModal } from './CompareComponents';
+import { CompareBar, CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 import { useInterruptedRun } from '../hooks/useInterruptedRun';
@@ -95,6 +94,41 @@ const init = {
   config:       CONFIG_DEFAULT,
 };
 
+// Adds `v` to `list` if absent, removes it if present.
+function toggleIn(list, v) {
+  return list.includes(v) ? list.filter(x => x !== v) : [...list, v];
+}
+
+// Query params for the active filters. A param travels only when its filter is
+// set, and always in this order.
+function filterParams(f) {
+  const campos = [
+    ['q', f.busq, f.busq],
+    ['sitio', f.sitioFiltro, f.sitioFiltro],
+    ['rubro', f.rubroFiltro, f.rubroFiltro],
+    ['marca', f.marca.length > 0, f.marca],
+    ['badge', f.badge, f.badge],
+    ['segment', f.segment, f.segment],
+    ['genero', f.genero, f.genero],
+    ['categorias', f.categorias.length > 0, f.categorias],
+    ['talle', f.talles.length > 0, f.talles],
+    ['gymrat', f.gymrat, true],
+    ['pack', f.pack, true],
+    ['precioMin', f.precioMin !== undefined, f.precioMin],
+    ['precioMax', f.precioMax !== undefined, f.precioMax],
+    ['subCategoria', f.subCategoria.length > 0, f.subCategoria],
+    ['fit', f.fit, f.fit],
+    ['estampado', f.estampado, f.estampado],
+    ['escote', f.escote, f.escote],
+    ['colorDominante', f.colorDominante, f.colorDominante],
+  ];
+  const params = {};
+  for (const [clave, viaja, valor] of campos) {
+    if (viaja) params[clave] = valor;
+  }
+  return params;
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case 'SET':          return { ...state, ...action.payload };
@@ -111,28 +145,28 @@ function reducer(state, action) {
     };
     case 'TOGGLE_TALLE': {
       const t = state.talles;
-      return { ...state, talles: t.includes(action.v)?t.filter(x=>x!==action.v):[...t,action.v], pag:0, prods:[], hasMore:true };
+      return { ...state, talles: toggleIn(t, action.v), pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_CAT': {
       const c = state.categorias;
-      return { ...state, categorias: c.includes(action.v)?c.filter(x=>x!==action.v):[...c,action.v], pag:0, prods:[], hasMore:true };
+      return { ...state, categorias: toggleIn(c, action.v), pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_MARCA': {
       const m = state.marca;
-      return { ...state, marca: m.includes(action.v)?m.filter(x=>x!==action.v):[...m,action.v], pag:0, prods:[], hasMore:true };
+      return { ...state, marca: toggleIn(m, action.v), pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_SUBCAT': {
       const sc = state.subCategoria;
-      return { ...state, subCategoria: sc.includes(action.v)?sc.filter(x=>x!==action.v):[...sc,action.v], pag:0, prods:[], hasMore:true };
+      return { ...state, subCategoria: toggleIn(sc, action.v), pag:0, prods:[], hasMore:true };
     }
     case 'TOGGLE_COMPARAR': {
-      const exists = state.comparar.find(p => p.url === action.prod.url);
+      const exists = state.comparar.some(p => p.url === action.prod.url);
       if (exists) return { ...state, comparar: state.comparar.filter(p=>p.url!==action.prod.url) };
       if (state.comparar.length >= 4) return state;
       return { ...state, comparar: [...state.comparar, action.prod] };
     }
     case 'TOGGLE_FAVORITO': {
-      const exists = state.favoritos.find(f => f.url === action.prod.url);
+      const exists = state.favoritos.some(f => f.url === action.prod.url);
       if (exists) return { ...state, favoritos: state.favoritos.filter(f=>f.url!==action.prod.url) };
       return { ...state, favoritos: [...state.favoritos, {
         url: action.prod.url, sitio: action.prod.sitio, nombre: action.prod.nombre,
@@ -388,7 +422,8 @@ function OutfitsRoute() {
       favoritos={S.favoritos || []}
       savedOutfits={S.savedOutfits || []}
       onAddFavorito={(item) => {
-        addFavorito(item);
+        // Optimistic: the heart is already filled, and the next favoritos load re-syncs it.
+        Promise.resolve(addFavorito(item)).catch(() => {});
         dispatch({ type: 'ADD_FAVORITO', payload: item });
       }}
       onSaveOutfit={async (payload) => {
@@ -630,7 +665,8 @@ export default function AppLayout() {
       navigate(location.pathname + location.search + location.hash, { replace: true, state: null });
     }
     const statusPromise = hasHandedStatus ? Promise.resolve(location.state.status) : readStatus();
-    statusPromise.then(st => {
+    // Neither side rejects: `readStatus` swallows, and the handed status is already resolved.
+    void statusPromise.then(st => {
       setStatusForBanner(st ?? null);
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
@@ -683,20 +719,26 @@ export default function AppLayout() {
   // instant that read resolves; keying this effect on [S.scrapeStatus] alone
   // made that arrival look like a second transition and fired this twice on
   // every cold load (perf/dedupe-load-requests).
+  //
+  // A status change must not cancel the fetch in flight: the mount status read
+  // usually lands first, and cancelling there meant catStats never loaded. Only
+  // the newest request may apply, and nothing applies after unmount.
   const prevScrapeStatusRef = useRef();
+  const tendenciasSeqRef = useRef(0);
+  useEffect(() => () => { tendenciasSeqRef.current = -1; }, []);
   useEffect(() => {
     const prev = prevScrapeStatusRef.current;
     prevScrapeStatusRef.current = S.scrapeStatus;
     const justFinished = prev === 'RUNNING' && (S.scrapeStatus === 'DONE' || S.scrapeStatus === 'ERROR');
     if (prev !== undefined && !justFinished) return;
-    let cancelled = false;
-    (async () => {
+    const seq = ++tendenciasSeqRef.current;
+    // `fetchTendencias` resolves a state for every failure, network included.
+    void (async () => {
       const { state, data } = await fetchTendencias();
-      if (!cancelled && state === 'ok' && data?.distribucionCategorias) {
+      if (seq === tendenciasSeqRef.current && state === 'ok' && data?.distribucionCategorias) {
         dispatch({ type: 'SET', payload: { catStats: data.distribucionCategorias } });
       }
     })();
-    return () => { cancelled = true; };
   }, [S.scrapeStatus]);
 
   useEffect(() => {
@@ -706,24 +748,13 @@ export default function AppLayout() {
 
   const buildParams = useCallback((page) => ({
     page, size: PAGE_SIZE, orden: S.orden,
-    ...(S.busq        && { q:          S.busq }),
-    ...(S.sitioFiltro && { sitio:      S.sitioFiltro }),
-    ...(S.rubroFiltro && { rubro:      S.rubroFiltro }),
-    ...(S.marca.length && { marca:     S.marca }),
-    ...(S.badge       && { badge:      S.badge }),
-    ...(S.segment     && { segment:    S.segment }),
-    ...(S.genero      && { genero:     S.genero }),
-    ...(S.categorias.length && { categorias: S.categorias }),
-    ...(S.talles.length     && { talle:      S.talles }),
-    ...(S.gymrat      && { gymrat:     true }),
-    ...(S.pack        && { pack:       true }),
-    ...(S.precioMin !== undefined && { precioMin: S.precioMin }),
-    ...(S.precioMax !== undefined && { precioMax: S.precioMax }),
-    ...(S.subCategoria.length && { subCategoria: S.subCategoria }),
-    ...(S.fit             && { fit:            S.fit }),
-    ...(S.estampado       && { estampado:      S.estampado }),
-    ...(S.escote          && { escote:         S.escote }),
-    ...(S.colorDominante  && { colorDominante: S.colorDominante }),
+    ...filterParams({
+      busq: S.busq, sitioFiltro: S.sitioFiltro, rubroFiltro: S.rubroFiltro,
+      marca: S.marca, badge: S.badge, segment: S.segment, genero: S.genero,
+      categorias: S.categorias, talles: S.talles, gymrat: S.gymrat, pack: S.pack,
+      precioMin: S.precioMin, precioMax: S.precioMax, subCategoria: S.subCategoria,
+      fit: S.fit, estampado: S.estampado, escote: S.escote, colorDominante: S.colorDominante,
+    }),
   }), [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge, S.segment,
        S.genero, S.categorias, S.talles, S.gymrat, S.pack,
        S.precioMin, S.precioMax, S.orden, S.subCategoria,

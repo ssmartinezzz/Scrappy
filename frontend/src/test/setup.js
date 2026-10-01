@@ -36,14 +36,14 @@ afterEach(() => {
 // ve. Medir píxeles acá sería medir la ficción, no el componente.
 const TEST_CHART_SIZE = { width: 800, height: 300 };
 
-if (typeof globalThis.ResizeObserver === 'undefined') {
+if (globalThis.ResizeObserver === undefined) {
   globalThis.ResizeObserver = class {
     constructor(callback) { this.callback = callback; }
     observe(target) {
       this.callback([{ target, contentRect: { ...TEST_CHART_SIZE, top: 0, left: 0 } }], this);
     }
-    unobserve() {}
-    disconnect() {}
+    unobserve() { /* noop: the stub never tracks targets */ }
+    disconnect() { /* noop: nothing to release */ }
   };
 }
 
@@ -52,11 +52,11 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // suite to mount AppLayout/ProductGrid together surfaced this gap). A no-op
 // stub is correct here: these tests assert role-aware visibility, not scroll
 // behaviour, so the sentinel simply never fires.
-if (typeof globalThis.IntersectionObserver === 'undefined') {
+if (globalThis.IntersectionObserver === undefined) {
   globalThis.IntersectionObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { /* noop: the sentinel never fires in these tests */ }
+    unobserve() { /* noop: nothing is observed */ }
+    disconnect() { /* noop: nothing to release */ }
   };
 }
 

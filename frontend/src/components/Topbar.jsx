@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useMlStatus } from '../hooks/EventStreamProvider';
 import { fetchMlResultado, fetchIndices } from '../api';
-import { fmt } from '../api';
 import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
 import { IpcBadge } from './ui/ipc-badge';
 import UserMenu from './UserMenu';
 
+
+function mlBannerText(mlBanner) {
+  const textMeta = mlBanner.ml?.textMeta;
+  if (!mlBanner.ml?.hasTextModel || !textMeta) return '🧠 ML estadístico';
+  const acc = textMeta.accuracy == null ? '?' : (textMeta.accuracy * 100).toFixed(1);
+  return `🧠 ML ${acc}% acc · ${mlBanner.st?.mlRefinadas || 0} ref.`;
+}
 
 export default function Topbar({
   meta, facets, sitioFiltro, rubroFiltro,
@@ -36,7 +42,8 @@ export default function Topbar({
   const [firstRead, setFirstRead] = useState(null);
   useEffect(() => {
     let alive = true;
-    fetchMlResultado().catch(() => null).then(r => { if (alive) setFirstRead(r); });
+    // The read is already caught above, so the chain cannot reject.
+    void fetchMlResultado().catch(() => null).then(r => { if (alive) setFirstRead(r); });
     return () => { alive = false; };
   }, []);
   const mlStatus = useMlStatus().resultado ?? firstRead;
@@ -100,7 +107,7 @@ export default function Topbar({
                           bg-[color-mix(in_srgb,var(--p)_18%,transparent)] border border-[color-mix(in_srgb,var(--p)_40%,transparent)]
                           text-[.68rem] text-primary animate-[mlpulse_1.5s_ease-in-out_infinite]">
             <span className="text-[.75rem]">🤖</span>
-            Entrenando ML...
+            {' '}Entrenando ML...
           </div>
         )}
         {mlStatus?.done && !mlStatus?.running && (
@@ -131,9 +138,7 @@ export default function Topbar({
         {/* ML Banner — hidden below md (topbar-meta) */}
         {mlBanner && (
           <div className="ml-banner topbar-meta">
-            {mlBanner.ml?.hasTextModel && mlBanner.ml?.textMeta
-              ? `🧠 ML ${(mlBanner.ml.textMeta.accuracy != null ? (mlBanner.ml.textMeta.accuracy * 100).toFixed(1) : '?')}% acc · ${mlBanner.st?.mlRefinadas || 0} ref.`
-              : '🧠 ML estadístico'}
+            {mlBannerText(mlBanner)}
           </div>
         )}
 

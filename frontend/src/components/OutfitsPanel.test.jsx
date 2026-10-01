@@ -59,8 +59,7 @@ describe('OutfitsPanel — the category form', () => {
     const quitar = await screen.findByRole('button', { name: 'Quitar Remera' });
     await user.click(quitar);
 
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Agregar Remera' })).toBeInTheDocument());
+    expect(await screen.findByRole('button', { name: 'Agregar Remera' })).toBeInTheDocument();
   });
 
   it('formats the budget with thousands separators and sends the plain number', async () => {

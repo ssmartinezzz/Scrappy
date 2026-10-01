@@ -11,9 +11,9 @@ export function normCat(raw) {
   return String(raw)
     .toLowerCase()
     .trim()
-    .replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i')
-    .replace(/ó/g, 'o').replace(/ú/g, 'u').replace(/ü/g, 'u')
-    .replace(/ñ/g, 'n')
+    .replaceAll('á', 'a').replaceAll('é', 'e').replaceAll('í', 'i')
+    .replaceAll('ó', 'o').replaceAll('ú', 'u').replaceAll('ü', 'u')
+    .replaceAll('ñ', 'n')
     .trim();
 }
 
@@ -23,7 +23,7 @@ export function normCat(raw) {
 export function slugify(raw) {
   return normCat(raw)
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/^-|-$/g, '');
 }
 
 // Reverse-resolves a URL slug back to its canonical category entry from the

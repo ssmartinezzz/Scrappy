@@ -11,14 +11,14 @@ const CARD_IMG_SIZES = '(min-width: 900px) 260px, (min-width: 560px) 220px, 50vw
 
 // Derive gym sub-label from product data (ADR-1: computed in frontend, not stored)
 function gymSubcat(product) {
-  if (!product || !product.gymrat) return null;
+  if (!product?.gymrat) return null;
   return (product.categoria ? product.categoria : 'Ropa') + ' Gym';
 }
 
 // Badge compacto de señal de compra — sourced del precompute embebido en /api/data.
 // Sin request adicional. Oculto cuando no hay señal confiable (null/sin_datos).
 function SenalBadge({ senal, compact }) {
-  if (!senal || !senal.senal || senal.senal === 'sin_datos') return null;
+  if (!senal?.senal || senal.senal === 'sin_datos') return null;
   const cfg = SEÑAL_CONFIG[senal.senal];
   if (!cfg) return null;
   return (
@@ -43,7 +43,8 @@ function PackBadge({ product: p, catStats, compact }) {
     const pct = Math.round((st.median - p.precioUnitario) / st.median * 100);
     if (pct > 5) ahorro = pct;
   }
-  const title = `Pack x${p.cantidadUnidades}${ahorro ? ` · precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : ''}`;
+  const ahorroTxt = ahorro ? ` · precio unitario ${ahorro}% más barato que la mediana de ${p.categoria}` : '';
+  const title = `Pack x${p.cantidadUnidades}${ahorroTxt}`;
   if (compact) {
     return <span className="badge-compact" title={title}>📦{ahorro ? ` -${ahorro}%` : ''}</span>;
   }
@@ -79,11 +80,9 @@ function PriceBar({ precio, catStats, categoria }) {
 function BadgeCluster({ p, ml, badge, catStats }) {
   const hasSenal = p.senal?.senal && p.senal.senal !== 'sin_datos' && SEÑAL_CONFIG[p.senal.senal];
 
-  const primary = badge
-    ? <span key="ml" className={`badge-ml badge-${ml.badge}`}>{badge}</span>
-    : hasSenal
-      ? <SenalBadge key="senal" senal={p.senal} />
-      : null;
+  let primary = null;
+  if (badge) primary = <span key="ml" className={`badge-ml badge-${ml.badge}`}>{badge}</span>;
+  else if (hasSenal) primary = <SenalBadge key="senal" senal={p.senal} />;
 
   // Secondary ML badge (badges-oportunidades-revamp — spec "Multi-Badge
   // Display Rules": card shows the principal badge + at most 1 secondary).
@@ -152,8 +151,10 @@ const ProductCard = memo(function ProductCard({
 
   function handleFavoritoClick(e) {
     e.stopPropagation();
-    if (isFavorito) removeFavorito(p.url);
-    else addFavorito({ url: p.url, sitio: p.sitio, nombre: p.nombre });
+    // Fire and forget: the parent flips the heart optimistically and the next favoritos load re-syncs.
+    Promise.resolve(isFavorito
+      ? removeFavorito(p.url)
+      : addFavorito({ url: p.url, sitio: p.sitio, nombre: p.nombre })).catch(() => {});
     onToggleFavorito?.(p);
   }
 

@@ -65,7 +65,7 @@ async function softUnwrap(response, fallback = null) {
 // Mutations whose callers read `{ ok, mensaje }`: failures become `{ ok:false, mensaje }`.
 async function opResult(response) {
   try {
-    return { ok: true, ...((await unwrap(response)) ?? {}) };
+    return { ok: true, ...(await unwrap(response)) };
   } catch (e) {
     return { ok: false, mensaje: e instanceof ApiError ? e.message : 'Error de red' };
   }
@@ -395,13 +395,13 @@ export async function fetchOutfit(genero, presupuesto = 0, excluirUrls = [], pre
  */
 export async function fetchOutfitBuilder({ categorias, presupuesto, genero, excluir = [], greedy = false, pin = [], estilo = 'gym' }) {
   const p = new URLSearchParams();
-  if (categorias && categorias.length) p.set('categorias', categorias.join(','));
+  if (categorias?.length) p.set('categorias', categorias.join(','));
   // presupuesto=0 or empty means no limit → send a large ceiling so the API accepts it
   const budget = presupuesto > 0 ? presupuesto : 100_000_000;
   p.set('presupuesto', budget);
   if (genero) p.set('genero', genero);
-  if (excluir && excluir.length) p.set('excluir', excluir.join(','));
-  if (pin && pin.length) p.set('pin', pin.join(','));
+  if (excluir?.length) p.set('excluir', excluir.join(','));
+  if (pin?.length) p.set('pin', pin.join(','));
   if (greedy) p.set('greedy', 'true');
   if (estilo && estilo !== 'gym') p.set('estilo', estilo);
   const r = await authedFetch(`${BASE}/api/outfits/builder?${p}`);
@@ -532,24 +532,31 @@ export async function fetchPcsBuilder({
   // gama, sólo viaja cuando el pedido difiere del default (UsoWire.parse).
   uso = '',
 } = {}) {
+  // [param, viaja?, valor] en el orden en que siempre viajaron.
+  const campos = [
+    ['presupuesto', presupuesto > 0, presupuesto],
+    ['conGpu', conGpu, 'true'],
+    ['excluir', excluir.length > 0, excluir.join(',')],
+    ['gama', gama, gama],
+    ['ddr', ddr, ddr],
+    ['marcaCpu', marcaCpu, marcaCpu],
+    ['marcaGpu', marcaGpu, marcaGpu],
+    ['tipoAlmacenamiento', tipoAlmacenamiento, tipoAlmacenamiento],
+    ['ramDual', ramDual, 'true'],
+    ['wifi', wifi, 'true'],
+    ['capacidadMinimaGb', capacidadMinimaGb > 0, capacidadMinimaGb],
+    ['tamanioGabinete', tamanioGabinete, tamanioGabinete],
+    ['tipoCooler', tipoCooler, tipoCooler],
+    ['wattsMinimos', wattsMinimos > 0, wattsMinimos],
+    ['uso', uso, uso],
+  ];
   const p = new URLSearchParams();
-  if (presupuesto > 0) p.set('presupuesto', presupuesto);
-  if (conGpu) p.set('conGpu', 'true');
-  if (excluir.length > 0) p.set('excluir', excluir.join(','));
-  if (gama) p.set('gama', gama);
-  if (ddr) p.set('ddr', ddr);
-  if (marcaCpu) p.set('marcaCpu', marcaCpu);
-  if (marcaGpu) p.set('marcaGpu', marcaGpu);
-  if (tipoAlmacenamiento) p.set('tipoAlmacenamiento', tipoAlmacenamiento);
-  if (ramDual) p.set('ramDual', 'true');
-  if (wifi) p.set('wifi', 'true');
-  if (capacidadMinimaGb > 0) p.set('capacidadMinimaGb', capacidadMinimaGb);
-  if (tamanioGabinete) p.set('tamanioGabinete', tamanioGabinete);
-  if (tipoCooler) p.set('tipoCooler', tipoCooler);
-  if (wattsMinimos > 0) p.set('wattsMinimos', wattsMinimos);
-  if (uso) p.set('uso', uso);
+  for (const [param, viaja, valor] of campos) {
+    if (viaja) p.set(param, valor);
+  }
   const qs = p.toString();
-  const r = await authedFetch(`${BASE}/api/pcs/builder${qs ? `?${qs}` : ''}`);
+  const sufijo = qs ? `?${qs}` : '';
+  const r = await authedFetch(`${BASE}/api/pcs/builder${sufijo}`);
   return softUnwrap(r);
 }
 
@@ -680,7 +687,7 @@ export async function applyProposal(proposal) {
   });
   if (r.status === 409) return { scraping: true };
   try {
-    return { ok: true, ...((await unwrap(r)) ?? {}) };
+    return { ok: true, ...(await unwrap(r)) };
   } catch (e) {
     if (!(e instanceof ApiError)) throw e;
     return { ok: false, mensaje: e.message, codigo: e.code, actual: e.details?.actual };

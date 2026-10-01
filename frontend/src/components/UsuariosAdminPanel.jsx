@@ -52,6 +52,119 @@ function Avatar({ username }) {
   );
 }
 
+// Static column defs: `ejecutar` and the in-flight username reach the cells through `table.options.meta`.
+const COLUMNS = [
+  {
+    id: 'username',
+    accessorKey: 'username',
+    header: 'Cuenta',
+    cell: ({ row }) => {
+      const u = row.original;
+      return (
+        <div className="flex items-center gap-2">
+          <Avatar username={u.username} />
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-medium text-t1">{u.username}</span>
+            <span className="truncate text-t3 text-xs">{u.email || 'sin email'}</span>
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'rol',
+    accessorFn: rolDe,
+    header: 'Rol',
+    cell: ({ row }) => (
+      <div className="flex flex-wrap items-center gap-1">
+        <Badge variant={rolDe(row.original) === 'ADMIN' ? 'default' : 'secondary'}>
+          {rolDe(row.original)}
+        </Badge>
+        {row.original.esServicio && <Badge variant="warning">servicio</Badge>}
+      </div>
+    ),
+  },
+  {
+    id: 'estado',
+    accessorFn: u => (u.activo ? 'Activa' : 'Inactiva'),
+    header: 'Estado',
+    cell: ({ row }) => (
+      <Badge variant={row.original.activo ? 'success' : 'outline'}>
+        {row.original.activo ? 'Activa' : 'Inactiva'}
+      </Badge>
+    ),
+  },
+  {
+    id: 'acciones',
+    header: () => <span className="sr-only">Acciones</span>,
+    enableSorting: false,
+    cell: ({ row, table }) => {
+      const { ejecutar, ocupado } = table.options.meta;
+      const u = row.original;
+      const enVuelo = ocupado === u.username;
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          <Label className="sr-only" htmlFor={`rol-${u.id}`}>Rol de {u.username}</Label>
+          <Select
+            disabled={enVuelo}
+            onValueChange={v => ejecutar(u.username,
+              () => cambiarRolUsuario(u.username, v), 'Rol actualizado.')}
+            value={rolDe(u)}
+          >
+            <SelectTrigger className="h-7 w-fit whitespace-nowrap text-xs" id={`rol-${u.id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {u.activo ? (
+            <Button
+              className="text-danger hover:border-danger hover:text-danger"
+              disabled={enVuelo}
+              onClick={() => ejecutar(u.username,
+                () => desactivarUsuario(u.username), 'Cuenta desactivada.')}
+              size="sm"
+              variant="ghost"
+            >
+              Desactivar
+            </Button>
+          ) : (
+            <Button
+              disabled={enVuelo}
+              onClick={() => ejecutar(u.username,
+                () => reactivarUsuario(u.username), 'Cuenta reactivada.')}
+              size="sm"
+              variant="ghost"
+            >
+              Reactivar
+            </Button>
+          )}
+        </div>
+      );
+    },
+  },
+];
+
+function HeaderContent({ header }) {
+  if (header.isPlaceholder) return null;
+  const content = flexRender(header.column.columnDef.header, header.getContext());
+  if (!header.column.getCanSort()) return content;
+  return (
+    <button
+      className="flex cursor-pointer select-none items-center gap-1"
+      onClick={header.column.getToggleSortingHandler()}
+      type="button"
+    >
+      {content}
+      {{
+        asc:  <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
+        desc: <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
+      }[header.column.getIsSorted()] ?? null}
+    </button>
+  );
+}
+
 export default function UsuariosAdminPanel() {
   const [usuarios, setUsuarios] = useState(null);
   const [error, setError]       = useState('');
@@ -112,100 +225,9 @@ export default function UsuariosAdminPanel() {
     [usuarios, verInactivas],
   );
 
-  const columns = useMemo(() => [
-    {
-      id: 'username',
-      accessorKey: 'username',
-      header: 'Cuenta',
-      cell: ({ row }) => {
-        const u = row.original;
-        return (
-          <div className="flex items-center gap-2">
-            <Avatar username={u.username} />
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium text-t1">{u.username}</span>
-              <span className="truncate text-t3 text-xs">{u.email || 'sin email'}</span>
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      id: 'rol',
-      accessorFn: rolDe,
-      header: 'Rol',
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <Badge variant={rolDe(row.original) === 'ADMIN' ? 'default' : 'secondary'}>
-            {rolDe(row.original)}
-          </Badge>
-          {row.original.esServicio && <Badge variant="warning">servicio</Badge>}
-        </div>
-      ),
-    },
-    {
-      id: 'estado',
-      accessorFn: u => (u.activo ? 'Activa' : 'Inactiva'),
-      header: 'Estado',
-      cell: ({ row }) => (
-        <Badge variant={row.original.activo ? 'success' : 'outline'}>
-          {row.original.activo ? 'Activa' : 'Inactiva'}
-        </Badge>
-      ),
-    },
-    {
-      id: 'acciones',
-      header: () => <span className="sr-only">Acciones</span>,
-      enableSorting: false,
-      cell: ({ row }) => {
-        const u = row.original;
-        const enVuelo = ocupado === u.username;
-        return (
-          <div className="flex flex-wrap items-center justify-end gap-1">
-            <Label className="sr-only" htmlFor={`rol-${u.id}`}>Rol de {u.username}</Label>
-            <Select
-              disabled={enVuelo}
-              onValueChange={v => ejecutar(u.username,
-                () => cambiarRolUsuario(u.username, v), 'Rol actualizado.')}
-              value={rolDe(u)}
-            >
-              <SelectTrigger className="h-7 w-fit whitespace-nowrap text-xs" id={`rol-${u.id}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {u.activo ? (
-              <Button
-                className="text-danger hover:border-danger hover:text-danger"
-                disabled={enVuelo}
-                onClick={() => ejecutar(u.username,
-                  () => desactivarUsuario(u.username), 'Cuenta desactivada.')}
-                size="sm"
-                variant="ghost"
-              >
-                Desactivar
-              </Button>
-            ) : (
-              <Button
-                disabled={enVuelo}
-                onClick={() => ejecutar(u.username,
-                  () => reactivarUsuario(u.username), 'Cuenta reactivada.')}
-                size="sm"
-                variant="ghost"
-              >
-                Reactivar
-              </Button>
-            )}
-          </div>
-        );
-      },
-    },
-  ], [ejecutar, ocupado]);
-
   const table = useReactTable({
-    columns,
+    columns: COLUMNS,
+    meta: { ejecutar, ocupado },
     data: filtradas,
     state: { sorting, pagination },
     onSortingChange: setSorting,
@@ -252,16 +274,15 @@ export default function UsuariosAdminPanel() {
       </header>
 
       {aviso && (
-        <p
-          className={`mb-3 rounded-card border px-3 py-2 text-sm ${
+        <output
+          className={`mb-3 block rounded-card border px-3 py-2 text-sm ${
             aviso.ok
               ? 'border-success/40 bg-success/10 text-success'
               : 'border-danger/40 bg-danger/10 text-danger'
           }`}
-          role="status"
         >
           {aviso.texto}
-        </p>
+        </output>
       )}
 
       {creando && (
@@ -368,21 +389,7 @@ export default function UsuariosAdminPanel() {
                   <TableRow key={hg.id}>
                     {hg.headers.map(header => (
                       <TableHead key={header.id}>
-                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                          <button
-                            className="flex cursor-pointer select-none items-center gap-1"
-                            onClick={header.column.getToggleSortingHandler()}
-                            type="button"
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc:  <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
-                              desc: <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
-                            }[header.column.getIsSorted()] ?? null}
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
+                        <HeaderContent header={header} />
                       </TableHead>
                     ))}
                   </TableRow>
@@ -401,7 +408,7 @@ export default function UsuariosAdminPanel() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell className="h-24 text-center text-t4" colSpan={columns.length}>
+                    <TableCell className="h-24 text-center text-t4" colSpan={COLUMNS.length}>
                       {busqueda
                         ? 'Ninguna cuenta coincide con la búsqueda.'
                         : 'No hay cuentas activas.'}

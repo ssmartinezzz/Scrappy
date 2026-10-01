@@ -1,9 +1,9 @@
 // Shared drivers for the browser suite.
 import { expect } from '@playwright/test';
 
-import { API_ORIGIN, APP_ORIGIN, readAccounts } from './accounts.js';
+import { API_ORIGIN } from './accounts.js';
 
-export { API_ORIGIN, APP_ORIGIN, readAccounts };
+export { API_ORIGIN, APP_ORIGIN, readAccounts } from './accounts.js';
 
 /**
  * Either half of the only two states the app ever settles into.

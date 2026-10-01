@@ -105,3 +105,52 @@ describe('AppLayout — /api/tendencias refetches only on a real RUNNING -> fini
     await waitFor(() => expect(tendenciasCallCount(global.fetch)).toBe(2));
   });
 });
+
+// The mount status read lands first and moves scrapeStatus off its 'IDLE'
+// seed; the effect's cleanup used to cancel the still-pending mount fetch, so
+// catStats never loaded and no card ever drew its price bar.
+function CatStatsProbe() {
+  const { S } = useOutletContext();
+  return <span>cats:{Object.keys(S.catStats || {}).length}</span>;
+}
+
+describe('AppLayout — catStats survives a status read that lands first', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('applies /api/tendencias even when the status read moves scrapeStatus before it resolves', async () => {
+    useAuth.mockReturnValue({ isAdmin: false, identity: null, logout: vi.fn() });
+    const base = baseRouter();
+    let releaseTendencias;
+    global.fetch = vi.fn().mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes('/api/status')) return Promise.resolve(jsonResponse({ data: { tieneData: true, status: 'DONE', mensaje: '' } }));
+      if (u.includes('/api/tendencias')) {
+        return new Promise(resolve => {
+          releaseTendencias = () => resolve(jsonResponse({ data: { distribucionCategorias: { Remeras: { fence_high: 50000 } } } }));
+        });
+      }
+      if (/\/api\/(facets|favoritos)/.test(u)) return Promise.resolve(jsonResponse([]));
+      return base(url);
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/catalogo']}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/catalogo" element={<CatStatsProbe />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('cats:0')).toBeInTheDocument();
+    await waitFor(() => expect(releaseTendencias).toBeTypeOf('function'));
+    // Let the status read land and re-render before tendencias answers.
+    await act(async () => { await new Promise(r => setTimeout(r, 50)); });
+    await act(async () => { releaseTendencias(); });
+
+    expect(await screen.findByText('cats:1')).toBeInTheDocument();
+  });
+});
