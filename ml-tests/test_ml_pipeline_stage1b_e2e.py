@@ -157,6 +157,7 @@ def test_stage1b_gates_visual_attrs_and_leaks_zero_english(
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps(sample_productos), encoding="utf-8")
 
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()
@@ -233,6 +234,7 @@ def test_stage1b_survives_broken_image_download_without_crashing(
     prod_path = tmp_path / "ml_productos.json"
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()  # must not raise
@@ -301,6 +303,7 @@ def test_stage1b_blank_gender_only_trigger_never_overwrites_confident_specific_c
     prod_path = tmp_path / "ml_productos.json"
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()
@@ -351,6 +354,7 @@ def test_stage1b_embed_images_call_site_failure_degrades_to_text_only(
     prod_path = tmp_path / "ml_productos.json"
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps([sample_productos[2]]), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()  # must not raise
@@ -389,6 +393,7 @@ def test_stage1b_import_guard_catches_non_import_error(
     prod_path = tmp_path / "ml_productos.json"
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps([sample_productos[2]]), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()  # must not raise (pre-fix: uncaught SyntaxError)
@@ -440,6 +445,7 @@ def test_stage1b_text_model_still_corrects_a_non_generic_categoria_when_image_di
     prod_path = tmp_path / "ml_productos.json"
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()
@@ -503,6 +509,7 @@ def test_stage1b_download_executor_survives_one_failed_url_among_several(
     prod_path = tmp_path / "ml_productos.json"
     out_path = tmp_path / "ml_output.json"
     prod_path.write_text(json.dumps(productos), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)  # PythonRunner runs the script with cwd = workDir
     monkeypatch.setattr(sys, "argv", ["ml_pipeline.py", str(prod_path), str(out_path)])
 
     ml_pipeline.main()  # must not raise despite one failed download

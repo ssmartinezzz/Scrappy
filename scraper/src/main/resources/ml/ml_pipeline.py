@@ -378,6 +378,16 @@ class HistoricalAnalysis:
 # desincronizarse.
 
 
+def ruta_en_directorio_de_trabajo(ruta):
+    """PythonRunner lanza el script con cwd = workDir y le pasa rutas dentro de
+    él; cualquier otra cosa es un argumento roto y no se lee ni se escribe."""
+    base = os.path.realpath(os.getcwd())
+    resuelta = os.path.realpath(ruta)
+    if os.path.commonpath([base, resuelta]) != base:
+        raise ValueError(f"Ruta fuera del directorio de trabajo: {ruta}")
+    return resuelta
+
+
 def cargar_historial(hist_path):
     """
     Lee el archivo de historial de precios. Devuelve {} si no hay ruta, si el
@@ -557,9 +567,9 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
-    prod_path = sys.argv[1]
-    out_path  = sys.argv[2]
-    hist_path = sys.argv[3] if len(sys.argv) > 3 else None
+    prod_path = ruta_en_directorio_de_trabajo(sys.argv[1])
+    out_path  = ruta_en_directorio_de_trabajo(sys.argv[2])
+    hist_path = ruta_en_directorio_de_trabajo(sys.argv[3]) if len(sys.argv) > 3 else None
 
     with open(prod_path, 'r', encoding='utf-8') as f:
         productos = json.load(f)
