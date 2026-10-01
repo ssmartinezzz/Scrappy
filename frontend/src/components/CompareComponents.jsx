@@ -39,8 +39,9 @@ export function CompareModal({ items, onClose }) {
     { label: 'Link',         fn: p => p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color:'var(--p2)' }}>Abrir ↗</a> : '—' },
   ];
   return (
-    <div className="compare-modal-backdrop" onClick={onClose}>
-      <div className="compare-modal-inner" onClick={e => e.stopPropagation()}>
+    // Both wrappers only dismiss on a pointer click; the keyboard path is the close button below.
+    <div className="compare-modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="compare-modal-inner" role="presentation" onClick={e => e.stopPropagation()}>
         <div className="compare-modal-header">
           <h2 style={{ fontSize:'1rem', fontWeight:700 }}>⚖ Comparación</h2>
           <button className="detail-close" onClick={onClose}>✕</button>

@@ -8,14 +8,11 @@ export default function GroupCard({ grupo, onOpenDetail }) {
   const tieneAhorro = ahorroPct >= 5 && precios.length >= 2;
 
   return (
-    <div style={{
+    <div className="group-card" style={{
       background: 'var(--s1)', border: '1px solid var(--bd)', borderRadius: 12,
       overflow: 'hidden', transition: 'box-shadow .15s',
       display: 'flex', flexDirection: 'column',
-    }}
-      onMouseOver={e => e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,.4)'}
-      onMouseOut={e  => e.currentTarget.style.boxShadow = 'none'}
-    >
+    }}>
       {/* Imagen */}
       <div style={{ position: 'relative', paddingTop: '75%', background: 'var(--s2)', flexShrink: 0 }}>
         {img
@@ -79,7 +76,12 @@ export default function GroupCard({ grupo, onOpenDetail }) {
                    textDecoration:'none', transition:'all .12s',
                  }}
                  onMouseOver={e => e.currentTarget.style.borderColor = 'var(--p)'}
+                 onFocus={e => e.currentTarget.style.borderColor = 'var(--p)'}
                  onMouseOut={e  => {
+                   e.currentTarget.style.borderColor = isCheapest ? SEMANTIC.positive :
+                     isExpensive && tieneAhorro ? SEMANTIC.negative : 'var(--bd)';
+                 }}
+                 onBlur={e  => {
                    e.currentTarget.style.borderColor = isCheapest ? SEMANTIC.positive :
                      isExpensive && tieneAhorro ? SEMANTIC.negative : 'var(--bd)';
                  }}

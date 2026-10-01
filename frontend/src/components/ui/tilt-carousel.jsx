@@ -295,10 +295,9 @@ export function TiltCarousel({ slides, className }) {
 
   return (
     <div className={cn('relative w-full overflow-hidden', className)} style={{ height: outerHeight }}>
-      <div
+      <section
         className="tilt-carousel relative mx-auto"
         style={{ '--tc-slide-size': SLIDE_SIZE_CSS, width: 'var(--tc-slide-size)', height: 'var(--tc-slide-size)' }}
-        role="region"
         aria-roledescription="carousel"
         aria-labelledby={`tilt-carousel-heading-${id}`}
       >
@@ -325,7 +324,7 @@ export function TiltCarousel({ slides, className }) {
             <CarouselControl direction="next" label="Ver favorito siguiente" onClick={goNext} />
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

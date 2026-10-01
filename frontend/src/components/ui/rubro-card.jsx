@@ -23,21 +23,12 @@ const RubroCard = React.forwardRef(({
   onClick,
   ...props
 }, ref) => {
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClick?.(e);
-    }
-  }
-
-  return (
-    <div
+return (
+    <button
       ref={ref}
-      role="button"
-      tabIndex={0}
+      type="button"
       aria-label={title}
       onClick={onClick}
-      onKeyDown={handleKeyDown}
       style={{ '--rubro-theme': themeColor }}
       className={cn('rubro-card', className)}
       {...props}
@@ -58,7 +49,7 @@ const RubroCard = React.forwardRef(({
           <ArrowRight className="rubro-card-arrow h-4 w-4" aria-hidden="true" />
         </div>
       </div>
-    </div>
+    </button>
   );
 });
 RubroCard.displayName = 'RubroCard';

@@ -24,7 +24,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 ## Tareas
 
 - [x] **T1** Promesas flotantes — S9383 (41)
-- [ ] **T2** Accesibilidad — S1082, S6848, S6819, S6772, S6853, S6845, S6847, S6850, S9379 (55)
+- [x] **T2** Accesibilidad — S1082, S6848, S6819, S6772, S6853, S6845, S6847, S6850, S9379 (55)
 - [ ] **T3** React — S6478, S6479, S6481 (32)
 - [ ] **T4** Tests — S9020, S9027, S7763 en tests (42)
 - [ ] **T5** Legibilidad — S3358, S3776, S4624 (47)
@@ -46,6 +46,13 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 - Único cambio de comportamiento: `AuthProvider` sale de `booting` aunque `bootstrap()` rechace (antes: puerta colgada).
 - Tests: `src/rejectedReads.test.jsx` (6) y `src/auth/AuthProvider.test.jsx` (1), con `src/test/unhandledRejections.js`. Rojo observado (6/6 y 1/1) antes del arreglo; verde después.
 
+**T2** Línea base 543 tests; después 549, build OK. Ningún test existente editado.
+- `div onClick` -> `<button type="button" class="btn-reset">` (clase de cero especificidad en `styles.css`): PickCard, OportunidadesPanel (preview), MarcasPanel (MarcaCard y productos del detalle). El hover por JS suma `onFocus`/`onBlur`. `RubroCard` pasa de `role="button"` a `<button>` nativo (se quitó su `onKeyDown`).
+- Hover a CSS: GroupCard (`.group-card:hover`) y la fila de FavoritosPanel (`.fav-row:hover`); los links de GroupCard suman focus/blur.
+- `role` -> elemento: `region` -> `<section>` (Favoritos, tilt-carousel, CategoryPicksCarousel), `group` -> `<fieldset aria-label>` (Favoritos, PcsPanel x2), `status` -> `<output>` (UsuariosAdminPanel, ForgotPassword, ResetPassword). `CompareModal`: backdrop e interior con `role="presentation"` (el teclado ya tiene el botón de cerrar). `CardTitle` renderiza `children`. Label del selector de modelo con `htmlFor`/`useId`. S6772: `{' '}` explícito en FinanPanel x3, PcsPanel, SplashPanel, Topbar.
+- Tests: `src/keyboardOperable.test.jsx` (6: Tab + Enter/Espacio sobre PickCard, Oportunidades, MarcasPanel). Rojo observado 6/6 (no había rol button) y verde después.
+- **No arreglados** (motivo): ProductCard:168, FavoritosPanel:276 (S1082+S6848) y SavedOutfitCard:47 (S1082+S6848) son filas clickeables que contienen botones propios (favorito, comparar, borrar, renombrar): un `<button>` anidado es HTML inválido y rehacerlas como "stretched link" cambia el layout. SavedOutfitCard:52 y SavedPcCard:52 (S9379): el `autoFocus` es el foco deliberado del input de renombrar al entrar en edición. CategoryPicksCarousel:116 S6847 y :121 S6845: el viewport del carrusel es un único tab-stop con flechas (patrón de región desplazable); se arregló el S6819. ui/label.jsx:9 (S6853): es el primitivo genérico, la asociación la hace cada llamador con `htmlFor`.
+
 ## Próximo paso
 
-T2.
+T3.

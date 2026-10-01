@@ -113,9 +113,8 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
       )}
 
       <CardContent className="picks-carousel-content">
-        <div
+        <section
           className={`picks-carousel-viewport${mobile ? ' picks-carousel-viewport-snap' : ''}`}
-          role="region"
           aria-roledescription="carousel"
           aria-label={title}
           tabIndex={0}
@@ -128,7 +127,7 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </CardContent>
     </Card>
   );

@@ -63,9 +63,9 @@ export default function ForgotPassword() {
           )}
 
           {submitted ? (
-            <p role="status" className="text-sm text-t2 text-center">
+            <output className="block text-sm text-t2 text-center">
               {CONFIRMATION_MESSAGE}
-            </p>
+            </output>
           ) : (
             <form className="flex w-full flex-col gap-8" onSubmit={handleSubmit}>
               <div className="flex flex-col gap-4">

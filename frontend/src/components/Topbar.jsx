@@ -101,7 +101,7 @@ export default function Topbar({
                           bg-[color-mix(in_srgb,var(--p)_18%,transparent)] border border-[color-mix(in_srgb,var(--p)_40%,transparent)]
                           text-[.68rem] text-primary animate-[mlpulse_1.5s_ease-in-out_infinite]">
             <span className="text-[.75rem]">🤖</span>
-            Entrenando ML...
+            {' '}Entrenando ML...
           </div>
         )}
         {mlStatus?.done && !mlStatus?.running && (

@@ -29,7 +29,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
     <form onSubmit={handleSubmit} className="finan-preset-form"
       style={{ border:'1px solid var(--bd)', borderRadius:8, background:'var(--s2)', marginTop:8 }}>
       <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
-        Nombre
+        Nombre{' '}
         <input value={label} onChange={e => setLabel(e.target.value)}
           placeholder="Ej: 12 cuotas sin interés"
           style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
@@ -37,14 +37,14 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
       </label>
       <div className="finan-field-row">
         <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
-          Recargo (%)
+          Recargo (%){' '}
           <input type="number" step="0.1" min="0" value={recargoPct}
             onChange={e => setRecargoPct(e.target.value)}
             style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,
                       border:'1px solid var(--bd)', background:'var(--s1)', color:'var(--t1)' }} />
         </label>
         <label style={{ fontSize:'.7rem', color:'var(--t3)' }}>
-          Cuotas
+          Cuotas{' '}
           <input type="number" step="1" min="1" value={cuotas}
             onChange={e => setCuotas(e.target.value)}
             style={{ width:'100%', marginTop:3, padding:'5px 8px', borderRadius:6,

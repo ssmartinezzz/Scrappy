@@ -316,7 +316,7 @@ export default function SplashPanel({
                   <label className="flex cursor-pointer items-center gap-2 text-[.73rem] text-t4">
                     <input type="checkbox" checked={forceRetrain}
                       onChange={e => setForceRetrain(e.target.checked)}/>
-                    Forzar reentrenamiento del modelo
+                    {' '}Forzar reentrenamiento del modelo
                   </label>
                 </Disclosure>
               )}

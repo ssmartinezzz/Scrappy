@@ -19,10 +19,14 @@ function MarcaCard({ marca, onClick }) {
   const showLogo = logoUrl && !logoFailed;
 
   return (
-    <div
+    <button
+      type="button"
+      className="btn-reset"
       onClick={() => onClick(marca)}
       onMouseOver={() => setHovered(true)}
+      onFocus={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
+      onBlur={() => setHovered(false)}
       style={{
         position:'relative', cursor:'pointer', borderRadius:14, overflow:'hidden',
         aspectRatio:'4/5',   // mismo tamaño/disposición que Mejores Picks
@@ -99,7 +103,7 @@ function MarcaCard({ marca, onClick }) {
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -158,7 +162,7 @@ function MarcaDetail({ marca, onBack, onProductClick }) {
           gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))',
         }}>
           {prods.map((p, i) => (
-            <div key={p.url || i}
+            <button key={p.url || i} type="button" className="btn-reset"
               onClick={() => onProductClick(p)}
               style={{
                 background:'var(--s2)', borderRadius:10, overflow:'hidden',
@@ -166,7 +170,9 @@ function MarcaDetail({ marca, onBack, onProductClick }) {
                 transition:'border-color .12s',
               }}
               onMouseOver={e => e.currentTarget.style.borderColor='var(--p)'}
-              onMouseOut={e => e.currentTarget.style.borderColor='var(--bd)'}>
+              onFocus={e => e.currentTarget.style.borderColor='var(--p)'}
+              onMouseOut={e => e.currentTarget.style.borderColor='var(--bd)'}
+              onBlur={e => e.currentTarget.style.borderColor='var(--bd)'}>
               {p.img ? (
                 <img src={p.img} alt={p.nombre} loading="lazy"
                   style={{ width:'100%', aspectRatio:'1', objectFit:'cover' }}
@@ -194,7 +200,7 @@ function MarcaDetail({ marca, onBack, onProductClick }) {
                   </div>
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
