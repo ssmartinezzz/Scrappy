@@ -1,6 +1,8 @@
 package ar.scraper.web;
 
 import ar.scraper.json.ProductJson;
+import ar.scraper.web.cache.CatalogoDerivadoCache;
+import ar.scraper.web.cache.CatalogoDerivadoCache.GruposKey;
 import org.apache.commons.lang3.StringUtils;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.api.PageMeta;
@@ -31,14 +33,20 @@ class ComparadorEndpoints {
 
     private final ScraperService service;
     private final ar.scraper.catalog.PreciosExternosPort preciosExternos;
-    private final ar.scraper.aggregator.grouping.GroupingService grouping;
+    private final CatalogoDerivadoCache derivados;
 
     ComparadorEndpoints(ScraperService service,
                         ar.scraper.catalog.PreciosExternosPort preciosExternos,
                         ar.scraper.aggregator.grouping.GroupingService grouping) {
+        this(service, preciosExternos, new CatalogoDerivadoCache(service, grouping));
+    }
+
+    ComparadorEndpoints(ScraperService service,
+                        ar.scraper.catalog.PreciosExternosPort preciosExternos,
+                        CatalogoDerivadoCache derivados) {
         this.service = service;
         this.preciosExternos = preciosExternos;
-        this.grouping = grouping;
+        this.derivados = derivados;
     }
 
     private String safe(String s) { return ProductJson.safe(s); }
@@ -46,20 +54,9 @@ class ComparadorEndpoints {
     /** {@code page} is 0-based here (unlike /api/data and /api/recomendados). */
     ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(String q, String sitio, String categoria,
                                                                    String rubro, int minSitios, int page, int size) {
-        var r = service.getLastResult();
-        if (r == null) return ResponseEntity.noContent().build();
+        if (service.getLastResult() == null) return ResponseEntity.noContent().build();
 
-        var filtered = r.productos().stream()
-            .filter(p -> StringUtils.isBlank(q)
-                || p.nombre().toLowerCase().contains(q.toLowerCase())
-                || (p.marca() != null && p.marca().toLowerCase().contains(q.toLowerCase())))
-            .filter(p -> StringUtils.isBlank(categoria)
-                || (p.categoria() != null && p.categoria().equalsIgnoreCase(categoria)))
-            .filter(p -> StringUtils.isBlank(rubro)
-                || (p.rubro() != null && p.rubro().equalsIgnoreCase(rubro)))
-            .collect(java.util.stream.Collectors.toList());
-
-        var grupos = grouping.agrupar(filtered, minSitios >= 2);
+        var grupos = derivados.grupos(GruposKey.de(service.snapshotVersion(), q, categoria, rubro, minSitios >= 2));
 
         // Site filter runs AFTER grouping, unlike q/categoria/rubro: this endpoint compares one
         // article across sites (minSitios=2), so trimming to one site first would empty every group.
