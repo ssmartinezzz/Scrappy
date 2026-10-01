@@ -18,6 +18,7 @@ The contract asserted here: ordinary failures still degrade, interrupts still
 propagate.
 """
 import json
+import sys
 
 import pytest
 
@@ -132,3 +133,33 @@ def test_cargar_historial_lets_a_keyboard_interrupt_through(tmp_path, monkeypatc
 
     with pytest.raises(KeyboardInterrupt):
         ml_pipeline.cargar_historial(str(destino))
+
+
+# ─── main(): every argv path stays inside the working directory ─────────────
+# PythonRunner launches the script with cwd = workDir and passes paths inside it.
+
+
+def test_main_refuses_an_output_path_outside_the_working_directory(tmp_path, monkeypatch):
+    trabajo = tmp_path / 'work'
+    trabajo.mkdir()
+    productos = trabajo / 'ml_productos.json'
+    productos.write_text('[]', encoding='utf-8')
+    fuera = tmp_path / 'ml_output.json'
+    monkeypatch.chdir(trabajo)
+    monkeypatch.setattr(sys, 'argv', ['ml_pipeline.py', str(productos), str(fuera)])
+
+    with pytest.raises(ValueError):
+        ml_pipeline.main()
+
+    assert not fuera.exists()
+
+
+def test_main_refuses_a_relative_path_that_climbs_out(tmp_path, monkeypatch):
+    trabajo = tmp_path / 'work'
+    trabajo.mkdir()
+    (tmp_path / 'ml_productos.json').write_text('[]', encoding='utf-8')
+    monkeypatch.chdir(trabajo)
+    monkeypatch.setattr(sys, 'argv', ['ml_pipeline.py', '../ml_productos.json', 'ml_output.json'])
+
+    with pytest.raises(ValueError):
+        ml_pipeline.main()
