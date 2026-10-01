@@ -50,6 +50,12 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip \
 WORKDIR /app
 COPY --from=build /build/scraper/target/fashion-scraper-1.0.0.jar /app/fashion-scraper-1.0.0.jar
 
+# Run as the image's own unprivileged pwuser (uid 1000). The app writes its ML
+# scripts and JSON next to the jar, so /app is its; /models and /app/logs are
+# created owned by it so a fresh named volume inherits that owner.
+RUN mkdir -p /models /app/logs && chown -R pwuser:pwuser /app /models
+USER pwuser
+
 # Model cache / HF_HOME live on a named volume (see docker-compose.yml) so
 # downloaded weights survive `docker compose down` + `up`.
 ENV SCRAPER_MODELS_ROOT=/models
