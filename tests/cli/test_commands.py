@@ -11,8 +11,10 @@ from cli.core.commands import COMMANDS, complete, find, help_lines, menu_text
 
 def test_every_command_has_a_name_and_a_one_line_help():
     for cmd in COMMANDS:
-        assert cmd.name and " " not in cmd.name
-        assert cmd.help and "\n" not in cmd.help
+        assert cmd.name
+        assert " " not in cmd.name
+        assert cmd.help
+        assert "\n" not in cmd.help
 
 
 def test_command_names_are_unique():

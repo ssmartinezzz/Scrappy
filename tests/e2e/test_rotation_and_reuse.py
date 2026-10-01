@@ -139,7 +139,8 @@ def test_logout_revokes_the_family_and_clears_the_cookie(api, sesion, app_origin
         cookies=sesion.cookie(),
         headers={"X-Refresh-CSRF": sesion.nonce, "Origin": app_origin},
     )
-    assert r.status == 200 and r.data()["cerrada"] is True
+    assert r.status == 200
+    assert r.data()["cerrada"] is True
     assert r.cookies["refresh"].borrada
 
     despues = _rotar(api, sesion.refresh_token, sesion.nonce, app_origin)
