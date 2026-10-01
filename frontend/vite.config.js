@@ -5,6 +5,22 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// `vite preview` (the portable and POSIX installs) sends `no-cache` on every file,
+// so a repeat visit spends a round trip per JS chunk on a 304. Files under
+// /assets/ carry a content hash in their name and never change in place. sirv
+// keeps a Cache-Control already set on the response, so this runs before it.
+const immutableAssets = {
+  name: 'immutable-assets',
+  configurePreviewServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url.startsWith('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+      next();
+    });
+  },
+};
+
 // decouple-services-postgres scoped correction (verify-report CRITICAL-1):
 // spec "Environment-Only Configuration" requires missing required env vars to
 // fail fast, not silently default. src/api.js's `BASE = VITE_API_BASE_URL ||
@@ -25,7 +41,7 @@ export default defineConfig(({ command, mode }) => {
   }
 
   return {
-  plugins: [react()],
+  plugins: [react(), immutableAssets],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
