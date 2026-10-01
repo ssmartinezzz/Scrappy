@@ -97,6 +97,9 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T7 SOLID: split `ApiController` (65 handlers) by resource
 - [x] T1 Final comment sweep across `ar.scraper`
 - [x] ~~T2 Remove unused Lombok dependency~~ — dropped: user wants Lombok DTOs
+- [x] T9 Deliver: 9 stacked PRs #253–#261, merged in order (see "Delivery")
+- [x] T10 `tabs.spec.js` cold-start flake: second tab refreshes when the lock reaches it before the broadcast (see "T10 evidence")
+- [x] ~~T11 CLI still polls `/api/status`~~ — the claim was wrong (see "CLI polling: correction")
 
 ## Acceptance
 
@@ -361,7 +364,7 @@ For the frontend writer. Contract source of truth: `docs/openapi.yaml` (`/api/ev
   - `db.changed`: `{ table: "scrape_run"|"scrape_run_site"|"cron_execution", op: "INSERT"|"UPDATE", id?, run?, site?, job?, status }` (only present fields are sent). `cron_execution` is sent to ADMIN only. Use it as a cue to refetch (runs list, `/api/cron` executions), not as the data itself.
   - `resync`: `{}`. Events may have been lost (the app reconnected to the database, or this client fell behind and the oldest events were dropped): refetch `/api/status`, `/api/ml/estado` and whatever cron/run data the screen shows.
 - **Lifetime and reconnect**: the server closes the stream after 10 minutes (access token lives 15) and a `: ping` comment arrives every 15 s of quiet. The reader must reconnect on any end or error, through `authedFetch` so an expired token is refreshed first; each connection starts with a fresh `snapshot`. Use a short backoff with jitter on repeated failures and stop on 401 after a failed refresh (session over). A 401 before the stream starts has the standard `{ error: { code: "no_autenticado" } }` envelope.
-- **Replace**: the 1.8 s `/api/status` poll (`useScrapeStatusPolling`, `readStatus`), the 2 s and 4 s ML polls (`MlStatusPanel`, Topbar/splash), keeping a one-shot fetch on mount and on `resync` as fallback. The CLI keeps polling `/api/status` (contract unchanged).
+- **Replace**: the 1.8 s `/api/status` poll (`useScrapeStatusPolling`, `readStatus`), the 2 s and 4 s ML polls (`MlStatusPanel`, Topbar/splash), keeping a one-shot fetch on mount and on `resync` as fallback. The CLI does not poll `/api/status`; see "CLI polling: correction".
 - **Tests**: unit-test the parser with split chunks, comments, multi-event chunks and CRLF; e2e (`tests/e2e/run-e2e.sh`, never `vite dev`) must assert the banner/progress update without a poll and that the stream survives a forced token refresh. `scrape-poller.spec.js` stubs `/api/status`; it needs a stub for `/api/events` or the reader falls back to polling.
 
 ### T3b evidence
@@ -395,7 +398,7 @@ Final: 55 files / 513 tests (+86). `useScrapeStatusPolling.test.js` went 15 -> 2
 - Cron (optional item done): `CronjobsPage` re-lists and `CronJobCard` re-reads its executions on `db.changed` of `cron_execution` (and on `resync`).
 - "Create no user rows" cannot hold for this suite: `global-setup.js` and the pytest `conftest.py` each create disposable accounts through `POST /api/usuarios` (deactivated, never deleted, by design). The 14 runs left 232 inactive `e2e-viewer-*` / `e2e-ui-viewer-*` rows (+ their 1094 refresh tokens, 15 reset tokens, 232 role rows); I deleted exactly those in one transaction (created after 20:30 UTC, inactive, e2e prefix). `usuario` = 222 before and after. `refresh_token` 10573 -> 10796 (logins by the existing `e2e-admin`, same as any run).
 
-**Polls left in place** (none hits the API on a timer): `MlStatusPanel` `setInterval(2000)` only bumps a local `tick` to redraw the elapsed time; `SplashPanel` `setInterval(600)` animates the bar; `MlStatusPanel.handleApply` waits a fixed 3 s and then reads `/api/ml/estado` once (the "aplicar" scoring emits no event; not a loop). The CLI still polls `/api/status` by contract.
+**Polls left in place** (none hits the API on a timer): `MlStatusPanel` `setInterval(2000)` only bumps a local `tick` to redraw the elapsed time; `SplashPanel` `setInterval(600)` animates the bar; `MlStatusPanel.handleApply` waits a fixed 3 s and then reads `/api/ml/estado` once (the "aplicar" scoring emits no event; not a loop). The CLI never polled `/api/status`; see "CLI polling: correction".
 
 **Not observed / caveats**
 - One failure in ~33 full-suite runs: `tabs.spec.js` "two tabs cold-starting" saw 2 refreshes instead of 1 on the first run after a fresh backend boot. The artifact was overwritten by the next run, and it did not reproduce in 12 isolated runs, 60 `--repeat-each`, 13 full runs or 5 cold boots. It is the race-sensitive cold-start spec and I could not attribute it (the stream opens only after the session settles, so it should not add refreshes); treat it as open.
@@ -441,9 +444,31 @@ Comment sweep over `scraper/src/main/java/ar/scraper` (313 of 343 files touched;
 - Files reverted: none. `NoIntegerBooleanLiteralsTest` scans `db/*.java` text; deleting comments cannot add matches and it stayed green.
 - Residual: surviving comments keep their original language; some extracted sentences read a little terse without the dropped lead-in.
 
+### Delivery
+
+2026-09-30: one stacked PR per task, in commit order, each branch pointing at its segment tip (no cherry-picks): #253 T6 → #254 T8 → #255 T4 (incl. prelude `a53cce2`) → #256 T5 → #257 upsert sentinel fix → #258 T3a → #259 T3b → #260 T7 → #261 T1. Every PR but #257 carries `size:exception` with its `PR-2` evaluation. Merged in order by a detached retarget → update-branch → CLEAN → merge loop; `master` = `e989dbd`, all branches deleted.
+
+One abort: #258 went red in CI on `ProductoTechSpecsSchemaTest` (4 × `fk_productos_sitio`). The test (from master, `8900f72`) inserts into `productos` against a `sitio='Sitio'` row it never seeds; `truncateAll` never clears `sitio`, so it passed only when another class left that row behind, and the new T3a test classes changed the CI order. Red reproduced by running the class alone; fixed in `756df21` with the self-seed `TechSpecsRepositoryTest` already uses; green alone and in the full suite (3258 / 0 / 0 / 7). `origin/master` tree = `48a7bb1` + that one test file.
+
+### CLI polling: correction
+
+The T3b notes said "the CLI still polls `/api/status`". It does not, and never did: `status` is a one-shot `GET` typed by the user (`cli/plain/runner.py` `cmd_status`, `cli/tui/app.py` `_cmd_status`). The only periodic work in the TUI is `_refresh_health`, a TCP probe of the Postgres/backend/frontend ports; it cannot move to `/api/events` because it is what detects that the backend is down. Nothing to change in the CLI.
+
+### T10 evidence
+
+**Cause (reproduced, not observed in the original run):** the backend logs of the T3b runs (`tests/e2e/.run/logs/scraper.log`, 17:37–18:19) show no refresh failure, which rules out a transient 5xx followed by a retry. What remains is an ordering race in `authSession.performRefresh`: tab A refreshes, broadcasts `session` and releases the refresh lock; tab B decides whether to refresh by whether that broadcast has **already** arrived when it is granted the lock. The lock (LockManager) and the message (BroadcastChannel) are separate browser channels with no ordering between them, so a busy main thread at cold start can see the lock first. B then refreshes with the cookie A just rotated: a valid second rotation, both tabs alive, the counter at 2.
+
+**RED:** `authSession.test.js` "two tabs cold-starting together refresh once even when the lock reaches the second tab before the broadcast does" delays `FakeBroadcastChannel` delivery by 50 ms: `expected [ […], […] ] to have a length of 1 but got 2`.
+
+**Fix:** inside the lock, a tab that still has no token and sees a sibling's session lock probes it (`probeSiblings`, 150 ms cap) before refreshing. Limited to the no-token case on purpose: during a multi-tab token expiry every tab holds a token, and probing there would add 150 ms to each refresh for nothing.
+
+**GREEN:** `authSession.test.js` 26/26; frontend 55 files / 514 tests (+1). E2E (fresh jar + bundle, cron jobs 3 and 4 disabled for the run and back to `enabled=true`): pytest 51 passed + Playwright 31 passed; then `tabs.spec.js --repeat-each=20` on the same stack: 80/80. The run left 41 inactive `e2e-*viewer-*` accounts; deleted in one transaction, `usuario` 222 before and after; no scrape_run created (max id 34, none RUNNING/INTERRUPTED).
+
+**Same session, same class of bug as the #258 abort:** `CheckDomainTest` also inserted against an unseeded `sitio='Sitio'`. Run alone it gave 3 failures (`fk_productos_sitio` on the accept cases); its reject cases asserted a bare `SQLException`, so an FK violation turned them green for the wrong reason. Now it seeds `sitio` in `@BeforeEach` and the reject cases assert SQLState `23514`; alone: 7 / 0 / 0.
+
 ## Next step
 
-Open PR(s). (T1, T3 and T7 done.)
+None for this feature. Open items moved to `docs/KNOWN_ISSUES.md`.
 
 ### Upsert sentinel decision APPLIED (user, 2026-09-30) in 6f15a11
 
