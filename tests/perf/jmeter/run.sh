@@ -19,7 +19,7 @@ say() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 # JMeter corre sobre la JRE 21 de esta máquina; la JDK 24 sólo compila.
 export JAVA_HOME="${PERF_JAVA_HOME:-${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}}"
 
-if [ "$FORMA" = "jmx" ]; then
+if [[ "$FORMA" = "jmx" ]]; then
   say "exportando planes .jmx"
   mvn -q -f "$AQUI/pom.xml" compile exec:java
   exit 0
@@ -33,8 +33,8 @@ curl -sf -o /dev/null "$HOST/" || die "no hay backend en $HOST (ver README.md)"
 # de exportar dos variables antes de cada corrida es exactamente el tipo de paso
 # que hace que una suite se deje de correr.
 CREDENCIALES="$AQUI/../.perf-credentials.env"
-if [ -z "${PERF_USERNAME:-}" ] || [ -z "${PERF_PASSWORD:-}" ]; then
-  if [ ! -f "$CREDENCIALES" ]; then
+if [[ -z "${PERF_USERNAME:-}" ]] || [[ -z "${PERF_PASSWORD:-}" ]]; then
+  if [[ ! -f "$CREDENCIALES" ]]; then
     say "sin credenciales: creando la cuenta con perf-user.sh"
     PERF_API_BASE_URL="$HOST" "$AQUI/../perf-user.sh" >/dev/null || die \
 "no se pudo crear la cuenta de performance. Corré el script a mano con un ADMIN:
@@ -43,7 +43,7 @@ if [ -z "${PERF_USERNAME:-}" ] || [ -z "${PERF_PASSWORD:-}" ]; then
   # shellcheck disable=SC1090
   set -a; . "$CREDENCIALES"; set +a
 fi
-[ -n "${PERF_USERNAME:-}" ] && [ -n "${PERF_PASSWORD:-}" ] || die \
+[[ -n "${PERF_USERNAME:-}" ]] && [[ -n "${PERF_PASSWORD:-}" ]] || die \
   "$CREDENCIALES quedó sin PERF_USERNAME/PERF_PASSWORD"
 
 case "$FORMA" in
