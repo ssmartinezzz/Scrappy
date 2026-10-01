@@ -91,7 +91,7 @@ Order re-planned 2026-09-30 after the polling and domain maps.
 - [x] T6c Adapt Java + frontend tests to the envelope; suite green; commit T6
 - [x] T8 Domain free of tooling + ArchUnit rule
 - [x] T4 ACID: `TransactionAwareDataSourceProxy` + `@Transactional` replace manual commit/rollback (12 files)
-- [ ] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
+- [x] T5 Caffeine + `@Cacheable` (`/api/grupos` and other per-request re-derivations), eviction on catalog reload; reconcile with `CachingCatalogQueryPort`
 - [ ] T3 Push instead of poll: V41 triggers, LISTEN listener + Resilience4j backoff, status bus, SSE, frontend stream reader, remove hand-rolled sleeps, Hikari boot timeout
 - [ ] T7 SOLID: split `ApiController` (65 handlers) by resource
 - [ ] T1 Final comment sweep across `ar.scraper`
@@ -272,6 +272,36 @@ Baseline 3121 / 0 / 0 / 7 (HEAD 410e0c9). `mvn clean test` before each commit, B
 - Behavior change to know: a failure to OPEN a transaction (database down) now throws instead of returning the sentinel (`-1`, `false`, `UpsertStats(0,0,0,0)`). Sentinel returns after a failure inside the unit are unchanged.
 - `ScraperService` per-site loops, `ResultAggregator.agregar`, ML scoring, `CronJobRunner`, cron execution-log writes, startup seeders and `PasswordResetService.despachar` stay non-transactional.
 
+### T5 evidence
+
+Baseline 3151 / 0 / 0 / 7 (HEAD c637b6e). Full `mvn clean test` before each commit, BUILD SUCCESS every time, 0 `ERROR]` lines.
+
+| Commit | Hash | Tests |
+|---|---|---|
+| 1 `feat(cache): add a bounded Caffeine cache manager` | 2cbd4b8 | 3157 / 0 / 0 / 7 (+6 `CacheConfigTest`) |
+| 2 `feat(catalog): version the in-memory snapshot and announce changes` | b586fc1 | 3168 / 0 / 0 / 7 (+11 `ScraperServiceSnapshotVersionTest`) |
+| 3 `feat(cache): cache product grouping per snapshot` | 7ca01ce | 3188 / 0 / 0 / 7 (+13 `CatalogoDerivadoCacheTest`, +4 `CacheUsageArchTest`, +3 `ComparadorGruposCacheTest`) |
+| 4 `feat(cache): cache brand browser and best-per-category per snapshot` | 49eff15 | 3199 / 0 / 0 / 7 (+5 in `CatalogoDerivadoCacheTest`, +3 `SnapshotCacheIntegrationTest`, +3 `MarcasPicksCacheTest`) |
+| 5 `docs(cache): document snapshot caches and their eviction` | f574ab4 | 3199 / 0 / 0 / 7 |
+
+**Negative control**: removing `@Cacheable` from `CatalogoDerivadoCache.grupos` turns `CatalogoDerivadoCacheTest` red (4 failures); restored.
+
+**Boot check** (after commit 3; `clean package -DskipTests`, `java -jar` on JRE 21, profile `dev`, dev DB; env from the gitignored `tests/e2e/.e2e-secrets.env`, existing `e2e-admin`/`e2e-cli-service` accounts; cron jobs 3 and 4 disabled for the boot and back to `true`): `Started App in 6.346 seconds`; the only WARN is `UserDetailsServiceAutoConfiguration`; no ERROR. Logged in as `e2e-admin`; `GET /api/grupos?minSitios=2&size=24` three times: 0.347 s (cold), 0.016 s, 0.014 s (same 26134-byte body); a different filter (`q=zapatilla`) 0.044 s. `usuario` count 222 before and after; latest `scrape_run` id 34, none RUNNING/INTERRUPTED. No `[CACHE]` log line appeared: the line is written on eviction and nothing changed the catalog during the check (no mutation was triggered on the dev DB on purpose; eviction is covered by `CatalogoDerivadoCacheTest` and `SnapshotCacheIntegrationTest`).
+
+**Mechanics**: `ScraperService.publicarCambio()` runs after every `lastResult`/`servedResult` assignment, compares the served view (`getLastResult()`) with the last announced one, and only then bumps `snapshotVersion` and publishes `CatalogoActualizado(version)`; the progressive rebuild during a run is therefore silent. `/api/ml/aplicar` does not swap the snapshot (verified in `MlEndpoints.mlAplicar`), so it publishes nothing. `CatalogCacheEvictor` clears every cache through `CacheManager` and logs each cache's hit ratio in one INFO line.
+
+**Deviations from the plan**
+- Cache keys do not `trim` (only lower-case + blank to ""): the endpoint filters compare raw text, so trimming would change results. Decided after reading the filters.
+- `sync=true` forbids `unless`, so the cached methods return an empty list, never null, when there is no snapshot (`/api/grupos` keeps its 204 through the endpoint's own null check; the race window yields an empty page). Safe because loading a snapshot bumps the version.
+- Eviction goes through `CacheManager` in the evictor, not `@CacheEvict(allEntries=true)`.
+- The marcas/mejores computation moved out of `MarcasPicksEndpoints` into `web.cache.MarcasPicksView` (same code, static) so the cache bean can call it; the endpoints keep only the 204 check and the bean call.
+- `ScraperService` keeps its 8-arg constructor (no-op publisher) and gains a 9-arg `@Autowired` one; `ApiController`/`ComparadorEndpoints`/`MarcasPicksEndpoints` keep test-compatible constructors that build an uncached `CatalogoDerivadoCache`. No existing test was edited.
+- `CacheConfig` is public (the test lives in another package); cache names live in `config.CacheNames` so `config` does not depend on `web`.
+- Tendencias/indices were not cached (not trivial).
+- Comment cleanup: new files carry only why-comments; I did not sweep the touched hunks of `ScraperService`/`ApiController` (left to the T1 sweep).
+- Eviction log line not observed at runtime (see boot check).
+- New test `CacheUsageArchTest` (web.cache) forbids `GroupingService.agrupar` outside the bean, cache annotations outside it, and the bean depending on `ActorResolver`.
+
 ## Next step
 
-T5: Caffeine + `@Cacheable` for `/api/grupos` and other per-request re-derivations.
+T3: push instead of poll (V41 triggers, LISTEN listener, status bus, SSE).

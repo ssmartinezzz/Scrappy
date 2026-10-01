@@ -281,6 +281,17 @@ centinela (`-1`, `false`) tiene además que llamar `Sql.marcarRollback()` en su
 tiene un método no público o le falta `rollbackFor = Exception.class` (`SQLException`
 es checked y por defecto no revierte). Detalle en `docs/DATABASE.md` § Transacciones.
 
+**Una mutación nueva del catálogo en memoria tiene que llamar `publicarCambio()`,
+o las caches sirven datos viejos hasta que venza el TTL (30 min).** `/api/grupos`,
+`/api/marcas-browser` y `/api/mejores` se cachean por `ScraperService.snapshotVersion()`,
+que sólo sube cuando `publicarCambio()` ve que cambió lo que se le sirve a un
+lector. Toda asignación nueva de `lastResult`/`servedResult` va seguida de esa
+llamada, fuera de `catalogLock`. No sirve `catalog_version` (es de SQL). Un
+`@Cacheable` fuera de `CatalogoDerivadoCache` no hace nada (los `*Endpoints` se
+construyen con `new`) y un cacheado que lea al usuario autenticado serviría la
+respuesta de uno a todos. Con `sync=true` no se puede usar `unless`: el método
+devuelve vacío, nunca `null`. Detalle en `docs/ARCHITECTURE.md`.
+
 **Tests contra Postgres:** `PostgresTestBase` auto-selecciona Testcontainers (si
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.
