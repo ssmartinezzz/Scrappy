@@ -28,7 +28,7 @@ public final class TestDatabaseServices {
                 new FavoritosRepository(dataSource), tx(new PresetRepository(dataSource), tm),
                 new HistorialRepository(dataSource),
                 new CatalogQueryRepository(dataSource, siteRegistry),
-                tx(new ProductRepository(dataSource, siteRegistry, rubroResolver), tm),
+                tx(new ProductRepository(dataSource, siteRegistry, rubroResolver, tm), tm),
                 tx(new CategoriaStatsRepository(dataSource), tm), tx(new MlOutputRepository(dataSource), tm),
                 tx(new ScrapeRunRepository(dataSource), tm),
                 tx(new SitiosRepository(dataSource, siteRegistry), tm),
