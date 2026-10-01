@@ -46,7 +46,7 @@ fi
 say "entrando como $ADMIN_USERNAME"
 TOKEN=$(curl -s -X POST "$HOST/api/auth/login" -H 'Content-Type: application/json' \
   -d "$(printf '{"username":"%s","password":"%s"}' "$ADMIN_USERNAME" "$ADMIN_PASSWORD")" \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("accessToken",""))')
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("data") or d).get("accessToken",""))')
 [ -n "$TOKEN" ] || die "el login de $ADMIN_USERNAME no devolvió token — ¿password correcta?"
 
 USUARIO="perf-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')"
