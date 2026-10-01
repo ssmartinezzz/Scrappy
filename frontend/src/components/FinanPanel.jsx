@@ -169,7 +169,14 @@ export default function FinanPanel() {
   const [error, setError]       = useState('');
 
   async function reload() {
-    const data = await fetchFinanciacionPresets();
+    let data;
+    try {
+      data = await fetchFinanciacionPresets();
+    } catch {
+      // Unreachable backend: keep whatever is on screen (and the loading state, if
+      // nothing was ever read); the next action re-reads.
+      return;
+    }
     if (data) {
       setPresets(data.presets || []);
       setActivo(data.activo || null);
@@ -177,31 +184,31 @@ export default function FinanPanel() {
     setLoading(false);
   }
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { void reload(); }, []);
 
   async function handleActivar(id) {
     setError('');
     const res = await activarFinanciacionPreset(id);
     if (res && res.ok === false) setError(res.mensaje || 'Error al activar el preset');
-    else reload();
+    else void reload();
   }
 
   async function handleEliminar(id) {
     setError('');
     const res = await eliminarFinanciacionPreset(id);
     if (res && res.ok === false) setError(res.mensaje || 'Error al eliminar el preset');
-    else reload();
+    else void reload();
   }
 
   async function handleEditar(id, vals) {
     const res = await editarFinanciacionPreset(id, vals);
-    if (!res || res.ok !== false) reload();
+    if (!res || res.ok !== false) void reload();
     return res;
   }
 
   async function handleCrear(vals) {
     const res = await crearFinanciacionPreset(vals);
-    if (res && res.ok) { setCreando(false); reload(); }
+    if (res && res.ok) { setCreando(false); void reload(); }
     return res;
   }
 

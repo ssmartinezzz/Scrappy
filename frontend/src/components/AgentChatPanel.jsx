@@ -369,6 +369,9 @@ export default function AgentChatPanel() {
       // Keep a restored selection only if the server still offers it (a model
       // can be removed from Ollama, or the value can be tampered with).
       setModel(prev => (m.available?.includes(prev) ? prev : (m.default || '')));
+    }).catch(() => {
+      // The model list is optional: without it the picker keeps what it has, and
+      // a turn that cannot reach the agent reports its own failure.
     });
   }, []);
 
@@ -473,7 +476,7 @@ export default function AgentChatPanel() {
    * pushing another copy of it, so retries never duplicate the user turn. */
   const retry = () => {
     if (sending) return;
-    runTurn(messages, messages.length);
+    void runTurn(messages, messages.length); // runTurn reports its own failures
   };
 
   const confirmProposal = async (proposal) => {
@@ -520,7 +523,7 @@ export default function AgentChatPanel() {
    * a fresh proposal on the same product, instead of ever resending the old one. */
   const requeryProposal = (proposal) => {
     setProposals(ps => ps.filter(p => proposalIdentity(p) !== proposalIdentity(proposal)));
-    send(`Volvé a revisar la clasificación de ${proposal.url} — la propuesta anterior quedó desactualizada.`);
+    void send(`Volvé a revisar la clasificación de ${proposal.url} — la propuesta anterior quedó desactualizada.`);
   };
 
   const anchoredProposals = anchorGroups(messages, proposals);
@@ -686,7 +689,7 @@ export default function AgentChatPanel() {
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') send(); }}
+                onKeyDown={e => { if (e.key === 'Enter') void send(); }}
                 placeholder="Preguntale al agente…"
                 className="flex-1 rounded-full border border-bd2 bg-s1 px-3 py-2 text-[.75rem] text-t1 outline-none transition-colors focus:border-primary"
               />

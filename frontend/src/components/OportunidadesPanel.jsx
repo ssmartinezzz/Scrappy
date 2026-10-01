@@ -81,7 +81,8 @@ export default function OportunidadesPanel({ onProductClick }) {
   const [res, setRes] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => { fetchTendencias().then(setRes); }, []);
+  // `fetchTendencias` resolves a state for every failure, network included.
+  useEffect(() => { void fetchTendencias().then(setRes); }, []);
 
   if (res === null) return (
     <div style={{ color:'var(--t4)', textAlign:'center', padding:'3rem', fontSize:'.9rem' }}>

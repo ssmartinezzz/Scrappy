@@ -111,7 +111,10 @@ function MarcaDetail({ marca, onBack, onProductClick }) {
   useEffect(() => {
     setLoading(true);
     fetchData({ marca: marca.marca, size: 48, page: 0, orden:'precio_asc' })
-      .then(d => { setProds(d?.productos || []); setLoading(false); });
+      .then(d => { setProds(d?.productos || []); setLoading(false); })
+      .catch(() => {
+        // Unreachable backend: keep the loading state instead of showing an empty brand.
+      });
   }, [marca.marca]);
 
   return (

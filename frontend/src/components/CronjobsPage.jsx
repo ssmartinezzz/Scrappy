@@ -76,7 +76,11 @@ export default function CronjobsPage() {
   useEffect(() => { load(); }, [load]);
 
   // A run starting or ending changes the last-run columns; re-read quietly, without the loading state.
-  const refresh = useCallback(() => { listCronJobs().then(data => setJobs(data || [])); }, []);
+  const refresh = useCallback(() => {
+    listCronJobs().then(data => setJobs(data || [])).catch(() => {
+      // Keep the rows on screen; the next execution event or resync re-reads.
+    });
+  }, []);
   useStreamEvent('db.changed', d => { if (d.table === 'cron_execution') refresh(); });
   useStreamEvent('resync', refresh);
 

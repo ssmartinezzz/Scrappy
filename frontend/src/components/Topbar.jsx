@@ -36,7 +36,8 @@ export default function Topbar({
   const [firstRead, setFirstRead] = useState(null);
   useEffect(() => {
     let alive = true;
-    fetchMlResultado().catch(() => null).then(r => { if (alive) setFirstRead(r); });
+    // The read is already caught above, so the chain cannot reject.
+    void fetchMlResultado().catch(() => null).then(r => { if (alive) setFirstRead(r); });
     return () => { alive = false; };
   }, []);
   const mlStatus = useMlStatus().resultado ?? firstRead;

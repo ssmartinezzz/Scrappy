@@ -98,17 +98,18 @@ export function EventStreamProvider({ children, open = openEventStream, connectO
 
     if (name === 'snapshot' && data?.ml?.training) emit('training', data.ml.training);
     if (name === 'scrape.status' && TERMINAL.has(data.status)) {
-      readStatus().then(st => { if (alive.current && st) dispatch({ type: 'scrape-extras', st }); });
+      // `readStatus` never rejects.
+      void readStatus().then(st => { if (alive.current && st) dispatch({ type: 'scrape-extras', st }); });
     }
     if (name === 'ml.status' && data.kind !== 'backfill') {
       emit('training', trainingOf(data));
       if (!data.running) {
-        fetchMlEstado().catch(() => null)
+        void fetchMlEstado().catch(() => null)
           .then(e => { if (alive.current && e) dispatch({ type: 'estado-extras', e }); });
       }
     }
     if (name === 'resync') {
-      Promise.all([readStatus(), fetchMlEstado().catch(() => null)]).then(([st, e]) => {
+      void Promise.all([readStatus(), fetchMlEstado().catch(() => null)]).then(([st, e]) => {
         if (!alive.current) return;
         if (st) dispatch({ type: 'replace-scrape', st });
         if (e) {

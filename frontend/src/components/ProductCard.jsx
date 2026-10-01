@@ -152,8 +152,10 @@ const ProductCard = memo(function ProductCard({
 
   function handleFavoritoClick(e) {
     e.stopPropagation();
-    if (isFavorito) removeFavorito(p.url);
-    else addFavorito({ url: p.url, sitio: p.sitio, nombre: p.nombre });
+    // Fire and forget: the parent flips the heart optimistically and the next favoritos load re-syncs.
+    Promise.resolve(isFavorito
+      ? removeFavorito(p.url)
+      : addFavorito({ url: p.url, sitio: p.sitio, nombre: p.nombre })).catch(() => {});
     onToggleFavorito?.(p);
   }
 

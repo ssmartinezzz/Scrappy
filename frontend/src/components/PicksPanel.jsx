@@ -193,6 +193,8 @@ export default function PicksPanel({ onProductClick }) {
       if (cancelled) return;
       setByRubro(prev => ({ ...Object.fromEntries(pares), ...prev }));
       setResumenListo(true);
+    }).catch(() => {
+      // Unreachable backend: the entry cards stay in their loading state; a reload retries.
     });
     return () => { cancelled = true; };
   }, []);
@@ -205,6 +207,8 @@ export default function PicksPanel({ onProductClick }) {
       if (cancelled) return;
       setByRubro(prev => ({ ...prev, [rubro]: Array.isArray(d) ? d : [] }));
       setLoading(false);
+    }).catch(() => {
+      // Unreachable backend: keep the loading state for this rubro.
     });
     return () => { cancelled = true; };
   }, [rubro, byRubro]);

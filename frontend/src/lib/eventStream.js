@@ -157,7 +157,8 @@ export function connectEventStream({
     }
   }
 
-  (async () => {
+  // `attempt` turns every failure into an outcome, so the loop itself does not reject.
+  void (async () => {
     onState({ phase: 'connecting' });
     while (!lifetime.signal.aborted) {
       const outcome = await attempt();

@@ -71,16 +71,24 @@ export default function CronJobCard({ job, onClose, onSaved }) {
       setAllSitios(all);
       // job.sitios empty/[] === "todos" server-side -> reflect as all selected.
       setSelected((job?.sitios && job.sitios.length > 0) ? job.sitios : all.map(s => s.nombre));
+    }).catch(() => {
+      // Unreachable backend: the picker stays empty; saving still works with the job's own sites.
     });
   }, [job]);
 
   useEffect(() => {
     if (isNew) { setExecutions([]); return; }
-    fetchCronExecutions(job.id).then(data => setExecutions(data || []));
+    fetchCronExecutions(job.id).then(data => setExecutions(data || [])).catch(() => {
+      // Unreachable backend: no history to show; the stream event re-reads.
+    });
   }, [job, isNew]);
 
   const refreshExecutions = () => {
-    if (!isNew) fetchCronExecutions(job.id).then(data => setExecutions(data || []));
+    if (!isNew) {
+      fetchCronExecutions(job.id).then(data => setExecutions(data || [])).catch(() => {
+        // Keep the history on screen; the next event or resync re-reads.
+      });
+    }
   };
   useStreamEvent('db.changed', d => { if (d.table === 'cron_execution' && d.job === job?.id) refreshExecutions(); });
   useStreamEvent('resync', refreshExecutions);

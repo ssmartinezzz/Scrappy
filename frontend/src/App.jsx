@@ -58,7 +58,8 @@ function RootGate() {
     // `/` rendered the fallback forever. A read that failed cannot claim there
     // is a catalogue, so it goes to splash, which already knows how to say the
     // backend is unreachable.
-    readStatus().then(st => {
+    // `readStatus` never rejects, so there is nothing to catch.
+    void readStatus().then(st => {
       setStatus(st);
       setGate(st?.tieneData ? 'toCatalogo' : 'toSplash');
     });

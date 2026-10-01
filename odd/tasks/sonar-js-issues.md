@@ -23,7 +23,7 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 
 ## Tareas
 
-- [ ] **T1** Promesas flotantes — S9383 (41)
+- [x] **T1** Promesas flotantes — S9383 (41)
 - [ ] **T2** Accesibilidad — S1082, S6848, S6819, S6772, S6853, S6845, S6847, S6850, S9379 (55)
 - [ ] **T3** React — S6478, S6479, S6481 (32)
 - [ ] **T4** Tests — S9020, S9027, S7763 en tests (42)
@@ -39,8 +39,13 @@ clickeables no se pueden usar con teclado (S1082). El resto son smells.
 
 ## Progreso y evidencia
 
-(se completa por task)
+**T1** (41/41 sitios tratados). Línea base 536 tests; después 543 (57 -> 59 archivos), build OK.
+- Rechazo realmente posible (`authedFetch` rechaza sin backend) -> `.catch` con comentario y la UI queda como estaba: CronjobsPage, CronJobCard x3, SplashPanel, MarcasPanel, PicksPanel x2, CategoryPicksPage, AgentChatPanel (modelos), ProductCard/AppLayout (favoritos optimista), ProductGrid, authSession x2 (revalidación best-effort).
+- `reload()` de FinanPanel y MlStatusPanel atrapan adentro; los llamadores usan `void`.
+- Cadena que no puede rechazar (`readStatus`, `.catch(() => null)` previo, `fetchTendencias`, IIFE de `eventStream`, `runTurn`/`send`) -> `void` explícito: App, AppLayout x2, EventStreamProvider x3, useInterruptedRun, useScrapeStatusPolling x2, Topbar, Oportunidades/TrendsPanel, AgentChatPanel x3.
+- Único cambio de comportamiento: `AuthProvider` sale de `booting` aunque `bootstrap()` rechace (antes: puerta colgada).
+- Tests: `src/rejectedReads.test.jsx` (6) y `src/auth/AuthProvider.test.jsx` (1), con `src/test/unhandledRejections.js`. Rojo observado (6/6 y 1/1) antes del arreglo; verde después.
 
 ## Próximo paso
 
-T1.
+T2.

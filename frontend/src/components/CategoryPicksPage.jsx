@@ -29,6 +29,9 @@ export default function CategoryPicksPage({ onProductClick }) {
       } else {
         setStatus('not-found');
       }
+    }).catch(() => {
+      // Unreachable backend: stay on the loading message rather than claim the rubro
+      // does not exist; a reload retries.
     });
     return () => { cancelled = true; };
   }, [slug]);

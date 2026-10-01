@@ -39,11 +39,14 @@ export function AuthProvider({ children }) {
       setState(deriveState(snapshot, authSession.getLastFailureReason()));
     });
 
-    authSession.bootstrap().then(() => {
+    // A bootstrap that rejects must still leave `booting`: the snapshot says what the
+    // session is (no token -> unauthenticated), and a stuck gate renders nothing at all.
+    const settle = () => {
       booted = true;
       if (cancelled) return;
       setState(deriveState(authSession.getSnapshot(), authSession.getLastFailureReason()));
-    });
+    };
+    authSession.bootstrap().then(settle, settle);
 
     return () => {
       cancelled = true;
