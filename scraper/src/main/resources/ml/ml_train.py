@@ -86,29 +86,34 @@ def load_dataset():
 
 # ─── Merge de categorías pequeñas ────────────────────────────────────────────
 
+ZAPATILLA_RUNNING = "zapatilla running"
+ZAPATILLA_URBANA = "zapatilla urbana"
+PANTALON = "Pantalón"
+INDUMENTARIA_SUPERIOR = "Indumentaria Superior"
+
 CAT_PARENTS = {
-    "zapatilla running":       "Zapatilla",
-    "zapatilla urbana":        "Zapatilla",
+    ZAPATILLA_RUNNING:         "Zapatilla",
+    ZAPATILLA_URBANA:          "Zapatilla",
     "zapatilla entrenamiento": "Zapatilla",
     "zapatilla skate":         "Zapatilla",
     "sneaker":                 "Zapatilla",
     "botas":                   "Calzado",
     "botines":                 "Calzado",
     "ojotas":                  "Calzado",
-    "jogging":                 "Pantalón",
-    "jean":                    "Pantalón",
-    "baggy":                   "Pantalón",
-    "calza":                   "Pantalón",
-    "short":                   "Pantalón",
-    "pollera":                 "Pantalón",
-    "buzo":                    "Indumentaria Superior",
-    "sweater":                 "Indumentaria Superior",
-    "remera":                  "Indumentaria Superior",
-    "campera":                 "Indumentaria Superior",
-    "puffer":                  "Indumentaria Superior",
-    "musculosa":               "Indumentaria Superior",
-    "camisa":                  "Indumentaria Superior",
-    "ropa training":           "Indumentaria Superior",
+    "jogging":                 PANTALON,
+    "jean":                    PANTALON,
+    "baggy":                   PANTALON,
+    "calza":                   PANTALON,
+    "short":                   PANTALON,
+    "pollera":                 PANTALON,
+    "buzo":                    INDUMENTARIA_SUPERIOR,
+    "sweater":                 INDUMENTARIA_SUPERIOR,
+    "remera":                  INDUMENTARIA_SUPERIOR,
+    "campera":                 INDUMENTARIA_SUPERIOR,
+    "puffer":                  INDUMENTARIA_SUPERIOR,
+    "musculosa":               INDUMENTARIA_SUPERIOR,
+    "camisa":                  INDUMENTARIA_SUPERIOR,
+    "ropa training":           INDUMENTARIA_SUPERIOR,
     "mochila":                 "Accesorios",
     "gorra":                   "Accesorios",
     "medias":                  "Accesorios",
@@ -122,13 +127,13 @@ CAT_PARENTS = {
     "casaca":                  "Remera",
     "chaleco":                 "Campera",
     "saco":                    "Campera",
-    "traje":                   "Indumentaria Superior",
+    "traje":                   INDUMENTARIA_SUPERIOR,
     "piloto":                  "Campera",
     "vestido":                 "Pollera",
-    "enterito":                "Indumentaria Superior",
+    "enterito":                INDUMENTARIA_SUPERIOR,
     "bermuda":                 "Short",
-    "malla":                   "Indumentaria Superior",
-    "calzoncillos":            "Indumentaria Superior",
+    "malla":                   INDUMENTARIA_SUPERIOR,
+    "calzoncillos":            INDUMENTARIA_SUPERIOR,
     "corpino":                 "Musculosa",
     "rinonera":                "Mochila",
     "riñonera":                "Mochila",
@@ -160,26 +165,26 @@ LABEL_CORRECTIONS = [
     # Ojotas mal etiquetadas como zapatilla
     (["ojota","sandalia","sandal","chancleta","birkenstock","crocs","havaianas",
       "reef","ipanema","kenner","chinelo","rasteira","flip flop","slide","zueco","clog"],
-     ["zapatilla","zapatilla urbana","zapatilla running","zapatilla entrenamiento",
+     ["zapatilla",ZAPATILLA_URBANA,ZAPATILLA_RUNNING,"zapatilla entrenamiento",
       "remera","indumentaria","indumentaria superior"], "Ojotas"),
     # Botines mal etiquetados como zapatilla o remera
     (["botin","botín","chimpun","cleats","futbol","football","taco "],
-     ["zapatilla","zapatilla urbana","remera","indumentaria"], "Botines"),
+     ["zapatilla",ZAPATILLA_URBANA,"remera","indumentaria"], "Botines"),
     # Remeras mal etiquetadas como zapatilla (el caso más común)
     (["remera","camiseta","tee ","t-shirt","musculosa","tank"],
-     ["zapatilla","zapatilla urbana","zapatilla running","botines","ojotas"], "Remera"),
+     ["zapatilla",ZAPATILLA_URBANA,ZAPATILLA_RUNNING,"botines","ojotas"], "Remera"),
     # Camperas mal etiquetadas como zapatilla
     (["campera","jacket","puffer","anorak","parca","corta viento"],
-     ["zapatilla","zapatilla urbana","remera"], "Campera"),
+     ["zapatilla",ZAPATILLA_URBANA,"remera"], "Campera"),
     # Baggy confundido con jean/jogging
     (["baggy","wide leg","pierna ancha","cargo"],
      ["jean","jogging","pantalón","pantalon"], "Baggy"),
     # Borcego / ankle boot (no es zapatilla)
     (["borcego","borcegos","dr martens","martens","timberland","lug sole","chunky boot"],
-     ["zapatilla","zapatilla urbana","zapatilla running","remera","indumentaria"], "Borcego"),
+     ["zapatilla",ZAPATILLA_URBANA,ZAPATILLA_RUNNING,"remera","indumentaria"], "Borcego"),
     # Sandalia (no es ojota ni zapatilla)
     (["sandalia de tiras","sandalia con tiras","sandalia plana","sandalia taco","tiras cruzadas"],
-     ["ojotas","zapatilla","zapatilla urbana"], "Sandalia"),
+     ["ojotas","zapatilla",ZAPATILLA_URBANA], "Sandalia"),
     # Chomba / polo shirt
     (["chomba","polo shirt","pique polo","rugby shirt","lacoste polo","fred perry polo"],
      ["remera","indumentaria","camisa"], "Chomba"),
