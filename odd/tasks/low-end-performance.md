@@ -87,8 +87,8 @@ Execution order after T0: **T5, T2, T6, T3, T1, T4, T10, T8, T7, T9**.
 - [ ] T1 PC browser floor = Chrome 109: pin `build.target` to it (no legacy plugin), give
   `color-mix` a fallback where the tint carries meaning, prove the built app runs on
   Chromium 109 (and keep failing loudly below the floor)
-- [ ] T2 Compression: gzip/brotli for the SPA (nginx + preview) and the API (Spring), with
-  the SSE stream excluded from buffering; measure bytes and time on Slow 4G
+- [x] T2 Compression: gzip for the API (Spring) and the Docker SPA (nginx), SSE excluded;
+  `vite preview` already gzips; brotli dropped (not in stock `nginx:alpine`)
 - [ ] T3 Critical-path JS: cut what `/login` and `/catalogo` load before first paint
   (`tslib` origin, framer-motion off the grid path, lucide per-icon imports, route-level
   splitting); budget per route in KB gz, enforced by a test
@@ -253,7 +253,50 @@ without a resize parameter (fullh4rd 610 px, compragamer 750 px, contabilium up 
 backend proxy/cache), which is a separate decision with a CPU and disk cost on the old-PC
 host — not done here.
 
+### T2 compression — done 2026-10-01
+
+**Change:** `server.compression.enabled=true` (Boot 3.2.5 defaults, read from the jar: 8 mime
+types incl. `application/json`, no `text/event-stream`, so SSE stays unbuffered). Tomcat
+applies the 2 KB minimum only when `Content-Length` is known; Spring's JSON is chunked, so
+every JSON body is gzipped (a first test asserting the threshold was wrong and was dropped).
+`nginx.conf`: `gzip on`, level 6, CSS/JS/JSON/SVG (stock nginx gzips nothing but text/html).
+Test: `HttpCompressionRealPortTest` (real Tomcat): JSON is gzipped, the event stream is not;
+RED observed on the JSON case. Backend suite 3261 / 0 / 0 / 7.
+
+**Measured:**
+- API, same jar with `SERVER_COMPRESSION_ENABLED=false` vs on, `t0-timing.mjs` mobile 4x +
+  Slow 4G, N=5: API bytes login -> first card **87.7 -> 26.6 KB**; login -> first card
+  **1920 -> 1401 ms** (5/5 runs within 60 ms). Reload -> card unchanged (~1.95 s): it is
+  dominated by revalidating ~10 `no-cache` JS files, one round trip each (T6).
+- Scroll 3 pages 21.6 -> 10.1 s and open detail 1.46 -> 3.50 s in the same run: both are
+  the same bytes moved in time — the faster scroll leaves card images still downloading
+  when the detail is clicked. With the link quiet before the click (DETAIL_IDLE), detail is
+  565 ms off vs 573 ms on (N=3): no regression.
+- Docker SPA (`nginx:alpine`, same `dist`): `/login` JS+CSS 555 KB -> 199 KB at nginx's
+  default level 1 -> **170 KB at level 6** (same as `vite preview`).
+
+### Infinite scroll memory (user hypothesis, measured for T4)
+
+User, 2026-10-01: "optimizar el algoritmo de infinite scrolling en el catálogo, que seguro
+no saca de memoria lo que ya se scrolleó". Verified in code: `ProductGrid` renders every
+loaded product, but `APPEND_PRODS` already caps the list at the last 300 (since the initial
+commit). Harness `deep.mjs` (A11 profile, 4x CPU, no network throttling):
+
+| cards | DOM nodes | JS heap | renderer RSS | CPU to append 24 cards | longest task |
+|---|---|---|---|---|---|
+| 48 | 2.3k | 5.1 MB | 260 MB | 0.78 s | 93 ms |
+| 144 | 6.2k | 6.3 MB | 571 MB | 1.00 s | 111 ms |
+| 288–300 (cap) | 11.9k | 7.7 MB | 770–820 MB | — | — |
+
+Append cost is flat in N (`memo(ProductCard)` + `useCallback` handlers hold). The RSS is
+decoded images: with a critical memory-pressure notification Chrome drops it from 686 to
+186 MB by itself, and detaching every card outside ±1 screen (an upper bound for windowing)
+reaches 180 MB — **windowing would save ~6 MB on a phone under memory pressure**, plus
+DOM nodes 6.9k -> 0.5k that the flat append cost says are not hurting. Not done; T4 keeps
+it as "only with a measured need" (e.g. jank on a real device).
+
 ## Next step
 
-T2 compression. Open question for the user: whether to resize images of stores without a
-CDN resize parameter ourselves (default catalog view is still image-bound).
+T6 API payload and caching headers (reload is bound by `no-cache` revalidation).
+Decided by the user 2026-10-01: do **not** resize images of stores without a CDN resize
+parameter ourselves for now; revisit at T9 with new numbers.
