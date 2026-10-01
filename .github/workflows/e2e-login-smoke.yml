@@ -83,12 +83,12 @@ jobs:
       - name: Install frontend dependencies
         if: steps.changes.outputs.relevant == 'true'
         working-directory: frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Install Chromium
         if: steps.changes.outputs.relevant == 'true'
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx --no-install playwright install --with-deps chromium
 
       - name: Build the backend jar
         if: steps.changes.outputs.relevant == 'true'
