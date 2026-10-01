@@ -116,9 +116,9 @@ export default function ResetPassword() {
   if (success) {
     return (
       <ResetShell>
-        <p role="status" className="text-sm text-t2 text-center">
+        <output className="block text-sm text-t2 text-center">
           Contraseña cambiada. Todas las sesiones abiertas fueron cerradas — iniciá sesión de nuevo.
-        </p>
+        </output>
         <Link to="/login" className="text-primary text-sm font-medium hover:underline">
           Ir a iniciar sesión
         </Link>

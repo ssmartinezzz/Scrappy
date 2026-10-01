@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useDragControls, useMotionValue } from 'framer-motion';
 import { MessageSquare, X, Sparkles, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -294,7 +294,8 @@ const panelVariants = {
 };
 
 export default function AgentChatPanel() {
-  const [restored] = useState(loadPersisted);
+  const modelSelectId = useId();
+const [restored] = useState(loadPersisted);
   const [open, setOpen] = useState(!!restored?.open);
   const [models, setModels] = useState({ available: [], default: '' });
   const [model, setModel] = useState(restored?.model || '');
@@ -592,8 +593,9 @@ export default function AgentChatPanel() {
 
             {/* Model selector (D8) */}
             <div className="border-b border-border px-4 py-2">
-              <label className="mb-1 block text-[.58rem] font-semibold uppercase tracking-wide text-t4">Modelo</label>
+              <label htmlFor={modelSelectId} className="mb-1 block text-[.58rem] font-semibold uppercase tracking-wide text-t4">Modelo</label>
               <select
+                id={modelSelectId}
                 value={model}
                 onChange={e => setModel(e.target.value)}
                 className="w-full rounded-btn border border-bd2 bg-s1 px-2 py-1.5 text-[.72rem] text-t2 outline-none transition-colors focus:border-primary"

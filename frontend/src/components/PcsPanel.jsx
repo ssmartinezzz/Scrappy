@@ -136,7 +136,7 @@ function ChipGroup({ label, options, value, onChange }) {
   return (
     <div>
       <p className="mb-[6px] text-[.8rem] font-semibold text-t3">{label}</p>
-      <div className="flex flex-wrap items-center gap-[8px]" role="group" aria-label={label}>
+      <fieldset className="m-0 flex min-w-0 flex-wrap items-center gap-[8px] border-0 p-0" aria-label={label}>
         {options.map(o => (
           <button
             key={o.value}
@@ -154,7 +154,7 @@ function ChipGroup({ label, options, value, onChange }) {
             {o.label}
           </button>
         ))}
-      </div>
+      </fieldset>
     </div>
   );
 }
@@ -364,7 +364,7 @@ export default function PcsPanel({ onSavePc } = {}) {
           <ChipGroup label="Uso" options={USOS} value={uso} onChange={elegirUso} />
         </div>
 
-        <div className="mb-[16px] flex flex-wrap items-center gap-[8px]" role="group" aria-label="Gama">
+        <fieldset className="m-0 mb-[16px] flex min-w-0 flex-wrap items-center gap-[8px] border-0 p-0" aria-label="Gama">
           {GAMAS.map(g => (
             <button
               key={g.value}
@@ -382,7 +382,7 @@ export default function PcsPanel({ onSavePc } = {}) {
               {g.label}
             </button>
           ))}
-        </div>
+        </fieldset>
 
         <div className="mb-[24px] flex flex-col gap-[14px]">
           {/* Un mini PC trae CPU, RAM, fuente y gabinete: sólo gama y disco de datos filtran (D6). */}
@@ -469,7 +469,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                 }}
                 className="h-[18px] w-[18px] cursor-pointer accent-primary"
               />
-              Incluir placa de video
+              {' '}Incluir placa de video
             </label>
           )}
           <button

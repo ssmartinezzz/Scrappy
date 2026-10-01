@@ -252,16 +252,15 @@ export default function UsuariosAdminPanel() {
       </header>
 
       {aviso && (
-        <p
-          className={`mb-3 rounded-card border px-3 py-2 text-sm ${
+        <output
+          className={`mb-3 block rounded-card border px-3 py-2 text-sm ${
             aviso.ok
               ? 'border-success/40 bg-success/10 text-success'
               : 'border-danger/40 bg-danger/10 text-danger'
           }`}
-          role="status"
         >
           {aviso.texto}
-        </p>
+        </output>
       )}
 
       {creando && (
