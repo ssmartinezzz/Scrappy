@@ -584,6 +584,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
 
+  /api/events:
+    get:
+      tags: [Scraping]
+      summary: Server-sent stream of status changes (scrape, ML training, database). Replaces polling.
+      description: >
+        `text/event-stream`. The first event is always `snapshot`; every later one is a change.
+        Events: `snapshot` (`{ status, ml }`, the `data` of `GET /api/status` and `GET /api/ml/estado`),
+        `scrape.status` (`{ status, mensaje }`), `scrape.progress` (`{ total, completados, productos, sitios }`),
+        `ml.status` (`{ kind, running, phase, pct, msg, startedAt }`), `db.changed`
+        (`{ table, op, id?, run?, site?, job?, status }`; `cron_execution` rows only for ADMIN) and
+        `resync` (events may have been lost: re-read state). A `: ping` comment arrives every 15 s.
+        The stream ends after 10 minutes, before the 15-minute access token does: reconnect with a
+        fresh token. The token is a Bearer header, so use `fetch`, not `EventSource`.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: An open `text/event-stream`.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/scrape:
     post:
       tags: [Scraping]

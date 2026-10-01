@@ -4,7 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import ar.scraper.scrape.StatusEvent;
+import ar.scraper.scrape.StatusEvents;
 
 import java.io.*;
 import java.nio.file.*;
@@ -37,6 +40,33 @@ public class PythonRunner {
 
     private final java.util.concurrent.atomic.AtomicReference<BackfillStatus> backfillStatus =
         new java.util.concurrent.atomic.AtomicReference<>(BackfillStatus.idle());
+
+    private final StatusEvents bus;
+
+    public PythonRunner() {
+        this(StatusEvents.NONE);
+    }
+
+    @Autowired
+    public PythonRunner(StatusEvents bus) {
+        this.bus = bus;
+    }
+
+    private void setTraining(TrainingStatus nuevo) {
+        trainingStatus.set(nuevo);
+        publicar(nuevo);
+    }
+
+    private void setBackfill(BackfillStatus nuevo) {
+        backfillStatus.set(nuevo);
+        bus.publish(new StatusEvent.MlStatus(StatusEvent.MlStatus.Kind.BACKFILL, nuevo.running(),
+                "", nuevo.pct(), nuevo.msg(), nuevo.startedAt()));
+    }
+
+    private void publicar(TrainingStatus t) {
+        bus.publish(new StatusEvent.MlStatus(StatusEvent.MlStatus.Kind.TRAINING, t.running(),
+                t.phase(), t.pct(), t.msg(), t.startedAt()));
+    }
 
     /**
      * Slot de admisión del pipeline de scoring ({@link #ejecutar}): a lo sumo
@@ -259,7 +289,7 @@ public class PythonRunner {
 
         Thread.ofVirtual().start(() -> {
             try {
-                trainingStatus.set(new TrainingStatus(true, "starting", 0, "",
+                setTraining(new TrainingStatus(true, "starting", 0, "",
                         java.time.Instant.now().toString()));
 
                 Path trainScript = extraerTrainScript(workDir);
@@ -312,7 +342,7 @@ public class PythonRunner {
                                 String ph = node.path("phase").asText("");
                                 String msg = node.path("msg").asText("");
                                 LOG.info("[ML-TRAIN] [{}] {}% — {}", ph.toUpperCase(), pct, msg);
-                                trainingStatus.set(new TrainingStatus(true, ph, pct, msg,
+                                setTraining(new TrainingStatus(true, ph, pct, msg,
                                         trainingStatus.get().startedAt()));
                             } catch (Exception ignored) {}
                         }
@@ -325,7 +355,7 @@ public class PythonRunner {
                 if (!finished) {
                     proc.destroyForcibly();
                     LOG.error("[ML-TRAIN] TIMEOUT tras {} min — proceso terminado forzosamente", timeoutMin);
-                    trainingStatus.set(new TrainingStatus(false, "timeout", 0, "", null));
+                    setTraining(new TrainingStatus(false, "timeout", 0, "", null));
                     return;
                 }
                 int exitCode = proc.exitValue();
@@ -343,14 +373,14 @@ public class PythonRunner {
                     // Auto-aplicar modelo: re-ejecutar pipeline ML sobre datos actuales
                     LOG.info("[ML-TRAIN] Aplicando modelo a datos actuales...");
                     aplicarModeloActual();
-                    trainingStatus.set(TrainingStatus.idle());
+                    setTraining(TrainingStatus.idle());
                 } else {
                     LOG.warn("[ML-TRAIN] Proceso terminó con código {}", exitCode);
-                    trainingStatus.set(new TrainingStatus(false, "error", 0, "exit " + exitCode, null));
+                    setTraining(new TrainingStatus(false, "error", 0, "exit " + exitCode, null));
                 }
             } catch (Exception e) {
                 LOG.warn("[ML-TRAIN] Error inesperado: {}", e.getMessage());
-                trainingStatus.set(new TrainingStatus(false, "error", 0, e.getMessage(), null));
+                setTraining(new TrainingStatus(false, "error", 0, e.getMessage(), null));
             }
         });
     }
@@ -465,7 +495,7 @@ public class PythonRunner {
         String python = detectarPython();
         if (python == null) {
             LOG.info("[ML-INDEX] Python no disponible, saltando construcción de índice visual");
-            trainingStatus.set(TrainingStatus.idle()); // libera la reserva — no hay hilo que la haga
+            setTraining(TrainingStatus.idle()); // libera la reserva — no hay hilo que la haga
             return true;
         }
 
@@ -518,8 +548,10 @@ public class PythonRunner {
     boolean intentarReservarSecuenciaIndiceVisual() {
         TrainingStatus previo = trainingStatus.get();
         if (previo.running()) return false;
-        return trainingStatus.compareAndSet(previo,
-                new TrainingStatus(true, "starting", 0, "", java.time.Instant.now().toString()));
+        TrainingStatus reservado = new TrainingStatus(true, "starting", 0, "", java.time.Instant.now().toString());
+        if (!trainingStatus.compareAndSet(previo, reservado)) return false;
+        publicar(reservado);
+        return true;
     }
 
     /**
@@ -563,13 +595,13 @@ public class PythonRunner {
         boolean trainingOk = false;
         boolean backfillOk = false;
         try {
-            trainingStatus.set(new TrainingStatus(true, "training", 0, "",
+            setTraining(new TrainingStatus(true, "training", 0, "",
                     java.time.Instant.now().toString()));
             trainingOk = ejecutarFaseEntrenamientoSecuenciada(python, workDir, forceRetrainTexto,
                     withImages, epochs, useGpuSnapshot);
 
             if (trainingOk) {
-                trainingStatus.set(new TrainingStatus(true, "embedding", 0, "",
+                setTraining(new TrainingStatus(true, "embedding", 0, "",
                         trainingStatus.get().startedAt()));
             }
             backfillOk = ejecutarFaseBackfillSecuenciada(python, workDir, forceBackfillEmbeddings,
@@ -585,7 +617,7 @@ public class PythonRunner {
             marcarFalloIndiceVisual("sequencing", e.getMessage());
         } finally {
             if (debeResetearAIdleTrasSecuencia(trainingOk, backfillOk)) {
-                trainingStatus.set(TrainingStatus.idle());
+                setTraining(TrainingStatus.idle());
             }
         }
     }
@@ -636,7 +668,7 @@ public class PythonRunner {
             try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                 String line;
                 while ((line = br.readLine()) != null) {
-                    trainingStatus.set(parsearLineaProgreso(line, fase, trainingStatus.get()));
+                    setTraining(parsearLineaProgreso(line, fase, trainingStatus.get()));
                     if (stdoutLineHandler != null) stdoutLineHandler.accept(line);
                 }
             } catch (Exception ignored) {}
@@ -739,7 +771,7 @@ public class PythonRunner {
      * {@link #debeResetearAIdleTrasSecuencia}).
      */
     private void marcarFalloIndiceVisual(String fase, String motivo) {
-        trainingStatus.set(new TrainingStatus(false, "error", 0,
+        setTraining(new TrainingStatus(false, "error", 0,
                 "[" + fase + "] " + (motivo != null ? motivo : ""), null));
     }
 
@@ -899,7 +931,7 @@ public class PythonRunner {
 
             Thread.ofVirtual().start(() -> {
                 try {
-                    backfillStatus.set(new BackfillStatus(true, 0, "",
+                    setBackfill(new BackfillStatus(true, 0, "",
                             java.time.Instant.now().toString()));
 
                     Path scriptPath = extraerEmbeddingsScript(workDir);
@@ -939,7 +971,7 @@ public class PythonRunner {
                                     String ph = node.path("phase").asText("");
                                     String msg = node.path("msg").asText("");
                                     LOG.info("[ML-BACKFILL] [{}] {}% — {}", ph.toUpperCase(), pct, msg);
-                                    backfillStatus.set(new BackfillStatus(true, pct, msg,
+                                    setBackfill(new BackfillStatus(true, pct, msg,
                                             backfillStatus.get().startedAt()));
                                     int procesadas = extraerProcesadasDeLineaProgreso(line);
                                     if (procesadas >= 0) filasProcesadas.set(procesadas);
@@ -955,7 +987,7 @@ public class PythonRunner {
                     if (!finished) {
                         proc.destroyForcibly();
                         LOG.error("[ML-BACKFILL] TIMEOUT tras {} min — proceso terminado forzosamente", timeoutMin);
-                        backfillStatus.set(BackfillStatus.idle());
+                        setBackfill(BackfillStatus.idle());
                         return;
                     }
                     // Brief bounded join so the stderr thread (racing the stdout loop
@@ -975,10 +1007,10 @@ public class PythonRunner {
                     } else {
                         LOG.warn("[ML-BACKFILL] Proceso terminó con código {}", exitCode);
                     }
-                    backfillStatus.set(BackfillStatus.idle());
+                    setBackfill(BackfillStatus.idle());
                 } catch (Exception e) {
                     LOG.warn("[ML-BACKFILL] Error inesperado: {}", e.getMessage());
-                    backfillStatus.set(BackfillStatus.idle());
+                    setBackfill(BackfillStatus.idle());
                 }
             });
         } catch (Exception e) {

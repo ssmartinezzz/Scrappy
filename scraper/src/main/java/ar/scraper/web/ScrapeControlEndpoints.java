@@ -5,7 +5,6 @@ import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.OpResult;
 import ar.scraper.web.dto.ScrapeDtos;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -28,6 +27,11 @@ class ScrapeControlEndpoints {
     }
 
     ResponseEntity<ApiResponse<ScrapeDtos.Status>> status() {
+        return ResponseEntity.ok(ApiResponse.ok(statusDto()));
+    }
+
+    /** What {@code /api/status} puts inside {@code data}; the event stream's snapshot reuses it. */
+    ScrapeDtos.Status statusDto() {
         var b = ScrapeDtos.Status.builder()
                 .status(service.getStatus().name())
                 .mensaje(service.getStatusMsg());
@@ -58,16 +62,13 @@ class ScrapeControlEndpoints {
         if (pd != null) {
             List<ScrapeDtos.SitioProgreso> sitios = new ArrayList<>();
             for (var sp : pd.sitios()) {
-                String err = StringUtils.isNotBlank(sp.error())
-                        ? (sp.error().length() > 60 ? sp.error().substring(0, 60) + "..." : sp.error())
-                        : null;
-                sitios.add(new ScrapeDtos.SitioProgreso(sp.nombre(),
-                        sp.estado().name().toLowerCase(), sp.productos(), sp.duracionMs(), err));
+                sitios.add(ScrapeDtos.SitioProgreso.desde(
+                        sp.nombre(), sp.estado().name(), sp.productos(), sp.duracionMs(), sp.error()));
             }
             b.progreso(new ScrapeDtos.Progreso(pd.total(), pd.completados(),
                     pd.productosAcumulados(), sitios));
         }
-        return ResponseEntity.ok(ApiResponse.ok(b.build()));
+        return b.build();
     }
 
     /** Informs only: detecting an interrupted run does not resume it. */

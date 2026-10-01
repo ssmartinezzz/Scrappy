@@ -6,6 +6,7 @@ import ar.scraper.scheduling.CronPort;
 import ar.scraper.scheduling.CronSchedule;
 import ar.scraper.scheduling.RunLogCapture;
 import ar.scraper.scrape.ScrapeControlPort;
+import ar.scraper.scrape.StatusEvents;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,8 +21,9 @@ class SchedulingConfig {
     }
 
     @Bean
-    CronJobRunner cronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock, RunLogCapture logCapture) {
-        return new CronJobRunner(scrape, db, clock, logCapture);
+    CronJobRunner cronJobRunner(ScrapeControlPort scrape, CronPort db, Clock clock, RunLogCapture logCapture,
+                                StatusEvents bus) {
+        return new CronJobRunner(scrape, db, clock, logCapture, bus);
     }
 
     @Bean
