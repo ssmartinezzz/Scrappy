@@ -4,6 +4,7 @@ import ar.scraper.web.support.Wire;
 import com.fasterxml.jackson.databind.JsonNode;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.catalog.PreciosExternosPort;
+import ar.scraper.web.cache.CatalogoDerivadoCache;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
@@ -39,15 +40,16 @@ import static org.mockito.Mockito.mock;
 @Epic("REST API")
 @Feature("Comparador multi-sitio")
 @Story("Búsqueda externa")
-@DisplayName("ComparadorEndpoints — limpieza de query y slug de búsqueda")
+@DisplayName("ComparadorController — limpieza de query y slug de búsqueda")
 class ComparadorBuscarExternoTest {
 
-    private ComparadorEndpoints endpoints;
+    private ComparadorController endpoints;
 
     @BeforeEach
     void setUp() {
-        endpoints = new ComparadorEndpoints(
-                mock(ScraperService.class), mock(PreciosExternosPort.class), mock(GroupingService.class));
+        ScraperService service = mock(ScraperService.class);
+        endpoints = new ComparadorController(service, mock(PreciosExternosPort.class),
+                new CatalogoDerivadoCache(service, mock(GroupingService.class)));
     }
 
     /** Runs the endpoint on the no-network path and returns its body. */

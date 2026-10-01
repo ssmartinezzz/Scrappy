@@ -19,11 +19,13 @@ import java.util.Map;
 public class EventsController {
 
     private final StatusStreams streams;
-    private final ApiController api;
+    private final ScrapeStatusView scrapeStatus;
+    private final MlEstadoView mlEstado;
 
-    public EventsController(StatusStreams streams, ApiController api) {
+    public EventsController(StatusStreams streams, ScrapeStatusView scrapeStatus, MlEstadoView mlEstado) {
         this.streams = streams;
-        this.api = api;
+        this.scrapeStatus = scrapeStatus;
+        this.mlEstado = mlEstado;
     }
 
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -32,8 +34,8 @@ public class EventsController {
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
         SseEmitter emitter = streams.open(admin, () -> {
             Map<String, Object> snapshot = new LinkedHashMap<>();
-            snapshot.put("status", api.statusSnapshot());
-            snapshot.put("ml", api.mlEstadoSnapshot());
+            snapshot.put("status", scrapeStatus.snapshot());
+            snapshot.put("ml", mlEstado.snapshot());
             return snapshot;
         });
         return ResponseEntity.ok()

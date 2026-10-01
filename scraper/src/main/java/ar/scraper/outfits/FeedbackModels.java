@@ -13,8 +13,8 @@ import org.apache.commons.lang3.StringUtils;
  * Builds the {@link OutfitService.FeedbackModel} shared by the outfit builder
  * surfaces and the "Para ti" feed.
  *
- * <p>Extracted verbatim from {@code ApiController} (backlog A3). It lives in its
- * own class rather than inside {@code OutfitsEndpoints} because both the outfit
+ * <p>Extracted verbatim from the old monolithic controller (backlog A3). It lives in its
+ * own class rather than inside {@code OutfitsController} because both the outfit
  * endpoints and the recomendados feed call it — it was never owned by either.
  * Stateless: a pure function of its arguments, which is why the methods are
  * static.</p>

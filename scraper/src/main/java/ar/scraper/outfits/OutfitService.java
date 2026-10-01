@@ -331,7 +331,7 @@ public class OutfitService {
      * producto se excluye si su categoria bare está acá, sin importar marca,
      * incluyendo productos sin marca de esa categoria. NO afecta exclude/
      * boostLikeCount existentes.
-     * Construido por ApiController.buildFeedbackModel() a partir de
+     * Construido por FeedbackModels.build() a partir de
      * DatabaseService.obtenerOutfitFeedback() + DatabaseService.obtenerCategoriaDismiss()
      * + el catálogo vivo (OutfitService permanece DB-agnostic, ADR-3 de outfit-builder).
      */
@@ -434,7 +434,7 @@ public class OutfitService {
      * Overload de compatibilidad (ADR-3, Open Question 0.3, confirmado por Task 2.5):
      * delega al 4-arg con estilo="gym" y sin feedback — no-op de exclude/boost,
      * comportamiento idéntico al pre-existente. Se mantiene aunque la búsqueda de
-     * callers (Task 2.5) solo encontró ApiController, para no forzar un cambio en
+     * callers (Task 2.5) solo encontró OutfitsController, para no forzar un cambio en
      * eventuales callers futuros/tests.
      */
     public Outfit armar(List<Product> productos, String generoSolicitado) {

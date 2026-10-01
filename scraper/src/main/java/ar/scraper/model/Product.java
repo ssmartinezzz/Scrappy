@@ -172,7 +172,7 @@ public record Product(
      * Precomputed buy-signal classification (mirrors {@link MlScore}'s
      * precompute-at-scrape-time pattern). Produced by
      * {@code ar.scraper.ml.SenalCalculator}, the same classification logic
-     * previously inline in {@code ApiController.recomendacion}.
+     * previously inline in {@code FinanciacionController.recomendacion}.
      */
     public record SenalCompra(
             String senal,

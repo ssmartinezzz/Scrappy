@@ -61,7 +61,7 @@ public class ViewProductTool implements CatalogTool {
 
     /**
      * Shared lookup — also used by {@link ProposeReclassifyTool} and by
-     * {@code ApiController}'s {@code POST /api/agent/apply} server-side
+     * {@code AgentController}'s {@code POST /api/agent/apply} server-side
      * re-validation (the client is never trusted to have validated).
      */
     public static Product find(AggregatedResult result, String url) {

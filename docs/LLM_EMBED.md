@@ -16,7 +16,7 @@ nativos, ni JNI, ni un runtime de inferencia embebido en el JAR.
 ```
 navegador                backend Java                    proceso LLM
 ─────────                ────────────                    ───────────
-AgentChatPanel  ──POST──►  ApiController
+AgentChatPanel  ──POST──►  AgentController
                            /api/agent/chat
                                 │
                                 ▼
@@ -312,7 +312,7 @@ Detalle de instalación y ejemplos: [`LLM_AGENT_SETUP.md`](LLM_AGENT_SETUP.md).
 | Cambiar cómo se ve una lista de productos | `SearchAnswerRenderer` |
 | Ampliar lo que el agente se niega a hacer | `RestrictedIntents` + `RestrictedIntentsTest` (casos a favor **y** en contra) |
 | Ajustar la guía del modelo | `CatalogAgentService.systemPrompt()` — recordá la Regla 0 |
-| Endurecer una validación | `ApiController.agentApply` **y** `ProposeReclassifyTool` |
+| Endurecer una validación | `AgentController.agentApply` **y** `ProposeReclassifyTool` |
 | Cambiar el write path | `DatabaseService.aplicarReclasificacionAuditada` |
 | Tocar la UI del chat | `frontend/src/components/AgentChatPanel.jsx` |
 
@@ -350,8 +350,8 @@ adapter hoy: `OpenAiCompatProvider` (Ollama).
 (`presupuesto`, `conGpu`, `excluir` urls) y devuelve el mismo JSON que
 `GET /api/pcs/builder` — `PcBuildJson`, en `json/`, es la única serialización
 para los dos. El agente narra los picks; guardar sigue siendo cosa de `/pcs`.
-`PcBuilder` no es bean (lo instancia `ApiController` a mano) y `agent/` no
-puede nombrar `web/`, así que la tool construye el suyo con `RecommendationService`.
+`PcBuilder` no tiene estado: `PcsController` recibe el bean de `PcsConfig` y la tool
+construye el suyo, porque `agent/` no puede nombrar `web/`.
 
 **`search_products` filtra en el catálogo, no en la prosa del modelo.** Acepta `query` (texto libre, tokenizado y rankeado con BM25F — ver §4), `categoria` (enum cerrado contra el canon, matchea su familia), `genero`, `excluir` (lista de términos vetados en el nombre), `precioMin`/`precioMax` y `enOferta`; todos se aplican en conjunción, hace falta al menos uno además de `excluir`/`enOferta`, y cualquier otro argumento es error. Dos razones para que sean parámetros y no texto: (1) **la categoría no es una palabra del nombre** — una "Remera sin mangas Dry Fit" clasificada `Musculosa` era invisible a `query=musculosa`, y un producto cuyo nombre no coincide con su categoría es justo el que hay que revisar, así que el punto ciego se superponía con el propósito del tool; y (2) si el modelo filtra en su respuesta en vez de en la llamada, **la barrera de grounding no lo puede ver**: hubo una tool call real con filas reales, así que el turno pasa igual. Una llamada vacía es error, no el catálogo entero cortado a 10.
 La reclasificación es **two-phase propose/confirm** — `propose_reclassify` valida

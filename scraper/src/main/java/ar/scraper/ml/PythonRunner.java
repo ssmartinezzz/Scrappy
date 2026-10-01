@@ -92,7 +92,7 @@ public class PythonRunner {
 
     /**
      * ¿Hay una corrida de scoring en vuelo? Lo consulta
-     * {@code MlEndpoints.mlAplicar} para rechazar en la puerta con un 409 en
+     * {@code MlController.mlAplicar} para rechazar en la puerta con un 409 en
      * vez de descubrirlo recién adentro de {@link #conReservaDeScoring}, donde
      * el rechazo ya no tiene a quién contestarle (corre en un hilo de fondo).
      */
@@ -147,7 +147,7 @@ public class PythonRunner {
      * - EMPTY/VALID (proceso OK, output parseado tal cual) → retorna el {@link JsonNode} leído
      *
      * La validación de contenido (scores/tendencias válidos) NO es responsabilidad de este
-     * método — vive en {@code DatabaseService} y {@code ApiController}.
+     * método — vive en {@code DatabaseService} y {@code MlController}.
      */
     public JsonNode ejecutar(String productosJson) {
         return conReservaDeScoring(() -> ejecutarScoring(productosJson));
@@ -464,7 +464,7 @@ public class PythonRunner {
      * instead of seeing a falsely-idle run.</p>
      *
      * <p>RESI-002 ≡ RELY-001 (4R PR6 follow-up): returns the CAS reservation
-     * result so callers (ApiController's {@code POST /api/ml/entrenar}) can
+     * result so callers ({@code MlController}'s {@code POST /api/ml/entrenar}) can
      * tell "sequence accepted" apart from "silently dropped because another
      * sequence was already in flight". {@code true} = this call won the
      * reservation (even if the sequence then degrades to a logged no-op, e.g.
@@ -536,7 +536,7 @@ public class PythonRunner {
      * sequence was already running; returns {@code false} without touching the
      * status otherwise.
      *
-     * <p>Mirrors {@code ApiController}'s existing {@code isTrainingRunning()}
+     * <p>Mirrors {@code MlController}'s existing {@code isTrainingRunning()}
      * -then-reject shape, but atomic via CAS so a burst of near-simultaneous
      * calls can never both win the race — closing the gap where the virtual
      * thread body used to be the ONLY place that flipped

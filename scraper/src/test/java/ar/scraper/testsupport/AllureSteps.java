@@ -10,7 +10,7 @@ import io.qameta.allure.Step;
  * <p>Deliberately kept small (per design ADR-3): local, private {@code @Step} methods inside
  * each test class remain the default. This class exists ONLY for steps that are genuinely
  * repeated verbatim across many test classes (currently: REST response body serialization
- * across {@code ApiController*Test} classes). Do not add a method here unless a step is
+ * across the controller tests). Do not add a method here unless a step is
  * provably repeated 3+ times across slices — grow it deliberately, not preemptively.
  */
 public final class AllureSteps {

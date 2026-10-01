@@ -163,7 +163,7 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
         assertThat(pagina.total()).as("el total también").isEqualTo(esperadas.size());
     }
 
-    /** Copia literal de la lógica de CatalogoEndpoints.aplicarFiltros. */
+    /** Copia literal de la lógica de CatalogoController.aplicarFiltros. */
     private List<Product> referencia(CatalogFilter f) {
         return dataset.stream().filter(p -> {
             if (noVacio(f.sitio()) && !safe(p.sitio()).equalsIgnoreCase(f.sitio())) return false;

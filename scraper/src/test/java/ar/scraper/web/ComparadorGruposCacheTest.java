@@ -24,13 +24,13 @@ class ComparadorGruposCacheTest {
 
     private ScraperService service;
     private CatalogoDerivadoCache derivados;
-    private ComparadorEndpoints endpoints;
+    private ComparadorController endpoints;
 
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
         derivados = mock(CatalogoDerivadoCache.class);
-        endpoints = new ComparadorEndpoints(service, mock(PreciosExternosPort.class), derivados);
+        endpoints = new ComparadorController(service, mock(PreciosExternosPort.class), derivados);
         Product p = new Product("Sitio", "Remera", 1000, null, "https://s/1", "img", "Remera", "unisex",
                 List.of("M"), Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
                 Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);
