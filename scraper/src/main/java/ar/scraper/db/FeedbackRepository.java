@@ -3,6 +3,7 @@ package ar.scraper.db;
 import ar.scraper.feedback.OutfitItemRow;
 
 import ar.scraper.feedback.FeedbackPort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,10 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,29 +28,29 @@ class FeedbackRepository implements FeedbackPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(FeedbackRepository.class);
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     FeedbackRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
     public void guardarOutfitFeedbackItem(UUID usuarioId, String genero, String slot, String url,
                                    boolean liked, String estilo) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.update("""
                     INSERT INTO outfit_feedback_item
                         (usuario_id, genero, slot, url, liked, estilo, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """)) {
-            ps.setObject(1, usuarioId);
-            ps.setString(2, genero);
-            ps.setString(3, slot);
-            ps.setString(4, url);
-            ps.setBoolean(5, liked);
-            ps.setString(6, StringUtils.isBlank(estilo) ? "gym" : estilo);
-            ps.setObject(7, Timestamps.now());
-            ps.executeUpdate();
+                    """, ps -> {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, genero);
+                ps.setString(3, slot);
+                ps.setString(4, url);
+                ps.setBoolean(5, liked);
+                ps.setString(6, StringUtils.isBlank(estilo) ? "gym" : estilo);
+                ps.setObject(7, Timestamps.now());
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando outfit feedback item: {}", e.getMessage());
         }
@@ -65,20 +63,17 @@ class FeedbackRepository implements FeedbackPort {
     @Override
     public List<OutfitItemRow> obtenerOutfitFeedback(UUID usuarioId) {
         List<OutfitItemRow> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT slot, url, liked, estilo FROM outfit_feedback_item WHERE usuario_id=?")) {
-            ps.setObject(1, usuarioId);
-            try (ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                String estilo = rs.getString("estilo");
-                result.add(new OutfitItemRow(
-                        rs.getString("slot"),
-                        rs.getString("url"),
-                        rs.getBoolean("liked"),
-                        (StringUtils.isBlank(estilo)) ? "gym" : estilo));
-            }
-            }
+        try {
+            jdbc.query("SELECT slot, url, liked, estilo FROM outfit_feedback_item WHERE usuario_id=?",
+                    ps -> ps.setObject(1, usuarioId),
+                    rs -> {
+                        String estilo = rs.getString("estilo");
+                        result.add(new OutfitItemRow(
+                                rs.getString("slot"),
+                                rs.getString("url"),
+                                rs.getBoolean("liked"),
+                                (StringUtils.isBlank(estilo)) ? "gym" : estilo));
+                    });
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando outfit feedback item: {}", e.getMessage());
         }
@@ -87,11 +82,8 @@ class FeedbackRepository implements FeedbackPort {
 
     @Override
     public void limpiarOutfitFeedback(UUID usuarioId) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM outfit_feedback_item WHERE usuario_id=?")) {
-            ps.setObject(1, usuarioId);
-            ps.executeUpdate();
+        try {
+            jdbc.update("DELETE FROM outfit_feedback_item WHERE usuario_id=?", ps -> ps.setObject(1, usuarioId));
         } catch (Exception e) {
             LOG.warn("[DB] Error limpiando outfit feedback: {}", e.getMessage());
         }
@@ -105,12 +97,11 @@ class FeedbackRepository implements FeedbackPort {
     @Override
     public void limpiarOutfitFeedback(UUID usuarioId, String estilo) {
         if (StringUtils.isBlank(estilo)) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM outfit_feedback_item WHERE usuario_id=? AND estilo=?")) {
-            ps.setObject(1, usuarioId);
-            ps.setString(2, estilo);
-            ps.executeUpdate();
+        try {
+            jdbc.update("DELETE FROM outfit_feedback_item WHERE usuario_id=? AND estilo=?", ps -> {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, estilo);
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error limpiando outfit feedback (estilo={}): {}", estilo, e.getMessage());
         }
@@ -121,24 +112,21 @@ class FeedbackRepository implements FeedbackPort {
     @Transactional(rollbackFor = Exception.class)
     public void guardarCategoriaDismiss(UUID usuarioId, String categoria) {
         if (StringUtils.isBlank(categoria)) return;
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement check = c.prepareStatement(
-                    "SELECT 1 FROM categoria_dismiss WHERE usuario_id=? AND categoria=?")) {
-                check.setObject(1, usuarioId);
-                check.setString(2, categoria);
-                try (ResultSet rs = check.executeQuery()) {
-                    if (rs.next()) return;
-                }
-            }
-            try (PreparedStatement ps = c.prepareStatement("""
+        try {
+            Boolean existe = jdbc.query("SELECT 1 FROM categoria_dismiss WHERE usuario_id=? AND categoria=?",
+                    ps -> {
+                        ps.setObject(1, usuarioId);
+                        ps.setString(2, categoria);
+                    }, ResultSet::next);
+            if (Boolean.TRUE.equals(existe)) return;
+            jdbc.update("""
                     INSERT INTO categoria_dismiss (usuario_id, categoria, created_at)
                     VALUES (?, ?, ?)
-                    """)) {
+                    """, ps -> {
                 ps.setObject(1, usuarioId);
                 ps.setString(2, categoria);
                 ps.setObject(3, Timestamps.now());
-                ps.executeUpdate();
-            }
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando categoria dismiss: {}", e.getMessage());
             Sql.marcarRollback();
@@ -149,12 +137,11 @@ class FeedbackRepository implements FeedbackPort {
     @Override
     public void borrarCategoriaDismiss(UUID usuarioId, String categoria) {
         if (StringUtils.isBlank(categoria)) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM categoria_dismiss WHERE usuario_id=? AND categoria=?")) {
-            ps.setObject(1, usuarioId);
-            ps.setString(2, categoria);
-            ps.executeUpdate();
+        try {
+            jdbc.update("DELETE FROM categoria_dismiss WHERE usuario_id=? AND categoria=?", ps -> {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, categoria);
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error borrando categoria dismiss: {}", e.getMessage());
         }
@@ -163,15 +150,12 @@ class FeedbackRepository implements FeedbackPort {
     @Override
     public Set<String> obtenerCategoriaDismiss(UUID usuarioId) {
         Set<String> result = new HashSet<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT categoria FROM categoria_dismiss WHERE usuario_id=?")) {
-            ps.setObject(1, usuarioId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.add(rs.getString("categoria"));
-                }
-            }
+        try {
+            jdbc.query("SELECT categoria FROM categoria_dismiss WHERE usuario_id=?",
+                    ps -> ps.setObject(1, usuarioId),
+                    rs -> {
+                        result.add(rs.getString("categoria"));
+                    });
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando categoria dismiss: {}", e.getMessage());
         }
