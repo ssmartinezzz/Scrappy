@@ -228,7 +228,13 @@ boilerplate comments.
       generated-password notice; authed GETs 200 on builders/indices/status; scrape_run unchanged (39).
 - [x] D6 19b1622 `x != null ? x : ""` → `StringUtils.defaultString(x)` in the 9 files this branch touched (26 sites;
       71 in the repo before, 45 left in untouched files). Suite 3390/0/0/7.
-      Totals master → HEAD: CPD 50t 62/649 → 25/212; 80t 13/204 → 0. src/main 85 files +738/−1283.
+- [x] D7 `TechSpecs` builder (user-approved 2026-10-02; same pattern as Product): 98f7374 builder + 10 src/main sites
+      (RED: `TechSpecsBuilderTest` failed to compile, then GREEN; hand-written `builder()` presets every abstention
+      sentinel, `EMPTY = builder().build()`; no toBuilder sites — every call built from scratch), f8736fa 104 test calls
+      in 30 files, mechanical (assertion grep = 0 lines, counts identical), 450abda legacy ctors deleted (canonical kept;
+      no @JsonCreator/reflection on TechSpecs). Plus a `safeStr` ternary → `Objects.toString(o, "")`
+      (`ObjectUtils.toString` is deprecated in lang3 3.13). Suite 3393/0/0/7. CPD 50t 25/212 → 17/110.
+      Totals master → HEAD (after D7): CPD 50t 62/649 → 17/110; 80t 13/204 → 0.
 
 ## Progress
 
@@ -256,3 +262,4 @@ boilerplate comments.
 - 2026-10-02: D1 done (4 commits 1cf74b3..f9e3b6e, unpushed), 3319/0/0/7, CPD 46/395. Next: live smoke for D1, then D2.
 - 2026-10-02: f90babe gender fix (male words whole-word), 3329/0/0/7. Next: live smoke for D1, then D2.
 - 2026-10-02: D2–D6 done on the same branch (18 commits after b1ca0b4, unpushed), 3390/0/0/7, CPD 25/212, 80t 0. PR #284 open, merge stopped by user. Open: TechSpecs builder (CODE-2 exception). Next: push + update PR body when the user says.
+- 2026-10-02: D7 TechSpecs builder done (98f7374, f8736fa, 450abda + safeStr), 3393/0/0/7, CPD 17/110. Next: push + update PR #284 body (merge only on user go).
