@@ -11,7 +11,7 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /** Si no está, se hace heurística sobre nombre + categorías. */
-public class VtexPage extends BasePage implements CatalogPage {
+public class VtexPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int PAGE_SIZE = 50;
@@ -32,19 +32,10 @@ public class VtexPage extends BasePage implements CatalogPage {
     private static final Set<String> PALABRAS_UNISEX = Set.of(
             "unisex","unisexo","neutro");
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
-
     public VtexPage(Page page, int timeoutMs,
                     String sitio, String baseUrl,
                     double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio    = sitio;
-        this.baseUrl  = baseUrl;
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {
@@ -364,7 +355,7 @@ public class VtexPage extends BasePage implements CatalogPage {
             Optional<Oferta> oferta = primeraOferta(items);
             if (oferta.isEmpty()) return Optional.empty();
             double p = oferta.get().precio();
-            if (p < precioMin || p > precioMax) return Optional.empty();
+            if (fueraDeRango(p)) return Optional.empty();
 
             String categoria = ultimoSegmento(prod.path("categories"));
             if (io && categoria.isBlank()) {
@@ -374,17 +365,8 @@ public class VtexPage extends BasePage implements CatalogPage {
                 }
             }
 
-            return Optional.of(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(p)
-                    .precioOriginal(oferta.get().original())
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero(extraerGeneroVtex(prod, nombre))
-                    .talles(extraerTallesVtex(prod))
-                    .build());
+            return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod)));
         } catch (Exception e) {
             return Optional.empty();
         }
@@ -429,15 +411,8 @@ public class VtexPage extends BasePage implements CatalogPage {
             for (JsonNode spec : skuSpecs) {
                 String fname = spec.path("field").path("name").asText("").toLowerCase();
                 if (esTalleField(fname)) {
-                    JsonNode values = spec.path("values");
-                    if (values.isArray() && !values.isEmpty()) {
-                        List<String> talles = new ArrayList<>();
-                        for (JsonNode v : values) {
-                            String t = v.path("name").asText("").trim();
-                            if (!t.isBlank()) talles.add(t);
-                        }
-                        if (!talles.isEmpty()) return talles;
-                    }
+                    List<String> talles = CatalogJson.textosNoVacios(spec.path("values"), "name");
+                    if (!talles.isEmpty()) return talles;
                 }
             }
         }
@@ -447,15 +422,8 @@ public class VtexPage extends BasePage implements CatalogPage {
             for (JsonNode s : allSpecs) {
                 String name = s.asText("").toLowerCase();
                 if (esTalleField(name)) {
-                    JsonNode vals = prod.path(s.asText(""));
-                    if (vals.isArray() && !vals.isEmpty()) {
-                        List<String> talles = new ArrayList<>();
-                        for (JsonNode v : vals) {
-                            String t = v.asText("").trim();
-                            if (!t.isBlank()) talles.add(t);
-                        }
-                        if (!talles.isEmpty()) return talles;
-                    }
+                    List<String> talles = CatalogJson.textosNoVacios(prod.path(s.asText("")));
+                    if (!talles.isEmpty()) return talles;
                 }
             }
         }
@@ -558,15 +526,7 @@ public class VtexPage extends BasePage implements CatalogPage {
             for (JsonNode c : cats) fuentes.add(c.asText("").toLowerCase());
         }
 
-        for (String f : fuentes) {
-            if (PALABRAS_UNISEX.stream().anyMatch(f::contains)) return "unisex";
-        }
-        boolean esH = fuentes.stream().anyMatch(f -> PALABRAS_HOMBRE.stream().anyMatch(f::contains));
-        boolean esM = fuentes.stream().anyMatch(f -> PALABRAS_MUJER.stream().anyMatch(f::contains));
-        if (esH && !esM) return "hombre";
-        if (esM && !esH) return "mujer";
-        if (esH)         return "unisex";
-        return "";
+        return CatalogJson.genero(fuentes, PALABRAS_HOMBRE, PALABRAS_MUJER, PALABRAS_UNISEX);
     }
 
     private String mapearGenero(String val) {
