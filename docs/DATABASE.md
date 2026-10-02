@@ -1692,7 +1692,7 @@ sirve INPRO *son* los objetos crudos de la API de Tiendanube —`variants[]`,
 hosteado en Vercel, y el storefront clásico no es alcanzable
 (`inpro.mitiendanube.com` redirige a **otra** tienda, `inproindumentaria.com.ar`;
 los slugs candidatos dan 410). Sembrarlo como `tiendanube` lo rutearía a
-`TiendanubeScraper`, que iría a buscar un DOM que en `inpro.ar` no existe: 0
+`TiendanubePage`, que iría a buscar un DOM que en `inpro.ar` no existe: 0
 productos, en silencio. Es exactamente el bug que `V24` cerró para Rockethard y
 Venex, y la razón por la que la plataforma es un dato del sitio y no una
 heurística de URL.
