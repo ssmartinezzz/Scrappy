@@ -1,34 +1,29 @@
 package ar.scraper.db;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import ar.scraper.outfits.SavedOutfitsPort;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.UUID;
 import java.util.Map;
-import org.apache.commons.lang3.StringUtils;
+import java.util.UUID;
 
 @Repository
-class SavedOutfitsRepository implements SavedOutfitsPort {
+class SavedOutfitsRepository extends SavedBuildRepository implements SavedOutfitsPort {
 
-    private static final Logger LOG = LoggerFactory.getLogger(SavedOutfitsRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final DataSource dataSource;
-
     SavedOutfitsRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        super(dataSource, "saved_outfits", "outfit");
     }
 
     /**
@@ -38,128 +33,100 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int guardarOutfit(UUID usuarioId, String nombre, String slotsJson, String suplementosJson, double total) {
-        try (Connection c = dataSource.getConnection()) {
-            int id;
-            try (PreparedStatement ps = c.prepareStatement("""
+        return guardar(c -> {
+            PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO saved_outfits (usuario_id, nombre, total_estimado, created_at)
                     VALUES (?, ?, ?, ?)
-                    """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                ps.setObject(1, usuarioId);
-                ps.setString(2, nombre != null ? nombre : "Outfit");
-                ps.setDouble(3, total);
-                ps.setObject(4, Timestamps.now());
-                ps.executeUpdate();
-                try (ResultSet keys = ps.getGeneratedKeys()) {
-                    if (!keys.next()) { Sql.marcarRollback(); return -1; }
-                    id = keys.getInt(1);
-                }
-            }
-            insertarItems(c, id, "slot", "slot", slotsJson);
-            insertarItems(c, id, "suplemento", "tipo", suplementosJson);
-            return id;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando outfit, rollback: {}", e.getMessage());
-            Sql.marcarRollback();
-            return -1;
-        }
+                    """, new String[] {"id"});
+            ps.setObject(1, usuarioId);
+            ps.setString(2, nombre != null ? nombre : "Outfit");
+            ps.setDouble(3, total);
+            ps.setObject(4, Timestamps.now());
+            return ps;
+        }, id -> {
+            insertarItems(id, "slot", "slot", slotsJson);
+            insertarItems(id, "suplemento", "tipo", suplementosJson);
+        });
     }
 
     /** Un ítem sin url se descarta — sin él la fila no apunta a nada. */
-    private void insertarItems(Connection c, int outfitId, String clase, String campoRanura, String json)
-            throws Exception {
+    private void insertarItems(int outfitId, String clase, String campoRanura, String json) {
         if (StringUtils.isBlank(json)) return;
-        com.fasterxml.jackson.databind.JsonNode arr = MAPPER.readTree(json);
+        JsonNode arr;
+        try {
+            arr = MAPPER.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException(e);
+        }
         if (!arr.isArray()) return;
-        try (PreparedStatement ps = c.prepareStatement("""
+        List<Object[]> filas = new ArrayList<>();
+        short posicion = 1;
+        for (JsonNode n : arr) {
+            String url = n.path("url").asText("");
+            if (url.isBlank()) continue;
+            filas.add(new Object[] {outfitId, clase, posicion++, n.path(campoRanura).asText(""), url,
+                    n.path("sitio").asText(""), n.path("nombre").asText(""), n.path("precio").asDouble(0),
+                    n.path("img").asText(""), n.path("categoria").asText(""), n.path("marca").asText("")});
+        }
+        jdbc.batchUpdate("""
                 INSERT INTO saved_outfit_item
                     (outfit_id, clase, posicion, ranura, url, sitio, nombre, precio, img, categoria, marca)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                """)) {
-            short posicion = 1;
-            for (com.fasterxml.jackson.databind.JsonNode n : arr) {
-                String url = n.path("url").asText("");
-                if (url.isBlank()) continue;
-                ps.setInt(1, outfitId);
-                ps.setString(2, clase);
-                ps.setShort(3, posicion++);
-                ps.setString(4, n.path(campoRanura).asText(""));
-                ps.setString(5, url);
-                ps.setString(6, n.path("sitio").asText(""));
-                ps.setString(7, n.path("nombre").asText(""));
-                ps.setDouble(8, n.path("precio").asDouble(0));
-                ps.setString(9, n.path("img").asText(""));
-                ps.setString(10, n.path("categoria").asText(""));
-                ps.setString(11, n.path("marca").asText(""));
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        }
+                """, filas);
     }
 
     @Override
     public List<Map<String, Object>> obtenerOutfitsGuardados(UUID usuarioId) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT id, nombre, total_estimado, created_at " +
-                "FROM saved_outfits WHERE usuario_id=? ORDER BY created_at DESC")) {
-            ps.setObject(1, usuarioId);
-            try (ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("id",            rs.getInt("id"));
-                row.put("nombre",        rs.getString("nombre"));
-                row.put("totalEstimado", rs.getDouble("total_estimado"));
-                row.put("createdAt",     Timestamps.iso(rs, "created_at"));
-                row.put("slots", List.of());
-                row.put("suplementos", List.of());
-                result.add(row);
-            }
-            }
-            // Los ítems se cargan sólo para los outfits ya filtrados por dueño, así que heredan el
-            // scope del padre sin repetir el WHERE.
-            cargarItems(c, result);
-        } catch (Exception e) {
-            LOG.warn("[DB] Error obteniendo outfits guardados: {}", e.getMessage());
-        }
-        return result;
+        // Los ítems se cargan sólo para los outfits ya filtrados por dueño, así que heredan el
+        // scope del padre sin repetir el WHERE.
+        return listar(usuarioId,
+                "SELECT id, nombre, total_estimado, created_at "
+                        + "FROM saved_outfits WHERE usuario_id=? ORDER BY created_at DESC",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id",            rs.getInt("id"));
+                    row.put("nombre",        rs.getString("nombre"));
+                    row.put("totalEstimado", rs.getDouble("total_estimado"));
+                    row.put("createdAt",     Timestamps.iso(rs, "created_at"));
+                    row.put("slots", List.of());
+                    row.put("suplementos", List.of());
+                    return row;
+                },
+                this::cargarItems);
     }
 
     /**
      * Los ítems de TODOS los outfits en una sola consulta, mergeados por id — nunca una consulta
      * por outfit.
      */
-    private void cargarItems(Connection c, List<Map<String, Object>> outfits) throws Exception {
+    private void cargarItems(List<Map<String, Object>> outfits) {
         Map<Integer, List<Map<String, Object>>> slots = new LinkedHashMap<>();
         Map<Integer, List<Map<String, Object>>> suplementos = new LinkedHashMap<>();
-        try (java.sql.Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("""
-                     SELECT i.outfit_id, i.clase, i.ranura, i.url, i.sitio, i.nombre, i.precio,
-                            i.img, i.categoria, i.marca, p.precio AS precio_actual,
-                            p.producto_key
-                     FROM saved_outfit_item i
-                     LEFT JOIN productos p ON p.url = i.url
-                     ORDER BY i.outfit_id, i.clase, i.posicion
-                     """)) {
-            while (rs.next()) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                boolean esSlot = "slot".equals(rs.getString("clase"));
-                item.put(esSlot ? "slot" : "tipo", rs.getString("ranura"));
-                item.put("sitio",  rs.getString("sitio"));
-                item.put("nombre", rs.getString("nombre"));
-                item.put("precio", rs.getDouble("precio"));
-                item.put("url",    rs.getString("url"));
-                item.put("img",    rs.getString("img"));
-                if (esSlot) item.put("categoria", rs.getString("categoria"));
-                item.put("marca",  rs.getString("marca"));
-                double precioActual = rs.getDouble("precio_actual");
-                item.put("precioActual", rs.wasNull() ? null : precioActual);
-                item.put("key", rs.getString("producto_key"));
-                (esSlot ? slots : suplementos)
-                        .computeIfAbsent(rs.getInt("outfit_id"), k -> new ArrayList<>())
-                        .add(item);
-            }
-        }
+        jdbc.query("""
+                SELECT i.outfit_id, i.clase, i.ranura, i.url, i.sitio, i.nombre, i.precio,
+                       i.img, i.categoria, i.marca, p.precio AS precio_actual,
+                       p.producto_key
+                FROM saved_outfit_item i
+                LEFT JOIN productos p ON p.url = i.url
+                ORDER BY i.outfit_id, i.clase, i.posicion
+                """, (RowCallbackHandler) rs -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            boolean esSlot = "slot".equals(rs.getString("clase"));
+            item.put(esSlot ? "slot" : "tipo", rs.getString("ranura"));
+            item.put("sitio",  rs.getString("sitio"));
+            item.put("nombre", rs.getString("nombre"));
+            item.put("precio", rs.getDouble("precio"));
+            item.put("url",    rs.getString("url"));
+            item.put("img",    rs.getString("img"));
+            if (esSlot) item.put("categoria", rs.getString("categoria"));
+            item.put("marca",  rs.getString("marca"));
+            double precioActual = rs.getDouble("precio_actual");
+            item.put("precioActual", rs.wasNull() ? null : precioActual);
+            item.put("key", rs.getString("producto_key"));
+            (esSlot ? slots : suplementos)
+                    .computeIfAbsent(rs.getInt("outfit_id"), k -> new ArrayList<>())
+                    .add(item);
+        });
         for (Map<String, Object> outfit : outfits) {
             int id = (Integer) outfit.get("id");
             outfit.put("slots",       slots.getOrDefault(id, List.of()));
@@ -170,32 +137,12 @@ class SavedOutfitsRepository implements SavedOutfitsPort {
     /** Elimina un outfit guardado por id. */
     @Override
     public boolean eliminarOutfitGuardado(UUID usuarioId, int id) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM saved_outfits WHERE usuario_id=? AND id=?")) {
-            ps.setObject(1, usuarioId);
-            ps.setInt(2, id);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando outfit guardado {}: {}", id, e.getMessage());
-            return false;
-        }
+        return eliminar(usuarioId, id);
     }
 
     /** Renombra un outfit guardado. */
     @Override
     public boolean renombrarOutfit(UUID usuarioId, int id, String nombre) {
-        if (StringUtils.isBlank(nombre)) return false;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE saved_outfits SET nombre=? WHERE usuario_id=? AND id=?")) {
-            ps.setString(1, nombre.trim());
-            ps.setObject(2, usuarioId);
-            ps.setInt(3, id);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error renombrando outfit {}: {}", id, e.getMessage());
-            return false;
-        }
+        return renombrar(usuarioId, id, nombre);
     }
 }
