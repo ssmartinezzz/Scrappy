@@ -216,14 +216,14 @@ public class ResultAggregator {
         Map<String, String> catOriginal = new HashMap<>();
         for (Product p : normalizados)
             if (StringUtils.isNotBlank(p.url()))
-                catOriginal.put(p.url(), p.categoria() != null ? p.categoria() : "");
+                catOriginal.put(p.url(), StringUtils.defaultString(p.categoria()));
 
         int catRefinadas = 0;
         for (Product p : enriquecidos) {
             String pid = p.url();
             if (StringUtils.isBlank(pid)) continue;
             String antes = catOriginal.get(pid);
-            String ahora = p.categoria() != null ? p.categoria() : "";
+            String ahora = StringUtils.defaultString(p.categoria());
             if (antes != null && !ahora.equals(antes)) {
                 try { productos.actualizarCategoria(pid, ahora); catRefinadas++; }
                 catch (Exception ignored) {}
@@ -286,12 +286,12 @@ public class ResultAggregator {
             if (antes.url() == null || !antes.url().equals(ahora.url())) continue;
 
             totalRevisados++;
-            String catAntes = antes.categoria() != null ? antes.categoria() : "";
-            String catAhora = ahora.categoria() != null ? ahora.categoria() : "";
-            String marcaAntes = antes.marca() != null ? antes.marca() : "";
-            String marcaAhora = ahora.marca() != null ? ahora.marca() : "";
-            String genAntes = antes.genero() != null ? antes.genero() : "";
-            String genAhora = ahora.genero() != null ? ahora.genero() : "";
+            String catAntes = StringUtils.defaultString(antes.categoria());
+            String catAhora = StringUtils.defaultString(ahora.categoria());
+            String marcaAntes = StringUtils.defaultString(antes.marca());
+            String marcaAhora = StringUtils.defaultString(ahora.marca());
+            String genAntes = StringUtils.defaultString(antes.genero());
+            String genAhora = StringUtils.defaultString(ahora.genero());
             List<String> tallesAntes = antes.talles() != null ? antes.talles() : List.of();
             List<String> tallesAhora = ahora.talles() != null ? ahora.talles() : List.of();
 
@@ -299,8 +299,8 @@ public class ResultAggregator {
             boolean marcaCambio     = !marcaAntes.equals(marcaAhora);
             boolean genCambio       = !genAntes.equals(genAhora);
             boolean tallesCambio    = !tallesAntes.equals(tallesAhora);
-            String subCatAntes      = antes.subCategoria() != null ? antes.subCategoria() : "";
-            String subCatAhora      = ahora.subCategoria() != null ? ahora.subCategoria() : "";
+            String subCatAntes      = StringUtils.defaultString(antes.subCategoria());
+            String subCatAhora      = StringUtils.defaultString(ahora.subCategoria());
             boolean subCatCambio    = !subCatAntes.equals(subCatAhora);
 
             if (catCambio)   categoriaCambiada++;

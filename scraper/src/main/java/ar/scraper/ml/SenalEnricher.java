@@ -83,7 +83,7 @@ public class SenalEnricher {
         return p.toBuilder()
                 .rubro(p.rubro() != null ? p.rubro() : "indumentaria")
                 .senal(senal)
-                .subCategoria(p.subCategoria() != null ? p.subCategoria() : "")
+                .subCategoria(StringUtils.defaultString(p.subCategoria()))
                 .build();
     }
 }

@@ -214,10 +214,10 @@ public class AgentController {
     private ApiException conflictoStale(Optional<Product> dbProducto) {
         Map<String, Object> actual = new LinkedHashMap<>();
         dbProducto.ifPresent(p -> {
-            actual.put("categoria", p.categoria() != null ? p.categoria() : "");
-            actual.put("marca", p.marca() != null ? p.marca() : "");
-            actual.put("genero", p.genero() != null ? p.genero() : "");
-            actual.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+            actual.put("categoria", StringUtils.defaultString(p.categoria()));
+            actual.put("marca", StringUtils.defaultString(p.marca()));
+            actual.put("genero", StringUtils.defaultString(p.genero()));
+            actual.put("subCategoria", StringUtils.defaultString(p.subCategoria()));
         });
         return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "conflicto_stale",
                 "El producto cambió desde que se generó esta propuesta — volvé a consultar.",

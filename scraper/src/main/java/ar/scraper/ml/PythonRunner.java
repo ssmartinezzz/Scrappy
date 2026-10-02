@@ -525,7 +525,7 @@ public class PythonRunner {
 
     private void marcarFalloIndiceVisual(String fase, String motivo) {
         setTraining(new TrainingStatus(false, "error", 0,
-                "[" + fase + "] " + (motivo != null ? motivo : ""), null));
+                "[" + fase + "] " + (StringUtils.defaultString(motivo)), null));
     }
 
     boolean debeResetearAIdleTrasSecuencia(boolean trainingOk, boolean backfillOk) {

@@ -7,6 +7,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
 /** Budget-aware outfit builder: the MCKP solver and its greedy fallback. */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -57,7 +58,7 @@ class OutfitBudgetBuilder {
         if (excluirUrls == null) excluirUrls = Set.of();
         if (pinned == null) pinned = List.of();
         if (categorias == null || categorias.isEmpty()) {
-            return new OutfitService.OutfitBuilderResult(List.of(), genero != null ? genero : "",
+            return new OutfitService.OutfitBuilderResult(List.of(), StringUtils.defaultString(genero),
                     presupuesto, 0.0, false, List.of(), List.of(), null);
         }
 
@@ -98,7 +99,7 @@ class OutfitBudgetBuilder {
                     .filter(pinnedBySlot::containsKey)
                     .map(s -> OutfitRules.toSlotPick(s, pinnedBySlot.get(s)))
                     .collect(Collectors.toList());
-            String g = genero != null ? genero : "";
+            String g = StringUtils.defaultString(genero);
             return new OutfitService.OutfitBuilderResult(picks, g, presupuesto, pinnedTotal,
                     false, List.of(), List.of(), null);
         }
@@ -174,7 +175,7 @@ class OutfitBudgetBuilder {
 
         boolean noCumplePresupuesto = !slotsSinPresupuesto.isEmpty();
         double totalEstimado = slots.stream().mapToDouble(OutfitService.SlotPick::precio).sum();
-        String generoResultado = genero != null ? genero : "";
+        String generoResultado = StringUtils.defaultString(genero);
 
         Double minimoBudgetNecesario = null;
         if (slots.isEmpty()) {
@@ -309,7 +310,7 @@ class OutfitBudgetBuilder {
             }
         }
 
-        String generoResultado = genero != null ? genero : "";
+        String generoResultado = StringUtils.defaultString(genero);
         double totalEstimado   = slots.stream().mapToDouble(OutfitService.SlotPick::precio).sum();
         return new OutfitService.OutfitBuilderResult(slots, generoResultado, presupuesto,
                 totalEstimado, false, List.of(), List.of(), null);
