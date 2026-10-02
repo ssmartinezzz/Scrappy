@@ -132,16 +132,15 @@ public class ResultAggregator {
 
         List<Product> conFinanciacion = enriquecerSenalYFinanciacion(pipeline.enriquecidos());
 
-        Facets facets = calcularFacets(conFinanciacion);
-        double minP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
-        double maxP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
+        AggregatedResult resultado = resultado(conFinanciacion, validacion.conteo(), validacion.errores(),
+                validacion.stats());
 
         LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", validacion.todos().size(), conFinanciacion.size());
 
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(forceRetrain);
 
-        return new AggregatedResult(conFinanciacion, validacion.conteo(), validacion.errores(), facets, minP, maxP, validacion.stats());
+        return resultado;
     }
 
     private ValidationResult validarYContar(List<ScrapeResult> resultados) {
@@ -439,10 +438,15 @@ public class ResultAggregator {
     private AggregatedResult snapshot(List<Product> conFinanciacion) {
         Map<String, Integer> conteo = new LinkedHashMap<>();
         conFinanciacion.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
+        return resultado(conFinanciacion, conteo, Map.of(), Map.of());
+    }
+
+    private AggregatedResult resultado(List<Product> conFinanciacion, Map<String, Integer> conteo,
+            Map<String, String> errores, Map<String, ExtractionStats> stats) {
         Facets facets = calcularFacets(conFinanciacion);
         double minP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
         double maxP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
-        return new AggregatedResult(conFinanciacion, conteo, Map.of(), facets, minP, maxP, Map.of());
+        return new AggregatedResult(conFinanciacion, conteo, errores, facets, minP, maxP, stats);
     }
 
     /** Copia un producto reemplazando solo sus dos señales derivadas. */
