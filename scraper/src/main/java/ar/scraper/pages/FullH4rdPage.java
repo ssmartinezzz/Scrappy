@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** . fullh4rd.com.ar after its redesign: */
-public class FullH4rdPage extends BasePage implements CatalogPage {
+public class FullH4rdPage extends StorePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(FullH4rdPage.class);
 
@@ -24,18 +24,10 @@ public class FullH4rdPage extends BasePage implements CatalogPage {
     private static final int INTENTOS = 3;
     private static final long ESPERA_BASE_MS = 3_000;
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
 
     public FullH4rdPage(Page page, int timeoutMs, String sitio, String baseUrl,
                          double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio     = sitio;
-        this.baseUrl   = baseUrl.replaceAll("/+$", "");
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {
@@ -123,11 +115,7 @@ public class FullH4rdPage extends BasePage implements CatalogPage {
 
         List<Product> result = new ArrayList<>();
         Set<String> vistasEnPagina = new HashSet<>();
-        String[] cards = html.split(CARD);
-        // cards[0] es lo que precede a la primera card, no es una card.
-        for (int i = 1; i < cards.length; i++) {
-            String card = cards[i];
-
+        for (String card : cards(html, CARD)) {
             var mTitleUrl = TITLE_URL.matcher(card);
             if (!mTitleUrl.find()) continue;
             String url = ImageUrl.absolutize(mTitleUrl.group(1), baseUrl);
@@ -147,29 +135,13 @@ public class FullH4rdPage extends BasePage implements CatalogPage {
                 if (listado.isPresent() && listado.get() > precio.get()) precioOriginal = listado.get();
             }
 
-            String img = "";
-            var mImg = IMG.matcher(card);
-            if (mImg.find()) img = ImageUrl.absolutize(mImg.group(1), baseUrl);
+            String img = ImageUrl.primera(IMG, card, baseUrl);
 
             String categoria = "";
             var mMeta = META.matcher(card);
             if (mMeta.find()) categoria = decodeText(mMeta.group(1));
 
-            result.add(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(precio.get())
-                    .precioOriginal(precioOriginal)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero("")
-                    .talles(List.of())
-                    .ml(Product.MlScore.EMPTY)
-                    .marca("")
-                    .rubro("tecnologia")
-                    .gymrat(false)
-                    .build());
+            result.add(tecnologia(sitio, nombre, precio.get(), precioOriginal, url, img, categoria));
         }
         return result;
     }
