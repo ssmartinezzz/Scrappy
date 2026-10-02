@@ -9,12 +9,13 @@ import ar.scraper.pcs.TipoCooler;
 import ar.scraper.pcs.Uso;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
@@ -24,73 +25,73 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(PreferenciaArmadorRepository.class);
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     PreferenciaArmadorRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
     public void guardar(UUID usuarioId, PreferenciaArmador preferencia) {
         String gamaNombre = GamaMapeo.nombreDeGama(preferencia.gama());
         PreferenciasDeArmado prefs = preferencia.preferencias();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
-                     INSERT INTO preferencia_armador (
-                         usuario_id, gama_id, presupuesto, con_gpu, updated_at,
-                         ddr_id, marca_cpu_id, marca_gpu_id, tipo_almacenamiento_id, ram_dual, wifi,
-                         capacidad_minima_gb, tamanio_gabinete_id, tipo_cooler_id, watts_minimos,
-                         uso_id
-                     ) VALUES (
-                         ?, (SELECT id FROM gama WHERE nombre = ?), ?, ?, now(),
-                         (SELECT id FROM ddr WHERE nombre = ?),
-                         (SELECT id FROM marca_chip WHERE nombre = ?),
-                         (SELECT id FROM marca_chip WHERE nombre = ?),
-                         (SELECT id FROM tipo_almacenamiento WHERE nombre = ?),
-                         ?, ?,
-                         ?,
-                         (SELECT id FROM tamanio_gabinete WHERE nombre = ?),
-                         (SELECT id FROM tipo_cooler WHERE nombre = ?),
-                         ?,
-                         (SELECT id FROM uso WHERE nombre = ?)
-                     )
-                     ON CONFLICT (usuario_id) WHERE usuario_id IS NOT NULL DO UPDATE SET
-                         gama_id                 = EXCLUDED.gama_id,
-                         presupuesto             = EXCLUDED.presupuesto,
-                         con_gpu                 = EXCLUDED.con_gpu,
-                         updated_at              = now(),
-                         ddr_id                  = EXCLUDED.ddr_id,
-                         marca_cpu_id            = EXCLUDED.marca_cpu_id,
-                         marca_gpu_id            = EXCLUDED.marca_gpu_id,
-                         tipo_almacenamiento_id  = EXCLUDED.tipo_almacenamiento_id,
-                         ram_dual                = EXCLUDED.ram_dual,
-                         wifi                    = EXCLUDED.wifi,
-                         capacidad_minima_gb     = EXCLUDED.capacidad_minima_gb,
-                         tamanio_gabinete_id     = EXCLUDED.tamanio_gabinete_id,
-                         tipo_cooler_id          = EXCLUDED.tipo_cooler_id,
-                         watts_minimos           = EXCLUDED.watts_minimos,
-                         uso_id                  = EXCLUDED.uso_id
-                     """)) {
-            ps.setObject(1, usuarioId);
-            ps.setString(2, gamaNombre);
-            if (preferencia.presupuesto() == null) {
-                ps.setNull(3, java.sql.Types.DOUBLE);
-            } else {
-                ps.setDouble(3, preferencia.presupuesto());
-            }
-            ps.setBoolean(4, preferencia.conGpu());
-            setNullableString(ps, 5, prefs.ddr());
-            setNullableString(ps, 6, prefs.marcaCpu());
-            setNullableString(ps, 7, prefs.marcaGpu());
-            setNullableString(ps, 8, prefs.tipoAlmacenamiento() != null ? prefs.tipoAlmacenamiento().name() : null);
-            ps.setBoolean(9, Boolean.TRUE.equals(prefs.ramDual()));
-            ps.setBoolean(10, Boolean.TRUE.equals(prefs.wifi()));
-            setNullableInt(ps, 11, prefs.capacidadMinimaGb());
-            setNullableString(ps, 12, prefs.tamanioGabinete() != null ? prefs.tamanioGabinete().name() : null);
-            setNullableString(ps, 13, prefs.tipoCooler() != null ? prefs.tipoCooler().name() : null);
-            setNullableInt(ps, 14, prefs.wattsMinimos());
-            setNullableString(ps, 15, UsoMapeo.nombreDeUso(preferencia.uso()));
-            ps.executeUpdate();
+        try {
+            jdbc.update("""
+                    INSERT INTO preferencia_armador (
+                        usuario_id, gama_id, presupuesto, con_gpu, updated_at,
+                        ddr_id, marca_cpu_id, marca_gpu_id, tipo_almacenamiento_id, ram_dual, wifi,
+                        capacidad_minima_gb, tamanio_gabinete_id, tipo_cooler_id, watts_minimos,
+                        uso_id
+                    ) VALUES (
+                        ?, (SELECT id FROM gama WHERE nombre = ?), ?, ?, now(),
+                        (SELECT id FROM ddr WHERE nombre = ?),
+                        (SELECT id FROM marca_chip WHERE nombre = ?),
+                        (SELECT id FROM marca_chip WHERE nombre = ?),
+                        (SELECT id FROM tipo_almacenamiento WHERE nombre = ?),
+                        ?, ?,
+                        ?,
+                        (SELECT id FROM tamanio_gabinete WHERE nombre = ?),
+                        (SELECT id FROM tipo_cooler WHERE nombre = ?),
+                        ?,
+                        (SELECT id FROM uso WHERE nombre = ?)
+                    )
+                    ON CONFLICT (usuario_id) WHERE usuario_id IS NOT NULL DO UPDATE SET
+                        gama_id                 = EXCLUDED.gama_id,
+                        presupuesto             = EXCLUDED.presupuesto,
+                        con_gpu                 = EXCLUDED.con_gpu,
+                        updated_at              = now(),
+                        ddr_id                  = EXCLUDED.ddr_id,
+                        marca_cpu_id            = EXCLUDED.marca_cpu_id,
+                        marca_gpu_id            = EXCLUDED.marca_gpu_id,
+                        tipo_almacenamiento_id  = EXCLUDED.tipo_almacenamiento_id,
+                        ram_dual                = EXCLUDED.ram_dual,
+                        wifi                    = EXCLUDED.wifi,
+                        capacidad_minima_gb     = EXCLUDED.capacidad_minima_gb,
+                        tamanio_gabinete_id     = EXCLUDED.tamanio_gabinete_id,
+                        tipo_cooler_id          = EXCLUDED.tipo_cooler_id,
+                        watts_minimos           = EXCLUDED.watts_minimos,
+                        uso_id                  = EXCLUDED.uso_id
+                    """, ps -> {
+                ps.setObject(1, usuarioId);
+                ps.setString(2, gamaNombre);
+                if (preferencia.presupuesto() == null) {
+                    ps.setNull(3, java.sql.Types.DOUBLE);
+                } else {
+                    ps.setDouble(3, preferencia.presupuesto());
+                }
+                ps.setBoolean(4, preferencia.conGpu());
+                setNullableString(ps, 5, prefs.ddr());
+                setNullableString(ps, 6, prefs.marcaCpu());
+                setNullableString(ps, 7, prefs.marcaGpu());
+                setNullableString(ps, 8, prefs.tipoAlmacenamiento() != null ? prefs.tipoAlmacenamiento().name() : null);
+                ps.setBoolean(9, Boolean.TRUE.equals(prefs.ramDual()));
+                ps.setBoolean(10, Boolean.TRUE.equals(prefs.wifi()));
+                setNullableInt(ps, 11, prefs.capacidadMinimaGb());
+                setNullableString(ps, 12, prefs.tamanioGabinete() != null ? prefs.tamanioGabinete().name() : null);
+                setNullableString(ps, 13, prefs.tipoCooler() != null ? prefs.tipoCooler().name() : null);
+                setNullableInt(ps, 14, prefs.wattsMinimos());
+                setNullableString(ps, 15, UsoMapeo.nombreDeUso(preferencia.uso()));
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando preferencia de armador: {}", e.getMessage());
         }
@@ -98,58 +99,60 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
 
     @Override
     public Optional<PreferenciaArmador> cargar(UUID usuarioId) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
-                     SELECT g.nombre AS gama_nombre, p.presupuesto, p.con_gpu,
-                            dd.nombre AS ddr_nombre, mc.nombre AS marca_cpu_nombre,
-                            mg.nombre AS marca_gpu_nombre, ta.nombre AS tipo_almacenamiento_nombre,
-                            p.ram_dual, p.wifi,
-                            p.capacidad_minima_gb, tg.nombre AS tamanio_gabinete_nombre,
-                            tc.nombre AS tipo_cooler_nombre, p.watts_minimos,
-                            u.nombre AS uso_nombre
-                     FROM preferencia_armador p
-                     JOIN gama g ON g.id = p.gama_id
-                     LEFT JOIN ddr dd ON dd.id = p.ddr_id
-                     LEFT JOIN marca_chip mc ON mc.id = p.marca_cpu_id
-                     LEFT JOIN marca_chip mg ON mg.id = p.marca_gpu_id
-                     LEFT JOIN tipo_almacenamiento ta ON ta.id = p.tipo_almacenamiento_id
-                     LEFT JOIN tamanio_gabinete tg ON tg.id = p.tamanio_gabinete_id
-                     LEFT JOIN tipo_cooler tc ON tc.id = p.tipo_cooler_id
-                     LEFT JOIN uso u ON u.id = p.uso_id
-                     WHERE p.usuario_id = ?
-                     """)) {
-            ps.setObject(1, usuarioId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return Optional.empty();
-                }
-                double presupuesto = rs.getDouble("presupuesto");
-                Double presupuestoOrNull = rs.wasNull() ? null : presupuesto;
-                String tipoAlmacenamientoNombre = rs.getString("tipo_almacenamiento_nombre");
-                String tamanioGabineteNombre = rs.getString("tamanio_gabinete_nombre");
-                String tipoCoolerNombre = rs.getString("tipo_cooler_nombre");
-                PreferenciasDeArmado prefs = new PreferenciasDeArmado(
-                        rs.getString("ddr_nombre"),
-                        rs.getString("marca_cpu_nombre"),
-                        rs.getString("marca_gpu_nombre"),
-                        tipoAlmacenamientoNombre != null ? TipoAlmacenamiento.valueOf(tipoAlmacenamientoNombre) : null,
-                        booleanOrNull(rs.getBoolean("ram_dual")),
-                        booleanOrNull(rs.getBoolean("wifi")),
-                        intOrNull(rs, "capacidad_minima_gb"),
-                        tamanioGabineteNombre != null ? TamanioGabinete.valueOf(tamanioGabineteNombre) : null,
-                        tipoCoolerNombre != null ? TipoCooler.valueOf(tipoCoolerNombre) : null,
-                        intOrNull(rs, "watts_minimos"));
-                return Optional.of(new PreferenciaArmador(
-                        GamaMapeo.gamaDeNombre(rs.getString("gama_nombre")),
-                        presupuestoOrNull,
-                        rs.getBoolean("con_gpu"),
-                        prefs,
-                        UsoMapeo.usoDeNombre(rs.getString("uso_nombre"))));
-            }
+        try {
+            return jdbc.query("""
+                    SELECT g.nombre AS gama_nombre, p.presupuesto, p.con_gpu,
+                           dd.nombre AS ddr_nombre, mc.nombre AS marca_cpu_nombre,
+                           mg.nombre AS marca_gpu_nombre, ta.nombre AS tipo_almacenamiento_nombre,
+                           p.ram_dual, p.wifi,
+                           p.capacidad_minima_gb, tg.nombre AS tamanio_gabinete_nombre,
+                           tc.nombre AS tipo_cooler_nombre, p.watts_minimos,
+                           u.nombre AS uso_nombre
+                    FROM preferencia_armador p
+                    JOIN gama g ON g.id = p.gama_id
+                    LEFT JOIN ddr dd ON dd.id = p.ddr_id
+                    LEFT JOIN marca_chip mc ON mc.id = p.marca_cpu_id
+                    LEFT JOIN marca_chip mg ON mg.id = p.marca_gpu_id
+                    LEFT JOIN tipo_almacenamiento ta ON ta.id = p.tipo_almacenamiento_id
+                    LEFT JOIN tamanio_gabinete tg ON tg.id = p.tamanio_gabinete_id
+                    LEFT JOIN tipo_cooler tc ON tc.id = p.tipo_cooler_id
+                    LEFT JOIN uso u ON u.id = p.uso_id
+                    WHERE p.usuario_id = ?
+                    """,
+                    ps -> ps.setObject(1, usuarioId),
+                    PreferenciaArmadorRepository::mapear);
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando preferencia de armador: {}", e.getMessage());
             return Optional.empty();
         }
+    }
+
+    private static Optional<PreferenciaArmador> mapear(ResultSet rs) throws SQLException {
+        if (!rs.next()) {
+            return Optional.empty();
+        }
+        double presupuesto = rs.getDouble("presupuesto");
+        Double presupuestoOrNull = rs.wasNull() ? null : presupuesto;
+        String tipoAlmacenamientoNombre = rs.getString("tipo_almacenamiento_nombre");
+        String tamanioGabineteNombre = rs.getString("tamanio_gabinete_nombre");
+        String tipoCoolerNombre = rs.getString("tipo_cooler_nombre");
+        PreferenciasDeArmado prefs = new PreferenciasDeArmado(
+                rs.getString("ddr_nombre"),
+                rs.getString("marca_cpu_nombre"),
+                rs.getString("marca_gpu_nombre"),
+                tipoAlmacenamientoNombre != null ? TipoAlmacenamiento.valueOf(tipoAlmacenamientoNombre) : null,
+                booleanOrNull(rs.getBoolean("ram_dual")),
+                booleanOrNull(rs.getBoolean("wifi")),
+                intOrNull(rs, "capacidad_minima_gb"),
+                tamanioGabineteNombre != null ? TamanioGabinete.valueOf(tamanioGabineteNombre) : null,
+                tipoCoolerNombre != null ? TipoCooler.valueOf(tipoCoolerNombre) : null,
+                intOrNull(rs, "watts_minimos"));
+        return Optional.of(new PreferenciaArmador(
+                GamaMapeo.gamaDeNombre(rs.getString("gama_nombre")),
+                presupuestoOrNull,
+                rs.getBoolean("con_gpu"),
+                prefs,
+                UsoMapeo.usoDeNombre(rs.getString("uso_nombre"))));
     }
 
     /**
@@ -163,12 +166,12 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
      * Un piso NULL en la base es "no pedida", nunca un 0 — igual que {@link PreferenciasDeArmado}
      * lo exige.
      */
-    private static Integer intOrNull(ResultSet rs, String columna) throws java.sql.SQLException {
+    private static Integer intOrNull(ResultSet rs, String columna) throws SQLException {
         int valor = rs.getInt(columna);
         return rs.wasNull() ? null : valor;
     }
 
-    private static void setNullableInt(PreparedStatement ps, int index, Integer value) throws Exception {
+    private static void setNullableInt(PreparedStatement ps, int index, Integer value) throws SQLException {
         if (value == null) {
             ps.setNull(index, java.sql.Types.INTEGER);
         } else {
@@ -176,7 +179,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
         }
     }
 
-    private static void setNullableString(PreparedStatement ps, int index, String value) throws Exception {
+    private static void setNullableString(PreparedStatement ps, int index, String value) throws SQLException {
         if (StringUtils.isBlank(value)) {
             ps.setNull(index, java.sql.Types.VARCHAR);
         } else {
