@@ -4,12 +4,10 @@ import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -26,27 +24,23 @@ class HistorialRepository implements HistorialPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(HistorialRepository.class);
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     HistorialRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
     public List<Map<String, Object>> cargarHistorial(String url) {
         List<Map<String, Object>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha ASC")) {
-            ps.setString(1, url);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("fecha",  rs.getString(1));
-                    row.put("precio", rs.getDouble(2));
-                    result.add(row);
-                }
-            }
+        try {
+            jdbc.query("SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha ASC",
+                    rs -> {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("fecha",  rs.getString(1));
+                        row.put("precio", rs.getDouble(2));
+                        result.add(row);
+                    }, url);
         } catch (Exception e) {
             LOG.warn("[DB] Error historial: {}", e.getMessage());
         }
@@ -55,15 +49,13 @@ class HistorialRepository implements HistorialPort {
 
     @Override
     public List<HistorialEntry> getHistorialPrecios(String url) {
-        var result = new java.util.ArrayList<HistorialEntry>();
+        var result = new ArrayList<HistorialEntry>();
         if (url == null) return result;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha")) {
-            ps.setString(1, url);
-            var rs = ps.executeQuery();
-            while (rs.next())
-                result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+        try {
+            jdbc.query("SELECT fecha, precio FROM precio_historico WHERE url=? ORDER BY fecha",
+                    rs -> {
+                        result.add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                    }, url);
         } catch (Exception e) {
             LOG.warn("[DB] historial {}: {}", url, e.getMessage());
         }
@@ -90,16 +82,14 @@ class HistorialRepository implements HistorialPort {
         String sql = "SELECT url, fecha, precio FROM precio_historico " +
                 "WHERE url = ANY(?) ORDER BY url, fecha";
 
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setArray(1, c.createArrayOf("text", validUrls.toArray()));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String url = rs.getString("url");
-                    result.computeIfAbsent(url, k -> new ArrayList<>())
-                          .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
-                }
-            }
+        try {
+            jdbc.query(sql,
+                    ps -> ps.setArray(1, ps.getConnection().createArrayOf("text", validUrls.toArray())),
+                    rs -> {
+                        String url = rs.getString("url");
+                        result.computeIfAbsent(url, k -> new ArrayList<>())
+                              .add(new HistorialEntry(rs.getString("fecha"), rs.getDouble("precio")));
+                    });
         } catch (Exception e) {
             LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
         }

@@ -1,13 +1,11 @@
 package ar.scraper.db;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -22,10 +20,10 @@ import java.util.UUID;
 @Repository
 public class RefreshTokenRepository {
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     public RefreshTokenRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     public record Fila(long id,
@@ -55,32 +53,30 @@ public class RefreshTokenRepository {
     }
 
     public void crear(UUID usuarioId, String rawToken, UUID familyId, String csrfNonce, Instant expiresAt) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.update("""
                     INSERT INTO refresh_token (token_hash, family_id, csrf_nonce, usuario_id, expires_at)
                     VALUES (?, ?, ?, ?, ?)
-                    """)) {
-            ps.setString(1, hash(rawToken));
-            ps.setObject(2, familyId);
-            ps.setString(3, csrfNonce);
-            ps.setObject(4, usuarioId);
-            ps.setTimestamp(5, Timestamp.from(expiresAt));
-            ps.executeUpdate();
+                    """, ps -> {
+                ps.setString(1, hash(rawToken));
+                ps.setObject(2, familyId);
+                ps.setString(3, csrfNonce);
+                ps.setObject(4, usuarioId);
+                ps.setTimestamp(5, Timestamp.from(expiresAt));
+            });
         } catch (Exception e) {
             throw new UsuarioRepository.DatabaseException("no se pudo guardar el refresh token", e);
         }
     }
 
     public Optional<Fila> buscar(String rawToken) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            return jdbc.query("""
                     SELECT id, usuario_id, family_id, csrf_nonce, expires_at, rotated_at, revoked_at
                     FROM refresh_token WHERE token_hash = ?
-                    """)) {
-            ps.setString(1, hash(rawToken));
-            try (ResultSet rs = ps.executeQuery()) {
+                    """, ps -> ps.setString(1, hash(rawToken)), rs -> {
                 if (!rs.next()) {
-                    return Optional.empty();
+                    return Optional.<Fila>empty();
                 }
                 return Optional.of(new Fila(
                         rs.getLong(1),
@@ -90,7 +86,7 @@ public class RefreshTokenRepository {
                         instante(rs.getTimestamp(5)),
                         instante(rs.getTimestamp(6)),
                         instante(rs.getTimestamp(7))));
-            }
+            });
         } catch (Exception e) {
             throw new UsuarioRepository.DatabaseException("no se pudo leer el refresh token", e);
         }
@@ -98,12 +94,11 @@ public class RefreshTokenRepository {
 
     /** Marks the row rotated, but only if it was not already.. */
     public boolean marcarRotado(long id, Instant cuando) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "UPDATE refresh_token SET rotated_at = ? WHERE id = ? AND rotated_at IS NULL")) {
-            ps.setTimestamp(1, Timestamp.from(cuando));
-            ps.setLong(2, id);
-            return ps.executeUpdate() == 1;
+        try {
+            return jdbc.update("UPDATE refresh_token SET rotated_at = ? WHERE id = ? AND rotated_at IS NULL", ps -> {
+                ps.setTimestamp(1, Timestamp.from(cuando));
+                ps.setLong(2, id);
+            }) == 1;
         } catch (Exception e) {
             throw new UsuarioRepository.DatabaseException("no se pudo marcar el refresh token como rotado", e);
         }
@@ -111,12 +106,11 @@ public class RefreshTokenRepository {
 
     /** Idempotent: already-revoked rows stay as they were. */
     public int revocarFamilia(UUID familyId, Instant cuando) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "UPDATE refresh_token SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL")) {
-            ps.setTimestamp(1, Timestamp.from(cuando));
-            ps.setObject(2, familyId);
-            return ps.executeUpdate();
+        try {
+            return jdbc.update("UPDATE refresh_token SET revoked_at = ? WHERE family_id = ? AND revoked_at IS NULL", ps -> {
+                ps.setTimestamp(1, Timestamp.from(cuando));
+                ps.setObject(2, familyId);
+            });
         } catch (Exception e) {
             throw new UsuarioRepository.DatabaseException("no se pudo revocar la familia de tokens", e);
         }
@@ -128,12 +122,11 @@ public class RefreshTokenRepository {
      * inside.
      */
     public int revocarTodasLasDe(UUID usuarioId, Instant cuando) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "UPDATE refresh_token SET revoked_at = ? WHERE usuario_id = ? AND revoked_at IS NULL")) {
-            ps.setTimestamp(1, Timestamp.from(cuando));
-            ps.setObject(2, usuarioId);
-            return ps.executeUpdate();
+        try {
+            return jdbc.update("UPDATE refresh_token SET revoked_at = ? WHERE usuario_id = ? AND revoked_at IS NULL", ps -> {
+                ps.setTimestamp(1, Timestamp.from(cuando));
+                ps.setObject(2, usuarioId);
+            });
         } catch (Exception e) {
             throw new UsuarioRepository.DatabaseException("no se pudieron revocar los tokens del usuario", e);
         }
