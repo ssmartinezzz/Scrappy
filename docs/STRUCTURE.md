@@ -97,7 +97,7 @@ Scrappy/
         │   │                                  Gama, GamaWire, PreferenciaArmadorPort, TechSpecsPort,
         │   │                                  SavedPcsPort (lo sirve PcsController en web/)
         │   ├── pages/                      ← Page Object Model
-        │   ├── scrapers/                   ← BaseScraper, ScraperFactory, *Scraper
+        │   ├── scrapers/                   ← BaseScraper, ScraperFactory (registry plataforma → page)
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
         │   │                                  CatalogSnapshotPort (lo implementa ScraperService)
         │   │   ├── normalize/              ←   PackQuantityDetector, CategoryClassifier,
