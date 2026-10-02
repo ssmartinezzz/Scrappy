@@ -1,12 +1,8 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
-import ar.scraper.pcs.TipoCooler;
 
-import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,9 +16,13 @@ public final class CpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs(cpuSocket(tokens), "", "", 0, 0, "", gama(tokens), Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
+        return TechSpecs.builder()
+                .socket(cpuSocket(tokens))
+                .gama(gama(tokens))
+                .marcaChip(marcaChip(tokens))
+                .generacion(generacion(tokens))
+                .nivel(nivel(tokens))
+                .build();
     }
 
     private static final Pattern RYZEN_MODEL = Pattern.compile("ryzen \\d+ ([3-9])\\d{3}\\w*");

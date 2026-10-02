@@ -1,6 +1,7 @@
 package ar.scraper.pcs;
 
 import java.util.List;
+import lombok.Builder;
 
 /**
  * Mirrors {@code Product.VisualAttrs}'s abstention policy: every field is fill-only,
@@ -8,6 +9,7 @@ import java.util.List;
  * {@code TipoAlmacenamiento.DESCONOCIDO}/{@code List.of()} means "the parser didn't assert this",
  * never "no socket"/"no watts".
  */
+@Builder(toBuilder = true)
 public record TechSpecs(
         String socket,
         String ddr,
@@ -32,10 +34,16 @@ public record TechSpecs(
         ClaseDisipador claseDisipador,
         int heatpipes
 ) {
-    public static final TechSpecs EMPTY =
-            new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                    0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, 0,
-                    TamanioGabinete.DESCONOCIDO, 0, ClaseDisipador.DESCONOCIDA, 0);
+    public static final TechSpecs EMPTY = builder().build();
+
+    public static TechSpecsBuilder builder() {
+        return new TechSpecsBuilder()
+                .socket("").ddr("").formFactor("").tipoMemoria("").marcaChip("")
+                .gama(Gama.DESCONOCIDA).certificacion(Certificacion.NINGUNA)
+                .tipoAlmacenamiento(TipoAlmacenamiento.DESCONOCIDO).socketsSoportados(List.of())
+                .tipoCooler(TipoCooler.DESCONOCIDO).tamanioGabinete(TamanioGabinete.DESCONOCIDO)
+                .claseDisipador(ClaseDisipador.DESCONOCIDA);
+    }
 
     public TechSpecs(String socket, String ddr, String formFactor, int watts, int capacidadGb, String tipoMemoria) {
         this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, Gama.DESCONOCIDA, Certificacion.NINGUNA);

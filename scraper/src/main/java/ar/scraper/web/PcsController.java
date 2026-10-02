@@ -209,9 +209,11 @@ public class PcsController {
             if (url.isBlank() || "null".equals(url)) continue;
             Object specsRaw = m.get("specs");
             TechSpecs specs = specsRaw instanceof Map<?, ?> s
-                    ? new TechSpecs(
-                        safeStr(s.get("socket")), safeStr(s.get("ddr")), safeStr(s.get("formFactor")),
-                        asInt(s.get("watts")), asInt(s.get("capacidadGb")), safeStr(s.get("tipoMemoria")))
+                    ? TechSpecs.builder()
+                        .socket(safeStr(s.get("socket"))).ddr(safeStr(s.get("ddr")))
+                        .formFactor(safeStr(s.get("formFactor")))
+                        .watts(asInt(s.get("watts"))).capacidadGb(asInt(s.get("capacidadGb")))
+                        .tipoMemoria(safeStr(s.get("tipoMemoria"))).build()
                     : TechSpecs.EMPTY;
             picks.add(new PcPick(
                     safeStr(m.get("slot")), safeStr(m.get("sitio")), safeStr(m.get("nombre")),

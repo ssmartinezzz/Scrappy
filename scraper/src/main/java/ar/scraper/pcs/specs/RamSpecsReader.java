@@ -1,11 +1,7 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
 
-import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,9 +32,13 @@ public final class RamSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", ddr(tokens), "", 0, capacidadGb(tokens), tipoMemoria(tokens),
-                Gama.DESCONOCIDA, Certificacion.NINGUNA, velocidadMhz(tokens), TipoAlmacenamiento.DESCONOCIDO,
-                List.of(), "", 0, 0, modulos(tokens), false);
+        return TechSpecs.builder()
+                .ddr(ddr(tokens))
+                .capacidadGb(capacidadGb(tokens))
+                .tipoMemoria(tipoMemoria(tokens))
+                .velocidadMhz(velocidadMhz(tokens))
+                .modulos(modulos(tokens))
+                .build();
     }
 
     private static String ddr(Tokens tokens) {
