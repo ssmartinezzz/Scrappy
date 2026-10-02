@@ -15,7 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +22,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+
+import static org.apache.commons.lang3.StringUtils.defaultString;
 
 @RestController
 @RequestMapping("/api")
@@ -46,7 +47,12 @@ public class OutfitsController {
         this.actorResolver = actorResolver;
     }
 
-    private String safe(String s) { return s != null ? s : ""; }
+    private OutfitService.FeedbackModel feedbackModel(AggregatedResult r, String estilo) {
+        java.util.UUID sujeto = Sujeto.de(actorResolver);
+        var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
+        var dismissCats  = feedback.obtenerCategoriaDismiss(sujeto);
+        return FeedbackModels.build(feedbackRows, r.productos(), dismissCats, Set.of(estilo, "catalog"));
+    }
 
     @GetMapping("/outfits")
     public ResponseEntity<ApiResponse<OutfitsDtos.Outfit>> outfits(@RequestParam(required = false) String genero,
@@ -56,19 +62,12 @@ public class OutfitsController {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        Set<String> excluirUrls = excluir.isBlank() ? Set.of()
-                : Arrays.stream(excluir.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toSet());
+        Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
-        java.util.UUID sujeto = Sujeto.de(actorResolver);
-        var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
-        var dismissCats  = feedback.obtenerCategoriaDismiss(sujeto);
         // Gym surface: gym feedback + shared feed signal ("catalog"), never casual.
-        var feedback = FeedbackModels.build(feedbackRows, r.productos(), dismissCats, Set.of("gym", "catalog"));
+        var feedbackModel = feedbackModel(r, "gym");
 
-        OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedback,
+        OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedbackModel,
                 presupuesto, excluirUrls);
 
         List<OutfitsDtos.SlotPick> slots = new ArrayList<>();
@@ -90,8 +89,8 @@ public class OutfitsController {
     }
 
     private OutfitsDtos.SlotPick slotPick(OutfitService.SlotPick pick) {
-        return new OutfitsDtos.SlotPick(pick.slot(), safe(pick.sitio()), safe(pick.nombre()),
-                pick.precio(), safe(pick.url()), safe(pick.img()), safe(pick.categoria()), safe(pick.marca()));
+        return new OutfitsDtos.SlotPick(pick.slot(), defaultString(pick.sitio()), defaultString(pick.nombre()),
+                pick.precio(), defaultString(pick.url()), defaultString(pick.img()), defaultString(pick.categoria()), defaultString(pick.marca()));
     }
 
     /** No-fit is NOT an error: 200 with {@code noCumplePresupuesto:true} and empty slots. */
@@ -116,9 +115,7 @@ public class OutfitsController {
                     "presupuesto must be a positive number");
         }
 
-        List<String> catList = Arrays.stream(categorias.split(","))
-                .map(String::strip)
-                .filter(s -> !s.isBlank())
+        List<String> catList = Params.tokens(categorias)
                 .filter(OutfitService.KNOWN_CATEGORIAS::contains)
                 .distinct()
                 .collect(Collectors.toList());
@@ -133,28 +130,14 @@ public class OutfitsController {
                     "Too many categories (max 20 allowed)");
         }
 
-        Set<String> excluirUrls = StringUtils.isBlank(excluir)
-                ? Set.of()
-                : Arrays.stream(excluir.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toSet());
+        Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
-        List<String> pinUrls = StringUtils.isBlank(pin)
-                ? List.of()
-                : Arrays.stream(pin.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toList());
+        List<String> pinUrls = Params.listOrEmpty(pin);
 
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        java.util.UUID sujeto = Sujeto.de(actorResolver);
-        var feedbackRows = feedback.obtenerOutfitFeedback(sujeto);
-        var dismissCats  = feedback.obtenerCategoriaDismiss(sujeto);
-        var feedback     = FeedbackModels.build(feedbackRows, r.productos(), dismissCats,
-                Set.of(estilo, "catalog"));
+        var feedbackModel = feedbackModel(r, estilo);
 
         // Unresolved pin URLs are silently dropped. One index instead of a catalog scan per pinned
         // URL (6700 products, every regen click); putIfAbsent keeps first-wins.
@@ -171,7 +154,7 @@ public class OutfitsController {
         }
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                r.productos(), catList, presupuesto, genero, feedback, excluirUrls, greedy, pinned, estilo);
+                r.productos(), catList, presupuesto, genero, feedbackModel, excluirUrls, greedy, pinned, estilo);
 
         String status;
         if (result.slots().isEmpty()) {
@@ -188,7 +171,7 @@ public class OutfitsController {
         }
         boolean noFit = "no-fit".equals(status);
         return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.Builder(
-                status, slots, safe(result.genero()), result.presupuesto(), result.totalEstimado(),
+                status, slots, defaultString(result.genero()), result.presupuesto(), result.totalEstimado(),
                 result.noCumplePresupuesto(), result.categoriasVacias(), result.categoriasSinPresupuesto(),
                 noFit ? "No valid combination fits within the budget." : null,
                 noFit ? result.minimoBudgetNecesario() : null)));
@@ -264,10 +247,7 @@ public class OutfitsController {
     @PatchMapping("/outfits/saved/{id}/nombre")
     public ResponseEntity<ApiResponse<OpResult>> renameSavedOutfit(@PathVariable int id,
             @RequestBody Map<String, Object> body) {
-        String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
-        if (nombre.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");
-        }
+        String nombre = Params.nombreObligatorio(body);
         if (!outfitsGuardados.renombrarOutfit(Sujeto.de(actorResolver), id, nombre)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "Outfit no encontrado");
         }

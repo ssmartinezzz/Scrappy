@@ -26,12 +26,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 @RestController
@@ -52,8 +50,6 @@ public class PcsController {
         this.preferenciaArmador = preferenciaArmador;
         this.actorResolver = actorResolver;
     }
-
-    private String safe(String s) { return s != null ? s : ""; }
 
     ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
@@ -107,12 +103,7 @@ public class PcsController {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        Set<String> excluirUrls = StringUtils.isBlank(excluir)
-                ? Set.of()
-                : Arrays.stream(excluir.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toSet());
+        Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
         PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido);
         return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
@@ -269,10 +260,7 @@ public class PcsController {
     @PatchMapping("/pcs/saved/{id}/nombre")
     public ResponseEntity<ApiResponse<OpResult>> renameSavedPc(@PathVariable int id,
             @RequestBody Map<String, Object> body) {
-        String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
-        if (nombre.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");
-        }
+        String nombre = Params.nombreObligatorio(body);
         if (!pcsGuardadas.renombrarPc(Sujeto.de(actorResolver), id, nombre)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "PC no encontrado");
         }
