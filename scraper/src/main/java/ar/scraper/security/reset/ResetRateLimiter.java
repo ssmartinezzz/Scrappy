@@ -10,12 +10,14 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Three sliding windows over reset requests, consulted inside the async task and never on the
  * request thread.
  */
 @Component
+@RequiredArgsConstructor
 public class ResetRateLimiter {
 
     public static final int POR_DIRECCION_POR_HORA = 3;
@@ -29,10 +31,6 @@ public class ResetRateLimiter {
     private final Clock reloj;
     private final Map<String, Deque<Instant>> ventanas = new ConcurrentHashMap<>();
     private final AtomicReference<Instant> ultimaLimpieza = new AtomicReference<>(Instant.MIN);
-
-    public ResetRateLimiter(Clock reloj) {
-        this.reloj = reloj;
-    }
 
     public boolean permitir(String direccion, String ip) {
         Instant ahora = reloj.instant();

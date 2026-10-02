@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Why the successor is cached in memory — The grace window has to hand back the same successor
@@ -22,6 +23,7 @@ import org.apache.commons.lang3.StringUtils;
  * so the successor's raw value ceases to exist anywhere the moment it is handed to the client.
  */
 @Service
+@RequiredArgsConstructor
 public class RefreshTokenService {
 
     private static final Logger LOG = LoggerFactory.getLogger(RefreshTokenService.class);
@@ -40,12 +42,6 @@ public class RefreshTokenService {
     private final SecureRandom random = new SecureRandom();
 
     private final Map<String, Replay> replays = new ConcurrentHashMap<>();
-
-    public RefreshTokenService(RefreshTokenRepository repo, TokenService accessTokens, Clock reloj) {
-        this.repo = repo;
-        this.accessTokens = accessTokens;
-        this.reloj = reloj;
-    }
 
     /** The refresh token goes in a cookie, the nonce in the body. */
     public record Sesion(String refreshToken, String csrfNonce, UUID familyId, Instant expiraEn) {}

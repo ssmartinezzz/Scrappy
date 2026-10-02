@@ -9,12 +9,14 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Sin esto el único freno de {@code POST /api/auth/login} es el costo de Argon2id: ~22 ms, o sea
  * ~45 intentos por segundo por core.
  */
 @Component
+@RequiredArgsConstructor
 public class LoginRateLimiter {
 
     public static final int FALLOS_POR_CUENTA = 5;
@@ -26,10 +28,6 @@ public class LoginRateLimiter {
 
     private final Clock reloj;
     private final Map<String, Deque<Instant>> fallos = new ConcurrentHashMap<>();
-
-    public LoginRateLimiter(Clock reloj) {
-        this.reloj = reloj;
-    }
 
     public boolean permitir(String username) {
         return vigentes(claveDe(username)) < FALLOS_POR_CUENTA
