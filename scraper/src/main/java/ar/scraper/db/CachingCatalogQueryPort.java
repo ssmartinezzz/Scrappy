@@ -9,12 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,7 +34,7 @@ class CachingCatalogQueryPort implements CatalogQueryPort {
     private static final int MAX_ENTRIES = 8;
 
     private final CatalogQueryPort delegate;
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     private final Map<CacheKey, CacheEntry> cache = new LinkedHashMap<>(16, 0.75f, true) {
         @Override
@@ -47,7 +45,7 @@ class CachingCatalogQueryPort implements CatalogQueryPort {
 
     CachingCatalogQueryPort(@Qualifier("catalogQueryRepository") CatalogQueryPort delegate, DataSource dataSource) {
         this.delegate = delegate;
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
@@ -131,10 +129,9 @@ class CachingCatalogQueryPort implements CatalogQueryPort {
     }
 
     private OptionalLong leerVersion() {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT version FROM catalog_version");
-             ResultSet rs = ps.executeQuery()) {
-            return rs.next() ? OptionalLong.of(rs.getLong(1)) : OptionalLong.empty();
+        try {
+            return jdbc.query("SELECT version FROM catalog_version",
+                    rs -> rs.next() ? OptionalLong.of(rs.getLong(1)) : OptionalLong.empty());
         } catch (Exception e) {
             LOG.warn("[DB] No se pudo leer catalog_version, sirviendo sin cache: {}", e.getMessage());
             return OptionalLong.empty();
